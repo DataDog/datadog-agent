@@ -31,9 +31,9 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	corecomp "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -163,7 +163,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 1)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 	})
 
 	t.Run("dd_url", func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		require.NotNil(t, cfg)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
 		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
@@ -246,7 +246,7 @@ func TestTelemetryEndpointsConfig(t *testing.T) {
 		require.NotNil(t, cfg)
 
 		assert.True(t, cfg.TelemetryConfig.Enabled)
-		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com", cfg.TelemetryConfig.Endpoints[0].Host)
+		assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com.", cfg.TelemetryConfig.Endpoints[0].Host)
 
 		assert.Len(t, cfg.TelemetryConfig.Endpoints, 3)
 		for _, endpoint := range cfg.TelemetryConfig.Endpoints[1:] {
@@ -285,7 +285,7 @@ func TestConfigHostname(t *testing.T) {
 				return taggerComponent
 			}),
 			MockModule(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		),
 			func(t testing.TB, app *fx.App) {
 				require.NotNil(t, app)
@@ -486,8 +486,8 @@ func TestSite(t *testing.T) {
 		file string
 		url  string
 	}{
-		"default":  {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com"},
-		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu"},
+		"default":  {"./testdata/site_default.yaml", "https://trace.agent.datadoghq.com."},
+		"eu":       {"./testdata/site_eu.yaml", "https://trace.agent.datadoghq.eu."},
 		"url":      {"./testdata/site_url.yaml", "some.other.datadoghq.eu"},
 		"override": {"./testdata/site_override.yaml", "some.other.datadoghq.eu"},
 		"vector":   {"./testdata/observability_pipelines_worker_override.yaml", "https://observability_pipelines_worker.domain.tld:8443"},
@@ -2377,7 +2377,7 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 		fx.Provide(func() corecomp.Component {
 			return coreConfig
 		}),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		MockModule(),
 	))
 	return c

@@ -39,9 +39,6 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	// prometheus receiver
 	addPrometheusReceiver(conf, prometheusReceiver)
 
-	// datadog connector
-	changeDefaultConfigsForDatadogConnector(conf)
-
 	// add datadog agent sourced config
 	addCoreAgentConfig(conf, c.coreConfig)
 }

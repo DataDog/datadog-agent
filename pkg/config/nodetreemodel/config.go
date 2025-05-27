@@ -71,6 +71,9 @@ type ntmConfig struct {
 	// - unknown keys can be assigned and retrieved
 	allowDynamicSchema *atomic.Bool
 
+	// tree debugger is used by the Stringify method, useful for debugging and test assertions
+	td *treeDebugger
+
 	// defaults contains the settings with a default value
 	defaults InnerNode
 	// unknown contains the settings set at runtime from unknown source. This should only evey be used by tests.
@@ -233,6 +236,10 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 // SetWithoutSource assigns the value to the given key using source Unknown
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
+	v := reflect.ValueOf(value)
+	if v.Kind() == reflect.Struct {
+		panic("You cannot set a struct as a value")
+	}
 	c.Set(key, value, model.SourceUnknown)
 }
 
@@ -473,11 +480,11 @@ func (c *ntmConfig) buildSchema() {
 }
 
 // Stringify stringifies the config, but only with the test build tag
-func (c *ntmConfig) Stringify(source model.Source) string {
+func (c *ntmConfig) Stringify(source model.Source, opts ...model.StringifyOption) string {
 	c.Lock()
 	defer c.Unlock()
 	// only does anything if the build tag "test" is enabled
-	text, err := c.toDebugString(source)
+	text, err := c.toDebugString(source, opts...)
 	if err != nil {
 		return fmt.Sprintf("Stringify error: %s", err)
 	}
@@ -494,7 +501,7 @@ func (c *ntmConfig) buildEnvVars() {
 
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
-			if value, ok := os.LookupEnv(envVar); ok {
+			if value, ok := os.LookupEnv(envVar); ok && value != "" {
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
 					envWarnings = append(envWarnings, err)
 				} else {

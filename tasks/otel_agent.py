@@ -5,6 +5,7 @@ import shutil
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 
 BIN_NAME = "otel-agent"
@@ -28,7 +29,7 @@ def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, re
 
     with open(DDOT_BYOC_DOCKERFILE, 'w') as file:
         for line in contents:
-            if re.search("^ARG AGENT_VERSION=.*$", line):
+            if re.search("^ARG AGENT_REPO=.*$", line):
                 line = f"ARG AGENT_REPO={repo}\n"
             elif re.search("^ARG AGENT_VERSION=.*$", line):
                 line = f"ARG AGENT_VERSION={image}\n"
@@ -48,7 +49,7 @@ def build(ctx):
         os.remove(BIN_PATH)
 
     env = {"GO111MODULE": "on"}
-    build_tags = ['otlp']
+    build_tags = get_default_build_tags(build="otel-agent")
     ldflags = get_version_ldflags(ctx, major_version='7')
 
     cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"

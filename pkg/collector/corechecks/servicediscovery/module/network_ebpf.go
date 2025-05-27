@@ -24,6 +24,8 @@ import (
 const (
 	statsMapName = "network_stats"
 	moduleName   = "discovery"
+	// maxActive configures the number of instances of functions that this module can probe simultaneously.
+	maxActive = 512
 )
 
 type eBPFNetworkCollector struct {
@@ -38,13 +40,13 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 	}
 
 	probes := []*manager.Probe{
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: moduleName}},
-		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: moduleName}},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_recvmsg", UID: moduleName}, KProbeMaxActive: maxActive},
+		{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendmsg", UID: moduleName}, KProbeMaxActive: maxActive},
 	}
 
 	if kprobeconfig.HasTCPSendPage(kv) {
 		probes = append(probes,
-			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendpage", UID: moduleName}})
+			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendpage", UID: moduleName}, KProbeMaxActive: maxActive})
 	}
 
 	c.m = ddebpf.NewManagerWithDefault(&manager.Manager{
@@ -68,6 +70,7 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 	}
 
 	ddebpf.AddNameMappings(c.m.Manager, moduleName)
+	ddebpf.AddProbeFDMappings(c.m.Manager)
 
 	c.statsMap = statsMap
 

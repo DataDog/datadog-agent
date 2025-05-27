@@ -130,7 +130,7 @@ func (c *WLANCheck) Run() error {
 		bssid = "unknown"
 	}
 
-	macAddress := strings.ToLower(strings.Replace(wi.macAddress, " ", "_", -1))
+	macAddress := strings.ToLower(strings.ReplaceAll(wi.macAddress, " ", "_"))
 	if macAddress == "" {
 		macAddress = "unknown"
 	}

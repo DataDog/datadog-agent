@@ -49,8 +49,7 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 
 // FormatConnection converts a ConnectionStats into an model.Connection
 func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[string]RouteIdx,
-	httpEncoder *httpEncoder, http2Encoder *http2Encoder, kafkaEncoder *kafkaEncoder, postgresEncoder *postgresEncoder,
-	redisEncoder *redisEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
+	usmEncoders []usmEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
 
 	builder.SetPid(int32(conn.Pid))
 
@@ -116,16 +115,13 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		})
 	}
 
-	httpStaticTags, httpDynamicTags := httpEncoder.GetHTTPAggregationsAndTags(conn, builder)
-	http2StaticTags, http2DynamicTags := http2Encoder.WriteHTTP2AggregationsAndTags(conn, builder)
-	tlsDynamicTags := conn.TLSTags.GetDynamicTags()
-
-	staticTags := httpStaticTags | http2StaticTags
-	dynamicTags := mergeDynamicTags(httpDynamicTags, http2DynamicTags, tlsDynamicTags)
-
-	staticTags |= kafkaEncoder.WriteKafkaAggregations(conn, builder)
-	staticTags |= postgresEncoder.WritePostgresAggregations(conn, builder)
-	staticTags |= redisEncoder.WriteRedisAggregations(conn, builder)
+	var staticTags uint64
+	dynamicTags := conn.TLSTags.GetDynamicTags()
+	for _, encoder := range usmEncoders {
+		encoderStaticTags, encoderDynamicTags := encoder.EncodeConnection(conn, builder)
+		staticTags |= encoderStaticTags
+		dynamicTags = mergeDynamicTags(dynamicTags, encoderDynamicTags)
+	}
 
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)

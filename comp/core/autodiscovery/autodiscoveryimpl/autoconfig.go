@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
@@ -47,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/cenkalti/backoff"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -82,7 +82,6 @@ type AutoConfig struct {
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
 	providerCatalog          map[string]providers.ConfigProviderFactory
-	started                  bool
 	wmeta                    option.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
 	logs                     logComp.Component
@@ -178,11 +177,11 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			ac.Start()
+			ac.start()
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
-			ac.Stop()
+			ac.stop()
 			return nil
 		},
 	})
@@ -206,7 +205,6 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		ranOnce:                  atomic.NewBool(false),
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
-		started:                  false,
 		wmeta:                    wmeta,
 		taggerComp:               taggerComp,
 		logs:                     logs,
@@ -219,21 +217,16 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 // It waits for service events to trigger template resolution and
 // checks the tags on existing services are up to date.
 func (ac *AutoConfig) serviceListening() {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	for {
 		select {
 		case <-ac.listenerStop:
 			ac.healthListening.Deregister() //nolint:errcheck
-			cancel()
 			return
-		case healthDeadline := <-ac.healthListening.C:
-			cancel()
-			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
+		case <-ac.healthListening.C: // To be considered healthy
 		case svc := <-ac.newService:
-			ac.processNewService(ctx, svc)
+			ac.processNewService(svc)
 		case svc := <-ac.delService:
-			ac.processDelService(ctx, svc)
+			ac.processDelService(svc)
 		}
 	}
 }
@@ -261,7 +254,7 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	var response integration.ConfigCheckResponse
 
-	configSlice := ac.LoadedConfigs()
+	configSlice := ac.GetAllConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
@@ -284,7 +277,7 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
 
-	unresolved := ac.GetUnresolvedTemplates()
+	unresolved := ac.getUnresolvedTemplates()
 	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
 
 	for ids, configs := range unresolved {
@@ -305,7 +298,7 @@ func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 	var response integration.ConfigCheckResponse
 
-	configSlice := ac.LoadedConfigs()
+	configSlice := ac.GetAllConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
@@ -327,7 +320,7 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
-	response.Unresolved = ac.GetUnresolvedTemplates()
+	response.Unresolved = ac.getUnresolvedTemplates()
 
 	return response
 }
@@ -397,27 +390,19 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-// Start will listen to the service channels before anything is sent to them
-// Usually, Start and Stop methods should not be in the component interface as it should be handled using Lifecycle hooks.
-// We make exceptions here because we need to disable it at runtime.
-func (ac *AutoConfig) Start() {
+// start will listen to the service channels before anything is sent to them
+func (ac *AutoConfig) start() {
 	listeners.RegisterListeners(ac.serviceListenerFactories)
 	providers.RegisterProviders(ac.providerCatalog)
 	setupAcErrors()
-	ac.started = true
 	// Start the service listener
 	go ac.serviceListening()
 }
 
-// IsStarted returns true if the AutoConfig has been started.
-func (ac *AutoConfig) IsStarted() bool {
-	return ac.started
-}
-
-// Stop just shuts down AutoConfig in a clean way.
+// stop just shuts down AutoConfig in a clean way.
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
-func (ac *AutoConfig) Stop() {
+func (ac *AutoConfig) stop() {
 	// stop polled config providers without holding ac.m
 	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
@@ -651,40 +636,9 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
 }
 
-// MapOverLoadedConfigs calls the given function with the map of all
-// loaded configs (those that would be returned from LoadedConfigs).
-//
-// This is done with the config store locked, so callers should perform minimal
-// work within f.
-func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
-	if ac == nil || ac.store == nil {
-		log.Error("AutoConfig store not initialized")
-		f(map[string]integration.Config{})
-		return
-	}
-	ac.cfgMgr.mapOverLoadedConfigs(f)
-}
-
-// LoadedConfigs returns a slice of all loaded configs.  Loaded configs are non-template
-// configs, either as received from a config provider or as resolved from a template and
-// a service.  They do not include service configs.
-//
-// The returned slice is freshly created and will not be modified after return.
-func (ac *AutoConfig) LoadedConfigs() []integration.Config {
-	var configs []integration.Config
-	ac.cfgMgr.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-		configs = make([]integration.Config, 0, len(loadedConfigs))
-		for _, c := range loadedConfigs {
-			configs = append(configs, c)
-		}
-	})
-
-	return configs
-}
-
-// GetUnresolvedTemplates returns all templates in the cache, in their unresolved
+// getUnresolvedTemplates returns all templates in the cache, in their unresolved
 // state.
-func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
+func (ac *AutoConfig) getUnresolvedTemplates() map[string][]integration.Config {
 	return ac.store.templateCache.getUnresolvedTemplates()
 }
 
@@ -702,21 +656,14 @@ func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFa
 
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
-func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
-	// get all the templates matching service identifiers
-	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
-	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetServiceID(), err)
-		return
-	}
-
-	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
+func (ac *AutoConfig) processNewService(svc listeners.Service) {
+	changes := ac.cfgMgr.processNewService(svc)
 	ac.applyChanges(changes)
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
-func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Service) {
-	changes := ac.cfgMgr.processDelService(ctx, svc)
+func (ac *AutoConfig) processDelService(svc listeners.Service) {
+	changes := ac.cfgMgr.processDelService(svc)
 	ac.applyChanges(changes)
 }
 

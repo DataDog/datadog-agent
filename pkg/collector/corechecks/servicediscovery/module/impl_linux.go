@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -63,7 +64,6 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	name                       string
 	generatedName              string
 	generatedNameSource        string
 	additionalGeneratedNames   []string
@@ -71,6 +71,7 @@ type serviceInfo struct {
 	containerServiceNameSource string
 	ddServiceName              string
 	ddServiceInjected          bool
+	tracerMetadata             []tracermetadata.TracerMetadata
 	ports                      []uint16
 	checkedContainerData       bool
 	language                   language.Language
@@ -98,7 +99,6 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	}
 
 	out.PID = int(pid)
-	out.Name = i.name
 	out.GeneratedName = i.generatedName
 	out.GeneratedNameSource = i.generatedNameSource
 	out.AdditionalGeneratedNames = i.additionalGeneratedNames
@@ -106,6 +106,7 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.ContainerServiceNameSource = i.containerServiceNameSource
 	out.DDService = i.ddServiceName
 	out.DDServiceInjected = i.ddServiceInjected
+	out.TracerMetadata = i.tracerMetadata
 	out.Ports = i.ports
 	out.APMInstrumentation = string(i.apmInstrumentation)
 	out.Language = string(i.language)
@@ -593,11 +594,18 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		return nil, err
 	}
 
-	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	lang := language.FindInArgs(exe, cmdline)
-	if lang == "" {
-		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
+	var tracerMetadataArr []tracermetadata.TracerMetadata
+	var firstMetadata *tracermetadata.TracerMetadata
+
+	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
+	if err == nil {
+		// Currently we only get the first tracer metadata
+		tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
+		firstMetadata = &tracerMetadata
 	}
+
+	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
+	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, firstMetadata)
 	env, err := getTargetEnvs(proc)
 	if err != nil {
 		return nil, err
@@ -612,21 +620,16 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	ctx.ContextMap = contextMap
 
 	nameMeta := detector.GetServiceName(lang, ctx)
-	apmInstrumentation := apm.Detect(lang, ctx)
-
-	name := nameMeta.DDService
-	if name == "" {
-		name = nameMeta.Name
-	}
+	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
 	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
 
 	return &serviceInfo{
-		name:                     name,
 		generatedName:            nameMeta.Name,
 		generatedNameSource:      string(nameMeta.Source),
 		additionalGeneratedNames: nameMeta.AdditionalNames,
 		ddServiceName:            nameMeta.DDService,
+		tracerMetadata:           tracerMetadataArr,
 		language:                 lang,
 		apmInstrumentation:       apmInstrumentation,
 		ddServiceInjected:        nameMeta.DDServiceInjected,
@@ -746,7 +749,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.cache[pid] = info
 	}
 
-	if s.shouldIgnoreService(info.name) {
+	preferredName := info.ddServiceName
+	if preferredName == "" {
+		preferredName = info.generatedName
+	}
+	if s.shouldIgnoreService(preferredName) {
 		s.addIgnoredPid(pid)
 		return nil
 	}
@@ -1161,7 +1168,6 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 
 		// This is a new potential service
 		s.potentialServices.add(pid)
-		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
 	}
 
 	s.updateCacheInfo(response, now)

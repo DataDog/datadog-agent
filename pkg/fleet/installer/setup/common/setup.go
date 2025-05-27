@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/user"
 	"strings"
 	"time"
 
@@ -21,13 +20,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
 	commandTimeoutDuration = 10 * time.Second
+	configDir              = "/etc/datadog-agent"
 )
 
 var (
@@ -38,7 +40,7 @@ var (
 // Setup allows setup scripts to define packages and configurations to install.
 type Setup struct {
 	configDir string
-	installer installer.Installer
+	installer installertypes.Installer
 	start     time.Time
 	flavor    string
 
@@ -47,7 +49,7 @@ type Setup struct {
 	Ctx                     context.Context
 	Span                    *telemetry.Span
 	Packages                Packages
-	Config                  Config
+	Config                  config.Config
 	DdAgentAdditionalGroups []string
 }
 
@@ -72,7 +74,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	s := &Setup{
-		configDir: configDir,
+		configDir: paths.DatadogDataDir,
 		installer: installer,
 		start:     start,
 		flavor:    flavor,
@@ -80,19 +82,19 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 		Env:       env,
 		Ctx:       ctx,
 		Span:      span,
-		Config: Config{
-			DatadogYAML: DatadogConfig{
+		Config: config.Config{
+			DatadogYAML: config.DatadogConfig{
 				APIKey:   env.APIKey,
 				Hostname: os.Getenv("DD_HOSTNAME"),
 				Site:     env.Site,
-				Proxy: DatadogConfigProxy{
+				Proxy: config.DatadogConfigProxy{
 					HTTP:    os.Getenv("DD_PROXY_HTTP"),
 					HTTPS:   os.Getenv("DD_PROXY_HTTPS"),
 					NoProxy: proxyNoProxy,
 				},
 				Env: os.Getenv("DD_ENV"),
 			},
-			IntegrationConfigs: make(map[string]IntegrationConfig),
+			IntegrationConfigs: make(map[string]config.IntegrationConfig),
 		},
 		Packages: Packages{
 			install: make(map[string]packageWithVersion),
@@ -105,7 +107,7 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 func (s *Setup) Run() (err error) {
 	defer func() { s.Span.Finish(err) }()
 	s.Out.WriteString("Applying configurations...\n")
-	err = writeConfigs(s.Config, s.configDir)
+	err = config.WriteConfigs(s.Config, s.configDir)
 	if err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
@@ -114,23 +116,14 @@ func (s *Setup) Run() (err error) {
 	for _, p := range packages {
 		s.Out.WriteString(fmt.Sprintf("  - %s / %s\n", p.name, p.version))
 	}
-	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-%s.sh", s.flavor))
+	// TODO(WINA-1431): This is being overwritten by the MSI on Windows
+	err = installinfo.WriteInstallInfo(fmt.Sprintf("install-script-%s", s.flavor))
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
-	for _, group := range s.DdAgentAdditionalGroups {
-		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
-		if _, err := user.LookupGroup(group); err != nil {
-			log.Infof("Skipping group %s as it does not exist", group)
-			continue
-		}
-		_, err = ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
-		if err != nil {
-			s.Out.WriteString("Failed to add dd-agent to group" + group + ": " + err.Error())
-			log.Warnf("failed to add dd-agent to group %s:  %v", group, err)
-		}
+	if err = s.preInstallPackages(); err != nil {
+		return fmt.Errorf("failed during pre-package installation: %w", err)
 	}
-
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installPackage(p.name, url)

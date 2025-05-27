@@ -154,6 +154,20 @@ func (c *Check) init() error {
 		}
 	}
 
+	if ht == oci && c.dbResolvedHostname == "" {
+		var hostname string
+		err = getWrapper(c, &hostname, `SELECT JSON_VALUE(cloud_identity, '$.DATABASE_NAME') || '.'
+  ||JSON_VALUE(cloud_identity, '$.PUBLIC_DOMAIN_NAME') AS host_name
+  FROM v$pdbs`)
+		if err != nil {
+			log.Errorf("failed to query OCI hostname: %s", err)
+		}
+		if hostname != "" {
+			c.dbHostname = hostname
+			c.dbResolvedHostname = hostname
+		}
+	}
+
 	tags = append(tags, fmt.Sprintf("hosting_type:%s", ht))
 	c.hostingType = ht
 	c.tagsWithoutDbRole = make([]string, len(tags))

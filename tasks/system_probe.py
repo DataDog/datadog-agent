@@ -1107,6 +1107,7 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
             "prefetch_file",
             "fake_server",
             "sample_service",
+            "standalone_attacher",
         ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1405,12 +1406,15 @@ def run_ninja(
         kernel_release,
         with_unit_test,
     )
+
+    # generate full compilation database for easy clangd integration
+    with open("compile_commands.json", "w") as compiledb:
+        ctx.run(f"ninja -f {nf_path} -t compdb", out_stream=compiledb)
+
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
     else:
-        with open("compile_commands.json", "w") as compiledb:
-            ctx.run(f"ninja -f {nf_path} -t compdb {target}", out_stream=compiledb)
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
@@ -1896,7 +1900,10 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
 
     # only download images not present in preprepared vm disk
     resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
-    docker_ls = {line for line in resp.text.split('\n') if line.strip()}
+
+    # remove the public.ecr.aws/docker/library/ prefix as we might be downloading official images
+    # from the AWS mirror instead of dockerhub to avoid rate limits
+    docker_ls = {line.removeprefix("public.ecr.aws/docker/library/") for line in resp.text.split('\n') if line.strip()}
 
     images = _test_docker_image_list()
     for image in images - docker_ls:
@@ -1934,6 +1941,10 @@ def _test_docker_image_list():
     # Temporary: GoTLS monitoring inside containers tests are flaky in the CI, so at the meantime, the tests are
     # disabled, so we can skip downloading a redundant image.
     images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
+
+    # Add images used in docker run commands
+    images.add("public.ecr.aws/docker/library/alpine:3.20.3")
+
     return images
 
 

@@ -13,9 +13,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -49,8 +50,8 @@ type Requires struct {
 	// Log specifies the logging component.
 	Log log.Component
 
-	// Authtoken specifies the authentication token component.
-	Authtoken authtoken.Component
+	// IPC specifies the IPC component.
+	IPC ipc.Component
 
 	// Serializer specifies the metrics serializer that is used to export metrics
 	// to Datadog.
@@ -62,7 +63,8 @@ type Requires struct {
 	// InventoryAgent require the inventory metadata payload, allowing otelcol to add data to it.
 	InventoryAgent inventoryagent.Component
 
-	Tagger tagger.Component
+	Tagger   tagger.Component
+	Hostname hostnameinterface.Component
 }
 
 // Provides specifics the types returned by the constructor
@@ -75,7 +77,7 @@ type Provides struct {
 }
 
 type collectorImpl struct {
-	authToken      authtoken.Component
+	ipc            ipc.Component
 	col            *otlp.Pipeline
 	config         config.Component
 	log            log.Component
@@ -85,6 +87,7 @@ type collectorImpl struct {
 	tagger         tagger.Component
 	client         *http.Client
 	ctx            context.Context
+	hostname       hostnameinterface.Component
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -100,7 +103,7 @@ func (c *collectorImpl) start(context.Context) error {
 		}
 	}
 	var err error
-	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger)
+	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger, c.hostname)
 	if err != nil {
 		// failure to start the OTLP component shouldn't fail startup
 		c.log.Errorf("Error creating the OTLP ingest pipeline: %v", err)
@@ -137,7 +140,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	client := apiutil.GetClientWithTimeout(time.Duration(timeoutSeconds) * time.Second)
 
 	collector := &collectorImpl{
-		authToken:      reqs.Authtoken,
+		ipc:            reqs.IPC,
 		config:         reqs.Config,
 		log:            reqs.Log,
 		serializer:     reqs.Serializer,
@@ -146,6 +149,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		tagger:         reqs.Tagger,
 		client:         client,
 		ctx:            context.Background(),
+		hostname:       reqs.Hostname,
 	}
 
 	reqs.Lc.Append(compdef.Hook{

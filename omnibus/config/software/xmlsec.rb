@@ -15,7 +15,7 @@
 #
 
 name "xmlsec"
-default_version "1.3.1"
+default_version "1.3.7"
 
 license "MIT"
 license_file "Copyright"
@@ -25,12 +25,12 @@ dependency "libxml2"
 dependency "libxslt"
 dependency "libtool"
 dependency "libgcrypt"
-dependency "gnutls"
 dependency "openssl3"
 
 version("1.3.1") { source sha256: "10f48384d4fd1afc05fea545b74fbf7c152582f0a895c189f164d55270400c63" }
+version("1.3.7") { source sha256: "d82e93b69b8aa205a616b62917a269322bf63a3eaafb3775014e61752b2013ea" }
 
-source url: "https://github.com/lsh123/xmlsec/releases/download/xmlsec_1_3_1/xmlsec1-#{version}.tar.gz"
+source url: "https://github.com/lsh123/xmlsec/releases/download/#{version}/xmlsec1-#{version}.tar.gz"
 
 relative_path "xmlsec1-#{version}"
 
@@ -42,7 +42,6 @@ build do
 
   update_config_guess
   configure_options = [
-    "--enable-docs",
     "--disable-static",
     "--disable-pedantic",
   ]

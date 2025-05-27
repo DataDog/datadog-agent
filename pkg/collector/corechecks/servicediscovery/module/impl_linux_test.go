@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 	"go.uber.org/fx"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -48,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
@@ -397,6 +399,17 @@ func TestServiceName(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
 	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
+	trMeta := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "test-runtime-id",
+		TracerLanguage: "go",
+		ServiceName:    "test-service",
+	}
+	data, err := trMeta.MarshalMsg(nil)
+	require.NoError(t, err)
+
+	createTracerMemfd(t, data)
+
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
 	f, err := listener.(*net.TCPListener).File()
@@ -420,21 +433,25 @@ func TestServiceName(t *testing.T) {
 	f.Close()
 
 	pid := cmd.Process.Pid
+	var startEvent *model.Service
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.StartedServices)
+		startEvent = findService(pid, resp.StartedServices)
 		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(collect, "foo_bar", startEvent.DDService)
-		assert.Equal(collect, startEvent.DDService, startEvent.Name)
 		assert.Equal(collect, "sleep", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), startEvent.GeneratedNameSource)
 		assert.False(collect, startEvent.DDServiceInjected)
 		assert.Equal(collect, startEvent.ContainerID, "")
 		assert.Equal(collect, startEvent.LastHeartbeat, mockedTime.Unix())
 	}, 30*time.Second, 100*time.Millisecond)
+
+	// Verify tracer metadata
+	assert.Equal(t, []tracermetadata.TracerMetadata{trMeta}, startEvent.TracerMetadata)
+	assert.Equal(t, string(language.Go), startEvent.Language)
 }
 
 func TestServiceLifetime(t *testing.T) {
@@ -465,7 +482,6 @@ func TestServiceLifetime(t *testing.T) {
 	checkService := func(t assert.TestingT, service *model.Service, expectedTime time.Time) {
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(t, "foo_bar", service.DDService)
-		assert.Equal(t, service.DDService, service.Name)
 		assert.Equal(t, "sleep", service.GeneratedName)
 		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
 		assert.False(t, service.DDServiceInjected)
@@ -594,25 +610,29 @@ func testCaptureWrappedCommands(t *testing.T, script string, commandWrapper []st
 	var err error
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		proc, err = process.NewProcess(int32(cmd.Process.Pid))
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
+
+		// If we wrap the script with `sh -c`, we can have differences between a
+		// local run and a kmt run, as for kmt `sh` is symbolic link to bash,
+		// while locally it can be a symbolic link to dash.
+		//
+		// In the dash case, we will see 2 processes `sh -c script.py` and a
+		// sub-process `python3 script.py`, while in the bash case we will see
+		// only `python3 script.py` (after initially potentially seeing `sh -c
+		// script.py` before the process execs). We need to check for the
+		// command line arguments of the process to make sure we are looking at
+		// the right process.
+		cmdline, err := proc.Cmdline()
+		require.NoError(t, err)
+		if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
+			var children []*process.Process
+			children, err = proc.Children()
+			require.NoError(collect, err)
+			require.Len(collect, children, 1)
+			proc = children[0]
+		}
 	}, 10*time.Second, 100*time.Millisecond)
 
-	cmdline, err := proc.Cmdline()
-	require.NoError(t, err)
-	// If we wrap the script with `sh -c`, we can have differences between a local run and a kmt run, as for
-	// kmt `sh` is symbolic link to bash, while locally it can be a symbolic link to dash. In the dash case, we will
-	// see 2 processes `sh -c script.py` and a sub-process `python3 script.py`, while in the bash case we will see
-	// only `python3 script.py`. We need to check for the command line arguments of the process to make sure we
-	// are looking at the right process.
-	if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
-		var children []*process.Process
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			children, err = proc.Children()
-			assert.NoError(collect, err)
-			assert.Len(collect, children, 1)
-		}, 10*time.Second, 100*time.Millisecond)
-		proc = children[0]
-	}
 	t.Cleanup(func() { _ = proc.Kill() })
 
 	discovery := setupDiscoveryModule(t)
@@ -783,7 +803,6 @@ func TestNodeDocker(t *testing.T) {
 		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, "test_nodejs-https-server", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), startEvent.GeneratedNameSource)
-		assert.Equal(collect, startEvent.GeneratedName, startEvent.Name)
 		assert.Equal(collect, "provided", startEvent.APMInstrumentation)
 		assert.Equal(collect, "web_service", startEvent.Type)
 		assertStat(collect, *startEvent)
@@ -921,11 +940,12 @@ func TestDocker(t *testing.T) {
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
-	dockerCfg := dockerutils.NewComposeConfig("foo-server",
-		dockerutils.DefaultTimeout,
-		dockerutils.DefaultRetries,
-		scanner,
-		dockerutils.EmptyEnv,
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"foo-server",
+			scanner,
+		),
 		filepath.Join(dir, "testdata", "docker-compose.yml"))
 	err = dockerutils.Run(t, dockerCfg)
 	require.NoError(t, err)
@@ -970,7 +990,6 @@ func TestDocker(t *testing.T) {
 	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid1111)
 	require.Contains(t, startEvent.Ports, uint16(1234))
 	require.Contains(t, startEvent.ContainerID, "dummyCID")
-	require.Contains(t, startEvent.Name, "http.server")
 	require.Contains(t, startEvent.GeneratedName, "http.server")
 	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, startEvent.ContainerServiceName, "foo_from_app_tag")
@@ -1382,6 +1401,51 @@ func getStateResponse(t *testing.T, url string) *state {
 	resp.Body.Close()
 
 	return &state
+}
+
+func createTracerMemfd(t *testing.T, data []byte) int {
+	t.Helper()
+	fd, err := unix.MemfdCreate("datadog-tracer-info-xxx", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { unix.Close(fd) })
+	err = unix.Ftruncate(fd, int64(len(data)))
+	require.NoError(t, err)
+	mappedData, err := unix.Mmap(fd, 0, len(data), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	require.NoError(t, err)
+	copy(mappedData, data)
+	err = unix.Munmap(mappedData)
+	require.NoError(t, err)
+	return fd
+}
+
+func TestValidInvalidTracerMetadata(t *testing.T) {
+	discovery := newDiscovery(t, nil)
+	require.NotEmpty(t, discovery)
+	self := os.Getpid()
+
+	t.Run("valid metadata", func(t *testing.T) {
+		// Test with valid metadata from file
+		curDir, err := testutil.CurDir()
+		require.NoError(t, err)
+		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
+		data, err := os.ReadFile(testDataPath)
+		require.NoError(t, err)
+
+		createTracerMemfd(t, data)
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, language.CPlusPlus, info.language)
+		require.Equal(t, apm.Provided, info.apmInstrumentation)
+	})
+
+	t.Run("invalid metadata", func(t *testing.T) {
+		createTracerMemfd(t, []byte("invalid data"))
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, apm.None, info.apmInstrumentation)
+	})
 }
 
 func TestStateEndpoint(t *testing.T) {
