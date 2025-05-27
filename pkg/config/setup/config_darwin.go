@@ -42,6 +42,6 @@ const (
 func osinit() {
 }
 
-func FleetConfigOverride(config pkgconfigmodel.Config) {
-	// no-op on not Windows
+// FleetConfigOverride is a no-op on Darwin
+func FleetConfigOverride(_ pkgconfigmodel.Config) {
 }

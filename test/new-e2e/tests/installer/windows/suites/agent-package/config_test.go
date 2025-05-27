@@ -42,9 +42,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	s.AssertSuccessfulConfigPromoteExperiment("empty")
 
 	// Act
-	config := installerwindows.InstallerConfig{
+	config := installerwindows.ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.InstallerConfigFile{
+		Files: []installerwindows.ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"log_level": "debug"}`),
@@ -70,9 +70,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.installCurrentAgentVersion()
 
 	// Act
-	config := installerwindows.InstallerConfig{
+	config := installerwindows.ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.InstallerConfigFile{
+		Files: []installerwindows.ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"log_level": "ENC[hi]"}`), // Invalid config
@@ -121,9 +121,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 
 	// Act
 	// Set config values that will cause the Agent to start the non-default services
-	config := installerwindows.InstallerConfig{
+	config := installerwindows.ConfigExperiment{
 		ID: "config-1",
-		Files: []installerwindows.InstallerConfigFile{
+		Files: []installerwindows.ConfigExperimentFile{
 			{
 				Path:     "/datadog.yaml",
 				Contents: json.RawMessage(`{"process_config": {"process_collection": {"enabled": true}}}`),

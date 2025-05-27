@@ -68,7 +68,7 @@ func osinit() {
 	pkgconfigmodel.AddOverrideFunc(FleetConfigOverride)
 }
 
-// fleetConfigOverride sets the fleet_policies_dir config value to the value set in the registry.
+// FleetConfigOverride sets the fleet_policies_dir config value to the value set in the registry.
 //
 // This value tells the agent to load a config experiment from Fleet Automation.
 //

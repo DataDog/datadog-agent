@@ -61,6 +61,6 @@ func osinit() {
 	}
 }
 
-func FleetConfigOverride(config pkgconfigmodel.Config) {
-	// no-op on not Windows
+// FleetConfigOverride is a no-op on Linux
+func FleetConfigOverride(_ pkgconfigmodel.Config) {
 }
