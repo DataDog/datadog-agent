@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -79,7 +80,7 @@ func (c *cmd) stop(err error) {
 
 type installerCmd struct {
 	*cmd
-	installer.Installer
+	installertypes.Installer
 }
 
 func newInstallerCmd(operation string) (_ *installerCmd, err error) {
@@ -89,7 +90,7 @@ func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 			cmd.stop(err)
 		}
 	}()
-	var i installer.Installer
+	var i installertypes.Installer
 	if MockInstaller != nil {
 		i = MockInstaller
 	} else {
@@ -165,11 +166,12 @@ func RootCommands() []*cobra.Command {
 		promoteConfigExperimentCommand(),
 		garbageCollectCommand(),
 		purgeCommand(),
-		isInstalledCommand(),
 		apmCommands(),
 		getStateCommand(),
 		statusCommand(),
 		postinstCommand(),
+		isPrermSupportedCommand(),
+		prermCommand(),
 		hooksCommand(),
 	}
 }
@@ -179,6 +181,7 @@ func UnprivilegedCommands() []*cobra.Command {
 	return []*cobra.Command{
 		versionCommand(),
 		defaultPackagesCommand(),
+		isInstalledCommand(),
 	}
 }
 

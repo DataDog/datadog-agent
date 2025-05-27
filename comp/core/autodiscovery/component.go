@@ -33,9 +33,6 @@ type Component interface {
 	GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet
 	GetProviderCatalog() map[string]providers.ConfigProviderFactory
 	GetTelemetryStore() *telemetry.Store
-	// TODO (component): deprecate start/stop methods
-	Start()
-	Stop()
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse
 }

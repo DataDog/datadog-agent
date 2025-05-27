@@ -22,13 +22,3 @@ func getLeaderIPCallback() (types.LeaderIPCallback, error) {
 
 	return engine.GetLeaderIP, nil
 }
-
-func getLeadershipStateNotifiChan() (<-chan struct{}, error) {
-	engine, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return nil, err
-	}
-
-	engine.StartLeaderElectionRun()
-	return engine.UpdateLeaderInClusterChecks, nil
-}
