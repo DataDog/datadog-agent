@@ -171,7 +171,7 @@ func TestUpdateAPIKey(t *testing.T) {
 
 	// starting API Keys, before the update
 	keysPerDomains := map[string][]utils.APIKeys{
-		ts1.URL: {utils.NewAPIKeys("path", "api_key1"), utils.NewAPIKeys("path", "api_key2")},
+		ts1.URL: {utils.NewAPIKeys("path1", "api_key1"), utils.NewAPIKeys("path2", "api_key2")},
 		ts2.URL: {utils.NewAPIKeys("path", "api_key3")},
 	}
 
@@ -189,11 +189,80 @@ func TestUpdateAPIKey(t *testing.T) {
 	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
 	assert.Equal(t, expect, string(data))
 
+	// update the resolver first since the health checker will load the new keys from the resolver
+	r[ts1.URL].UpdateAPIKeys("path1", []utils.APIKeys{utils.NewAPIKeys("path1", "api_key4")})
 	// update the API Key
-	fh.updateAPIKey("api_key1", "api_key4")
+	fh.UpdateAPIKeys(ts1.URL, []string{"api_key1"}, []string{"api_key4"})
 
 	// ensure that keysPerAPIEndpoint has the new API Key
 	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
-	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key4","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
+	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key2","api_key4"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
+	assert.Equal(t, expect, string(data))
+}
+
+func TestConfigUpdateAPIKey(t *testing.T) {
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts1.Close()
+	defer ts2.Close()
+
+	// get ports from the test servers to make expected data
+	addr, _ := url.Parse(ts1.URL)
+	_, ts1Port, _ := net.SplitHostPort(addr.Host)
+	addr, _ = url.Parse(ts2.URL)
+	_, ts2Port, _ := net.SplitHostPort(addr.Host)
+
+	// swap if necessary to ensure ts1 has a smaller port than ts2
+	// makes the json marshal deterministic so test is not flakey
+	if ts1Port > ts2Port {
+		swapPort := ts1Port
+		ts1Port = ts2Port
+		ts2Port = swapPort
+		swapServer := ts1
+		ts1 = ts2
+		ts2 = swapServer
+	}
+
+	// starting API Keys, before the update
+	keysPerDomains := map[string][]utils.APIKeys{
+		ts1.URL: {utils.NewAPIKeys("api_key", "api_key1")},
+		ts2.URL: {
+			utils.NewAPIKeys("process.additional_endpoints", "api_key1", "api_key2"),
+			utils.NewAPIKeys("additional_endpoints", "api_key1", "api_key3"),
+		},
+	}
+
+	log := logmock.New(t)
+	cfg := config.NewMock(t)
+
+	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+
+	for _, r := range resolvers {
+		resolver.OnUpdateConfig(r, log, cfg)
+	}
+
+	require.NoError(t, err)
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	fh.init()
+	assert.True(t, fh.checkValidAPIKey())
+
+	// forwardHealth's keysPerAPIEndpoint has the given API Keys
+	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
+	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":["api_key1","api_key2","api_key3"]}`, ts1Port, ts2Port)
+	assert.Equal(t, expect, string(data))
+
+	endpoints := map[string][]string{
+		ts2.URL: {"api_key3", "api_key4"},
+	}
+	// Setting the config will send the change to the resolver, which updates the health check
+	cfg.SetWithoutSource("additional_endpoints", endpoints)
+
+	// ensure that keysPerAPIEndpoint has the new API Key
+	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
+	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":["api_key1","api_key2","api_key3","api_key4"]}`, ts1Port, ts2Port)
 	assert.Equal(t, expect, string(data))
 }
