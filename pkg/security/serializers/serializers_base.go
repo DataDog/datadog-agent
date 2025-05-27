@@ -474,6 +474,7 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 	if rule != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
+			// do not serialize hardcoded variables like process.pid
 			if _, found := model.SECLVariables[name]; found {
 				continue
 			}
