@@ -56,6 +56,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `rmdir` | File | A directory was removed | 7.27 |
 | `selinux` | Kernel | An SELinux operation was run | 7.30 |
 | `setgid` | Process | A process changed its effective gid | 7.27 |
+| `setsockopt` | Network | A setsockopt was executed | 7.68 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
 | `signal` | Process | A signal was sent | 7.35 |
@@ -1417,6 +1418,17 @@ A process changed its effective gid
 | [`setgid.gid`](#setgid-gid-doc) | New GID of the process |
 | [`setgid.group`](#setgid-group-doc) | New group of the process |
 
+### Event `setsockopt`
+
+A setsockopt was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
+| [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
+| [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`setsockopt.socket`](#setsockopt-socket-doc) | Socket file descriptor |
+
 ### Event `setuid`
 
 A process changed its effective uid
@@ -2487,8 +2499,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 24 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 25 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -3374,6 +3386,27 @@ Definition: New GID of the process
 Type: string
 
 Definition: New group of the process
+
+
+
+### `setsockopt.level` {#setsockopt-level-doc}
+Type: int
+
+Definition: Socket level
+
+
+
+### `setsockopt.optname` {#setsockopt-optname-doc}
+Type: int
+
+Definition: Socket option name
+
+
+
+### `setsockopt.socket` {#setsockopt-socket-doc}
+Type: int
+
+Definition: Socket file descriptor
 
 
 

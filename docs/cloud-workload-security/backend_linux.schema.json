@@ -1654,15 +1654,15 @@
       "properties": {
         "socket": {
           "type": "integer",
-          "description": "Socket is the socket file descriptor"
+          "description": "Socket file descriptor"
         },
         "level": {
           "type": "integer",
-          "description": "Level is the level at which the option is defined"
+          "description": "Level at which the option is defined"
         },
         "optname": {
           "type": "integer",
-          "description": "OptName is the name of the option being set"
+          "description": "Name of the option being set"
         }
       },
       "additionalProperties": false,

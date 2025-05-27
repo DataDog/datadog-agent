@@ -545,11 +545,11 @@ type SyscallArgsSerializer struct {
 // SetSockOptEventSerializer defines a setsockopt event serializer
 // easyjson:json
 type SetSockOptEventSerializer struct {
-	// Socket is the socket file descriptor
+	// Socket file descriptor
 	Socket uint32 `json:"socket"`
-	// Level is the level at which the option is defined
+	// Level at which the option is defined
 	Level uint32 `json:"level"`
-	// OptName is the name of the option being set
+	// Name of the option being set
 	OptName uint32 `json:"optname"`
 }
 

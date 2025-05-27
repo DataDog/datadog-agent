@@ -1429,7 +1429,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		fmt.Printf("setsockopt event: %+v\n", event.SetSockOpt)
 	}
 
 	// resolve the container context
