@@ -113,7 +113,7 @@ const (
 	StatEventType
 	// SysCtlEventType sysctl event
 	SysCtlEventType
-	//Set sock
+	// SetSockOptEventType is sent when a socket option is set
 	SetSockOptEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
