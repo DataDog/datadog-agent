@@ -16,8 +16,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-
-	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -94,18 +93,19 @@ func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 // remoteAgentRegistry is the main registry for remote agents. It tracks which remote agents are currently registered, when
 // they were last seen, and handles collecting status and flare data from them on request.
 type remoteAgentRegistry struct {
-	conf              config.Component
-	agentMap          map[string]*remoteAgentDetails
-	agentMapMu        sync.Mutex
-	shutdownChan      chan struct{}
-	telemetry         telemetry.Component
-	configUpdatesChan chan *settingsUpdate
+	conf             config.Component
+	agentMap         map[string]*remoteAgentDetails
+	agentMapMu       sync.Mutex
+	shutdownChan     chan struct{}
+	telemetry        telemetry.Component
+	configEventsChan chan *settingsUpdate
 }
 
 type settingsUpdate struct {
-	setting  string
-	oldValue any
-	newValue any
+	setting   string
+	timestamp time.Time
+	oldValue  any
+	newValue  any
 }
 
 // RegisterRemoteAgent registers a remote agent with the registry.
@@ -140,12 +140,15 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 
 		// Send the initial configuration to the remote agent.
 		allSettings := ra.conf.AllSettings()
-		protoStruct, err := structpb.NewStruct(allSettings)
-		if err != nil {
-			return 0, err
-		}
-		err = details.configStream.stream.Send(&pb.ConfigUpdate{
-			Payload: protoStruct,
+
+		// TODO: AllSettings returns a map[string]interface{}, we need to convert it to a slice of SettingSnapshot
+		_ = allSettings
+		err = details.configStream.stream.Send(&pb.ConfigEvent{
+			Event: &pb.ConfigEvent_Snapshot{
+				Snapshot: &pb.ConfigSnapshot{
+					Settings: []*pb.ConfigSnapshot_SettingSnapshot{},
+				},
+			},
 		})
 
 		if err != nil {
@@ -184,10 +187,11 @@ func (ra *remoteAgentRegistry) start() {
 	remoteAgentIdleTimeout := ra.conf.GetDuration("remote_agent_registry.idle_timeout")
 	ra.registerCollector()
 	ra.conf.OnUpdate(func(setting string, oldValue, newValue any) {
-		ra.configUpdatesChan <- &settingsUpdate{
-			setting:  setting,
-			oldValue: oldValue,
-			newValue: newValue,
+		ra.configEventsChan <- &settingsUpdate{
+			setting:   setting,
+			timestamp: time.Now(),
+			oldValue:  oldValue,
+			newValue:  newValue,
 		}
 	})
 
@@ -202,12 +206,18 @@ func (ra *remoteAgentRegistry) start() {
 			case <-ra.shutdownChan:
 				log.Info("Remote Agent registry stopped.")
 				return
-			case update := <-ra.configUpdatesChan:
+			case update := <-ra.configEventsChan:
 				ra.agentMapMu.Lock()
 				for agentID, details := range ra.agentMap {
-					// TODO: process the update
-					_ = update
-					request := &pb.ConfigUpdate{}
+					// TODO: process the update with the correct value types for oldValue and newValue
+					request := &pb.ConfigEvent{
+						Event: &pb.ConfigEvent_Update{
+							Update: &pb.SingleUpdate{
+								Key:       update.setting,
+								UpdatedAt: timestamppb.New(update.timestamp),
+							},
+						},
+					}
 					err := details.configStream.stream.Send(request)
 					if err != nil {
 						log.Warnf("Failed to send config update to remote agent '%s': %v", agentID, err)
@@ -550,7 +560,7 @@ type remoteAgentDetails struct {
 }
 
 type configStream struct {
-	stream       pb.RemoteAgent_StreamConfigUpdatesClient
+	stream       pb.RemoteAgent_StreamConfigEventsClient
 	streamCancel context.CancelFunc
 }
 
@@ -561,7 +571,7 @@ func newRemoteAgentDetails(registration *remoteagentregistry.RegistrationData) (
 	}
 
 	streamCtx, streamCancel := context.WithCancel(context.Background())
-	stream, err := client.StreamConfigUpdates(streamCtx)
+	stream, err := client.StreamConfigEvents(streamCtx)
 	if err != nil {
 		return nil, err
 	}

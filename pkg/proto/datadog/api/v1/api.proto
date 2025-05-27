@@ -200,6 +200,6 @@ service RemoteAgent {
   rpc GetTelemetry(datadog.remoteagent.GetTelemetryRequest) returns (datadog.remoteagent.GetTelemetryResponse);
 
 
-  // Streams config updates to the remote agent.
-  rpc StreamConfigUpdates(stream datadog.remoteagent.ConfigUpdate) returns (google.protobuf.Empty);
+  // Streams config events to the remote agent.
+  rpc StreamConfigEvents(stream datadog.remoteagent.ConfigEvent) returns (google.protobuf.Empty);
 }

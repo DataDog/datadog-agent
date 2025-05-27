@@ -3,6 +3,8 @@ syntax = "proto3";
 package datadog.remoteagent;
 
 import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
 
 option go_package = "pkg/proto/pbgo/core"; // golang
 
@@ -86,8 +88,25 @@ message GetTelemetryResponse {
     string prom_text = 1;
   }
 }
+message ConfigSnapshot {
+  message SettingSnapshot {
+    string key = 1;
+    string value = 2;
+  }
 
-message ConfigUpdate {
-  // Config payload.
-  google.protobuf.Struct payload = 1;
+  repeated SettingSnapshot settings = 1;
+}
+
+message SingleUpdate {
+  string key = 1;
+  google.protobuf.Timestamp updated_at = 2;
+  string previous_value = 3;
+  string new_value = 4;
+}
+
+message ConfigEvent {
+  oneof event {
+    ConfigSnapshot snapshot = 1;
+    SingleUpdate update = 2;
+  }
 }

@@ -1403,51 +1403,51 @@ func (mr *MockRemoteAgentClientMockRecorder) GetTelemetry(ctx, in interface{}, o
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetry", reflect.TypeOf((*MockRemoteAgentClient)(nil).GetTelemetry), varargs...)
 }
 
-// StreamConfigUpdates mocks base method.
-func (m *MockRemoteAgentClient) StreamConfigUpdates(ctx context.Context, opts ...grpc.CallOption) (core.RemoteAgent_StreamConfigUpdatesClient, error) {
+// StreamConfigEvents mocks base method.
+func (m *MockRemoteAgentClient) StreamConfigEvents(ctx context.Context, opts ...grpc.CallOption) (core.RemoteAgent_StreamConfigEventsClient, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{ctx}
 	for _, a := range opts {
 		varargs = append(varargs, a)
 	}
-	ret := m.ctrl.Call(m, "StreamConfigUpdates", varargs...)
-	ret0, _ := ret[0].(core.RemoteAgent_StreamConfigUpdatesClient)
+	ret := m.ctrl.Call(m, "StreamConfigEvents", varargs...)
+	ret0, _ := ret[0].(core.RemoteAgent_StreamConfigEventsClient)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// StreamConfigUpdates indicates an expected call of StreamConfigUpdates.
-func (mr *MockRemoteAgentClientMockRecorder) StreamConfigUpdates(ctx interface{}, opts ...interface{}) *gomock.Call {
+// StreamConfigEvents indicates an expected call of StreamConfigEvents.
+func (mr *MockRemoteAgentClientMockRecorder) StreamConfigEvents(ctx interface{}, opts ...interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamConfigUpdates", reflect.TypeOf((*MockRemoteAgentClient)(nil).StreamConfigUpdates), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamConfigEvents", reflect.TypeOf((*MockRemoteAgentClient)(nil).StreamConfigEvents), varargs...)
 }
 
-// MockRemoteAgent_StreamConfigUpdatesClient is a mock of RemoteAgent_StreamConfigUpdatesClient interface.
-type MockRemoteAgent_StreamConfigUpdatesClient struct {
+// MockRemoteAgent_StreamConfigEventsClient is a mock of RemoteAgent_StreamConfigEventsClient interface.
+type MockRemoteAgent_StreamConfigEventsClient struct {
 	ctrl     *gomock.Controller
-	recorder *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder
+	recorder *MockRemoteAgent_StreamConfigEventsClientMockRecorder
 }
 
-// MockRemoteAgent_StreamConfigUpdatesClientMockRecorder is the mock recorder for MockRemoteAgent_StreamConfigUpdatesClient.
-type MockRemoteAgent_StreamConfigUpdatesClientMockRecorder struct {
-	mock *MockRemoteAgent_StreamConfigUpdatesClient
+// MockRemoteAgent_StreamConfigEventsClientMockRecorder is the mock recorder for MockRemoteAgent_StreamConfigEventsClient.
+type MockRemoteAgent_StreamConfigEventsClientMockRecorder struct {
+	mock *MockRemoteAgent_StreamConfigEventsClient
 }
 
-// NewMockRemoteAgent_StreamConfigUpdatesClient creates a new mock instance.
-func NewMockRemoteAgent_StreamConfigUpdatesClient(ctrl *gomock.Controller) *MockRemoteAgent_StreamConfigUpdatesClient {
-	mock := &MockRemoteAgent_StreamConfigUpdatesClient{ctrl: ctrl}
-	mock.recorder = &MockRemoteAgent_StreamConfigUpdatesClientMockRecorder{mock}
+// NewMockRemoteAgent_StreamConfigEventsClient creates a new mock instance.
+func NewMockRemoteAgent_StreamConfigEventsClient(ctrl *gomock.Controller) *MockRemoteAgent_StreamConfigEventsClient {
+	mock := &MockRemoteAgent_StreamConfigEventsClient{ctrl: ctrl}
+	mock.recorder = &MockRemoteAgent_StreamConfigEventsClientMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockRemoteAgent_StreamConfigUpdatesClient) EXPECT() *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder {
+func (m *MockRemoteAgent_StreamConfigEventsClient) EXPECT() *MockRemoteAgent_StreamConfigEventsClientMockRecorder {
 	return m.recorder
 }
 
 // CloseAndRecv mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesClient) CloseAndRecv() (*empty.Empty, error) {
+func (m *MockRemoteAgent_StreamConfigEventsClient) CloseAndRecv() (*empty.Empty, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CloseAndRecv")
 	ret0, _ := ret[0].(*empty.Empty)
@@ -1456,13 +1456,13 @@ func (m *MockRemoteAgent_StreamConfigUpdatesClient) CloseAndRecv() (*empty.Empty
 }
 
 // CloseAndRecv indicates an expected call of CloseAndRecv.
-func (mr *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder) CloseAndRecv() *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsClientMockRecorder) CloseAndRecv() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseAndRecv", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesClient)(nil).CloseAndRecv))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseAndRecv", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsClient)(nil).CloseAndRecv))
 }
 
 // CloseSend mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesClient) CloseSend() error {
+func (m *MockRemoteAgent_StreamConfigEventsClient) CloseSend() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CloseSend")
 	ret0, _ := ret[0].(error)
@@ -1470,13 +1470,13 @@ func (m *MockRemoteAgent_StreamConfigUpdatesClient) CloseSend() error {
 }
 
 // CloseSend indicates an expected call of CloseSend.
-func (mr *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder) CloseSend() *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsClientMockRecorder) CloseSend() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesClient)(nil).CloseSend))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsClient)(nil).CloseSend))
 }
 
 // Context mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesClient) Context() context.Context {
+func (m *MockRemoteAgent_StreamConfigEventsClient) Context() context.Context {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Context")
 	ret0, _ := ret[0].(context.Context)
@@ -1484,13 +1484,13 @@ func (m *MockRemoteAgent_StreamConfigUpdatesClient) Context() context.Context {
 }
 
 // Context indicates an expected call of Context.
-func (mr *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder) Context() *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsClientMockRecorder) Context() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesClient)(nil).Context))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsClient)(nil).Context))
 }
 
 // Header mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesClient) Header() (metadata.MD, error) {
+func (m *MockRemoteAgent_StreamConfigEventsClient) Header() (metadata.MD, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Header")
 	ret0, _ := ret[0].(metadata.MD)
@@ -1499,13 +1499,13 @@ func (m *MockRemoteAgent_StreamConfigUpdatesClient) Header() (metadata.MD, error
 }
 
 // Header indicates an expected call of Header.
-func (mr *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder) Header() *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsClientMockRecorder) Header() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesClient)(nil).Header))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsClient)(nil).Header))
 }
 
 // RecvMsg mocks base method.
-func (m_2 *MockRemoteAgent_StreamConfigUpdatesClient) RecvMsg(m any) error {
+func (m_2 *MockRemoteAgent_StreamConfigEventsClient) RecvMsg(m any) error {
 	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
 	ret0, _ := ret[0].(error)
@@ -1513,13 +1513,13 @@ func (m_2 *MockRemoteAgent_StreamConfigUpdatesClient) RecvMsg(m any) error {
 }
 
 // RecvMsg indicates an expected call of RecvMsg.
-func (mr *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder) RecvMsg(m interface{}) *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsClientMockRecorder) RecvMsg(m interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesClient)(nil).RecvMsg), m)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsClient)(nil).RecvMsg), m)
 }
 
 // Send mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesClient) Send(arg0 *core.ConfigUpdate) error {
+func (m *MockRemoteAgent_StreamConfigEventsClient) Send(arg0 *core.ConfigEvent) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Send", arg0)
 	ret0, _ := ret[0].(error)
@@ -1527,13 +1527,13 @@ func (m *MockRemoteAgent_StreamConfigUpdatesClient) Send(arg0 *core.ConfigUpdate
 }
 
 // Send indicates an expected call of Send.
-func (mr *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder) Send(arg0 interface{}) *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsClientMockRecorder) Send(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesClient)(nil).Send), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsClient)(nil).Send), arg0)
 }
 
 // SendMsg mocks base method.
-func (m_2 *MockRemoteAgent_StreamConfigUpdatesClient) SendMsg(m any) error {
+func (m_2 *MockRemoteAgent_StreamConfigEventsClient) SendMsg(m any) error {
 	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
 	ret0, _ := ret[0].(error)
@@ -1541,13 +1541,13 @@ func (m_2 *MockRemoteAgent_StreamConfigUpdatesClient) SendMsg(m any) error {
 }
 
 // SendMsg indicates an expected call of SendMsg.
-func (mr *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder) SendMsg(m interface{}) *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsClientMockRecorder) SendMsg(m interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesClient)(nil).SendMsg), m)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsClient)(nil).SendMsg), m)
 }
 
 // Trailer mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesClient) Trailer() metadata.MD {
+func (m *MockRemoteAgent_StreamConfigEventsClient) Trailer() metadata.MD {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Trailer")
 	ret0, _ := ret[0].(metadata.MD)
@@ -1555,9 +1555,9 @@ func (m *MockRemoteAgent_StreamConfigUpdatesClient) Trailer() metadata.MD {
 }
 
 // Trailer indicates an expected call of Trailer.
-func (mr *MockRemoteAgent_StreamConfigUpdatesClientMockRecorder) Trailer() *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsClientMockRecorder) Trailer() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesClient)(nil).Trailer))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsClient)(nil).Trailer))
 }
 
 // MockRemoteAgentServer is a mock of RemoteAgentServer interface.
@@ -1628,45 +1628,45 @@ func (mr *MockRemoteAgentServerMockRecorder) GetTelemetry(arg0, arg1 interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetry", reflect.TypeOf((*MockRemoteAgentServer)(nil).GetTelemetry), arg0, arg1)
 }
 
-// StreamConfigUpdates mocks base method.
-func (m *MockRemoteAgentServer) StreamConfigUpdates(arg0 core.RemoteAgent_StreamConfigUpdatesServer) error {
+// StreamConfigEvents mocks base method.
+func (m *MockRemoteAgentServer) StreamConfigEvents(arg0 core.RemoteAgent_StreamConfigEventsServer) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamConfigUpdates", arg0)
+	ret := m.ctrl.Call(m, "StreamConfigEvents", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// StreamConfigUpdates indicates an expected call of StreamConfigUpdates.
-func (mr *MockRemoteAgentServerMockRecorder) StreamConfigUpdates(arg0 interface{}) *gomock.Call {
+// StreamConfigEvents indicates an expected call of StreamConfigEvents.
+func (mr *MockRemoteAgentServerMockRecorder) StreamConfigEvents(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamConfigUpdates", reflect.TypeOf((*MockRemoteAgentServer)(nil).StreamConfigUpdates), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamConfigEvents", reflect.TypeOf((*MockRemoteAgentServer)(nil).StreamConfigEvents), arg0)
 }
 
-// MockRemoteAgent_StreamConfigUpdatesServer is a mock of RemoteAgent_StreamConfigUpdatesServer interface.
-type MockRemoteAgent_StreamConfigUpdatesServer struct {
+// MockRemoteAgent_StreamConfigEventsServer is a mock of RemoteAgent_StreamConfigEventsServer interface.
+type MockRemoteAgent_StreamConfigEventsServer struct {
 	ctrl     *gomock.Controller
-	recorder *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder
+	recorder *MockRemoteAgent_StreamConfigEventsServerMockRecorder
 }
 
-// MockRemoteAgent_StreamConfigUpdatesServerMockRecorder is the mock recorder for MockRemoteAgent_StreamConfigUpdatesServer.
-type MockRemoteAgent_StreamConfigUpdatesServerMockRecorder struct {
-	mock *MockRemoteAgent_StreamConfigUpdatesServer
+// MockRemoteAgent_StreamConfigEventsServerMockRecorder is the mock recorder for MockRemoteAgent_StreamConfigEventsServer.
+type MockRemoteAgent_StreamConfigEventsServerMockRecorder struct {
+	mock *MockRemoteAgent_StreamConfigEventsServer
 }
 
-// NewMockRemoteAgent_StreamConfigUpdatesServer creates a new mock instance.
-func NewMockRemoteAgent_StreamConfigUpdatesServer(ctrl *gomock.Controller) *MockRemoteAgent_StreamConfigUpdatesServer {
-	mock := &MockRemoteAgent_StreamConfigUpdatesServer{ctrl: ctrl}
-	mock.recorder = &MockRemoteAgent_StreamConfigUpdatesServerMockRecorder{mock}
+// NewMockRemoteAgent_StreamConfigEventsServer creates a new mock instance.
+func NewMockRemoteAgent_StreamConfigEventsServer(ctrl *gomock.Controller) *MockRemoteAgent_StreamConfigEventsServer {
+	mock := &MockRemoteAgent_StreamConfigEventsServer{ctrl: ctrl}
+	mock.recorder = &MockRemoteAgent_StreamConfigEventsServerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockRemoteAgent_StreamConfigUpdatesServer) EXPECT() *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder {
+func (m *MockRemoteAgent_StreamConfigEventsServer) EXPECT() *MockRemoteAgent_StreamConfigEventsServerMockRecorder {
 	return m.recorder
 }
 
 // Context mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesServer) Context() context.Context {
+func (m *MockRemoteAgent_StreamConfigEventsServer) Context() context.Context {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Context")
 	ret0, _ := ret[0].(context.Context)
@@ -1674,28 +1674,28 @@ func (m *MockRemoteAgent_StreamConfigUpdatesServer) Context() context.Context {
 }
 
 // Context indicates an expected call of Context.
-func (mr *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder) Context() *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsServerMockRecorder) Context() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesServer)(nil).Context))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsServer)(nil).Context))
 }
 
 // Recv mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesServer) Recv() (*core.ConfigUpdate, error) {
+func (m *MockRemoteAgent_StreamConfigEventsServer) Recv() (*core.ConfigEvent, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Recv")
-	ret0, _ := ret[0].(*core.ConfigUpdate)
+	ret0, _ := ret[0].(*core.ConfigEvent)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Recv indicates an expected call of Recv.
-func (mr *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder) Recv() *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsServerMockRecorder) Recv() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesServer)(nil).Recv))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsServer)(nil).Recv))
 }
 
 // RecvMsg mocks base method.
-func (m_2 *MockRemoteAgent_StreamConfigUpdatesServer) RecvMsg(m any) error {
+func (m_2 *MockRemoteAgent_StreamConfigEventsServer) RecvMsg(m any) error {
 	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
 	ret0, _ := ret[0].(error)
@@ -1703,13 +1703,13 @@ func (m_2 *MockRemoteAgent_StreamConfigUpdatesServer) RecvMsg(m any) error {
 }
 
 // RecvMsg indicates an expected call of RecvMsg.
-func (mr *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder) RecvMsg(m interface{}) *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsServerMockRecorder) RecvMsg(m interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesServer)(nil).RecvMsg), m)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsServer)(nil).RecvMsg), m)
 }
 
 // SendAndClose mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesServer) SendAndClose(arg0 *empty.Empty) error {
+func (m *MockRemoteAgent_StreamConfigEventsServer) SendAndClose(arg0 *empty.Empty) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendAndClose", arg0)
 	ret0, _ := ret[0].(error)
@@ -1717,13 +1717,13 @@ func (m *MockRemoteAgent_StreamConfigUpdatesServer) SendAndClose(arg0 *empty.Emp
 }
 
 // SendAndClose indicates an expected call of SendAndClose.
-func (mr *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder) SendAndClose(arg0 interface{}) *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsServerMockRecorder) SendAndClose(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendAndClose", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesServer)(nil).SendAndClose), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendAndClose", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsServer)(nil).SendAndClose), arg0)
 }
 
 // SendHeader mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesServer) SendHeader(arg0 metadata.MD) error {
+func (m *MockRemoteAgent_StreamConfigEventsServer) SendHeader(arg0 metadata.MD) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendHeader", arg0)
 	ret0, _ := ret[0].(error)
@@ -1731,13 +1731,13 @@ func (m *MockRemoteAgent_StreamConfigUpdatesServer) SendHeader(arg0 metadata.MD)
 }
 
 // SendHeader indicates an expected call of SendHeader.
-func (mr *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder) SendHeader(arg0 interface{}) *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsServerMockRecorder) SendHeader(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendHeader", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesServer)(nil).SendHeader), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendHeader", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsServer)(nil).SendHeader), arg0)
 }
 
 // SendMsg mocks base method.
-func (m_2 *MockRemoteAgent_StreamConfigUpdatesServer) SendMsg(m any) error {
+func (m_2 *MockRemoteAgent_StreamConfigEventsServer) SendMsg(m any) error {
 	m_2.ctrl.T.Helper()
 	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
 	ret0, _ := ret[0].(error)
@@ -1745,13 +1745,13 @@ func (m_2 *MockRemoteAgent_StreamConfigUpdatesServer) SendMsg(m any) error {
 }
 
 // SendMsg indicates an expected call of SendMsg.
-func (mr *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder) SendMsg(m interface{}) *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsServerMockRecorder) SendMsg(m interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesServer)(nil).SendMsg), m)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsServer)(nil).SendMsg), m)
 }
 
 // SetHeader mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesServer) SetHeader(arg0 metadata.MD) error {
+func (m *MockRemoteAgent_StreamConfigEventsServer) SetHeader(arg0 metadata.MD) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetHeader", arg0)
 	ret0, _ := ret[0].(error)
@@ -1759,19 +1759,19 @@ func (m *MockRemoteAgent_StreamConfigUpdatesServer) SetHeader(arg0 metadata.MD) 
 }
 
 // SetHeader indicates an expected call of SetHeader.
-func (mr *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder) SetHeader(arg0 interface{}) *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsServerMockRecorder) SetHeader(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeader", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesServer)(nil).SetHeader), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeader", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsServer)(nil).SetHeader), arg0)
 }
 
 // SetTrailer mocks base method.
-func (m *MockRemoteAgent_StreamConfigUpdatesServer) SetTrailer(arg0 metadata.MD) {
+func (m *MockRemoteAgent_StreamConfigEventsServer) SetTrailer(arg0 metadata.MD) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetTrailer", arg0)
 }
 
 // SetTrailer indicates an expected call of SetTrailer.
-func (mr *MockRemoteAgent_StreamConfigUpdatesServerMockRecorder) SetTrailer(arg0 interface{}) *gomock.Call {
+func (mr *MockRemoteAgent_StreamConfigEventsServerMockRecorder) SetTrailer(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockRemoteAgent_StreamConfigUpdatesServer)(nil).SetTrailer), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockRemoteAgent_StreamConfigEventsServer)(nil).SetTrailer), arg0)
 }

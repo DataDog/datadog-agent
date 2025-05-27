@@ -46,12 +46,12 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x1aWorkloadmetaStreamEntities\x12/.datadog.workloadmeta.WorkloadmetaStreamRequest\x1a0.datadog.workloadmeta.WorkloadmetaStreamResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/grpc/workloadmeta/stream_entities0\x01\x12\xaf\x01\n" +
 	"\x13RegisterRemoteAgent\x12/.datadog.remoteagent.RegisterRemoteAgentRequest\x1a0.datadog.remoteagent.RegisterRemoteAgentResponse\"5\x82\xd3\xe4\x93\x02/:\x01*\"*/v1/grpc/remoteagent/register_remote_agent\x12\x9b\x01\n" +
 	"\x19AutodiscoveryStreamConfig\x12\x16.google.protobuf.Empty\x1a2.datadog.autodiscovery.AutodiscoveryStreamResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/grpc/autodiscovery/stream_configs0\x01\x12k\n" +
-	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/grpc/host_tags2\x9f\x03\n" +
+	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/grpc/host_tags2\x9d\x03\n" +
 	"\vRemoteAgent\x12o\n" +
 	"\x10GetStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a-.datadog.remoteagent.GetStatusDetailsResponse\x12f\n" +
 	"\rGetFlareFiles\x12).datadog.remoteagent.GetFlareFilesRequest\x1a*.datadog.remoteagent.GetFlareFilesResponse\x12c\n" +
-	"\fGetTelemetry\x12(.datadog.remoteagent.GetTelemetryRequest\x1a).datadog.remoteagent.GetTelemetryResponse\x12R\n" +
-	"\x13StreamConfigUpdates\x12!.datadog.remoteagent.ConfigUpdate\x1a\x16.google.protobuf.Empty(\x01B\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\fGetTelemetry\x12(.datadog.remoteagent.GetTelemetryRequest\x1a).datadog.remoteagent.GetTelemetryResponse\x12P\n" +
+	"\x12StreamConfigEvents\x12 .datadog.remoteagent.ConfigEvent\x1a\x16.google.protobuf.Empty(\x01B\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*HostnameRequest)(nil),                           // 0: datadog.model.v1.HostnameRequest
@@ -68,7 +68,7 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*GetStatusDetailsRequest)(nil),                   // 11: datadog.remoteagent.GetStatusDetailsRequest
 	(*GetFlareFilesRequest)(nil),                      // 12: datadog.remoteagent.GetFlareFilesRequest
 	(*GetTelemetryRequest)(nil),                       // 13: datadog.remoteagent.GetTelemetryRequest
-	(*ConfigUpdate)(nil),                              // 14: datadog.remoteagent.ConfigUpdate
+	(*ConfigEvent)(nil),                               // 14: datadog.remoteagent.ConfigEvent
 	(*HostnameReply)(nil),                             // 15: datadog.model.v1.HostnameReply
 	(*StreamTagsResponse)(nil),                        // 16: datadog.model.v1.StreamTagsResponse
 	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 17: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
@@ -103,7 +103,7 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	11, // 14: datadog.api.v1.RemoteAgent.GetStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
 	12, // 15: datadog.api.v1.RemoteAgent.GetFlareFiles:input_type -> datadog.remoteagent.GetFlareFilesRequest
 	13, // 16: datadog.api.v1.RemoteAgent.GetTelemetry:input_type -> datadog.remoteagent.GetTelemetryRequest
-	14, // 17: datadog.api.v1.RemoteAgent.StreamConfigUpdates:input_type -> datadog.remoteagent.ConfigUpdate
+	14, // 17: datadog.api.v1.RemoteAgent.StreamConfigEvents:input_type -> datadog.remoteagent.ConfigEvent
 	15, // 18: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
 	16, // 19: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
 	17, // 20: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
@@ -121,7 +121,7 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	27, // 32: datadog.api.v1.RemoteAgent.GetStatusDetails:output_type -> datadog.remoteagent.GetStatusDetailsResponse
 	28, // 33: datadog.api.v1.RemoteAgent.GetFlareFiles:output_type -> datadog.remoteagent.GetFlareFilesResponse
 	29, // 34: datadog.api.v1.RemoteAgent.GetTelemetry:output_type -> datadog.remoteagent.GetTelemetryResponse
-	7,  // 35: datadog.api.v1.RemoteAgent.StreamConfigUpdates:output_type -> google.protobuf.Empty
+	7,  // 35: datadog.api.v1.RemoteAgent.StreamConfigEvents:output_type -> google.protobuf.Empty
 	18, // [18:36] is the sub-list for method output_type
 	0,  // [0:18] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
@@ -999,8 +999,8 @@ type RemoteAgentClient interface {
 	GetFlareFiles(ctx context.Context, in *GetFlareFilesRequest, opts ...grpc.CallOption) (*GetFlareFilesResponse, error)
 	// Gets the telemetry data of a remote agent.
 	GetTelemetry(ctx context.Context, in *GetTelemetryRequest, opts ...grpc.CallOption) (*GetTelemetryResponse, error)
-	// Streams config updates to the remote agent.
-	StreamConfigUpdates(ctx context.Context, opts ...grpc.CallOption) (RemoteAgent_StreamConfigUpdatesClient, error)
+	// Streams config events to the remote agent.
+	StreamConfigEvents(ctx context.Context, opts ...grpc.CallOption) (RemoteAgent_StreamConfigEventsClient, error)
 }
 
 type remoteAgentClient struct {
@@ -1038,30 +1038,30 @@ func (c *remoteAgentClient) GetTelemetry(ctx context.Context, in *GetTelemetryRe
 	return out, nil
 }
 
-func (c *remoteAgentClient) StreamConfigUpdates(ctx context.Context, opts ...grpc.CallOption) (RemoteAgent_StreamConfigUpdatesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_RemoteAgent_serviceDesc.Streams[0], "/datadog.api.v1.RemoteAgent/StreamConfigUpdates", opts...)
+func (c *remoteAgentClient) StreamConfigEvents(ctx context.Context, opts ...grpc.CallOption) (RemoteAgent_StreamConfigEventsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_RemoteAgent_serviceDesc.Streams[0], "/datadog.api.v1.RemoteAgent/StreamConfigEvents", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &remoteAgentStreamConfigUpdatesClient{stream}
+	x := &remoteAgentStreamConfigEventsClient{stream}
 	return x, nil
 }
 
-type RemoteAgent_StreamConfigUpdatesClient interface {
-	Send(*ConfigUpdate) error
+type RemoteAgent_StreamConfigEventsClient interface {
+	Send(*ConfigEvent) error
 	CloseAndRecv() (*empty.Empty, error)
 	grpc.ClientStream
 }
 
-type remoteAgentStreamConfigUpdatesClient struct {
+type remoteAgentStreamConfigEventsClient struct {
 	grpc.ClientStream
 }
 
-func (x *remoteAgentStreamConfigUpdatesClient) Send(m *ConfigUpdate) error {
+func (x *remoteAgentStreamConfigEventsClient) Send(m *ConfigEvent) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *remoteAgentStreamConfigUpdatesClient) CloseAndRecv() (*empty.Empty, error) {
+func (x *remoteAgentStreamConfigEventsClient) CloseAndRecv() (*empty.Empty, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
@@ -1080,8 +1080,8 @@ type RemoteAgentServer interface {
 	GetFlareFiles(context.Context, *GetFlareFilesRequest) (*GetFlareFilesResponse, error)
 	// Gets the telemetry data of a remote agent.
 	GetTelemetry(context.Context, *GetTelemetryRequest) (*GetTelemetryResponse, error)
-	// Streams config updates to the remote agent.
-	StreamConfigUpdates(RemoteAgent_StreamConfigUpdatesServer) error
+	// Streams config events to the remote agent.
+	StreamConfigEvents(RemoteAgent_StreamConfigEventsServer) error
 }
 
 // UnimplementedRemoteAgentServer can be embedded to have forward compatible implementations.
@@ -1097,8 +1097,8 @@ func (*UnimplementedRemoteAgentServer) GetFlareFiles(context.Context, *GetFlareF
 func (*UnimplementedRemoteAgentServer) GetTelemetry(context.Context, *GetTelemetryRequest) (*GetTelemetryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetTelemetry not implemented")
 }
-func (*UnimplementedRemoteAgentServer) StreamConfigUpdates(RemoteAgent_StreamConfigUpdatesServer) error {
-	return status.Errorf(codes.Unimplemented, "method StreamConfigUpdates not implemented")
+func (*UnimplementedRemoteAgentServer) StreamConfigEvents(RemoteAgent_StreamConfigEventsServer) error {
+	return status.Errorf(codes.Unimplemented, "method StreamConfigEvents not implemented")
 }
 
 func RegisterRemoteAgentServer(s *grpc.Server, srv RemoteAgentServer) {
@@ -1159,26 +1159,26 @@ func _RemoteAgent_GetTelemetry_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
-func _RemoteAgent_StreamConfigUpdates_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(RemoteAgentServer).StreamConfigUpdates(&remoteAgentStreamConfigUpdatesServer{stream})
+func _RemoteAgent_StreamConfigEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(RemoteAgentServer).StreamConfigEvents(&remoteAgentStreamConfigEventsServer{stream})
 }
 
-type RemoteAgent_StreamConfigUpdatesServer interface {
+type RemoteAgent_StreamConfigEventsServer interface {
 	SendAndClose(*empty.Empty) error
-	Recv() (*ConfigUpdate, error)
+	Recv() (*ConfigEvent, error)
 	grpc.ServerStream
 }
 
-type remoteAgentStreamConfigUpdatesServer struct {
+type remoteAgentStreamConfigEventsServer struct {
 	grpc.ServerStream
 }
 
-func (x *remoteAgentStreamConfigUpdatesServer) SendAndClose(m *empty.Empty) error {
+func (x *remoteAgentStreamConfigEventsServer) SendAndClose(m *empty.Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *remoteAgentStreamConfigUpdatesServer) Recv() (*ConfigUpdate, error) {
-	m := new(ConfigUpdate)
+func (x *remoteAgentStreamConfigEventsServer) Recv() (*ConfigEvent, error) {
+	m := new(ConfigEvent)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -1204,8 +1204,8 @@ var _RemoteAgent_serviceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "StreamConfigUpdates",
-			Handler:       _RemoteAgent_StreamConfigUpdates_Handler,
+			StreamName:    "StreamConfigEvents",
+			Handler:       _RemoteAgent_StreamConfigEvents_Handler,
 			ClientStreams: true,
 		},
 	},

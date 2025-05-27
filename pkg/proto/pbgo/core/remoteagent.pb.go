@@ -7,7 +7,8 @@
 package core
 
 import (
-	_struct "github.com/golang/protobuf/ptypes/struct"
+	_ "github.com/golang/protobuf/ptypes/struct"
+	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -490,28 +491,27 @@ type GetTelemetryResponse_PromText struct {
 
 func (*GetTelemetryResponse_PromText) isGetTelemetryResponse_Payload() {}
 
-type ConfigUpdate struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Config payload.
-	Payload       *_struct.Struct `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
+type ConfigSnapshot struct {
+	state         protoimpl.MessageState            `protogen:"open.v1"`
+	Settings      []*ConfigSnapshot_SettingSnapshot `protobuf:"bytes,1,rep,name=settings,proto3" json:"settings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ConfigUpdate) Reset() {
-	*x = ConfigUpdate{}
+func (x *ConfigSnapshot) Reset() {
+	*x = ConfigSnapshot{}
 	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ConfigUpdate) String() string {
+func (x *ConfigSnapshot) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ConfigUpdate) ProtoMessage() {}
+func (*ConfigSnapshot) ProtoMessage() {}
 
-func (x *ConfigUpdate) ProtoReflect() protoreflect.Message {
+func (x *ConfigSnapshot) ProtoReflect() protoreflect.Message {
 	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -523,23 +523,225 @@ func (x *ConfigUpdate) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConfigUpdate.ProtoReflect.Descriptor instead.
-func (*ConfigUpdate) Descriptor() ([]byte, []int) {
+// Deprecated: Use ConfigSnapshot.ProtoReflect.Descriptor instead.
+func (*ConfigSnapshot) Descriptor() ([]byte, []int) {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *ConfigUpdate) GetPayload() *_struct.Struct {
+func (x *ConfigSnapshot) GetSettings() []*ConfigSnapshot_SettingSnapshot {
 	if x != nil {
-		return x.Payload
+		return x.Settings
 	}
 	return nil
+}
+
+type SingleUpdate struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	UpdatedAt     *timestamp.Timestamp   `protobuf:"bytes,2,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	PreviousValue string                 `protobuf:"bytes,3,opt,name=previous_value,json=previousValue,proto3" json:"previous_value,omitempty"`
+	NewValue      string                 `protobuf:"bytes,4,opt,name=new_value,json=newValue,proto3" json:"new_value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SingleUpdate) Reset() {
+	*x = SingleUpdate{}
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SingleUpdate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SingleUpdate) ProtoMessage() {}
+
+func (x *SingleUpdate) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SingleUpdate.ProtoReflect.Descriptor instead.
+func (*SingleUpdate) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SingleUpdate) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *SingleUpdate) GetUpdatedAt() *timestamp.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *SingleUpdate) GetPreviousValue() string {
+	if x != nil {
+		return x.PreviousValue
+	}
+	return ""
+}
+
+func (x *SingleUpdate) GetNewValue() string {
+	if x != nil {
+		return x.NewValue
+	}
+	return ""
+}
+
+type ConfigEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*ConfigEvent_Snapshot
+	//	*ConfigEvent_Update
+	Event         isConfigEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigEvent) Reset() {
+	*x = ConfigEvent{}
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigEvent) ProtoMessage() {}
+
+func (x *ConfigEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigEvent.ProtoReflect.Descriptor instead.
+func (*ConfigEvent) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ConfigEvent) GetEvent() isConfigEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *ConfigEvent) GetSnapshot() *ConfigSnapshot {
+	if x != nil {
+		if x, ok := x.Event.(*ConfigEvent_Snapshot); ok {
+			return x.Snapshot
+		}
+	}
+	return nil
+}
+
+func (x *ConfigEvent) GetUpdate() *SingleUpdate {
+	if x != nil {
+		if x, ok := x.Event.(*ConfigEvent_Update); ok {
+			return x.Update
+		}
+	}
+	return nil
+}
+
+type isConfigEvent_Event interface {
+	isConfigEvent_Event()
+}
+
+type ConfigEvent_Snapshot struct {
+	Snapshot *ConfigSnapshot `protobuf:"bytes,1,opt,name=snapshot,proto3,oneof"`
+}
+
+type ConfigEvent_Update struct {
+	Update *SingleUpdate `protobuf:"bytes,2,opt,name=update,proto3,oneof"`
+}
+
+func (*ConfigEvent_Snapshot) isConfigEvent_Event() {}
+
+func (*ConfigEvent_Update) isConfigEvent_Event() {}
+
+type ConfigSnapshot_SettingSnapshot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfigSnapshot_SettingSnapshot) Reset() {
+	*x = ConfigSnapshot_SettingSnapshot{}
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfigSnapshot_SettingSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfigSnapshot_SettingSnapshot) ProtoMessage() {}
+
+func (x *ConfigSnapshot_SettingSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_remoteagent_remoteagent_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfigSnapshot_SettingSnapshot.ProtoReflect.Descriptor instead.
+func (*ConfigSnapshot_SettingSnapshot) Descriptor() ([]byte, []int) {
+	return file_datadog_remoteagent_remoteagent_proto_rawDescGZIP(), []int{9, 0}
+}
+
+func (x *ConfigSnapshot_SettingSnapshot) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *ConfigSnapshot_SettingSnapshot) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
 }
 
 var File_datadog_remoteagent_remoteagent_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\n" +
-	"%datadog/remoteagent/remoteagent.proto\x12\x13datadog.remoteagent\x1a\x1cgoogle/protobuf/struct.proto\"\x92\x01\n" +
+	"%datadog/remoteagent/remoteagent.proto\x12\x13datadog.remoteagent\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x92\x01\n" +
 	"\rStatusSection\x12F\n" +
 	"\x06fields\x18\x01 \x03(\v2..datadog.remoteagent.StatusSection.FieldsEntryR\x06fields\x1a9\n" +
 	"\vFieldsEntry\x12\x10\n" +
@@ -570,9 +772,22 @@ const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\x13GetTelemetryRequest\"@\n" +
 	"\x14GetTelemetryResponse\x12\x1d\n" +
 	"\tprom_text\x18\x01 \x01(\tH\x00R\bpromTextB\t\n" +
-	"\apayload\"A\n" +
-	"\fConfigUpdate\x121\n" +
-	"\apayload\x18\x01 \x01(\v2\x17.google.protobuf.StructR\apayloadB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\apayload\"\x9c\x01\n" +
+	"\x0eConfigSnapshot\x12O\n" +
+	"\bsettings\x18\x01 \x03(\v23.datadog.remoteagent.ConfigSnapshot.SettingSnapshotR\bsettings\x1a9\n" +
+	"\x0fSettingSnapshot\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"\x9f\x01\n" +
+	"\fSingleUpdate\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x129\n" +
+	"\n" +
+	"updated_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12%\n" +
+	"\x0eprevious_value\x18\x03 \x01(\tR\rpreviousValue\x12\x1b\n" +
+	"\tnew_value\x18\x04 \x01(\tR\bnewValue\"\x96\x01\n" +
+	"\vConfigEvent\x12A\n" +
+	"\bsnapshot\x18\x01 \x01(\v2#.datadog.remoteagent.ConfigSnapshotH\x00R\bsnapshot\x12;\n" +
+	"\x06update\x18\x02 \x01(\v2!.datadog.remoteagent.SingleUpdateH\x00R\x06updateB\a\n" +
+	"\x05eventB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
 	file_datadog_remoteagent_remoteagent_proto_rawDescOnce sync.Once
@@ -586,35 +801,41 @@ func file_datadog_remoteagent_remoteagent_proto_rawDescGZIP() []byte {
 	return file_datadog_remoteagent_remoteagent_proto_rawDescData
 }
 
-var file_datadog_remoteagent_remoteagent_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_datadog_remoteagent_remoteagent_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_datadog_remoteagent_remoteagent_proto_goTypes = []any{
-	(*StatusSection)(nil),               // 0: datadog.remoteagent.StatusSection
-	(*RegisterRemoteAgentRequest)(nil),  // 1: datadog.remoteagent.RegisterRemoteAgentRequest
-	(*RegisterRemoteAgentResponse)(nil), // 2: datadog.remoteagent.RegisterRemoteAgentResponse
-	(*GetStatusDetailsRequest)(nil),     // 3: datadog.remoteagent.GetStatusDetailsRequest
-	(*GetStatusDetailsResponse)(nil),    // 4: datadog.remoteagent.GetStatusDetailsResponse
-	(*GetFlareFilesRequest)(nil),        // 5: datadog.remoteagent.GetFlareFilesRequest
-	(*GetFlareFilesResponse)(nil),       // 6: datadog.remoteagent.GetFlareFilesResponse
-	(*GetTelemetryRequest)(nil),         // 7: datadog.remoteagent.GetTelemetryRequest
-	(*GetTelemetryResponse)(nil),        // 8: datadog.remoteagent.GetTelemetryResponse
-	(*ConfigUpdate)(nil),                // 9: datadog.remoteagent.ConfigUpdate
-	nil,                                 // 10: datadog.remoteagent.StatusSection.FieldsEntry
-	nil,                                 // 11: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
-	nil,                                 // 12: datadog.remoteagent.GetFlareFilesResponse.FilesEntry
-	(*_struct.Struct)(nil),              // 13: google.protobuf.Struct
+	(*StatusSection)(nil),                  // 0: datadog.remoteagent.StatusSection
+	(*RegisterRemoteAgentRequest)(nil),     // 1: datadog.remoteagent.RegisterRemoteAgentRequest
+	(*RegisterRemoteAgentResponse)(nil),    // 2: datadog.remoteagent.RegisterRemoteAgentResponse
+	(*GetStatusDetailsRequest)(nil),        // 3: datadog.remoteagent.GetStatusDetailsRequest
+	(*GetStatusDetailsResponse)(nil),       // 4: datadog.remoteagent.GetStatusDetailsResponse
+	(*GetFlareFilesRequest)(nil),           // 5: datadog.remoteagent.GetFlareFilesRequest
+	(*GetFlareFilesResponse)(nil),          // 6: datadog.remoteagent.GetFlareFilesResponse
+	(*GetTelemetryRequest)(nil),            // 7: datadog.remoteagent.GetTelemetryRequest
+	(*GetTelemetryResponse)(nil),           // 8: datadog.remoteagent.GetTelemetryResponse
+	(*ConfigSnapshot)(nil),                 // 9: datadog.remoteagent.ConfigSnapshot
+	(*SingleUpdate)(nil),                   // 10: datadog.remoteagent.SingleUpdate
+	(*ConfigEvent)(nil),                    // 11: datadog.remoteagent.ConfigEvent
+	nil,                                    // 12: datadog.remoteagent.StatusSection.FieldsEntry
+	nil,                                    // 13: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
+	nil,                                    // 14: datadog.remoteagent.GetFlareFilesResponse.FilesEntry
+	(*ConfigSnapshot_SettingSnapshot)(nil), // 15: datadog.remoteagent.ConfigSnapshot.SettingSnapshot
+	(*timestamp.Timestamp)(nil),            // 16: google.protobuf.Timestamp
 }
 var file_datadog_remoteagent_remoteagent_proto_depIdxs = []int32{
-	10, // 0: datadog.remoteagent.StatusSection.fields:type_name -> datadog.remoteagent.StatusSection.FieldsEntry
+	12, // 0: datadog.remoteagent.StatusSection.fields:type_name -> datadog.remoteagent.StatusSection.FieldsEntry
 	0,  // 1: datadog.remoteagent.GetStatusDetailsResponse.main_section:type_name -> datadog.remoteagent.StatusSection
-	11, // 2: datadog.remoteagent.GetStatusDetailsResponse.named_sections:type_name -> datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
-	12, // 3: datadog.remoteagent.GetFlareFilesResponse.files:type_name -> datadog.remoteagent.GetFlareFilesResponse.FilesEntry
-	13, // 4: datadog.remoteagent.ConfigUpdate.payload:type_name -> google.protobuf.Struct
-	0,  // 5: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry.value:type_name -> datadog.remoteagent.StatusSection
-	6,  // [6:6] is the sub-list for method output_type
-	6,  // [6:6] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	13, // 2: datadog.remoteagent.GetStatusDetailsResponse.named_sections:type_name -> datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry
+	14, // 3: datadog.remoteagent.GetFlareFilesResponse.files:type_name -> datadog.remoteagent.GetFlareFilesResponse.FilesEntry
+	15, // 4: datadog.remoteagent.ConfigSnapshot.settings:type_name -> datadog.remoteagent.ConfigSnapshot.SettingSnapshot
+	16, // 5: datadog.remoteagent.SingleUpdate.updated_at:type_name -> google.protobuf.Timestamp
+	9,  // 6: datadog.remoteagent.ConfigEvent.snapshot:type_name -> datadog.remoteagent.ConfigSnapshot
+	10, // 7: datadog.remoteagent.ConfigEvent.update:type_name -> datadog.remoteagent.SingleUpdate
+	0,  // 8: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry.value:type_name -> datadog.remoteagent.StatusSection
+	9,  // [9:9] is the sub-list for method output_type
+	9,  // [9:9] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteagent_remoteagent_proto_init() }
@@ -625,13 +846,17 @@ func file_datadog_remoteagent_remoteagent_proto_init() {
 	file_datadog_remoteagent_remoteagent_proto_msgTypes[8].OneofWrappers = []any{
 		(*GetTelemetryResponse_PromText)(nil),
 	}
+	file_datadog_remoteagent_remoteagent_proto_msgTypes[11].OneofWrappers = []any{
+		(*ConfigEvent_Snapshot)(nil),
+		(*ConfigEvent_Update)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_remoteagent_remoteagent_proto_rawDesc), len(file_datadog_remoteagent_remoteagent_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
