@@ -31,7 +31,7 @@ func TestAgentConfig(t *testing.T) {
 	)
 }
 
-// TestConfigUpgradeSuccessful tests that the daemon can upgrade the Agent's config
+// TestConfigUpgradeSuccessful tests that the Agent's config can be upgraded
 // through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	// Arrange
@@ -63,7 +63,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
 }
 
-// TestConfigUpgradeFailure tests that the daemon can handle config experiment failures
+// TestConfigUpgradeFailure tests that the Agent's config can be rolled back
+// through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	// Arrange
 	s.setAgentConfig()
