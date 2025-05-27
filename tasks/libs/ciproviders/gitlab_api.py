@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from difflib import Differ
 from functools import lru_cache
 from itertools import product
+from typing import Any
 
 import gitlab
 import yaml
@@ -609,7 +610,7 @@ yaml.SafeDumper.add_implicit_resolver(
 )
 
 
-def clean_gitlab_ci_configuration(yml):
+def clean_gitlab_ci_configuration(yml: dict) -> dict:
     """Cleans up a gitlab-ci configuration object by:
     - Removing `extends` tags.
     - Flattening lists of lists.
@@ -639,7 +640,7 @@ def clean_gitlab_ci_configuration(yml):
             del content['extends']
 
     # Flatten
-    return flatten(yml)
+    return flatten(yml)  # type: ignore
 
 
 def is_leaf_job(job_name, job_contents):
@@ -648,14 +649,22 @@ def is_leaf_job(job_name, job_contents):
     return not job_name.startswith('.') and ('script' in job_contents or 'trigger' in job_contents)
 
 
-def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_special_objects: bool = False) -> dict:
+def filter_gitlab_ci_configuration(
+    yml: dict, jobs: str | set[str] | None = None, keep_special_objects: bool = False
+) -> dict:
     """Filters elements in a gitlab-ci configuration object
 
     Args:
         yml: The gitlab-ci configuration object to filter
-        job: If provided, retrieve only this job.
+        jobs:
+            If provided, retrieve only these jobs.
+            Note that an empty set means no jobs will be returned !
+            For convenience, you can also provide a single str.
         keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.).
     """
+
+    if isinstance(jobs, str):
+        jobs = {jobs}
 
     def filter_yaml(key, value):
         # Not a job
@@ -664,13 +673,14 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_speci
             if not (keep_special_objects and key in CONFIG_SPECIAL_OBJECTS):
                 return None
 
-        if job is not None:
-            return (key, value) if key == job else None
+        if jobs is not None:
+            return (key, value) if key in jobs else None
 
         return key, value
 
-    if job is not None:
-        assert job in yml, f"Job {job} not found in the configuration"
+    if jobs is not None:
+        for job in jobs:
+            assert job in yml, f"Job {job} not found in the configuration"
 
     return {node[0]: node[1] for node in (filter_yaml(k, v) for k, v in yml.items()) if node is not None}
 
@@ -762,10 +772,13 @@ def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
 def test_gitlab_configuration(ctx, config_name: str, config_object: dict, context=None):
     agent = get_gitlab_repo()
     # Update config and lint it
-    config = get_gitlab_ci_configuration(
+    config = resolve_gitlab_ci_configuration(
         ctx,
-        input_file=config_object,
-        gitlab_context=context,
+        config_object,
+    )
+    config = post_process_gitlab_ci_configuration(
+        config,
+        variable_overrides=context,
         keep_special_objects=True,
     )
     config_dump = yaml.safe_dump(config)
@@ -786,54 +799,43 @@ def test_gitlab_configuration(ctx, config_name: str, config_object: dict, contex
         raise Exit(code=1)
 
 
-def get_gitlab_ci_configuration(
-    ctx,
-    input_file: str = '.gitlab-ci.yml',
-    gitlab_context: dict | None = None,
-    partial_resolve: bool = True,
-    job: str | None = None,
-    keep_special_objects: bool = False,
+def post_process_gitlab_ci_configuration(
+    config: dict,
     clean: bool = True,
+    variable_overrides: dict | None = None,
+    filter_jobs: str | set[str] | None = None,
+    keep_special_objects: bool = False,
     expand_matrix: bool = False,
-    git_ref: str | None = None,
-) -> dict:
-    """Returns a fully-resolved gitlab-ci configuration object from the input file.
-    "Fully resolved" in this context means that all `include`s, `extends`s and `!reference`s are replaced by their value for easier processing.
-
-    Note that this function will stop resolving when a `trigger:` block is found. Any triggered pipelines will not be included in the output config.
-    If this is needed, see `get_all_gitlab_ci_configurations`.
+    **kwargs,
+) -> dict[str, Any]:
+    """Apply post-processing functions to a gitlabci config object.
+    See argument reference for a list of options.
 
     Args:
-        input_file: Path to a gitlab CI configuration file from which to resolve the configuration object.
-        gitlab_context: Dictionary containing variables to override in the output config.
-        partial_resolve:
-            Whether to skip the gitlab `/lint` endpoint when resolving configs.
-            In this case, only `include`s will be resolved, not `extend`s or `!reference`s
-        job: If not None, only the job object with this name will be included in the config.
+        config: The gitlab config object to apply post-processing to.
+        variable_overrides: Dictionary containing variables to override in the output config (gitlab `variables` tag).
+        filter_jobs:
+            If not None, only the job objects with names specified here will be included in the config.
+            Note that an empty set means no jobs will be returned !
+            For convenience, you can also provide a single str.
         keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.).
-        clean: If True, apply the `clean_gitlab_ci_configuration` to the output.
         expand_matrix: Will expand matrix jobs into multiple jobs.
-        git_ref: What git ref to use when opening the `input_file`
     """
-
-    # Make full configuration
-    yml = resolve_gitlab_ci_configuration(ctx, input_file, partial_resolve=partial_resolve, git_ref=git_ref)
-
-    # Filter
-    yml = filter_gitlab_ci_configuration(yml, job, keep_special_objects=keep_special_objects)
+    # Apply filtering
+    config = filter_gitlab_ci_configuration(config, filter_jobs, keep_special_objects)
 
     if clean:
-        yml = clean_gitlab_ci_configuration(yml)
+        config = clean_gitlab_ci_configuration(config)
 
-    # Expand matrix
+    # Expand matrix jobs
     if expand_matrix:
-        yml = expand_matrix_jobs(yml)
+        config = expand_matrix_jobs(config)
 
     # Override some variables with a dedicated context
-    if gitlab_context:
-        yml.get('variables', {}).update(gitlab_context)
+    if variable_overrides:
+        config.get('variables', {}).update(variable_overrides)
 
-    return yml
+    return config
 
 
 def get_all_gitlab_ci_configurations(
@@ -847,7 +849,6 @@ def get_all_gitlab_ci_configurations(
     """Returns all possible gitlab CI entrypoints and corresponding fully-resolved configurations, rooted at the input file.
     This is useful when the CI contains 'trigger jobs', which launch new, independent pipelines.
     These 'triggered pipelines' are syntactically independent and as such must be handled independently.
-    See `get_gitlab_ci_configuration` for more details: the configuration objects returned by this function (values of the dict) each correspond to one possible output of this function.
 
     Args:
         input_file: Path to a gitlab CI configuration file from which to constructing.

@@ -14,8 +14,8 @@ from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
     compute_gitlab_ci_config_diff,
     get_all_gitlab_ci_configurations,
-    get_gitlab_ci_configuration,
     get_gitlab_repo,
+    post_process_gitlab_ci_configuration,
     print_gitlab_ci_configuration,
     resolve_gitlab_ci_configuration,
 )
@@ -270,14 +270,13 @@ def print_ci(
         This requires a full api token access level to the repository
     """
 
-    yml = get_gitlab_ci_configuration(
-        ctx,
-        input_file,
-        job=job,
+    yml = resolve_gitlab_ci_configuration(ctx, input_file, partial_resolve=partial_resolve, git_ref=git_ref)
+
+    yml = post_process_gitlab_ci_configuration(
+        yml,
+        jobs={job},
         clean=clean,
         expand_matrix=expand_matrix,
-        git_ref=git_ref,
-        partial_resolve=partial_resolve,
         keep_special_objects=keep_special_objects,
     )
 
