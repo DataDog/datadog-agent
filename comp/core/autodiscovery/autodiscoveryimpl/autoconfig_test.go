@@ -257,7 +257,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
 	ac.AddListeners([]pkgconfigsetup.Listeners{mockListenenerConfig})
 
-	ac.Stop()
+	ac.stop()
 
 	assert.True(suite.T(), ml.stopReceived)
 }
