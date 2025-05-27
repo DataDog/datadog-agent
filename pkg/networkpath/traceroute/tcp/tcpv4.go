@@ -32,9 +32,13 @@ type (
 		Timeout  time.Duration // full timeout for all packets
 		// ParisTracerouteMode makes it act like paris-traceroute (fixed packet ID, randomized seq)
 		ParisTracerouteMode bool
-		buffer              gopacket.SerializeBuffer
-		baseSeqNumber       uint32
-		basePacketID        uint16
+		// LoosenICMPSrc disables checking the source IP/port in ICMP payloads when enabled.
+		// Reason: Some environments don't properly translate the payload of an ICMP TTL exceeded
+		// packet meaning you can't trust the source address to correspond to your own private IP.
+		LoosenICMPSrc bool
+		buffer        gopacket.SerializeBuffer
+		baseSeqNumber uint32
+		basePacketID  uint16
 	}
 )
 

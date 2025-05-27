@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TracerouteSerialParams are the parameters for TracerouteSerial
@@ -30,9 +32,7 @@ func TracerouteSerial(ctx context.Context, t TracerouteDriver, p TracerouteSeria
 		}
 		sendDelay := time.After(p.SendDelay)
 
-		start := time.Now()
-		deadline := start.Add(p.TracerouteTimeout)
-		timeoutCtx, cancel := context.WithDeadline(ctx, deadline)
+		timeoutCtx, cancel := context.WithTimeout(ctx, p.TracerouteTimeout)
 		defer cancel()
 
 		err := t.SendProbe(uint8(i))
@@ -56,8 +56,9 @@ func TracerouteSerial(ctx context.Context, t TracerouteDriver, p TracerouteSeria
 			}
 		}
 
-		// if we found the destination, no need to keep going
 		if probe != nil {
+			log.Tracef("found probe %+v", probe)
+			// if we found the destination, no need to keep going
 			results[probe.TTL] = probe
 			if probe.IsDest {
 				break
