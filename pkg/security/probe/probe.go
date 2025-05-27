@@ -47,7 +47,7 @@ type PlatformProbe interface {
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
-	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
+	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error)
 	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
@@ -205,7 +205,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
 	return p.PlatformProbe.ApplyRuleSet(rs)
 }
 

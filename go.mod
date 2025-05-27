@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.23.9
+go 1.24.0
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -555,7 +555,7 @@ require (
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.150
+	github.com/DataDog/agent-payload/v5 v5.0.152
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.64.1
@@ -605,7 +605,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.65.1
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
@@ -628,7 +627,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.64.1
 	github.com/DataDog/datadog-agent/pkg/tagset v0.64.1
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
-	github.com/DataDog/datadog-agent/pkg/template v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/common v0.63.2
