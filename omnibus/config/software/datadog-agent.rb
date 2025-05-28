@@ -271,6 +271,11 @@ build do
     delete "#{install_dir}/uselessfile"
   end
 
+  # APM Hands Off config file
+  if linux_target?
+    command "dda inv -- agent.generate-config --build-type application-monitoring --output-file ./bin/agent/dist/application_monitoring.yaml", :env => env
+    move 'bin/agent/dist/application_monitoring.yaml', "#{conf_dir}/application_monitoring.yaml.example"
+
   # TODO: move this to omnibus-ruby::health-check.rb
   # check that linux binaries contains OpenSSL symbols when building to support FIPS
   if fips_mode? && linux_target?
