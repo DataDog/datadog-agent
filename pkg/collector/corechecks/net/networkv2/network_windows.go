@@ -169,7 +169,7 @@ var (
 // gopsutil does not call GetTcpStatisticsEx so we need to do so manually for these stats
 func getTcpStats(inet uint) (mibTcpStats, error) {
 	tcpStats := &mibTcpStats{}
-	r0, _, _ := syscall.Syscall(proc_get_tcp_statistics_ex.Addr(), 2, uintptr(unsafe.Pointer(tcpStats)), uintptr(inet), 0)
+	r0, _, _ := syscall.Syscall(procGetTcpStatisticsEx.Addr(), 2, uintptr(unsafe.Pointer(tcpStats)), uintptr(inet), 0)
 	if r0 != 0 {
 		errcode = syscall.Errno(r0)
 		return nil, errcode
@@ -193,7 +193,6 @@ func submitTcpStats(sender sender.Sender) error {
 		"dwNumConns":     ".connections",
 	}
 
-	guageMetrics := []string{".connections", "current_established"}
 	tcp4Stats, err := getTcpStats(AF_INET)
 	if err != nil {
 		return err

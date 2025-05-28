@@ -8,36 +8,30 @@
 package networkv2
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/net"
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/safchain/ethtool"
 )
 
 type fakeNetworkStats struct {
-	counterStats                 []net.IOCountersStat
-	counterStatsError            error
-	protoCountersStats           []net.ProtoCountersStat
-	protoCountersStatsError      error
-	connectionStatsUDP4          []net.ConnectionStat
-	connectionStatsUDP4Error     error
-	connectionStatsUDP6          []net.ConnectionStat
-	connectionStatsUDP6Error     error
-	connectionStatsTCP4          []net.ConnectionStat
-	connectionStatsTCP4Error     error
-	connectionStatsTCP6          []net.ConnectionStat
-	connectionStatsTCP6Error     error
-	netstatAndSnmpCountersValues map[string]net.ProtoCountersStat
-	netstatAndSnmpCountersError  error
+	counterStats             []net.IOCountersStat
+	counterStatsError        error
+	protoCountersStats       []net.ProtoCountersStat
+	protoCountersStatsError  error
+	connectionStatsUDP4      []net.ConnectionStat
+	connectionStatsUDP4Error error
+	connectionStatsUDP6      []net.ConnectionStat
+	connectionStatsUDP6Error error
+	connectionStatsTCP4      []net.ConnectionStat
+	connectionStatsTCP4Error error
+	connectionStatsTCP6      []net.ConnectionStat
+	connectionStatsTCP6Error error
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
@@ -69,62 +63,8 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 	return nil, nil
 }
 
-func (n *fakeNetworkStats) NetstatAndSnmpCounters(_ []string) (map[string]net.ProtoCountersStat, error) {
-	return n.netstatAndSnmpCountersValues, n.netstatAndSnmpCountersError
-}
-
-func (n *fakeNetworkStats) GetProcPath() string {
-	return n.getProcPath
-}
-
-func (n *fakeNetworkStats) GetNetProcBasePath() string {
-	return n.getProcPath
-}
-
-type MockEthtool struct {
-	mock.Mock
-}
-
-func (f *MockEthtool) DriverInfo(intf string) (ethtool.DrvInfo, error) {
-	if intf == "eth0" {
-		return ethtool.DrvInfo{
-			Driver:  "ena",
-			Version: "mock_version",
-		}, nil
-	}
-
-	return ethtool.DrvInfo{}, unix.ENOTTY
-}
-
-func (f *MockEthtool) Stats(intf string) (map[string]uint64, error) {
-	if intf == "eth0" {
-		return map[string]uint64{
-			"queue_0_tx_packets": 12345,
-			"rx_packets[0]":      67890,
-			"cpu0_rx_xdp_tx":     123,
-			"tx_timeout":         456,
-		}, nil
-	}
-
-	return nil, unix.ENOTTY
-}
-
 type MockCommandRunner struct {
 	mock.Mock
-}
-
-func (m *MockCommandRunner) FakeRunCommand(cmd []string, _ []string) (string, error) {
-	if slices.Contains(cmd, "netstat") {
-		return `Proto Recv-Q Send-Q Local Address           Foreign Address         State
-                tcp        0      0 46.105.75.4:80          79.220.227.193:2032     TIME_WAIT
-                tcp        0      0 46.105.75.4:143         90.56.111.177:56867     ESTABLISHED`, nil
-	} else if slices.Contains(cmd, "ss") {
-		return `Netid   State     Recv-Q    Send-Q    Local Address           Foreign Address
-				tcp     ESTAB     0         0         127.0.0.1:60342         127.0.0.1:46153
-				tcp     TIME-WAIT 0         0         127.0.0.1:46153         127.0.0.1:60342`, nil
-	}
-	return `cpu=0 found=27644 invalid=19060 ignore=485633411 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=39936711
-	cpu=1 found=21960 invalid=17288 ignore=475938848 insert=0 count=42 drop=1 early_drop=0 max=42 search_restart=36983181`, nil
 }
 
 func TestDefaultConfiguration(t *testing.T) {
@@ -177,58 +117,6 @@ func TestNetworkCheck(t *testing.T) {
 				PacketsSent: 23,
 				Dropout:     24,
 				Errout:      25,
-			},
-		},
-		netstatAndSnmpCountersValues: map[string]net.ProtoCountersStat{
-			"Tcp": {
-				Protocol: "Tcp",
-				Stats: map[string]int64{
-					"RetransSegs":  22,
-					"InSegs":       23,
-					"OutSegs":      24,
-					"ActiveOpens":  39,
-					"PassiveOpens": 40,
-					"AttemptFails": 41,
-					"EstabResets":  42,
-					"InErrs":       36,
-					"OutRsts":      37,
-					"InCsumErrors": 38,
-				},
-			},
-			"Udp": {
-				Protocol: "Udp",
-				Stats: map[string]int64{
-					"InDatagrams":  25,
-					"NoPorts":      26,
-					"InErrors":     27,
-					"OutDatagrams": 28,
-					"RcvbufErrors": 29,
-					"SndbufErrors": 30,
-					"InCsumErrors": 31,
-				},
-			},
-			"TcpExt": {
-				Protocol: "TcpExt",
-				Stats: map[string]int64{
-					"ListenOverflows":      32,
-					"ListenDrops":          33,
-					"TCPBacklogDrop":       34,
-					"TCPRetransFail":       35,
-					"IPReversePathFilter":  43,
-					"PruneCalled":          44,
-					"RcvPruned":            45,
-					"OfoPruned":            46,
-					"PAWSActive":           47,
-					"PAWSEstab":            48,
-					"SyncookiesSent":       49,
-					"SyncookiesRecv":       50,
-					"SyncookiesFailed":     51,
-					"TCPAbortOnTimeout":    52,
-					"TCPSynRetrans":        53,
-					"TCPFromZeroWindowAdv": 54,
-					"TCPToZeroWindowAdv":   55,
-					"TWRecycled":           56,
-				},
 			},
 		},
 		connectionStatsUDP4: []net.ConnectionStat{
@@ -350,23 +238,12 @@ func TestNetworkCheck(t *testing.T) {
 		},
 	}
 
-	mockEthtool := new(MockEthtool)
-	mockEthtool.On("getDriverInfo", mock.Anything).Return(ethtool.DrvInfo{}, nil)
-	mockEthtool.On("Stats", mock.Anything).Return(map[string]int{}, nil)
-
-	getEthtoolDrvInfo = mockEthtool.DriverInfo
-	getEthtoolStats = mockEthtool.Stats
-
-	mockSS := new(MockSS)
-	ssAvailableFunction = mockSS.NetstatCommand
-
 	networkCheck := NetworkCheck{
 		net: net,
 	}
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
-collect_ethtool_stats: true
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
@@ -377,17 +254,6 @@ collect_ethtool_stats: true
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
-		`10000`),
-		0644)
-	assert.Nil(t, err)
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/mtu", []byte(
-		`1500`),
-		0644)
-	assert.Nil(t, err)
 
 	err = networkCheck.Run()
 	assert.Nil(t, err)
@@ -535,17 +401,6 @@ excluded_interfaces:
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err := afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
-		`10000`),
-		0644)
-	assert.Nil(t, err)
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/mtu", []byte(
-		`1500`),
-		0644)
-	assert.Nil(t, err)
-
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
@@ -625,17 +480,6 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
-
-	filesystem = afero.NewMemMapFs()
-	fs := filesystem
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/speed", []byte(
-		`10000`),
-		0644)
-	assert.Nil(t, err)
-	err = afero.WriteFile(fs, "/sys/class/net/eth0/mtu", []byte(
-		`1500`),
-		0644)
-	assert.Nil(t, err)
 
 	err = networkCheck.Run()
 	assert.Nil(t, err)
