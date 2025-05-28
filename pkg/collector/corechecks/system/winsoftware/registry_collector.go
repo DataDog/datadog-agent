@@ -99,8 +99,7 @@ func (rc *RegistryCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 			continue
 		}
 		// Skip system accounts
-		systemSid, err := windows.StringToSid("S-1-5-18")
-		if err == nil && strings.HasPrefix(usr.Uid, systemSid.String()) {
+		if !strings.HasPrefix(usr.Uid, "S-1-5-21-") {
 			continue
 		}
 		sid := usr.Uid
