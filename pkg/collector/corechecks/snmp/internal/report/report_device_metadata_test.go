@@ -845,22 +845,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 					},
 				},
 			},
-			"ipforward_obsolete": {
-				Fields: map[string]profiledefinition.MetadataField{
-					"route_mask": {
-						Symbol: profiledefinition.SymbolConfig{
-							OID:  "1.3.6.1.2.1.4.24.2.1.2",
-							Name: "ipForwardMask",
-						},
-					},
-					"if_index": {
-						Symbol: profiledefinition.SymbolConfig{
-							OID:  "1.3.6.1.2.1.4.24.2.1.5",
-							Name: "ipForwardIfIndex",
-						},
-					},
-				},
-			},
 			"ipforward_deprecated": {
 				Fields: map[string]profiledefinition.MetadataField{
 					"if_index": {
@@ -923,44 +907,44 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 {
     "subnet": "127.0.0.0/29",
     "namespace": "my-ns",
-	"integration": "snmp",
+    "integration": "snmp",
     "devices": [
         {
             "id": "1234",
-			"id_tags": null,
-			"tags": [],
+            "id_tags": null,
+            "tags": [],
             "ip_address": "1.2.3.4",
             "status": 1,
-			"ping_status": 1,
+            "ping_status": 1,
             "subnet": "127.0.0.0/29",
-			"integration": "snmp",
-			"device_type": "other"
+            "integration": "snmp",
+            "device_type": "other"
         }
     ],
-	"vpn_tunnels": [
-		{
-			"device_id": "1234",
-			"interface_id": "1234:2",
-			"local_outside_ip": "10.0.0.1",
-			"remote_outside_ip": "20.0.0.1",
-			"protocol": "ipsec",
-			"route_addresses": [
-				"100.1.0.0/16",
-				"100.0.0.0/16"
-			]
-		},
-		{
-			"device_id": "1234",
-			"interface_id": "1234:4",
-			"local_outside_ip": "30.0.0.1",
-			"remote_outside_ip": "40.0.0.1",
-			"protocol": "ipsec",
-			"route_addresses": [
-				"110.1.0.0/24",
-				"110.0.0.0/24"
-			]
-		}
-	],
+    "vpn_tunnels": [
+        {
+            "device_id": "1234",
+            "interface_id": "1234:2",
+            "local_outside_ip": "10.0.0.1",
+            "remote_outside_ip": "20.0.0.1",
+            "protocol": "ipsec",
+            "route_addresses": [
+                "100.1.0.0/16",
+                "100.0.0.0/16"
+            ]
+        },
+        {
+            "device_id": "1234",
+            "interface_id": "1234:4",
+            "local_outside_ip": "30.0.0.1",
+            "remote_outside_ip": "40.0.0.1",
+            "protocol": "ipsec",
+            "route_addresses": [
+                "110.1.0.0/24",
+                "110.0.0.0/24"
+            ]
+        }
+    ],
     "collect_timestamp":1415792726
 }
 `)

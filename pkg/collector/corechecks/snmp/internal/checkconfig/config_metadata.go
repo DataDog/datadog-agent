@@ -269,28 +269,6 @@ var VPNMetadataConfig = profiledefinition.MetadataConfig{
 
 // RouteMetadataConfig contains route tables metadata
 var RouteMetadataConfig = profiledefinition.MetadataConfig{
-	"ipforward_obsolete": {
-		Fields: map[string]profiledefinition.MetadataField{
-			"route_mask": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.24.2.1.2",
-					Name: "ipForwardMask",
-				},
-			},
-			"if_index": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.24.2.1.5",
-					Name: "ipForwardIfIndex",
-				},
-			},
-			"route_type": {
-				Symbol: profiledefinition.SymbolConfig{
-					OID:  "1.3.6.1.2.1.4.24.2.1.6",
-					Name: "ipForwardType",
-				},
-			},
-		},
-	},
 	"ipforward_deprecated": {
 		Fields: map[string]profiledefinition.MetadataField{
 			"if_index": {

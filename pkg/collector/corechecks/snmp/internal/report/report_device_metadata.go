@@ -35,6 +35,7 @@ const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
+const inetAddressUnknown = "0"
 const inetAddressIPv4 = "1"
 
 var supportedDeviceTypes = map[string]bool{
@@ -662,45 +663,15 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 	vpnTunnelByOutsideIPs map[string]*devicemetadata.VPNTunnelMetadata,
 	vpnTunnelByRemoteOutsideIP map[string]*devicemetadata.VPNTunnelMetadata) {
 
-	routeObsoleteIndexes := store.GetColumnIndexes("ipforward_obsolete.if_index")
 	routeDeprecatedIndexes := store.GetColumnIndexes("ipforward_deprecated.if_index")
 	routeIndexes := store.GetColumnIndexes("ipforward.if_index")
-	if len(routeObsoleteIndexes) == 0 && len(routeDeprecatedIndexes) == 0 && len(routeIndexes) == 0 {
+	if len(routeDeprecatedIndexes) == 0 && len(routeIndexes) == 0 {
 		return
 	}
-	sort.Strings(routeObsoleteIndexes)
 	sort.Strings(routeDeprecatedIndexes)
 	sort.Strings(routeIndexes)
 
 	routesByInterfaceIndex := make(map[string][]deviceRoute)
-
-	for _, strIndex := range routeObsoleteIndexes {
-		indexElems := strings.Split(strIndex, ".")
-		if len(indexElems) != 10 {
-			// We expect the index to be 10 elements:
-			// 4 ipForwardDest
-			// 1 ipForwardProto
-			// 1 ipForwardPolicy
-			// 4 ipForwardNextHop
-			continue
-		}
-
-		routeDestination := strings.Join(indexElems[0:4], ".")
-		nextHopIP := strings.Join(indexElems[6:10], ".")
-
-		routePrefixLen := netmaskToPrefixlen(store.GetColumnAsString("ipforward_obsolete.route_mask", strIndex))
-		ifIndex := store.GetColumnAsString("ipforward_obsolete.if_index", strIndex)
-
-		route := deviceRoute{
-			Destination: routeDestination,
-			PrefixLen:   routePrefixLen,
-			NextHopIP:   nextHopIP,
-			IfIndex:     ifIndex,
-		}
-		routesByInterfaceIndex[ifIndex] = append(routesByInterfaceIndex[ifIndex], route)
-
-		resolveRouteByNextHop(route, vpnTunnelByRemoteOutsideIP)
-	}
 
 	for _, strIndex := range routeDeprecatedIndexes {
 		routeStatus := store.GetColumnAsString("ipforward_deprecated.route_status", strIndex)
@@ -796,7 +767,7 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 		}
 
 		nextHopAddrType := indexElems[currMaxIndex-2]
-		if nextHopAddrType != "0" && nextHopAddrType != inetAddressIPv4 {
+		if nextHopAddrType != inetAddressUnknown && nextHopAddrType != inetAddressIPv4 {
 			continue
 		}
 
@@ -810,10 +781,8 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 			continue
 		}
 
-		var nextHopIP string
-		if nextHopLength == 0 {
-			nextHopIP = "0.0.0.0"
-		} else {
+		nextHopIP := "0.0.0.0"
+		if nextHopLength != 0 {
 			nextHopIP = strings.Join(indexElems[currMaxIndex-nextHopLength:currMaxIndex], ".")
 		}
 
@@ -831,15 +800,15 @@ func resolveVPNTunnelsRoutes(store *metadata.Store,
 	}
 
 	for _, vpnTunnel := range vpnTunnelByOutsideIPs {
-		if len(vpnTunnel.RouteAddresses) != 0 {
-			continue
+		if len(vpnTunnel.RouteAddresses) == 0 {
+			resolveRoutesByInterface(store, routesByInterfaceIndex, vpnTunnelByOutsideIPs)
 		}
-
-		resolveRoutesByInterface(store, routesByInterfaceIndex, vpnTunnelByOutsideIPs)
 	}
 }
 
-func resolveRouteByNextHop(route deviceRoute, vpnTunnelByRemoteOutsideIP map[string]*devicemetadata.VPNTunnelMetadata) {
+func resolveRouteByNextHop(route deviceRoute,
+	vpnTunnelByRemoteOutsideIP map[string]*devicemetadata.VPNTunnelMetadata) {
+
 	vpnTunnel, exists := vpnTunnelByRemoteOutsideIP[route.NextHopIP]
 	if !exists {
 		return
@@ -851,7 +820,8 @@ func resolveRouteByNextHop(route deviceRoute, vpnTunnelByRemoteOutsideIP map[str
 		fmt.Sprintf("%s/%d", route.Destination, route.PrefixLen))
 }
 
-func resolveRoutesByInterface(store *metadata.Store, routesByInterfaceIndex map[string][]deviceRoute,
+func resolveRoutesByInterface(store *metadata.Store,
+	routesByInterfaceIndex map[string][]deviceRoute,
 	vpnTunnelByOutsideIPs map[string]*devicemetadata.VPNTunnelMetadata) {
 
 	tunnelDeprecatedIndexes := store.GetColumnIndexes("tunnel_config_deprecated.if_index")
