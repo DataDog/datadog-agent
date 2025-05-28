@@ -36,7 +36,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	nvmlMock := testutil.GetBasicNvmlMock()
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache, err := ddnvml.NewDeviceCache()
 	require.NoError(t, err)
