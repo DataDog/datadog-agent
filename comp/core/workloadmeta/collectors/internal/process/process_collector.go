@@ -200,7 +200,7 @@ func (c *collector) stream(ctx context.Context) {
 		case <-ctx.Done():
 			err := healthCheck.Deregister()
 			if err != nil {
-				log.Infof("error de-registering health check: %s", err)
+				log.Warnf("error de-registering health check: %s", err)
 			}
 			return
 		}
