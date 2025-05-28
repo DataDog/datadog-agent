@@ -2241,6 +2241,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "raw_packet_limiter_rate",
 			Value: uint64(p.config.Probe.NetworkRawPacketLimiterRate),
 		},
+		manager.ConstantEditor{
+			Name:  "raw_packet_filter",
+			Value: utils.BoolTouint64(p.config.Probe.NetworkRawPacketFilter != "none"),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
