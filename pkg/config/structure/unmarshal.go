@@ -120,6 +120,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 	if err != nil {
 		return err
 	}
+
 	outValue := reflect.ValueOf(target)
 	if outValue.Kind() == reflect.Pointer {
 		outValue = reflect.Indirect(outValue)
@@ -205,6 +206,7 @@ func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []strin
 			usedFields[fieldKey] = struct{}{}
 			continue
 		}
+
 		child, err := input.GetChild(fieldKey)
 		if err == nodetreemodel.ErrNotFound {
 			continue
