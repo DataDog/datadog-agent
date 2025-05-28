@@ -53,7 +53,6 @@ agent_dmg-x64-a7:
   before_script:
     # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
     - sudo umount /Volumes/Agent || true
-    - !reference [.retrieve_linux_go_deps]
   after_script:
     # Destroy the keychain used to sign packages
     - |
@@ -66,6 +65,7 @@ agent_dmg-x64-a7:
     - !reference [.vault_login]
     - !reference [.macos_setup_python]
     - !reference [.macos_setup_go]
+    - !reference [.retrieve_linux_go_deps]
     # List Python and Go existing environments and their disk space
     - !reference [.macos_runner_maintenance]
     - !reference [.macos_setup_cache]
