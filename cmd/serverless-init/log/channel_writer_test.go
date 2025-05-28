@@ -6,6 +6,7 @@
 package log
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -36,5 +37,35 @@ func TestChannelWriter_Write(t *testing.T) {
 	msg = <-ch
 	if string(msg.Content) != expected {
 		t.Fatalf("Expected message content '%s' but got '%s'", expected, msg.Content)
+	}
+}
+
+func TestSplitJsonMessages(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"empty", "", []string{}},
+		{"whitespace only", "   \n\t", []string{}},
+		{"plain text", "hello world", []string{"hello world"}},
+		{"single JSON", `{"msg":"A"}`, []string{`{"msg":"A"}`}},
+		{"single JSON with whitespace", "  {\"msg\":\"A\"}\n", []string{`{"msg":"A"}`}},
+		{"two JSON, newline separated", "  {\"msg\":\"A\"}\n{\"msg\":\"B\"}\n", []string{`{"msg":"A"}`, `{"msg":"B"}`}},
+		{"two JSON, back-to-back", `{"msg":"A"}{"msg":"B"}`, []string{`{"msg":"A"}`, `{"msg":"B"}`}},
+		{"escaped brace in string", `{"msg":"brace { inside"}{"msg":"B"}`, []string{`{"msg":"brace { inside"}`, `{"msg":"B"}`}},
+		{"nested JSON", `{"outer":{"inner":1}}{"other":2}`, []string{`{"outer":{"inner":1}}`, `{"other":2}`}},
+		{"malformed JSON", `{"msg":"A"`, []string{`{"msg":"A"`}},
+		{"JSON plus tail", `{"msg":"A"} trailing`, []string{`{"msg":"A"}`, `trailing`}},
+		{"plaintext then JSON", "plain\n{\"msg\":\"A\"}", []string{"plain\n{\"msg\":\"A\"}"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := splitJsonMessages(tc.input)
+			if !reflect.DeepEqual(actual, tc.expected) {
+				t.Errorf("splitJsonMessages(%q) = %v; want %v", tc.input, actual, tc.expected)
+			}
+		})
 	}
 }
