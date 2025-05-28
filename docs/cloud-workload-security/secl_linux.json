@@ -2033,16 +2033,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "exec.abi",
-          "definition": "[Experimental] ABI of the file (only for executable ones)",
-          "property_doc_link": "exec-abi-doc"
-        },
-        {
-          "name": "exec.architecture",
-          "definition": "[Experimental] Architecture of the file (only for executable ones)",
-          "property_doc_link": "exec-architecture-doc"
-        },
-        {
           "name": "exec.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -2116,11 +2106,6 @@
           "name": "exec.comm",
           "definition": "Comm attribute of the process",
           "property_doc_link": "common-process-comm-doc"
-        },
-        {
-          "name": "exec.compression",
-          "definition": "[Experimental] Compression type of the file (only for compressed files)",
-          "property_doc_link": "exec-compression-doc"
         },
         {
           "name": "exec.container.id",
@@ -2201,6 +2186,46 @@
           "name": "exec.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "exec.file.metadatas.abi",
+          "definition": "[Experimental] ABI of the file (only for executable ones)",
+          "property_doc_link": "exec-file-metadatas-abi-doc"
+        },
+        {
+          "name": "exec.file.metadatas.architecture",
+          "definition": "[Experimental] Architecture of the file (only for executable ones)",
+          "property_doc_link": "exec-file-metadatas-architecture-doc"
+        },
+        {
+          "name": "exec.file.metadatas.compression",
+          "definition": "[Experimental] Compression type of the file (only for compressed files)",
+          "property_doc_link": "exec-file-metadatas-compression-doc"
+        },
+        {
+          "name": "exec.file.metadatas.is_executable",
+          "definition": "[Experimental] Tells if the file is executable or not",
+          "property_doc_link": "exec-file-metadatas-is_executable-doc"
+        },
+        {
+          "name": "exec.file.metadatas.is_garble_obfuscated",
+          "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
+          "property_doc_link": "exec-file-metadatas-is_garble_obfuscated-doc"
+        },
+        {
+          "name": "exec.file.metadatas.is_upx_packed",
+          "definition": "[Experimental] Tells if the binary has been packed using UPX",
+          "property_doc_link": "exec-file-metadatas-is_upx_packed-doc"
+        },
+        {
+          "name": "exec.file.metadatas.size",
+          "definition": "[Experimental] Size of the file",
+          "property_doc_link": "exec-file-metadatas-size-doc"
+        },
+        {
+          "name": "exec.file.metadatas.type",
+          "definition": "[Experimental] Type of the file",
+          "property_doc_link": "exec-file-metadatas-type-doc"
         },
         {
           "name": "exec.file.mode",
@@ -2403,16 +2428,6 @@
           "property_doc_link": "common-process-is_exec-doc"
         },
         {
-          "name": "exec.is_executable",
-          "definition": "[Experimental] Tells if the file is executable or not",
-          "property_doc_link": "exec-is_executable-doc"
-        },
-        {
-          "name": "exec.is_garble_obfuscated",
-          "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
-          "property_doc_link": "exec-is_garble_obfuscated-doc"
-        },
-        {
           "name": "exec.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -2423,11 +2438,6 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
-          "name": "exec.is_upx_packed",
-          "definition": "[Experimental] Tells if the binary has been packed using UPX",
-          "property_doc_link": "exec-is_upx_packed-doc"
-        },
-        {
           "name": "exec.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -2436,11 +2446,6 @@
           "name": "exec.ppid",
           "definition": "Parent process ID",
           "property_doc_link": "common-process-ppid-doc"
-        },
-        {
-          "name": "exec.size",
-          "definition": "[Experimental] Size of the file",
-          "property_doc_link": "exec-size-doc"
         },
         {
           "name": "exec.syscall.path",
@@ -2456,11 +2461,6 @@
           "name": "exec.tty_name",
           "definition": "Name of the TTY associated with the process",
           "property_doc_link": "common-process-tty_name-doc"
-        },
-        {
-          "name": "exec.type",
-          "definition": "[Experimental] Type of the file",
-          "property_doc_link": "exec-type-doc"
         },
         {
           "name": "exec.uid",
@@ -10388,87 +10388,99 @@
       "examples": []
     },
     {
-      "name": "exec.abi",
-      "link": "exec-abi-doc",
+      "name": "exec.file.metadatas.abi",
+      "link": "exec-file-metadatas-abi-doc",
       "type": "int",
       "definition": "[Experimental] ABI of the file (only for executable ones)",
       "prefixes": [
-        "exec"
+        "exec.file.metadatas"
       ],
       "constants": "ABI",
       "constants_link": "abi",
       "examples": []
     },
     {
-      "name": "exec.architecture",
-      "link": "exec-architecture-doc",
+      "name": "exec.file.metadatas.architecture",
+      "link": "exec-file-metadatas-architecture-doc",
       "type": "int",
       "definition": "[Experimental] Architecture of the file (only for executable ones)",
       "prefixes": [
-        "exec"
+        "exec.file.metadatas"
       ],
       "constants": "Architecture",
       "constants_link": "architecture",
       "examples": []
     },
     {
-      "name": "exec.compression",
-      "link": "exec-compression-doc",
+      "name": "exec.file.metadatas.compression",
+      "link": "exec-file-metadatas-compression-doc",
       "type": "int",
       "definition": "[Experimental] Compression type of the file (only for compressed files)",
       "prefixes": [
-        "exec"
+        "exec.file.metadatas"
       ],
       "constants": "CompressionType",
       "constants_link": "compressiontype",
       "examples": []
     },
     {
-      "name": "exec.is_executable",
-      "link": "exec-is_executable-doc",
+      "name": "exec.file.metadatas.is_executable",
+      "link": "exec-file-metadatas-is_executable-doc",
       "type": "bool",
       "definition": "[Experimental] Tells if the file is executable or not",
       "prefixes": [
-        "exec"
+        "exec.file.metadatas"
       ],
       "constants": "",
       "constants_link": "",
       "examples": []
     },
     {
-      "name": "exec.is_garble_obfuscated",
-      "link": "exec-is_garble_obfuscated-doc",
+      "name": "exec.file.metadatas.is_garble_obfuscated",
+      "link": "exec-file-metadatas-is_garble_obfuscated-doc",
       "type": "bool",
       "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
       "prefixes": [
-        "exec"
+        "exec.file.metadatas"
       ],
       "constants": "",
       "constants_link": "",
       "examples": []
     },
     {
-      "name": "exec.is_upx_packed",
-      "link": "exec-is_upx_packed-doc",
+      "name": "exec.file.metadatas.is_upx_packed",
+      "link": "exec-file-metadatas-is_upx_packed-doc",
       "type": "bool",
       "definition": "[Experimental] Tells if the binary has been packed using UPX",
       "prefixes": [
-        "exec"
+        "exec.file.metadatas"
       ],
       "constants": "",
       "constants_link": "",
       "examples": []
     },
     {
-      "name": "exec.size",
-      "link": "exec-size-doc",
+      "name": "exec.file.metadatas.size",
+      "link": "exec-file-metadatas-size-doc",
       "type": "int",
       "definition": "[Experimental] Size of the file",
       "prefixes": [
-        "exec"
+        "exec.file.metadatas"
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadatas.type",
+      "link": "exec-file-metadatas-type-doc",
+      "type": "int",
+      "definition": "[Experimental] Type of the file",
+      "prefixes": [
+        "exec.file.metadatas"
+      ],
+      "constants": "FileType",
+      "constants_link": "filetype",
       "examples": []
     },
     {
@@ -10481,18 +10493,6 @@
       ],
       "constants": "",
       "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "exec.type",
-      "link": "exec-type-doc",
-      "type": "int",
-      "definition": "[Experimental] Type of the file",
-      "prefixes": [
-        "exec"
-      ],
-      "constants": "FileType",
-      "constants_link": "filetype",
       "examples": []
     },
     {

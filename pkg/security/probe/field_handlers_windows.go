@@ -157,3 +157,43 @@ func (fh *FieldHandlers) ResolveNewSecurityDescriptor(_ *model.Event, cp *model.
 	}
 	return hrsd
 }
+
+// ResolveFileMetadatasSize resolves file metadata size
+func (fh *FieldHandlers) ResolveFileMetadatasSize(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasType resolves file metadata type
+func (fh *FieldHandlers) ResolveFileMetadatasType(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasIsExecutable resolves file metadata is_executable
+func (fh *FieldHandlers) ResolveFileMetadatasIsExecutable(_ *model.Event, _ *model.FileMetadatas) bool {
+	return false
+}
+
+// ResolveFileMetadatasArchitecture resolves file metadata architecture
+func (fh *FieldHandlers) ResolveFileMetadatasArchitecture(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasABI resolves file metadata ABI
+func (fh *FieldHandlers) ResolveFileMetadatasABI(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasIsUPXPacked resolves file metadata is_upx_packed
+func (fh *FieldHandlers) ResolveFileMetadatasIsUPXPacked(_ *model.Event, _ *model.FileMetadatas) bool {
+	return false
+}
+
+// ResolveFileMetadatasCompression resolves file metadata compression
+func (fh *FieldHandlers) ResolveFileMetadatasCompression(_ *model.Event, _ *model.FileMetadatas) int {
+	return 0
+}
+
+// ResolveFileMetadatasIsGarbleObfuscated resolves file metadata is_garble_obfuscated
+func (fh *FieldHandlers) ResolveFileMetadatasIsGarbleObfuscated(_ *model.Event, _ *model.FileMetadatas) bool {
+	return false
+}

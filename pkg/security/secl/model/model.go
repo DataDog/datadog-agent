@@ -123,15 +123,16 @@ type RuleContext struct {
 
 // FileMetadatas represents file metadatas
 type FileMetadatas struct {
-	Size               int64 `field:"size"`                 // SECLDoc[size] Definition:`[Experimental] Size of the file`
-	Type               int   `field:"type"`                 // SECLDoc[type] Definition:`[Experimental] Type of the file` Constants:`FileType`
-	IsExecutable       bool  `field:"is_executable"`        // SECLDoc[is_executable] Definition:`[Experimental] Tells if the file is executable or not`
-	Architecture       int   `field:"architecture"`         // SECLDoc[architecture] Definition:`[Experimental] Architecture of the file (only for executable ones)` Constants:`Architecture`
-	ABI                int   `field:"abi"`                  // SECLDoc[abi] Definition:`[Experimental] ABI of the file (only for executable ones)` Constants:`ABI`
-	IsUPXPacked        bool  `field:"is_upx_packed"`        // SECLDoc[is_upx_packed] Definition:`[Experimental] Tells if the binary has been packed using UPX`
-	Compression        int   `field:"compression"`          // SECLDoc[compression] Definition:`[Experimental] Compression type of the file (only for compressed files)` Constants:`CompressionType`
-	IsGarbleObfuscated bool  `field:"is_garble_obfuscated"` // SECLDoc[is_garble_obfuscated] Definition:`[Experimental] Tells if the binary has been obfuscated using garble`
+	Size               int64 `field:"size,handler:ResolveFileMetadatasSize,opts:skip_ad,weight:999"`                               // SECLDoc[size] Definition:`[Experimental] Size of the file`
+	Type               int   `field:"type,handler:ResolveFileMetadatasType,opts:skip_ad,weight:999"`                               // SECLDoc[type] Definition:`[Experimental] Type of the file` Constants:`FileType`
+	IsExecutable       bool  `field:"is_executable,handler:ResolveFileMetadatasIsExecutable,opts:skip_ad,weight:999"`              // SECLDoc[is_executable] Definition:`[Experimental] Tells if the file is executable or not`
+	Architecture       int   `field:"architecture,handler:ResolveFileMetadatasArchitecture,opts:skip_ad,weight:999"`               // SECLDoc[architecture] Definition:`[Experimental] Architecture of the file (only for executable ones)` Constants:`Architecture`
+	ABI                int   `field:"abi,handler:ResolveFileMetadatasABI,opts:skip_ad,weight:999"`                                 // SECLDoc[abi] Definition:`[Experimental] ABI of the file (only for executable ones)` Constants:`ABI`
+	IsUPXPacked        bool  `field:"is_upx_packed,handler:ResolveFileMetadatasIsUPXPacked,opts:skip_ad,weight:999"`               // SECLDoc[is_upx_packed] Definition:`[Experimental] Tells if the binary has been packed using UPX`
+	Compression        int   `field:"compression,handler:ResolveFileMetadatasCompression,opts:skip_ad,weight:999"`                 // SECLDoc[compression] Definition:`[Experimental] Compression type of the file (only for compressed files)` Constants:`CompressionType`
+	IsGarbleObfuscated bool  `field:"is_garble_obfuscated,handler:ResolveFileMetadatasIsGarbleObfuscated,opts:skip_ad,weight:999"` // SECLDoc[is_garble_obfuscated] Definition:`[Experimental] Tells if the binary has been obfuscated using garble`
 	Linkage            int   `field:"-"`
+	Resolved           bool  `field:"-"`
 }
 
 // BaseEvent represents an event sent from the kernel

@@ -1027,15 +1027,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
-	if eventType == model.ExecEventType {
-		metadatas, err := p.Resolvers.FileMetadataResolver.ResolveFileMetadatas(event, &event.Exec.Process.FileEvent)
-		if err != nil {
-			seclog.Errorf("failed to resolve exec binary metadatas: %s", err)
-		} else {
-			event.Exec.FileMetadatas = *metadatas
-		}
-	}
-
 	switch eventType {
 
 	case model.FileMountEventType:

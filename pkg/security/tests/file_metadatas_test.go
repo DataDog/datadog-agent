@@ -56,7 +56,7 @@ func TestFileMetadataExecs(t *testing.T) {
 
 	ruleDef := &rules.RuleDefinition{
 		ID: "test_rule_binary",
-		Expression: fmt.Sprintf(`exec.file.name == "ls" && exec.type == %s && exec.is_upx_packed == false && exec.is_garble_obfuscated == false && exec.compression == NONE && exec.is_executable == true`,
+		Expression: fmt.Sprintf(`exec.file.name == "ls" && exec.file.metadatas.type == %s && exec.file.metadatas.is_upx_packed == false && exec.file.metadatas.is_garble_obfuscated == false && exec.file.metadatas.compression == NONE && exec.file.metadatas.is_executable == true`,
 			fileType.String()),
 	}
 
@@ -66,7 +66,7 @@ func TestFileMetadataExecs(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("abi", func(t *testing.T) {
+	t.Run("exec-metadatas", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			cmd := exec.Command("ls", "-al", "/")
 			_ = cmd.Run()

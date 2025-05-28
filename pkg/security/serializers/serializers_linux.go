@@ -1579,6 +1579,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.IMDSEventSerializer = newIMDSEventSerializer(&event.IMDS)
 	case model.ExecEventType:
+		// only calling the first one, it will resolve all metadata fields
+		event.FieldHandlers.ResolveFileMetadatasSize(event, &event.Exec.FileMetadatas)
+
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializerFull(&event.ProcessContext.Process.FileEvent, event, 0, &event.Exec.FileMetadatas),
 		}
