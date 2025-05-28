@@ -9,6 +9,7 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -70,10 +72,11 @@ func NewComponent(reqs Requires) Provides {
 func newRemoteAgent(reqs Requires) *remoteAgentRegistry {
 	shutdownChan := make(chan struct{})
 	comp := &remoteAgentRegistry{
-		conf:         reqs.Config,
-		agentMap:     make(map[string]*remoteAgentDetails),
-		shutdownChan: shutdownChan,
-		telemetry:    reqs.Telemetry,
+		conf:             reqs.Config,
+		agentMap:         make(map[string]*remoteAgentDetails),
+		shutdownChan:     shutdownChan,
+		telemetry:        reqs.Telemetry,
+		configEventsChan: make(chan *settingsUpdate),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -138,15 +141,39 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 			return 0, err
 		}
 
-		// Send the initial configuration to the remote agent.
+		// Get the initial configuration.
 		allSettings := ra.conf.AllSettings()
 
-		// TODO: AllSettings returns a map[string]interface{}, we need to convert it to a slice of SettingSnapshot
-		_ = allSettings
+		// Note: AllSettings returns a map[string]interface{}. The inner values may be a type that structpb.NewValue is not able to handle (ex: map[string]string), so we perform a hacky operation by marshalling the data into a JSON string first.
+		data, err := json.Marshal(allSettings)
+		if err != nil {
+			return 0, err
+		}
+
+		// Unmarshal the data into a map[string]interface{} so that the values have a type that structpb.NewValue can handle.
+		var intermediateMap map[string]interface{}
+		if err := json.Unmarshal(data, &intermediateMap); err != nil {
+			return 0, err
+		}
+
+		snapshot := make([]*pb.ConfigSnapshot_SettingSnapshot, 0, len(intermediateMap))
+		for setting, value := range intermediateMap {
+			pbValue, err := structpb.NewValue(value)
+			if err != nil {
+				log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", setting, err)
+				continue
+			}
+			snapshot = append(snapshot, &pb.ConfigSnapshot_SettingSnapshot{
+				Key:   setting,
+				Value: pbValue,
+			})
+		}
+
+		// Send the initial configuration to the remote agent.
 		err = details.configStream.stream.Send(&pb.ConfigEvent{
 			Event: &pb.ConfigEvent_Snapshot{
 				Snapshot: &pb.ConfigSnapshot{
-					Settings: []*pb.ConfigSnapshot_SettingSnapshot{},
+					Settings: snapshot,
 				},
 			},
 		})
@@ -209,16 +236,27 @@ func (ra *remoteAgentRegistry) start() {
 			case update := <-ra.configEventsChan:
 				ra.agentMapMu.Lock()
 				for agentID, details := range ra.agentMap {
-					// TODO: process the update with the correct value types for oldValue and newValue
+					previousValue, err := structpb.NewValue(update.oldValue)
+					if err != nil {
+						log.Warnf("Failed to convert old value for setting '%s' to structpb.Value: %v", update.setting, err)
+						continue
+					}
+					newValue, err := structpb.NewValue(update.newValue)
+					if err != nil {
+						log.Warnf("Failed to convert new value for setting '%s' to structpb.Value: %v", update.setting, err)
+						continue
+					}
 					request := &pb.ConfigEvent{
 						Event: &pb.ConfigEvent_Update{
 							Update: &pb.SingleUpdate{
-								Key:       update.setting,
-								UpdatedAt: timestamppb.New(update.timestamp),
+								Key:           update.setting,
+								UpdatedAt:     timestamppb.New(update.timestamp),
+								PreviousValue: previousValue,
+								NewValue:      newValue,
 							},
 						},
 					}
-					err := details.configStream.stream.Send(request)
+					err = details.configStream.stream.Send(request)
 					if err != nil {
 						log.Warnf("Failed to send config update to remote agent '%s': %v", agentID, err)
 					} else {

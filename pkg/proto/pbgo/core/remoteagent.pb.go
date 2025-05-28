@@ -7,7 +7,7 @@
 package core
 
 import (
-	_ "github.com/golang/protobuf/ptypes/struct"
+	_struct "github.com/golang/protobuf/ptypes/struct"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -536,11 +536,14 @@ func (x *ConfigSnapshot) GetSettings() []*ConfigSnapshot_SettingSnapshot {
 }
 
 type SingleUpdate struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	UpdatedAt     *timestamp.Timestamp   `protobuf:"bytes,2,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	PreviousValue string                 `protobuf:"bytes,3,opt,name=previous_value,json=previousValue,proto3" json:"previous_value,omitempty"`
-	NewValue      string                 `protobuf:"bytes,4,opt,name=new_value,json=newValue,proto3" json:"new_value,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Key   string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// Timestamp indicating when the update was processed.
+	// Remote agents may choose how to handle updates with an earlier timestamp
+	// than one they have already seen.
+	UpdatedAt     *timestamp.Timestamp `protobuf:"bytes,2,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	PreviousValue *_struct.Value       `protobuf:"bytes,3,opt,name=previous_value,json=previousValue,proto3" json:"previous_value,omitempty"`
+	NewValue      *_struct.Value       `protobuf:"bytes,4,opt,name=new_value,json=newValue,proto3" json:"new_value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -589,18 +592,18 @@ func (x *SingleUpdate) GetUpdatedAt() *timestamp.Timestamp {
 	return nil
 }
 
-func (x *SingleUpdate) GetPreviousValue() string {
+func (x *SingleUpdate) GetPreviousValue() *_struct.Value {
 	if x != nil {
 		return x.PreviousValue
 	}
-	return ""
+	return nil
 }
 
-func (x *SingleUpdate) GetNewValue() string {
+func (x *SingleUpdate) GetNewValue() *_struct.Value {
 	if x != nil {
 		return x.NewValue
 	}
-	return ""
+	return nil
 }
 
 type ConfigEvent struct {
@@ -688,7 +691,7 @@ func (*ConfigEvent_Update) isConfigEvent_Event() {}
 type ConfigSnapshot_SettingSnapshot struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Value         string                 `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Value         *_struct.Value         `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -730,11 +733,11 @@ func (x *ConfigSnapshot_SettingSnapshot) GetKey() string {
 	return ""
 }
 
-func (x *ConfigSnapshot_SettingSnapshot) GetValue() string {
+func (x *ConfigSnapshot_SettingSnapshot) GetValue() *_struct.Value {
 	if x != nil {
 		return x.Value
 	}
-	return ""
+	return nil
 }
 
 var File_datadog_remoteagent_remoteagent_proto protoreflect.FileDescriptor
@@ -772,18 +775,18 @@ const file_datadog_remoteagent_remoteagent_proto_rawDesc = "" +
 	"\x13GetTelemetryRequest\"@\n" +
 	"\x14GetTelemetryResponse\x12\x1d\n" +
 	"\tprom_text\x18\x01 \x01(\tH\x00R\bpromTextB\t\n" +
-	"\apayload\"\x9c\x01\n" +
+	"\apayload\"\xb4\x01\n" +
 	"\x0eConfigSnapshot\x12O\n" +
-	"\bsettings\x18\x01 \x03(\v23.datadog.remoteagent.ConfigSnapshot.SettingSnapshotR\bsettings\x1a9\n" +
+	"\bsettings\x18\x01 \x03(\v23.datadog.remoteagent.ConfigSnapshot.SettingSnapshotR\bsettings\x1aQ\n" +
 	"\x0fSettingSnapshot\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value\"\x9f\x01\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12,\n" +
+	"\x05value\x18\x02 \x01(\v2\x16.google.protobuf.ValueR\x05value\"\xcf\x01\n" +
 	"\fSingleUpdate\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x129\n" +
 	"\n" +
-	"updated_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12%\n" +
-	"\x0eprevious_value\x18\x03 \x01(\tR\rpreviousValue\x12\x1b\n" +
-	"\tnew_value\x18\x04 \x01(\tR\bnewValue\"\x96\x01\n" +
+	"updated_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12=\n" +
+	"\x0eprevious_value\x18\x03 \x01(\v2\x16.google.protobuf.ValueR\rpreviousValue\x123\n" +
+	"\tnew_value\x18\x04 \x01(\v2\x16.google.protobuf.ValueR\bnewValue\"\x96\x01\n" +
 	"\vConfigEvent\x12A\n" +
 	"\bsnapshot\x18\x01 \x01(\v2#.datadog.remoteagent.ConfigSnapshotH\x00R\bsnapshot\x12;\n" +
 	"\x06update\x18\x02 \x01(\v2!.datadog.remoteagent.SingleUpdateH\x00R\x06updateB\a\n" +
@@ -820,6 +823,7 @@ var file_datadog_remoteagent_remoteagent_proto_goTypes = []any{
 	nil,                                    // 14: datadog.remoteagent.GetFlareFilesResponse.FilesEntry
 	(*ConfigSnapshot_SettingSnapshot)(nil), // 15: datadog.remoteagent.ConfigSnapshot.SettingSnapshot
 	(*timestamp.Timestamp)(nil),            // 16: google.protobuf.Timestamp
+	(*_struct.Value)(nil),                  // 17: google.protobuf.Value
 }
 var file_datadog_remoteagent_remoteagent_proto_depIdxs = []int32{
 	12, // 0: datadog.remoteagent.StatusSection.fields:type_name -> datadog.remoteagent.StatusSection.FieldsEntry
@@ -828,14 +832,17 @@ var file_datadog_remoteagent_remoteagent_proto_depIdxs = []int32{
 	14, // 3: datadog.remoteagent.GetFlareFilesResponse.files:type_name -> datadog.remoteagent.GetFlareFilesResponse.FilesEntry
 	15, // 4: datadog.remoteagent.ConfigSnapshot.settings:type_name -> datadog.remoteagent.ConfigSnapshot.SettingSnapshot
 	16, // 5: datadog.remoteagent.SingleUpdate.updated_at:type_name -> google.protobuf.Timestamp
-	9,  // 6: datadog.remoteagent.ConfigEvent.snapshot:type_name -> datadog.remoteagent.ConfigSnapshot
-	10, // 7: datadog.remoteagent.ConfigEvent.update:type_name -> datadog.remoteagent.SingleUpdate
-	0,  // 8: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry.value:type_name -> datadog.remoteagent.StatusSection
-	9,  // [9:9] is the sub-list for method output_type
-	9,  // [9:9] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	17, // 6: datadog.remoteagent.SingleUpdate.previous_value:type_name -> google.protobuf.Value
+	17, // 7: datadog.remoteagent.SingleUpdate.new_value:type_name -> google.protobuf.Value
+	9,  // 8: datadog.remoteagent.ConfigEvent.snapshot:type_name -> datadog.remoteagent.ConfigSnapshot
+	10, // 9: datadog.remoteagent.ConfigEvent.update:type_name -> datadog.remoteagent.SingleUpdate
+	0,  // 10: datadog.remoteagent.GetStatusDetailsResponse.NamedSectionsEntry.value:type_name -> datadog.remoteagent.StatusSection
+	17, // 11: datadog.remoteagent.ConfigSnapshot.SettingSnapshot.value:type_name -> google.protobuf.Value
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remoteagent_remoteagent_proto_init() }

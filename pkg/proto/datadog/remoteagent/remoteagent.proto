@@ -89,19 +89,24 @@ message GetTelemetryResponse {
   }
 }
 message ConfigSnapshot {
-  message SettingSnapshot {
+message SettingSnapshot {
     string key = 1;
-    string value = 2;
+    google.protobuf.Value value = 2;
   }
 
   repeated SettingSnapshot settings = 1;
+
 }
 
 message SingleUpdate {
   string key = 1;
+  // Timestamp indicating when the update was processed.
+  // Remote agents may choose how to handle updates with an earlier timestamp
+  // than one they have already seen.
   google.protobuf.Timestamp updated_at = 2;
-  string previous_value = 3;
-  string new_value = 4;
+  google.protobuf.Value previous_value = 3;
+  google.protobuf.Value new_value = 4;
+
 }
 
 message ConfigEvent {
