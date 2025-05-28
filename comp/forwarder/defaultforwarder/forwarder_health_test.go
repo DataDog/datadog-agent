@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -202,11 +203,12 @@ func TestUpdateAPIKey(t *testing.T) {
 }
 
 func quoteList(list []string) string {
-	for i, item := range list {
-		list[i] = "\"" + item + "\""
+	result := []string{}
+	for _, item := range list {
+		result = append(result, "\""+item+"\"")
 	}
 
-	return strings.Join(list, ",")
+	return strings.Join(result, ",")
 }
 
 // runUpdateAPIKeysTest test what happens when changing the api keys on additional endpoints.
@@ -285,6 +287,18 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 		ts1Port, ts2Port,
 		expectAfterFmt)
 	assert.Equal(t, expect, string(data), description)
+
+	// Check the new keys are now valid
+	for _, key := range expectAfter {
+		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+	}
+
+	// Check removed keys are not valid
+	for _, key := range expectBefore {
+		if !slices.Contains(expectAfter, key) {
+			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		}
+	}
 
 	// Restore the keys and ensure they are properly restored
 	endpoints = map[string][]string{
