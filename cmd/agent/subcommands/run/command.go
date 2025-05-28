@@ -35,6 +35,8 @@ import (
 	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/fx"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
+	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/daemonchecker/fx"
+	fleetstatus "github.com/DataDog/datadog-agent/comp/fleetstatus/def"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -280,6 +282,7 @@ func run(log log.Component,
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 	hostname hostnameinterface.Component,
+	_ fleetstatus.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -421,6 +424,9 @@ func getSharedFxOption() fx.Option {
 		rcserviceimpl.Module(),
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
+		installerexecfx.Module(),
+		ssistatusfx.Module(),
+		daemoncheckerfx.Module(),
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		autodiscoveryimpl.Module(),
@@ -509,8 +515,6 @@ func getSharedFxOption() fx.Option {
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
-		installerexec.Module(),
-		ssistatusfx.Module(),
 	)
 }
 

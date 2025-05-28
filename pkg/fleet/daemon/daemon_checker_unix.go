@@ -9,7 +9,10 @@ package daemon
 
 import (
 	"net"
+	"path/filepath"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
 // NewDaemonChecker creates a new DaemonChecker instance
@@ -18,7 +21,7 @@ func NewDaemonChecker() Checker {
 }
 
 func (c *daemonCheckerImpl) IsRunning() (bool, error) {
-	conn, err := net.DialTimeout("unix", "/var/run/datadog/installer.sock", 100*time.Millisecond)
+	conn, err := net.DialTimeout("unix", filepath.Join(paths.RunPath, socketName), 100*time.Millisecond)
 	if err != nil {
 		return false, nil
 	}
