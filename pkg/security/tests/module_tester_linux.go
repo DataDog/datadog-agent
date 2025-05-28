@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -112,6 +113,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  socket: /tmp/runtime-security.sock
+  cmd_socket: /tmp/runtime-security-cmd.sock
   internal_monitoring:
     enabled: true
 {{ if gt .EventServerRetention 0 }}
@@ -124,7 +127,6 @@ runtime_security_config:
     enabled: true
     rate_limiter:
       enabled: {{ .OnDemandRateLimiterEnabled}}
-  socket: /tmp/test-runtime-security.sock
   sbom:
     enabled: {{ .SBOMEnabled }}
     host:
@@ -248,6 +250,7 @@ type testModule struct {
 	ruleEngine    *rulesmodule.RuleEngine
 	tracePipe     *tracePipeLogger
 	msgSender     *fakeMsgSender
+	grpcServer    *grpcutils.Server
 }
 
 //nolint:deadcode,unused
@@ -741,6 +744,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		statsdClient:  statsdClient,
 		proFile:       proFile,
 		eventHandlers: eventHandlers{},
+		grpcServer:    grpcutils.NewServer("unix", "/tmp/runtime-security.sock"),
 	}
 
 	emopts := eventmonitor.Opts{
@@ -755,6 +759,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			EBPFLessEnabled:          ebpfLessEnabled,
 			DNSPort:                  opts.staticOpts.dnsPort,
 		},
+	}
+
+	// fake the security agent
+	if err := testMod.grpcServer.Start(); err != nil {
+		return nil, fmt.Errorf("failed to create module: %w", err)
 	}
 
 	if opts.staticOpts.tagger != nil {
@@ -1021,6 +1030,8 @@ func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 	if tm.msgSender != nil {
 		tm.msgSender.flush()
 	}
+
+	tm.grpcServer.Stop()
 
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
