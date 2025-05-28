@@ -45,7 +45,7 @@ func TestVPNTunnelStore(t *testing.T) {
 		},
 	}
 
-	vpnTunnel, exists := vts.GetTunnelByOutsideIPs("1.2.3.4", "4.3.2.1")
+	_, exists := vts.GetTunnelByOutsideIPs("1.2.3.4", "4.3.2.1")
 	assert.False(t, exists)
 
 	for _, vpnTunnel := range vpnTunnels {
@@ -54,7 +54,7 @@ func TestVPNTunnelStore(t *testing.T) {
 	assert.Len(t, vts.ByOutsideIPs, len(vpnTunnels))
 	assert.Len(t, vts.ByRemoteOutsideIP, len(vpnTunnels))
 
-	vpnTunnel, exists = vts.GetTunnelByOutsideIPs("1.2.3.4", "4.3.2.1")
+	vpnTunnel, exists := vts.GetTunnelByOutsideIPs("1.2.3.4", "4.3.2.1")
 	assert.True(t, exists)
 	assert.Equal(t, vpnTunnels[0], *vpnTunnel)
 	vpnTunnel, exists = vts.GetTunnelByOutsideIPs("9.10.11.12", "12.11.10.9")
