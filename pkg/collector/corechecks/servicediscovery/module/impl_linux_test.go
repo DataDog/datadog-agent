@@ -359,8 +359,6 @@ func TestPorts(t *testing.T) {
 	expectedPortsMap := make(map[uint16]struct{}, len(expectedPorts))
 
 	pid := os.Getpid()
-	// First call will not return anything, as all services will be potentials.
-	_ = getServices(t, discovery.url)
 	resp := getServices(t, discovery.url)
 	svc := findService(pid, resp.Services)
 	require.NotNilf(t, svc, "could not find service for pid %v", pid)
@@ -474,8 +472,6 @@ func TestServiceName(t *testing.T) {
 		assert.Equal(collect, "sleep", svc.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
 		assert.False(collect, svc.DDServiceInjected)
-		assert.Equal(collect, startEvent.ContainerID, "")
-		assert.Equal(collect, startEvent.LastHeartbeat, mockedTime.Unix())
 	}, 30*time.Second, 100*time.Millisecond)
 
 	// Verify tracer metadata
@@ -516,8 +512,6 @@ func TestServiceLifetime(t *testing.T) {
 		assert.Equal(t, "sleep", service.GeneratedName)
 		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
 		assert.False(t, service.DDServiceInjected)
-		assert.Equal(t, service.ContainerID, "")
-		assert.Equal(t, service.LastHeartbeat, expectedTime.Unix())
 	}
 
 	stopService := func(cmd *exec.Cmd, cancel context.CancelFunc) {
@@ -994,44 +988,21 @@ func TestDocker(t *testing.T) {
 			}
 			if comm == "python-1111" {
 				pid1111 = process.PID
-				discovery.setProcessContainer(
-					pid1111,
-					"dummyCID",
-					[]string{ // Collector tags from container
-						"sometag:somevalue",
-					},
-					[]string{ // Tags from tagger
-						"kube_service:kube_foo", // Should not have priority compared to app tag, for service naming
-						"app:foo_from_app_tag",
-					},
-				)
 				break
 			}
 		}
 		assert.NotZero(collect, pid1111)
 	}, time.Second*10, time.Millisecond*20)
 
-	// First endpoint call will not contain any events, because the service is
-	// still consider a potential service. The second call will have the events.
-	_ = getServices(t, discovery.url)
 	resp := getServices(t, discovery.url)
 
 	// Assert events
 	svc := findService(pid1111, resp.Services)
 	require.NotNilf(t, svc, "could not find start event for pid %v", pid1111)
 	require.Contains(t, svc.Ports, uint16(1234))
-	require.Contains(t, svc.ContainerID, "dummyCID")
 	require.Contains(t, svc.GeneratedName, "http.server")
 	require.Contains(t, svc.GeneratedNameSource, string(usm.CommandLine))
-	require.Contains(t, svc.ContainerServiceName, "foo_from_app_tag")
-	require.Contains(t, svc.ContainerServiceNameSource, "app")
-	require.ElementsMatch(t, svc.ContainerTags, []string{
-		"sometag:somevalue",
-		"kube_service:kube_foo",
-		"app:foo_from_app_tag",
-	})
 	require.Contains(t, svc.Type, "web_service")
-	require.Equal(t, svc.LastHeartbeat, mockedTime.Unix())
 }
 
 func newDiscoveryNetwork(t testing.TB, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
@@ -1112,12 +1083,8 @@ func TestCache(t *testing.T) {
 		require.NotContains(t, discovery.cache, int32(pid))
 	}
 
-	// Add some PIDs to noPortTries to verify it gets cleaned up
-	discovery.noPortTries[int32(1)] = 0
-
 	discovery.Close()
 	require.Empty(t, discovery.cache)
-	require.Empty(t, discovery.noPortTries)
 	require.Empty(t, discovery.runningServices)
 
 	// Calling getServices after Close is weird but it can happen in practice
@@ -1126,63 +1093,6 @@ func TestCache(t *testing.T) {
 	require.NoError(t, err)
 	_, err = discovery.getCheckServices(defaultParams())
 	require.NoError(t, err)
-}
-
-func TestMaxPortCheck(t *testing.T) {
-	// Start a process that will be ignored due to no ports
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	cmd := exec.CommandContext(ctx, "sleep", "100")
-	err := cmd.Start()
-	require.NoError(t, err)
-	pid := int32(cmd.Process.Pid)
-
-	serverf, _ := startTCPServer(t, "tcp4", "")
-	t.Cleanup(func() { serverf.Close() })
-
-	selfPid := os.Getpid()
-
-	params := defaultParams()
-	params.heartbeatTime = 0
-
-	mockCtrl := gomock.NewController(t)
-	mTimeProvider := NewMocktimeProvider(mockCtrl)
-	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
-	discovery := newDiscovery(t, mTimeProvider)
-
-	for range maxPortCheckTries - 5 {
-		_, err = discovery.getCheckServices(params)
-		require.NoError(t, err)
-	}
-
-	discovery.mux.RLock()
-	require.Contains(t, discovery.noPortTries, pid, "process should be in noPortTries")
-	require.NotContains(t, discovery.noPortTries, selfPid, "self should not be in noPortTries")
-	discovery.mux.RUnlock()
-
-	for range 5 {
-		_, err = discovery.getCheckServices(params)
-		require.NoError(t, err)
-	}
-
-	discovery.mux.RLock()
-	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
-	require.Contains(t, discovery.ignorePids, pid, "process should be in ignorePids")
-	discovery.mux.RUnlock()
-
-	err = cmd.Process.Kill()
-	require.NoError(t, err)
-	err = cmd.Wait()
-	require.Error(t, err)
-
-	// Call getServices to trigger cleanup
-	_, err = discovery.getCheckServices(params)
-	require.NoError(t, err)
-
-	discovery.mux.RLock()
-	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
-	require.NotContains(t, discovery.ignorePids, pid, "process should not be in ignorePids")
-	discovery.mux.RUnlock()
 }
 
 func TestTagsPriority(t *testing.T) {
@@ -1505,9 +1415,7 @@ func TestStateEndpoint(t *testing.T) {
 	require.NotNil(t, serviceInfo, "could not find service with pid %v in cache", pid)
 
 	require.Equal(t, pid, serviceInfo.PID)
-	require.Equal(t, mockedTime.Unix(), serviceInfo.LastHeartbeat)
 
-	require.NotNil(t, state.NoPortTries)
 	require.NotNil(t, state.PotentialServices)
 	require.NotNil(t, state.RunningServices)
 	require.NotNil(t, state.IgnorePids)
