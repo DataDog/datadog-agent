@@ -835,9 +835,15 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if eventType == model.ExecEventType {
 		if event.ProcessContext != nil {
 			execPath := utils.ProcExePath(event.ProcessContext.Pid)
+
+			target, err := os.Readlink(execPath)
+			if err != nil {
+				event.Debug += fmt.Sprintf("Original file from %s: %s | ", execPath, target)
+			}
+
 			var fileStats unix.Statx_t
 			if err := unix.Statx(unix.AT_FDCWD, execPath, 0, unix.STATX_INO|unix.STATX_MNT_ID, &fileStats); err == nil {
-				event.Debug = fmt.Sprintf("Mount id: %d | ino: %d", fileStats.Mnt_id, fileStats.Ino)
+				event.Debug += fmt.Sprintf("Mount id: %d | ino: %d", fileStats.Mnt_id, fileStats.Ino)
 
 				mounts, err := utilkernel.ParseMountInfoFile(int32(event.ProcessContext.Pid))
 				if err != nil {
