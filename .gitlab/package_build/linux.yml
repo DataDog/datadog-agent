@@ -3,6 +3,8 @@
 .docker_build_job_definition_bazel:
   stage: setup
   needs: []
+  rules:
+    - when: always
   script:
     - |
       docker buildx build --push --pull \
