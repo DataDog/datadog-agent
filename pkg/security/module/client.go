@@ -137,7 +137,7 @@ func (c *SecurityAgentAPIClient) SendActivityDumps(ctx context.Context, msgs cha
 func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgentAPIClient, error) {
 	socketPath := cfg.SocketPath
 	if socketPath == "" {
-		return nil, errors.New("runtime_security_config.socket must be set")
+		return nil, errors.New("runtime_security_config.socket must be set, events will not be sent to the security agent")
 	}
 
 	family := config.GetFamilyAddress(socketPath)
