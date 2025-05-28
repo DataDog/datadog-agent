@@ -34,6 +34,7 @@ go_test(
         "//comp/otelcol/collector-contrib/fx",
         "//comp/otelcol/collector/def",
         "//comp/otelcol/collector/fx",
+        "//comp/otelcol/collector/impl",
         "//comp/otelcol/converter/def",
         "//comp/otelcol/converter/fx",
         "//comp/otelcol/logsagentpipeline",

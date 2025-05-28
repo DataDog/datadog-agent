@@ -18,7 +18,6 @@ go_library(
         "//pkg/collector/corechecks",
         "//pkg/collector/corechecks/cluster/orchestrator/processors",
         "//pkg/collector/corechecks/cluster/orchestrator/processors/k8s",
-        "//pkg/collector/corechecks/cluster/orchestrator/util",
         "//pkg/orchestrator",
         "//pkg/orchestrator/config",
         "//pkg/process/checks",

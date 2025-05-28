@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/util",
         "//pkg/orchestrator",
         "//pkg/orchestrator/config",
         "//pkg/orchestrator/model",

@@ -21,6 +21,7 @@ go_library(
         "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/setup/config",
         "//pkg/fleet/installer/telemetry",
+        "//pkg/fleet/installer/types",
         "//pkg/version",
     ] + select({
         "@rules_go//go/platform:aix": [

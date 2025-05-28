@@ -9,5 +9,6 @@ go_library(
         "//comp/otelcol/collector/def",
         "//comp/otelcol/collector/impl",
         "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )

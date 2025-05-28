@@ -45,6 +45,7 @@ go_library(
         "//pkg/collector/corechecks/cluster/orchestrator/processors/common",
         "//pkg/collector/corechecks/cluster/orchestrator/processors/k8s/pod_tag_provider",
         "//pkg/collector/corechecks/cluster/orchestrator/transformers/k8s",
+        "//pkg/collector/corechecks/cluster/orchestrator/util",
         "//pkg/orchestrator",
         "//pkg/orchestrator/redact",
         "//pkg/util/log",

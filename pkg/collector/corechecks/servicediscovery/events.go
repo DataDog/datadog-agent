@@ -29,7 +29,6 @@ const (
 
 type eventPayload struct {
 	NamingSchemaVersion        string                          `json:"naming_schema_version"`
-	ServiceName                string                          `json:"service_name"`
 	GeneratedServiceName       string                          `json:"generated_service_name"`
 	GeneratedServiceNameSource string                          `json:"generated_service_name_source,omitempty"`
 	AdditionalGeneratedNames   []string                        `json:"additional_generated_names,omitempty"`
@@ -87,7 +86,6 @@ func (ts *telemetrySender) newEvent(t eventType, service model.Service) *event {
 		APIVersion:  "v2",
 		Payload: &eventPayload{
 			NamingSchemaVersion:        "1",
-			ServiceName:                service.Name,
 			GeneratedServiceName:       service.GeneratedName,
 			GeneratedServiceNameSource: service.GeneratedNameSource,
 			AdditionalGeneratedNames:   service.AdditionalGeneratedNames,
@@ -127,9 +125,10 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 }
 
 func (ts *telemetrySender) sendStartServiceEvent(service model.Service) {
-	log.Debugf("[pid: %d | name: %s | ports: %v] start-service",
+	log.Debugf("[pid: %d | ddservice: %s | generated: %s | ports: %v] start-service",
 		service.PID,
-		service.Name,
+		service.DDService,
+		service.GeneratedName,
 		service.Ports,
 	)
 
@@ -144,9 +143,10 @@ func (ts *telemetrySender) sendStartServiceEvent(service model.Service) {
 }
 
 func (ts *telemetrySender) sendHeartbeatServiceEvent(service model.Service) {
-	log.Debugf("[pid: %d | name: %s] heartbeat-service",
+	log.Debugf("[pid: %d | ddservice: %s | generated: %s] heartbeat-service",
 		service.PID,
-		service.Name,
+		service.DDService,
+		service.GeneratedName,
 	)
 
 	e := ts.newEvent(eventTypeHeartbeatService, service)
@@ -160,9 +160,10 @@ func (ts *telemetrySender) sendHeartbeatServiceEvent(service model.Service) {
 }
 
 func (ts *telemetrySender) sendEndServiceEvent(service model.Service) {
-	log.Debugf("[pid: %d | name: %s] end-service",
+	log.Debugf("[pid: %d | ddservice: %s | generated: %s] end-service",
 		service.PID,
-		service.Name,
+		service.DDService,
+		service.GeneratedName,
 	)
 
 	e := ts.newEvent(eventTypeEndService, service)

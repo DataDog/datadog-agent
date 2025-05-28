@@ -8,6 +8,8 @@ go_library(
         "frame_parser.go",
         "packet_source.go",
         "traceroute_parallel.go",
+        "traceroute_serial.go",
+        "traceroute_types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common",
     visibility = ["//visibility:public"],
@@ -34,6 +36,8 @@ go_test(
         "common_test.go",
         "frame_parser_test.go",
         "traceroute_parallel_test.go",
+        "traceroute_serial_test.go",
+        "traceroute_types_test.go",
     ],
     embed = [":common"],
     deps = [

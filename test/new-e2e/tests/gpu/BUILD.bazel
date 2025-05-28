@@ -51,6 +51,7 @@ go_test(
         "//test/new-e2e/pkg/environments",
         "//test/new-e2e/pkg/provisioners",
         "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_datadog_test_infra_definitions//components/os",
         "@com_github_stretchr_testify//assert",
     ],
 )

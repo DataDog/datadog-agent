@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "impl",
-    srcs = ["collector.go"],
+    srcs = [
+        "collector.go",
+        "params.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl",
     visibility = ["//visibility:public"],
     deps = [

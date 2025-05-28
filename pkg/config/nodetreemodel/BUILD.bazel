@@ -34,6 +34,7 @@ go_library(
 go_test(
     name = "nodetreemodel_test",
     srcs = [
+        "compatibility_test.go",
         "config_test.go",
         "getter_test.go",
         "inner_node_test.go",
@@ -44,7 +45,9 @@ go_test(
     embed = [":nodetreemodel"],
     deps = [
         "//pkg/config/model",
+        "//pkg/config/viperconfig",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

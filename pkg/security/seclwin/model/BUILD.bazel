@@ -6,7 +6,6 @@ go_library(
         "accessors_win.go",
         "args_envs.go",
         "consts_common.go",
-        "consts_map_names_linux.go",
         "consts_win.go",
         "events.go",
         "field_handlers_win.go",

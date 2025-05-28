@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/status",
+        "//pkg/fips",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],

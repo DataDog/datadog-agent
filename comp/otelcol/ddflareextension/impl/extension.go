@@ -44,6 +44,7 @@ type ddExtension struct {
 	debug       extensionTypes.DebugSourceResponse
 	configStore *configStore
 	envConfMap  *envConfMap
+	byoc        bool
 }
 
 var _ extensioncapabilities.ConfigWatcher = (*ddExtension)(nil)
@@ -141,7 +142,7 @@ func (ext *ddExtension) NotifyConfig(_ context.Context, conf *confmap.Conf) erro
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, providedConfigSupported bool) (extensionDef.Component, error) {
+func NewExtension(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo, providedConfigSupported bool, byoc bool) (extensionDef.Component, error) {
 	ext := &ddExtension{
 		cfg:         cfg,
 		telemetry:   telemetry,
@@ -150,6 +151,7 @@ func NewExtension(ctx context.Context, cfg *Config, telemetry component.Telemetr
 		debug: extensionTypes.DebugSourceResponse{
 			Sources: map[string]extensionTypes.OTelFlareSource{},
 		},
+		byoc: byoc,
 	}
 	envConfMap, err := newEnvConfMap(ctx, cfg.configProviderSettings)
 	if err != nil {
@@ -226,6 +228,7 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 			AgentCommand:     ext.info.Command,
 			AgentDesc:        ext.info.Description,
 			ExtensionVersion: ext.info.Version,
+			BYOC:             ext.byoc,
 		},
 		ConfigResponse: extensionTypes.ConfigResponse{
 			CustomerConfig:        ext.configStore.getProvidedConf(),

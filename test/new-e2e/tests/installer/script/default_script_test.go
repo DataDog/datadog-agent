@@ -126,9 +126,9 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
 		"DD_API_KEY":               s.getAPIKey(),
 		"TESTING_KEYS_URL":         "keys.datadoghq.com",
-		"TESTING_APT_URL":          "apttesting.datad0g.com",
+		"TESTING_APT_URL":          "s3.amazonaws.com/apttesting.datad0g.com",
 		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("E2E_PIPELINE_ID"), s.arch),
-		"TESTING_YUM_URL":          "yumtesting.datad0g.com",
+		"TESTING_YUM_URL":          "s3.amazonaws.com/yumtesting.datad0g.com",
 		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("E2E_PIPELINE_ID")),
 	}))
 	require.NoErrorf(s.T(), err, "installer not properly installed through install script")
@@ -166,7 +166,7 @@ func (s *installScriptDefaultSuite) TestUpgradeInstallerAgent() {
 		"DD_API_KEY=" + s.getAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_AGENT_MINOR_VERSION=60.0",
+		"DD_AGENT_MINOR_VERSION=65.0",
 	}
 
 	// 1. Install installer / agent as separate packages using older agent 7 install script & an older agent version (7.60)
@@ -196,12 +196,12 @@ func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {
 		"DD_API_KEY=" + s.getAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_AGENT_MINOR_VERSION=60.0",
+		"DD_AGENT_MINOR_VERSION=65.0",
 	}
 	defer s.Purge()
 	s.RunInstallScript(s.url, params...)
 
 	// Check the agent version is the latest one
 	installedVersion := s.host.AgentStableVersion()
-	assert.NotEqual(s.T(), "7.60.0", installedVersion, "agent version should not be 7.60.0")
+	assert.NotEqual(s.T(), "7.65.0", installedVersion, "agent version should not be 7.65.0")
 }

@@ -16,6 +16,7 @@ go_library(
         "//pkg/networkdevice/metadata",
         "//pkg/networkdevice/sender",
         "//pkg/util/log",
+        "@org_uber_go_multierr//:multierr",
     ],
 )
 
@@ -23,4 +24,9 @@ go_test(
     name = "report_test",
     srcs = ["sender_test.go"],
     embed = [":report"],
+    deps = [
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/network-devices/versa/client",
+        "@com_github_stretchr_testify//mock",
+    ],
 )

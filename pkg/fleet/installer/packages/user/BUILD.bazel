@@ -5,4 +5,52 @@ go_library(
     srcs = ["user.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user",
     visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
 )

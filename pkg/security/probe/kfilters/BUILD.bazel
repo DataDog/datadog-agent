@@ -46,17 +46,22 @@ go_library(
 
 go_test(
     name = "kfilters_test",
-    srcs = ["approvers_test.go"],
+    srcs = [
+        "approvers_test.go",
+        "report_test.go",
+    ],
     embed = [":kfilters"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/ebpf",
+            "//pkg/security/probe/config",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
             "//pkg/security/secl/rules",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/ebpf",
+            "//pkg/security/probe/config",
             "//pkg/security/secl/compiler/eval",
             "//pkg/security/secl/model",
             "//pkg/security/secl/rules",

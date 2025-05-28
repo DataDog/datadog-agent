@@ -19,7 +19,7 @@ func getTestFactory(t *testing.T) extension.Factory {
 	factories, err := components()
 	assert.NoError(t, err)
 
-	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false))
+	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false), false)
 }
 
 func TestNewFactoryForAgent(t *testing.T) {

@@ -122,6 +122,8 @@ go_library(
         "//comp/snmptraps",
         "//comp/snmptraps/server",
         "//comp/trace/status/statusimpl",
+        "//comp/updater/installerexec/fx",
+        "//comp/updater/ssistatus/fx",
         "//pkg/aggregator",
         "//pkg/collector",
         "//pkg/collector/check",

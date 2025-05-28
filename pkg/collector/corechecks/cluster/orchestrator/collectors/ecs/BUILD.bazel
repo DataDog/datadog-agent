@@ -12,7 +12,6 @@ go_library(
         "//pkg/collector/corechecks/cluster/orchestrator/processors",
         "//pkg/collector/corechecks/cluster/orchestrator/processors/ecs",
         "//pkg/collector/corechecks/cluster/orchestrator/transformers/ecs",
-        "//pkg/collector/corechecks/cluster/orchestrator/util",
         "//pkg/orchestrator",
         "//pkg/util/log",
     ],

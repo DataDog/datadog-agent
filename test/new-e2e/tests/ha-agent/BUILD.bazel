@@ -12,6 +12,7 @@ go_test(
         "fixtures/snmp_conf.yaml",
     ],
     deps = [
+        "//pkg/util/testutil/flake",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
         "//test/new-e2e/pkg/components",
