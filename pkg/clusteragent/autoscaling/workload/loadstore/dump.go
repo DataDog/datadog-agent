@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LocalAutoscalingWorkloadCheckResponse is the response type of the autoscaling workload check.
-type LocalAutoscalingWorkloadCheckResponse struct {
+// LoadstoreMetricInfo is the response type of the autoscaling workload check.
+type LoadstoreMetricInfo struct {
 	LocalAutoscalingWorkloadEntities []*LocalAutoscalingWorkloadEntity
 }
 
@@ -29,16 +29,14 @@ type LocalAutoscalingWorkloadEntity struct {
 
 func defaultDisabledNamespaces() map[string]struct{} {
 	disabledNamespaces := make(map[string]struct{})
-	disabledNamespaces["kube-system"] = struct{}{}
-	disabledNamespaces["kube-public"] = struct{}{}
 	disabledNamespaces[apiServerCommon.GetResourcesNamespace()] = struct{}{}
 	return disabledNamespaces
 }
 
 // GetAutoscalingWorkloadCheck retrieves the autoscaling workload check response, from the local store and recommendation store.
-func GetAutoscalingWorkloadCheck(ctx context.Context) *LocalAutoscalingWorkloadCheckResponse {
+func GetAutoscalingWorkloadCheck(ctx context.Context) *LoadstoreMetricInfo {
 
-	resp := LocalAutoscalingWorkloadCheckResponse{
+	resp := LoadstoreMetricInfo{
 		LocalAutoscalingWorkloadEntities: make([]*LocalAutoscalingWorkloadEntity, 0),
 	}
 
@@ -79,7 +77,7 @@ func getLocalAutoscalingWorkloadCheck(ctx context.Context) []*LocalAutoscalingWo
 }
 
 // Dump writes the autoscaling workload check response to the given writer.
-func (response *LocalAutoscalingWorkloadCheckResponse) Dump(w io.Writer) {
+func (response *LoadstoreMetricInfo) Dump(w io.Writer) {
 	for _, workloadEntity := range response.LocalAutoscalingWorkloadEntities {
 		namespace, ok := workloadEntity.EntityStatus["Namespace"]
 		if !ok || namespace == nil {
