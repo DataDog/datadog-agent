@@ -562,7 +562,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			expectedResult: "pass: \"********\"",
 		},
 		{
-			name:           "With nil Requet",
+			name:           "With nil Request",
 			request:        nil,
 			expectedResult: "pass: \"********\"",
 		},

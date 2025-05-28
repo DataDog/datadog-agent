@@ -44,7 +44,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -79,7 +78,7 @@ type testDiscoveryModule struct {
 	url              string
 	mockWmeta        workloadmetamock.Mock
 	mockTagger       taggermock.Mock
-	mockTimeProvider *servicediscovery.Mocktimer
+	mockTimeProvider *MocktimeProvider
 }
 
 // setProcessContainer creates mock process and container entities in workloadmeta for testing.
@@ -110,7 +109,7 @@ func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCo
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 
 	mux := gorillamux.NewRouter()
 
@@ -1115,7 +1114,7 @@ func TestMaxPortCheck(t *testing.T) {
 	params.heartbeatTime = 0
 
 	mockCtrl := gomock.NewController(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 	discovery := newDiscovery(t, mTimeProvider)
 
