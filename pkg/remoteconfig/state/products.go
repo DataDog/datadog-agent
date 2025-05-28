@@ -37,6 +37,7 @@ var validProducts = map[string]struct{}{
 	ProductNDMDeviceProfilesCustom:      {},
 	ProductMetricControl:                {},
 	ProductDebug:                        {},
+	ProductDataStreamsLiveMessages:      {},
 }
 
 const (
@@ -102,4 +103,6 @@ const (
 	ProductMetricControl = "METRIC_CONTROL"
 	// ProductDebug is a product used for testing
 	ProductDebug = "DEBUG"
+	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
+	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 )

@@ -35,6 +35,8 @@ const (
 	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
 	// ProductDebug is to test remote config
 	ProductDebug = "DEBUG"
+	// ProductDataStreamsLiveMessages is to capture messages from Kafka
+	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 )
 
 // ProductListToString converts a product list to string list
