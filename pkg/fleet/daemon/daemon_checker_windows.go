@@ -20,7 +20,7 @@ func NewDaemonChecker() Checker {
 
 func (c *daemonCheckerImpl) IsRunning() (bool, error) {
 	timeout := 100 * time.Millisecond
-	conn, err := winio.DialPipe("\\\\.\\pipe\\DD_INSTALLER", &timeout)
+	conn, err := winio.DialPipe(namedPipePath, &timeout)
 	if err != nil {
 		return false, nil
 	}
