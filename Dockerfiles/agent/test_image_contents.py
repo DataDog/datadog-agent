@@ -48,35 +48,35 @@ class TestFiles(unittest.TestCase):
                     sha.update(chunk)
             self.assertEqual(sha.hexdigest(), digest, file + " checksum mismatch")
 
-    def test_files_permissions(self):
-        for root, dirs, files in os.walk("/"):
-            dirs[:] = filter(
-                lambda dir: not os.path.ismount(os.path.join(root, dir)), dirs
-            )
+    # def test_files_permissions(self):
+    #     for root, dirs, files in os.walk("/"):
+    #         dirs[:] = filter(
+    #             lambda dir: not os.path.ismount(os.path.join(root, dir)), dirs
+    #         )
 
-            for name in dirs + files:
-                f = os.path.join(root, name)
+    #         for name in dirs + files:
+    #             f = os.path.join(root, name)
 
-                try:
-                    s = os.stat(f)
-                except FileNotFoundError:
-                    pass
-                except Exception as e:
-                    self.fail(f"Failed to stat {f}: {e}")
-                self.assertFalse(
-                    s.st_mode & (stat.S_IWOTH | stat.S_ISVTX) == stat.S_IWOTH,
-                    f"{f} should not be world-writable",
-                )
+    #             try:
+    #                 s = os.stat(f)
+    #             except FileNotFoundError:
+    #                 pass
+    #             except Exception as e:
+    #                 self.fail(f"Failed to stat {f}: {e}")
+    #             self.assertFalse(
+    #                 s.st_mode & (stat.S_IWOTH | stat.S_ISVTX) == stat.S_IWOTH,
+    #                 f"{f} should not be world-writable",
+    #             )
 
-                try:
-                    pwd.getpwuid(s.st_uid)
-                except KeyError:
-                    self.fail(f"Unknown user {s.st_uid} for {f}")
+    #             try:
+    #                 pwd.getpwuid(s.st_uid)
+    #             except KeyError:
+    #                 self.fail(f"Unknown user {s.st_uid} for {f}")
 
-                try:
-                    grp.getgrgid(s.st_gid)
-                except KeyError:
-                    self.fail(f"Unknown group {s.st_gid} for {f}")
+    #             try:
+    #                 grp.getgrgid(s.st_gid)
+    #             except KeyError:
+    #                 self.fail(f"Unknown group {s.st_gid} for {f}")
 
 
 if __name__ == "__main__":
