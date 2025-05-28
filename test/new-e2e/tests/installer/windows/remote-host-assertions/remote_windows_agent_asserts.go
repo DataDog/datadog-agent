@@ -25,6 +25,7 @@ func (r *RemoteWindowsAgentAssertions) WithConfigValueEqual(key string, expected
 	r.require.NoError(err)
 	value = strings.TrimSpace(value)
 	// Extract just the value part after "is set to: "
+	// Example: log_level is set to: info
 	valueParts := strings.Split(value, "is set to: ")
 	r.require.Len(valueParts, 2, "unexpected config output format")
 	actualValue := strings.TrimSpace(valueParts[1])
