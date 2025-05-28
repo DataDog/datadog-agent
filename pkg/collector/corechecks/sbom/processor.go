@@ -10,6 +10,7 @@ package sbom
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -171,8 +172,17 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 
 				containerImage, err := p.workloadmetaStore.GetImage(container.Image.ID)
 				if err != nil {
-					log.Debugf("Failed to find image %s for container %s", container.Image.ID, container.ID)
-					continue
+					for _, image := range p.workloadmetaStore.ListImages() {
+						if image.Name == container.Image.ID || slices.Contains(image.RepoDigests, container.Image.ID) {
+							containerImage = image
+							break
+						}
+					}
+
+					if containerImage == nil {
+						log.Debugf("Failed to find image %s for container %s", container.Image.ID, container.ID)
+						continue
+					}
 				}
 
 				if containerImage.SBOM == nil || containerImage.SBOM.CycloneDXBOM == nil {
