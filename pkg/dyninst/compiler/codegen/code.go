@@ -15,23 +15,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 )
 
-// CCodeSerializer serializes the stack machine code into C code.
-type CCodeSerializer struct {
+// cCodeSerializer serializes the stack machine code into C code.
+type cCodeSerializer struct {
 	out io.Writer
 }
 
 // CommentFunction comments a stack machine function prior to its body.
-func (s *CCodeSerializer) CommentFunction(id sm.FunctionID, pc uint32) {
-	fmt.Fprintf(s.out, "\t// 0x%x: %s\n", pc, id.String())
+func (s *cCodeSerializer) CommentFunction(id sm.FunctionID, pc uint32) error {
+	_, err := fmt.Fprintf(s.out, "\t// 0x%x: %s\n", pc, id.String())
+	return err
 }
 
 // SerializeInstruction serializes a stack machine instruction into the output stream.
-func (s *CCodeSerializer) SerializeInstruction(name string, paramBytes []byte) {
-	fmt.Fprintf(s.out, "\t\t%s, ", name)
-	for _, b := range paramBytes {
-		fmt.Fprintf(s.out, "0x%02x, ", b)
+func (s *cCodeSerializer) SerializeInstruction(name string, paramBytes []byte) error {
+	_, err := fmt.Fprintf(s.out, "\t\t%s, ", name)
+	if err != nil {
+		return err
 	}
-	fmt.Fprintf(s.out, "\n")
+	for _, b := range paramBytes {
+		_, err := fmt.Fprintf(s.out, "0x%02x, ", b)
+		if err != nil {
+			return err
+		}
+	}
+	_, err = fmt.Fprintf(s.out, "\n")
+	return err
 }
 
 // GenerateCCode generates C code, containing:
@@ -39,25 +47,48 @@ func (s *CCodeSerializer) SerializeInstruction(name string, paramBytes []byte) {
 //   - type infos array
 //   - type id lookup array
 //   - and mix of auxiliary variables to use the above arrays.
-func GenerateCCode(program sm.Program, out io.Writer) error {
-	fmt.Fprintf(out, "const uint8_t stack_machine_code[] = {\n")
-	metadata := sm.GenerateCode(program, &CCodeSerializer{out})
-	fmt.Fprintf(out, "};\n")
-	fmt.Fprintf(out, "const uint64_t stack_machine_code_len = %d;\n", metadata.Len)
-	fmt.Fprintf(out, "const uint32_t stack_machine_code_max_op = %d;\n", metadata.MaxOpLen)
-	fmt.Fprintf(out, "const uint32_t chase_pointers_entrypoint = 0x%x;\n\n", metadata.FunctionLoc[sm.ChasePointers{}])
+func GenerateCCode(program sm.Program, out io.Writer) (err error) {
+	defer func() {
+		err = recoverFprintf()
+	}()
+	mustFprintf(out, "const uint8_t stack_machine_code[] = {\n")
+	metadata, err := sm.GenerateCode(program, &cCodeSerializer{out})
+	if err != nil {
+		return err
+	}
+	mustFprintf(out, "};\n")
+	mustFprintf(out, "const uint64_t stack_machine_code_len = %d;\n", metadata.Len)
+	mustFprintf(out, "const uint32_t stack_machine_code_max_op = %d;\n", metadata.MaxOpLen)
+	mustFprintf(out, "const uint32_t chase_pointers_entrypoint = 0x%x;\n\n", metadata.FunctionLoc[sm.ChasePointers{}])
 
 	numProbes := 0
-	fmt.Fprintf(out, "const probe_params_t probe_params[] = {\n")
+	mustFprintf(out, "const probe_params_t probe_params[] = {\n")
 	for _, f := range program.Functions {
 		if f, ok := f.ID.(sm.ProcessEvent); ok {
 			numProbes++
-			fmt.Fprintf(out, "\t{.stack_machine_pc = 0x%x, .stream_id = %d, .frameless = false},\n", metadata.FunctionLoc[f], 0)
+			mustFprintf(out, "\t{.stack_machine_pc = 0x%x, .stream_id = %d, .frameless = false},\n", metadata.FunctionLoc[f], 0)
 		}
 	}
-	fmt.Fprintf(out, "};\n")
-	fmt.Fprintf(out, "const uint32_t num_probe_params = %d;\n", numProbes)
+	mustFprintf(out, "};\n")
+	mustFprintf(out, "const uint32_t num_probe_params = %d;\n", numProbes)
 
-	generateTypeInfos(program, metadata.FunctionLoc, out)
+	return generateTypeInfos(program, metadata.FunctionLoc, out)
+}
+
+func mustFprintf(out io.Writer, fs string, args ...any) {
+	_, err := fmt.Fprintf(out, fs, args...)
+	if err != nil {
+		panic(fmt.Errorf("failed to write to output: %w", err))
+	}
+}
+
+func recoverFprintf() error {
+	switch r := recover().(type) {
+	case nil:
+	case error:
+		return r
+	default:
+		panic(r)
+	}
 	return nil
 }

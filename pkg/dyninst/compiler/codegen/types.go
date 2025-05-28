@@ -8,20 +8,22 @@
 package codegen
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
-func generateTypeInfos(program sm.Program, functionLoc map[sm.FunctionID]uint32, out io.Writer) {
-	fmt.Fprintf(out, "typedef enum type {\n")
-	fmt.Fprintf(out, "\tTYPE_NONE = 0,\n")
+func generateTypeInfos(program sm.Program, functionLoc map[sm.FunctionID]uint32, out io.Writer) (err error) {
+	defer func() {
+		err = recoverFprintf()
+	}()
+	mustFprintf(out, "typedef enum type {\n")
+	mustFprintf(out, "\tTYPE_NONE = 0,\n")
 	for _, t := range program.Types {
-		fmt.Fprintf(out, "\tTYPE_%d = %d, // %s\n", t.GetID(), t.GetID(), t.GetName())
+		mustFprintf(out, "\tTYPE_%d = %d, // %s\n", t.GetID(), t.GetID(), t.GetName())
 	}
-	fmt.Fprintf(out, "} type_t;\n\n")
+	mustFprintf(out, "} type_t;\n\n")
 
 	typeFunc := make(map[ir.TypeID]sm.ProcessType)
 	for _, f := range program.Functions {
@@ -29,19 +31,20 @@ func generateTypeInfos(program sm.Program, functionLoc map[sm.FunctionID]uint32,
 			typeFunc[f.Type.GetID()] = f
 		}
 	}
-	fmt.Fprintf(out, "const type_info_t type_info[] = {\n")
+	mustFprintf(out, "const type_info_t type_info[] = {\n")
 	for _, t := range program.Types {
 		enqueuePC := uint32(0)
 		if f, ok := typeFunc[t.GetID()]; ok {
 			enqueuePC = functionLoc[f]
 		}
-		fmt.Fprintf(out, "\t/* %d: %s\t*/{.byte_len = %d, .enqueue_pc = 0x%x},\n", t.GetID(), t.GetName(), t.GetByteSize(), enqueuePC)
+		mustFprintf(out, "\t/* %d: %s\t*/{.byte_len = %d, .enqueue_pc = 0x%x},\n", t.GetID(), t.GetName(), t.GetByteSize(), enqueuePC)
 	}
-	fmt.Fprintf(out, "};\n\n")
-	fmt.Fprintf(out, "const uint32_t type_ids[] = {")
+	mustFprintf(out, "};\n\n")
+	mustFprintf(out, "const uint32_t type_ids[] = {")
 	for _, t := range program.Types {
-		fmt.Fprintf(out, "%d, ", t.GetID())
+		mustFprintf(out, "%d, ", t.GetID())
 	}
-	fmt.Fprintf(out, "};\n\n")
-	fmt.Fprintf(out, "const uint32_t num_types = %d;\n\n", len(program.Types))
+	mustFprintf(out, "};\n\n")
+	mustFprintf(out, "const uint32_t num_types = %d;\n\n", len(program.Types))
+	return nil
 }
