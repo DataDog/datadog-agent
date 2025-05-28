@@ -10,6 +10,7 @@
   - export GO_VERSION="$(cat .go-version)"
   - eval "$(gimme $GO_VERSION)"
   - export PATH="$PATH:$GOROOT/bin"
+  - export GOPATH=$GOROOT
   - echo Go version should be $GO_VERSION
   - go version
   - dda inv check-go-version
