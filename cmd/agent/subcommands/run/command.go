@@ -36,7 +36,6 @@ import (
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/daemonchecker/fx"
-	fleetstatus "github.com/DataDog/datadog-agent/comp/fleetstatus/def"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -282,7 +281,6 @@ func run(log log.Component,
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 	hostname hostnameinterface.Component,
-	_ fleetstatus.Component,
 ) error {
 	defer func() {
 		stopAgent()
