@@ -26,7 +26,7 @@
 agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64", "specific:true"]
-  needs: ["go_mod_tidy_check"]
+  needs: ["go_mod_tidy_check", "go_deps"]
   rules:
      - !reference [.on_macos_gui_change]
      - !reference [.on_packaging_change]
@@ -53,6 +53,7 @@ agent_dmg-x64-a7:
   before_script:
     # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
     - sudo umount /Volumes/Agent || true
+    - !reference [.retrieve_linux_go_deps]
   after_script:
     # Destroy the keychain used to sign packages
     - |
