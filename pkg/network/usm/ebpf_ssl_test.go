@@ -10,6 +10,7 @@ package usm
 import (
 	"context"
 	"fmt"
+	nethttp "net/http"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -23,6 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -205,4 +208,82 @@ func cleanDeadPidsInSslMaps(t *testing.T, manager *manager.Manager) {
 		err := deleteDeadPidsInMap(manager, mapName, nil)
 		require.NoError(t, err)
 	}
+}
+
+// TestNativeTLSMapsCleanup verifies that the eBPF cleanup mechanism
+// correctly removes entries from the ssl_sock_by_ctx map.
+func TestNativeTLSMapsCleanup(t *testing.T) {
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+		t.Skip("TLS not supported for this setup")
+	}
+
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableNativeTLSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	addressOfHTTPPythonServer := "127.0.0.1:8001"
+	_ = testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
+		EnableTLS: true,
+	})
+
+	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
+	var requests []*nethttp.Request
+	for i := 0; i < numberOfRequests; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	client.CloseIdleConnections()
+
+	time.Sleep(500 * time.Millisecond)
+
+	cleanProtocolMaps(t, "ssl", usmMonitor.ebpfProgram.Manager.Manager)
+
+	sslSockByCtxMapObj, _, err := usmMonitor.ebpfProgram.Manager.Manager.GetMap(sslSockByCtxMap)
+	require.NoError(t, err)
+	require.NotNil(t, sslSockByCtxMapObj)
+
+	requestsExist := make([]bool, len(requests))
+
+	require.Eventually(t, func() bool {
+		stats := getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP)
+		if stats == nil {
+			return false
+		}
+
+		if len(stats) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(stats, req)
+			}
+		}
+
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+			}
+		}
+
+		return true
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
+	if t.Failed() {
+		// Dump relevant maps on failure
+		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, sslSockByCtxMap)
+		t.FailNow()
+	}
+
+	// Wait for cleanup to occur and verify ssl_sock_by_ctx map is empty
+	require.Eventually(t, func() bool {
+		count := 0
+		iter := sslSockByCtxMapObj.Iterate()
+		var key uintptr
+		var value http.SslSock
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			count++
+		}
+		return count == 0
+	}, 5*time.Second, 500*time.Millisecond, "ssl_sock_by_ctx map should be empty after cleanup")
 }
