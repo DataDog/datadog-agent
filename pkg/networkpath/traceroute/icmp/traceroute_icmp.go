@@ -35,9 +35,9 @@ func (p Params) validate() error {
 	if !p.Target.IsValid() {
 		return fmt.Errorf("icmp traceroute provided invalid IP address")
 	}
-	if p.Target.Is6() {
-		return fmt.Errorf("icmp traceroute does not support IPv6 yet")
-	}
+	//if p.Target.Is6() {
+	//	return fmt.Errorf("icmp traceroute does not support IPv6 yet")
+	//}
 	return nil
 }
 

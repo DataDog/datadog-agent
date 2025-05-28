@@ -8,27 +8,32 @@ package common
 import (
 	"encoding/binary"
 	"fmt"
-	"net/netip"
-	"slices"
-
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"net/netip"
+	"slices"
+	"strings"
 )
 
 // FrameParser parses traceroute responses using gopacket.
 type FrameParser struct {
+	IP6      layers.IPv6
 	IP4      layers.IPv4
 	TCP      layers.TCP
 	ICMP4    layers.ICMPv4
 	Payload  gopacket.Payload
 	Layers   []gopacket.LayerType
 	v4Parser *gopacket.DecodingLayerParser
+	v6Parser *gopacket.DecodingLayerParser
+	ICMP6    layers.ICMPv6
+	Echo     layers.ICMPv6Echo
 }
 
 // NewFrameParser constructs a new FrameParser
 func NewFrameParser() *FrameParser {
 	p := &FrameParser{}
 	p.v4Parser = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
+	p.v6Parser = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &p.IP6, &p.ICMP6, &p.Echo, &p.Payload)
 	p.v4Parser.IgnoreUnsupported = true
 	return p
 }
@@ -49,15 +54,35 @@ func (p *FrameParser) ParseIPv4(buffer []byte) error {
 func NewICMPFrameParser() *FrameParser {
 	p := &FrameParser{}
 	p.v4Parser = gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &p.ICMP4, &p.Payload)
+	p.v6Parser = gopacket.NewDecodingLayerParser(
+		layers.LayerTypeICMPv6,
+		&p.ICMP6,
+		&p.Echo,
+	)
 	p.v4Parser.IgnoreUnsupported = true
 	return p
 }
 
-// ParseICMPv4 parses an IPv4 packet
+// ParseICMP parses an ICMP packet
+func (p *FrameParser) ParseICMP(buffer []byte, ipv6 bool) error {
+	if ipv6 {
+		return p.ParseICMPv6(buffer)
+	}
+	return p.ParseICMPv4(buffer)
+}
+
 func (p *FrameParser) ParseICMPv4(buffer []byte) error {
 	err := p.v4Parser.DecodeLayers(buffer, &p.Layers)
 	if err != nil {
 		return fmt.Errorf("ParseIPv4: %w", err)
+	}
+	return nil
+}
+
+func (p *FrameParser) ParseICMPv6(buffer []byte) error {
+	err := p.v6Parser.DecodeLayers(buffer, &p.Layers)
+	if err != nil && !strings.Contains(err.Error(), "No decoder") {
+		return fmt.Errorf("ParseICMPv6: %w", err)
 	}
 	return nil
 }

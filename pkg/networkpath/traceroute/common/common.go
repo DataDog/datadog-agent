@@ -73,7 +73,13 @@ func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, e
 	// this is a quick way to get the local address for connecting to the host
 	// using UDP as the network type to avoid actually creating a connection to
 	// the host, just get the OS to give us a local IP and local ephemeral port
-	conn, err := net.Dial("udp4", net.JoinHostPort(destIP.String(), strconv.Itoa(int(destPort))))
+	var proto string
+	if destIP.To4() != nil {
+		proto = "udp4"
+	} else {
+		proto = "udp6"
+	}
+	conn, err := net.Dial(proto, net.JoinHostPort(destIP.String(), strconv.Itoa(int(destPort))))
 	if err != nil {
 		return nil, nil, err
 	}
