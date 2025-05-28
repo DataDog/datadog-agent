@@ -107,8 +107,8 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 		newAPIKey, ok2 := newValue.(string)
 		if ok1 && ok2 {
 			resolver.UpdateAPIKey(setting, oldAPIKey, newAPIKey)
-			health := resolver.GetForwarderHealth()
-			if health != nil {
+
+			if health := resolver.GetForwarderHealth(); health != nil {
 				health.UpdateAPIKeys(resolver.GetBaseDomain(), []string{oldAPIKey}, []string{newAPIKey})
 			}
 
@@ -150,20 +150,22 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 	removed := missing(oldKeys, newKeys)
 	added := missing(newKeys, oldKeys)
 
-	health := resolver.GetForwarderHealth()
-	if health != nil {
+	if health := resolver.GetForwarderHealth(); health != nil {
 		health.UpdateAPIKeys(resolver.GetBaseDomain(), removed, added)
 	}
+
+	removed = scrubKeys(removed)
+	added = scrubKeys(added)
 
 	// Not all calls here will involve changes to the api keys since we are just reloading every time something with
 	// `additional_endpoints` contains a key that changes, there are potentially multiple resolvers for different
 	// `additional_endpoints` configurations (eg, `process_config.additional_endpoints` and `additional_endpoints`)
 	if len(removed) > 0 && len(added) > 0 {
-		log.Infof("rotating API key for '%s': %s -> %s", setting, strings.Join(scrubKeys(removed), ","), strings.Join(scrubKeys(added), ","))
+		log.Infof("rotating API key for '%s': %s -> %s", setting, strings.Join(removed, ","), strings.Join(added, ","))
 	} else if len(removed) > 0 {
-		log.Infof("removing API key for '%s': %s", setting, strings.Join(scrubKeys(removed), ","))
+		log.Infof("removing API key for '%s': %s", setting, strings.Join(removed, ","))
 	} else if len(added) > 0 {
-		log.Infof("adding API key for '%s': %s", setting, strings.Join(scrubKeys(added), ","))
+		log.Infof("adding API key for '%s': %s", setting, strings.Join(added, ","))
 	}
 }
 
@@ -243,11 +245,10 @@ func missing(a []string, b []string) []string {
 
 // scrubKeys scrubs the API key to avoid leaking the key when logging.
 func scrubKeys(keys []string) []string {
-	scrubbed := []string{}
-	for _, key := range keys {
-		scrubbed = append(scrubbed, scrubber.HideKeyExceptLastFiveChars(key))
+	for i, key := range keys {
+		keys[i] = scrubber.HideKeyExceptLastFiveChars(key)
 	}
-	return scrubbed
+	return keys
 }
 
 // GetAPIKeysInfo returns the list of APIKeys and config paths associated with this `DomainResolver`
