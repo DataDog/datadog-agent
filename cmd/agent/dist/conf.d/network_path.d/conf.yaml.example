@@ -62,7 +62,7 @@ instances:
     ## @param tcp_method - string - optional - default: syn
     ## Traceroute method used to monitor an endpoint via Network Path
     ## Available methods: syn, sack, prefer_sack, syn_socket (syn_socket only works on Windows OSes)
-    ## Note: Window Clients Versions only support syn_socket currently
+    ## Note: Windows client versions only support syn_socket
     #
     # tcp_method: <METHOD>
 
