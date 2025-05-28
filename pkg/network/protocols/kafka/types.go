@@ -22,6 +22,8 @@ const (
 	ClassificationMaxSupportedFetchRequestApiVersion   = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
 	ClassificationMinSupportedFetchRequestApiVersion   = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION
 	DecodingMaxSupportedFetchRequestApiVersion         = C.KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
+	ClassificationMinSupportedAPIVersionsRequestApiVersion = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION
+	ClassificationMaxSupportedAPIVersionsRequestApiVersion = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION
 )
 
 type ConnTuple C.conn_tuple_t

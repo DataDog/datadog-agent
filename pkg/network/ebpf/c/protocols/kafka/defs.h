@@ -9,12 +9,27 @@
 #define KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION 12
 #define KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION 1
 
+// Range for supported versions of the API versions request used to classify kafka connections
+// as early as possible (api versions request is the first request that is sent).
+// It is used so we can decode the metadata request that is sent right after.
+#define KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION 3
+#define KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION 4
+
+// Used to get the topic id to name mapping at the start of kafka connections
+#define KAFKA_DECODING_MIN_SUPPORTED_METADATA_REQUEST_API_VERSION 10
+#define KAFKA_DECODING_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION 13
+
 #define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))
 #define CLIENT_ID_SIZE_TO_VALIDATE 30
 #define TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE 48 // 16 * 3. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
 #define TOPIC_NAME_MAX_ALLOWED_SIZE 255
-
 #define TOPIC_NAME_MAX_STRING_SIZE 80
+
+#define CLIENT_SOFTWARE_STRING_MAX_SIZE 255
+#define CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE 80 // 16 * 5. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
+
+#define NUM_TOPICS_MAX 0x3fff // 16383
+#define NUM_BROKERS_MAX  0x3fff // 16383
 
 // The number of varint bytes required to support the specified values.
 // 127
@@ -36,6 +51,8 @@
 #define VARINT_BYTES_NUM_ABORTED_TRANSACTIONS VARINT_BYTES_00003fff
 // Should ideally be as big as possible.
 #define VARINT_BYTES_RECORD_BATCHES_NUM_BYTES VARINT_BYTES_0fffffff
+// Reasonable limit
+#define VARINT_BYTES_NUM_BROKERS VARINT_BYTES_00003fff
 
 #define KAFKA_RESPONSE_PARSER_MAX_ITERATIONS 10
 

@@ -43,6 +43,12 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #define CHECK_STRING_VALID_CLIENT_ID(max_buffer_size, real_size, buffer)   \
     CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
 
+// The UUID must be v4 and its variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
+#define IS_UUID_V4(topic_id) \
+    (topic_id[6] >> 4) == 4 && \
+    0x8 <= (topic_id[8] >> 4) && (topic_id[8] >> 4) <= 0xB
+
+PKTBUF_READ_INTO_BUFFER(client_id, CLIENT_ID_SIZE_TO_VALIDATE, BLK_SIZE)
 
 // Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
@@ -55,10 +61,28 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
         return false;
     }
     bpf_memset(client_id, 0, CLIENT_ID_SIZE_TO_VALIDATE);
-    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
+    pktbuf_read_into_buffer_client_id(client_id, pkt, offset);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
     CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
+}
+
+PKTBUF_READ_INTO_BUFFER(client_software_string, CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
+
+// Verifies the specified string is valid (up to CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE bytes from the given offset)
+// valid means composed only from characters from [a-zA-Z0-9._-].
+static __always_inline bool is_valid_client_software_string(pktbuf_t pkt, u32 offset, u16 real_string_size) {
+    const u32 key = 0;
+    // Use a buffer from per-cpu array as the stack is limited.
+    char *client_software_string = bpf_map_lookup_elem(&kafka_client_software, &key);
+    if (client_software_string == NULL) {
+        return false;
+    }
+    bpf_memset(client_software_string, 0, CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE);
+    pktbuf_read_into_buffer_client_software_string(client_software_string, pkt, offset);
+
+    // Returns whether composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
+    CHECK_STRING_COMPOSED_OF_ASCII(CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE, real_string_size, client_software_string, false);
 }
 
 // Checks the given kafka header represents a valid one.
@@ -99,6 +123,14 @@ static __always_inline bool is_supported_api_version_for_classification(s16 api_
             // so dropping support for this case
             return false;
         } else if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION) {
+            return false;
+        }
+        break;
+    case KAFKA_API_VERSIONS:
+        if (api_version < KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
+            return false;
+        }
+        if (api_version > KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION) {
             return false;
         }
         break;
@@ -145,28 +177,26 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
     return true;
 }
 
-static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
-    u8 bytes[2] = {};
+static __always_inline u16 get_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
+    u16 topic_count = 0;
 
     // Should be safe to assume that there is always more than one byte present,
     // since there will be the topic name etc after the number of topics.
-    if (*offset + sizeof(bytes) > pktbuf_data_end(pkt)) {
+    if (*offset + sizeof(topic_count) > pktbuf_data_end(pkt)) {
         return false;
     }
 
-    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
+    pktbuf_load_bytes(pkt, *offset, &topic_count, sizeof(topic_count));
+    *offset += 2;
 
-    *offset += 1;
-    if (isMSBSet(bytes[0])) {
-        *offset += 1;
+    return topic_count;
+}
 
-        if (isMSBSet(bytes[1])) {
-            // More than 16383 topics?
-            return false;
-        }
-    }
+static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
+    u16 topic_count = get_varint_number_of_topics(pkt, offset);
 
-    return true;
+    // More than 16383 topics?
+    return topic_count < 16383;
 }
 
 // Skips a varint of up to `max_bytes` (4).  The `skip_varint_number_of_topics`
@@ -243,7 +273,7 @@ static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible
 static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexible, u32 offset) {
     // Skipping number of entries for now
     if (flexible) {
-        if (!skip_varint_number_of_topics(pkt, &offset)) {
+        if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
             return false;
         }
     } else {
@@ -291,16 +321,7 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
     pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
     offset += sizeof(topic_id);
 
-    // The UUID version (13th digit 4 MSB) must be 4
-    __u8 uuid_version = topic_id[6] >> 4;
-    if (uuid_version != 4) {
-        // The UUID version is not 4
-        return false;
-    }
-
-    // The UUID variant (17th digit) may be 0x8, 0x9, 0xA or 0xB
-    __u8 uuid_variant = topic_id[8] >> 4;
-    return 0x8 <= uuid_variant && uuid_variant <= 0xB;
+    return IS_UUID_V4(topic_id);
 }
 
 // Flexible API version can have an arbitrary number of tagged fields.  We don't
@@ -421,6 +442,39 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         flexible = kafka_header->api_version >= 12;
         topic_id_instead_of_name = kafka_header->api_version >= 13;
         break;
+    case KAFKA_API_VERSIONS:
+        // we only support flexible versions
+        if (!skip_request_tagged_fields(pkt, &offset)) {
+            return false;
+        }
+
+        // Verify client software name
+        s16 client_software_name_size = read_nullable_string_size(pkt, true, &offset);
+        if (client_software_name_size < 0 || client_software_name_size > CLIENT_SOFTWARE_STRING_MAX_SIZE) {
+            return false;
+        }
+        if (!is_valid_client_software_string(pkt, offset, client_software_name_size)) {
+            return false;
+        }
+        offset += client_software_name_size;
+
+        // Verify client software version
+        s16 client_software_version_size = read_nullable_string_size(pkt, true, &offset);
+        if (client_software_version_size < 0 || client_software_version_size > CLIENT_SOFTWARE_STRING_MAX_SIZE) {
+            return false;
+        }
+        if (!is_valid_client_software_string(pkt, offset, client_software_version_size)) {
+            return false;
+        }
+        offset += client_software_version_size;
+
+        // Another tagged fields at the end of the request
+        if (!skip_request_tagged_fields(pkt, &offset)) {
+            return false;
+        }
+
+        // we should be at the end of the packet now
+        return offset == pktbuf_data_end(pkt);
     default:
         return false;
     }
@@ -464,7 +518,6 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
     } else if (kafka_header.client_id_size < -1) {
         return false;
     }
-
     return is_kafka_request(&kafka_header, pkt, offset);
 }
 

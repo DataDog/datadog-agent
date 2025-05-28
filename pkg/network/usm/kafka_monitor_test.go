@@ -154,11 +154,27 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	produce12fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
 	versions = append(versions, produce12fetch12)
 
+	fetch16metadata10 := kversion.V3_8_0()
+	fetch16metadata10.SetMaxKeyVersion(kafka.FetchAPIKey, 16)
+	fetch16metadata10.SetMaxKeyVersion(kafka.MetadataAPIKey, 10)
+	versions = append(versions, fetch16metadata10)
+
+	fetch17metadata13 := kversion.V4_0_0()
+	fetch17metadata13.SetMaxKeyVersion(kafka.FetchAPIKey, 17)
+	fetch17metadata13.SetMaxKeyVersion(kafka.MetadataAPIKey, 13)
+	versions = append(versions, fetch17metadata13)
+
 	versionName := func(version *kversion.Versions) string {
 		produce, found := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
 		require.True(t, found)
 		fetch, found := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
 		require.True(t, found)
+		// metadata is required in fetch v13+
+		if fetch > 12 {
+			metadata, found := version.LookupMaxKeyVersion(kafka.MetadataAPIKey)
+			require.True(t, found)
+			return fmt.Sprintf("metadata%d_fetch%d_produce%d", metadata, fetch, produce)
+		}
 		return fmt.Sprintf("produce%d_fetch%d", produce, fetch)
 	}
 

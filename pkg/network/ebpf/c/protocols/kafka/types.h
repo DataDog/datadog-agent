@@ -5,7 +5,9 @@
 
 typedef enum {
     KAFKA_PRODUCE = 0,
-    KAFKA_FETCH
+    KAFKA_FETCH,
+    KAFKA_METADATA = 3,
+    KAFKA_API_VERSIONS = 18
 } __attribute__ ((packed)) kafka_operation_t;
 
 typedef struct {
@@ -67,6 +69,13 @@ typedef enum {
     KAFKA_PRODUCE_RESPONSE_NUM_PARTITIONS,
     KAFKA_PRODUCE_RESPONSE_PARTITION_START,
     KAFKA_PRODUCE_RESPONSE_PARTITION_ERROR_CODE_START,
+
+    KAFKA_METADATA_RESPONSE_START,
+    KAFKA_METADATA_RESPONSE_NUM_BROKERS,
+    KAFKA_METADATA_RESPONSE_BROKERS_LOOP,
+    KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS,
+    KAFKA_METADATA_RESPONSE_NUM_TOPICS,
+    KAFKA_METADATA_RESPONSE_TOPICS_LOOP
 } __attribute__ ((packed)) kafka_response_state;
 
 typedef struct kafka_fetch_response_record_batches_array_t {
