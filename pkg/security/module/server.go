@@ -140,7 +140,7 @@ type APIServer struct {
 	policiesStatus     []*api.PolicyStatus
 	msgSender          MsgSender
 	connEstablished    *atomic.Bool
-	envsAsTags         []string
+	envAsTags          []string
 
 	// os release data
 	kernelVersion string
@@ -384,7 +384,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 	tags = append(tags, rule.Tags...)
 	tags = append(tags, eventTags...)
 	tags = append(tags, common.QueryAccountIDTag())
-	tags = append(tags, a.envsAsTags...)
+	tags = append(tags, a.envAsTags...)
 
 	// model event or custom event ? if model event use queuing so that tags and actions can be handled
 	if ev, ok := event.(*model.Event); ok {
@@ -608,10 +608,10 @@ func (a *APIServer) getGlobalTags() []string {
 	return globalTags
 }
 
-func getEnvsAsTags(cfg *config.RuntimeSecurityConfig) []string {
+func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 	tags := []string{}
 
-	for _, env := range cfg.EnvsAsTags {
+	for _, env := range cfg.EnvAsTags {
 		value := os.Getenv(env)
 		if value != "" {
 			tags = append(tags, fmt.Sprintf("%s:%s", env, value))
@@ -638,7 +638,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		stopChan:        make(chan struct{}),
 		msgSender:       msgSender,
 		connEstablished: atomic.NewBool(false),
-		envsAsTags:      getEnvsAsTags(cfg),
+		envAsTags:       getEnvAsTags(cfg),
 	}
 
 	as.collectOSReleaseData()
