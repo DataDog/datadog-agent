@@ -7,8 +7,6 @@ package log
 
 import (
 	"bytes"
-	"strings"
-
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,20 +34,25 @@ func NewChannelWriter(ch chan *logConfig.ChannelMessage, isError bool) *ChannelW
 // 1. May receive multiple logs in one payload, so we should split JSON logs to avoid dropped logs.
 // 2. May receive part of a long log, so we should wait for a `\n` character before flushing.
 func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
-	payload := string(p)
-	if !strings.Contains(payload, "\n") {
+	if bytes.IndexByte(p, '\n') < 0 {
 		return cw.Buffer.Write(p)
 	}
 
-	// Split any combined JSON messages
-	payload = cw.Buffer.String() + payload
+	cw.Buffer.Write(p)
+	payload := cw.Buffer.Bytes()
 	cw.Buffer.Reset()
-	messages := splitJsonMessages(payload)
+
+	parts := splitJSONBytes(payload)
 
 	// Send each message as a separate log entry
-	for _, msg := range messages {
+	for _, msg := range parts {
+		trimmed := bytes.TrimSpace(msg)
+		if len(trimmed) == 0 {
+			continue
+		}
+
 		channelMessage := &logConfig.ChannelMessage{
-			Content: []byte(strings.TrimSpace(msg)),
+			Content: trimmed,
 			IsError: cw.IsError,
 		}
 
@@ -65,31 +68,32 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// splitJsonMessages takes an input string which may contain one or more JSON objects,
-// or plain text. This handles an edge case where multiple JSON logs are sent back-to-back
+// splitJSONBytes takes input bytes which may contain one or more JSON objects, or
+// plain text. This handles an edge case where multiple JSON logs are sent back-to-back
 // with no delay, which occasionally causes them to be combined into one message.
 // E.g. `{"msg": "A"}\n{"msg": "B"}\n` would cause "B" to be dropped by the backend.
 // O(n) time complexity for JSON, O(1) for plaintext.
-func splitJsonMessages(input string) []string {
-	trimmed := strings.TrimSpace(input)
-	if len(trimmed) <= 0 {
-		return []string{}
+func splitJSONBytes(input []byte) [][]byte {
+	trimmed := bytes.TrimSpace(input)
+	if len(trimmed) == 0 {
+		return nil
 	}
 
+	// if it doesn’t even start like JSON, just return the whole thing
 	if trimmed[0] != '{' {
-		return []string{input}
+		return [][]byte{trimmed}
 	}
 
-	var out []string
-	var buf strings.Builder
-	depth := 0
-	inString := false
-	escape := false
+	var (
+		out      [][]byte
+		depth    int
+		inString bool
+		escape   bool
+		startIdx int
+		lastEnd  int
+	)
 
-	for i := 0; i < len(input); i++ {
-		c := input[i]
-		buf.WriteByte(c)
-
+	for i, c := range trimmed {
 		if escape {
 			// the char after '\' is ignored for structure
 			escape = false
@@ -102,28 +106,34 @@ func splitJsonMessages(input string) []string {
 			inString = !inString
 		default:
 			if !inString {
-				switch c {
-				case '{':
+				if c == '{' {
+					if depth == 0 {
+						startIdx = i
+					}
 					depth++
-				case '}':
+				} else if c == '}' {
 					depth--
 					if depth == 0 {
 						// finished a full object
-						out = append(out, strings.TrimSpace(buf.String()))
-						buf.Reset()
+						out = append(out, trimmed[startIdx:i+1])
+						lastEnd = i + 1
 					}
 				}
 			}
 		}
 	}
 
-	// anything left (e.g. trailing whitespace or a non-JSON tail)
-	if rest := strings.TrimSpace(buf.String()); rest != "" {
-		out = append(out, rest)
+	// anything left after the last JSON object
+	if lastEnd < len(trimmed) {
+		tail := bytes.TrimSpace(trimmed[lastEnd:])
+		if len(tail) > 0 {
+			out = append(out, tail)
+		}
 	}
 
+	// if we never saw any complete JSON, fall back
 	if len(out) == 0 {
-		return []string{input}
+		return [][]byte{trimmed}
 	}
 	return out
 }

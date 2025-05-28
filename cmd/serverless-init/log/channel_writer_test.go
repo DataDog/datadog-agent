@@ -83,7 +83,14 @@ func TestSplitJsonMessages(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := splitJsonMessages(tc.input)
+			parts := splitJSONBytes([]byte(tc.input))
+
+			// convert [][]byte into []string for comparison
+			actual := make([]string, len(parts))
+			for i, part := range parts {
+				actual[i] = string(part)
+			}
+
 			if !reflect.DeepEqual(actual, tc.expected) {
 				t.Errorf("splitJsonMessages(%q) = %v; want %v", tc.input, actual, tc.expected)
 			}
