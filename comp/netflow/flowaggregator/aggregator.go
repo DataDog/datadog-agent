@@ -30,10 +30,26 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-const flushFlowsToSendInterval = 10 * time.Second
-const metricPrefix = "datadog.netflow."
+const (
+	flushFlowsToSendInterval = 10 * time.Second
+	metricPrefix             = "datadog.netflow."
+)
+
+var (
+	flowContextBuckets = []float64{1, 2, 3, 4, 5, 6, 10, 15, 20, 50}
+
+	telemetryFlowContextNumberOfUses = telemetry.NewHistogram(
+		"netflow.aggregator", "flow_context_number_of_uses", nil,
+		"Number of times a flow context is used before being flushed", flowContextBuckets,
+	)
+	telemetryFlowContextFlowsAggregated = telemetry.NewHistogram(
+		"netflow.aggregator", "flow_context_flows_aggregated", nil,
+		"Number of flows aggregated into a flow context before being flushed", flowContextBuckets,
+	)
+)
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
@@ -83,6 +99,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
+
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
 		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
@@ -259,8 +276,10 @@ func (agg *FlowAggregator) flush() {
 	flowsToFlush, flowStats := agg.flowAcc.flush()
 
 	for _, flowStat := range flowStats {
-		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_number_of_uses", float64(flowStat.numberOfUses), "", nil)
-		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
+		// JMW? agg.sender.Histogram(metricPrefix+"aggregator.flow_context_number_of_uses", float64(flowStat.numberOfUses), "", nil)
+		// JMW? agg.sender.Histogram(metricPrefix+"aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
+		telemetryFlowContextNumberOfUses.Observe(float64(flowStat.numberOfUses))
+		telemetryFlowContextFlowsAggregated.Observe(float64(flowStat.flowsAggregated))
 	}
 
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
