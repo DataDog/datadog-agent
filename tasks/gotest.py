@@ -119,6 +119,7 @@ def test_flavor(
     test_profiler: TestProfiler,
     coverage: bool = False,
     result_json: str = DEFAULT_TEST_OUTPUT_JSON,
+    cd_in_module: bool = False,
 ):
     """
     Runs unit tests for given flavor, build tags, and modules.
@@ -128,8 +129,12 @@ def test_flavor(
     # Can happen when --only-impacted-packages or --only-modified-packages is used
     if not modules:
         return
+    if cd_in_module and len(modules) != 1:
+        raise ValueError("cd_in_module is only supported when running tests for a single module")
 
     result = TestResult('.')
+    if cd_in_module:
+        result.path = os.path.join(result.path, modules[0].path)
 
     # Set default values for args
     args["go_build_tags"] = " ".join(build_tags)
@@ -150,22 +155,39 @@ def test_flavor(
         args["junit_file_flag"] = junit_file_flag
 
     # Compute full list of targets to run tests against
-    packages = compute_gotestsum_cli_args(modules)
+    packages = compute_gotestsum_cli_args(modules, cd_in_module)
 
-    with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
-        res = ctx.run(
-            command=cmd.format(
-                packages=packages,
-                cov_test_path=cov_test_path,
-                **args,
-            ),
-            env=env,
-            out_stream=test_profiler,
-            warn=True,
-        )
-        # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
-        if res is not None and res.exited == 130:
-            raise KeyboardInterrupt()
+    if cd_in_module:
+        with ctx.cd(modules[0].path):
+            with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
+                res = ctx.run(
+                    command=cmd.format(
+                        packages=packages,
+                        cov_test_path=cov_test_path,
+                        **args,
+                    ),
+                    env=env,
+                    out_stream=test_profiler,
+                    warn=True,
+                )
+                # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+                if res is not None and res.exited == 130:
+                    raise KeyboardInterrupt()
+    else:
+        with CodecovWorkaround(ctx, result.path, coverage, packages, args) as cov_test_path:
+            res = ctx.run(
+                command=cmd.format(
+                    packages=packages,
+                    cov_test_path=cov_test_path,
+                    **args,
+                ),
+                env=env,
+                out_stream=test_profiler,
+                warn=True,
+            )
+            # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
+            if res is not None and res.exited == 130:
+                raise KeyboardInterrupt()
 
     if res.exited is None or res.exited > 0:
         result.failed = True
@@ -875,13 +897,16 @@ def get_go_modified_files(ctx):
     ]
 
 
-def compute_gotestsum_cli_args(modules: list[GoModule]):
+def compute_gotestsum_cli_args(modules: list[GoModule], cd_in_module: bool = False):
     targets = []
     for module in modules:
         if not module.should_test():
             continue
         for target in module.test_targets:
-            target_path = os.path.join(module.path, target)
+            if not cd_in_module:
+                target_path = os.path.join(module.path, target)
+            else:
+                target_path = target
             if not target_path.startswith('./'):
                 target_path = f"./{target_path}"
             targets.append(target_path)
