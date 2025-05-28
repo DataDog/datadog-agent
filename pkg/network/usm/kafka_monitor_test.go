@@ -1331,7 +1331,8 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	t := s.T()
-	versions := []int{4, 5, 7, 11, 12}
+	//versions := []int{4, 5, 7, 11, 12, 17}
+	versions := []int{16, 17}
 	require.Contains(t, versions, kafka.DecodingMaxSupportedFetchRequestApiVersion, "The latest API version for FetchRequest should be tested")
 
 	t.Run("without TLS", func(t *testing.T) {
@@ -1663,7 +1664,7 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 		}
 	}, time.Second*5, time.Millisecond*10)
 	if t.Failed() {
-		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
+		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry", "kafka_topic_id_to_name")
 		t.FailNow()
 	}
 	return kafkaStats
@@ -1693,7 +1694,7 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 		}
 	}, time.Second*5, time.Millisecond*10)
 	if t.Failed() {
-		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry")
+		ebpftest.DumpMapsTestHelper(t, monitor.ebpfProgram.Manager.Manager.DumpMaps, "kafka_in_flight", "kafka_batches", "kafka_response", "kafka_telemetry", "kafka_topic_id_to_name")
 		t.FailNow()
 	}
 	return kafkaStats

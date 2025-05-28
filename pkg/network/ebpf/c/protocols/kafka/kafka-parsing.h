@@ -1056,8 +1056,16 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
             // topic_id may be a zeroed UUID so we need to check it's a valid UUID v4
             if (IS_UUID_V4(topic_id)) {
-                log_debug("GUY got topic name: %s", topic_name);
-                log_debug("GUY got topic id: %02x%02x%02x", topic_id[0], topic_id[1], topic_id[2]);
+                kafka_topic_id_to_name_key_t key;
+                bpf_memset(&key, 0, sizeof(key));
+                bpf_memcpy(&key.topic_id, topic_id, sizeof(topic_id));
+                bpf_memcpy(&key.tup, tup, sizeof(tup));
+                // Flip the tuple for the request tup.
+                flip_tuple(&key.tup);
+                bpf_map_update_elem(&kafka_topic_id_to_name, &key, topic_name, BPF_NOEXIST);
+
+                log_debug("GUY update kafka_topic_id_to_name topic_id %02x%02x, topic_name %s",
+                          topic_id[0], topic_id[1], topic_name);
             }
 
             offset += sizeof(u8); // Skip bool is_internal
@@ -1823,7 +1831,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     kafka_header.correlation_id = bpf_ntohl(kafka_header.correlation_id);
     kafka_header.client_id_size = bpf_ntohs(kafka_header.client_id_size);
 
-    log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
+    log_debug("GUY kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
@@ -1940,8 +1948,34 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
             log_debug("GUY got topic id: %02x%02x%02x skipping", topic_id[0], topic_id[1], topic_id[2]);
 
-            // TODO get topic name from topic id mapping
-            return false;
+            // Exit if the topic ID is not a valid UUID v4.
+            if (!(IS_UUID_V4(topic_id))) {
+                return false;
+            }
+
+            kafka_topic_id_to_name_key_t key;
+            bpf_memset(&key, 0, sizeof(key));
+            bpf_memcpy(&key.topic_id, topic_id, sizeof(topic_id));
+            bpf_memcpy(&key.tup, tup, sizeof(tup));
+
+            char* topic_name = bpf_map_lookup_elem(&kafka_topic_id_to_name, &key);
+            if (topic_name == NULL) {
+                // ERROR
+                return false;
+            }
+            s16 topic_name_size = TOPIC_NAME_MAX_STRING_SIZE;
+
+            bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+            bpf_memcpy(kafka_transaction->topic_name, topic_name, topic_name_size);
+
+            // TODO
+//            update_topic_name_size_telemetry(kafka_tel, topic_name_size);
+            kafka_transaction->topic_name_size = topic_name_size;
+
+            log_debug("GUY found kafka_topic_id_to_name topic_id %02x%02x, topic_name %s",
+                      topic_id[0], topic_id[1], kafka_transaction->topic_name);
+
+            CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
         } else {
             s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
             if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {

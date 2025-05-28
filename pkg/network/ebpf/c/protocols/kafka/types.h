@@ -45,6 +45,11 @@ typedef struct kafka_transaction_key_t {
     __s32 correlation_id;
 } kafka_transaction_key_t;
 
+typedef struct kafka_topic_id_to_name_key_t {
+    conn_tuple_t tup;
+    __u8 topic_id[16];
+} kafka_topic_id_to_name_key_t;
+
 typedef enum {
     KAFKA_FETCH_RESPONSE_START = 0,
     KAFKA_FETCH_RESPONSE_NUM_TOPICS,
