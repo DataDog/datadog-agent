@@ -148,10 +148,7 @@ def generic_debug_package_agent_quality_gate(arch, sys_os, flavor, **kwargs):
 
         package_path = find_package_path(flavor, package_os, package_arch)
         # Find the ancestor package path from its download directory
-        original_workdir = os.getcwd()
-        os.chdir(ancestor_download_dir)
-        os.environ['OMNIBUS_PACKAGE_DIR'] = "omnibus/pkg"
+        os.environ['OMNIBUS_PACKAGE_DIR'] = f"{ancestor_download_dir}/omnibus/pkg"
         ancestor_package_path = find_package_path(flavor, package_os, package_arch)
-        os.chdir(original_workdir)
 
         debug_package_size(ctx, sys_os, package_path, ancestor_package_path)
