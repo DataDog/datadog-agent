@@ -52,6 +52,7 @@ func NewUserSamples(config model.Reader, sourceSamples []*config.AutoMultilineSa
 	var err error
 
 	for _, sample := range sourceSamples {
+		log.Debugf("Adding source user sample: %+v", sample)
 		s = append(s, &UserSample{
 			Sample:         sample.Sample,
 			Label:          sample.Label,
