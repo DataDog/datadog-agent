@@ -243,7 +243,7 @@ func submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats
 		fieldName := sType.Field(i).Name
 		metricName := metricPrefix + tcpStatsMapping[fieldName]
 		metricValue := s.Field(i).Uint()
-		if strings.HasSuffix(metricName, ".connections") || strings.HasSuffix(".current_established") {
+		if strings.HasSuffix(metricName, ".connections") || strings.HasSuffix(metricName, ".current_established") {
 			sender.Gauge(metricName, float64(metricValue), "", nil)
 		} else {
 			sender.Rate(metricName, float64(metricValue), "", nil)
