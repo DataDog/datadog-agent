@@ -47,8 +47,8 @@ type fakeprocess struct {
 // getServices returns a list of processes that are running and have a
 // container.  This is temporary until we have a way to get the services from
 // the process collector.
-func (c *DiscoveryWLM) getServices() ([]fakeprocess, error) {
-	containers := c.wmeta.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
+func (d *DiscoveryWLM) getServices() ([]fakeprocess, error) {
+	containers := d.wmeta.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
 		return container.State.Running && container.PID > 0
 	})
 
@@ -79,7 +79,7 @@ func (d *DiscoveryWLM) DiscoverServices() (*model.ServicesResponse, error) {
 		procMap[int32(proc.pid)] = &proc
 	}
 
-	resp, err := d.discoveryCore.getServices(params{}, pids, nil, func(context any, pid int32) *model.Service {
+	resp, err := d.discoveryCore.getServices(params{}, pids, nil, func(_ any, pid int32) *model.Service {
 		info, ok := d.discoveryCore.cache[pid]
 		if ok {
 			return info.toModelService(pid, &model.Service{})

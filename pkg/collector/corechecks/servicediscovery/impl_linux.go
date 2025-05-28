@@ -38,7 +38,7 @@ func newLinuxImpl(store workloadmeta.Component, tagger tagger.Component) (osImpl
 			return nil, err
 		}
 		return &linuxImpl{
-			getDiscoveryServices: func(client *sysprobeclient.CheckClient) (*model.ServicesResponse, error) {
+			getDiscoveryServices: func(_ *sysprobeclient.CheckClient) (*model.ServicesResponse, error) {
 				return discoveryWLM.DiscoverServices()
 			},
 		}, nil
