@@ -6,6 +6,7 @@
 package log
 
 import (
+	"bytes"
 	"strings"
 
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -15,6 +16,7 @@ import (
 // ChannelWriter is a buffered writer that sends log messages to a channel
 // to be sent to our intake.
 type ChannelWriter struct {
+	Buffer  bytes.Buffer
 	Channel chan *logConfig.ChannelMessage
 	IsError bool
 }
@@ -30,10 +32,19 @@ func NewChannelWriter(ch chan *logConfig.ChannelMessage, isError bool) *ChannelW
 }
 
 // Write processes writes from our stdout/stderr fd and sends complete
-// log messages to the channel.
+// log messages to the channel. There are two edge cases:
+// 1. May receive multiple logs in one payload, so we should split JSON logs to avoid dropped logs.
+// 2. May receive part of a long log, so we should wait for a `\n` character before flushing.
 func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
+	payload := string(p)
+	if !strings.Contains(payload, "\n") {
+		return cw.Buffer.Write(p)
+	}
+
 	// Split any combined JSON messages
-	messages := splitJsonMessages(string(p))
+	payload = cw.Buffer.String() + payload
+	cw.Buffer.Reset()
+	messages := splitJsonMessages(payload)
 
 	// Send each message as a separate log entry
 	for _, msg := range messages {
