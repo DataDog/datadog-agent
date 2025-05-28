@@ -14,6 +14,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -46,13 +47,14 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig pkgconfigmodel.Reader, syscfg *sysconfigtypes.Config, wmeta workloadmeta.Component, npCollector npcollector.Component, statsd statsd.ClientInterface) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
 		sysprobeYamlConfig: sysprobeYamlConfig,
 		wmeta:              wmeta,
 		npCollector:        npCollector,
+		statsd:             statsd,
 	}
 }
 
@@ -79,6 +81,7 @@ type ConnectionsCheck struct {
 	npCollector npcollector.Component
 
 	sysprobeClient *http.Client
+	statsd         statsd.ClientInterface
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -180,6 +183,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		if capacityErr != nil {
 			log.Warnf("failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
 			isNearCapacity = false
+			if c.statsd != nil {
+				_ = c.statsd.Count("datadog.process.connections.capacity_check_errors", 1, []string{}, 1)
+			}
 		}
 	} else {
 		log.Debug("system probe client not available, skipping capacity check.")
@@ -187,6 +193,14 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	// Decide whether to run the full check
 	shouldRunFullCheck := isTimeForGuaranteedRun || isNearCapacity
+
+	if c.statsd != nil {
+		if shouldRunFullCheck {
+			_ = c.statsd.Count("datadog.process.connections.runs", 1, []string{fmt.Sprintf("guaranteed_run:%t", isTimeForGuaranteedRun), fmt.Sprintf("near_capacity:%t", isNearCapacity)}, 1)
+		} else {
+			_ = c.statsd.Count("datadog.process.connections.skipped_runs", 1, []string{}, 1)
+		}
+	}
 
 	if !shouldRunFullCheck {
 		log.Debugf("skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", timeSinceLastRun)
@@ -201,6 +215,9 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	conns, err := c.getConnections()
 	if err != nil {
 		log.Errorf("failed to get connections: %v", err)
+		if c.statsd != nil {
+			_ = c.statsd.Count("datadog.process.connections.collection_errors", 1, []string{}, 1)
+		}
 		return nil, err
 	}
 
@@ -215,6 +232,11 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	c.localresolver.Resolve(conns)
 
 	log.Debugf("collected connections in %s", time.Since(start))
+
+	if c.statsd != nil {
+		_ = c.statsd.Gauge("datadog.process.connections.count", float64(len(conns.Conns)), []string{}, 1)
+		_ = c.statsd.Histogram("datadog.process.connections.collection_time", time.Since(start).Seconds(), []string{}, 1)
+	}
 
 	c.npCollector.ScheduleConns(conns.Conns, conns.Dns)
 
@@ -583,6 +605,7 @@ func (c *ConnectionsCheck) checkCapacity() (bool, error) {
 		return false, fmt.Errorf("system probe client is nil")
 	}
 
+	capacityCheckStart := time.Now()
 	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/connections/check_capacity?client_id="+ProcessAgentClientID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -599,12 +622,22 @@ func (c *ConnectionsCheck) checkCapacity() (bool, error) {
 	}
 	defer resp.Body.Close()
 
+	if c.statsd != nil {
+		_ = c.statsd.Histogram("datadog.process.connections.capacity_check_time", time.Since(capacityCheckStart).Seconds(), []string{}, 1)
+	}
+
 	switch resp.StatusCode {
 	case http.StatusOK: // 200 OK => Near capacity
 		log.Debugf("Capacity check returned 200 OK (Near Capacity) for client %s", ProcessAgentClientID)
+		if c.statsd != nil {
+			_ = c.statsd.Count("datadog.process.connections.capacity_near_limit", 1, []string{}, 1)
+		}
 		return true, nil
 	case http.StatusNoContent: // 204 No Content => Not near capacity
 		log.Tracef("Capacity check returned 204 No Content (OK) for client %s", ProcessAgentClientID)
+		if c.statsd != nil {
+			_ = c.statsd.Count("datadog.process.connections.capacity_ok", 1, []string{}, 1)
+		}
 		return false, nil
 	default:
 		return false, fmt.Errorf("unexpected status code %d from capacity check endpoint %s", resp.StatusCode, url)
