@@ -84,6 +84,8 @@ func workloadmetaEventFromSBOMEventSet(event *sbompb.SBOMMessage) (workloadmeta.
 		return workloadmeta.Event{}, fmt.Errorf("expected container ID, got empty")
 	}
 
+	log.Debugf("Received forwarded SBOM for container %s", event.ID)
+
 	return workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.Container{
