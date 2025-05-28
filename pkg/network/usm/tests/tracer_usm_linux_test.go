@@ -2602,11 +2602,11 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 				break
 			}
 
-			if key.KeyName == keyName && key.Command == redis.GetCommand {
+			if key.KeyName.Get() == keyName && key.Command == redis.GetCommand {
 				getRequestStats = stats
 				continue
 			}
-			if key.KeyName == keyName && key.Command == redis.SetCommand {
+			if key.KeyName.Get() == keyName && key.Command == redis.SetCommand {
 				setRequestStats = stats
 				continue
 			}
