@@ -335,7 +335,9 @@ func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collec
 	s.scanQueue.Forget(request)
 
 	if scanResult.ImgMeta != nil {
-		if scanResult.ImgMeta.SBOM == nil || scanResult.ImgMeta.SBOM.CycloneDXBOM == nil || scanResult.ImgMeta.SBOM.CycloneDXBOM.Components == nil {
+		imgMeta := s.getImageMetadata(request)
+
+		if imgMeta.SBOM == nil || imgMeta.SBOM.CycloneDXBOM == nil || imgMeta.SBOM.CycloneDXBOM.Components == nil {
 			log.Errorf("invalid scan result for '%s'", request.ID())
 			return
 		}
