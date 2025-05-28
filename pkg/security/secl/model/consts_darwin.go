@@ -56,3 +56,4 @@ func initSignalConstants()           {}
 func initBPFMapNamesConstants()      {}
 func initAUIDConstants()             {}
 func initSysCtlActionConstants()     {}
+func initSetSockOptConstants()       {}

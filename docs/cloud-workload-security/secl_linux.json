@@ -15178,6 +15178,21 @@
       ]
     },
     {
+      "name": "SetSockopt Actions",
+      "link": "setsockopt-actions",
+      "description": "SetSockopt Actions are the supported actions for the setsockopt event.",
+      "all": [
+        {
+          "name": "SOL_SOCKET",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_REUSEADDR",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Signal constants",
       "link": "signal-constants",
       "description": "Signal constants are the supported signals for the kill syscall.",
