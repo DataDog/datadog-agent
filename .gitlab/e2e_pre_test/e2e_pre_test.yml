@@ -11,7 +11,7 @@ e2e_pre_test:
       optional: true
   script:
     - cd test/new-e2e
-    - go install github.com/DataDog/orchestrion/cmd/orchestrion@v1.4.0
+    - go install github.com/DataDog/orchestrion@v1.4.0
     - orchestrion pin
     - cd ../..
     - export DD_CIVISIBILITY_ENABLED=true
