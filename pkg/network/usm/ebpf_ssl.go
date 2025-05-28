@@ -523,7 +523,6 @@ func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Confi
 // ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 	sharedLibrariesConfigureOptions(options, o.cfg)
-
 	o.addProcessExitProbe(options)
 }
 
