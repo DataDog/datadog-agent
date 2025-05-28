@@ -106,13 +106,18 @@ def debug_package_size(ctx, package_os, package_path, ancestor_package_path):
     ancestor_pipeline_extract_dir = tempfile.TemporaryDirectory()
 
     # extract both packages
-    extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=current_pipeline_extract_dir)
     extract_package(
-        ctx=ctx, package_os=package_os, package_path=ancestor_package_path, extract_dir=ancestor_pipeline_extract_dir
+        ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=current_pipeline_extract_dir.name
+    )
+    extract_package(
+        ctx=ctx,
+        package_os=package_os,
+        package_path=ancestor_package_path,
+        extract_dir=ancestor_pipeline_extract_dir.name,
     )
 
     # Compare both packages content
-    _diff(current_pipeline_extract_dir, ancestor_pipeline_extract_dir)
+    _diff(current_pipeline_extract_dir.name, ancestor_pipeline_extract_dir.name)
 
     # Cleanup temporary directories
     current_pipeline_extract_dir.cleanup()
