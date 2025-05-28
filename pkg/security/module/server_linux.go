@@ -293,7 +293,12 @@ func (a *APIServer) collectOSReleaseData() {
 }
 
 func (a *APIServer) collectSBOMS() {
-	if sbomResolver := a.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.SBOMResolver; sbomResolver != nil {
+	ebpfProbe, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return
+	}
+
+	if sbomResolver := ebpfProbe.Resolvers.SBOMResolver; sbomResolver != nil {
 		if err := sbomResolver.RegisterListener(sbom.SBOMComputed, func(sbom *sbompkg.ScanResult) {
 			select {
 			case a.sboms <- sbom:
