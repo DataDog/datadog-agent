@@ -184,7 +184,7 @@ class GateMetricHandler:
                     # Compute the difference between the wire and disk size of common gates between the ancestor and the current pipeline
                     for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
                         if self.metrics[gate].get(metric_key) and ancestor_gate.get(metric_key):
-                            relative_metric_size = ancestor_gate[metric_key] - self.metrics[gate][metric_key]
+                            relative_metric_size = self.metrics[gate][metric_key] - ancestor_gate[metric_key]
                             self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
             else:
                 print(

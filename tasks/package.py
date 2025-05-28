@@ -20,7 +20,6 @@ from tasks.libs.package.size import (
 from tasks.libs.package.url import get_deb_package_url, get_rpm_package_url
 from tasks.libs.package.utils import (
     PackageSize,
-    display_message,
     get_ancestor,
     get_package_name,
     list_packages,
@@ -53,25 +52,6 @@ def check_size(ctx, filename: str = 'package_sizes.json', dry_run: bool = False)
 
     if on_main:
         upload_package_sizes(ctx, package_sizes, filename, distant=not dry_run)
-    else:
-        size_table.sort(key=lambda x: (-x.diff, x.flavor, x.arch_name()))
-        size_message = "".join(f"{pkg_size.markdown()}\n" for pkg_size in size_table if pkg_size.diff >= 0)
-        reduction_size_message = "".join(f"{pkg_size.markdown()}\n" for pkg_size in size_table if pkg_size.diff < 0)
-        if "❌" in size_message:
-            decision = "❌ Failed"
-        elif "⚠️" in size_message:
-            decision = "⚠️ Warning"
-        else:
-            decision = "✅ Passed"
-        # Try to display the message on the PR when a PR exists
-        if os.environ.get("CI_COMMIT_BRANCH"):
-            try:
-                display_message(ctx, ancestor, size_message, reduction_size_message, decision)
-            # PR commenter asserts on the numbers of PR's, this will raise if there's no PR
-            except AssertionError as exc:
-                print(f"Got `{exc}` while trying to comment on PR, we'll assume that this is not a PR.")
-        if "Failed" in decision:
-            raise Exit(code=0)
 
 
 @task
