@@ -18,7 +18,7 @@ class TestIsGetParameterCall(unittest.TestCase):
     def test_no_get_param(self):
         with open(self.test_file, "w") as f:
             f.write("Hello World")
-        matched = linter.gitlab.helpers.list_get_parameter_calls(self.test_file)
+        matched = linter.list_get_parameter_calls(self.test_file)
         self.assertListEqual([], matched)
 
     def test_without_wrapper_no_env(self):
@@ -26,7 +26,7 @@ class TestIsGetParameterCall(unittest.TestCase):
             f.write(
                 "API_KEY=$(aws ssm get-parameter --region us-east-1 --name test.datadog-agent.datadog_api_key_org2 --with-decryption  --query Parameter.Value --out text)"
             )
-        matched = linter.gitlab.helpers.list_get_parameter_calls(self.test_file)[0]
+        matched = linter.list_get_parameter_calls(self.test_file)[0]
         self.assertFalse(matched.with_wrapper)
         self.assertFalse(matched.with_env_var)
 
@@ -35,7 +35,7 @@ class TestIsGetParameterCall(unittest.TestCase):
             f.write(
                 "  - DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name $API_KEY_ORG2 --with-decryption  --query Parameter.Value --out text || exit $?; export DD_API_KEY"
             )
-        matched = linter.gitlab.helpers.list_get_parameter_calls(self.test_file)[0]
+        matched = linter.list_get_parameter_calls(self.test_file)[0]
         self.assertFalse(matched.with_wrapper)
         self.assertTrue(matched.with_env_var)
 
@@ -44,7 +44,7 @@ class TestIsGetParameterCall(unittest.TestCase):
             f.write(
                 "DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh test.datadog-agent.datadog_api_key_org2) || exit $?; export DD_API_KEY"
             )
-        matched = linter.gitlab.helpers.list_get_parameter_calls(self.test_file)[0]
+        matched = linter.list_get_parameter_calls(self.test_file)[0]
         self.assertTrue(matched.with_wrapper)
         self.assertFalse(matched.with_env_var)
 
@@ -53,7 +53,7 @@ class TestIsGetParameterCall(unittest.TestCase):
             f.write(
                 "DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY"
             )
-        matched = linter.gitlab.helpers.list_get_parameter_calls(self.test_file)
+        matched = linter.list_get_parameter_calls(self.test_file)
         self.assertListEqual([], matched)
 
     def test_multi_match_windows(self):
@@ -64,7 +64,7 @@ class TestIsGetParameterCall(unittest.TestCase):
                 '`DD_APP_KEY=$(& "$CI_PROJECT_DIR\tools\\ci\fetch_secret.ps1" -parameterName "bad.name" -tempFile "$tmpfile")\n'
                 'DD_APP=$(& "$CI_PROJECT_DIR\tools\\ci\fetch_secret.ps1" -parameterName "$Env:TEST" -tempFile $tmpfile)\n'
             )
-        matched = linter.gitlab.helpers.list_get_parameter_calls(self.test_file)
+        matched = linter.list_get_parameter_calls(self.test_file)
         self.assertEqual(2, len(matched))
         self.assertTrue(matched[0].with_wrapper)
         self.assertFalse(matched[0].with_env_var)
@@ -75,7 +75,7 @@ class TestIsGetParameterCall(unittest.TestCase):
 class TestGitlabChangePaths(unittest.TestCase):
     @patch("builtins.print")
     @patch(
-        "tasks.linter.gitlab.tasks.generate_gitlab_full_configuration",
+        "tasks.linter.generate_gitlab_full_configuration",
         new=MagicMock(return_value={"rules": {"changes": {"paths": ["tasks/**/*.py"]}}}),
     )
     def test_all_ok(self, print_mock):
@@ -83,7 +83,7 @@ class TestGitlabChangePaths(unittest.TestCase):
         print_mock.assert_called_with("All rule:changes:paths from gitlab-ci are \x1b[92mvalid\x1b[0m.")
 
     @patch(
-        "tasks.linter.gitlab.tasks.generate_gitlab_full_configuration",
+        "tasks.linter.generate_gitlab_full_configuration",
         new=MagicMock(
             return_value={"rules": {"changes": {"paths": ["tosks/**/*.py", "tasks/**/*.py", "tusks/**/*.py"]}}}
         ),
@@ -95,32 +95,32 @@ class TestGitlabChangePaths(unittest.TestCase):
 
 class TestGitlabCIJobsNeedsRules(unittest.TestCase):
     def test_no_changes(self):
-        with patch("tasks.linter.gitlab.tasks.get_gitlab_ci_lintable_jobs", return_value=([], {})):
+        with patch("tasks.linter.get_gitlab_ci_lintable_jobs", return_value=([], {})):
             linter.gitlab_ci_jobs_needs_rules(MockContext())
 
     def test_ok(self):
         with (
             patch(
-                "tasks.linter.gitlab.tasks.get_gitlab_ci_lintable_jobs",
+                "tasks.linter.get_gitlab_ci_lintable_jobs",
                 return_value=(
                     [('hello', {'stage': 'lint', 'script': 'echo hello', 'needs': [], 'rules': []})],
                     {'.gitlab-ci.yml': {'hello': {'stage': 'lint', 'script': 'echo hello', 'needs': [], 'rules': []}}},
                 ),
             ),
-            patch("tasks.linter.gitlab.tasks.CILintersConfig"),
+            patch("tasks.linter.CILintersConfig"),
         ):
             linter.gitlab_ci_jobs_needs_rules(MockContext())
 
     def test_error(self):
         with (
             patch(
-                "tasks.linter.gitlab.tasks.get_gitlab_ci_lintable_jobs",
+                "tasks.linter.get_gitlab_ci_lintable_jobs",
                 return_value=(
                     [('hello', {'stage': 'lint', 'script': 'echo hello'})],
                     {'.gitlab-ci.yml': {'hello': {'stage': 'lint', 'script': 'echo hello'}}},
                 ),
             ),
-            patch("tasks.linter.gitlab.tasks.CILintersConfig"),
+            patch("tasks.linter.CILintersConfig"),
         ):
             with self.assertRaises(Exit):
                 linter.gitlab_ci_jobs_needs_rules(MockContext())
@@ -139,7 +139,7 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         /somejob        @DataDog/the-best-team
         """
 
-        linter.gitlab.helpers._gitlab_ci_jobs_owners_lint(
+        linter._gitlab_ci_jobs_owners_lint(
             ['somejob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
         )
 
@@ -148,7 +148,7 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         /my*        @DataDog/the-best-team
         """
 
-        linter.gitlab.helpers._gitlab_ci_jobs_owners_lint(
+        linter._gitlab_ci_jobs_owners_lint(
             ['myjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
         )
 
@@ -158,7 +158,7 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         """
 
         with self.assertRaises(Exit):
-            linter.gitlab.helpers._gitlab_ci_jobs_owners_lint(
+            linter._gitlab_ci_jobs_owners_lint(
                 ['someotherjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
             )
 
@@ -168,7 +168,7 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         /my*            @DataDog/another-best-team
         """
 
-        linter.gitlab.helpers._gitlab_ci_jobs_owners_lint(
+        linter._gitlab_ci_jobs_owners_lint(
             ['somejob', 'myjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
         )
 
@@ -178,7 +178,7 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         """
 
         with self.assertRaises(Exit):
-            linter.gitlab.helpers._gitlab_ci_jobs_owners_lint(
+            linter._gitlab_ci_jobs_owners_lint(
                 ['somejob', 'someotherjob'], CodeOwners(jobowners), self.empty_ci_linters_config(), 'jobowners'
             )
 
@@ -190,9 +190,7 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
         config = self.empty_ci_linters_config()
         config.job_owners_jobs.add('someotherjob')
 
-        linter.gitlab.helpers._gitlab_ci_jobs_owners_lint(
-            ['somejob', 'someotherjob'], CodeOwners(jobowners), config, 'jobowners'
-        )
+        linter._gitlab_ci_jobs_owners_lint(['somejob', 'someotherjob'], CodeOwners(jobowners), config, 'jobowners')
 
 
 class TestGitlabCIJobsCodeowners(unittest.TestCase):
@@ -202,7 +200,7 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         /.*             @DataDog/another-best-team
         """
 
-        linter.gitlab.helpers._gitlab_ci_jobs_codeowners_lint('/path/to/codeowners', [], CodeOwners(codeowners))
+        linter._gitlab_ci_jobs_codeowners_lint('/path/to/codeowners', [], CodeOwners(codeowners))
 
     def test_one_file(self):
         codeowners = """
@@ -210,9 +208,7 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         /.*             @DataDog/another-best-team
         """
 
-        linter.gitlab.helpers._gitlab_ci_jobs_codeowners_lint(
-            '/path/to/codeowners', ['somefile'], CodeOwners(codeowners)
-        )
+        linter._gitlab_ci_jobs_codeowners_lint('/path/to/codeowners', ['somefile'], CodeOwners(codeowners))
 
     def test_multiple_files(self):
         codeowners = """
@@ -220,7 +216,7 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         /.*             @DataDog/another-best-team
         """
 
-        linter.gitlab.helpers._gitlab_ci_jobs_codeowners_lint(
+        linter._gitlab_ci_jobs_codeowners_lint(
             '/path/to/codeowners', ['somefile', '.gitlab-ci.yml'], CodeOwners(codeowners)
         )
 
@@ -231,6 +227,6 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         """
 
         with self.assertRaises(Exit):
-            linter.gitlab.helpers._gitlab_ci_jobs_codeowners_lint(
+            linter._gitlab_ci_jobs_codeowners_lint(
                 '/path/to/codeowners', ['becareful', '.gitlab-ci.yml'], CodeOwners(codeowners)
             )
