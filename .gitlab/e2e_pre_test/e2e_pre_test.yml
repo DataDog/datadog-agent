@@ -10,16 +10,9 @@ e2e_pre_test:
     - job: publish_fakeintake
       optional: true
   script:
-    - cd test/new-e2e
-    - go install github.com/DataDog/orchestrion
-    - cd ../..
-    - export DD_ENV=nativetest
-    - export DD_CIVISIBILITY_ENABLED=true
-    - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
-    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - dda inv -- -e new-e2e-tests.run --targets ./test-infra-definition --result-json $E2E_RESULT_JSON --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --cd-in-module --native-instrumentation
-  # after_script:
-  #   - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
+  after_script:
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   variables:
     TEAM: "agent-devx"
     # override to use latest stable agent

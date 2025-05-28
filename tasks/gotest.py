@@ -149,7 +149,10 @@ def test_flavor(
     # Produce the junit file only if a junit tarball needs to be produced
     if junit_tar:
         junit_file = f"junit-out-{flavor.name}.xml"
-        result.junit_file_path = os.path.join('.', junit_file)
+        if cd_in_module:
+            result.junit_file_path = os.path.join(modules[0].path, junit_file)
+        else:
+            result.junit_file_path = os.path.join('.', junit_file)
 
         junit_file_flag = "--junitfile " + result.junit_file_path if junit_tar else ""
         args["junit_file_flag"] = junit_file_flag
