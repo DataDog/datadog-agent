@@ -133,7 +133,7 @@ function report_telemetry() {
     safe_agent_version=$(echo -n "$agent_major_version" | tr '\n' ' ' | tr '"' '_')
   fi
 
-  
+
   if [ -z "${ERROR_CODE}" ] ; then
     telemetry_event="
 {
@@ -592,7 +592,7 @@ function _install_installer_script() {
       echo "Error: Unable to download the installer script from $installer_url. HTTP status code: $http_code"
       return 1
     fi
-    if ! bash <(curl -L -s -f --retry 3 "$installer_url"); then
+    if ! bash <(curl -L -s -f --retry 3 "$installer_url") 2> >(tee /tmp/datadog-installer-stderr.log >&2 || true > /dev/null) > >(tee /tmp/datadog-installer-stdout.log || true > /dev/null); then
       return 1
     fi
   elif command -v wget >/dev/null; then
@@ -601,7 +601,7 @@ function _install_installer_script() {
       echo "Error: Unable to download the installer script from $installer_url. HTTP status code: $http_code"
       return 1
     fi
-    if ! bash <(wget -q --tries=3 -O - "$installer_url"); then
+    if ! bash <(wget -q --tries=3 -O - "$installer_url") 2> >(tee /tmp/datadog-installer-stderr.log >&2 || true > /dev/null) > >(tee /tmp/datadog-installer-stdout.log || true > /dev/null); then
       return 1
     fi
   else
@@ -619,7 +619,7 @@ function install_managed_agent() {
   if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
     installer_url="https://${installer_domain}/scripts/install-7.${DD_AGENT_MINOR_VERSION}.sh"
   fi
-  
+
   _install_installer_script "$installer_url"
   exit $?
 }
@@ -630,8 +630,8 @@ function install_apm_ssi() {
   local pkg_array_name="$2"
 
   installer_domain=${DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE:-$([[ "$DD_SITE" == "datad0g.com" ]] && echo "install.datad0g.com" || echo "install.datadoghq.com")}
-  installer_url="https://${installer_domain}/scripts/install-ssi.sh" # TODO: support pinning?
-  
+  installer_url="https://${installer_domain}/pipeline-66326836/scripts/install-ssi.sh" # TODO: support pinning?
+
   _install_installer_script "$installer_url" || true
   filter_packages_installed_by_installer "$sudo_cmd" "$pkg_array_name"
 }
