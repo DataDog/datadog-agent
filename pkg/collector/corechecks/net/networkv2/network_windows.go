@@ -227,9 +227,8 @@ func submitTcpStats(sender sender.Sender) error {
 	}
 
 	// Create tcp metrics that are a sum of tcp4 and tcp6 metrics
-	tcpAllStats := &mibTcpStats{}
 	if !reflect.ValueOf(tcp4Stats).IsZero() && !reflect.ValueOf(tcp6Stats).IsZero() {
-		tcpAllStats = &mibTcpStats{
+		tcpAllStats := &mibTcpStats{
 			dwRtoAlgorithm: tcp4Stats.dwRtoAlgorithm + tcp6Stats.dwRtoAlgorithm,
 			dwRtoMin:       tcp4Stats.dwRtoMin + tcp6Stats.dwRtoMin,
 			dwRtoMax:       tcp4Stats.dwRtoMax + tcp6Stats.dwRtoMax,
