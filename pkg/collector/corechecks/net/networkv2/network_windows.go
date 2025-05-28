@@ -171,8 +171,8 @@ func getTcpStats(inet uint) (mibTcpStats, error) {
 	tcpStats := &mibTcpStats{}
 	r0, _, _ := syscall.Syscall(procGetTcpStatisticsEx.Addr(), 2, uintptr(unsafe.Pointer(tcpStats)), uintptr(inet), 0)
 	if r0 != 0 {
-		errcode = syscall.Errno(r0)
-		return nil, errcode
+		err := syscall.Errno(r0)
+		return nil, err
 	}
 	return tcpStats, nil
 }
