@@ -11,9 +11,9 @@ e2e_pre_test:
       optional: true
   script:
     - cd test/new-e2e
-    - go install github.com/DataDog/orchestrion@v1.4.0
-    - orchestrion pin
+    - go install github.com/DataDog/orchestrion
     - cd ../..
+    - export DD_ENV=nativetest
     - export DD_CIVISIBILITY_ENABLED=true
     - export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
