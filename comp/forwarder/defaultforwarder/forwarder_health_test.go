@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -200,74 +201,18 @@ func TestUpdateAPIKey(t *testing.T) {
 	assert.Equal(t, expect, string(data))
 }
 
-func TestConfigUpdateAPIKey(t *testing.T) {
-	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts1.Close()
-	defer ts2.Close()
-
-	// get ports from the test servers to make expected data
-	addr, _ := url.Parse(ts1.URL)
-	_, ts1Port, _ := net.SplitHostPort(addr.Host)
-	addr, _ = url.Parse(ts2.URL)
-	_, ts2Port, _ := net.SplitHostPort(addr.Host)
-
-	// swap if necessary to ensure ts1 has a smaller port than ts2
-	// makes the json marshal deterministic so test is not flakey
-	if ts1Port > ts2Port {
-		swapPort := ts1Port
-		ts1Port = ts2Port
-		ts2Port = swapPort
-		swapServer := ts1
-		ts1 = ts2
-		ts2 = swapServer
+func quoteList(list []string) string {
+	for i, item := range list {
+		list[i] = "\"" + item + "\""
 	}
 
-	// starting API Keys, before the update
-	keysPerDomains := map[string][]utils.APIKeys{
-		ts1.URL: {utils.NewAPIKeys("api_key", "api_key1")},
-		ts2.URL: {
-			utils.NewAPIKeys("process.additional_endpoints", "api_key1", "api_key2"),
-			utils.NewAPIKeys("additional_endpoints", "api_key1", "api_key3"),
-		},
-	}
-
-	log := logmock.New(t)
-	cfg := config.NewMock(t)
-
-	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
-
-	for _, r := range resolvers {
-		resolver.OnUpdateConfig(r, log, cfg)
-	}
-
-	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
-	fh.init()
-	assert.True(t, fh.checkValidAPIKey())
-
-	// forwardHealth's keysPerAPIEndpoint has the given API Keys
-	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
-	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":["api_key1","api_key2","api_key3"]}`, ts1Port, ts2Port)
-	assert.Equal(t, expect, string(data))
-
-	endpoints := map[string][]string{
-		ts2.URL: {"api_key3", "api_key4"},
-	}
-	// Setting the config will send the change to the resolver, which updates the health check
-	cfg.SetWithoutSource("additional_endpoints", endpoints)
-
-	// ensure that keysPerAPIEndpoint has the new API Key
-	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
-	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":["api_key1","api_key2","api_key3","api_key4"]}`, ts1Port, ts2Port)
-	assert.Equal(t, expect, string(data))
+	return strings.Join(list, ",")
 }
 
-func TestConfigUpdateWithDuplicateAPIKey(t *testing.T) {
+// runUpdateAPIKeysTest test what happens when changing the api keys on additional endpoints.
+// The url already has process.additional_endpoints of "api_key1" and "api_key2". When updating these
+// keys we need to make sure duplicates with these are well handled.
+func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfter, expectBefore, expectAfter []string) {
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -299,7 +244,7 @@ func TestConfigUpdateWithDuplicateAPIKey(t *testing.T) {
 		ts1.URL: {utils.NewAPIKeys("api_key", "api_key1")},
 		ts2.URL: {
 			utils.NewAPIKeys("process.additional_endpoints", "api_key1", "api_key2"),
-			utils.NewAPIKeys("additional_endpoints", "api_key3", "api_key4"),
+			utils.NewAPIKeys("additional_endpoints", keysBefore...),
 		},
 	}
 
@@ -315,21 +260,92 @@ func TestConfigUpdateWithDuplicateAPIKey(t *testing.T) {
 	require.NoError(t, err)
 	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
 	fh.init()
-	assert.True(t, fh.checkValidAPIKey())
+	assert.True(t, fh.checkValidAPIKey(), description)
+
+	expectBeforeFmt := quoteList(expectBefore)
+	expectAfterFmt := quoteList(expectAfter)
 
 	// forwardHealth's keysPerAPIEndpoint has the given API Keys
 	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
-	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":["api_key1","api_key2","api_key3","api_key4"]}`, ts1Port, ts2Port)
-	assert.Equal(t, expect, string(data))
+	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
+		ts1Port, ts2Port,
+		expectBeforeFmt)
+
+	assert.Equal(t, expect, string(data), description)
 
 	endpoints := map[string][]string{
-		ts2.URL: {"api_key3", "api_key1", "api_key1"},
+		ts2.URL: keysAfter,
 	}
 	// Setting the config will send the change to the resolver, which updates the health check
 	cfg.SetWithoutSource("additional_endpoints", endpoints)
 
-	// ensure that keysPerAPIEndpoint has the new API Key
+	// Ensure that keysPerAPIEndpoint has the new API Key
 	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
-	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":["api_key1","api_key2","api_key3"]}`, ts1Port, ts2Port)
-	assert.Equal(t, expect, string(data))
+	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
+		ts1Port, ts2Port,
+		expectAfterFmt)
+	assert.Equal(t, expect, string(data), description)
+
+	// Restore the keys and ensure they are properly restored
+	endpoints = map[string][]string{
+		ts2.URL: keysBefore,
+	}
+	// Setting the config will send the change to the resolver, which updates the health check
+	cfg.SetWithoutSource("additional_endpoints", endpoints)
+
+	// Ensure that keysPerAPIEndpoint are restored to previous
+	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
+	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
+		ts1Port, ts2Port,
+		expectBeforeFmt)
+	assert.Equal(t, expect, string(data), description)
+}
+
+func TestConfigUpdateAPIKey(t *testing.T) {
+	for _, test := range []struct {
+		description  string
+		before       []string
+		after        []string
+		expectBefore []string
+		expectAfter  []string
+	}{
+		{
+			description: "Adding api key",
+			before:      []string{"api_key1", "api_key3"},
+			// The duplicated api_key1 is changed to api_key4
+			after:        []string{"api_key3", "api_key4"},
+			expectBefore: []string{"api_key1", "api_key2", "api_key3"},
+			// We now have both api_key1 and api_key4
+			expectAfter: []string{"api_key1", "api_key2", "api_key3", "api_key4"},
+		},
+		{
+			description: "Duplicate keys",
+			before:      []string{"api_key3", "api_key4"},
+			// api_key4 is changed to the duplicated api_key1
+			after:        []string{"api_key3", "api_key1", "api_key1"},
+			expectBefore: []string{"api_key1", "api_key2", "api_key3", "api_key4"},
+			// api_key1 is still only there once.
+			expectAfter: []string{"api_key1", "api_key2", "api_key3"},
+		},
+		{
+			description: "Reducing keys",
+			before:      []string{"api_key3", "api_key4"},
+			// api_key4 is changed to the duplicated api_key1
+			after:        []string{"api_key1", "api_key4"},
+			expectBefore: []string{"api_key1", "api_key2", "api_key3", "api_key4"},
+			// api_key1 is still only there once.
+			expectAfter: []string{"api_key1", "api_key2", "api_key4"},
+		},
+		{
+			description: "All duplicate keys",
+			before:      []string{"api_key3", "api_key4"},
+			// api_keys are both changed to the process.additional_endpoint keys
+			after:        []string{"api_key1", "api_key2"},
+			expectBefore: []string{"api_key1", "api_key2", "api_key3", "api_key4"},
+			// api_key1 is still only there once.
+			expectAfter: []string{"api_key1", "api_key2"},
+		},
+	} {
+		runUpdateAPIKeysTest(t, test.description, test.before, test.after, test.expectBefore, test.expectAfter)
+	}
 }
