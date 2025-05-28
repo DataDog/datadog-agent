@@ -234,10 +234,18 @@ var gnuTLSProbes = []manager.ProbesSelector{
 }
 
 const (
+	sslSockByCtxMap    = "ssl_sock_by_ctx"
+	sslCtxByTupMap     = "ssl_ctx_by_tuple"
 	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
 )
 
 var sharedLibrariesMaps = []*manager.Map{
+	{
+		Name: sslSockByCtxMap,
+	},
+	{
+		Name: sslCtxByTupMap,
+	},
 	{
 		Name: "ssl_read_args",
 	},
@@ -495,6 +503,14 @@ func (o *sslProgram) Name() string {
 }
 
 func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Config) {
+	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
+		MaxEntries: cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.MapSpecEditors[sslCtxByTupMap] = manager.MapSpecEditor{
+		MaxEntries: cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
