@@ -35,6 +35,26 @@ const (
 	CheckName = "network"
 )
 
+var (
+	tcpStateMetricsSuffixMapping = map[string]string{
+		"ESTABLISHED": "established",
+		"SYN_SENT":    "opening",
+		"SYN_RECV":    "opening",
+		"FIN_WAIT1":   "closing",
+		"FIN_WAIT2":   "closing",
+		"TIME_WAIT":   "time_wait",
+		"CLOSE":       "closing",
+		"CLOSE_WAIT":  "closing",
+		"LAST_ACK":    "closing",
+		"LISTEN":      "listening",
+		"CLOSING":     "closing",
+		"NONE":        "connections", // CONN_NONE is always returned for udp connections
+	}
+	udpStateMetricsSuffixMapping = map[string]string{
+		"NONE": "connections",
+	}
+)
+
 // NetworkCheck represent a network check
 type NetworkCheck struct {
 	core.CheckBase
@@ -108,7 +128,10 @@ func (c *NetworkCheck) Run() error {
 	}
 
 	// _tcp_stats
-	submitTcpStats(sender)
+	err = submitTcpStats(sender)
+	if err != nil {
+		return err
+	}
 
 	sender.Commit()
 	return nil
@@ -121,7 +144,7 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, connect
 	case "udp4", "udp6":
 		stateMetricSuffixMapping = udpStateMetricsSuffixMapping
 	case "tcp4", "tcp6":
-		stateMetricSuffixMapping = tcpStateMetricsSuffixMapping["psutil"]
+		stateMetricSuffixMapping = tcpStateMetricsSuffixMapping
 	}
 	for _, suffix := range stateMetricSuffixMapping {
 		metricCount[suffix] = 0
@@ -169,7 +192,7 @@ var (
 // gopsutil does not call GetTcpStatisticsEx so we need to do so manually for these stats
 func getTcpStats(inet uint) (*mibTcpStats, error) {
 	tcpStats := &mibTcpStats{}
-	r0, _, _ := syscall.Syscall(procGetTcpStatisticsEx.Addr(), 2, uintptr(unsafe.Pointer(tcpStats)), uintptr(inet), 0)
+	r0, _, _ := syscall.SyscallN(procGetTcpStatisticsEx.Addr(), uintptr(unsafe.Pointer(tcpStats)), uintptr(inet), 0)
 	if r0 != 0 {
 		err := syscall.Errno(r0)
 		return nil, err
