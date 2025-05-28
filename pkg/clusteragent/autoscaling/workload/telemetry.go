@@ -114,7 +114,6 @@ func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 
 func deletePodAutoscalerTelemetry(ns, autoscalerName string) {
 	log.Debugf("Deleting pod autoscaler telemetry for %s/%s", ns, autoscalerName)
-	// unset horizontal scaling data
 	tags := map[string]string{
 		"namespace":        ns,
 		"autoscaler_name":  autoscalerName,
