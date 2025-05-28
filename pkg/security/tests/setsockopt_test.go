@@ -24,7 +24,7 @@ func TestSetSockOpt(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_setsockopt",
-			Expression: `setsockopt.socket != 0`,
+			Expression: `setsockopt.level == SOL_SOCKET && setsockopt.optname == SO_REUSEADDR`,
 		},
 	}
 

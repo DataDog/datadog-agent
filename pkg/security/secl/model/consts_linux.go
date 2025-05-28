@@ -845,6 +845,12 @@ var (
 		"SYSCTL_READ":  SysCtlReadAction,
 		"SYSCTL_WRITE": SysCtlWriteAction,
 	}
+	// SetSockoptConstants is the list of available actions for setsockopt events
+	// generate_constants:SetSockopt Actions,SetSockopt Actions are the supported actions for the setsockopt event.
+	SetSockoptConstants = map[string]int{
+		"SOL_SOCKET":   syscall.SOL_SOCKET,
+		"SO_REUSEADDR": syscall.SO_REUSEADDR,
+	}
 )
 
 func initVMConstants() {
@@ -991,6 +997,11 @@ func initSysCtlActionConstants() {
 	for k, v := range SysCtlActionConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		sysctlActionStrings[uint32(v)] = k
+	}
+}
+func initSetSockOptConstants() {
+	for k, v := range SetSockoptConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 	}
 }
 

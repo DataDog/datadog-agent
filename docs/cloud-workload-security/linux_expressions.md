@@ -4641,6 +4641,14 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_PEEKMTETAGS` | arm64 |
 | `PTRACE_POKEMTETAGS` | arm64 |
 
+### `SetSockopt Actions` {#setsockopt-actions}
+SetSockopt Actions are the supported actions for the setsockopt event.
+
+| Name | Architectures |
+| ---- |---------------|
+| `SOL_SOCKET` | all |
+| `SO_REUSEADDR` | all |
+
 ### `Signal constants` {#signal-constants}
 Signal constants are the supported signals for the kill syscall.
 
