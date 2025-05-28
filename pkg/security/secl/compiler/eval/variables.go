@@ -948,6 +948,7 @@ func NewIPArrayVariable(value []net.IPNet, opts VariableOpts) *IPArrayVariable {
 type VariableScope interface {
 	AppendReleaseCallback(callback func())
 	Hash() string
+	ParentScope() (VariableScope, bool)
 }
 
 // Scoper maps a variable to the entity its scoped to
@@ -961,9 +962,10 @@ type Variables struct {
 
 // VariableOpts holds the options of a variable set
 type VariableOpts struct {
-	Size    int
-	TTL     time.Duration
-	Private bool // When a variable is marked as private, it will not be included in the serialized event
+	Size      int
+	TTL       time.Duration
+	Private   bool // When a variable is marked as private, it will not be included in the serialized event
+	Inherited bool
 }
 
 // NewVariables returns a new set of global variables
@@ -988,7 +990,7 @@ func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable,
 	case []net.IPNet:
 		return NewIPArrayVariable(value, opts), nil
 	default:
-		return nil, fmt.Errorf("unsupported value type: %s", reflect.TypeOf(value))
+		return nil, fmt.Errorf("unsupported value type: %v", reflect.TypeOf(value))
 	}
 }
 
@@ -1045,8 +1047,17 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 			return nil
 		}
 		key := scope.Hash()
-		v := v.vars[key]
-		return v[name]
+		vars := v.vars[key]
+		if (vars == nil || vars[name] == nil) && opts.Inherited {
+			var ok bool
+			scope, ok = scope.ParentScope()
+			for vars == nil && ok {
+				key := scope.Hash()
+				vars = v.vars[key]
+				scope, ok = scope.ParentScope()
+			}
+		}
+		return vars[name]
 	}
 
 	setVariable := func(ctx *Context, value interface{}) error {

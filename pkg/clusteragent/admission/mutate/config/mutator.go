@@ -196,7 +196,9 @@ func (i *Mutator) injectSocketVolumes(pod *corev1.Pod, withCSI bool) bool {
 		var volume corev1.Volume
 		var volumeMount corev1.VolumeMount
 		if withCSI {
-			volume, volumeMount = buildCSIVolume(DatadogVolumeName, i.config.socketPath, csiDatadogSocketsDirectory, true, i.config.csiDriver)
+			// csiDSDSocketDirectory is used because we can't mount two different volumes at the same mount path
+			// this is a limitation in the configuration of the admission controller
+			volume, volumeMount = buildCSIVolume(DatadogVolumeName, i.config.socketPath, csiDSDSocketDirectory, true, i.config.csiDriver)
 		} else {
 			volume, volumeMount = buildHostPathVolume(
 				DatadogVolumeName,
