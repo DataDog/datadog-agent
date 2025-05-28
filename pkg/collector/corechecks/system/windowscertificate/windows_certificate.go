@@ -12,6 +12,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 	"unsafe"
@@ -20,6 +21,7 @@ import (
 	"github.com/swaggest/jsonschema-go"
 	"github.com/xeipuuv/gojsonschema"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -49,6 +51,9 @@ const (
 type Config struct {
 	CertificateStore string   `yaml:"certificate_store" json:"certificate_store" required:"true" nullable:"false"`
 	CertSubjects     []string `yaml:"certificate_subjects" json:"certificate_subjects" nullable:"false"`
+	Server           string   `yaml:"server" json:"server" nullable:"false"`
+	Username         string   `yaml:"username" json:"username" nullable:"false"`
+	Password         string   `yaml:"password" json:"password" nullable:"false"`
 	DaysCritical     int      `yaml:"days_critical" json:"days_critical" minimum:"0"`
 	DaysWarning      int      `yaml:"days_warning" json:"days_warning" minimum:"0"`
 }
@@ -147,9 +152,24 @@ func (w *WinCertChk) Run() error {
 	}
 	defer sender.Commit()
 
-	certificates, err := getCertificates(w.config.CertificateStore, w.config.CertSubjects)
-	if err != nil {
-		return err
+	var certificates []*x509.Certificate
+	var tags []string
+	if w.config.Server != "" {
+		certificates, err = getRemoteCertificates(w.config.CertificateStore, w.config.CertSubjects, w.config.Server, w.config.Username, w.config.Password)
+		if err != nil {
+			return err
+		}
+		tags = append(tags, "server:"+w.config.Server)
+	} else {
+		certificates, err = getCertificates(w.config.CertificateStore, w.config.CertSubjects)
+		if err != nil {
+			return err
+		}
+		hostname, err := os.Hostname()
+		if err != nil {
+			return err
+		}
+		tags = append(tags, "server:"+hostname)
 	}
 	if len(certificates) == 0 {
 		log.Warnf("No certificates found in store: %s for subject filters: '%s'", w.config.CertificateStore, strings.Join(w.config.CertSubjects, ", "))
@@ -161,7 +181,7 @@ func (w *WinCertChk) Run() error {
 		expirationDate := cert.NotAfter.Format(time.RFC3339)
 
 		// Adding Subject and Certificate Store as tags
-		tags := getSubjectTags(cert)
+		tags = append(tags, getSubjectTags(cert)...)
 		tags = append(tags, "certificate_store:"+w.config.CertificateStore)
 
 		sender.Gauge("windows_certificate.days_remaining", daysRemaining, "", tags)
@@ -235,6 +255,87 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 
 	log.Debugf("Found %d certificates in store", len(certificates))
 	return certificates, nil
+}
+
+func getRemoteCertificates(store string, certFilters []string, server string, username string, password string) ([]*x509.Certificate, error) {
+
+	remoteServer := "\\\\" + server
+	err := netAddConnection(remoteServer, "", password, username)
+	if err != nil {
+		log.Errorf("Error adding connection: %v", err)
+		return nil, err
+	}
+	log.Debugf("Connection to %s is successful", server)
+	defer func() {
+		err = netCancelConnection(server)
+		if err != nil {
+			log.Errorf("Error canceling connection: %v", err)
+		}
+	}()
+
+	log.Debugf("Opening remote registry on %s", server)
+	var regKey registry.Key
+	regKey, err = registry.OpenRemoteKey(server, registry.LOCAL_MACHINE)
+	if err != nil {
+		log.Errorf("Error opening remote registry key: %v", err)
+		return nil, err
+	}
+	log.Debugf("Remote registry opened successfully")
+	defer regKey.Close()
+
+	var subKeys registry.Key
+	registryPath := "SOFTWARE\\Microsoft\\SystemCertificates\\" + store
+
+	subKeys, err = registry.OpenKey(regKey, registryPath, registry.READ)
+	if err != nil {
+		log.Errorf("Error opening %s registry key: %v", registryPath, err)
+		return nil, err
+	}
+	log.Debugf("%s registry key opened successfully", registryPath)
+	defer subKeys.Close()
+
+	storeHandle, err := openCertificateStore(windows.CERT_STORE_PROV_REG, uintptr(unsafe.Pointer(subKeys)))
+	if err != nil {
+		log.Errorf("Error opening certificate store %s: %v", store, err)
+		return nil, err
+	}
+	log.Debugf("Certificate store opened successfully")
+	defer func() {
+		err = windows.CertCloseStore(storeHandle, 0)
+		if err != nil {
+			log.Errorf("Error closing certificate store %s: %v", store, err)
+		}
+	}()
+
+	log.Debugf("Enumerating certificates in store")
+	var certificates []*x509.Certificate
+
+	if len(certFilters) == 0 {
+		certificates, err = getEnumCertificatesInStore(storeHandle)
+	} else {
+		certificates, err = findCertificatesInStore(storeHandle, certFilters)
+	}
+	if err != nil {
+		log.Errorf("Error getting certificates: %v", err)
+		return nil, err
+	}
+
+	log.Debugf("Found %d certificates in store", len(certificates))
+	return certificates, nil
+}
+
+func openCertificateStore(storeProvider uintptr, para uintptr) (windows.Handle, error) {
+	storeHandle, err := windows.CertOpenStore(
+		storeProvider,
+		0,
+		0,
+		certStoreOpenFlags,
+		para,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return storeHandle, nil
 }
 
 // getEnumCertificatesInStore retrieves all certificates in a certificate store
@@ -396,4 +497,12 @@ func getAttributeTypeName(oid string) string {
 	default:
 		return oid
 	}
+}
+
+var netAddConnection = func(remoteName, localName, password, username string) error {
+	return wNetAddConnection2(remoteName, localName, password, username)
+}
+
+var netCancelConnection = func(name string) error {
+	return wNetCancelConnection2(name)
 }
