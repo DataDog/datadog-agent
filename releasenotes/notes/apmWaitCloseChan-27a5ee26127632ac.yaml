@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Fix rare issue where trace-agent could panic with "send on closed channel" during shutdown.
+    APM: Fix an issue where trace-agent could panic with "send on closed channel" during shutdown.
