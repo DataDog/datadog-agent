@@ -24,7 +24,6 @@ require (
 	go.opentelemetry.io/collector/extension v1.33.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.33.0
 	go.opentelemetry.io/collector/receiver v1.33.0 // indirect
-	go.opentelemetry.io/collector/semconv v0.127.0 // indirect
 	go.uber.org/multierr v1.11.0
 )
 
@@ -227,6 +226,7 @@ require (
 	go.opentelemetry.io/collector/config/configtls v1.33.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.127.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.127.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.127.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/time v0.11.0 // indirect

@@ -33,8 +33,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
-	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
-	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
+	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -251,11 +251,11 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		}
 	}
 
-	lang := traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKLanguage)
+	lang := traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv.TelemetrySDKLanguageKey))
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
 			Lang:            lang,
-			TracerVersion:   fmt.Sprintf("otlp-%s", traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeTelemetrySDKVersion)),
+			TracerVersion:   fmt.Sprintf("otlp-%s", traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv.TelemetrySDKVersionKey))),
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),
@@ -294,13 +294,13 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 
 	containerID := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerID)
 	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		containerID = traceutil.GetOTelAttrVal(resourceAttributes, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+		containerID = traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 	}
 
 	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
 	env := traceutil.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogEnvironment)
 	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		env = traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+		env = traceutil.GetOTelAttrVal(resourceAttributes, true, "deployment.environment.name", string(semconv.DeploymentEnvironmentKey))
 	}
 	p.TracerPayload = &pb.TracerPayload{
 		Hostname:      hostname,
@@ -363,12 +363,12 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 		hostFromMap(rattr, "_dd.hostname")
 	}
 	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-	_, env := transform.GetFirstFromMap(rattr, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
-	lang := rattr[string(semconv.AttributeTelemetrySDKLanguage)]
+	_, env := transform.GetFirstFromMap(rattr, "deployment.environment.name", string(semconv.DeploymentEnvironmentKey))
+	lang := rattr[string(semconv.TelemetrySDKLanguageKey)]
 	if lang == "" {
 		lang = fastHeaderGet(httpHeader, header.Lang)
 	}
-	_, containerID := transform.GetFirstFromMap(rattr, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+	_, containerID := transform.GetFirstFromMap(rattr, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 	if containerID == "" {
 		containerID = o.cidProvider.GetContainerID(ctx, httpHeader)
 	}
@@ -378,7 +378,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 			LangVersion:     fastHeaderGet(httpHeader, header.LangVersion),
 			Interpreter:     fastHeaderGet(httpHeader, header.LangInterpreter),
 			LangVendor:      fastHeaderGet(httpHeader, header.LangInterpreterVendor),
-			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.AttributeTelemetrySDKVersion)]),
+			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.TelemetrySDKVersionKey)]),
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),
@@ -410,7 +410,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 			}
 			if containerID == "" {
 				// no cid at resource level, grab what we can
-				_, containerID = transform.GetFirstFromMap(ddspan.Meta, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+				_, containerID = transform.GetFirstFromMap(ddspan.Meta, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 			}
 			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
@@ -564,7 +564,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	transform.SetMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
 	transform.SetMetaOTLP(span, "span.kind", traceutil.OTelSpanKindName(spanKind))
 	if _, ok := span.Meta["version"]; !ok {
-		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
+		if ver := rattr[string(semconv.ServiceVersionKey)]; ver != "" {
 			transform.SetMetaOTLP(span, "version", ver)
 		}
 	}
@@ -621,7 +621,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	})
 	if _, ok := span.Meta["env"]; !ok {
 		// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-		if _, env := transform.GetFirstFromMap(span.Meta, "deployment.environment.name", semconv.AttributeDeploymentEnvironment); env != "" {
+		if _, env := transform.GetFirstFromMap(span.Meta, "deployment.environment.name", string(semconv.DeploymentEnvironmentKey)); env != "" {
 			transform.SetMetaOTLP(span, "env", normalize.NormalizeTag(env))
 		}
 	}
@@ -629,14 +629,14 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		transform.SetMetaOTLP(span, "w3c.tracestate", in.TraceState().AsRaw())
 	}
 	if lib.Name() != "" {
-		transform.SetMetaOTLP(span, semconv.OtelLibraryName, lib.Name())
+		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryNameKey), lib.Name())
 	}
 	if lib.Version() != "" {
-		transform.SetMetaOTLP(span, semconv.OtelLibraryVersion, lib.Version())
+		transform.SetMetaOTLP(span, string(semconv117.OtelLibraryVersionKey), lib.Version())
 	}
-	transform.SetMetaOTLP(span, semconv.OtelStatusCode, in.Status().Code().String())
+	transform.SetMetaOTLP(span, string(semconv117.OtelStatusCodeKey), in.Status().Code().String())
 	if msg := in.Status().Message(); msg != "" {
-		transform.SetMetaOTLP(span, semconv.OtelStatusDescription, msg)
+		transform.SetMetaOTLP(span, string(semconv117.OtelStatusDescriptionKey), msg)
 	}
 	span.Error = transform.Status2Error(in.Status(), in.Events(), span.Meta)
 	if transform.OperationAndResourceNameV2Enabled(o.conf) {
@@ -689,27 +689,27 @@ func resourceFromTags(meta map[string]string) string {
 	// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
 	if _, m := transform.GetFirstFromMap(meta, "http.request.method", "http.method"); m != "" {
 		// use the HTTP method + route (if available)
-		if _, route := transform.GetFirstFromMap(meta, semconv.AttributeHTTPRoute, "grpc.path"); route != "" {
+		if _, route := transform.GetFirstFromMap(meta, string(semconv.HTTPRouteKey), "grpc.path"); route != "" {
 			return m + " " + route
 		}
 		return m
-	} else if m := meta[string(semconv.AttributeMessagingOperation)]; m != "" {
+	} else if m := meta[string(semconv.MessagingOperationKey)]; m != "" {
 		// use the messaging operation
-		if _, dest := transform.GetFirstFromMap(meta, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
+		if _, dest := transform.GetFirstFromMap(meta, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
 			return m + " " + dest
 		}
 		return m
-	} else if m := meta[string(semconv.AttributeRPCMethod)]; m != "" {
+	} else if m := meta[string(semconv.RPCMethodKey)]; m != "" {
 		// use the RPC method
-		if svc := meta[string(semconv.AttributeRPCService)]; svc != "" {
+		if svc := meta[string(semconv.RPCServiceKey)]; svc != "" {
 			// ...and service if available
 			return m + " " + svc
 		}
 		return m
-	} else if typ := meta[semconv117.AttributeGraphqlOperationType]; typ != "" {
+	} else if typ := meta[string(semconv117.GraphqlOperationTypeKey)]; typ != "" {
 		// Enrich GraphQL query resource names.
 		// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
-		if name := meta[semconv117.AttributeGraphqlOperationName]; name != "" {
+		if name := meta[string(semconv117.GraphqlOperationNameKey)]; name != "" {
 			return typ + " " + name
 		}
 		return typ
