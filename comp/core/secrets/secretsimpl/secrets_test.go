@@ -882,8 +882,8 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 			require.NotNil(t, resolver.ticker)
 
 			if tc.scatter {
-				// The set random seed has a the scatterDuration is 5.477027098s
-				mockClock.Add(6 * time.Second)
+				// The set random seed has a the scatterDuration is 6.477027098s
+				mockClock.Add(7 * time.Second)
 
 				select {
 				case <-refreshCalledChan:

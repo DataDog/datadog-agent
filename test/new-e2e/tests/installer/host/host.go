@@ -133,6 +133,18 @@ func (h *Host) Run(command string, env ...string) string {
 	return h.remote.MustExecute(command, client.WithEnvVariables(envVars))
 }
 
+// UserExists checks if a user exists on the host.
+func (h *Host) UserExists(username string) bool {
+	_, err := h.remote.Execute(fmt.Sprintf("id -u %s", username))
+	return err == nil
+}
+
+// GroupExists checks if a group exists on the host.
+func (h *Host) GroupExists(groupname string) bool {
+	_, err := h.remote.Execute(fmt.Sprintf("id -g %s", groupname))
+	return err == nil
+}
+
 // FileExists checks if a file exists on the host.
 func (h *Host) FileExists(path string) (bool, error) {
 	return h.remote.FileExists(path)

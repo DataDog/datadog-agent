@@ -29,15 +29,15 @@ if [ "$SIGN" = true ]; then
     # Add certificates to temporary keychain
     echo "Setting up signing secrets"
 
-    KEYCHAIN_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_KEYCHAIN_PWD password) || exit $?; export KEYCHAIN_PWD
-    CODESIGNING_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING certificate) || exit $?; export CODESIGNING_CERT_BASE64
-    CODESIGNING_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_APPLICATION_SIGNING passphrase) || exit $?; export CODESIGNING_CERT_PASSPHRASE
-    INSTALLER_CERT_BASE64=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING certificate) || exit $?; export INSTALLER_CERT_BASE64
-    INSTALLER_CERT_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_INSTALLER_SIGNING passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
+    KEYCHAIN_PWD=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_KEYCHAIN_PWD" password) || exit $?; export KEYCHAIN_PWD
+    CODESIGNING_CERT_BASE64=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_APPLICATION_SIGNING" certificate) || exit $?; export CODESIGNING_CERT_BASE64
+    CODESIGNING_CERT_PASSPHRASE=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_APPLICATION_SIGNING" passphrase) || exit $?; export CODESIGNING_CERT_PASSPHRASE
+    INSTALLER_CERT_BASE64=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_INSTALLER_SIGNING" certificate) || exit $?; export INSTALLER_CERT_BASE64
+    INSTALLER_CERT_PASSPHRASE=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_INSTALLER_SIGNING" passphrase) || exit $?; export INSTALLER_CERT_PASSPHRASE
 
-    NOTARIZATION_PWD=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT notarization-password) || exit $?; export NOTARIZATION_PWD
-    TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT team-id) || exit $?; export TEAM_ID
-    APPLE_ACCOUNT=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $MACOS_APPLE_DEVELOPER_ACCOUNT user) || exit $?; export APPLE_ACCOUNT
+    NOTARIZATION_PWD=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" notarization-password) || exit $?; export NOTARIZATION_PWD
+    TEAM_ID=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" team-id) || exit $?; export TEAM_ID
+    APPLE_ACCOUNT=$("$CI_PROJECT_DIR/tools/ci/fetch_secret.sh" "$MACOS_APPLE_DEVELOPER_ACCOUNT" user) || exit $?; export APPLE_ACCOUNT
 
     # Create temporary build keychain
     security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"

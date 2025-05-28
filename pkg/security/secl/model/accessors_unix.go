@@ -105,10 +105,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.Accept.Hostnames
+				return ev.FieldHandlers.ResolveAcceptHostnames(ev, &ev.Accept)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "accept.addr.ip":
@@ -1254,10 +1254,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.Connect.Hostnames
+				return ev.FieldHandlers.ResolveConnectHostnames(ev, &ev.Connect)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "connect.addr.ip":

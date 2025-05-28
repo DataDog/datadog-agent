@@ -1050,6 +1050,8 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.Size = int(in.Int())
 		case "ttl":
 			out.TTL = string(in.String())
+		case "inherited":
+			out.Inherited = bool(in.Bool())
 		default:
 			in.SkipRecursive()
 		}
@@ -1161,6 +1163,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.RawString(prefix)
 		}
 		out.String(string(in.TTL))
+	}
+	if in.Inherited {
+		const prefix string = ",\"inherited\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.Inherited))
 	}
 	out.RawByte('}')
 }

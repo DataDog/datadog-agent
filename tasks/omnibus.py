@@ -435,6 +435,10 @@ def build_repackaged_agent(ctx, log_level="info"):
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+    for env_var in ["DD_CC", "DD_CXX", "DD_CMAKE_TOOLCHAIN"]:
+        if (value := os.environ.get(f"{env_var}_PATH")) is not None:
+            env[env_var] = value
+
     print("Using the following package as a base:", env['OMNIBUS_REPACKAGE_SOURCE_URL'])
 
     bundle_install_omnibus(ctx, None, env)
