@@ -11,6 +11,8 @@ package sm
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
@@ -32,7 +34,7 @@ type generator struct {
 	// Metadata for `ProcessType` functions.
 	typeFuncMetadata map[ir.TypeID]typeFuncMetadata
 
-	functionReg map[FunctionID]bool
+	functionReg map[FunctionID]struct{}
 	functions   []Function
 }
 
@@ -46,24 +48,33 @@ type typeFuncMetadata struct {
 }
 
 // GenerateProgram generates stack machine program for a given IR program.
-func GenerateProgram(program ir.Program) Program {
+func GenerateProgram(program ir.Program) (Program, error) {
 	g := generator{
 		typeFuncMetadata: make(map[ir.TypeID]typeFuncMetadata, len(program.Types)),
-		functionReg:      make(map[FunctionID]bool),
+		functionReg:      make(map[FunctionID]struct{}),
 	}
-	g.addFunction(ChasePointers{}, []Op{
+	err := g.addFunction(ChasePointers{}, []Op{
 		ChasePointersOp{},
 		ReturnOp{},
 	})
+	if err != nil {
+		return Program{}, err
+	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
 			for _, injectionPC := range event.InjectionPCs {
-				g.addEventHandler(injectionPC, event.Type)
+				err := g.addEventHandler(injectionPC, event.Type)
+				if err != nil {
+					return Program{}, err
+				}
 			}
 		}
 	}
 	for len(g.typeQueue) > 0 {
-		g.addTypeHandler(g.typeQueue[0])
+		_, _, err := g.addTypeHandler(g.typeQueue[0])
+		if err != nil {
+			return Program{}, err
+		}
 		g.typeQueue = g.typeQueue[1:]
 	}
 	types := make([]ir.Type, 0, len(program.Types))
@@ -73,13 +84,13 @@ func GenerateProgram(program ir.Program) Program {
 	return Program{
 		Functions: g.functions,
 		Types:     types,
-	}
+	}, nil
 }
 
 // Generates a function called when a probe (represented by the root type)
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
-func (g *generator) addEventHandler(injectionPC uint64, rootType *ir.EventRootType) {
+func (g *generator) addEventHandler(injectionPC uint64, rootType *ir.EventRootType) error {
 	id := ProcessEvent{
 		EventRootType: rootType,
 		InjectionPC:   injectionPC,
@@ -89,18 +100,21 @@ func (g *generator) addEventHandler(injectionPC uint64, rootType *ir.EventRootTy
 		EventRootType: rootType,
 	})
 	for i := range rootType.Expressions {
-		exprFunctionID := g.addExpressionHandler(injectionPC, rootType, uint32(i))
+		exprFunctionID, err := g.addExpressionHandler(injectionPC, rootType, uint32(i))
+		if err != nil {
+			return err
+		}
 		ops = append(ops, CallOp{
 			FunctionID: exprFunctionID,
 		})
 	}
 	ops = append(ops, ReturnOp{})
-	g.addFunction(id, ops)
+	return g.addFunction(id, ops)
 }
 
 // Generates a function that evaluates an expression (at exprIdx in the root type)
 // at specific user program counter (injectionPC).
-func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventRootType, exprIdx uint32) FunctionID {
+func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventRootType, exprIdx uint32) (FunctionID, error) {
 	id := ProcessExpression{
 		EventRootType: rootType,
 		ExprIdx:       exprIdx,
@@ -113,7 +127,11 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 	for _, op := range expr.Operations {
 		switch op := op.(type) {
 		case *ir.LocationOp:
-			ops = g.EncodeLocationOp(injectionPC, op, ops)
+			var err error
+			ops, err = g.EncodeLocationOp(injectionPC, op, ops)
+			if err != nil {
+				return nil, err
+			}
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -122,29 +140,36 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 		EventRootType: rootType,
 		ExprIdx:       exprIdx,
 	})
-	typeFunctionID, needed := g.addTypeHandler(expr.Type)
+	typeFunctionID, needed, err := g.addTypeHandler(expr.Type)
+	if err != nil {
+		return nil, err
+	}
 	if needed {
 		ops = append(ops, CallOp{
 			FunctionID: typeFunctionID,
 		})
 	}
 	ops = append(ops, ReturnOp{})
-	g.addFunction(id, ops)
-	return id
+	err = g.addFunction(id, ops)
+	if err != nil {
+		return nil, err
+	}
+	return id, nil
 }
 
-func (g *generator) addFunction(id FunctionID, ops []Op) {
+func (g *generator) addFunction(id FunctionID, ops []Op) error {
 	if _, ok := g.functionReg[id]; ok {
-		panic("function `" + id.String() + "` already exists")
+		return errors.Errorf("internal: function `%s` already exists", id)
 	}
 	if _, ok := ops[len(ops)-1].(ReturnOp); !ok {
-		panic("last op must be a return")
+		return errors.New("internal: last op must be a return")
 	}
-	g.functionReg[id] = true
+	g.functionReg[id] = struct{}{}
 	g.functions = append(g.functions, Function{
 		ID:  id,
 		Ops: ops,
 	})
+	return nil
 }
 
 // Generate `ProcessType` function called to process data of a given type,
@@ -152,12 +177,12 @@ func (g *generator) addFunction(id FunctionID, ops []Op) {
 // there is something to do with the data of the given type (e.g. pointers
 // that have to be chased). Returns function ID or nil and whether the
 // function was generated.
-func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
+func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	fid := ProcessType{
 		Type: t,
 	}
 	if m, ok := g.typeFuncMetadata[t.GetID()]; ok {
-		return fid, m.needed
+		return fid, m.needed, nil
 	}
 	// Note we will recursively encode embedded types, which is guaranteed not
 	// to cycle back. We will also enqueue more types that may need to be encoded
@@ -172,7 +197,10 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 	case *ir.StructureType:
 		ops = make([]Op, 0, 2*len(t.Fields))
 		for _, field := range t.Fields {
-			elemFunc, elemNeeded := g.addTypeHandler(field.Type)
+			elemFunc, elemNeeded, err := g.addTypeHandler(field.Type)
+			if err != nil {
+				return nil, false, err
+			}
 			if !elemNeeded {
 				continue
 			}
@@ -188,7 +216,10 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 	// Sequential containers
 
 	case *ir.ArrayType:
-		elemFunc, elemNeeded := g.addTypeHandler(t.Element)
+		elemFunc, elemNeeded, err := g.addTypeHandler(t.Element)
+		if err != nil {
+			return nil, false, err
+		}
 		if !elemNeeded {
 			break
 		}
@@ -204,7 +235,10 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		}
 
 	case *ir.GoSliceDataType:
-		elemFunc, elemNeeded := g.addTypeHandler(t.Element)
+		elemFunc, elemNeeded, err := g.addTypeHandler(t.Element)
+		if err != nil {
+			return nil, false, err
+		}
 		if !elemNeeded {
 			break
 		}
@@ -273,7 +307,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 	case *ir.EventRootType:
 		// EventRootType is handled by event and expression processing functions
 		// family.
-		panic("unexpected EventRootType")
+		return nil, false, errors.New("internal: unexpected EventRootType")
 
 	default:
 		panic(fmt.Sprintf("unexpected ir.Type: %#v", t))
@@ -284,9 +318,12 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool) {
 		offsetShift: offsetShift,
 	}
 	if needed {
-		g.addFunction(fid, ops)
+		err := g.addFunction(fid, ops)
+		if err != nil {
+			return nil, false, err
+		}
 	}
-	return fid, needed
+	return fid, needed, nil
 }
 
 type memoryLayoutPiece struct {
@@ -298,19 +335,26 @@ type memoryLayoutPiece struct {
 // Breaks down a type memory into (data size, padding size) pairs. Padding size
 // may be zero, and consecutive data pieces with zero padding may not be
 // coalesced. Only supports data that may be stored in registers and on stack.
-func (g *generator) typeMemoryLayout(t ir.Type) []memoryLayoutPiece {
+func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 	var pieces []memoryLayoutPiece
-	var collectPieces func(t ir.Type, offset uint32)
-	collectPieces = func(t ir.Type, offset uint32) {
+	var collectPieces func(t ir.Type, offset uint32) error
+	collectPieces = func(t ir.Type, offset uint32) error {
+		var err error
 		switch t := t.(type) {
 		case *ir.StructureType:
 			for _, field := range t.Fields {
-				collectPieces(field.Type, offset+field.Offset)
+				err = collectPieces(field.Type, offset+field.Offset)
+				if err != nil {
+					return err
+				}
 			}
 
 		case *ir.ArrayType:
 			for i := range t.Count {
-				collectPieces(t.Element, offset+uint32(i)*uint32(t.Element.GetByteSize()))
+				err = collectPieces(t.Element, offset+uint32(i)*uint32(t.Element.GetByteSize()))
+				if err != nil {
+					return err
+				}
 			}
 
 		// Base or pointer types.
@@ -337,39 +381,43 @@ func (g *generator) typeMemoryLayout(t ir.Type) []memoryLayoutPiece {
 
 		// Structure-like types.
 		case *ir.GoEmptyInterfaceType:
-			collectPieces(t.UnderlyingStructure, offset)
+			err = collectPieces(t.UnderlyingStructure, offset)
 		case *ir.GoHMapBucketType:
-			collectPieces(t.StructureType, offset)
+			err = collectPieces(t.StructureType, offset)
 		case *ir.GoHMapHeaderType:
-			collectPieces(t.StructureType, offset)
+			err = collectPieces(t.StructureType, offset)
 		case *ir.GoInterfaceType:
-			collectPieces(t.UnderlyingStructure, offset)
+			err = collectPieces(t.UnderlyingStructure, offset)
 		case *ir.GoSliceHeaderType:
-			collectPieces(t.StructureType, offset)
+			err = collectPieces(t.StructureType, offset)
 		case *ir.GoStringHeaderType:
-			collectPieces(t.StructureType, offset)
+			err = collectPieces(t.StructureType, offset)
 
 		// Types that should never be stored in registers nor stack.
 		case *ir.EventRootType:
-			panic(fmt.Sprintf("unexpected EventRootType: %#v", t))
+			err = errors.Errorf("internal: unexpected EventRootType: %#v", t)
 		case *ir.GoSliceDataType:
-			panic(fmt.Sprintf("unexpected GoSliceDataType: %#v", t))
+			err = errors.Errorf("internal: unexpected GoSliceDataType: %#v", t)
 		case *ir.GoStringDataType:
-			panic(fmt.Sprintf("unexpected GoStringDataType: %#v", t))
+			err = errors.Errorf("internal: unexpected GoStringDataType: %#v", t)
 		case *ir.GoSwissMapGroupsType:
-			panic(fmt.Sprintf("unexpected GoSwissMapGroupsType: %#v", t))
+			err = errors.Errorf("internal: unexpected GoSwissMapGroupsType: %#v", t)
 		case *ir.GoSwissMapHeaderType:
-			panic(fmt.Sprintf("unexpected GoSwissMapHeaderType: %#v", t))
+			err = errors.Errorf("internal: unexpected GoSwissMapHeaderType: %#v", t)
 		default:
 			panic(fmt.Sprintf("unexpected ir.Type: %#v", t))
 		}
+		return err
 	}
-	collectPieces(t, 0)
-	return pieces
+	err := collectPieces(t, 0)
+	if err != nil {
+		return nil, err
+	}
+	return pieces, nil
 }
 
 // `ops` is used as an output buffer for the encoded instructions.
-func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) []Op {
+func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
 	for _, loclist := range op.Variable.Locations {
 		if pc < loclist.Range[0] || pc >= loclist.Range[0] {
 			continue
@@ -383,7 +431,10 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) []O
 		// in different registers and/or stack (represented with multiple loclist pieces) are not padded.
 		// Consecutive pieces of data stored in the same loclist piece are padded (this only happens when
 		// the location is a stack, Go never packs multiple data pieces into same register).
-		layoutPieces := g.typeMemoryLayout(op.Variable.Type)
+		layoutPieces, err := g.typeMemoryLayout(op.Variable.Type)
+		if err != nil {
+			return nil, err
+		}
 		layoutIdx := 0
 		outputOffset := op.Offset
 		for _, locPiece := range loclist.Pieces {
@@ -412,9 +463,9 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) []O
 				}
 			}
 		}
-		return ops
+		return ops, nil
 	}
 	// Variable is not available, just return. Expression ops are allowed to "return early" on error.
 	ops = append(ops, ReturnOp{})
-	return ops
+	return ops, nil
 }

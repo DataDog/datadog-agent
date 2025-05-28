@@ -10,7 +10,8 @@ package sm
 
 import (
 	"encoding/binary"
-	"fmt"
+
+	"github.com/pkg/errors"
 )
 
 // CodeMetadata contains metadata about the generated code.
@@ -24,13 +25,13 @@ type CodeMetadata struct {
 // stack machine code.
 type CodeSerializer interface {
 	// Optionally comment a function prior to its body.
-	CommentFunction(id FunctionID, pc uint32)
+	CommentFunction(id FunctionID, pc uint32) error
 	// Serialize an instruction into the output stream.
-	SerializeInstruction(name string, paramBytes []byte)
+	SerializeInstruction(name string, paramBytes []byte) error
 }
 
 // GenerateCode generates the byte code and feeds it to CodeSerializer.
-func GenerateCode(program Program, out CodeSerializer) CodeMetadata {
+func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 	t := codeTracker{
 		functionLoc: make(map[FunctionID]uint32, len(program.Functions)),
 	}
@@ -59,14 +60,17 @@ func GenerateCode(program Program, out CodeSerializer) CodeMetadata {
 	}
 
 	for _, f := range fs {
-		f.encode(t, out)
+		err := f.encode(t, out)
+		if err != nil {
+			return CodeMetadata{}, err
+		}
 	}
 
 	return CodeMetadata{
 		Len:         pc,
 		MaxOpLen:    maxOpLen,
 		FunctionLoc: t.functionLoc,
-	}
+	}, nil
 }
 
 // tracker aggregates information about the final generated code,
@@ -81,7 +85,7 @@ type codeTracker struct {
 // generate.
 type codeFragment interface {
 	codeByteLen() uint32
-	encode(t codeTracker, out CodeSerializer)
+	encode(t codeTracker, out CodeSerializer) error
 }
 
 // functionComment is a code fragment that comments a function, itself containing no code.
@@ -93,8 +97,8 @@ func (f functionComment) codeByteLen() uint32 {
 	return 0
 }
 
-func (f functionComment) encode(t codeTracker, out CodeSerializer) {
-	out.CommentFunction(f.id, t.functionLoc[f.id])
+func (f functionComment) encode(t codeTracker, out CodeSerializer) error {
+	return out.CommentFunction(f.id, t.functionLoc[f.id])
 }
 
 // staticInstruction is a code fragment encoding logical ops, with all bytes known apriori.
@@ -108,8 +112,8 @@ func (i staticInstruction) codeByteLen() uint32 {
 	return 1 + uint32(len(i.bytes))
 }
 
-func (i staticInstruction) encode(_ codeTracker, out CodeSerializer) {
-	out.SerializeInstruction(i.name, i.bytes)
+func (i staticInstruction) encode(_ codeTracker, out CodeSerializer) error {
+	return out.SerializeInstruction(i.name, i.bytes)
 }
 
 // callInstruction is a custom code fragment for logical CallOp, requiring
@@ -122,13 +126,13 @@ func (i callInstruction) codeByteLen() uint32 {
 	return 1 + 4
 }
 
-func (i callInstruction) encode(t codeTracker, out CodeSerializer) {
+func (i callInstruction) encode(t codeTracker, out CodeSerializer) error {
 	si := staticInstruction{
 		name:  "SM_OP_CALL",
 		bytes: binary.LittleEndian.AppendUint32(nil, t.functionLoc[i.target]),
 	}
 	if i.codeByteLen() != si.codeByteLen() {
-		panic(fmt.Sprintf("callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen()))
+		return errors.Errorf("internal: callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())
 	}
-	si.encode(t, out)
+	return si.encode(t, out)
 }
