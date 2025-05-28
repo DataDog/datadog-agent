@@ -32,13 +32,14 @@ func TestSetSockOpt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer test.Close()
 
 	t.Run("setsockopt", func(t *testing.T) {
 		var fd int
 		defer func() {}()
 		test.WaitSignal(t, func() error {
 			var err error
-			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, 0)
+			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
 			if err != nil {
 				return err
 			}
@@ -57,7 +58,6 @@ func TestSetSockOpt(t *testing.T) {
 			optname, _ := event.GetFieldValue("setsockopt.optname")
 			assert.Equal(t, int(syscall.SO_REUSEADDR), optname)
 		})
-
 	})
 
 }
