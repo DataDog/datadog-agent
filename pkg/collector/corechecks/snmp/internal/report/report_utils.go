@@ -8,6 +8,7 @@ package report
 import (
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -171,12 +172,32 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 	}
 	for _, ifConfig := range interfaceConfigs {
 		log.Infof("JMW Checking interface config: %+v", ifConfig)
-		// JMWORIG if (ifConfig.MatchField == "name" && ifConfig.MatchValue == ifName) || // JMW
-		// JMWORIG (ifConfig.MatchField == "index" && ifConfig.MatchValue == index) {
-		// JMWORIG return ifConfig, nil
-		if ifConfig.MatchField == "name" && ifConfig.MatchValue == ifName {
-			log.Infof("JMW Found interface config by MatchField=name, MatchValue=%s, ifName=%s", ifConfig.MatchValue, ifName)
-			return ifConfig, nil
+		// JMWHACK test with regex
+		// from ddev: (ddevenvconfigedit)
+		// init_config:
+		//   loader: core
+		//   namespace: COMP-FV44JH22RN
+		//   use_device_id_as_hostname: true
+		// instances:
+		// - community_string: cisco-nexus
+		//   ip_address: 172.18.0.2
+		//   port: 1161
+		//   interface_configs:
+		//     - match_field: name
+		//       match_value: ".*"
+		//       in_speed: 15000000
+		//       out_speed: 25000000
+		if ifConfig.MatchField == "name" {
+			// Try to compile the regex pattern
+			pattern, err := regexp.Compile(ifConfig.MatchValue)
+			if err != nil {
+				log.Warnf("Invalid regex pattern in interface config: %s", err)
+				continue
+			}
+			if pattern.MatchString(ifName) {
+				log.Infof("JMW Found interface config by MatchField=name, MatchValue=%s (regex), ifName=%s", ifConfig.MatchValue, ifName)
+				return ifConfig, nil
+			}
 		}
 		if ifConfig.MatchField == "index" && ifConfig.MatchValue == index {
 			log.Infof("JMW Found interface config by MatchField=index, MatchValue=%s, index=%s", ifConfig.MatchValue, index)
