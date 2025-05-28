@@ -84,7 +84,10 @@ def find_package_path(flavor, package_os, arch, extension=None):
     separator = '_' if package_os == 'debian' else '-'
     if not extension:
         extension = "deb" if package_os == 'debian' else "rpm"
-    glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
+    pipeline_match = ""
+    if package_os == "windows":  # Windows builds are subject to artifacts leak and need their pipeline to match the msi
+        pipeline_match = f"{os.environ['CI_PIPELINE_ID']}-1-"
+    glob_pattern = f'{package_dir}/{flavor}{separator}7*{pipeline_match}{arch}.{extension}'
     package_paths = glob.glob(glob_pattern)
     if len(package_paths) > 1:
         raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
@@ -181,7 +184,7 @@ class GateMetricHandler:
                     # Compute the difference between the wire and disk size of common gates between the ancestor and the current pipeline
                     for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
                         if self.metrics[gate].get(metric_key) and ancestor_gate.get(metric_key):
-                            relative_metric_size = ancestor_gate[metric_key] - self.metrics[gate][metric_key]
+                            relative_metric_size = self.metrics[gate][metric_key] - ancestor_gate[metric_key]
                             self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
             else:
                 print(
