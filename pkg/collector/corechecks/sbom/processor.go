@@ -162,6 +162,8 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			}
 
 			if container.SBOM != nil {
+				log.Debugf("Received SBOM for running container %s with image %s (%s)", container.ID, container.Image.Name, container.Image.ID)
+
 				if container.SBOM.CycloneDXBOM == nil {
 					log.Debugf("Received empty SBOM for container %s", container.ID)
 					continue
@@ -194,7 +196,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 						i++
 					}
 
-					log.Debugf("Stripped %d components from SBOM for container %s that were parts of the base image %s", componentCount-len(*container.SBOM.CycloneDXBOM.Components), container.ID, container.Image.ID)
+					log.Infof("Stripped %d from %d components from SBOM for container %s that were parts of the %d components of the base image %s", componentCount-len(*container.SBOM.CycloneDXBOM.Components), componentCount, container.ID, len(*containerImage.SBOM.CycloneDXBOM.Components), container.Image.ID)
 				}
 
 				status := model.SBOMStatus_value[string(container.SBOM.Status)]

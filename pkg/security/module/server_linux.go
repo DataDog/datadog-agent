@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // DumpDiscarders handles discarder dump requests
@@ -334,6 +335,8 @@ func (a *APIServer) GetSBOMStream(_ *sbompb.SBOMStreamParams, stream sbompb.SBOM
 			if err := stream.Send(msg); err != nil {
 				return fmt.Errorf("failed to send SBOM: %s", err)
 			}
+
+			log.Debugf("Forwarding SBOM for %s to core agent", sbom.RequestID)
 		}
 	}
 }
