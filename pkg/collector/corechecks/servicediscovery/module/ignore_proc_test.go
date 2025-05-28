@@ -84,7 +84,7 @@ func TestShouldIgnorePid(t *testing.T) {
 			}
 
 			// check saved pid to ignore
-			ignore := discovery.shouldIgnorePid(int32(cmd.Process.Pid))
+			ignore := discovery.core.shouldIgnorePid(int32(cmd.Process.Pid))
 			require.Equal(t, test.ignore, ignore)
 		})
 	}

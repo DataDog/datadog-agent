@@ -1057,14 +1057,14 @@ func TestCache(t *testing.T) {
 
 		for _, cmd := range cmds {
 			pid := int32(cmd.Process.Pid)
-			assert.Contains(collect, discovery.cache, pid)
+			assert.Contains(collect, discovery.core.cache, pid)
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Equal(t, serviceNames[i], discovery.cache[pid].ddServiceName)
-		require.False(t, discovery.cache[pid].ddServiceInjected)
+		require.Equal(t, serviceNames[i], discovery.core.cache[pid].ddServiceName)
+		require.False(t, discovery.core.cache[pid].ddServiceInjected)
 	}
 
 	cancel()
@@ -1077,16 +1077,16 @@ func TestCache(t *testing.T) {
 
 	for _, cmd := range cmds {
 		pid := cmd.Process.Pid
-		require.NotContains(t, discovery.cache, int32(pid))
+		require.NotContains(t, discovery.core.cache, int32(pid))
 	}
 
 	// Add some PIDs to noPortTries to verify it gets cleaned up
 	discovery.noPortTries[int32(1)] = 0
 
 	discovery.Close()
-	require.Empty(t, discovery.cache)
+	require.Empty(t, discovery.core.cache)
 	require.Empty(t, discovery.noPortTries)
-	require.Empty(t, discovery.runningServices)
+	require.Empty(t, discovery.core.runningServices)
 
 	// Calling getServices after Close is weird but it can happen in practice
 	// due to the way system-probe shuts down, so make sure it doesn't panic.
@@ -1135,7 +1135,7 @@ func TestMaxPortCheck(t *testing.T) {
 
 	discovery.mux.RLock()
 	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
-	require.Contains(t, discovery.ignorePids, pid, "process should be in ignorePids")
+	require.Contains(t, discovery.core.ignorePids, pid, "process should be in ignorePids")
 	discovery.mux.RUnlock()
 
 	err = cmd.Process.Kill()
@@ -1149,7 +1149,7 @@ func TestMaxPortCheck(t *testing.T) {
 
 	discovery.mux.RLock()
 	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
-	require.NotContains(t, discovery.ignorePids, pid, "process should not be in ignorePids")
+	require.NotContains(t, discovery.core.ignorePids, pid, "process should not be in ignorePids")
 	discovery.mux.RUnlock()
 }
 
