@@ -35,6 +35,7 @@ import (
 	installerexecfx "github.com/DataDog/datadog-agent/comp/updater/installerexec/fx"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
+	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/daemonchecker/fx"
 	fleetstatus "github.com/DataDog/datadog-agent/comp/fleetstatus/def"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -423,6 +424,9 @@ func getSharedFxOption() fx.Option {
 		rcserviceimpl.Module(),
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
+		installerexecfx.Module(),
+		ssistatusfx.Module(),
+		daemoncheckerfx.Module(),
 		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		autodiscoveryimpl.Module(),
@@ -511,8 +515,6 @@ func getSharedFxOption() fx.Option {
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
-		installerexecfx.Module(),
-		ssistatusfx.Module(),
 	)
 }
 
