@@ -167,21 +167,21 @@ const (
 // TCPSTATS DWORD mappings
 // https://learn.microsoft.com/en-us/windows/win32/api/tcpmib/ns-tcpmib-mib_tcpstats_lh
 type mibTcpStats struct {
-	dwRtoAlgorithm uint32
-	dwRtoMin       uint32
-	dwRtoMax       uint32
-	dwMaxConn      uint32
-	dwActiveOpens  uint32
-	dwPassiveOpens uint32
-	dwAttemptFails uint32
-	dwEstabResets  uint32
-	dwCurrEstab    uint32
-	dwInSegs       uint32
-	dwOutSegs      uint32
-	dwRetransSegs  uint32
-	dwInErrs       uint32
-	dwOutRsts      uint32
-	dwNumConns     uint32
+	DwRtoAlgorithm uint32
+	DwRtoMin       uint32
+	DwRtoMax       uint32
+	DwMaxConn      uint32
+	DwActiveOpens  uint32
+	DwPassiveOpens uint32
+	DwAttemptFails uint32
+	DwEstabResets  uint32
+	DwCurrEstab    uint32
+	DwInSegs       uint32
+	DwOutSegs      uint32
+	DwRetransSegs  uint32
+	DwInErrs       uint32
+	DwOutRsts      uint32
+	DwNumConns     uint32
 }
 
 var (
@@ -203,17 +203,17 @@ func getTcpStats(inet uint) (*mibTcpStats, error) {
 // Collect metrics from Microsoft's TCPSTATS
 func submitTcpStats(sender sender.Sender) error {
 	tcpStatsMapping := map[string]string{
-		"dwActiveOpens":  ".active_opens",
-		"dwPassiveOpens": ".passive_opens",
-		"dwAttemptFails": ".attempt_fails",
-		"dwEstabResets":  ".established_resets",
-		"dwCurrEstab":    ".current_established",
-		"dwInSegs":       ".in_segs",
-		"dwOutSegs":      ".out_segs",
-		"dwRetransSegs":  ".retrans_segs",
-		"dwInErrs":       ".in_errors",
-		"dwOutRsts":      ".out_resets",
-		"dwNumConns":     ".connections",
+		"DwActiveOpens":  ".active_opens",
+		"DwPassiveOpens": ".passive_opens",
+		"DwAttemptFails": ".attempt_fails",
+		"DwEstabResets":  ".established_resets",
+		"DwCurrEstab":    ".current_established",
+		"DwInSegs":       ".in_segs",
+		"DwOutSegs":      ".out_segs",
+		"DwRetransSegs":  ".retrans_segs",
+		"DwInErrs":       ".in_errors",
+		"DwOutRsts":      ".out_resets",
+		"DwNumConns":     ".connections",
 	}
 
 	tcp4Stats, err := getTcpStats(AF_INET)
@@ -229,21 +229,21 @@ func submitTcpStats(sender sender.Sender) error {
 	// Create tcp metrics that are a sum of tcp4 and tcp6 metrics
 	if !reflect.ValueOf(tcp4Stats).IsZero() && !reflect.ValueOf(tcp6Stats).IsZero() {
 		tcpAllStats := &mibTcpStats{
-			dwRtoAlgorithm: tcp4Stats.dwRtoAlgorithm + tcp6Stats.dwRtoAlgorithm,
-			dwRtoMin:       tcp4Stats.dwRtoMin + tcp6Stats.dwRtoMin,
-			dwRtoMax:       tcp4Stats.dwRtoMax + tcp6Stats.dwRtoMax,
-			dwMaxConn:      tcp4Stats.dwMaxConn + tcp6Stats.dwMaxConn,
-			dwActiveOpens:  tcp4Stats.dwActiveOpens + tcp6Stats.dwActiveOpens,
-			dwPassiveOpens: tcp4Stats.dwPassiveOpens + tcp6Stats.dwPassiveOpens,
-			dwAttemptFails: tcp4Stats.dwAttemptFails + tcp6Stats.dwAttemptFails,
-			dwEstabResets:  tcp4Stats.dwEstabResets + tcp6Stats.dwEstabResets,
-			dwCurrEstab:    tcp4Stats.dwCurrEstab + tcp6Stats.dwCurrEstab,
-			dwInSegs:       tcp4Stats.dwInSegs + tcp6Stats.dwInSegs,
-			dwOutSegs:      tcp4Stats.dwOutSegs + tcp6Stats.dwOutSegs,
-			dwRetransSegs:  tcp4Stats.dwRetransSegs + tcp6Stats.dwRetransSegs,
-			dwInErrs:       tcp4Stats.dwInErrs + tcp6Stats.dwInErrs,
-			dwOutRsts:      tcp4Stats.dwOutRsts + tcp6Stats.dwOutRsts,
-			dwNumConns:     tcp4Stats.dwNumConns + tcp6Stats.dwNumConns,
+			DwRtoAlgorithm: tcp4Stats.DwRtoAlgorithm + tcp6Stats.DwRtoAlgorithm,
+			DwRtoMin:       tcp4Stats.DwRtoMin + tcp6Stats.DwRtoMin,
+			DwRtoMax:       tcp4Stats.DwRtoMax + tcp6Stats.DwRtoMax,
+			DwMaxConn:      tcp4Stats.DwMaxConn + tcp6Stats.DwMaxConn,
+			DwActiveOpens:  tcp4Stats.DwActiveOpens + tcp6Stats.DwActiveOpens,
+			DwPassiveOpens: tcp4Stats.DwPassiveOpens + tcp6Stats.DwPassiveOpens,
+			DwAttemptFails: tcp4Stats.DwAttemptFails + tcp6Stats.DwAttemptFails,
+			DwEstabResets:  tcp4Stats.DwEstabResets + tcp6Stats.DwEstabResets,
+			DwCurrEstab:    tcp4Stats.DwCurrEstab + tcp6Stats.DwCurrEstab,
+			DwInSegs:       tcp4Stats.DwInSegs + tcp6Stats.DwInSegs,
+			DwOutSegs:      tcp4Stats.DwOutSegs + tcp6Stats.DwOutSegs,
+			DwRetransSegs:  tcp4Stats.DwRetransSegs + tcp6Stats.DwRetransSegs,
+			DwInErrs:       tcp4Stats.DwInErrs + tcp6Stats.DwInErrs,
+			DwOutRsts:      tcp4Stats.DwOutRsts + tcp6Stats.DwOutRsts,
+			DwNumConns:     tcp4Stats.DwNumConns + tcp6Stats.DwNumConns,
 		}
 		submitMetricsFromStruct(sender, "system.net.tcp.", tcpAllStats, tcpStatsMapping)
 	}
@@ -260,7 +260,7 @@ func submitTcpStats(sender sender.Sender) error {
 
 func submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTcpStats, tcpStatsMapping map[string]string) {
 	s := reflect.ValueOf(tcpStats).Elem()
-	sType := reflect.TypeOf(s)
+	sType := s.Type()
 	for i := 0; i < s.NumField(); i++ {
 		fieldName := sType.Field(i).Name
 		metricName := metricPrefix + tcpStatsMapping[fieldName]
