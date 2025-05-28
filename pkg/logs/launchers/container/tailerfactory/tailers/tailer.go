@@ -9,11 +9,12 @@ package tailers
 
 import (
 	"context"
-	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
 	"time"
 
+	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
+
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"

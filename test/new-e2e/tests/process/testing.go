@@ -135,6 +135,14 @@ func assertProcessCollectedNew(
 	assertProcesses(t, procs, withIOStats, process)
 }
 
+func assertProcessCommandLineArgs(t require.TestingT, processes []*agentmodel.Process, processCMDArgs []string) {
+	for _, proc := range processes {
+		// command arguments include the first command/program which can differ depending on the path,
+		// so we compare the user provided arguments starting from index 1
+		assert.Equalf(t, proc.Command.Args[1:], processCMDArgs[1:], "process args do not match. Expected %+v", processCMDArgs)
+	}
+}
+
 // assertProcesses asserts that the given processes are collected by the process check
 func assertProcesses(t require.TestingT, procs []*agentmodel.Process, withIOStats bool, process string) {
 	// verify process data is populated
@@ -200,6 +208,14 @@ func findProcess(
 	}
 
 	return found, populated
+}
+
+func filterProcessPayloadsByName(payloads []*aggregator.ProcessPayload, processName string) []*agentmodel.Process {
+	var procs []*agentmodel.Process
+	for _, payload := range payloads {
+		procs = append(procs, filterProcesses(processName, payload.Processes)...)
+	}
+	return procs
 }
 
 // filterProcesses returns processes which match the given process name

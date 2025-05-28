@@ -6,7 +6,6 @@
 package configresolver
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"reflect"
@@ -44,17 +43,17 @@ func (s *dummyService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns dummy identifiers
-func (s *dummyService) GetADIdentifiers(context.Context) ([]string, error) {
-	return s.ADIdentifiers, nil
+func (s *dummyService) GetADIdentifiers() []string {
+	return s.ADIdentifiers
 }
 
 // GetHosts returns dummy hosts
-func (s *dummyService) GetHosts(context.Context) (map[string]string, error) {
+func (s *dummyService) GetHosts() (map[string]string, error) {
 	return s.Hosts, nil
 }
 
 // GetPorts returns dummy ports
-func (s *dummyService) GetPorts(context.Context) ([]listeners.ContainerPort, error) {
+func (s *dummyService) GetPorts() ([]listeners.ContainerPort, error) {
 	return s.Ports, nil
 }
 
@@ -69,23 +68,21 @@ func (s *dummyService) GetTagsWithCardinality(_ string) ([]string, error) {
 }
 
 // GetPid return a dummy pid
-func (s *dummyService) GetPid(context.Context) (int, error) {
+func (s *dummyService) GetPid() (int, error) {
 	return s.Pid, nil
 }
 
 // GetHostname return a dummy hostname
-func (s *dummyService) GetHostname(context.Context) (string, error) {
+func (s *dummyService) GetHostname() (string, error) {
 	return s.Hostname, nil
 }
 
 // IsReady returns if the service is ready
-func (s *dummyService) IsReady(context.Context) bool {
+func (s *dummyService) IsReady() bool {
 	return true
 }
 
 // HasFilter returns false
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (s *dummyService) HasFilter(_ containers.FilterType) bool {
 	return false
 }
@@ -506,6 +503,64 @@ func TestResolve(t *testing.T) {
 				ServiceID:     "a5901276aed1",
 			},
 			configSettings: map[string]interface{}{}, // env allowlist is not defined
+		},
+		{
+			testName: "env var resolution is disabled",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_test_env%%")},
+			},
+			errorString: "envvar test_env is not allowed in check configs, skipping service a5901276aed1",
+			configSettings: map[string]interface{}{
+				"ad_disable_env_var_resolution": true,
+			},
+		},
+		{
+			testName: "env var resolution is enabled (it's the default)",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_test_envvar_key%%")},
+			},
+			out: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("tags:\n- foo:bar\ntest: test_value\n")},
+				ServiceID:     "a5901276aed1",
+			},
+			configSettings: map[string]interface{}{
+				"ad_disable_env_var_resolution": false,
+			},
+		},
+		{
+			// When the env var resolution is disabled, the allowlist is not taken into account
+			testName: "env var resolution is disabled and there's an allow-list defined",
+			svc: &dummyService{
+				ID:            "a5901276aed1",
+				ADIdentifiers: []string{"redis"},
+				Pid:           1337,
+			},
+			tpl: integration.Config{
+				Name:          "cpu",
+				ADIdentifiers: []string{"redis"},
+				Instances:     []integration.Data{integration.Data("test: %%env_some_env%%")},
+			},
+			errorString: "envvar some_env is not allowed in check configs, skipping service a5901276aed1",
+			configSettings: map[string]interface{}{
+				"ad_disable_env_var_resolution": true,
+				"ad_allowed_env_vars":           []string{"some_env"}, // Same env as in the template
+			},
 		},
 		//// envvars (logs check)
 		{

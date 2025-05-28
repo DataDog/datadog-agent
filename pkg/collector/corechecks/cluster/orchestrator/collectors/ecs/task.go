@@ -73,6 +73,7 @@ func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interf
 			NodeType:         t.metadata.NodeType,
 			ManifestProducer: t.metadata.IsManifestProducer,
 			ClusterID:        rcfg.ClusterID,
+			CollectorTags:    nil,
 		},
 		AWSAccountID: rcfg.AWSAccountID,
 		ClusterName:  rcfg.ClusterName,
@@ -81,7 +82,7 @@ func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interf
 		Hostname:     rcfg.HostName,
 	}
 
-	processResult, processed := t.processor.Process(ctx, list)
+	processResult, listed, processed := t.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, fmt.Errorf("unable to process resources: a panic occurred")
@@ -89,7 +90,7 @@ func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interf
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(t.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

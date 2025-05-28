@@ -197,7 +197,7 @@ func (ire InterpreterResolutionError) Error() string {
 		" Python's 'multiprocessing' library may fail to work.", ire.Err)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 const PythonWinExeBasename = "python.exe"
 
 var (
@@ -218,8 +218,7 @@ var (
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
 
-	//nolint:revive // TODO(AML) Fix revive linter
-	rtloader *C.rtloader_t = nil
+	rtloader *C.rtloader_t
 
 	expvarPyInit  *expvar.Map
 	pyInitLock    sync.RWMutex
@@ -232,8 +231,6 @@ func init() {
 
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
-
-	resolvePythonHome()
 
 	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
 	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
@@ -330,6 +327,7 @@ func resolvePythonHome() {
 }
 
 func resolvePythonExecPath(ignoreErrors bool) (string, error) {
+	resolvePythonHome()
 	// For Windows, the binary should be in our path already and have a
 	// consistent name
 	if runtime.GOOS == "windows" {
@@ -362,7 +360,7 @@ func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	return filepath.Join(PythonHome, "bin", interpreterBasename), nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Initialize initializes the Python interpreter
 func Initialize(paths ...string) error {
 	pythonVersion := pkgconfigsetup.Datadog().GetString("python_version")
 	allowPathHeuristicsFailure := pkgconfigsetup.Datadog().GetBool("allow_python_path_heuristics_failure")
@@ -385,8 +383,7 @@ func Initialize(paths ...string) error {
 	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
-	//nolint:revive // TODO(AML) Fix revive linter
-	var pyErr *C.char = nil
+	var pyErr *C.char
 
 	csPythonHome := TrackedCString(PythonHome)
 	defer C._free(unsafe.Pointer(csPythonHome))
@@ -510,6 +507,7 @@ func initFIPS() {
 		log.Warnf("could not check FIPS mode: %v", err)
 		return
 	}
+	resolvePythonHome()
 	if PythonHome == "" {
 		log.Warnf("Python home is empty. FIPS mode could not be enabled.")
 		return

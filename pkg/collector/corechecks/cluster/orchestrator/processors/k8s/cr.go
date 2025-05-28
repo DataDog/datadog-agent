@@ -50,7 +50,8 @@ func (cr *CRHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext, 
 
 	return &model.CollectorManifestCR{
 		Manifest: cm,
-		Tags:     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		// CRs are manifests, CollectorTags should be added to the inner Manifests, not the outer (embedded) CollectorManifests
+		Tags: pctx.Cfg.ExtraTags,
 	}
 }
 
@@ -70,7 +71,7 @@ func (cr *CRHandlers) ResourceList(ctx processors.ProcessorContext, list interfa
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopyObject())
 	}
 
 	return resources
@@ -88,6 +89,13 @@ func (cr *CRHandlers) ResourceUID(ctx processors.ProcessorContext, resource inte
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*unstructured.Unstructured).GetResourceVersion()
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (cr *CRHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	return nil
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

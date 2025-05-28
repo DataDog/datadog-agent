@@ -61,6 +61,7 @@ from tasks.libs.releasing.json import (
     _get_release_json_value,
     _save_release_json,
     generate_repo_data,
+    get_current_milestone,
     load_release_json,
     set_current_milestone,
     set_new_release_branch,
@@ -320,6 +321,7 @@ def finish(ctx, release_branch, upstream="origin"):
 
         next_milestone = next_final_version(ctx, release_branch, True)
         next_milestone = next_milestone.next_version(bump_patch=True)
+        previous_milestone = get_current_milestone()
         print(f"Creating the {next_milestone} milestone...")
 
         gh = GithubAPI()
@@ -393,6 +395,7 @@ def finish(ctx, release_branch, upstream="origin"):
             release_branch,
             final_branch,
             new_version,
+            milestone=previous_milestone,
         )
 
 

@@ -345,7 +345,7 @@ def assembly_line_to_str(asm_line: ComplexityAssemblyInsn, compinfo_width: tuple
     processed = asm_line["times_processed"]
     asm_idx = asm_line["index"]
 
-    return f"{asm_idx:4d} | [{' '*compinfo_width[0]} |{processed:{compinfo_width[1]}d}p|{' '*compinfo_width[2]} ] | {asm_code}"
+    return f"{asm_idx:4d} | [{' ' * compinfo_width[0]} |{processed:{compinfo_width[1]}d}p|{' ' * compinfo_width[2]} ] | {asm_code}"
 
 
 def register_state_to_str(reg: ComplexityRegisterState, compinfo_widths: tuple[int, int, int]):
@@ -674,15 +674,35 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
         shutil.copy(file, dest_folder)
 
 
+def _tag_complexity_job(ctx: Context, tags: dict[str, str]):
+    """Tag the complexity job with the given tags"""
+    tag_prefix = "ebpf."
+    tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
+
+    ctx.run(f"datadog-ci tag --level job {tags_str}")
+
+
+def _add_measures_to_complexity_job(ctx: Context, measures: dict[str, int | float]):
+    """Add the given measures to the complexity job"""
+    tag_prefix = "ebpf."
+    measures_str = " ".join(f"--measures '{tag_prefix}{k}:{v}'" for k, v in measures.items())
+    ctx.run(f"datadog-ci measure --level job {measures_str}")
+
+
 @task(
     help={
         "skip_github_comment": "Do not comment on the PR with the complexity summary",
         "branch_name": "Branch name to use for the complexity data. By default, the current branch is used",
         "base_branch": "Base branch to compare against. If not provided, we will try to find a PR for the current branch, and use the base branch from there. If that fails, the main branch will be used",
+        "gitlab_config_file": "Path to the fully parsed/resolved Gitlab CI configuration file. If not provided, we will try to resolve the current one using the API",
     }
 )
 def generate_complexity_summary_for_pr(
-    ctx: Context, skip_github_comment=False, branch_name: str | None = None, base_branch: str | None = None
+    ctx: Context,
+    skip_github_comment=False,
+    branch_name: str | None = None,
+    base_branch: str | None = None,
+    gitlab_config_file: str | None = None,
 ):
     """Task meant to run in CI. Generates a summary of the complexity data for the current PR"""
     if tabulate is None:
@@ -728,21 +748,27 @@ def generate_complexity_summary_for_pr(
         _try_delete_github_comment(
             f"No complexity data found for the current branch at {current_branch_artifacts_path}"
         )
+        _tag_complexity_job(ctx, {"result": "skip", "reason": "no_branch_complexity_data"})
         return
 
     # We have files, now get files for the main branch
     common_ancestor = get_common_ancestor(ctx, commit_sha, f"origin/{base_branch}")
     main_branch_complexity_path = Path("/tmp/verifier-complexity-main")
     print(f"Downloading complexity data for {base_branch} branch (commit {common_ancestor})...")
-    download_complexity_data(ctx, common_ancestor, main_branch_complexity_path)
+    download_complexity_data(ctx, common_ancestor, main_branch_complexity_path, gitlab_config_file)
 
     main_complexity_files = list(main_branch_complexity_path.glob("verifier-complexity-*"))
     if len(main_complexity_files) == 0:
         _try_delete_github_comment(f"No complexity data found for the main branch at {main_branch_complexity_path}")
+        _tag_complexity_job(
+            ctx, {"result": "error", "reason": "no_main_branch_complexity_data"}
+        )  # Main branch should always have complexity data
         return
 
     # Uncompress all local complexity files, and store the results
-    program_complexity = collections.defaultdict(list)  # Map each program to a list of
+    program_complexity = collections.defaultdict(list)  # Map each program to a list of data entries
+    successful_programs, errored_programs, skipped_programs = 0, 0, 0
+
     for file in complexity_files:
         folder_name = file.name.replace('.tar.gz', '')
         target_dir = current_branch_artifacts_path / folder_name
@@ -752,17 +778,20 @@ def generate_complexity_summary_for_pr(
         main_data_path = main_branch_complexity_path / folder_name / "verifier_stats.json"
         if not main_data_path.exists():
             print(f"Error: Main branch data not found for {main_data_path}, skipping")
+            errored_programs += 1
             continue
 
         branch_data_path = target_dir / "verifier_stats.json"
         if not branch_data_path.exists():
             print(f"Error: Branch data not found for {branch_data_path}, skipping")
+            errored_programs += 1
             continue
 
         # Don't care about the splits at the last part of the name (security-agent, system-probe, etc)
         name_parts = folder_name.split('-', 4)
         if len(name_parts) != 5:
             print(f"Error: Invalid folder name {folder_name}, skipping")
+            errored_programs += 1
             continue
 
         arch = name_parts[2]
@@ -772,17 +801,20 @@ def generate_complexity_summary_for_pr(
             main_data = format_verifier_stats(json.loads(main_data_path.read_text()))
         except Exception as e:
             print(f"Error: Could not load data for {main_data_path}: {e}")
+            errored_programs += 1
             continue
 
         try:
             branch_data = format_verifier_stats(json.loads(branch_data_path.read_text()))
         except Exception as e:
             print(f"Error: Could not load data for {branch_data_path}: {e}")
+            errored_programs += 1
             continue
 
         for program, stats in branch_data.items():
             if program not in main_data:
                 print(f"Warn: Program {program} not found in main data for {folder_name}, skipping")
+                skipped_programs += 1
                 continue
 
             program_complexity[program].append(
@@ -794,9 +826,20 @@ def generate_complexity_summary_for_pr(
                     stats["limit"],
                 )
             )
+            successful_programs += 1
+
+    _add_measures_to_complexity_job(
+        ctx,
+        {
+            "successful_programs": successful_programs,
+            "errored_programs": errored_programs,
+            "skipped_programs": skipped_programs,
+        },
+    )
 
     if len(program_complexity) == 0:
         _try_delete_github_comment("No complexity data found, skipping report generation")
+        _tag_complexity_job(ctx, {"result": "skip", "reason": "no_complexity_data"})
         return
 
     summarized_complexity_changes = []
@@ -922,10 +965,12 @@ def generate_complexity_summary_for_pr(
     if not has_any_changes:
         print("No changes detected, deleting comment")
         pr_commenter(ctx, pr_comment_head, "", delete=True, force_delete=True)
+        _tag_complexity_job(ctx, {"result": "skip", "reason": "no_changes"})
         return
 
     pr_commenter(ctx, pr_comment_head, msg)
     print("Commented on PR with complexity summary")
+    _tag_complexity_job(ctx, {"result": "success"})
 
 
 def _format_change(new: float, old: float):

@@ -106,12 +106,16 @@ func (p *pendingMsg) toJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	return mergeJSON(backendEventJSON, eventJSON), nil
+	return mergeJSON(backendEventJSON, eventJSON)
 }
 
-func mergeJSON(j1, j2 []byte) []byte {
+func mergeJSON(j1, j2 []byte) ([]byte, error) {
+	if len(j1) == 0 || len(j2) == 0 {
+		return nil, errors.New("malformed json")
+	}
+
 	data := append(j1[:len(j1)-1], ',')
-	return append(data, j2[1:]...)
+	return append(data, j2[1:]...), nil
 }
 
 // APIServer represents a gRPC server in charge of receiving events sent by
@@ -419,12 +423,16 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			}
 		} else {
 			if eventJSON, err = json.Marshal(event); err != nil {
-				seclog.Errorf("failed to marshal event: %v", err)
+				seclog.Errorf("failed to marshal event: %v : %+v", err, event)
 				return
 			}
 		}
 
-		data := mergeJSON(backendEventJSON, eventJSON)
+		data, err := mergeJSON(backendEventJSON, eventJSON)
+		if err != nil {
+			seclog.Errorf("failed to merge event json: %v", err)
+			return
+		}
 
 		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
 
@@ -458,7 +466,12 @@ func (a *APIServer) expireEvent(msg *api.SecurityEventMessage) {
 func (a *APIServer) expireDump(dump *api.ActivityDumpStreamMessage) {
 	// update metric
 	a.expiredDumps.Inc()
-	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", dump.GetDump().GetMetadata().GetName())
+
+	selectorStr := "<unknown>"
+	if sel := dump.GetSelector(); sel != nil {
+		selectorStr = fmt.Sprintf("%s:%s", sel.GetName(), sel.GetTag())
+	}
+	seclog.Tracef("the activity dump server channel is full, a dump of [%s] was dropped\n", selectorStr)
 }
 
 // GetStats returns a map indexed by ruleIDs that describes the amount of events
@@ -500,7 +513,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 }
 
 // GetRuleSetReport reports the ruleset loaded
-func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}
@@ -517,13 +530,13 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 		PIDCacheSize:        a.probe.Config.Probe.PIDCacheSize,
 	}
 
-	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	report, err := kfilters.ComputeFilters(cfg, ruleSet)
 	if err != nil {
 		return nil, err
 	}
 
-	return &api.GetRuleSetReportResultMessage{
-		RuleSetReportMessage: api.FromKFiltersToProtoRuleSetReport(report),
+	return &api.GetRuleSetReportMessage{
+		RuleSetReportMessage: api.FromFilterReportToProtoRuleSetReportMessage(report),
 	}, nil
 }
 
