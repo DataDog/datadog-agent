@@ -441,7 +441,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "max_stream_inactivity_seconds"), 30) // 30 seconds by default, includes two checks at the default interval of 15 seconds
 
 	// Software Inventory
-	cfg.BindEnvAndSetDefault(join(swNS, "enabled"), false, "DD_SOFTWARE_INVENTORY_ENABLED")
+	cfg.BindEnvAndSetDefault(join(swNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }
