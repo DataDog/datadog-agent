@@ -143,10 +143,9 @@ func collectFromKey(root registry.Key, subkey string, view uint32) ([]*SoftwareE
 		warnings = append(warnings, warnf("failed to open registry key %s: %v", subkey, err))
 		return nil, warnings
 	}
+	defer func() { _ = key.Close() }()
 	subkeys, err := key.ReadSubKeyNames(-1)
 	if err != nil {
-		// Close the key if we failed to read subkeys
-		_ = key.Close()
 		warnings = append(warnings, warnf("failed to read subkeys from %s: %v", subkey, err))
 		return nil, warnings
 	}
@@ -182,7 +181,6 @@ func collectFromKey(root registry.Key, subkey string, view uint32) ([]*SoftwareE
 		// 3. A Close error wouldn't invalidate the data we've already read
 		_ = sk.Close()
 	}
-	_ = key.Close()
 	return results, warnings
 }
 
