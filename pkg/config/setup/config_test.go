@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -1256,7 +1255,7 @@ use_proxy_for_cloud_metadata: true
 // This method should only be needed by tests
 // In nodetreemodel, settings like additional_endpoints are leaf values
 // We should be able to simplify this implementation once ntm is in use everywhere
-func configRetrieveFromPath(cfg model.Config, settingPath string) (interface{}, error) {
+func configRetrieveFromPath(cfg pkgconfigmodel.Config, settingPath string) (interface{}, error) {
 	parts := strings.Split(settingPath, ".")
 
 	if ncfg, ok := cfg.(nodetreemodel.NodeTreeConfig); ok {
@@ -1598,5 +1597,5 @@ func TestLoadProxyFromEnv(t *testing.T) {
 
 	LoadProxyFromEnv(cfg)
 	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
-	assert.Equal(t, model.SourceAgentRuntime, cfg.GetSource("proxy.http"))
+	assert.Equal(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("proxy.http"))
 }
