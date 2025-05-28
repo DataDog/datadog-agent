@@ -66,18 +66,7 @@ func createTestProcess1(pid int32, createTime int64) (*procutil.Process, *worklo
 		Uids:    []int32{1, 2, 3, 4},
 		Gids:    []int32{1, 2, 3, 4, 5},
 		Stats: &procutil.Stats{
-			CreateTime:  createTime,
-			Status:      "",
-			Nice:        0,
-			OpenFdCount: 0,
-			NumThreads:  0,
-			CPUPercent:  nil,
-			CPUTime:     nil,
-			MemInfo:     nil,
-			MemInfoEx:   nil,
-			IOStat:      nil,
-			IORateStat:  nil,
-			CtxSwitches: nil,
+			CreateTime: createTime,
 		},
 	}
 
@@ -114,18 +103,7 @@ func createTestProcess2(pid int32, createTime int64) (*procutil.Process, *worklo
 		Uids:    []int32{1},
 		Gids:    []int32{1, 2},
 		Stats: &procutil.Stats{
-			CreateTime:  createTime,
-			Status:      "",
-			Nice:        0,
-			OpenFdCount: 0,
-			NumThreads:  0,
-			CPUPercent:  nil,
-			CPUTime:     nil,
-			MemInfo:     nil,
-			MemInfoEx:   nil,
-			IOStat:      nil,
-			IORateStat:  nil,
-			CtxSwitches: nil,
+			CreateTime: createTime,
 		},
 	}
 
