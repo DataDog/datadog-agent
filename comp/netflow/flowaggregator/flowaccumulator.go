@@ -157,11 +157,11 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}
-	// JMWMON for reused flow context keep track of how many flows were aggregated into it
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
 		// JMW add metric to see how many flow contexts are reused, how many are new when this method is called
 		aggFlow.numberOfUses++
+		aggFlow.flowsAggregated = 1
 		f.logger.Infof("JMW Reusing flow (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s, numberOfUses=%d)", aggHash, aggFlow.lastSuccessfulFlush.String(), aggFlow.nextFlush.String(), aggFlow.numberOfUses)
 		aggFlow.flow = flowToAdd
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
@@ -192,7 +192,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 			}
 		}
 	}
-	f.flows[aggHash] = aggFlow // JMWMON isn't this a noop?  Isn't it already there?
+	f.flows[aggHash] = aggFlow // JMWJMW instead of this, modify it in place
 }
 
 func (f *flowAccumulator) setSrcReverseDNSHostname(aggHash uint64, hostname string, acquireLock bool) {

@@ -203,7 +203,30 @@ func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []stri
 	defer t.mutex.Unlock()
 
 	name = opts.NameWithSeparator(subsystem, name)
+	// % drjmwqa-curlprometheus | rg api_server.*bucket
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="0.01"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="0.025"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="0.05"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="0.1"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="0.25"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="0.5"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="1"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="2.5"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="5"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="10"} 1286
+	// api_server__request_duration_seconds_bucket{auth="mTLS",method="GET",path="/agent/status/health",servername="CMD",status_code="200",le="+Inf"} 1286
 
+	// JMWWED try for flowDuration var buckets = []float64{5, 10, 30, 60, 150, 300, 450, 600}
+	// JMWWED try for numuses var buckets = []float64{1, 2, 3, 4, 5, 10, 20, 30}
+	// JMWWED try for flowsAggregated var buckets = []float64{1, 2, 3, 4, 5, 10, 20, 30}
+	//
+	// % findgrep request_duration_seconds "*.go"
+	// 262:        - name: api_server.request_duration_seconds
+	// ./comp/core/agenttelemetry/impl/config.go
+	// 23:	MetricName = "request_duration_seconds" // JMWJMW
+	// ./comp/api/api/apiimpl/observability/telemetry.go
+	// 125:		"rest_client_request_duration_seconds":        provider.restClientLatency,
+	// ./pkg/collector/corechecks/containers/kubelet/provider/kubelet/provider.go
 	h := &promHistogram{
 		ph: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -211,13 +234,11 @@ func (t *telemetryImpl) NewHistogramWithOpts(subsystem, name string, tags []stri
 				Name:      name,
 				Help:      help,
 				Buckets:   buckets,
-				//JMWJMW
-				// DefBuckets are the default Histogram buckets. The default buckets are
+				// DefBuckets are the default Histogram buckets. The default buckets are //JMWJMW
 				// tailored to broadly measure the response time (in seconds) of a network
 				// service. Most likely, however, you will be required to define buckets
 				// customized to your use case.
-				//var DefBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
-				//JMWJMW try var DefBuckets = []float64{5, 10, 30, 60, 150, 300, 450, 600}
+				// var DefBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 			},
 			tags,
 		),
