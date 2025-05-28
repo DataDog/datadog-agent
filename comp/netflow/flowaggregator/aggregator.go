@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	flowContextBuckets = []float64{1, 2, 3, 4, 5, 6, 10, 15, 20, 50}
+	flowContextBuckets = []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
 	telemetryFlowContextNumberOfUses = telemetry.NewHistogram(
 		"netflow.aggregator", "flow_context_number_of_uses", nil,
@@ -280,6 +280,8 @@ func (agg *FlowAggregator) flush() {
 		// JMW? agg.sender.Histogram(metricPrefix+"aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
 		telemetryFlowContextNumberOfUses.Observe(float64(flowStat.numberOfUses))
 		telemetryFlowContextFlowsAggregated.Observe(float64(flowStat.flowsAggregated))
+		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_number_of_uses", float64(flowStat.numberOfUses), "", nil)
+		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
 	}
 
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
