@@ -24,7 +24,7 @@ import (
 )
 
 func TestConsumerCanStartAndStop(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
@@ -39,7 +39,7 @@ func TestConsumerCanStartAndStop(t *testing.T) {
 }
 
 func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	cfg := config.New()
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
@@ -122,7 +122,7 @@ func BenchmarkConsumer(b *testing.B) {
 			name = "fatbinParsingEnabled"
 		}
 		b.Run(name, func(b *testing.B) {
-			ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMock())
+			ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 			ctx, err := getSystemContext(
 				withProcRoot(kernel.ProcFSRoot()),
 				withWorkloadMeta(testutil.GetWorkloadMetaMock(b)),
