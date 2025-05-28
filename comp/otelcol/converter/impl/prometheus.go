@@ -8,6 +8,7 @@ package converterimpl
 
 import (
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
 )
@@ -53,6 +54,10 @@ var (
 // different API keys, there is no way to know if these are from the same org, so there is a risk
 // of double shipping.
 func addPrometheusReceiver(conf *confmap.Conf, comp component) {
+	mLevel := conf.Get("service::telemetry::metrics::level")
+	if mLevel != nil && strings.ToLower(mLevel.(string)) == "none" {
+		return
+	}
 	datadogExportersMap := getDatadogExporters(conf)
 	internalMetricsAddress := findInternalMetricsAddress(conf)
 
