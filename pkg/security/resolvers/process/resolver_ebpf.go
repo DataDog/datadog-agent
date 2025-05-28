@@ -146,8 +146,6 @@ func (p *EBPFResolver) NewProcessCacheEntry(pidContext model.PIDContext) *model.
 	entry.PIDContext = pidContext
 	entry.Cookie = utils.NewCookie()
 
-	p.processCacheEntryCount.Inc()
-
 	return entry
 }
 
@@ -577,6 +575,9 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, source uint64
 
 	p.entryCache[entry.Pid] = entry
 	entry.Retain()
+	// only increment the cache entry count when we first retain the entry,
+	// the count will be decremented once the entry is released
+	p.processCacheEntryCount.Inc()
 
 	if p.cgroupResolver != nil && entry.CGroup.CGroupID != "" {
 		// add the new PID in the right cgroup_resolver bucket
@@ -639,10 +640,6 @@ func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uin
 		// check exec bomb, keep the prev entry and update it
 		if prev.Equals(entry) {
 			prev.ApplyExecTimeOf(entry)
-
-			// entry not sure anymore
-			entry.Release()
-
 			return
 		}
 		prev.Exec(entry)
@@ -997,7 +994,7 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, inode uint64, maxDepth int,
 		p.resolveFromProcfs(ppid, 0, maxDepth-1, newEntryCb)
 	}
 
-	return p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, inode, model.ProcessCacheEntryFromProcFS, newEntryCb)
+	return p.newEntryFromProcfs(proc, filledProc, inode, model.ProcessCacheEntryFromProcFS, newEntryCb)
 }
 
 // SetProcessArgs set arguments to cache entry
@@ -1292,7 +1289,9 @@ func (p *EBPFResolver) SyncCache(proc *process.Process) {
 		return
 	}
 
-	p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, 0, model.ProcessCacheEntryFromSnapshot, nil)
+	if entry := p.newEntryFromProcfs(proc, filledProc, 0, model.ProcessCacheEntryFromSnapshot, nil); entry != nil {
+		p.syncKernelMaps(entry)
+	}
 }
 
 func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
@@ -1326,8 +1325,8 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	}
 }
 
-// newEntryFromProcfsAndSyncKernelMaps snapshots /proc for the provided pid and sync the kernel maps
-func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process, filledProc *utils.FilledProcess, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+// newEntryFromProcfs creates a new process cache entry by snapshotting /proc for the provided pid
+func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *utils.FilledProcess, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
 	pid := uint32(proc.Pid)
 
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
@@ -1367,8 +1366,6 @@ func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process
 	}
 
 	p.insertEntry(entry, source)
-
-	p.syncKernelMaps(entry)
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 

@@ -179,7 +179,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 
 	path, err := NewFilePath(r.procRoot, namespacedPath, pid)
 	if err != nil {
-		return NewUnknownAttachmentError(err)
+		return NewUnknownAttachmentError(fmt.Errorf("error creating file path for PID %d: %w", pid, err))
 	}
 
 	pathID := path.ID

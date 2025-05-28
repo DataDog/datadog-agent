@@ -810,6 +810,138 @@ func TestActionSetVariableInitialValue(t *testing.T) {
 	}
 }
 
+func TestActionSetVariableInherited(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "guess",
+				Expression: `open.file.path == "/tmp/guess"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:      "var1",
+							Value:     456,
+							Scope:     "process",
+							Inherited: true,
+						},
+					},
+				},
+			},
+			{
+				ID:         "victory",
+				Expression: `open.file.path == "/tmp/guess2" && ${process.var1} == 456`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:      "var1",
+							Value:     1000,
+							Scope:     "process",
+							Inherited: true,
+						},
+					},
+				},
+			},
+			{
+				ID:         "game_over",
+				Expression: `open.file.path == "/tmp/guess2" && ${process.var1} == 0`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:      "var1",
+							Value:     0,
+							Scope:     "process",
+							Inherited: true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := rs.evalOpts
+
+	existingScopedVariable := opts.VariableStore.Get("process.var1")
+	assert.NotNil(t, existingScopedVariable)
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	event.ProcessCacheEntry = &model.ProcessCacheEntry{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				PIDContext: model.PIDContext{
+					Pid: 1,
+				},
+			},
+		},
+	}
+	event.ProcessCacheEntry.Retain()
+	event.SetFieldValue("open.file.path", "/tmp/guess")
+
+	ctx := eval.NewContext(event)
+
+	assert.NotNil(t, existingScopedVariable)
+	stringScopedVar, ok := existingScopedVariable.(eval.ScopedVariable)
+	assert.NotNil(t, stringScopedVar)
+	assert.True(t, ok)
+
+	value, set := stringScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	// TODO(lebauce): should be 123. default_value are not properly handled
+	assert.Equal(t, 0, value)
+	assert.False(t, set)
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	value, set = stringScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Equal(t, 456, value)
+	assert.True(t, set)
+
+	event2 := model.NewFakeEvent()
+	event2.Type = uint32(model.FileOpenEventType)
+	event2.ProcessCacheEntry = &model.ProcessCacheEntry{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				PIDContext: model.PIDContext{
+					Pid: 2,
+				},
+			},
+			Ancestor: event.ProcessCacheEntry,
+		},
+	}
+	event2.ProcessCacheEntry.Retain()
+	event2.SetFieldValue("open.file.path", "/tmp/guess2")
+
+	ctx = eval.NewContext(event2)
+	if !rs.Evaluate(event2) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	value, set = stringScopedVar.GetValue(ctx)
+	assert.NotNil(t, value)
+	assert.Equal(t, 1000, value)
+	assert.True(t, set)
+}
+
 func TestActionSetVariableExpression(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{
