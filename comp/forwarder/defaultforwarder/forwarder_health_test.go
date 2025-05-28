@@ -313,6 +313,18 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 		ts1Port, ts2Port,
 		expectBeforeFmt)
 	assert.Equal(t, expect, string(data), description)
+
+	// Check the old keys are now valid again
+	for _, key := range expectBefore {
+		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+	}
+
+	// Check added keys are now not valid
+	for _, key := range expectAfter {
+		if !slices.Contains(expectBefore, key) {
+			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
+		}
+	}
 }
 
 func TestConfigUpdateAPIKey(t *testing.T) {
