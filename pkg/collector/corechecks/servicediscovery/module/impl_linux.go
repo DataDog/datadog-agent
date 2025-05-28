@@ -125,6 +125,8 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	return out
 }
 
+//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=impl_mock_linux.go
+
 type timeProvider interface {
 	Now() time.Time
 }
