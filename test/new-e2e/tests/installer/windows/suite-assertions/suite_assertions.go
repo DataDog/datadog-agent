@@ -8,28 +8,28 @@ package suiteasserts
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/remote-host-assertions"
 	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
 // SuiteAssertions is a type to help write fluent, self-contained assertions.
 // It is used as a bridge type to extend require.Assertions.
 type SuiteAssertions struct {
 	*require.Assertions
-	suite suite.TestingSuite
+	context common.Context
 }
 
 // New creates a new SuiteAssertions
-func New(r *require.Assertions, suite suite.TestingSuite) *SuiteAssertions {
+func New(ctx common.Context, r *require.Assertions) *SuiteAssertions {
 	return &SuiteAssertions{
 		Assertions: r,
-		suite:      suite,
+		context:    ctx,
 	}
 }
 
 // Host returns a RemoteWindowsHostAssertions to differentiates assertions running on the host vs assertions
 // running remotely.
 func (s *SuiteAssertions) Host(remoteHost *components.RemoteHost) *assertions.RemoteWindowsHostAssertions {
-	return assertions.New(s.Assertions, s.suite, remoteHost)
+	return assertions.New(s.context, s.Assertions, remoteHost)
 }
