@@ -48,9 +48,4 @@ build do
     make "-j #{workers}", env: env
     make "-j #{workers} install", env: env
   end
-
-  # libffi's default install location of header files is awful...
-  mkdir "#{install_dir}/embedded/include"
-  copy "#{install_dir}/embedded/lib/libffi-#{version}/include/*", "#{install_dir}/embedded/include/"
-
 end
