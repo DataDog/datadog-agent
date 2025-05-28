@@ -946,10 +946,12 @@ func TestScatterWithSmallRandomValue(t *testing.T) {
 	resolver.refreshIntervalScatter = true
 	resolver.fetchHookFunc = func(_ []string) (map[string]string, error) {
 		return map[string]string{
-			"test-handle": fmt.Sprintf("updated-value"),
+			"test-handle": "updated-value",
 		}, nil
 	}
 
+	// NOTE: clock and ticker are not mocked, as the mock ticker doesn't fail on a
+	// zero parameter the way a real ticker does
 	r := rand.New(&alwaysZeroSource{})
 	resolver.startRefreshRoutine(r)
 	require.NotNil(t, resolver.ticker)
