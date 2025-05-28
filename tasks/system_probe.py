@@ -1007,8 +1007,8 @@ def go_package_dirs(packages, build_tags):
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
 
-     # Prepend module path if the package path is relative
-     # and doesn't start with ./ (which go list handles correctly for local paths)
+    # Prepend module path if the package path is relative
+    # and doesn't start with ./ (which go list handles correctly for local paths)
     if not is_windows:
         full_path_packages = []
         module_path = "github.com/DataDog/datadog-agent/"
