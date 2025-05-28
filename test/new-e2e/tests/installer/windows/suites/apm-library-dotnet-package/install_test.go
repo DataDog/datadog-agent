@@ -182,7 +182,7 @@ func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibrary() {
 	// TODO remove override once image is published in prod
 	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
 		installer.WithVersion("3.13.0-pipeline.58951229.beta.sha-af5a1fab-1"),
-		installer.WithRegistry("install.datad0g.com"),
+		installer.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 	)
 	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
 }
@@ -191,7 +191,7 @@ func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibraryWithVersion(versi
 	// TODO remove override once image is published in prod
 	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
 		installer.WithVersion(version),
-		installer.WithRegistry("install.datad0g.com"),
+		installer.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 	)
 	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)
 }
