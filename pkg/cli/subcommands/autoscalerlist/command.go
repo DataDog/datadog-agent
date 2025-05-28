@@ -75,9 +75,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func autoscalerList(_ log.Component, config config.Component, client ipc.HTTPClient, _ *cliParams) error {
+func autoscalerList(_ log.Component, config config.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	if cliParams.localstore {
-		err := getLocalAutoscalingWorkloadCheck(color.Output, config)
+		err := getLocalAutoscalingWorkloadCheck(color.Output, config, client)
 		if err != nil {
 			return fmt.Errorf("error getting localstore debug info: %v", err)
 		}
