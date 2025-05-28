@@ -9,4 +9,4 @@
 
 fixes:
   - |
-    Increased the Agent GUI cookie persistence to one year. This ensures seamless session continuity for users who configure an infinite session duration.
+    Increased the Agent GUI cookie persistence to one year. This ensures uninterrupted session continuity for users who configure an infinite session duration.
