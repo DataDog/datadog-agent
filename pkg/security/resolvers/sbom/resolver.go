@@ -50,6 +50,7 @@ const (
 )
 
 var errNoProcessForContainerID = errors.New("found no running process matching the given container ID")
+var errNoOSComponent = errors.New("found no running process matching the given container ID")
 
 // Event defines the SBOM event type
 type Event int
@@ -235,7 +236,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 				if err := retry.Do(func() error {
 					return r.analyzeWorkload(sbom)
 				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond)); err != nil {
-					if errors.Is(err, errNoProcessForContainerID) {
+					if errors.Is(err, errNoProcessForContainerID) || errors.Is(err, errNoOSComponent) {
 						seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
 					} else {
 						seclog.Warnf("Failed to generate SBOM for '%s': %v", sbom.ContainerID, err)
@@ -415,6 +416,10 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 		return scanErr
 	}
 	scanDuration := time.Since(scanTime)
+
+	if report.Metadata.OS == nil {
+		return errNoOSComponent
+	}
 
 	scanResult := &sbom.ScanResult{
 		CreatedAt: scanTime,
