@@ -17,7 +17,6 @@ import (
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -87,14 +86,12 @@ func (c *collector) collectionIntervalConfig() time.Duration {
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !util.ProcessLanguageCollectorIsEnabled() {
-		return errors.NewDisabled(componentName, "process collection is disabled")
-	}
-
 	if c.isEnabled() {
 		c.store = store
 		go c.collect(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
 		go c.stream(ctx)
+	} else {
+		return errors.NewDisabled(componentName, "process collection is disabled")
 	}
 
 	return nil
