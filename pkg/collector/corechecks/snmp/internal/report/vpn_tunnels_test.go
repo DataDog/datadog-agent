@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 package report
 
 import (
@@ -8,7 +13,7 @@ import (
 )
 
 func TestVPNTunnelStore(t *testing.T) {
-	vts := newVPNTunnelStore()
+	vts := NewVPNTunnelStore()
 	assert.NotNil(t, vts)
 	assert.NotNil(t, vts.ByOutsideIPs)
 	assert.NotNil(t, vts.ByRemoteOutsideIP)
@@ -56,9 +61,9 @@ func TestVPNTunnelStore(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, vpnTunnels[2], *vpnTunnel)
 
-	vpnTunnel, exists = vts.GetTunnelByOutsideIPs("", "")
+	_, exists = vts.GetTunnelByOutsideIPs("", "")
 	assert.False(t, exists)
-	vpnTunnel, exists = vts.GetTunnelByOutsideIPs("4.3.2.1", "1.2.3.4")
+	_, exists = vts.GetTunnelByOutsideIPs("4.3.2.1", "1.2.3.4")
 	assert.False(t, exists)
 
 	vpnTunnel, exists = vts.GetTunnelByRemoteOutsideIP("4.3.2.1")
@@ -68,9 +73,9 @@ func TestVPNTunnelStore(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, vpnTunnels[1], *vpnTunnel)
 
-	vpnTunnel, exists = vts.GetTunnelByRemoteOutsideIP("1.2.3.4")
+	_, exists = vts.GetTunnelByRemoteOutsideIP("1.2.3.4")
 	assert.False(t, exists)
-	vpnTunnel, exists = vts.GetTunnelByRemoteOutsideIP("")
+	_, exists = vts.GetTunnelByRemoteOutsideIP("")
 	assert.False(t, exists)
 
 	vtsSlice := vts.ToSlice()
