@@ -1,3 +1,5 @@
+"""Module regrouping all invoke tasks used for linting the `datadog-agent` repo"""
+
 from __future__ import annotations
 
 import os
@@ -7,10 +9,13 @@ from collections import defaultdict
 from fnmatch import fnmatch
 from glob import glob
 
+import yaml
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.devcontainer import run_on_devcontainer
 from tasks.libs.ciproviders.ci_config import CILintersConfig
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     full_config_get_all_leaf_jobs,
     full_config_get_all_stages,
@@ -24,20 +29,219 @@ from tasks.libs.ciproviders.gitlab_api import (
     retrieve_all_paths,
     test_gitlab_configuration,
 )
+from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import get_file_modifications
-from tasks.libs.common.utils import gitlab_section
-from tasks.libs.owners.parsing import read_owners
-
-from ..shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
-from .helpers import (
+from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.git import get_default_branch, get_file_modifications, get_staged_files
+from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.linter.gitlab import (
     _gitlab_ci_jobs_codeowners_lint,
     _gitlab_ci_jobs_owners_lint,
     get_gitlab_ci_lintable_jobs,
     list_get_parameter_calls,
 )
+from tasks.libs.linter.go import run_lint_go
+from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
+from tasks.libs.owners.parsing import read_owners
+from tasks.libs.types.copyright import CopyrightLinter, LintFailure
+from tasks.test_core import process_input_args, process_result
+from tasks.update_go import _update_go_mods, _update_references
 
 
+# === GO === #
+@task(iterable=['flavors'])
+@run_on_devcontainer
+def go(
+    ctx,
+    module=None,
+    targets=None,
+    flavor=None,
+    build="lint",
+    build_tags=None,
+    build_include=None,
+    build_exclude=None,
+    rtloader_root=None,
+    cpus=None,
+    timeout: int | None = None,
+    golangci_lint_kwargs="",
+    headless_mode=False,
+    include_sds=False,
+    only_modified_packages=False,
+    verbose=False,
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    debug=False,
+):
+    """Runs go linters on the given module and targets.
+
+    A module should be provided as the path to one of the go modules in the repository.
+
+    Targets should be provided as a comma-separated list of relative paths within the given module.
+    If targets are provided but no module is set, the main module (".") is used.
+
+    If no module or target is set the tests are run against all modules and targets.
+
+    Args:
+        timeout: Number of minutes after which the linter should time out.
+        headless_mode: Allows you to output the result in a single json file.
+        debug: prints the go version and the golangci-lint debug information to help debugging lint discrepancies between versions.
+
+    Example invokation:
+        $ dda inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
+        $ dda inv linter.go --module=.
+    """
+
+    check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
+
+    modules, flavor = process_input_args(
+        ctx,
+        module,
+        targets,
+        flavor,
+        headless_mode,
+        build_tags=build_tags,
+        only_modified_packages=only_modified_packages,
+        lint=True,
+    )
+
+    lint_result, execution_times = run_lint_go(
+        ctx=ctx,
+        modules=modules,
+        flavor=flavor,
+        build=build,
+        build_tags=build_tags,
+        build_include=build_include,
+        build_exclude=build_exclude,
+        rtloader_root=rtloader_root,
+        cpus=cpus,
+        timeout=timeout,
+        golangci_lint_kwargs=golangci_lint_kwargs,
+        headless_mode=headless_mode,
+        include_sds=include_sds,
+        verbose=verbose,
+    )
+
+    if not headless_mode:
+        with gitlab_section('Linter execution time'):
+            print(color_message('Execution time summary:', 'bold'))
+            for e in execution_times:
+                print(f'- {e.name}: {e.duration:.1f}s')
+
+    with gitlab_section('Linter failures'):
+        success = process_result(flavor=flavor, result=lint_result)
+
+    if success:
+        if not headless_mode:
+            print(color_message("All linters passed", "green"))
+    else:
+        # Exit if any of the modules failed on any phase
+        raise Exit(code=1)
+
+
+@task
+def update_go(_):
+    _update_references(warn=False, version="1.2.3", dry_run=True)
+    _update_go_mods(warn=False, version="1.2.3", include_otel_modules=True, dry_run=True)
+
+
+# === PYTHON === #
+@task
+def python(ctx):
+    """Lints Python files.
+
+    See 'setup.cfg' and 'pyproject.toml' file for configuration.
+    If running locally, you probably want to use the pre-commit instead.
+    """
+
+    print(
+        f"""Remember to set up pre-commit to lint your files before committing:
+    https://github.com/DataDog/datadog-agent/blob/{get_default_branch()}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+    )
+
+    if running_in_ci():
+        # We want to the CI to fail if there are any issues
+        ctx.run("ruff format --check .")
+        ctx.run("ruff check .")
+    else:
+        # Otherwise we just need to format the files
+        ctx.run("ruff format .")
+        ctx.run("ruff check --fix .")
+
+    ctx.run("vulture")
+    ctx.run("mypy")
+
+
+# === GITHUB === #
+@task
+def releasenote(ctx):
+    """Lints release notes with Reno."""
+
+    branch = os.environ.get("BRANCH_NAME")
+    pr_id = os.environ.get("PR_ID")
+
+    run_check = is_pr_context(branch, pr_id, "release note")
+    if run_check:
+        github = GithubAPI(repository=GITHUB_REPO_NAME, public_repo=True)
+        if github.is_release_note_needed(pr_id):
+            if not github.contains_release_note(pr_id):
+                print(
+                    f"{color_message('Error', 'red')}: No releasenote was found for this PR. Please add one using 'reno'"
+                    ", see https://datadoghq.dev/datadog-agent/guidelines/contributing/#reno"
+                    ", or apply the label 'changelog/no-changelog' to the PR.",
+                    file=sys.stderr,
+                )
+                raise Exit(code=1)
+            ctx.run("reno lint")
+        else:
+            print("'changelog/no-changelog' label found on the PR: skipping linting")
+
+
+@task
+def github_actions_shellcheck(
+    ctx,
+    exclude=DEFAULT_SHELLCHECK_EXCLUDES,
+    shellcheck_args="",
+    fail_fast=False,
+    use_bat=None,
+    only_errors=False,
+    all_files=False,
+):
+    """Lint github action workflows with shellcheck."""
+
+    if all_files:
+        files = glob('.github/workflows/*.yml')
+    else:
+        files = ctx.run(
+            "git diff --name-only \"$(git merge-base main HEAD)\" | grep -E '.github/workflows/.*\\.yml'", warn=True
+        ).stdout.splitlines()
+
+    if not files:
+        print('No github action workflow files to lint, skipping')
+        return
+
+    scripts = {}
+    for file in files:
+        with open(file) as f:
+            workflow = yaml.safe_load(f)
+
+        for job_name, job in workflow.get('jobs').items():
+            for i, step in enumerate(job['steps']):
+                step_name = step.get('name', f'step-{i + 1:02d}').replace(' ', '_')
+                if 'run' in step:
+                    script = step['run']
+                    if isinstance(script, list):
+                        script = '\n'.join(script)
+
+                    # "Escape" ${{...}} which is github actions only syntax
+                    script = re.sub(r'\${{(.*)}}', r'\\$\\{\\{\1\\}\\}', script, flags=re.MULTILINE)
+
+                    # We suppose all jobs are bash like scripts and not powershell or other exotic shells
+                    script = '#!/bin/bash\n' + script.strip() + '\n'
+                    scripts[f'{file.removeprefix(".github/workflows/")}-{job_name}-{step_name}'] = script
+
+    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, use_bat, only_errors)
+
+
+# === GITLAB === #
 ## === Main linter tasks === ##
 @task
 def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml"):
@@ -191,8 +395,6 @@ def ssm_parameters(ctx, mode="all", folders=None):
 
 
 ## === Job structure rules === ##
-
-
 @task
 def gitlab_change_paths(ctx):
     """Verifies that rules: changes: paths match existing files in the repository."""
@@ -432,8 +634,6 @@ def job_change_path(ctx, job_files=None):
 
 
 ## === Job ownership === ##
-
-
 @task
 def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_files=False):
     """Verifies that added / modified job files are defined within CODEOWNERS.
@@ -489,3 +689,61 @@ def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.
     jobowners = read_owners(path_jobowners, remove_default_pattern=True)
 
     _gitlab_ci_jobs_owners_lint(jobs, jobowners, ci_linters_config, path_jobowners)
+
+
+# === MISC === #
+@task
+def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=False):
+    """Checks that all Go files contain the appropriate copyright header.
+
+    If '--fix' is provided as an option, it will try to fix problems as it finds them.
+    If '--dry_run' is provided when fixing, no changes to the files will be applied.
+    """
+
+    files = None
+
+    if only_staged_files:
+        staged_files = get_staged_files(ctx)
+        files = [path for path in staged_files if path.endswith(".go")]
+
+    try:
+        CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run, files=files)
+    except LintFailure:
+        # the linter prints useful messages on its own, so no need to print the exception
+        sys.exit(1)
+
+
+@task
+def filenames(ctx):
+    """Scans files to ensure there are no filenames too long or containing illegal characters."""
+
+    files = ctx.run("git ls-files -z", hide=True).stdout.split("\0")
+    failure = False
+
+    if sys.platform == 'win32':
+        print("Running on windows, no need to check filenames for illegal characters")
+    else:
+        print("Checking filenames for illegal characters")
+        forbidden_chars = '<>:"\\|?*'
+        for filename in files:
+            if any(char in filename for char in forbidden_chars):
+                print(f"Error: Found illegal character in path {filename}")
+                failure = True
+
+    print("Checking filename length")
+    # Approximated length of the prefix of the repo during the windows release build
+    prefix_length = 160
+    # Maximum length supported by the win32 API
+    max_length = 255
+    for filename in files:
+        if (
+            not filename.startswith(('tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression'))
+            and prefix_length + len(filename) > max_length
+        ):
+            print(
+                f"Error: path {filename} is too long ({prefix_length + len(filename) - max_length} characters too many)"
+            )
+            failure = True
+
+    if failure:
+        raise Exit(code=1)
