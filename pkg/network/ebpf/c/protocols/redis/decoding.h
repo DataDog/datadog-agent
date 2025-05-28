@@ -196,6 +196,7 @@ static __always_inline bool extract_redis_error_prefix(pktbuf_t pkt, char *buf, 
     u8 i = 0;
     char c = 0;
     // Read up to buf_len-1 chars for null-termination
+    #pragma unroll (MAX_ERROR_SIZE)
     for (; i < buf_len - 1; i++) {
         if (pktbuf_load_bytes_from_current_offset(pkt, &c, 1) < 0) {
             break;
