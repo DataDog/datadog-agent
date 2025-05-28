@@ -170,8 +170,16 @@ func getInterfaceConfig(interfaceConfigs []snmpintegration.InterfaceConfig, inde
 		}
 	}
 	for _, ifConfig := range interfaceConfigs {
-		if (ifConfig.MatchField == "name" && ifConfig.MatchValue == ifName) ||
-			(ifConfig.MatchField == "index" && ifConfig.MatchValue == index) {
+		log.Infof("JMW Checking interface config: %+v", ifConfig)
+		// JMWORIG if (ifConfig.MatchField == "name" && ifConfig.MatchValue == ifName) || // JMW
+		// JMWORIG (ifConfig.MatchField == "index" && ifConfig.MatchValue == index) {
+		// JMWORIG return ifConfig, nil
+		if ifConfig.MatchField == "name" && ifConfig.MatchValue == ifName {
+			log.Infof("JMW Found interface config by MatchField=name, MatchValue=%s, ifName=%s", ifConfig.MatchValue, ifName)
+			return ifConfig, nil
+		}
+		if ifConfig.MatchField == "index" && ifConfig.MatchValue == index {
+			log.Infof("JMW Found interface config by MatchField=index, MatchValue=%s, index=%s", ifConfig.MatchValue, index)
 			return ifConfig, nil
 		}
 	}

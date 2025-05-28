@@ -60,7 +60,7 @@ per second). It is constant in time, can be overwritten by the system admin.
 It is the total available bandwidth.
 Bandwidth usage is evaluated as: ifHC[In|Out]Octets/ifHighSpeed and reported as *Rate*
 */
-func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) error {
+func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) error { // JMW
 	usageName, ok := bandwidthMetricNameToUsage[symbol.Name]
 	if !ok {
 		return nil
@@ -71,9 +71,9 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	if err == nil {
 		switch symbol.Name {
 		case "ifHCInOctets":
-			ifSpeed = interfaceConfig.InSpeed
+			ifSpeed = interfaceConfig.InSpeed // JMW
 		case "ifHCOutOctets":
-			ifSpeed = interfaceConfig.OutSpeed
+			ifSpeed = interfaceConfig.OutSpeed // JMW
 		}
 		tags = append(tags, interfaceConfig.Tags...)
 	}
