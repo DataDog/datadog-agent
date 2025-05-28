@@ -581,7 +581,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			out := responseRecorder.Body.Bytes()
 			err := json.Unmarshal(out, &result)
 			require.NoError(t, err)
-			assert.Equal(t, string(result.Configs[0].Config.Instances[0]), tc.expectedResult)
+			assert.Equal(t, tc.expectedResult, string(result.Configs[0].Config.Instances[0]))
 
 			// Check also that the unresolved configs are returned
 			var unresolved []integration.Config
