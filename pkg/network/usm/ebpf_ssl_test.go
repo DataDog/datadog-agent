@@ -10,6 +10,7 @@ package usm
 import (
 	"context"
 	"fmt"
+	nethttp "
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	nethttp "net/http"
 )
 
 func testArch(t *testing.T, arch string) {
