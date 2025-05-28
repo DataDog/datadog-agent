@@ -205,7 +205,7 @@ func submitTcpStats(sender sender.Sender) error {
 
 	// Create tcp metrics that are a sum of tcp4 and tcp6 metrics
 	tcpAllStats := &mibTcpStats{}
-	if reflect.ValueOf(tcp4Stats).IsZero() && reflect.ValueOf(tcp6Stats).IsZero() {
+	if !reflect.ValueOf(tcp4Stats).IsZero() && !reflect.ValueOf(tcp6Stats).IsZero() {
 		tcpAllStats = &mibTcpStats{
 			dwRtoAlgorithm: tcp4Stats.dwRtoAlgorithm + tcp6Stats.dwRtoAlgorithm,
 			dwRtoMin:       tcp4Stats.dwRtoMin + tcp6Stats.dwRtoMin,
@@ -223,21 +223,26 @@ func submitTcpStats(sender sender.Sender) error {
 			dwOutRsts:      tcp4Stats.dwOutRsts + tcp6Stats.dwOutRsts,
 			dwNumConns:     tcp4Stats.dwNumConns + tcp6Stats.dwNumConns,
 		}
+		submitMetricsFromStruct(sender, "system.net.tcp.", tcpAllStats, tcpStatsMapping)
 	}
 
-	submitMetricsFromStruct(sender, "system.net.tcp.", tcpAllStats, tcpStatsMapping)
-	submitMetricsFromStruct(sender, "system.net.tcp4.", tcp4Stats, tcpStatsMapping)
-	submitMetricsFromStruct(sender, "system.net.tcp6.", tcp6Stats, tcpStatsMapping)
+	if !reflect.ValueOf(tcp4Stats).IsZero() {
+		submitMetricsFromStruct(sender, "system.net.tcp4.", tcp4Stats, tcpStatsMapping)
+	}
+	if !reflect.ValueOf(tcp6Stats).IsZero() {
+		submitMetricsFromStruct(sender, "system.net.tcp6.", tcp6Stats, tcpStatsMapping)
+	}
 
 	return nil
 }
 
 func submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTcpStats, tcpStatsMapping map[string]string) {
-	sType := reflect.TypeOf(reflect.ValueOf(tcpStats))
-	for i := 0; i < sType.NumField(); i++ {
-		field := sType.Field(i)
-		metricName := metricPrefix + tcpStatasMapping[field.Name()]
-		metricValue := field.Uint()
+	s := reflect.ValueOf(tcpStats).Elem()
+	sType := reflect.TypeOf(s)
+	for i := 0; i < s.NumField(); i++ {
+		fieldName := sType.Field(i).Name
+		metricName := metricPrefix + tcpStatsMapping[fieldName]
+		metricValue := s.Field(i).Uint()
 		if strings.HasSuffix(metricName, ".connections") || strings.HasSuffix(".current_established") {
 			sender.Gauge(metricName, float64(metricValue), "", nil)
 		} else {

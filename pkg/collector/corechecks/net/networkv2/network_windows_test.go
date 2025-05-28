@@ -401,7 +401,7 @@ excluded_interfaces:
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
-	err = networkCheck.Run()
+	err := networkCheck.Run()
 	assert.Nil(t, err)
 
 	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
