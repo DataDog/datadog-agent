@@ -10,13 +10,13 @@ package usm
 import (
 	"context"
 	"fmt"
-	nethttp "
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 	"unsafe"
+	nethttp "net/http"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
