@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
@@ -269,6 +270,7 @@ type miscDeps struct {
 	WorkloadMeta workloadmeta.Component
 	Logger       logcomp.Component
 	Tagger       tagger.Component
+	IPC          ipc.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -285,7 +287,7 @@ func initMisc(deps miscDeps) error {
 	// we can include the tagger as part of the workloadmeta component.
 	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger)
 
-	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
+	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg, deps.IPC.GetTLSServerConfig())
 
 	// TODO(components): still unclear how the initialization of workloadmeta
 	//                   store and tagger should be performed.
