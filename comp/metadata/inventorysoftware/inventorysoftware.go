@@ -9,6 +9,7 @@
 package inventorysoftware
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winsoftware"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -28,7 +29,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"go.uber.org/fx"
 
-	types "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 const flareFileName = "inventorysoftware.json"
@@ -39,16 +40,9 @@ func Module() fxutil.Module {
 		fx.Provide(New))
 }
 
-// SoftwareInventoryMetadata represents the metadata for a software product
-type SoftwareInventoryMetadata map[string]string
-
-// SoftwareInventoryMap represents a mapping of product codes to their metadata
-type SoftwareInventoryMap map[string]SoftwareInventoryMetadata
-
-
 // SysProbeClient is an interface for the sysprobeclient used for dependency injection and testing.
 type SysProbeClient interface {
-	GetCheck(module types.ModuleName) (SoftwareInventoryMap, error)
+	GetCheck(module types.ModuleName) ([]winsoftware.SoftwareEntry, error)
 }
 
 // sysProbeClientWrapper wraps the real sysprobeclient.CheckClient to implement SysProbeClient.
@@ -56,8 +50,8 @@ type sysProbeClientWrapper struct {
 	client *sysprobeclient.CheckClient
 }
 
-func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) (SoftwareInventoryMap, error) {
-	return sysprobeclient.GetCheck[SoftwareInventoryMap](w.client, module)
+func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]winsoftware.SoftwareEntry, error) {
+	return sysprobeclient.GetCheck[[]winsoftware.SoftwareEntry](w.client, module)
 }
 
 // inventorySoftware is the implementation of the Component interface.
@@ -66,7 +60,7 @@ type inventorySoftware struct {
 
 	log             log.Component
 	sysProbeClient  SysProbeClient
-	cachedInventory []*SoftwareMetadata
+	cachedInventory []SoftwareMetadata
 }
 
 // Dependencies is the dependencies for the inventory software component.
@@ -118,19 +112,13 @@ func New(deps Dependencies) Provides {
 
 func (is *inventorySoftware) refreshCachedValues() error {
 	is.log.Infof("Collecting Software Inventory")
-	is.cachedInventory = nil
 
 	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.InventorySoftwareModule)
 	if err != nil {
 		return is.log.Errorf("error getting software inventory: %v", err)
 	}
 
-	for productCode, metadata := range installedSoftware {
-		is.cachedInventory = append(is.cachedInventory, &SoftwareMetadata{
-			ProductCode: productCode,
-			Metadata:    metadata,
-		})
-	}
+	is.cachedInventory = installedSoftware
 
 	return nil
 }
