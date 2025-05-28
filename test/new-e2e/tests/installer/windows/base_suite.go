@@ -274,6 +274,8 @@ func (s *BaseSuite) startExperimentPreviousVersion() (string, error) {
 
 // MustStartExperimentPreviousVersion starts an experiment with the previous version of the Agent
 func (s *BaseSuite) MustStartExperimentPreviousVersion() {
+	s.T().Helper()
+
 	// Arrange
 	agentVersion := s.StableAgentVersion().Version()
 
@@ -306,6 +308,8 @@ func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
+	s.T().Helper()
+
 	// Arrange
 	agentVersion := s.CurrentAgentVersion().Version()
 
@@ -330,6 +334,8 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 
 // AssertSuccessfulAgentStartExperiment that experiment started successfully
 func (s *BaseSuite) AssertSuccessfulAgentStartExperiment(version string) {
+	s.T().Helper()
+
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
@@ -343,6 +349,8 @@ func (s *BaseSuite) AssertSuccessfulAgentStartExperiment(version string) {
 
 // AssertSuccessfulAgentPromoteExperiment that experiment was promoted successfully
 func (s *BaseSuite) AssertSuccessfulAgentPromoteExperiment(version string) {
+	s.T().Helper()
+
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
@@ -380,6 +388,8 @@ func (s *BaseSuite) WaitForServicesWithBackoff(state string, b backoff.BackOff, 
 
 // AssertSuccessfulConfigStartExperiment that config experiment started successfully
 func (s *BaseSuite) AssertSuccessfulConfigStartExperiment(configID string) {
+	s.T().Helper()
+
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
@@ -391,6 +401,8 @@ func (s *BaseSuite) AssertSuccessfulConfigStartExperiment(configID string) {
 
 // AssertSuccessfulConfigPromoteExperiment that config experiment was promoted successfully
 func (s *BaseSuite) AssertSuccessfulConfigPromoteExperiment(configID string) {
+	s.T().Helper()
+
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
@@ -403,6 +415,8 @@ func (s *BaseSuite) AssertSuccessfulConfigPromoteExperiment(configID string) {
 
 // AssertSuccessfulConfigStopExperiment that config experiment was stopped successfully
 func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
+	s.T().Helper()
+
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
