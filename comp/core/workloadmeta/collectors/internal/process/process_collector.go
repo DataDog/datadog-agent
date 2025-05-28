@@ -17,15 +17,16 @@ import (
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	collectorID       = "process-collector"
-	componentName     = "workloadmeta-process"
-	cacheValidityNoRT = 2 * time.Second
+	collectorID   = "process-collector"
+	componentName = "workloadmeta-process"
 )
 
 type collector struct {
@@ -44,22 +45,21 @@ type Event struct {
 	Deleted []*workloadmeta.Process
 }
 
-func newProcessCollector(id string, store workloadmeta.Component, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, processEventsCh chan *Event, lastCollectedProcesses map[int32]*procutil.Process) collector {
+func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe) collector {
 	return collector{
 		id:                     id,
-		store:                  store,
 		catalog:                catalog,
 		clock:                  clock,
 		processProbe:           processProbe,
-		processEventsCh:        processEventsCh,
-		lastCollectedProcesses: lastCollectedProcesses,
+		processEventsCh:        make(chan *Event),
+		lastCollectedProcesses: make(map[int32]*procutil.Process),
 	}
 }
 
 // NewProcessCollectorProvider returns a new process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewProcessCollectorProvider() (workloadmeta.CollectorProvider, error) {
-	collector := newProcessCollector(collectorID, nil, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), make(chan *Event), make(map[int32]*procutil.Process))
+	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe())
 	return workloadmeta.CollectorProvider{
 		Collector: &collector,
 	}, nil
@@ -87,9 +87,11 @@ func (c *collector) collectionIntervalConfig() time.Duration {
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	enabled := c.isEnabled()
+	if !util.ProcessLanguageCollectorIsEnabled() {
+		return errors.NewDisabled(componentName, "process collection is disabled")
+	}
 
-	if enabled {
+	if c.isEnabled() {
 		c.store = store
 		go c.collect(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
 		go c.stream(ctx)
@@ -100,7 +102,14 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 // processCacheDifference returns new processes that exist in procCacheA and not in procCacheB
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
-	var newProcs []*procutil.Process
+	// attempt to pre-allocate right slice size to reduce number of slice growths
+	diffSize := 0
+	if len(procCacheA) > len(procCacheB) {
+		diffSize = len(procCacheA) - len(procCacheB)
+	} else {
+		diffSize = len(procCacheB) - len(procCacheA)
+	}
+	newProcs := make([]*procutil.Process, 0, diffSize)
 	for pid, procA := range procCacheA {
 		procB, exists := procCacheB[pid]
 
@@ -124,7 +133,7 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 	for {
 		select {
 		case <-collectionTicker.C:
-			// Fetch process data and submit events to streaming channel for asynchronous processing
+			// fetch process data and submit events to streaming channel for asynchronous processing
 			procs, err := c.processProbe.ProcessesByPID(time.Now(), false)
 			if err != nil {
 				log.Errorf("Error getting processes by pid: %v", err)
@@ -133,15 +142,15 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 
 			// categorize the processes into events for workloadmeta
 			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-			var wlmCreatedProcs []*workloadmeta.Process
-			for _, proc := range createdProcs {
-				wlmCreatedProcs = append(wlmCreatedProcs, processToWorkloadMetaProcess(proc))
+			wlmCreatedProcs := make([]*workloadmeta.Process, len(createdProcs))
+			for i, proc := range createdProcs {
+				wlmCreatedProcs[i] = processToWorkloadMetaProcess(proc)
 			}
 
 			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
-			var wlmDeletedProcs []*workloadmeta.Process
-			for _, proc := range deletedProcs {
-				wlmDeletedProcs = append(wlmDeletedProcs, processToWorkloadMetaProcess(proc))
+			wlmDeletedProcs := make([]*workloadmeta.Process, len(deletedProcs))
+			for i, proc := range deletedProcs {
+				wlmDeletedProcs[i] = processToWorkloadMetaProcess(proc)
 			}
 
 			// send these events to the channel
@@ -169,7 +178,7 @@ func (c *collector) stream(ctx context.Context) {
 		case <-healthCheck.C:
 
 		case processEvent := <-c.processEventsCh:
-			var events []workloadmeta.CollectorEvent
+			events := make([]workloadmeta.CollectorEvent, 0, len(processEvent.Deleted)+len(processEvent.Created))
 			for _, proc := range processEvent.Deleted {
 				events = append(events, workloadmeta.CollectorEvent{
 					Type:   workloadmeta.EventTypeUnset,
@@ -191,7 +200,7 @@ func (c *collector) stream(ctx context.Context) {
 		case <-ctx.Done():
 			err := healthCheck.Deregister()
 			if err != nil {
-				log.Warnf("error de-registering health check: %s", err)
+				log.Infof("error de-registering health check: %s", err)
 			}
 			return
 		}

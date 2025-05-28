@@ -48,8 +48,7 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 
 	mockClock := clock.NewMock()
 	mockProbe := mocks.NewProbe(t)
-	processEventCh := make(chan *Event)
-	processCollector := newProcessCollector(collectorID, mockStore, workloadmeta.NodeAgent, mockClock, mockProbe, processEventCh, make(map[int32]*procutil.Process))
+	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe)
 
 	return collectorTest{&processCollector, mockProbe, mockClock, mockStore}
 }
@@ -213,14 +212,12 @@ func TestCreatedProcessesCollection(t *testing.T) {
 					assert.Equal(cT, expectedProc, actualProc)
 				}
 			}, time.Second, time.Millisecond*100)
-
 		})
 	}
 }
 
 // TestCreatedProcessesCollection tests the collector capturing lifecycle of a process (creation, deletion)
 func TestProcessLifecycleCollection(t *testing.T) {
-
 	collectionInterval := time.Second * 10
 	creationTime1 := time.Now().Unix()
 	pid1 := int32(1234)
