@@ -39,7 +39,9 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 	}
 
 	cw.Buffer.Write(p)
-	payload := cw.Buffer.Bytes()
+	// Copy to prevent race condition
+	payload := make([]byte, cw.Buffer.Len())
+	copy(payload, cw.Buffer.Bytes())
 	cw.Buffer.Reset()
 
 	parts := splitJSONBytes(payload)
