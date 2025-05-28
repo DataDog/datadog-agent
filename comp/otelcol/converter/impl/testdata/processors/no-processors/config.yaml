@@ -23,7 +23,7 @@ service:
             receivers: [nop]
             exporters: [datadog]
         metrics:
-            receivers: [nop/user-defined]
+            receivers: [nop]
             exporters: [datadog]
         logs:
             receivers: [nop]

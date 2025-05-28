@@ -27,7 +27,7 @@ service:
             processors: [k8sattributes]
             exporters: [datadog]
         metrics:
-            receivers: [nop/user-defined]
+            receivers: [nop]
             processors: [k8sattributes]
             exporters: [datadog]
         logs:
