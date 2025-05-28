@@ -7,6 +7,8 @@ package info
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -126,7 +128,7 @@ func testServerError(t *testing.T) *httptest.Server {
 
 // run this at the beginning of each test, this is because we *really*
 // need to have InitInfo be called before doing anything
-func testInit(t *testing.T) *config.AgentConfig {
+func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	assert := assert.New(t)
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "key1"
@@ -138,7 +140,18 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf.EVPProxy.AdditionalEndpoints = clearAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
 	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
-	assert.NotNil(conf)
+
+	// creating in-memory auth artifacts
+	conf.AuthToken = "fake-auth-token"
+	// If a serverConfig is provided, we need to add the server's certificate to the client config
+	if serverConfig != nil {
+		assert.NotNil(serverConfig.Certificates[0].Leaf)
+		certPool := x509.NewCertPool()
+		certPool.AddCert(serverConfig.Certificates[0].Leaf)
+		conf.IPCTLSClientConfig = &tls.Config{
+			RootCAs: certPool,
+		}
+	}
 
 	err := InitInfo(conf)
 	assert.NoError(err)
@@ -148,12 +161,12 @@ func testInit(t *testing.T) *config.AgentConfig {
 
 func TestInfo(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServer(t, "./testdata/okay.json")
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -180,12 +193,12 @@ func TestInfo(t *testing.T) {
 
 func TestProbabilisticSampler(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServer(t, "./testdata/psp.json")
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -212,7 +225,7 @@ func TestProbabilisticSampler(t *testing.T) {
 
 func TestHideAPIKeys(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 
 	js := expvar.Get("config").String()
 	assert.NotEqual("", js)
@@ -225,12 +238,12 @@ func TestHideAPIKeys(t *testing.T) {
 
 func TestWarning(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServerWarning(t)
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -258,11 +271,11 @@ func TestWarning(t *testing.T) {
 
 func TestNotRunning(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServer(t, "./testdata/okay.json")
 	assert.NotNil(server)
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -298,12 +311,12 @@ func TestNotRunning(t *testing.T) {
 
 func TestError(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServerError(t)
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -338,7 +351,7 @@ func TestError(t *testing.T) {
 
 func TestInfoReceiverStats(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
 	stats := NewReceiverStats()
@@ -406,7 +419,7 @@ func TestInfoReceiverStats(t *testing.T) {
 
 func TestInfoConfig(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
 	js := expvar.Get("config").String() // this is what expvar will call
@@ -430,6 +443,10 @@ func TestInfoConfig(t *testing.T) {
 	conf.DebuggerProxy.APIKey = ""
 	assert.Equal("", confCopy.DebuggerDiagnosticsProxy.APIKey, "Debugger Diagnostics Proxy API Key should *NEVER* be exported")
 	conf.DebuggerDiagnosticsProxy.APIKey = ""
+	// IPC Auth data should not be exposed
+	conf.AuthToken = ""
+	conf.IPCTLSClientConfig = nil
+	conf.IPCTLSServerConfig = nil
 
 	// Any key-like data should scrubbed
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
@@ -579,7 +596,7 @@ func TestPublishWatchdogInfo(t *testing.T) {
 
 func TestScrubCreds(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
 	confExpvar := expvar.Get("config").String()

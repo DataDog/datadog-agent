@@ -7,6 +7,7 @@ package workloadmeta
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -15,7 +16,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -54,12 +55,12 @@ var (
 )
 
 // NewGRPCServer creates a new instance of a GRPCServer
-func NewGRPCServer(config pkgconfigmodel.Reader, extractor *WorkloadMetaExtractor) *GRPCServer {
+func NewGRPCServer(config pkgconfigmodel.Reader, extractor *WorkloadMetaExtractor, tlsConfig *tls.Config) *GRPCServer {
 	l := &GRPCServer{
 		config:    config,
 		extractor: extractor,
 		server: grpc.NewServer(
-			grpc.Creds(insecure.NewCredentials()),
+			grpc.Creds(credentials.NewTLS(tlsConfig)),
 			grpc.KeepaliveParams(keepalive.ServerParameters{
 				Time: keepaliveInterval,
 			}),

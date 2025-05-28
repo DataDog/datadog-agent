@@ -18,8 +18,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -63,23 +65,19 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					),
 					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
 }
 
-func autoscalerList(_ log.Component, config config.Component, _ *cliParams) error {
-	// Set session token
-	if err := util.SetAuthToken(config); err != nil {
-		return err
-	}
-
+func autoscalerList(_ log.Component, config config.Component, client ipc.HTTPClient, _ *cliParams) error {
 	url, err := getAutoscalerURL(config)
 	if err != nil {
 		return err
 	}
 
-	return getAutoscalerList(color.Output, url)
+	return getAutoscalerList(client, color.Output, url)
 }
 
 func getAutoscalerURL(config config.Component) (string, error) {
@@ -98,11 +96,9 @@ func getAutoscalerURL(config config.Component) (string, error) {
 	return urlstr, nil
 }
 
-func getAutoscalerList(w io.Writer, url string) error {
-	c := util.GetClient()
-
+func getAutoscalerList(client ipc.HTTPClient, w io.Writer, url string) error {
 	// get the autoscaler-list from server
-	r, err := util.DoGet(c, url, util.LeaveConnectionOpen)
+	r, err := client.Get(url, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while getting autoscaler list: %s", string(r))
