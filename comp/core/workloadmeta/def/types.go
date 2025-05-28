@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
@@ -1520,6 +1521,48 @@ func (gcc GPUComputeCapability) String() string {
 // Service represents a Service process
 type Service struct {
 	EntityID // EntityID.ID is the PID
+
+	// Name is the service name (can be set from DD_SERVICE, container tags, etc.)
+	Name string
+
+	// GeneratedName is the name generated from the process info
+	GeneratedName string
+
+	// GeneratedNameSource indicates the source of the generated name
+	GeneratedNameSource string
+
+	// AdditionalGeneratedNames contains other potential names for the service
+	AdditionalGeneratedNames []string
+
+	// TracerMetadata contains APM tracer metadata
+	TracerMetadata []tracermetadata.TracerMetadata
+
+	// DDService is the value from DD_SERVICE environment variable
+	DDService string
+
+	// DDServiceInjected indicates if DD_SERVICE was injected
+	DDServiceInjected bool
+
+	// Ports is the list of ports the service is listening on
+	Ports []uint16
+
+	// APMInstrumentation indicates the APM instrumentation status
+	APMInstrumentation string
+
+	// Language is the programming language of the service
+	Language string
+
+	// Type is the service type (e.g., "web_service")
+	Type string
+
+	// CommandLine contains the command line arguments
+	CommandLine []string
+
+	// StartTimeMilli is the service start time in milliseconds since epoch
+	StartTimeMilli uint64
+
+	// LastHeartbeat is the timestamp of the last heartbeat update (Unix seconds)
+	LastHeartbeat int64
 }
 
 // GetID implements Entity#GetID.
