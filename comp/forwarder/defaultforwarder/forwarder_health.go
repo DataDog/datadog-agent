@@ -194,7 +194,7 @@ func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []stri
 	fh.keyMapMutex.Unlock()
 
 	// Check our new API keys
-	fh.checkValidAPIKeys(apiDomain, newList)
+	fh.checkValidAPIKeys(apiDomain, new)
 }
 
 func getAPIDomain(domain string) string {

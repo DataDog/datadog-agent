@@ -25,6 +25,8 @@ import (
 // DestinationType is used to identified the expected endpoint
 type DestinationType int
 
+// ForwarderHealth interface is implemented by the health checker. The resolver
+// uses this method to inform the healthchecker when API keys have been updated.
 type ForwarderHealth interface {
 	UpdateAPIKeys(domain string, old []string, new []string)
 }
@@ -564,5 +566,5 @@ func (r *LocalDomainResolver) GetForwarderHealth() ForwarderHealth {
 
 // SetForwarderHealth sets the health checker for this domain
 // Not used for LocalDomainResolver
-func (r *LocalDomainResolver) SetForwarderHealth(healthChecker ForwarderHealth) {
+func (r *LocalDomainResolver) SetForwarderHealth(_ ForwarderHealth) {
 }
