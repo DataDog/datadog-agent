@@ -112,7 +112,7 @@ func getEndpointsInfo(cfg model.Reader) []endpointInfo {
 
 		// v2 endpoints
 		{endpoints.SeriesEndpoint, "POST", emptyPayload, jsonCT},
-		{endpoints.SketchSeriesEndpoint, "POST", sketchPayload, protoCT}, // <- this is the critical change
+		{endpoints.SketchSeriesEndpoint, "POST", sketchPayload, protoCT},
 
 		// Flare endpoint
 		{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil, jsonCT},
