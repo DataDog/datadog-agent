@@ -37,6 +37,7 @@ import (
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/daemonchecker/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -142,6 +143,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		rdnsquerierfx.Module(),
 
 		installerexec.Module(),
+		daemoncheckerfx.Module(),
 		fleetfx.Module(),
 
 		// Provide network path bundle
