@@ -114,8 +114,8 @@ instances:
     #
     collect_device_metadata: "%%extra_collect_device_metadata%%"
 
-    ## @param collect_topology - boolean - optional - default: true
-    ## Enable collection of topology data.
+    ## @param collect_topology - boolean - optional - default: false
+    ## Enabled collection of topology data.
     #
     collect_topology: "%%extra_collect_topology%%"
 
