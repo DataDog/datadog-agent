@@ -46,13 +46,8 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 
 	// Send each message as a separate log entry
 	for _, msg := range parts {
-		trimmed := bytes.TrimSpace(msg)
-		if len(trimmed) == 0 {
-			continue
-		}
-
 		channelMessage := &logConfig.ChannelMessage{
-			Content: trimmed,
+			Content: msg,
 			IsError: cw.IsError,
 		}
 
