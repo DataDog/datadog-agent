@@ -14,11 +14,11 @@
             </span>
         {{- end }}
     {{ end }}
-    <hr>
+  </span>
     {{- with .registeredAgentStatuses }}
         {{- range $agentStatus := . }}
             {{- with $agentStatus }}
-                <span class="stat_subtitle">
+                <span class="stat_title">
                     {{ .DisplayName }}
                 </span>
             <span class="stat_subdata">
@@ -45,5 +45,4 @@
             {{- end }}
         {{- end }}
     {{- end -}}
-  </span>
 </div>
