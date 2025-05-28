@@ -582,6 +582,14 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			err := json.Unmarshal(out, &result)
 			require.NoError(t, err)
 			assert.Equal(t, string(result.Configs[0].Config.Instances[0]), tc.expectedResult)
+
+			// Check also that the unresolved configs are returned
+			var unresolved []integration.Config
+			for _, config := range result.Unresolved {
+				unresolved = append(unresolved, config)
+			}
+			require.Len(t, unresolved, 1)
+			assert.Equal(t, tc.expectedResult, string(unresolved[0].Instances[0]))
 		})
 	}
 }
