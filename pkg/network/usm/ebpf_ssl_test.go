@@ -10,7 +10,6 @@ package usm
 import (
 	"context"
 	"fmt"
-
 	"os/exec"
 	"path/filepath"
 	"runtime"
