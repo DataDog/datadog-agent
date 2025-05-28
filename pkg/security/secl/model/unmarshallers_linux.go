@@ -1504,3 +1504,20 @@ func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	return cursor, nil
 }
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 20 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Resource = int(binary.NativeEndian.Uint32(data[read : read+4]))
+	e.RlimCur = binary.NativeEndian.Uint64(data[read+4 : read+12])
+	e.RlimMax = binary.NativeEndian.Uint64(data[read+12 : read+20])
+	return read + 20, nil
+}

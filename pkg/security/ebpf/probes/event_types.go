@@ -168,6 +168,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setresgid", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setresgid16", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "capset", fentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setrlimit", fentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prlimit64", fentry, EntryAndExit)},
 
 			// File Attributes
 			kprobeOrFentry("security_inode_setattr"),
@@ -529,6 +531,11 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					},
 				},
 				kprobeOrFentry("proc_sys_call_handler"),
+			}},
+		},
+		"setrlimit": {
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("do_prlimit"),
 			}},
 		},
 	}

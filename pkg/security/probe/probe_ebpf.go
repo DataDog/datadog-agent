@@ -1424,6 +1424,16 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode sysctl event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.SetrlimitEventType:
+		if _, err = event.Setrlimit.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode setrlimit event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		seclog.Debugf(" sarra setrlimit event received: resource=%d rlim_cur=%d rlim_max=%d retval=%d",
+			event.Setrlimit.Resource,
+			event.Setrlimit.RlimCur,
+			event.Setrlimit.RlimMax,
+			event.Setrlimit.SyscallEvent.Retval)
 	}
 
 	// resolve the container context
