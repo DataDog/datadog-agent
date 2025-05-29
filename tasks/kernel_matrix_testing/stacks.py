@@ -147,7 +147,7 @@ def check_user_in_group(ctx: Context, group: str) -> bool:
 
 def check_user_in_kvm(ctx: Context) -> None:
     if not check_user_in_group(ctx, "kvm"):
-        error("You must add user '{getpass.getuser()}' to group 'kvm'")
+        error(f"You must add user '{getpass.getuser()}' to group 'kvm'")
         raise Exit("User '{getpass.getuser()}' not in group 'kvm'")
 
     info(f"[+] User '{getpass.getuser()}' in group 'kvm'")
@@ -155,7 +155,7 @@ def check_user_in_kvm(ctx: Context) -> None:
 
 def check_user_in_libvirt(ctx: Context) -> None:
     if not check_user_in_group(ctx, "libvirt"):
-        error("You must add user '{getpass.getuser()}' to group 'libvirt'")
+        error(f"You must add user '{getpass.getuser()}' to group 'libvirt'")
         raise Exit("User '{getpass.getuser()}' not in group 'libvirt'")
 
     info(f"[+] User '{getpass.getuser()}' in group 'libvirt'")

@@ -1,0 +1,19 @@
+name: test devcontainer update
+
+on:
+  pull_request:
+    branches:
+    - main
+    paths:
+    - .gitlab-ci.yml
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    uses: ./.github/workflows/test-devcontainer.yml
+    if: github.actor == 'renovate[bot]'

@@ -267,7 +267,8 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 		} else {
 			int63 = rd.Int63n(int64(r.refreshInterval))
 		}
-		r.scatterDuration = time.Duration(int63) / time.Second * time.Second
+		// Scatter when the refresh happens within the interval, with a minimum of 1 second
+		r.scatterDuration = time.Duration(int63) + time.Second
 		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
 	} else {
 		r.scatterDuration = r.refreshInterval
@@ -707,9 +708,9 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 
 	fmt.Fprintf(w, "\n")
 	if r.refreshInterval > 0 {
-		fmt.Fprintf(w, "'secret_refresh interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
+		fmt.Fprintf(w, "'secret_refresh_interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
 	} else {
-		fmt.Fprintf(w, "'secret_refresh interval' is disabled\n")
+		fmt.Fprintf(w, "'secret_refresh_interval' is disabled\n")
 	}
 
 }

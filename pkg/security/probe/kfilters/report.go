@@ -28,7 +28,8 @@ type ApproverReport struct {
 
 // FilterReport describes the event types and their associated policy policies
 type FilterReport struct {
-	ApproverReports map[eval.EventType]*ApproverReport `json:"approvers"`
+	ApproverReports  map[eval.EventType]*ApproverReport `json:"approvers,omitempty"`
+	DiscardersReport *rules.DiscardersReport            `json:"discarders,omitempty"`
 }
 
 // MarshalJSON marshals the FilterReport to JSON
@@ -47,9 +48,11 @@ func (r *FilterReport) MarshalJSON() ([]byte, error) {
 	}
 
 	report := struct {
-		ApproverReports map[eval.EventType]json.RawMessage `json:"approvers"`
+		ApproverReports  map[eval.EventType]json.RawMessage `json:"approvers,omitempty"`
+		DiscardersReport *rules.DiscardersReport            `json:"discarders,omitempty"`
 	}{
-		ApproverReports: approverReports,
+		ApproverReports:  approverReports,
+		DiscardersReport: r.DiscardersReport,
 	}
 
 	return json.Marshal(report)
@@ -61,8 +64,7 @@ func (r *FilterReport) String() string {
 	return string(content)
 }
 
-// NewFilterReport returns a new FilterReport
-func NewFilterReport(config *config.Config, rs *rules.RuleSet) (*FilterReport, error) {
+func getApproverReports(config *config.Config, rs *rules.RuleSet) (map[eval.EventType]*ApproverReport, error) {
 	approverReports := make(map[eval.EventType]*ApproverReport)
 
 	// We need to call the approver detection even when approvers aren't enabled as it may have impact on some rule flags and
@@ -103,5 +105,20 @@ func NewFilterReport(config *config.Config, rs *rules.RuleSet) (*FilterReport, e
 		}
 	}
 
-	return &FilterReport{ApproverReports: approverReports}, nil
+	return approverReports, nil
+}
+
+// ComputeFilters computes the approver and discarder and returns a FilterReport
+func ComputeFilters(config *config.Config, rs *rules.RuleSet) (*FilterReport, error) {
+	approverReports, err := getApproverReports(config, rs)
+	if err != nil {
+		return nil, err
+	}
+
+	discarderReport, err := rs.GetDiscardersReport()
+	if err != nil {
+		return nil, err
+	}
+
+	return &FilterReport{ApproverReports: approverReports, DiscardersReport: discarderReport}, nil
 }

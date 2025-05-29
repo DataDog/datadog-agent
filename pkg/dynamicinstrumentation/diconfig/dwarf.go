@@ -15,6 +15,7 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
@@ -22,6 +23,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+type seenType struct {
+	offset dwarf.Offset
+	count  uint8
+}
 
 func getTypeMap(dwarfData *dwarf.Data, targetFunctions map[string]bool) (*ditypes.TypeMap, error) {
 	return loadFunctionDefinitions(dwarfData, targetFunctions)
@@ -174,7 +180,7 @@ entryLoop:
 					return nil, err
 				}
 				// Initialize seenTypes map for this specific top-level type expansion.
-				seenTypes := make(map[dwarf.Offset]uint8)
+				seenTypes := make(map[dwarf.Offset]*seenType)
 				typeFields, err = expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
 				if err != nil {
 					return nil, fmt.Errorf("error while parsing debug information: %w", err)
@@ -203,26 +209,28 @@ entryLoop:
 // expandTypeData recursively expands DWARF type information starting from a given offset.
 // It handles basic types, structs, arrays, pointers, and typedefs.
 // It handles logic for cycle/depth detection.
-func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]uint8) (*ditypes.Parameter, error) {
-	seenTypes[offset]++
-	if seenTypes[offset] > 4 {
-		seenTypes[offset]--
-		if seenTypes[offset] == 0 {
-			delete(seenTypes, offset)
+func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*seenType) (*ditypes.Parameter, error) {
+	seenEntry, ok := seenTypes[offset]
+	if !ok {
+		seenEntry = &seenType{
+			offset: offset,
 		}
+		seenTypes[offset] = seenEntry
+	}
+	seenEntry.count++
+	if seenEntry.count > 4 {
 		return &ditypes.Parameter{Type: "<cycle/depth limit>"}, nil
 	}
 
 	// Ensure the count is decremented when this function returns
 	defer func() {
-		seenTypes[offset]--
-		if seenTypes[offset] == 0 {
+		seenEntry.count--
+		if seenEntry.count == 0 {
 			delete(seenTypes, offset)
 		}
 	}()
 
 	typeReader := dwarfData.Reader()
-
 	typeReader.Seek(offset)
 	typeEntry, err := typeReader.Next()
 	if err != nil || typeEntry == nil {
@@ -236,9 +244,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dw
 	}
 
 	if typeEntry.Tag == dwarf.TagTypedef {
-		// Initialize seen map for this specific typedef resolution chain
-		seenTypedefOffsets := make(map[dwarf.Offset]bool)
-		typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader, seenTypedefOffsets)
+		typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader, seenTypes)
 		if err != nil {
 			log.Errorf("error while resolving typedef at offset %x: %s", offset, err)
 			return nil, err
@@ -278,7 +284,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dw
 		typeHeader.ParameterPieces = pointerElements
 		// pointers have a unique ID so we only capture the address once when generating
 		// location expressions
-		typeHeader.ID = randomLabel()
+		typeHeader.ID = strconv.Itoa(int(randomLabel()))
 	}
 
 	return &typeHeader, nil
@@ -286,7 +292,7 @@ func expandTypeData(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dw
 
 // getIndividualArrayElements expands information about array types, including element type and length.
 // It recursively calls expandTypeData for the element type, passing the seenTypes map for cycle/depth detection.
-func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]uint8) ([]*ditypes.Parameter, error) {
+func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*seenType) ([]*ditypes.Parameter, error) {
 	log.Infof("Starting getIndividualArrayElements for offset %x", offset)
 	savedArrayEntryOffset := offset
 	typeReader := dwarfData.Reader()
@@ -312,9 +318,7 @@ func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data, seen
 		elementFields = resolveUnsupportedEntry(underlyingType)
 		elementTypeName, elementTypeSize, elementTypeKind = getTypeEntryBasicInfo(underlyingType)
 	} else {
-		// Initialize seen map for this specific typedef resolution chain
-		seenTypedefOffsets := make(map[dwarf.Offset]bool)
-		arrayElementTypeEntry, err := resolveTypedefToRealType(underlyingType, typeReader, seenTypedefOffsets)
+		arrayElementTypeEntry, err := resolveTypedefToRealType(underlyingType, typeReader, seenTypes)
 		if err != nil {
 			return nil, err
 		}
@@ -364,7 +368,7 @@ func getIndividualArrayElements(offset dwarf.Offset, dwarfData *dwarf.Data, seen
 
 // getStructFields expands information about struct types, collecting information about each field.
 // It recursively calls expandTypeData for field types, passing the seenTypes map for cycle/depth detection.
-func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]uint8) ([]*ditypes.Parameter, error) {
+func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*seenType) ([]*ditypes.Parameter, error) {
 	inOrderReader := dwarfData.Reader()
 	typeReader := dwarfData.Reader()
 
@@ -415,9 +419,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[d
 				}
 
 				if typeEntry.Tag == dwarf.TagTypedef {
-					// Initialize seen map for this specific typedef resolution chain
-					seenTypedefOffsets := make(map[dwarf.Offset]bool)
-					typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader, seenTypedefOffsets)
+					typeEntry, err = resolveTypedefToRealType(typeEntry, typeReader, seenTypes)
 					if err != nil {
 						return []*ditypes.Parameter{}, err
 					}
@@ -433,14 +435,6 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[d
 					field, err := expandTypeData(typeEntry.Offset, dwarfData, seenTypes)
 					if err != nil {
 						return []*ditypes.Parameter{}, err
-					}
-					// Check if the returned field *is* the cycle/depth limit marker
-					if field != nil && field.Type == "<cycle/depth limit>" {
-						log.Warnf("Skipping field expansion for '%s' due to cycle/depth limit detected at DWARF offset %x", newStructField.Name, typeEntry.Offset)
-						// Append the marker itself, but ensure Name is set
-						field.Name = newStructField.Name
-						structFields = append(structFields, field)
-						continue
 					}
 					if field == nil {
 						log.Errorf("expandTypeData returned nil without error for offset %x, skipping field %s", typeEntry.Offset, newStructField.Name)
@@ -460,7 +454,7 @@ func getStructFields(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[d
 // getPointerLayers is used to populate the underlying type of pointers. The returned slice of parameters
 // would contain a single element which represents the entire type tree that the pointer points to.
 // It recursively calls expandTypeData for the pointed-to type, passing the seenTypes map for cycle/depth detection.
-func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]uint8) ([]*ditypes.Parameter, error) {
+func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[dwarf.Offset]*seenType) ([]*ditypes.Parameter, error) {
 	typeReader := dwarfData.Reader()
 	typeReader.Seek(offset)
 	pointerEntry, err := typeReader.Next()
@@ -484,20 +478,13 @@ func getPointerLayers(offset dwarf.Offset, dwarfData *dwarf.Data, seenTypes map[
 		}
 	}
 
-	// Check if underlyingTypeParam is nil OR the cycle/depth marker
+	// Check if underlyingTypeParam is nil
 	if underlyingTypeParam == nil {
 		log.Errorf("expandTypeData returned nil without error for pointer base type at offset %x", offset) // Assuming offset is the pointer offset
 		// Return empty slice, indicating pointer to unknown/error type
 		return []*ditypes.Parameter{}, nil
 	}
 
-	// If it's the cycle/depth marker, return it directly within the slice
-	if underlyingTypeParam.Type == "<cycle/depth limit>" {
-		log.Warnf("Pointer points to a type that reached cycle/depth limit at offset %x", offset) // Assuming offset is the pointer offset
-		return []*ditypes.Parameter{underlyingTypeParam}, nil
-	}
-
-	// If underlyingType is valid (and not a cycle/depth marker), return it
 	return []*ditypes.Parameter{underlyingTypeParam}, nil
 }
 
@@ -559,32 +546,30 @@ func followType(outerType *dwarf.Entry, reader *dwarf.Reader) (*dwarf.Entry, err
 // which points to the actual type, which is what this function 'resolves'.
 // Typedef's are used in for structs, pointers, maps, and likely other types.
 // seenOffsets tracks offsets visited in *this specific resolution chain* to detect cycles.
-func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader, seenOffsets map[dwarf.Offset]bool) (*dwarf.Entry, error) {
-	if outerType.Tag == dwarf.TagTypedef {
-		// Check if we've already seen this offset in the current resolution path
-		if seenOffsets[outerType.Offset] {
-			log.Infof("Typedef cycle detected at offset %x", outerType.Offset)
-			return nil, errors.New("typedef cycle detected")
-		}
-		// Mark current offset as seen for this path
-		seenOffsets[outerType.Offset] = true
+func resolveTypedefToRealType(outerType *dwarf.Entry, reader *dwarf.Reader, seenOffsets map[dwarf.Offset]*seenType) (*dwarf.Entry, error) {
+	followedType := outerType
+	var err error
 
-		followedType, err := followType(outerType, reader)
+	for followedType.Tag == dwarf.TagTypedef {
+		seenEntry, ok := seenOffsets[followedType.Offset]
+		if !ok {
+			seenEntry = &seenType{
+				offset: followedType.Offset,
+			}
+			seenOffsets[followedType.Offset] = seenEntry
+		}
+		if seenEntry.count > 4 {
+			log.Infof("Typedef cycle detected at offset %x", followedType.Offset)
+			return outerType, nil
+		}
+		seenEntry.count++
+		followedType, err = followType(followedType, reader)
 		if err != nil {
-			delete(seenOffsets, outerType.Offset) // Unmark before returning error
+			log.Infof("Error following type at offset %x: %v", followedType.Offset, err)
 			return nil, err
 		}
-
-		// Recursively resolve, passing the *same* map
-		resolvedType, err := resolveTypedefToRealType(followedType, reader, seenOffsets)
-
-		// Unmark current offset as we backtrack
-		delete(seenOffsets, outerType.Offset)
-
-		return resolvedType, err
 	}
-
-	return outerType, nil
+	return followedType, nil
 }
 
 func copyTree(dst, src *[]*ditypes.Parameter) {

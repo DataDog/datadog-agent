@@ -69,10 +69,6 @@ func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {
 	return nil
 }
 
-func (n *noopAutoConfig) Start() {}
-
-func (n *noopAutoConfig) Stop() {}
-
 func (n *noopAutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}
 }

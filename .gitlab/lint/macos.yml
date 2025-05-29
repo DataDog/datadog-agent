@@ -20,7 +20,6 @@ lint_macos_gitlab_amd64:
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab
-  allow_failure: true
   rules:
     - !reference [.on_main]
     - !reference [.manual]

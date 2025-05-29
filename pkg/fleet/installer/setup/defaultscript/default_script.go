@@ -23,13 +23,14 @@ const (
 )
 
 var (
+	// We use major version tagging
 	defaultLibraryVersions = map[string]string{
-		common.DatadogAPMLibraryJavaPackage:   "1.47.3-1",
-		common.DatadogAPMLibraryRubyPackage:   "2.12.2-1",
-		common.DatadogAPMLibraryJSPackage:     "5.44.0-1",
-		common.DatadogAPMLibraryDotNetPackage: "3.13.0-1",
-		common.DatadogAPMLibraryPythonPackage: "3.2.1-1",
-		common.DatadogAPMLibraryPHPPackage:    "1.7.3-1",
+		common.DatadogAPMLibraryJavaPackage:   "1",
+		common.DatadogAPMLibraryRubyPackage:   "2",
+		common.DatadogAPMLibraryJSPackage:     "5",
+		common.DatadogAPMLibraryDotNetPackage: "3",
+		common.DatadogAPMLibraryPythonPackage: "3",
+		common.DatadogAPMLibraryPHPPackage:    "1",
 	}
 
 	fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)

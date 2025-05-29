@@ -51,6 +51,14 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 			(a.Set.Value != nil && a.Set.Expression != "") {
 			return errors.New("either 'value', 'field' or 'expression' must be specified")
 		}
+
+		if a.Set.Expression != "" && a.Set.DefaultValue == nil && a.Set.Value == nil {
+			return fmt.Errorf("failed to infer type for variable '%s', please set 'default_value'", a.Set.Name)
+		}
+
+		if a.Set.Inherited && a.Set.Scope != "process" {
+			return fmt.Errorf("only variables scoped to process can be marked as inherited")
+		}
 	} else if a.Kill != nil {
 		if opts.DisableEnforcement {
 			a.Kill = nil

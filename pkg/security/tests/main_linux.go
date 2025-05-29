@@ -108,6 +108,8 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestActionKillExcludeBinary",
 			"~TestActionKillDisarm",
 			"~TestProcessInterpreter",
+			"~TestConnectEvent/io-uring",
+			"TestAcceptEvent/accept-af-inet-any-tcp-success-sockaddrin-io-uring",
 		}
 
 		if disableSeccomp {
