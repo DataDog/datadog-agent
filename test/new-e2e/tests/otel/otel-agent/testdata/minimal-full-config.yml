@@ -151,6 +151,7 @@ receivers:
         write_timeout: 0s
   otlp/dd-autoconfigured:
     protocols:
+      grpc: null
       http:
         cors: {}
         endpoint: localhost:15678
