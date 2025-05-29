@@ -121,7 +121,7 @@ func TestCompileBPFProgram(t *testing.T) {
 		Types:       map[ir.TypeID]ir.Type{pointer.ID: pointer, pointee.ID: pointee},
 		MaxTypeID:   132,
 	}
-	obj, err := CompileBPFProgram(p)
+	obj, err := CompileBPFProgram(p, nil)
 	if err != nil {
 		t.Fatalf("Failed to compile BPF program: %v", err)
 	}
