@@ -1,5 +1,5 @@
 ad_identifiers:
-  - _dbm_postgres_aurora
+  - _dbm_postgres
 init_config:
 instances:
   ## @param host - string - optional
@@ -48,5 +48,6 @@ instances:
         enabled: "%%extra_managed_authentication_enabled%%"
 
     tags:
+      - "dbinstanceidentifier:%%extra_dbinstanceidentifier%%"
       - "dbclusteridentifier:%%extra_dbclusteridentifier%%"
       - "region:%%extra_region%%"
