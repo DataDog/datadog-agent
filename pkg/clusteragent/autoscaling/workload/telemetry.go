@@ -100,6 +100,15 @@ var (
 		"Tracks whether local fallback recommendations are being used",
 		commonOpts,
 	)
+
+	// telemetryMetricsForDeletion contains all gauge metrics that need to be cleaned up when deleting pod autoscaler telemetry
+	telemetryMetricsForDeletion = []telemetry.Gauge{
+		telemetryHorizontalScaleAppliedRecommendations,
+		telemetryHorizontalScaleReceivedRecommendations,
+		telemetryVerticalScaleReceivedRecommendationsLimits,
+		telemetryVerticalScaleReceivedRecommendationsRequests,
+		autoscalingStatusConditions,
+	}
 )
 
 func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
@@ -120,15 +129,7 @@ func deletePodAutoscalerTelemetry(ns, autoscalerName string) {
 		le.JoinLeaderLabel: le.JoinLeaderValue,
 	}
 
-	metrics := []telemetry.Gauge{
-		telemetryHorizontalScaleAppliedRecommendations,
-		telemetryHorizontalScaleReceivedRecommendations,
-		telemetryVerticalScaleReceivedRecommendationsLimits,
-		telemetryVerticalScaleReceivedRecommendationsRequests,
-		autoscalingStatusConditions,
-	}
-
-	for _, metric := range metrics {
+	for _, metric := range telemetryMetricsForDeletion {
 		metric.DeletePartialMatch(tags)
 	}
 }
