@@ -613,6 +613,12 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 	// Start the agent service to pick up the new config
 	err = winutil.RestartService("datadogagent")
 	if err != nil {
+		// Agent failed to start, restore stable config
+		restoreErr := restoreStableConfigFromExperiment(ctx)
+		if restoreErr != nil {
+			log.Error(restoreErr)
+			err = fmt.Errorf("%w, %w", err, restoreErr)
+		}
 		return fmt.Errorf("failed to start agent service: %w", err)
 	}
 
