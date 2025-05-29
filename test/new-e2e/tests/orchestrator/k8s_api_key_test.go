@@ -54,6 +54,7 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	suite.applySecret(namespace, secretName, map[string][]byte{"apikey": []byte(apiKeyNew)})
 
 	additionalapiKeyNew := "789012abcdefghijklmnopqrstuvwxyz"
+	suite.applySecret(namespace, secretName, map[string][]byte{"additionalapikey": []byte(additionalapiKeyNew)})
 
 	// verify that the new API key exists in the orchestrator resources payloads
 	suite.eventuallyHasExpectedAPIKey(additionalapiKeyNew)
