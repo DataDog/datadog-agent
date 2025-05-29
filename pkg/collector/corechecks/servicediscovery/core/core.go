@@ -98,14 +98,18 @@ func (i *ServiceInfo) ToModelService(pid int32, out *model.Service) *model.Servi
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=impl_mock_linux.go
 
+// TimeProvider defines an interface for getting the current time.
 type TimeProvider interface {
 	Now() time.Time
 }
 
+// RealTime provides the real system time.
 type RealTime struct{}
 
+// Now returns the current system time.
 func (RealTime) Now() time.Time { return time.Now() }
 
+// PidSet represents a set of process IDs.
 type PidSet map[int32]struct{}
 
 func (s PidSet) has(pid int32) bool {
@@ -121,6 +125,7 @@ func (s PidSet) remove(pid int32) {
 	delete(s, pid)
 }
 
+// Discovery represents the core service discovery functionality.
 type Discovery struct {
 	Config *DiscoveryConfig
 
@@ -346,6 +351,7 @@ func (c *Discovery) updateCacheInfo(response *model.ServicesResponse, now time.T
 	}
 }
 
+// GetServiceNameFromContainerTags extracts service name information from container tags.
 func GetServiceNameFromContainerTags(tags []string) (string, string) {
 	// The tags we look for service name generation, in their priority order.
 	// The map entries will be filled as we go through the containers tags.
@@ -401,6 +407,7 @@ func GetServiceNameFromContainerTags(tags []string) (string, string) {
 	return "", ""
 }
 
+// GetContainersMap returns a map of container information.
 func (c *Discovery) GetContainersMap() map[int]*workloadmeta.Container {
 	containers := c.WMeta.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 	containersMap := make(map[int]*workloadmeta.Container, len(containers))
@@ -458,6 +465,7 @@ func (c *Discovery) getProcessContainerInfo(pid int, containers map[int]*workloa
 	return containerID, tags, true
 }
 
+// EnrichContainerData adds container information to a service.
 func (c *Discovery) EnrichContainerData(service *model.Service, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) {
 	containerID, containerTags, ok := c.getProcessContainerInfo(service.PID, containers, containerTagsCache)
 	if !ok {
@@ -486,6 +494,7 @@ func (c *Discovery) EnrichContainerData(service *model.Service, containers map[i
 	}
 }
 
+// Close cleans up resources used by the Discovery instance.
 func (c *Discovery) Close() {
 	c.cleanCache(PidSet{})
 	if c.Network != nil {
@@ -516,6 +525,7 @@ func (c *Discovery) updateRSS(response *model.ServicesResponse) {
 	updateResponseRSS(response.HeartbeatServices)
 }
 
+// GetServices retrieves service information based on the provided parameters.
 func (c *Discovery) GetServices(params Params, pids []int32, context any, getService func(context any, pid int32) *model.Service) (*model.ServicesResponse, error) {
 	response := &model.ServicesResponse{
 		StartedServices:   make([]model.Service, 0, len(c.PotentialServices)),

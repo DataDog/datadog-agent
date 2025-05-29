@@ -560,14 +560,14 @@ func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error
 	return ports, nil
 }
 
-// addIgnoredPid store excluded pid.
-func (d *discovery) addIgnoredPid(pid int32) {
-	d.core.IgnorePids[pid] = struct{}{}
+// addIgnoredPid stores excluded pid.
+func (s *discovery) addIgnoredPid(pid int32) {
+	s.core.IgnorePids[pid] = struct{}{}
 }
 
 // shouldIgnorePid returns true if process should be excluded from handling.
-func (d *discovery) shouldIgnorePid(pid int32) bool {
-	_, found := d.core.IgnorePids[pid]
+func (s *discovery) shouldIgnorePid(pid int32) bool {
+	_, found := s.core.IgnorePids[pid]
 	return found
 }
 

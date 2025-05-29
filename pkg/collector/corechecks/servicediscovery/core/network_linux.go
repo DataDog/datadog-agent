@@ -7,6 +7,7 @@ package core
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=network_mock_linux.go
 
+// NetworkCollector defines the interface for collecting network statistics.
 type NetworkCollector interface {
 	Close()
 	AddPid(pid uint32) error

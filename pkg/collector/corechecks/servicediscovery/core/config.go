@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package core provides the core functionality for service discovery.
 package core
 
 import (
@@ -24,6 +25,7 @@ const (
 	MaxCommLen = 15
 )
 
+// DiscoveryConfig holds the configuration for service discovery.
 type DiscoveryConfig struct {
 	CPUUsageUpdateDelay time.Duration
 	NetworkStatsEnabled bool
@@ -32,6 +34,7 @@ type DiscoveryConfig struct {
 	IgnoreServices      map[string]struct{}
 }
 
+// NewConfig creates a new DiscoveryConfig with default values.
 func NewConfig() *DiscoveryConfig {
 	cfg := ddconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
