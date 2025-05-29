@@ -215,6 +215,17 @@ type InternalSpanLink struct {
 	Flags         uint32
 }
 
+func (s *InternalSpanLink) GetAttributeAsString(key string) string {
+	if attr, ok := s.Attributes[s.Strings.Lookup(key)]; ok {
+		return attr.AsString(s.Strings)
+	}
+	return ""
+}
+
+func (s *InternalSpanLink) Tracestate() string {
+	return s.Strings.Get(s.TracestateRef)
+}
+
 // InternalSpanEvent is a span event structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups
 type InternalSpanEvent struct {

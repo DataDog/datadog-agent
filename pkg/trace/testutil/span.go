@@ -418,27 +418,27 @@ func GetTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
 				},
 			},
 		},
-		// SpanLinks: []*idx.InternalSpanLink{
-		// 	{
-		// 		Strings: strings,
-		// 		TraceID: []byte{42},
-		// 		SpanID:  52,
-		// 		Attributes: map[uint32]*idx.AnyValue{
-		// 			strings.Add("a1"): &idx.AnyValue{
-		// 				Value: &idx.AnyValue_StringValueRef{
-		// 					StringValueRef: strings.Add("v1"),
-		// 				},
-		// 			},
-		// 			strings.Add("a2"): &idx.AnyValue{
-		// 				Value: &idx.AnyValue_StringValueRef{
-		// 					StringValueRef: strings.Add("v2"),
-		// 				},
-		// 			},
-		// 		},
-		// 		TracestateRef: strings.Add("dd=s:2;o:rum,congo=baz123"),
-		// 		Flags:         1 | 1<<31, // 0th bit -> sampling decision, 31st bit -> set/unset
-		// 	},
-		// },
+		SpanLinks: []*idx.InternalSpanLink{
+			{
+				Strings: strings,
+				TraceID: []byte{42},
+				SpanID:  52,
+				Attributes: map[uint32]*idx.AnyValue{
+					strings.Add("a1"): &idx.AnyValue{
+						Value: &idx.AnyValue_StringValueRef{
+							StringValueRef: strings.Add("v1"),
+						},
+					},
+					strings.Add("a2"): &idx.AnyValue{
+						Value: &idx.AnyValue_StringValueRef{
+							StringValueRef: strings.Add("v2"),
+						},
+					},
+				},
+				TracestateRef: strings.Add("dd=s:2;o:rum,congo=baz123"),
+				Flags:         1 | 1<<31, // 0th bit -> sampling decision, 31st bit -> set/unset
+			},
+		},
 	}
 	return span
 }

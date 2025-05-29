@@ -459,69 +459,60 @@ func TestReceiverV1MsgpackDecoder(t *testing.T) {
 	// or it should raise a 415 Unsupported media type
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()
-	testCases := []struct {
-		name        string
-		r           *HTTPReceiver
-		apiVersion  Version
-		contentType string
-		traces      *idx.InternalTracerPayload
-	}{
-		{"v10 with application/msgpack", newTestReceiverFromConfig(conf), V10, "application/msgpack", testutil.GetTestTracesV1(1, 1, false)},
+
+	traces := testutil.GetTestTracesV1(1, 1, false)
+
+	r := newTestReceiverFromConfig(conf)
+	// start testing server
+	server := httptest.NewServer(
+		r.handleWithVersion(V10, r.handleTraces),
+	)
+
+	// send traces to that endpoint using the msgpack content-type
+	bts, err := traces.MarshalMsg(nil)
+	assert.Nil(err)
+	req, err := http.NewRequest("POST", server.URL, bytes.NewReader(bts))
+	assert.Nil(err)
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	var client http.Client
+	resp, err := client.Do(req)
+	require.Nil(t, err)
+	assert.Equal(200, resp.StatusCode)
+
+	// now we should be able to read the trace data
+	select {
+	case p := <-r.outV1:
+		assert.Equal([]byte{0x53, 0x8c, 0x7f, 0x96, 0xb1, 0x64, 0xbf, 0x1b, 0x97, 0xbb, 0x9f, 0x4b, 0xb4, 0x72, 0xe8, 0x9f}, p.TracerPayload.Chunks[0].TraceID)
+		rt := p.TracerPayload.Chunks[0].Spans
+		assert.Len(rt, 1)
+		span := rt[0]
+		assert.Equal(uint64(52), span.SpanID)
+		assert.Equal("fennel_IS amazing!", span.Service())
+		assert.Equal("something &&<@# that should be a metric!", span.Name())
+		assert.Equal("NOT touched because it is going to be hashed", span.Resource())
+		assert.Equal("192.168.0.1", span.GetAttributeAsString("http.host"))
+		assert.Equal("41.99", span.GetAttributeAsString("http.monitor"))
+		assert.Equal(1, len(span.SpanLinks))
+		assert.Equal([]byte{0x2a}, span.SpanLinks[0].TraceID)
+		assert.Equal(uint64(52), span.SpanLinks[0].SpanID)
+		assert.Equal("v1", span.SpanLinks[0].GetAttributeAsString("a1"))
+		assert.Equal("v2", span.SpanLinks[0].GetAttributeAsString("a2"))
+		assert.Equal("dd=s:2;o:rum,congo=baz123", span.SpanLinks[0].Tracestate())
+		assert.Equal(uint32(2147483649), span.SpanLinks[0].Flags)
+	case <-time.After(time.Second):
+		t.Fatalf("no data received")
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// start testing server
-			server := httptest.NewServer(
-				tc.r.handleWithVersion(tc.apiVersion, tc.r.handleTraces),
-			)
+	body, err := io.ReadAll(resp.Body)
+	assert.Nil(err)
+	var tr traceResponse
+	err = json.Unmarshal(body, &tr)
+	assert.Nil(err, "the answer should be a valid JSON")
 
-			// send traces to that endpoint using the msgpack content-type
-			bts, err := tc.traces.MarshalMsg(nil)
-			assert.Nil(err)
-			req, err := http.NewRequest("POST", server.URL, bytes.NewReader(bts))
-			assert.Nil(err)
-			req.Header.Set("Content-Type", tc.contentType)
+	resp.Body.Close()
+	server.Close()
 
-			var client http.Client
-			resp, err := client.Do(req)
-			require.Nil(t, err)
-			assert.Equal(200, resp.StatusCode)
-
-			// now we should be able to read the trace data
-			select {
-			case p := <-tc.r.outV1:
-				assert.Equal([]byte{0x53, 0x8c, 0x7f, 0x96, 0xb1, 0x64, 0xbf, 0x1b, 0x97, 0xbb, 0x9f, 0x4b, 0xb4, 0x72, 0xe8, 0x9f}, p.TracerPayload.Chunks[0].TraceID)
-				rt := p.TracerPayload.Chunks[0].Spans
-				assert.Len(rt, 1)
-				span := rt[0]
-				assert.Equal(uint64(52), span.SpanID)
-				assert.Equal("fennel_IS amazing!", span.Service())
-				assert.Equal("something &&<@# that should be a metric!", span.Name())
-				assert.Equal("NOT touched because it is going to be hashed", span.Resource())
-				assert.Equal("192.168.0.1", span.GetAttributeAsString("http.host"))
-				assert.Equal("41.99", span.GetAttributeAsString("http.monitor"))
-				assert.Equal(0, len(span.SpanLinks))
-				// assert.Equal(uint64(42), span.SpanLinks[0].TraceID)
-				// assert.Equal(uint64(52), span.SpanLinks[0].SpanID)
-				// assert.Equal("v1", span.SpanLinks[0].Attributes["a1"])
-				// assert.Equal("v2", span.SpanLinks[0].Attributes["a2"])
-				// assert.Equal("dd=s:2;o:rum,congo=baz123", span.SpanLinks[0].Tracestate())
-				// assert.Equal(uint32(2147483649), span.SpanLinks[0].FlagsRef)
-			case <-time.After(time.Second):
-				t.Fatalf("no data received")
-			}
-
-			body, err := io.ReadAll(resp.Body)
-			assert.Nil(err)
-			var tr traceResponse
-			err = json.Unmarshal(body, &tr)
-			assert.Nil(err, "the answer should be a valid JSON")
-
-			resp.Body.Close()
-			server.Close()
-		})
-	}
 }
 
 func TestReceiverDecodingError(t *testing.T) {
