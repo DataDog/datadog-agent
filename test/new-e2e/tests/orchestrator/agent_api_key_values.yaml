@@ -18,7 +18,7 @@ clusterAgent:
     - name: DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL
       value: "%s"
     - name: DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS
-      value: "{\"%s\": [ENC[file@/etc/secret-volume/additionalapikey]]}"
+      value: "{\"%s\": [\"ENC[file@/etc/secret-volume/additionalapikey]\"]}"
   volumes:
     - name: secret-volume
       secret:

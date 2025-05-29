@@ -40,7 +40,7 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 		awskubernetes.KindProvisioner(
 			awskubernetes.WithAgentOptions(
 				kubernetesagentparams.WithNamespace(namespace),
-				kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL)),
+				kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL, suite.Env().FakeIntake.URL)),
 			),
 		),
 	)
