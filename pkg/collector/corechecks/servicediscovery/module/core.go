@@ -156,17 +156,6 @@ type discoveryCore struct {
 	networkErrorLimit *log.Limit
 }
 
-// addIgnoredPid store excluded pid.
-func (c *discoveryCore) addIgnoredPid(pid int32) {
-	c.ignorePids[pid] = struct{}{}
-}
-
-// shouldIgnorePid returns true if process should be excluded from handling.
-func (c *discoveryCore) shouldIgnorePid(pid int32) bool {
-	_, found := c.ignorePids[pid]
-	return found
-}
-
 // cleanCache deletes dead PIDs from the cache. Note that this does not actually
 // shrink the map but should free memory for the service name strings referenced
 // from it. This function is not thread-safe and it is up to the caller to ensure

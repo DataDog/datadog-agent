@@ -561,6 +561,17 @@ func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error
 	return ports, nil
 }
 
+// addIgnoredPid store excluded pid.
+func (c *discoveryCore) addIgnoredPid(pid int32) {
+	c.ignorePids[pid] = struct{}{}
+}
+
+// shouldIgnorePid returns true if process should be excluded from handling.
+func (c *discoveryCore) shouldIgnorePid(pid int32) bool {
+	_, found := c.ignorePids[pid]
+	return found
+}
+
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
 	if s.core.shouldIgnorePid(pid) {

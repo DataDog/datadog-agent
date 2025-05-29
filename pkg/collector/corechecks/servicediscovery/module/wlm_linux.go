@@ -105,3 +105,8 @@ func (d *DiscoveryWLM) DiscoverServices() (*model.ServicesResponse, error) {
 
 	return resp, nil
 }
+
+// Close closes the discovery module.
+func (d *DiscoveryWLM) Close() {
+	d.discoveryCore.close()
+}
