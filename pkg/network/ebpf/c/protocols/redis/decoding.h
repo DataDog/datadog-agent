@@ -193,26 +193,21 @@ static __always_inline bool extract_redis_error_prefix(pktbuf_t pkt, char *buf, 
     }
     pktbuf_advance(pkt, 1); // Skip '-'
 
-    // Read the error prefix in one go
-    char error_buf[MAX_ERROR_SIZE] = {};
-    if (pktbuf_load_bytes_from_current_offset(pkt, error_buf, MAX_ERROR_SIZE) < 0) {
-        return false;
-    }
-
-    // Find the end of the error prefix
     u8 i = 0;
+    char c = 0;
+    // Read up to buf_len-1 chars for null-termination
     #pragma unroll (MAX_ERROR_SIZE)
-    for (; i < MAX_ERROR_SIZE && i < buf_len - 1; i++) {
-        if (error_buf[i] == ' ' || error_buf[i] == RESP_TERMINATOR_1 || error_buf[i] == RESP_TERMINATOR_2) {
+    for (; i < buf_len - 1; i++) {
+        if (pktbuf_load_bytes_from_current_offset(pkt, &c, 1) < 0) {
             break;
         }
-        buf[i] = error_buf[i];
+        if (c == ' ' || c == RESP_TERMINATOR_1 || c == RESP_TERMINATOR_2) {
+            break;
+        }
+        buf[i] = c;
+        pktbuf_advance(pkt, 1);
     }
-
-    if (i < buf_len) {
-        buf[i] = '\0';
-    }
-    pktbuf_advance(pkt, i);
+    buf[i] = '\0';
     return i > 0;
 }
 
