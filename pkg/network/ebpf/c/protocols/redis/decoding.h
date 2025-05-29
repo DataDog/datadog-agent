@@ -193,21 +193,26 @@ static __always_inline bool extract_redis_error_prefix(pktbuf_t pkt, char *buf, 
     }
     pktbuf_advance(pkt, 1); // Skip '-'
 
-    u8 i = 0;
-    char c = 0;
-    // Read up to buf_len-1 chars for null-termination
-    #pragma unroll (MAX_ERROR_SIZE)
-    for (; i < buf_len - 1; i++) {
-        if (pktbuf_load_bytes_from_current_offset(pkt, &c, 1) < 0) {
-            break;
-        }
-        if (c == ' ' || c == RESP_TERMINATOR_1 || c == RESP_TERMINATOR_2) {
-            break;
-        }
-        buf[i] = c;
-        pktbuf_advance(pkt, 1);
+    // Read the error prefix in one go
+    char error_buf[MAX_ERROR_SIZE] = {};
+    if (pktbuf_load_bytes_from_current_offset(pkt, error_buf, MAX_ERROR_SIZE) < 0) {
+        return false;
     }
-    buf[i] = '\0';
+
+    // Find the end of the error prefix
+    u8 i = 0;
+    #pragma unroll (MAX_ERROR_SIZE)
+    for (; i < MAX_ERROR_SIZE && i < buf_len - 1; i++) {
+        if (error_buf[i] == ' ' || error_buf[i] == RESP_TERMINATOR_1 || error_buf[i] == RESP_TERMINATOR_2) {
+            break;
+        }
+        buf[i] = error_buf[i];
+    }
+
+    if (i < buf_len) {
+        buf[i] = '\0';
+    }
+    pktbuf_advance(pkt, i);
     return i > 0;
 }
 
@@ -237,28 +242,28 @@ static __always_inline void redis_batch_enqueue_wrapper(conn_tuple_t *tuple, red
 // Handles error responses and command-specific response types.
 static __always_inline redis_error_t map_redis_error_prefix(const char *prefix) {
     if (bpf_memcmp(prefix, "ERR", 3) == 0) return REDIS_ERR_ERR;
-    if (bpf_memcmp(prefix, "WRONGTYPE", 9) == 0) return REDIS_ERR_WRONGTYPE;
-    if (bpf_memcmp(prefix, "NOAUTH", 6) == 0) return REDIS_ERR_NOAUTH;
-    if (bpf_memcmp(prefix, "NOPERM", 6) == 0) return REDIS_ERR_NOPERM;
-    if (bpf_memcmp(prefix, "BUSY", 4) == 0) return REDIS_ERR_BUSY;
-    if (bpf_memcmp(prefix, "NOSCRIPT", 8) == 0) return REDIS_ERR_NOSCRIPT;
-    if (bpf_memcmp(prefix, "LOADING", 7) == 0) return REDIS_ERR_LOADING;
-    if (bpf_memcmp(prefix, "READONLY", 8) == 0) return REDIS_ERR_READONLY;
-    if (bpf_memcmp(prefix, "EXECABORT", 9) == 0) return REDIS_ERR_EXECABORT;
-    if (bpf_memcmp(prefix, "MASTERDOWN", 10) == 0) return REDIS_ERR_MASTERDOWN;
-    if (bpf_memcmp(prefix, "MISCONF", 7) == 0) return REDIS_ERR_MISCONF;
-    if (bpf_memcmp(prefix, "CROSSSLOT", 9) == 0) return REDIS_ERR_CROSSSLOT;
-    if (bpf_memcmp(prefix, "TRYAGAIN", 8) == 0) return REDIS_ERR_TRYAGAIN;
-    if (bpf_memcmp(prefix, "ASK", 3) == 0) return REDIS_ERR_ASK;
-    if (bpf_memcmp(prefix, "MOVED", 5) == 0) return REDIS_ERR_MOVED;
-    if (bpf_memcmp(prefix, "CLUSTERDOWN", 11) == 0) return REDIS_ERR_CLUSTERDOWN;
-    if (bpf_memcmp(prefix, "NOREPLICAS", 10) == 0) return REDIS_ERR_NOREPLICAS;
-    if (bpf_memcmp(prefix, "OOM", 3) == 0) return REDIS_ERR_OOM;
-    if (bpf_memcmp(prefix, "NOQUORUM", 8) == 0) return REDIS_ERR_NOQUORUM;
-    if (bpf_memcmp(prefix, "BUSYKEY", 7) == 0) return REDIS_ERR_BUSYKEY;
-    if (bpf_memcmp(prefix, "UNBLOCKED", 9) == 0) return REDIS_ERR_UNBLOCKED;
-    if (bpf_memcmp(prefix, "WRONGPASS", 9) == 0) return REDIS_ERR_WRONGPASS;
-    if (bpf_memcmp(prefix, "INVALIDOBJ", 7) == 0) return REDIS_ERR_INVALIDOBJ;
+     if (bpf_memcmp(prefix, "WRONGTYPE", 9) == 0) return REDIS_ERR_WRONGTYPE;
+     if (bpf_memcmp(prefix, "NOAUTH", 6) == 0) return REDIS_ERR_NOAUTH;
+     if (bpf_memcmp(prefix, "NOPERM", 6) == 0) return REDIS_ERR_NOPERM;
+     if (bpf_memcmp(prefix, "BUSY", 4) == 0) return REDIS_ERR_BUSY;
+     if (bpf_memcmp(prefix, "NOSCRIPT", 8) == 0) return REDIS_ERR_NOSCRIPT;
+     if (bpf_memcmp(prefix, "LOADING", 7) == 0) return REDIS_ERR_LOADING;
+     if (bpf_memcmp(prefix, "READONLY", 8) == 0) return REDIS_ERR_READONLY;
+     if (bpf_memcmp(prefix, "EXECABORT", 9) == 0) return REDIS_ERR_EXECABORT;
+     if (bpf_memcmp(prefix, "MASTERDOWN", 10) == 0) return REDIS_ERR_MASTERDOWN;
+     if (bpf_memcmp(prefix, "MISCONF", 7) == 0) return REDIS_ERR_MISCONF;
+     if (bpf_memcmp(prefix, "CROSSSLOT", 9) == 0) return REDIS_ERR_CROSSSLOT;
+     if (bpf_memcmp(prefix, "TRYAGAIN", 8) == 0) return REDIS_ERR_TRYAGAIN;
+     if (bpf_memcmp(prefix, "ASK", 3) == 0) return REDIS_ERR_ASK;
+     if (bpf_memcmp(prefix, "MOVED", 5) == 0) return REDIS_ERR_MOVED;
+     if (bpf_memcmp(prefix, "CLUSTERDOWN", 11) == 0) return REDIS_ERR_CLUSTERDOWN;
+     if (bpf_memcmp(prefix, "NOREPLICAS", 10) == 0) return REDIS_ERR_NOREPLICAS;
+     if (bpf_memcmp(prefix, "OOM", 3) == 0) return REDIS_ERR_OOM;
+     if (bpf_memcmp(prefix, "NOQUORUM", 8) == 0) return REDIS_ERR_NOQUORUM;
+     if (bpf_memcmp(prefix, "BUSYKEY", 7) == 0) return REDIS_ERR_BUSYKEY;
+     if (bpf_memcmp(prefix, "UNBLOCKED", 9) == 0) return REDIS_ERR_UNBLOCKED;
+     if (bpf_memcmp(prefix, "WRONGPASS", 9) == 0) return REDIS_ERR_WRONGPASS;
+     if (bpf_memcmp(prefix, "INVALIDOBJ", 7) == 0) return REDIS_ERR_INVALIDOBJ;
     return REDIS_ERR_UNKNOWN;
 }
 
