@@ -153,13 +153,13 @@ func (w *WinCertChk) Run() error {
 	defer sender.Commit()
 
 	var certificates []*x509.Certificate
-	var tags []string
+	var serverTag string
 	if w.config.Server != "" {
 		certificates, err = getRemoteCertificates(w.config.CertificateStore, w.config.CertSubjects, w.config.Server, w.config.Username, w.config.Password)
 		if err != nil {
 			return err
 		}
-		tags = append(tags, "server:"+w.config.Server)
+		serverTag = "server:" + w.config.Server
 	} else {
 		certificates, err = getCertificates(w.config.CertificateStore, w.config.CertSubjects)
 		if err != nil {
@@ -169,7 +169,7 @@ func (w *WinCertChk) Run() error {
 		if err != nil {
 			return err
 		}
-		tags = append(tags, "server:"+hostname)
+		serverTag = "server:" + hostname
 	}
 	if len(certificates) == 0 {
 		log.Warnf("No certificates found in store: %s for subject filters: '%s'", w.config.CertificateStore, strings.Join(w.config.CertSubjects, ", "))
@@ -181,9 +181,9 @@ func (w *WinCertChk) Run() error {
 		expirationDate := cert.NotAfter.Format(time.RFC3339)
 
 		// Adding Subject and Certificate Store as tags
-		tags = append(tags, getSubjectTags(cert)...)
+		tags := getSubjectTags(cert)
 		tags = append(tags, "certificate_store:"+w.config.CertificateStore)
-
+		tags = append(tags, serverTag)
 		sender.Gauge("windows_certificate.days_remaining", daysRemaining, "", tags)
 
 		if daysRemaining <= 0 {
@@ -223,10 +223,8 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 	storeName := windows.StringToUTF16Ptr(store)
 
 	log.Debugf("Opening certificate store: %s", store)
-	storeHandle, err := windows.CertOpenStore(
+	storeHandle, err := openCertificateStore(
 		windows.CERT_STORE_PROV_SYSTEM,
-		0,
-		0,
 		certStoreOpenFlags,
 		uintptr(unsafe.Pointer(storeName)))
 	if err != nil {
@@ -234,12 +232,7 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 		return nil, err
 	}
 	// Close the store when the function returns
-	defer func() {
-		err = windows.CertCloseStore(storeHandle, 0)
-		if err != nil {
-			log.Errorf("Error closing certificate store %s: %v", store, err)
-		}
-	}()
+	defer closeCertificateStore(storeHandle, store)
 
 	log.Debugf("Enumerating certificates in store")
 
@@ -259,7 +252,7 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 
 func getRemoteCertificates(store string, certFilters []string, server string, username string, password string) ([]*x509.Certificate, error) {
 
-	remoteServer := "\\\\" + server
+	remoteServer := "\\\\" + server + "\\IPC$"
 	err := netAddConnection(remoteServer, "", password, username)
 	if err != nil {
 		log.Errorf("Error adding connection: %v", err)
@@ -267,7 +260,7 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	}
 	log.Debugf("Connection to %s is successful", server)
 	defer func() {
-		err = netCancelConnection(server)
+		err = netCancelConnection(remoteServer)
 		if err != nil {
 			log.Errorf("Error canceling connection: %v", err)
 		}
@@ -294,18 +287,16 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	log.Debugf("%s registry key opened successfully", registryPath)
 	defer subKeys.Close()
 
-	storeHandle, err := openCertificateStore(windows.CERT_STORE_PROV_REG, uintptr(unsafe.Pointer(subKeys)))
+	storeHandle, err := openCertificateStore(
+		windows.CERT_STORE_PROV_REG,
+		windows.CERT_STORE_OPEN_EXISTING_FLAG,
+		uintptr(unsafe.Pointer(subKeys)))
 	if err != nil {
 		log.Errorf("Error opening certificate store %s: %v", store, err)
 		return nil, err
 	}
 	log.Debugf("Certificate store opened successfully")
-	defer func() {
-		err = windows.CertCloseStore(storeHandle, 0)
-		if err != nil {
-			log.Errorf("Error closing certificate store %s: %v", store, err)
-		}
-	}()
+	defer closeCertificateStore(storeHandle, store)
 
 	log.Debugf("Enumerating certificates in store")
 	var certificates []*x509.Certificate
@@ -324,18 +315,25 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	return certificates, nil
 }
 
-func openCertificateStore(storeProvider uintptr, para uintptr) (windows.Handle, error) {
+func openCertificateStore(storeProvider uintptr, flags uint32, para uintptr) (windows.Handle, error) {
 	storeHandle, err := windows.CertOpenStore(
 		storeProvider,
 		0,
 		0,
-		certStoreOpenFlags,
+		flags,
 		para,
 	)
 	if err != nil {
 		return 0, err
 	}
 	return storeHandle, nil
+}
+
+func closeCertificateStore(storeHandle windows.Handle, store string) {
+	err := windows.CertCloseStore(storeHandle, 0)
+	if err != nil {
+		log.Errorf("Error closing certificate store %s: %v", store, err)
+	}
 }
 
 // getEnumCertificatesInStore retrieves all certificates in a certificate store
