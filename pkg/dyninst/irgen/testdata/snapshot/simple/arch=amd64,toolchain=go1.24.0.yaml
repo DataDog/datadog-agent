@@ -439,9 +439,11 @@ Types:
     - __kind: EventRootType
       ID: 39
       Name: ProbeEvent
+      ByteSize: 1
+      PresenseBitsetSize: 1
       Expressions:
         - Name: m
-          Offset: 0
+          Offset: 1
           Expression:
             Type: 1 GoMapType map[string]int
             Operations:
@@ -452,9 +454,11 @@ Types:
     - __kind: EventRootType
       ID: 40
       Name: ProbeEvent
+      ByteSize: 1
+      PresenseBitsetSize: 1
       Expressions:
         - Name: m
-          Offset: 0
+          Offset: 1
           Expression:
             Type: 19 GoMapType map[string]main.bigStruct
             Operations:

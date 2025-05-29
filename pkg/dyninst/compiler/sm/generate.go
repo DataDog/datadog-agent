@@ -419,7 +419,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 // `ops` is used as an output buffer for the encoded instructions.
 func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
 	for _, loclist := range op.Variable.Locations {
-		if pc < loclist.Range[0] || pc >= loclist.Range[0] {
+		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
 			continue
 		}
 		// NOTE: Tricky.
