@@ -5,6 +5,11 @@
 
 package idx
 
+import (
+	"strconv"
+	"strings"
+)
+
 // StringTable is a table of strings that is used to store the de-duplicated strings in a trace
 type StringTable struct {
 	strings []string
@@ -44,6 +49,14 @@ func (s *StringTable) Len() int {
 	return len(s.strings)
 }
 
+// Lookup returns the index of the string in the string table, or 0 if the string is not found
+func (s *StringTable) Lookup(str string) uint32 {
+	if idx, ok := s.lookup[str]; ok {
+		return idx
+	}
+	return 0
+}
+
 // InternalTracerPayload is a tracer payload structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups
 type InternalTracerPayload struct {
@@ -75,12 +88,27 @@ func (tp *InternalTracerPayload) LanguageName() string {
 	return tp.Strings.Get(tp.LanguageNameRef)
 }
 
+// SetLanguageName sets the language name in the string table
+func (tp *InternalTracerPayload) SetLanguageName(name string) {
+	tp.LanguageNameRef = tp.Strings.Add(name)
+}
+
 func (tp *InternalTracerPayload) LanguageVersion() string {
 	return tp.Strings.Get(tp.LanguageVersionRef)
 }
 
+// SetLanguageVersion sets the language version in the string table
+func (tp *InternalTracerPayload) SetLanguageVersion(version string) {
+	tp.LanguageVersionRef = tp.Strings.Add(version)
+}
+
 func (tp *InternalTracerPayload) TracerVersion() string {
 	return tp.Strings.Get(tp.TracerVersionRef)
+}
+
+// SetTracerVersion sets the tracer version in the string table
+func (tp *InternalTracerPayload) SetTracerVersion(version string) {
+	tp.TracerVersionRef = tp.Strings.Add(version)
 }
 
 func (tp *InternalTracerPayload) ContainerID() string {
@@ -167,6 +195,14 @@ func (s *InternalSpan) Resource() string {
 	return s.Strings.Get(s.ResourceRef)
 }
 
+// GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
+func (s *InternalSpan) GetAttributeAsString(key string) string {
+	if attr, ok := s.Attributes[s.Strings.Lookup(key)]; ok {
+		return attr.AsString(s.Strings)
+	}
+	return ""
+}
+
 // InternalSpanLink is a span link structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups
 type InternalSpanLink struct {
@@ -176,7 +212,7 @@ type InternalSpanLink struct {
 	SpanID        uint64
 	Attributes    map[uint32]*AnyValue
 	TracestateRef uint32
-	FlagsRef      uint32
+	Flags         uint32
 }
 
 // InternalSpanEvent is a span event structure that is optimized for trace-agent usage
@@ -187,4 +223,36 @@ type InternalSpanEvent struct {
 	Time       uint64
 	NameRef    uint32
 	Attributes map[uint32]*AnyValue
+}
+
+// AsString returns the attribute in string format, this format is backwards compatible with non-v1 behavior
+func (attr *AnyValue) AsString(strTable *StringTable) string {
+	switch v := attr.Value.(type) {
+	case *AnyValue_StringValueRef:
+		return strTable.Get(v.StringValueRef)
+	case *AnyValue_BoolValue:
+		return strconv.FormatBool(v.BoolValue)
+	case *AnyValue_DoubleValue:
+		return strconv.FormatFloat(v.DoubleValue, 'f', -1, 64)
+	case *AnyValue_IntValue:
+		return strconv.FormatInt(v.IntValue, 10)
+	case *AnyValue_BytesValue:
+		return string(v.BytesValue)
+	case *AnyValue_ArrayValue:
+		values := v.ArrayValue.Values
+		valuesStr := []string{}
+		for _, value := range values {
+			valuesStr = append(valuesStr, value.AsString(strTable))
+		}
+		return "[" + strings.Join(valuesStr, ",") + "]"
+	case *AnyValue_KeyValueList:
+		values := v.KeyValueList.KeyValues
+		valuesStr := []string{}
+		for _, kv := range values {
+			valuesStr = append(valuesStr, strTable.Get(kv.Key)+"="+kv.Value.AsString(strTable))
+		}
+		return "{" + strings.Join(valuesStr, ",") + "}"
+	default:
+		return ""
+	}
 }

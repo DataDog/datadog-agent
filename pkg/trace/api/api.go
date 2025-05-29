@@ -392,6 +392,7 @@ func (r *HTTPReceiver) Stop() error {
 	}
 	r.wg.Wait()
 	close(r.out)
+	close(r.outV1)
 	r.telemetryForwarder.Stop()
 	return nil
 }
@@ -635,6 +636,7 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 
 	start := time.Now()
 	tp, err := decodeTracerPayloadV1(req, r.containerIDProvider)
+	// TODO: how to handle tag stats if we fail to decode?
 	ts := r.Stats.GetTagStats(info.Tags{
 		Lang:            tp.LanguageName(),
 		LangVersion:     tp.LanguageVersion(),
@@ -679,6 +681,7 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID()); ctags != "" {
 		tp.SetStringAttribute(tagContainersTags, ctags)
 	}
+	// TODO: Add process tags
 
 	payload := &PayloadV1{
 		Source:                 ts,

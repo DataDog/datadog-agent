@@ -14,6 +14,7 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -392,6 +393,54 @@ func GetTestSpan() *pb.Span {
 	trace := pb.Trace{span}
 	traceutil.ComputeTopLevel(trace)
 	return trace[0]
+}
+
+// GetTestSpan returns a Span with different fields set
+func GetTestSpanV1(strings *idx.StringTable) *idx.InternalSpan {
+	span := &idx.InternalSpan{
+		Strings:     strings,
+		SpanID:      52,
+		ParentID:    42,
+		ServiceRef:  strings.Add("fennel_IS amazing!"),
+		NameRef:     strings.Add("something &&<@# that should be a metric!"),
+		ResourceRef: strings.Add("NOT touched because it is going to be hashed"),
+		Start:       9223372036854775807,
+		Duration:    9223372036854775807,
+		Attributes: map[uint32]*idx.AnyValue{
+			strings.Add("http.host"): &idx.AnyValue{
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: strings.Add("192.168.0.1"),
+				},
+			},
+			strings.Add("http.monitor"): &idx.AnyValue{
+				Value: &idx.AnyValue_DoubleValue{
+					DoubleValue: 41.99,
+				},
+			},
+		},
+		// SpanLinks: []*idx.InternalSpanLink{
+		// 	{
+		// 		Strings: strings,
+		// 		TraceID: []byte{42},
+		// 		SpanID:  52,
+		// 		Attributes: map[uint32]*idx.AnyValue{
+		// 			strings.Add("a1"): &idx.AnyValue{
+		// 				Value: &idx.AnyValue_StringValueRef{
+		// 					StringValueRef: strings.Add("v1"),
+		// 				},
+		// 			},
+		// 			strings.Add("a2"): &idx.AnyValue{
+		// 				Value: &idx.AnyValue_StringValueRef{
+		// 					StringValueRef: strings.Add("v2"),
+		// 				},
+		// 			},
+		// 		},
+		// 		TracestateRef: strings.Add("dd=s:2;o:rum,congo=baz123"),
+		// 		Flags:         1 | 1<<31, // 0th bit -> sampling decision, 31st bit -> set/unset
+		// 	},
+		// },
+	}
+	return span
 }
 
 // TestSpan returns a fix span with hardcoded info, useful for reproducible tests
