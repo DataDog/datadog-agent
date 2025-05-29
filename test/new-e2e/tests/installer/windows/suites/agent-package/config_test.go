@@ -16,6 +16,7 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/windowscommon"
 )
 
 type testAgentConfigSuite struct {
@@ -162,4 +163,87 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 		"ddprocmon",
 	)
 	s.Require().NoError(err, "Failed waiting for services to start")
+}
+
+// TestRevertsConfigExperimentWhenServiceDies tests that the watchdog will revert
+// to stable config when the service dies.
+func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+
+	// Act
+	config := installerwindows.ConfigExperiment{
+		ID: "config-1",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_level": "debug"}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	_, err := s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
+	s.Require().NoError(err)
+	s.AssertSuccessfulConfigStartExperiment(config.ID)
+
+	// Stop the agent service to trigger watchdog rollback
+	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
+
+	// Assert
+	err = s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	// Verify stable config is restored
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService(consts.ServiceName).
+		WithStatus("Running")
+
+	// backend will send stop experiment now
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.AssertSuccessfulConfigStopExperiment()
+	})
+}
+
+// TestRevertsConfigExperimentWhenTimeout tests that the watchdog will revert
+// to stable config when the timeout expires.
+func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	// lower timeout to 2 minutes
+	s.setWatchdogTimeout(2)
+
+	// Act
+	config := installerwindows.ConfigExperiment{
+		ID: "config-1",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_level": "debug"}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	_, err := s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
+	s.Require().NoError(err)
+	s.AssertSuccessfulConfigStartExperiment(config.ID)
+
+	// Assert
+	err = s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	// Verify stable config is restored
+	s.Require().Host(s.Env().RemoteHost).
+		HasAService(consts.ServiceName).
+		WithStatus("Running")
+
+	// backend will send stop experiment now
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopExperiment(consts.AgentPackage)
+		s.AssertSuccessfulConfigStopExperiment()
+	})
 }

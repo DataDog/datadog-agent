@@ -589,8 +589,20 @@ func setFleetPoliciesDir(path string) error {
 
 // postStartConfigExperimentDatadogAgent runs post start scripts for a config experiment.
 //
-// Sets the fleet_policies_dir registry key to the experiment config path and restarts the agent service.
-func postStartConfigExperimentDatadogAgent(_ HookContext) error {
+// Function requirements:
+//   - be its own process, not run within the daemon
+//
+// Rollback notes:
+// The config experiment uses a watchdog to monitor the Agent service.
+// If the service fails to start or stops running, the watchdog will restore
+// the stable config using the remove-config-experiment command.
+// This ensures the system remains in a consistent state even if the experiment
+// config causes issues.
+//   - If the new config is working properly then it will receive "promote"
+//     from the backend and will set an event to stop the watchdog.
+//   - If the new config fails to start the Agent, then after a timeout the
+//     watchdog will restore the stable config.
+func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 	// Set the registry key to point to the experiment config
 	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "experiment")
 	err := setFleetPoliciesDir(experimentPath)
@@ -603,6 +615,43 @@ func postStartConfigExperimentDatadogAgent(_ HookContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to start agent service: %w", err)
 	}
+
+	// Start watchdog to monitor the agent service
+	timeout := getWatchdogTimeout()
+	err = startWatchdog(ctx, time.Now().Add(timeout))
+	if err != nil {
+		log.Errorf("Config watchdog failed: %s", err)
+		// If watchdog fails, restore stable config
+		restoreErr := restoreStableConfigFromExperiment(ctx)
+		if restoreErr != nil {
+			log.Error(restoreErr)
+			err = fmt.Errorf("%w, %w", err, restoreErr)
+		}
+		return err
+	}
+
+	return nil
+}
+
+// restoreStableConfigFromExperiment restores the stable config using the remove-config-experiment command.
+//
+// call remove-config-experiment to:
+//   - restore stable config
+//   - update repository state / remove experiment link
+//
+// The updated repository state will cause the stable daemon to skip the stop-experiment
+// operation received from the backend, which avoids restarting the services again.
+func restoreStableConfigFromExperiment(ctx HookContext) error {
+	env := getenv()
+	installer, err := newInstallerExec(env)
+	if err != nil {
+		return fmt.Errorf("failed to create installer exec: %w", err)
+	}
+	err = installer.RemoveConfigExperiment(ctx, ctx.Package)
+	if err != nil {
+		return fmt.Errorf("failed to restore stable config: %w", err)
+	}
+
 	return nil
 }
 
