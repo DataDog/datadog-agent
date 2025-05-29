@@ -265,17 +265,19 @@ type networkState struct {
 	latestTimeEpoch uint64
 
 	// Network state configuration
-	clientExpiry                          time.Duration
-	maxClosedConns                        uint32
+	clientExpiry                time.Duration
+	maxClosedConns              uint32
+	maxClientStats              int
+	maxDNSStats                 int
+	maxHTTPStats                int
+	maxKafkaStats               int
+	maxPostgresStats            int
+	maxRedisStats               int
+	enableConnectionRollup      bool
+	processEventConsumerEnabled bool
+
+	// The ratio of the closed connections buffer to the max closed connections before setting the capacity flag
 	closedConnectionsBufferThresholdRatio float64
-	maxClientStats                        int
-	maxDNSStats                           int
-	maxHTTPStats                          int
-	maxKafkaStats                         int
-	maxPostgresStats                      int
-	maxRedisStats                         int
-	enableConnectionRollup                bool
-	processEventConsumerEnabled           bool
 
 	localResolver LocalResolver
 }
@@ -286,7 +288,6 @@ func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClo
 		clients:                               map[string]*client{},
 		clientExpiry:                          clientExpiry,
 		maxClosedConns:                        maxClosedConns,
-		closedConnectionsBufferThresholdRatio: closedConnectionsBufferThresholdRatio,
 		maxClientStats:                        maxClientStats,
 		maxDNSStats:                           maxDNSStats,
 		maxHTTPStats:                          maxHTTPStats,
@@ -294,8 +295,9 @@ func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClo
 		maxPostgresStats:                      maxPostgresStats,
 		maxRedisStats:                         maxRedisStats,
 		enableConnectionRollup:                enableConnectionRollup,
-		localResolver:                         NewLocalResolver(processEventConsumerEnabled),
 		processEventConsumerEnabled:           processEventConsumerEnabled,
+		closedConnectionsBufferThresholdRatio: closedConnectionsBufferThresholdRatio,
+		localResolver:                         NewLocalResolver(processEventConsumerEnabled),
 	}
 
 	if ns.enableConnectionRollup && !processEventConsumerEnabled {

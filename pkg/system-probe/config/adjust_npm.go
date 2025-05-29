@@ -84,7 +84,7 @@ func adjustNetwork(cfg model.Config) {
 	limitMaxInt(cfg, spNS("offset_guess_threshold"), maxOffsetThreshold)
 
 	ratioPath := spNS("closed_connections_buffer_threshold_ratio")
-	if !cfg.IsSet(ratioPath) {
+	if !cfg.IsConfigured(ratioPath) {
 		cfg.Set(ratioPath, defaultClosedConnectionsBufferThresholdRatioSystemProbe, model.SourceDefault)
 	} else {
 		ratio := cfg.GetFloat64(ratioPath)

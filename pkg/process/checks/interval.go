@@ -22,7 +22,7 @@ const (
 	ContainerCheckDefaultInterval = 10 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
 	RTContainerCheckDefaultInterval = 2 * time.Second
-	// ConnectionsCheckDefaultInterval is the default interval for the connections check
+	//nolint:revive // TODO(PROC) Fix revive linter
 	ConnectionsCheckDefaultInterval = 30 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour

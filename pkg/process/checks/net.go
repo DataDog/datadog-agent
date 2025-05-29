@@ -209,7 +209,6 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	status.UpdateLastCollectTime(start)
 	log.Debugf("running connections check. Reason: TimeForGuaranteedRun=%v (last run %v ago), NearCapacity=%v", isTimeForGuaranteedRun, timeSinceLastRun, isNearCapacity)
-	// Update last run time *before* the potentially long-running operations
 	c.lastFullRunTime = start
 
 	conns, err := c.getConnections()

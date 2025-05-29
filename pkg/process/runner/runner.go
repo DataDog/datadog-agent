@@ -370,19 +370,7 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 
 		tickerInterval := checks.GetInterval(l.config, c.Name())
 		if c.Name() == checks.ConnectionsCheckName {
-			// For connections check, the ticker interval is controlled by the specific capacity check interval config
-			capacityInterval := l.config.GetDuration("process_config.connections_capacity_check_interval")
-			if capacityInterval > 0 {
-				log.Infof("Setting connections check interval to %s", capacityInterval)
-				tickerInterval = capacityInterval
-			} else {
-				log.Warnf(
-					"Invalid process_config.connections_capacity_check_interval (%v), falling back to default %s interval %v",
-					capacityInterval,
-					c.Name(),
-					tickerInterval,
-				)
-			}
+			tickerInterval = l.getConnectionsCheckInterval(c.Name(), tickerInterval)
 		}
 
 		ticker := time.NewTicker(tickerInterval)
@@ -408,6 +396,36 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 			}
 		}
 	}
+}
+
+// getConnectionsCheckInterval validates the 'process_config.connections_capacity_check_interval' config,
+// ensuring the interval is between 10s and 30s. If valid, the configured interval is used.
+// Otherwise, if the user explicitly configured an invalid value, a warning is logged.
+// In all other cases (invalid or not set), the provided defaultInterval is returned.
+func (l *CheckRunner) getConnectionsCheckInterval(checkName string, defaultInterval time.Duration) time.Duration {
+	const minAllowedInterval = 10 * time.Second
+	const maxAllowedInterval = 30 * time.Second
+	configKey := "process_config.connections_capacity_check_interval"
+
+	configuredInterval := l.config.GetDuration(configKey)
+
+	if configuredInterval >= minAllowedInterval && configuredInterval <= maxAllowedInterval {
+		log.Infof("Using connections check interval %s from %s", configuredInterval, configKey)
+		return configuredInterval
+	}
+
+	// If the value was configured by the user but is not in the valid range, warn them.
+	if l.config.IsConfigured(configKey) {
+		log.Warnf(
+			"Configured %s (%v) is invalid: must be between %s and %s. Using default %s interval %v",
+			configKey, configuredInterval,
+			minAllowedInterval, maxAllowedInterval,
+			checkName, defaultInterval,
+		)
+	}
+
+	// Either not configured or configured to an invalid value; use default.
+	return defaultInterval
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

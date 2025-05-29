@@ -2592,7 +2592,6 @@ func TestDNSPIDCollision(t *testing.T) {
 
 // Helper function to create a unique ConnectionStats
 func createTestConnectionStats(cookie StatCookie) *ConnectionStats {
-	// Nest fields within ConnectionTuple
 	return &ConnectionStats{
 		ConnectionTuple: ConnectionTuple{
 			Source: util.AddressFromString("1.1.1.1"),
@@ -2616,38 +2615,37 @@ func TestNearCapacityFlagSetAndCheck(t *testing.T) {
 	const closedConnsThresholdRatio = 0.9
 	const capacityThreshold = uint32(float64(maxClosedConns) * closedConnsThresholdRatio)
 
-	// Pass nil for telemetry component
-	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState) // Cast to access unexported storeClosedConnection
+	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
 	require.NotNil(t, ns)
 
 	clientID := "test-client-flag-set"
-	ns.RegisterClient(clientID) // Register the client
+	ns.RegisterClient(clientID)
 
 	// Add connections below threshold
-	ns.Lock()                                          // Lock needed as storeClosedConnection assumes lock is held by caller
+	ns.Lock()
 	for i := 0; uint32(i) < capacityThreshold-1; i++ { // Add 8 connections
 		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
 	ns.Unlock()
-	assert.False(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be false below threshold") // Pass clientID
+	assert.False(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be false below threshold")
 
 	// Add connection exactly at threshold
 	ns.Lock()
 	ns.storeClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold - 1))) // Add 9th connection
 	ns.Unlock()
-	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be true at threshold") // Pass clientID
+	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be true at threshold")
 
 	// Add connection over threshold
 	ns.Lock()
 	ns.storeClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold))) // Add 10th connection
 	ns.Unlock()
-	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should remain true above threshold") // Pass clientID
+	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should remain true above threshold")
 
 	// Add another connection (should trigger drop logic, but flag remains)
 	ns.Lock()
 	ns.storeClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold + 1))) // Add 11th connection
 	ns.Unlock()
-	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should remain true even when buffer is full/dropping") // Pass clientID
+	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should remain true even when buffer is full/dropping")
 }
 
 func TestNearCapacityFlagResetByGetDelta(t *testing.T) {
@@ -2655,7 +2653,6 @@ func TestNearCapacityFlagResetByGetDelta(t *testing.T) {
 	const closedConnsThresholdRatio = 0.9
 	const capacityThreshold = uint32(float64(maxClosedConns) * closedConnsThresholdRatio)
 
-	// Pass nil for telemetry component
 	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
 	require.NotNil(t, ns)
 
@@ -2663,13 +2660,13 @@ func TestNearCapacityFlagResetByGetDelta(t *testing.T) {
 	ns.RegisterClient(clientID)
 
 	// Add connections to trigger the flag
-	ns.Lock()                                        // Lock needed as storeClosedConnection assumes lock is held by caller
+	ns.Lock()
 	for i := 0; uint32(i) < capacityThreshold; i++ { // Add 9 connections
 		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
 	flagBefore := ns.clients[clientID].closedConnectionsNearCapacity.Load() // Check flag on the client struct
 	ns.Unlock()
-	require.True(t, flagBefore, "Flag should be true before GetDelta") // Use require for setup check
+	require.True(t, flagBefore, "Flag should be true before GetDelta")
 
 	// Call GetDelta for the client - this should reset the flag via client.Reset()
 	_ = ns.GetDelta(clientID, uint64(time.Now().UnixNano()), []ConnectionStats{}, nil, nil)
@@ -2684,12 +2681,11 @@ func TestNearCapacityFlagMultipleClients(t *testing.T) {
 	const closedConnsThresholdRatio = 0.9
 	const capacityThreshold = uint32(float64(maxClosedConns) * closedConnsThresholdRatio)
 
-	// Pass nil for telemetry component
 	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
 	require.NotNil(t, ns)
 
 	client1 := "client-1"
-	client2 := "client-2"
+	client2 := "client2"
 	ns.RegisterClient(client1)
 	ns.RegisterClient(client2)
 
@@ -2697,7 +2693,7 @@ func TestNearCapacityFlagMultipleClients(t *testing.T) {
 	// We manually insert into the client's buffer here and set the flag
 	// to directly test the flag's independence, rather than relying on
 	// the side effects of storeClosedConnection iterating over all clients.
-	ns.Lock() // Lock required to access internal client state
+	ns.Lock()
 	for i := 0; uint32(i) < capacityThreshold; i++ {
 		conn := createTestConnectionStats(StatCookie(i))
 		c1 := ns.getClient(client1)
@@ -2740,8 +2736,7 @@ func TestNearCapacityFlagMultipleClients(t *testing.T) {
 	require.True(t, flagSetByClient2, "Client 2 flag should be true after client2 reaches threshold")
 	assert.True(t, ns.IsClosedConnectionsNearCapacity(client1), "Client 1 flag should still be true")
 
-	// Call GetDelta for client1
-	// This should reset client1's flag but not client2's.
+	// Call GetDelta for client1. This should reset client1's flag but not client2's.
 	_ = ns.GetDelta(client1, uint64(time.Now().UnixNano()), []ConnectionStats{}, nil, nil)
 	assert.False(t, ns.IsClosedConnectionsNearCapacity(client1), "Client 1 flag should be reset by GetDelta for client1")
 	assert.True(t, ns.IsClosedConnectionsNearCapacity(client2), "Client 2 flag should NOT be reset by GetDelta for client1")
