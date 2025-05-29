@@ -100,6 +100,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	// Then
 	assert.Equal(t, 2, len(acc.flows))
 
+	// JMWNAME wrappedFlowA --> flowCtxA
 	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowA.flow.SrcAddr)
 	assert.Equal(t, []byte{10, 10, 10, 20}, wrappedFlowA.flow.DstAddr)

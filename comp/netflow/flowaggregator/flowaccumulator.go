@@ -103,6 +103,7 @@ func (f *flowAccumulator) flush() ([]*common.Flow, []flowStat) {
 			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
 			f.logger.Infof("JMW Deleting flow context (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s, numberOfUses=%d)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flowCtx.numberOfUses)
+			// JMW metric
 			delete(f.flows, key)
 			continue
 		}
