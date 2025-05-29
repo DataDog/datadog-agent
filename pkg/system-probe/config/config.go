@@ -96,7 +96,6 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 
 func load() (*types.Config, error) {
 	cfg := pkgconfigsetup.SystemProbe()
-
 	Adjust(cfg)
 
 	c := &types.Config{
