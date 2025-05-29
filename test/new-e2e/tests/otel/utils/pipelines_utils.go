@@ -421,8 +421,8 @@ const (
 	originServiceHostmetricsReceiver = 224
 )
 
-// TestPrometheusMetrics tests that expected prometheus metrics are scraped
-func TestPrometheusMetrics(s OTelTestSuite) {
+// TestInternalMetrics tests that expected collector internal metrics are scraped
+func TestInternalMetrics(s OTelTestSuite) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
@@ -439,7 +439,7 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 			assert.Equal(c, originServicePrometheusReceiver, int(origin.OriginService))
 		}
 
-		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("otelcol_datadog_trace_agent_trace_writer_spans")
+		traceAgentMetrics, err = s.Env().FakeIntake.Client().FilterMetrics("datadog.trace_agent.trace_writer.spans")
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traceAgentMetrics)
 		for _, m := range otelcolMetrics {
@@ -449,7 +449,7 @@ func TestPrometheusMetrics(s OTelTestSuite) {
 		}
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got otelcol_process_uptime", otelcolMetrics)
-	s.T().Log("Got otelcol_datadog_trace_agent_trace_writer_spans", traceAgentMetrics)
+	s.T().Log("Got datadog.trace_agent.trace_writer.spans", traceAgentMetrics)
 }
 
 // TestHostMetrics tests that expected host metrics are scraped

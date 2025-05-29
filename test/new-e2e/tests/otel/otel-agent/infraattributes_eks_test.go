@@ -71,8 +71,8 @@ func (s *iaEKSTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
 
-func (s *iaEKSTestSuite) TestPrometheusMetrics() {
-	utils.TestPrometheusMetrics(s)
+func (s *iaEKSTestSuite) TestInternalMetrics() {
+	utils.TestInternalMetrics(s)
 }
 
 type iaUSTEKSTestSuite struct {

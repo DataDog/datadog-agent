@@ -5,6 +5,9 @@ exporters:
     nop:
 
 service:
+    telemetry:
+      metrics:
+        level: none
     pipelines:
         traces:
             receivers: [nop]

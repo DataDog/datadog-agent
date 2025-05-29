@@ -73,6 +73,6 @@ func (s *iaTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
 
-func (s *iaTestSuite) TestPrometheusMetrics() {
-	utils.TestPrometheusMetrics(s)
+func (s *iaTestSuite) TestInternalMetrics() {
+	utils.TestInternalMetrics(s)
 }

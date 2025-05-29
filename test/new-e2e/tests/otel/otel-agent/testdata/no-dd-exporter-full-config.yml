@@ -126,43 +126,19 @@ receivers:
         tls: null
         traces_url_path: /v1/traces
         write_timeout: 0s
-  prometheus/dd-autoconfigured:
-    api_server: null
-    config:
-      global:
-        evaluation_interval: 1m
-        scrape_interval: 1m
-        scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText1.0.0
-        - PrometheusText0.0.4
-        scrape_timeout: 10s
-      runtime:
-        gogc: 75
-      scrape_configs:
-      - enable_compression: true
-        enable_http2: true
-        fallback_scrape_protocol: PrometheusText0.0.4
-        follow_redirects: true
-        honor_timestamps: true
-        job_name: datadog-agent
-        metric_name_validation_scheme: legacy
-        metrics_path: /metrics
-        scheme: http
-        scrape_interval: 1m
-        scrape_protocols:
-        - PrometheusText0.0.4
-        scrape_timeout: 10s
-        static_configs:
-        - targets:
-          - 0.0.0.0:8888
-        track_timestamps_staleness: false
-    report_extra_scrape_metrics: false
-    start_time_metric_regex: ""
-    target_allocator: null
-    trim_metric_suffixes: false
-    use_start_time_metric: false
+  otlp/dd-autoconfigured:
+    protocols:
+      http:
+        cors: {}
+        endpoint: localhost:15678
+        idle_timeout: 0s
+        logs_url_path: /v1/logs
+        metrics_url_path: /v1/metrics
+        read_header_timeout: 0s
+        response_headers: {}
+        tls: null
+        traces_url_path: /v1/traces
+        write_timeout: 0s
 service:
   extensions:
   - pprof/dd-autoconfigured
@@ -187,7 +163,7 @@ service:
       - datadog
       processors: []
       receivers:
-      - prometheus/dd-autoconfigured
+      - otlp/dd-autoconfigured
     traces:
       exporters:
       - debug
@@ -210,13 +186,8 @@ service:
     metrics:
       level: Normal
       readers:
-      - pull:
-          exporter:
-            prometheus:
-              host: localhost
-              port: 8888
-              with_resource_constant_labels:
-                included: []
-              without_scope_info: true
-              without_type_suffix: true
-              without_units: true
+        - periodic:
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: localhost:15678

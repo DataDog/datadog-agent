@@ -12,6 +12,9 @@ extensions:
   ddflare/dd-autoconfigured:
 
 service:
+  telemetry:
+    metrics:
+      level: none
   extensions:
     [
       pprof/dd-autoconfigured,
