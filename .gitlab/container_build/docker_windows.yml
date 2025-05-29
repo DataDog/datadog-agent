@@ -27,20 +27,20 @@
     - get-childitem ${BUILD_CONTEXT}
     - |
       powershell -Command "$(Get-Location)\tools\ci\retry.ps1 docker build --no-cache `
-        --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} `
-        --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent `
-        --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} `
-        --build-arg DD_AGENT_VERSION=${PACKAGE_VERSION} `
+        `--build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} `
+        `--build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent `
+        `--build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} `
+        `--build-arg DD_AGENT_VERSION=${PACKAGE_VERSION} `
         ${BUILD_ARG} `
-        --pull `
-        --file ${BUILD_CONTEXT}/windows/amd64/Dockerfile `
-        --tag ${TARGET_TAG} `
-        --label 'org.opencontainers.image.created=$(Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")' `
-        --label 'org.opencontainers.image.authors=Datadog <package@datadoghq.com>' `
-        --label 'org.opencontainers.image.source=https://github.com/DataDog/datadog-agent' `
-        --label 'org.opencontainers.image.version=${PACKAGE_VERSION}' `
-        --label 'org.opencontainers.image.revision=${CI_COMMIT_SHA}' `
-        --label 'org.opencontainers.image.vendor=Datadog, Inc.' `
+        `--pull `
+        `--file ${BUILD_CONTEXT}/windows/amd64/Dockerfile `
+        `--tag ${TARGET_TAG} `
+        `--label 'org.opencontainers.image.created=$(Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")' `
+        `--label 'org.opencontainers.image.authors=Datadog <package@datadoghq.com>' `
+        `--label 'org.opencontainers.image.source=https://github.com/DataDog/datadog-agent' `
+        `--label 'org.opencontainers.image.version=${PACKAGE_VERSION}' `
+        `--label 'org.opencontainers.image.revision=${CI_COMMIT_SHA}' `
+        `--label 'org.opencontainers.image.vendor=Datadog, Inc.' `
         ${BUILD_CONTEXT}"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - powershell -Command "$(Get-Location)\tools\ci\retry.ps1 docker push ${TARGET_TAG}"
