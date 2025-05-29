@@ -24,4 +24,3 @@ clusterAgent:
   volumeMounts:
     - name: secret-volume
       mountPath: /etc/secret-volume
-
