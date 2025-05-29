@@ -6,8 +6,14 @@
 // Package filter provides the interface for the filter component
 package filter
 
+// team: container-platform
+
 // Component is the component type.
+//
+// Filters have precedence based on their groupings.
+// If a set of filters produces an Include or Exclude result, then subsequent sets will not be evaluated.
+// Therefore, filters in lower-indexed groups will take precedence over those in higher-indexed groups.
 type Component interface {
-	IsContainerExcluded(container Container, containerFilters []ContainerFilter, defaultValue bool) (bool, error)
-	IsPodExcluded(pod Pod, podFilters []PodFilter, defaultValue bool) (bool, error)
+	IsContainerExcluded(container Container, containerFilters [][]ContainerFilter) bool
+	IsPodExcluded(pod Pod, podFilters [][]PodFilter) bool
 }

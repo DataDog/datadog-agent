@@ -7,6 +7,7 @@
 package filterimpl
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,40 +30,83 @@ func newFilterObject(t *testing.T, config config.Component) *filter {
 	return f.Comp.(*filter)
 }
 
-func TestADContainerFilter(t *testing.T) {
+func TestBasicFilter(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
+	mockConfig.SetWithoutSource("container_exclude", []string{"image:datadog/agent:latest"})
+	f := newFilterObject(t, mockConfig)
+
+	t.Run("empty filters, empty container", func(t *testing.T) {
+		container := filterdef.Container{}
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{})
+		assert.Equal(t, filterdef.Unknown, res)
+	})
+
+	t.Run("single include filter", func(t *testing.T) {
+		container := filterdef.Container{
+			Name: "dd-agent",
+		}
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
+		assert.Equal(t, filterdef.Included, res)
+	})
+
+	t.Run("single exclude filter", func(t *testing.T) {
+		container := filterdef.Container{
+			Image: "datadog/agent:latest",
+		}
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
+		assert.Equal(t, filterdef.Excluded, res)
+	})
+
+	t.Run("include beats exclude", func(t *testing.T) {
+		container := filterdef.Container{
+			Name:  "dd-agent",
+			Image: "datadog/agent:latest",
+		}
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
+		assert.Equal(t, filterdef.Included, res)
+	})
+
+}
+
+func TestADAnnotationFilter(t *testing.T) {
 	mockConfig := configmock.New(t)
 	f := newFilterObject(t, mockConfig)
 
-	container := filterdef.Container{
-		Name: "dd-agent",
-		Annotations: map[string]string{
-			"ad.datadoghq.com/garbage": "true",
-		},
-	}
-	// Expect to return the default value
-	res, err := f.IsContainerExcluded(container, []filterdef.ContainerFilter{filterdef.ContainerADAnnotations}, false)
-	assert.NoError(t, err)
-	assert.Equal(t, false, res)
+	t.Run("improper exclude annotation", func(t *testing.T) {
+		container := filterdef.Container{
+			Name: "dd-agent",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/garbage": "true",
+			},
+		}
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
+		assert.Equal(t, filterdef.Unknown, res)
+	})
 
-	container = filterdef.Container{
-		Name: "dd-agent",
-		Annotations: map[string]string{
-			"ad.datadoghq.com/dd-agent.exclude": "true",
-		},
-	}
-	res, err = f.IsContainerExcluded(container, []filterdef.ContainerFilter{filterdef.ContainerADAnnotations}, false)
-	assert.NoError(t, err)
-	assert.Equal(t, true, res)
+	t.Run("proper exclude annotation", func(t *testing.T) {
+		container := filterdef.Container{
+			Name: "dd-agent",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/dd-agent.exclude": "true",
+			},
+		}
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
+		assert.Equal(t, filterdef.Excluded, res)
+	})
 
-	// Edge case if the container name is missing
-	container = filterdef.Container{
-		Annotations: map[string]string{
-			"ad.datadoghq.com/.exclude": "true",
-		},
-	}
-	res, err = f.IsContainerExcluded(container, []filterdef.ContainerFilter{filterdef.ContainerADAnnotations}, false)
-	assert.NoError(t, err)
-	assert.Equal(t, true, res)
+	// TODO: re-verify this is expected behavior...
+	t.Run("blank container name", func(t *testing.T) {
+		// Edge case if the container name is missing
+		container := filterdef.Container{
+			Annotations: map[string]string{
+				"ad.datadoghq.com/.exclude": "true",
+			},
+		}
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
+		assert.Equal(t, filterdef.Excluded, res)
+	})
+
 }
 
 func TestCombinedFilter(t *testing.T) {
@@ -77,45 +121,40 @@ func TestCombinedFilter(t *testing.T) {
 	container := filterdef.Container{
 		Name: "dd-agent",
 	}
-	res, err := f.IsContainerExcluded(container, []filterdef.ContainerFilter{filterdef.ContainerGlobal}, true)
-	assert.NoError(t, err)
-	assert.Equal(t, false, res, "Container exclusion result mismatch")
+	res := f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
+	assert.Equal(t, false, res)
 
 	container = filterdef.Container{
 		Name:      "dd-agent",
 		Namespace: "default",
 	}
-	res, err = f.IsContainerExcluded(container, []filterdef.ContainerFilter{filterdef.ContainerGlobal, filterdef.ContainerACLegacy}, true)
-	assert.NoError(t, err)
-	assert.Equal(t, false, res, "Container exclusion result mismatch")
+	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
+	assert.Equal(t, false, res)
 
 	container = filterdef.Container{
 		Name:      "nginx",
 		Namespace: "default",
 	}
-	res, err = f.IsContainerExcluded(container, []filterdef.ContainerFilter{filterdef.ContainerGlobal, filterdef.ContainerACLegacy}, true)
-	assert.NoError(t, err)
-	assert.Equal(t, false, res, "Container exclusion result mismatch")
+	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
+	assert.Equal(t, false, res)
 
 	container = filterdef.Container{
 		Name:      "nginx",
 		Namespace: "datadog-agent",
 	}
-	res, err = f.IsContainerExcluded(container, []filterdef.ContainerFilter{filterdef.ContainerGlobal, filterdef.ContainerACLegacy}, false)
-	assert.NoError(t, err)
-	assert.Equal(t, true, res, "Container exclusion result mismatch")
+	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
+	assert.Equal(t, true, res)
 }
 
 func TestContainerSBOMFilter(t *testing.T) {
 
 	tests := []struct {
-		name         string
-		include      []string
-		exclude      []string
-		pauseCtn     bool
-		container    filterdef.Container
-		defaultValue bool
-		expected     bool
+		name      string
+		include   []string
+		exclude   []string
+		pauseCtn  bool
+		container filterdef.Container
+		expected  bool
 	}{
 		{
 			name:     "Include image",
@@ -125,8 +164,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			container: filterdef.Container{
 				Image: "dd-agent",
 			},
-			defaultValue: true,
-			expected:     false,
+			expected: false,
 		},
 		{
 			name:     "Exclude image",
@@ -136,8 +174,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			container: filterdef.Container{
 				Image: "nginx-123",
 			},
-			defaultValue: false,
-			expected:     true,
+			expected: true,
 		},
 		{
 			name:     "Included namespace beats excluded name",
@@ -148,8 +185,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 				Name:      "nginx",
 				Namespace: "default",
 			},
-			defaultValue: true,
-			expected:     false,
+			expected: false,
 		},
 		{
 			name:     "Included name beats excluded namespace",
@@ -160,20 +196,18 @@ func TestContainerSBOMFilter(t *testing.T) {
 				Name:      "nginx",
 				Namespace: "default",
 			},
-			defaultValue: true,
-			expected:     false,
+			expected: false,
 		},
 		{
 			name:     "Exclude pause container",
 			include:  []string{""},
-			exclude:  []string{"name:nginx"},
+			exclude:  []string{""},
 			pauseCtn: true,
 			container: filterdef.Container{
 				Name:  "nginx",
 				Image: "kubernetes/pause",
 			},
-			defaultValue: false,
-			expected:     true,
+			expected: true,
 		},
 		{
 			name:     "Include pause container",
@@ -183,8 +217,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 			container: filterdef.Container{
 				Image: "kubernetes/pause",
 			},
-			defaultValue: false,
-			expected:     false,
+			expected: false,
 		},
 	}
 
@@ -197,10 +230,122 @@ func TestContainerSBOMFilter(t *testing.T) {
 
 			f := newFilterObject(t, mockConfig)
 
-			res, err := f.IsContainerExcluded(tt.container, []filterdef.ContainerFilter{filterdef.ContainerSBOM}, tt.defaultValue)
-			assert.NoError(t, err)
+			res := f.IsContainerExcluded(tt.container, [][]filterdef.ContainerFilter{{filterdef.ContainerSBOM}})
 			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
 		})
 	}
+}
 
+func TestFilterPrecedence(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-agent"})
+	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
+
+	f := newFilterObject(t, mockConfig)
+
+	container := filterdef.Container{
+		Name:  "dd-agent",
+		Image: "datadog/agent:latest",
+	}
+
+	t.Run("First set excludes, second set not evaluated", func(t *testing.T) {
+		precedenceFilters := [][]filterdef.ContainerFilter{
+			{filterdef.ContainerGlobal},  // Excludes (higher priority)
+			{filterdef.ContainerMetrics}, // Includes (but lower priority)
+		}
+
+		res := evaluateResource(f, container, precedenceFilters)
+		assert.Equal(t, filterdef.Excluded, res)
+	})
+
+	t.Run("First set includes, second set not evaluated", func(t *testing.T) {
+		precedenceFilters := [][]filterdef.ContainerFilter{
+			{filterdef.ContainerMetrics}, // Includes (higher priority)
+			{filterdef.ContainerGlobal},  // Excludes (but lower priority)
+		}
+
+		res := evaluateResource(f, container, precedenceFilters)
+		assert.Equal(t, filterdef.Included, res)
+	})
+
+	t.Run("First set unknown, second set exclude", func(t *testing.T) {
+		precedenceFilters := [][]filterdef.ContainerFilter{
+			{filterdef.ContainerLogs},   // Unknown, no results
+			{filterdef.ContainerGlobal}, // Excludes
+		}
+
+		res := evaluateResource(f, container, precedenceFilters)
+		assert.Equal(t, filterdef.Excluded, res)
+	})
+
+	t.Run("First set unknown, second set include", func(t *testing.T) {
+		precedenceFilters := [][]filterdef.ContainerFilter{
+			{filterdef.ContainerLogs},    // Unknown, no results
+			{filterdef.ContainerMetrics}, // Includes
+		}
+
+		res := evaluateResource(f, container, precedenceFilters)
+		assert.Equal(t, filterdef.Included, res)
+	})
+}
+
+func TestEvaluateResourceNoFilters(t *testing.T) {
+	mockConfig := configmock.New(t)
+	f := newFilterObject(t, mockConfig)
+
+	container := filterdef.Container{
+		Name: "no-filters",
+	}
+
+	t.Run("No filter sets", func(t *testing.T) {
+		precedenceFilters := [][]filterdef.ContainerFilter{}
+		res := evaluateResource(f, container, precedenceFilters)
+		assert.Equal(t, filterdef.Unknown, res)
+	})
+
+	t.Run("Empty filter set", func(t *testing.T) {
+		precedenceFilters := [][]filterdef.ContainerFilter{
+			{}, {}, {}, {}, {}, {}, {}, {}, {},
+		}
+		res := evaluateResource(f, container, precedenceFilters)
+		assert.Equal(t, filterdef.Unknown, res)
+	})
+}
+
+type errorInclProgram struct{}
+
+func (p errorInclProgram) Evaluate(key filterdef.ResourceType, _ map[string]any) (filterdef.Result, []error) {
+	return filterdef.Included, []error{fmt.Errorf("include evaluation error on %s", key)}
+}
+
+type errorExclProgram struct{}
+
+func (p errorExclProgram) Evaluate(key filterdef.ResourceType, _ map[string]any) (filterdef.Result, []error) {
+	return filterdef.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", key)}
+}
+
+func TestProgramErrorHandling(t *testing.T) {
+	mockConfig := configmock.New(t)
+	f := newFilterObject(t, mockConfig)
+
+	container := filterdef.Container{
+		Name: "error-case",
+	}
+	precedenceFilters := [][]filterdef.ContainerFilter{
+		{filterdef.ContainerMetrics},
+	}
+
+	t.Run("Include with error thrown", func(t *testing.T) {
+		// Inject a program that always errors for ContainerMetrics, but returns Included
+		f.prgs[filterdef.ContainerType][int(filterdef.ContainerMetrics)] = &errorInclProgram{}
+		res := evaluateResource(f, container, precedenceFilters)
+		assert.Equal(t, filterdef.Included, res)
+	})
+
+	t.Run("Exclude with error thrown", func(t *testing.T) {
+		// Inject a program that always errors for ContainerMetrics, but returns Excluded
+		f.prgs[filterdef.ContainerType][int(filterdef.ContainerMetrics)] = &errorExclProgram{}
+		res := evaluateResource(f, container, precedenceFilters)
+		assert.Equal(t, filterdef.Excluded, res)
+	})
 }

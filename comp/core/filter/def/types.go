@@ -5,12 +5,26 @@
 
 package filter
 
+import (
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+)
+
+// Result is an enumeration that represents the possible results of a filter evaluation.
+type Result int
+
+// filterResult represents the result of a filter evaluation.
+const (
+	Included Result = iota
+	Excluded
+	Unknown
+)
+
 // Filterable is an interface that defines a method to convert an object to a map.
 type Filterable interface {
-	// ToMap converts the object to a map. The map is used to evaluate the rules
+	// ToMap converts the object to a map. The map is used to evaluate the program's rules
 	ToMap() map[string]any
-	// Key returns the resource type of the object. This is the key used to identify the rules
-	Key() ResourceType
+	// Type returns the resource type of the object.
+	Type() ResourceType
 }
 
 // ResourceType defines the type of resource.
@@ -18,8 +32,8 @@ type ResourceType string
 
 // Type string
 const (
-	ContainerKey ResourceType = "container"
-	PodKey       ResourceType = "pod"
+	ContainerType ResourceType = "container"
+	PodType       ResourceType = "pod"
 )
 
 //
@@ -33,24 +47,41 @@ type Container struct {
 	Image       string
 	Namespace   string
 	Annotations map[string]string
+	Owner       Filterable
+}
+
+// CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
+func CreateContainer(container workloadmeta.Container, owner Filterable) Container {
+	return Container{
+		ID:          container.ID,
+		Name:        container.Name,
+		Image:       container.Image.Name,
+		Namespace:   container.Namespace,
+		Annotations: container.Annotations,
+		Owner:       owner,
+	}
 }
 
 var _ Filterable = &Container{}
 
 // ToMap converts the Container object to a map.
 func (c Container) ToMap() map[string]any {
-	return map[string]any{
+	m := map[string]any{
 		"id":          c.ID,
 		"name":        c.Name,
 		"image":       c.Image,
 		"namespace":   c.Namespace,
 		"annotations": c.Annotations,
 	}
+	if c.Owner != nil {
+		m[string(c.Owner.Type())] = c.Owner.ToMap()
+	}
+	return m
 }
 
-// Key returns the resource type of the container.
-func (c Container) Key() ResourceType {
-	return ContainerKey
+// Type returns the resource type of the container.
+func (c Container) Type() ResourceType {
+	return ContainerType
 }
 
 // ContainerFilter defines the type of container filter.
@@ -61,7 +92,8 @@ const (
 	ContainerMetrics ContainerFilter = iota
 	ContainerLogs
 	ContainerGlobal
-	ContainerACLegacy
+	ContainerACLegacyInclude
+	ContainerACLegacyExclude
 	ContainerADAnnotations
 	ContainerPaused
 	ContainerSBOM
@@ -79,6 +111,16 @@ type Pod struct {
 	Annotations map[string]string
 }
 
+// CreatePod creates a Filterable Pod object from a workloadmeta.KubernetesPod.
+func CreatePod(pod workloadmeta.KubernetesPod) Pod {
+	return Pod{
+		ID:          pod.ID,
+		Name:        pod.Name,
+		Namespace:   pod.Namespace,
+		Annotations: pod.Annotations,
+	}
+}
+
 var _ Filterable = &Pod{}
 
 // ToMap converts the Pod object to a map.
@@ -91,9 +133,9 @@ func (p Pod) ToMap() map[string]any {
 	}
 }
 
-// Key returns the resource type of the pod.
-func (p Pod) Key() ResourceType {
-	return PodKey
+// Type returns the resource type of the pod.
+func (p Pod) Type() ResourceType {
+	return PodType
 }
 
 // PodFilter defines the type of pod filter.

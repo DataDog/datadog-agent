@@ -13,85 +13,100 @@ import (
 	"github.com/google/cel-go/cel"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	common "github.com/DataDog/datadog-agent/comp/core/filter/common"
 	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	"github.com/DataDog/datadog-agent/comp/core/filter/program"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 // ContainerMetricsProgram creates a program for filtering container metrics
-func ContainerMetricsProgram(config config.Component, logger log.Component) common.InclExclProgram {
+func ContainerMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
 	includeList := config.GetStringSlice("container_include_metrics")
 	excludeList := config.GetStringSlice("container_exclude_metrics")
 
-	return common.InclExclProgram{
-		Include: createProgramFromOldFilters(includeList, filter.ContainerKey, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerKey, logger),
+	return program.CELProgram{
+		Name:    "ContainerMetricsProgram",
+		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
 	}
 }
 
 // ContainerLogsProgram creates a program for filtering container logs
-func ContainerLogsProgram(config config.Component, logger log.Component) common.InclExclProgram {
+func ContainerLogsProgram(config config.Component, logger log.Component) program.CELProgram {
 	includeList := config.GetStringSlice("container_include_logs")
 	excludeList := config.GetStringSlice("container_exclude_logs")
 
-	return common.InclExclProgram{
-		Include: createProgramFromOldFilters(includeList, filter.ContainerKey, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerKey, logger),
+	return program.CELProgram{
+		Name:    "ContainerLogsProgram",
+		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
 	}
 }
 
-// ContainerACLegacyProgram creates a program for filtering container via legacy `AC` filters
-func ContainerACLegacyProgram(config config.Component, logger log.Component) common.InclExclProgram {
-	includeList := config.GetStringSlice("ac_include")
+// ContainerACLegacyExcludeProgram creates a program for excluding containers via legacy `AC` filters
+func ContainerACLegacyExcludeProgram(config config.Component, logger log.Component) program.CELProgram {
 	excludeList := config.GetStringSlice("ac_exclude")
 
-	return common.InclExclProgram{
-		Include: createProgramFromOldFilters(includeList, filter.ContainerKey, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerKey, logger),
+	return program.CELProgram{
+		Name:    "ContainerACLegacyExcludeProgram",
+		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
+	}
+}
+
+// ContainerACLegacyIncludeProgram creates a program for including containers via legacy `AC` filters
+func ContainerACLegacyIncludeProgram(config config.Component, logger log.Component) program.CELProgram {
+	includeList := config.GetStringSlice("ac_include")
+
+	return program.CELProgram{
+		Name:    "ContainerACLegacyIncludeProgram",
+		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
 	}
 }
 
 // ContainerGlobalProgram creates a program for filtering container globally
-func ContainerGlobalProgram(config config.Component, logger log.Component) common.InclExclProgram {
+func ContainerGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
 	includeList := config.GetStringSlice("container_include")
 	excludeList := config.GetStringSlice("container_exclude")
 
-	return common.InclExclProgram{
-		Include: createProgramFromOldFilters(includeList, filter.ContainerKey, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerKey, logger),
+	return program.CELProgram{
+		Name:    "ContainerGlobalProgram",
+		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
 	}
 }
 
 // ContainerADAnnotationsProgram creates a program for filtering container annotations
-func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) common.InclExclProgram {
+func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) program.CELProgram {
 	excludeFilter := `("ad.datadoghq.com/" + container.name + ".exclude") in container.annotations && container.annotations["ad.datadoghq.com/" + container.name + ".exclude"] == "true"`
-	excludeProgram, err := createCELProgram(excludeFilter, filter.ContainerKey)
+	excludeProgram, err := createCELProgram(excludeFilter, filter.ContainerType)
 
 	if err != nil {
 		logger.Warnf("Error creating CEL filtering program: %v", err)
 	}
 
-	return common.InclExclProgram{
+	return program.CELProgram{
+		Name:    "ContainerADAnnotationsProgram",
 		Exclude: excludeProgram,
 	}
 }
 
 // ContainerPausedProgram creates a program for filtering paused containers
-func ContainerPausedProgram(config config.Component, logger log.Component) common.InclExclProgram {
+func ContainerPausedProgram(config config.Component, logger log.Component) program.CELProgram {
 	var includeList, excludeList []string
 	if config.GetBool("exclude_pause_container") {
 		excludeList = containers.GetPauseContainerExcludeList()
 	}
 
-	return common.InclExclProgram{
-		Include: createProgramFromOldFilters(includeList, filter.ContainerKey, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerKey, logger),
+	return program.CELProgram{
+		Name:    "ContainerPausedProgram",
+		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
 	}
 }
 
 // ContainerSBOMProgram creates a program for filtering container SBOMs
-func ContainerSBOMProgram(config config.Component, logger log.Component) common.InclExclProgram {
+func ContainerSBOMProgram(config config.Component, logger log.Component) program.CELProgram {
 	includeList := config.GetStringSlice("sbom.container_image.container_include")
 	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
 
@@ -99,9 +114,10 @@ func ContainerSBOMProgram(config config.Component, logger log.Component) common.
 		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
 	}
 
-	return common.InclExclProgram{
-		Include: createProgramFromOldFilters(includeList, filter.ContainerKey, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerKey, logger),
+	return program.CELProgram{
+		Name:    "ContainerSBOMProgram",
+		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
 	}
 }
 
@@ -145,10 +161,10 @@ func createCELProgram(rules string, key filter.ResourceType) (cel.Program, error
 
 // Map to associate old filter prefixes with new filter fields
 var containerFieldMapping = map[string]string{
-	"id":             fmt.Sprintf("%s.id.matches", filter.ContainerKey),
-	"name":           fmt.Sprintf("%s.name.matches", filter.ContainerKey),
-	"image":          fmt.Sprintf("%s.image.matches", filter.ContainerKey),
-	"kube_namespace": fmt.Sprintf("%s.namespace.matches", filter.ContainerKey),
+	"id":             fmt.Sprintf("%s.id.matches", filter.ContainerType),
+	"name":           fmt.Sprintf("%s.name.matches", filter.ContainerType),
+	"image":          fmt.Sprintf("%s.image.matches", filter.ContainerType),
+	"kube_namespace": fmt.Sprintf("%s.namespace.matches", filter.ContainerType),
 }
 
 // convertOldToNewFilter converts the legacy regex ad filter format to the google cel format.
@@ -184,6 +200,6 @@ func convertOldToNewFilter(old []string) (string, error) {
 // celEscape escapes backslashes and double quotes for CEL compatibility
 func celEscape(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
+	s = strings.ReplaceAll(s, `"`, `\"`) // TODO: CHECK THIS
 	return s
 }

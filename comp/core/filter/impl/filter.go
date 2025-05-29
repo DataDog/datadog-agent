@@ -9,8 +9,8 @@ package filterimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	catalog "github.com/DataDog/datadog-agent/comp/core/filter/catalog"
-	common "github.com/DataDog/datadog-agent/comp/core/filter/common"
 	filterdef "github.com/DataDog/datadog-agent/comp/core/filter/def"
+	"github.com/DataDog/datadog-agent/comp/core/filter/program"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -21,7 +21,7 @@ type filter struct {
 	config    config.Component
 	log       log.Component
 	telemetry coretelemetry.Component
-	prgs      map[filterdef.ResourceType]map[int]common.FilterProgram
+	prgs      map[filterdef.ResourceType]map[int]program.FilterProgram
 }
 
 // Requires defines the dependencies of the filter component.
@@ -34,14 +34,14 @@ type Requires struct {
 	Telemetry coretelemetry.Component
 }
 
-// Provides contains the fields provided by the tagger constructor.
+// Provides contains the fields provided by the filter constructor.
 type Provides struct {
 	compdef.Out
 
 	Comp filterdef.Component
 }
 
-// NewComponent returns a new tagger client
+// NewComponent returns a new filter client
 func NewComponent(req Requires) (Provides, error) {
 	filterInstance, err := newFilter(req.Config, req.Log, req.Telemetry)
 	if err != nil {
@@ -55,73 +55,88 @@ func NewComponent(req Requires) (Provides, error) {
 
 var _ filterdef.Component = (*filter)(nil)
 
-func newFilter(config config.Component, logger log.Component, telemetry coretelemetry.Component) (filterdef.Component, error) {
-	// Initialize the filter component
-	prgs := map[filterdef.ResourceType]map[int]common.FilterProgram{
-		filterdef.ContainerKey: {
-			int(filterdef.ContainerMetrics):       catalog.ContainerMetricsProgram(config, logger),
-			int(filterdef.ContainerLogs):          catalog.ContainerLogsProgram(config, logger),
-			int(filterdef.ContainerACLegacy):      catalog.ContainerACLegacyProgram(config, logger),
-			int(filterdef.ContainerADAnnotations): catalog.ContainerADAnnotationsProgram(config, logger),
-			int(filterdef.ContainerGlobal):        catalog.ContainerGlobalProgram(config, logger),
-			int(filterdef.ContainerPaused):        catalog.ContainerPausedProgram(config, logger),
-			int(filterdef.ContainerSBOM):          catalog.ContainerSBOMProgram(config, logger),
-		},
+func (f *filter) registerProgram(resourceType filterdef.ResourceType, programType int, prg program.FilterProgram) {
+	if f.prgs[resourceType] == nil {
+		f.prgs[resourceType] = make(map[int]program.FilterProgram)
 	}
+	f.prgs[resourceType][programType] = prg
+}
 
+func (f *filter) getProgram(resourceType filterdef.ResourceType, programType int) program.FilterProgram {
+	if f.prgs == nil {
+		return nil
+	}
+	if programs, ok := f.prgs[resourceType]; ok {
+		return programs[programType]
+	}
+	return nil
+}
+
+func newFilter(config config.Component, logger log.Component, telemetry coretelemetry.Component) (filterdef.Component, error) {
 	filter := &filter{
 		config:    config,
 		log:       logger,
 		telemetry: telemetry,
-		prgs:      prgs,
+		prgs:      make(map[filterdef.ResourceType]map[int]program.FilterProgram),
 	}
+
+	// Container Filters
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerMetrics), catalog.ContainerMetricsProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerLogs), catalog.ContainerLogsProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerACLegacyInclude), catalog.ContainerACLegacyIncludeProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerACLegacyExclude), catalog.ContainerACLegacyExcludeProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerADAnnotations), catalog.ContainerADAnnotationsProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerGlobal), catalog.ContainerGlobalProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerPaused), catalog.ContainerPausedProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerSBOM), catalog.ContainerSBOMProgram(config, logger))
+
+	// WIP: Pod Filters
 
 	return filter, nil
 }
 
 // IsContainerExcluded checks if a container is excluded based on the provided filters.
-func (f *filter) IsContainerExcluded(container filterdef.Container, containerFilters []filterdef.ContainerFilter, defaultValue bool) (bool, error) {
-	return f.isResourceExcluded(container, convertFiltersToInts(containerFilters), defaultValue), nil
+func (f *filter) IsContainerExcluded(container filterdef.Container, containerFilters [][]filterdef.ContainerFilter) bool {
+	return evaluateResource(f, container, containerFilters) == filterdef.Excluded
 }
 
 // IsPodExcluded checks if a pod is excluded based on the provided filters.
-func (f *filter) IsPodExcluded(pod filterdef.Pod, podFilters []filterdef.PodFilter, defaultValue bool) (bool, error) {
-	return f.isResourceExcluded(pod, convertFiltersToInts(podFilters), defaultValue), nil
+func (f *filter) IsPodExcluded(pod filterdef.Pod, podFilters [][]filterdef.PodFilter) bool {
+	return evaluateResource(f, pod, podFilters) == filterdef.Excluded
 }
 
-// isResourceExcluded checks if a resource is excluded based on the provided filters.
-func (f *filter) isResourceExcluded(
-	resource filterdef.Filterable, // Generic resource (e.g., Container, Pod)
-	filters []int, // Generic filter types
-	defaultValue bool,
-) bool {
-	isExcluded := defaultValue
-	for _, filter := range filters {
-		prg := f.prgs[resource.Key()][filter]
-		if prg == nil {
-			continue
-		}
-		res, err := prg.IsExcluded(string(resource.Key()), resource.ToMap())
-		if err != nil {
-			f.log.Warnf("Error evaluating filter %d for resource %s: %v", filter, resource.Key(), err)
-			continue
-		}
-		if res == common.Included {
-			f.log.Debugf("Resource %s is included by filter %d", resource.Key(), filter)
-			return false
-		}
-		if res == common.Excluded {
-			isExcluded = true
-		}
-	}
-	return isExcluded
-}
+// evaluateResource checks if a resource is excluded based on the provided filters.
+func evaluateResource[T ~int](
+	f *filter,
+	resource filterdef.Filterable, // Filterable resource (e.g., Container, Pod)
+	filterSets [][]T, // Generic filter types
+) filterdef.Result {
+	for _, filterSet := range filterSets {
+		var setResult = filterdef.Unknown
+		for _, filter := range filterSet {
 
-// convertFiltersToInts converts a slice of filters to a slice of ints.
-func convertFiltersToInts[T ~int](filters []T) []int {
-	intFilters := make([]int, len(filters))
-	for i, filter := range filters {
-		intFilters[i] = int(filter)
+			prg := f.getProgram(resource.Type(), int(filter))
+			if prg == nil {
+				f.log.Warnf("No program found for filter %d on resource %s", filter, resource.Type())
+				continue
+			}
+
+			res, prgErrs := prg.Evaluate(resource.Type(), resource.ToMap())
+			if prgErrs != nil {
+				f.log.Debug(prgErrs)
+			}
+
+			if res == filterdef.Included {
+				f.log.Debugf("Resource %s is included by filter %d", resource.Type(), filter)
+				return res
+			}
+			if res == filterdef.Excluded {
+				setResult = filterdef.Excluded
+			}
+		}
+		if setResult != filterdef.Unknown {
+			return setResult
+		}
 	}
-	return intFilters
+	return filterdef.Unknown
 }
