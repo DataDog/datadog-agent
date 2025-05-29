@@ -36,7 +36,7 @@ __attribute__((noinline)) bool chased_pointer_contains(chased_pointers_t* chased
   }
   // The currently used clang compiler along with older kernel verifiers doesn't
   // handle a direct loop well, hitting verifier complexity limits. We generate
-  // unwound loop trading code-size for portability.
+  // unwound loop trading code-size for portability
   _Static_assert(MAX_CHASED_POINTERS == 128, "update static loop below when changing MAX_CHASED_POINTERS");
 #define CHECK_1(i)                                          \
   if (i >= max) {                                           \
@@ -81,38 +81,6 @@ static bool chased_pointers_push(chased_pointers_t* chased, target_ptr_t ptr,
   chased->n++;
   return true;
 }
-
-#ifdef DEBUG
-static const char* op_code_name(sm_opcode_t op_code) {
-  switch (op_code) {
-  case SM_OP_INVALID: return "INVALID";
-  case SM_OP_CHASE_POINTERS: return "CHASE_POINTERS";
-  case SM_OP_CALL: return "CALL";
-  case SM_OP_ENQUEUE_POINTER: return "ENQUEUE_POINTER";
-  case SM_OP_ENQUEUE_SLICE_HEADER: return "ENQUEUE_SLICE_HEADER";
-  case SM_OP_ENQUEUE_STRING_HEADER: return "ENQUEUE_STRING_HEADER";
-  case SM_OP_ENQUEUE_GO_EMPTY_INTERFACE: return "ENQUEUE_GO_EMPTY_INTERFACE";
-  case SM_OP_ENQUEUE_GO_INTERFACE: return "ENQUEUE_GO_INTERFACE";
-  case SM_OP_ENQUEUE_GO_HMAP_HEADER: return "ENQUEUE_GO_HMAP_HEADER";
-  case SM_OP_ENQUEUE_GO_SWISS_MAP: return "ENQUEUE_GO_SWISS_MAP";
-  case SM_OP_ENQUEUE_GO_SWISS_MAP_GROUPS: return "ENQUEUE_GO_SWISS_MAP_GROUPS";
-  case SM_OP_ENQUEUE_GO_SUBROUTINE: return "ENQUEUE_GO_SUBROUTINE";
-  case SM_OP_RETURN: return "RETURN";
-  case SM_OP_DEREFERENCE_CFA_OFFSET: return "DEREFERENCE_CFA_OFFSET";
-  case SM_OP_COPY_FROM_REGISTER: return "COPY_FROM_REGISTER";
-  case SM_OP_PREPARE_EXPR_EVAL: return "PREPARE_EXPR_EVAL";
-  case SM_OP_SAVE_EXPR_RESULT: return "SAVE_EXPR_RESULT";
-  case SM_OP_DEREFERENCE_PTR: return "DEREFERENCE_PTR";
-  case SM_OP_ZERO_FILL: return "ZERO_FILL";
-  case SM_OP_SET_PRESENCE_BIT: return "SET_PRESENCE_BIT";
-  case SM_OP_PREPARE_POINTEE_DATA: return "PREPARE_POINTEE_DATA";
-  case SM_OP_PREPARE_EVENT_DATA: return "PREPARE_EVENT_DATA";
-  case SM_OP_ILLEGAL: return "ILLEGAL";
-  default: break;
-  }
-  return "UNKNOWN";
-}
-#endif
 
 static inline uint32_t read_uint32(const uint8_t* buf) {
   return (uint32_t)buf[0] | (uint32_t)buf[1] << 8 | (uint32_t)buf[2] << 16 |
@@ -589,6 +557,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   if (sm->pc >= stack_machine_code_len - stack_machine_code_max_op + 1) {
     return 1;
   }
+  barrier_var(sm->pc);
   switch (op) {
   case SM_OP_CHASE_POINTERS: {
     data_item_header_t* elem = pointers_queue_pop(&sm->pointers_queue);
@@ -643,22 +612,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
     //   LOG(3, "enqueue: failed interface chase");
     // }
-  } break;
-
-  case SM_OP_ENQUEUE_POINTER: {
-    type_t elem_type = (type_t)sm_read_program_uint32(sm);
-    if (elem_type == TYPE_NONE) {
-      LOG(1, "enqueue: unknown pointer type %d", elem_type)
-      return 1;
-    }
-    if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
-      return 1;
-    }
-    target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
-
-    if (!sm_record_pointer(ctx, elem_type, addr, ENQUEUE_LEN_SENTINEL)) {
-      LOG(3, "enqueue: failed pointer chase");
-    }
   } break;
 
   case SM_OP_ENQUEUE_SLICE_HEADER: {
@@ -868,7 +821,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
   } break;
 
-  case SM_OP_PREPARE_EXPR_EVAL: {
+  case SM_OP_EXPR_PREPARE: {
     sm->expr_results_end_offset = scratch_buf_len(buf);
     sm->offset = sm->expr_results_end_offset;
     if (sm->expr_type == POINTER) {
@@ -879,11 +832,24 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
   } break;
 
-  case SM_OP_SAVE_EXPR_RESULT: {
+  case SM_OP_EXPR_SAVE: {
     uint32_t result_offset = sm_read_program_uint32(sm);
     uint32_t byte_len = sm_read_program_uint32(sm);
+    uint32_t bit_offset = sm_read_program_uint32(sm);
+
+    // Save the result.
     copy_data(buf, sm->offset, sm->expr_results_offset + result_offset,
               byte_len);
+
+    // Set the presence bit.
+    sm->buf_offset_0 = sm->expr_results_offset + bit_offset / 8;
+    bit_offset %= 8;
+    if (!scratch_buf_bounds_check(&sm->buf_offset_0, 1)) {
+      return 1;
+    }
+    (*buf)[sm->buf_offset_0] |= (1 << bit_offset);
+
+    // Set the offset at the result data, for potential following process type functions.
     sm->offset = sm->expr_results_offset + result_offset;
     // Truncate scratch buffer, removing temporary processing data past the frame.
     // We do it here, as result may be used for following enqueue function that
@@ -891,33 +857,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     scratch_buf_set_len(buf, sm->expr_results_end_offset);
   } break;
 
-  case SM_OP_DEREFERENCE_PTR: {
-    uint32_t bias = sm_read_program_uint32(sm);
-    uint32_t byte_len = sm_read_program_uint32(sm);
-    buf_offset_t value_offset = sm->offset;
-    if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
-      return 1;
-    }
-    data_item_header_t di = {
-        .type = 0,
-        .length = byte_len,
-        .address = *(target_ptr_t*)&((*buf)[value_offset]) + bias};
-    if (di.address == 0) {
-      sm->offset = 0;
-    } else {
-      sm->offset = scratch_buf_serialize(buf, &di, byte_len);
-    }
-    if (!sm->offset) {
-      // Abort expression evaluation by returning early.
-      scratch_buf_set_len(buf, sm->expr_results_end_offset);
-      if (!sm_return(sm)) {
-        return 1;
-      }
-    }
-  } break;
-
-  case SM_OP_COPY_FROM_REGISTER: {
-    uint16_t regnum = sm_read_program_uint16(sm);
+  case SM_OP_EXPR_READ_REGISTER: {
+    uint8_t regnum = sm_read_program_uint8(sm);
     uint8_t byte_size = sm_read_program_uint8(sm);
     struct pt_regs* regs = ctx->regs;
     if (!regs) {
@@ -982,49 +923,75 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(5, "recorded scratch@%lld < [register expr]", sm->offset);
   } break;
 
-  case SM_OP_ZERO_FILL: {
-    uint32_t data_len = sm_read_program_uint32(sm);
-    zero_data(buf, sm->offset, data_len);
-  } break;
-
-  case SM_OP_SET_PRESENCE_BIT: {
-    uint32_t bit_offset = sm_read_program_uint32(sm);
-    sm->buf_offset_0 = sm->expr_results_offset + bit_offset / 8;
-    bit_offset %= 8;
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, 1)) {
+  case SM_OP_DEREFERENCE_PTR: {
+    uint32_t bias = sm_read_program_uint32(sm);
+    uint32_t byte_len = sm_read_program_uint32(sm);
+    buf_offset_t value_offset = sm->offset;
+    if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
       return 1;
     }
-    (*buf)[sm->buf_offset_0] |= (1 << bit_offset);
+    data_item_header_t di = {
+        .type = 0,
+        .length = byte_len,
+        .address = *(target_ptr_t*)&((*buf)[value_offset]) + bias};
+    if (di.address == 0) {
+      sm->offset = 0;
+    } else {
+      sm->offset = scratch_buf_serialize(buf, &di, byte_len);
+    }
+    if (!sm->offset) {
+      // Abort expression evaluation by returning early.
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) {
+        return 1;
+      }
+    }
   } break;
 
-  case SM_OP_PREPARE_POINTEE_DATA: {
-    LOG(4, "prepare pointee data %u %u %llx", sm->di_0.type,
-        sm->di_0.length, sm->di_0.address);
-    sm->buf_offset_0 = scratch_buf_reserve(buf, &sm->di_0);
-    if (!sm->buf_offset_0) {
-      LOG(1, "enqueue: failed to serialize pointee data root");
+  case SM_OP_PROCESS_POINTER: {
+    type_t elem_type = (type_t)sm_read_program_uint32(sm);
+    if (elem_type == TYPE_NONE) {
+      LOG(1, "enqueue: unknown pointer type %d", elem_type)
       return 1;
     }
-    sm->expr_type = POINTER;
-    sm->expr_results_offset = sm->buf_offset_0;
-    sm->root_addr = sm->di_0.address;
-    sm->offset = sm->buf_offset_0;
-    zero_data(buf, sm->offset, sm->di_0.length);
+    if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
+
+    if (!sm_record_pointer(ctx, elem_type, addr, ENQUEUE_LEN_SENTINEL)) {
+      LOG(3, "enqueue: failed pointer chase");
+    }
   } break;
 
-  case SM_OP_PREPARE_EVENT_DATA: {
-    uint32_t data_len = sm_read_program_uint32(sm);
+  // case SM_OP_PREPARE_POINTEE_DATA: {
+  //   LOG(4, "prepare pointee data %u %u %llx", sm->di_0.type,
+  //       sm->di_0.length, sm->di_0.address);
+  //   sm->buf_offset_0 = scratch_buf_reserve(buf, &sm->di_0);
+  //   if (!sm->buf_offset_0) {
+  //     LOG(1, "enqueue: failed to serialize pointee data root");
+  //     return 1;
+  //   }
+  //   sm->expr_type = POINTER;
+  //   sm->expr_results_offset = sm->buf_offset_0;
+  //   sm->root_addr = sm->di_0.address;
+  //   sm->offset = sm->buf_offset_0;
+  //   zero_data(buf, sm->offset, sm->di_0.length);
+  // } break;
+
+  case SM_OP_PREPARE_EVENT_ROOT: {
     type_t typ = (type_t)sm_read_program_uint32(sm);
+    uint32_t data_len = sm_read_program_uint32(sm);
     // This is needed to prevent the reordering of the bounds check underneath
     // scratch_buf_reserve and the above read_uint32 calls. On
     // older verifiers, spilling can hide the fact that there was bounds
     // checking from the verifier.
-    barrier_var(data_len);
     barrier_var(typ);
+    barrier_var(data_len);
     uint32_t sb_len = scratch_buf_len(buf);
 
     sm->di_0.type = typ;
-    sm->di_0.length = data_len + 8;
+    sm->di_0.length = data_len;
     sm->di_0.address = 0;
     sm->buf_offset_0 = scratch_buf_reserve(buf, &sm->di_0);
     if (!sm->buf_offset_0) {
@@ -1032,7 +999,9 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       return 1;
     }
     sm->expr_results_offset = sm->buf_offset_0;
+    sm->expr_type = FRAME;
     sm->offset = sm->buf_offset_0;
+    zero_data(buf, sm->offset, data_len);
   } break;
 
   // case SM_OP_PREPARE_GO_CONTEXT: {

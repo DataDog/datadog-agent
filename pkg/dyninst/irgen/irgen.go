@@ -346,7 +346,6 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 	for _, probe := range probes {
 		for _, event := range probe.Events {
 			id := typeCatalog.idAlloc.next()
-			byteSize := uint64(0)
 			var expressions []*ir.RootExpression
 			for _, variable := range probe.Subprogram.Variables {
 				if !variable.IsParameter || variable.IsReturn {
@@ -355,7 +354,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 				variableSize := variable.Type.GetByteSize()
 				expr := &ir.RootExpression{
 					Name:   variable.Name,
-					Offset: uint32(byteSize),
+					Offset: uint32(0),
 					Expression: ir.Expression{
 						Type: variable.Type,
 						Operations: []ir.Op{
@@ -368,7 +367,12 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 					},
 				}
 				expressions = append(expressions, expr)
-				byteSize += uint64(variableSize)
+			}
+			presenceBitsetSize := uint32((len(expressions) + 7) / 8)
+			byteSize := uint64(presenceBitsetSize)
+			for _, e := range expressions {
+				e.Offset = uint32(byteSize)
+				byteSize += uint64(e.Expression.Type.GetByteSize())
 			}
 			if byteSize > math.MaxUint32 {
 				return fmt.Errorf(
@@ -384,7 +388,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 					ByteSize: uint32(byteSize),
 				},
 				// TODO: Populate the presence bitset size and expressions.
-				PresenseBitsetSize: 0,
+				PresenseBitsetSize: presenceBitsetSize,
 				Expressions:        expressions,
 			}
 			typeCatalog.typesByID[event.Type.ID] = event.Type
@@ -807,6 +811,10 @@ func computeLocations(
 			if err != nil {
 				return nil, err
 			}
+			// Workaround for delve not returning sizes.
+			if len(locationPieces) == 1 {
+				locationPieces[0].Size = totalSize
+			}
 			locations = append(locations, ir.Location{
 				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
 				Pieces: locationPieces,
@@ -825,6 +833,10 @@ func computeLocations(
 		)
 		if err != nil {
 			return nil, err
+		}
+		// Workaround for delve not returning sizes.
+		if len(locationPieces) == 1 {
+			locationPieces[0].Size = totalSize
 		}
 		for _, r := range v.ranges {
 			locations = append(locations, ir.Location{
