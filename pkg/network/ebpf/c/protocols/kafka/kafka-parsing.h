@@ -46,6 +46,8 @@ static void __always_inline kafka_tcp_termination(conn_tuple_t *tup)
     // for the other direction may not be reached in some cases (localhost).
     flip_tuple(tup);
     bpf_map_delete_elem(&kafka_response, tup);
+
+    // TODO clean up kafka_topic_id_to_name
 }
 
 SEC("socket/kafka_filter")
@@ -933,7 +935,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
         switch (response->state) {
         case KAFKA_METADATA_RESPONSE_START:
-            extra_debug("GUY KAFKA_METADATA_RESPONSE_START");
+            extra_debug("KAFKA_METADATA_RESPONSE_START");
 
             ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
             if (ret != RET_DONE) {
@@ -946,7 +948,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             // fallthrough
         case KAFKA_METADATA_RESPONSE_NUM_BROKERS:
         {
-            extra_debug("GUY KAFKA_METADATA_RESPONSE_NUM_BROKERS");
+            extra_debug("KAFKA_METADATA_RESPONSE_NUM_BROKERS");
             // Assume flexible=true because we don't support old versions
             ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_brokers, first,
                                     VARINT_BYTES_NUM_BROKERS);
@@ -963,7 +965,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         }
         case KAFKA_METADATA_RESPONSE_BROKERS_LOOP: // Loop through brokers until num_of_brokers
         {
-            log_debug("GUY KAFKA_METADATA_RESPONSE_BROKERS_LOOP");
+            extra_debug("KAFKA_METADATA_RESPONSE_BROKERS_LOOP");
             // Move to next step if we have no more brokers to parse
             if (num_of_brokers <= 0) {
                 response->state = KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS;
@@ -997,7 +999,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             break;
         }
         case KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS:
-            log_debug("GUY KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS");
+            extra_debug("KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS");
 
             // cluster_id_size may be -1 when it's null
             s16 cluster_id_size = read_nullable_string_size(pkt, true, &offset);
@@ -1010,7 +1012,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             response->state = KAFKA_METADATA_RESPONSE_NUM_TOPICS;
             // fallthrough
         case KAFKA_METADATA_RESPONSE_NUM_TOPICS:
-            log_debug("GUY KAFKA_METADATA_RESPONSE_NUM_TOPICS");
+            extra_debug("KAFKA_METADATA_RESPONSE_NUM_TOPICS");
 
             // Assume flexible=true because we don't support old versions
             ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_topics, first,
@@ -1026,11 +1028,11 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             response->state = KAFKA_METADATA_RESPONSE_TOPICS_LOOP;
             // fallthrough
         case KAFKA_METADATA_RESPONSE_TOPICS_LOOP: // Loop through topics until num_of_topics
-            log_debug("GUY KAFKA_METADATA_RESPONSE_TOPICS_LOOP");
+            extra_debug("KAFKA_METADATA_RESPONSE_TOPICS_LOOP");
 
             // Move to next step if we have no more topics to parse
             if (num_of_topics <= 0) {
-                log_debug("GUY KAFKA_METADATA_RESPONSE_TOPICS_LOOP finished");
+                extra_debug("KAFKA_METADATA_RESPONSE_TOPICS_LOOP finished");
                 return RET_DONE;
             }
 
@@ -1329,8 +1331,10 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
             }
             break;
         case KAFKA_METADATA:
-            // We don't need to support earlier versions of the metadata response
-            index = PROG_KAFKA_METADATA_RESPONSE_PARTITION_PARSER_V10;
+            if (api_version >= 10) {
+                // We don't need to support earlier versions of the metadata response
+                index = PROG_KAFKA_METADATA_RESPONSE_PARTITION_PARSER_V10;
+            }
             break;
         default:
             // Shouldn't happen

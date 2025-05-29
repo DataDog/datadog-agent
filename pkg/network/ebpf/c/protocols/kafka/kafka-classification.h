@@ -178,18 +178,28 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
 }
 
 static __always_inline u16 get_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
-    u16 topic_count = 0;
+    u8 bytes[2] = {};
 
     // Should be safe to assume that there is always more than one byte present,
     // since there will be the topic name etc after the number of topics.
-    if (*offset + sizeof(topic_count) > pktbuf_data_end(pkt)) {
+    if (*offset + sizeof(bytes) > pktbuf_data_end(pkt)) {
         return false;
     }
 
-    pktbuf_load_bytes(pkt, *offset, &topic_count, sizeof(topic_count));
-    *offset += 2;
+    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
 
-    return topic_count;
+    *offset += 1;
+    if (isMSBSet(bytes[0])) {
+        *offset += 1;
+
+        if (isMSBSet(bytes[1])) {
+            // More than 16383 topics?
+            return false;
+        }
+    }
+
+    // Convert varint bytes to u16
+    return (u16)((bytes[0] >> 8) + bytes[1]);
 }
 
 static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
