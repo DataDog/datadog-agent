@@ -398,10 +398,11 @@ func (l *CheckRunner) basicRunner(c checks.Check) func() {
 	}
 }
 
-// getConnectionsCheckInterval validates the 'process_config.connections_capacity_check_interval' config,
-// ensuring the interval is between 10s and 30s. If valid, the configured interval is used.
-// Otherwise, if the user explicitly configured an invalid value, a warning is logged.
-// In all other cases (invalid or not set), the provided defaultInterval is returned.
+// getConnectionsCheckInterval validates 'process_config.connections_capacity_check_interval' (the "capacity interval").
+// It must be between 10s-30s (inclusive) and be a factor of defaultInterval (the main connections check interval).
+// If both are true, the capacity interval is returned.
+// If explicitly configured by the user but fails validation, a specific warning is logged and defaultInterval is returned.
+// Otherwise (e.g. not configured, or derived value is invalid), defaultInterval is returned.
 func (l *CheckRunner) getConnectionsCheckInterval(checkName string, defaultInterval time.Duration) time.Duration {
 	const minAllowedInterval = 10 * time.Second
 	const maxAllowedInterval = 30 * time.Second
@@ -409,22 +410,38 @@ func (l *CheckRunner) getConnectionsCheckInterval(checkName string, defaultInter
 
 	configuredInterval := l.config.GetDuration(configKey)
 
+	// Validate: 1. Within 10s-30s range
 	if configuredInterval >= minAllowedInterval && configuredInterval <= maxAllowedInterval {
-		log.Infof("Using connections check interval %s from %s", configuredInterval, configKey)
-		return configuredInterval
+		// Validate: 2. Is a factor of defaultInterval
+		// configuredInterval is > 0 due to minAllowedInterval check.
+		// defaultInterval is expected to be > 0 for time.NewTicker.
+		if defaultInterval%configuredInterval == 0 {
+			log.Infof("Using connections capacity check interval %s from %s (valid range and factor of main interval %s)", configuredInterval, configKey, defaultInterval)
+			return configuredInterval
+		}
+		// In 10s-30s range, but not a factor.
+		if l.config.IsConfigured(configKey) {
+			log.Warnf(
+				"Configured %s (%v) is %s-%s but not a factor of the main %s interval (%v). Using default %s interval %v",
+				configKey, configuredInterval,
+				minAllowedInterval, maxAllowedInterval,
+				checkName, defaultInterval,
+				checkName, defaultInterval,
+			)
+		}
+	} else {
+		// Not in 10s-30s range (includes 0 or negative values from GetDuration if not set or invalid).
+		if l.config.IsConfigured(configKey) {
+			log.Warnf(
+				"Configured %s (%v) is invalid: must be between %s and %s. Using default %s interval %v",
+				configKey, configuredInterval,
+				minAllowedInterval, maxAllowedInterval,
+				checkName, defaultInterval,
+			)
+		}
 	}
 
-	// If the value was configured by the user but is not in the valid range, warn them.
-	if l.config.IsConfigured(configKey) {
-		log.Warnf(
-			"Configured %s (%v) is invalid: must be between %s and %s. Using default %s interval %v",
-			configKey, configuredInterval,
-			minAllowedInterval, maxAllowedInterval,
-			checkName, defaultInterval,
-		)
-	}
-
-	// Either not configured or configured to an invalid value; use default.
+	// Fallback to defaultInterval if any validation failed.
 	return defaultInterval
 }
 
