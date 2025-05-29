@@ -17,7 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const discoveryNS = "discovery"
+const (
+	discoveryNS = "discovery"
+	// maxCommLen is maximum command name length to process when checking for non-reportable commands,
+	// is one byte less (excludes end of line) than the maximum of /proc/<pid>/comm
+	// defined in https://man7.org/linux/man-pages/man5/proc.5.html.
+	maxCommLen = 15
+)
 
 type discoveryConfig struct {
 	ebpf.Config

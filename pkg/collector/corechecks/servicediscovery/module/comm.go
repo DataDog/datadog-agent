@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux
+//go:build linux_bpf
 
 package module
 
@@ -18,10 +18,6 @@ import (
 )
 
 const (
-	// maxCommLen is maximum command name length to process when checking for non-reportable commands,
-	// is one byte less (excludes end of line) than the maximum of /proc/<pid>/comm
-	// defined in https://man7.org/linux/man-pages/man5/proc.5.html.
-	maxCommLen   = 15
 	poolCapacity = 100
 )
 
