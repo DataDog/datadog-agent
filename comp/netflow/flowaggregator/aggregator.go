@@ -282,6 +282,7 @@ func (agg *FlowAggregator) flush() {
 		telemetryFlowContextFlowsAggregated.Observe(float64(flowStat.flowsAggregated))
 		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_number_of_uses", float64(flowStat.numberOfUses), "", nil)
 		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
+		// JMWTHU add Distribution of duration of flow context
 	}
 
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
