@@ -50,8 +50,8 @@ type ServiceInfo struct {
 	CmdLine                    []string
 	StartTimeMilli             uint64
 	RSS                        uint64
-	CpuTime                    uint64
-	CpuUsage                   float64
+	CPUTime                    uint64
+	CPUUsage                   float64
 	ContainerID                string
 	LastHeartbeat              int64
 	AddedToMap                 bool
@@ -85,7 +85,7 @@ func (i *ServiceInfo) ToModelService(pid int32, out *model.Service) *model.Servi
 	out.RSS = i.RSS
 	out.CommandLine = i.CmdLine
 	out.StartTimeMilli = i.StartTimeMilli
-	out.CPUCores = i.CpuUsage
+	out.CPUCores = i.CPUUsage
 	out.ContainerID = i.ContainerID
 	out.LastHeartbeat = i.LastHeartbeat
 	out.RxBytes = i.RxBytes
@@ -290,7 +290,7 @@ func (c *Discovery) updateServicesCPUStats(response *model.ServicesResponse) err
 				continue
 			}
 
-			service.CPUCores = info.CpuUsage
+			service.CPUCores = info.CPUUsage
 		}
 	}
 
