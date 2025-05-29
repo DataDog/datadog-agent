@@ -16,8 +16,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
@@ -47,8 +45,8 @@ type serviceInfo struct {
 	tracerMetadata             []tracermetadata.TracerMetadata
 	ports                      []uint16
 	checkedContainerData       bool
-	language                   language.Language
-	apmInstrumentation         apm.Instrumentation
+	language                   string
+	apmInstrumentation         string
 	cmdLine                    []string
 	startTimeMilli             uint64
 	rss                        uint64
@@ -81,8 +79,8 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 	out.DDServiceInjected = i.ddServiceInjected
 	out.TracerMetadata = i.tracerMetadata
 	out.Ports = i.ports
-	out.APMInstrumentation = string(i.apmInstrumentation)
-	out.Language = string(i.language)
+	out.APMInstrumentation = i.apmInstrumentation
+	out.Language = i.language
 	out.Type = string(servicetype.Detect(i.ports))
 	out.RSS = i.rss
 	out.CommandLine = i.cmdLine
