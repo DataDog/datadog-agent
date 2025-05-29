@@ -524,6 +524,11 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		)
 	}
 
+	// HACK: close so package can be updated as watchdog runs
+	if pkg == packageDatadogAgent && runtime.GOOS == "windows" {
+		i.db.Close()
+	}
+
 	return i.hooks.PostStartConfigExperiment(ctx, pkg)
 }
 
