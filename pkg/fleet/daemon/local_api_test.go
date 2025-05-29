@@ -3,9 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// for now the installer is not supported on windows
-//go:build !windows
-
 package daemon
 
 import (
@@ -97,6 +94,10 @@ func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
 
 func (m *testDaemon) SetCatalog(catalog catalog) {
 	m.Called(catalog)
+}
+
+func (m *testDaemon) SetConfigCatalog(configs map[string]installerConfig) {
+	m.Called(configs)
 }
 
 type testLocalAPI struct {
