@@ -636,16 +636,7 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 
 	start := time.Now()
 	tp, err := decodeTracerPayloadV1(req, r.containerIDProvider)
-	// TODO: how to handle tag stats if we fail to decode?
-	ts := r.Stats.GetTagStats(info.Tags{
-		Lang:            tp.LanguageName(),
-		LangVersion:     tp.LanguageVersion(),
-		Interpreter:     req.Header.Get(header.LangInterpreter),
-		LangVendor:      req.Header.Get(header.LangInterpreterVendor),
-		TracerVersion:   tp.TracerVersion(),
-		EndpointVersion: string(V10),
-		Service:         firstService(tp),
-	})
+	ts := r.tagStats(V10, req.Header, firstService(tp))
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		_ = r.statsd.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)

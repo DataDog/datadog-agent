@@ -515,6 +515,25 @@ func TestReceiverV1MsgpackDecoder(t *testing.T) {
 
 }
 
+func TestReceiverV1DecodingError(t *testing.T) {
+	assert := assert.New(t)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(V10, r.handleTraces))
+	data := []byte("invalid msgpack")
+	var client http.Client
+	req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+	traceCount := 10
+	req.Header.Set(header.TraceCount, strconv.Itoa(traceCount))
+	req.Header.Set("Content-Type", "application/msgpack")
+
+	resp, err := client.Do(req)
+	assert.NoError(err)
+	resp.Body.Close()
+	assert.Equal(400, resp.StatusCode)
+	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v1.0"}).TracesDropped.DecodingError.Load())
+}
+
 func TestReceiverDecodingError(t *testing.T) {
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()
