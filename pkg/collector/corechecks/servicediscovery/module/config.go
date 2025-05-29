@@ -12,7 +12,6 @@ import (
 	"time"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,7 +25,6 @@ const (
 )
 
 type discoveryConfig struct {
-	ebpf.Config
 	cpuUsageUpdateDelay time.Duration
 	networkStatsEnabled bool
 	networkStatsPeriod  time.Duration
@@ -39,7 +37,6 @@ func newConfig() *discoveryConfig {
 	sysconfig.Adjust(cfg)
 
 	conf := &discoveryConfig{
-		Config:              *ebpf.NewConfig(),
 		cpuUsageUpdateDelay: cfg.GetDuration(join(discoveryNS, "cpu_usage_update_delay")),
 		networkStatsEnabled: cfg.GetBool(join(discoveryNS, "network_stats.enabled")),
 		networkStatsPeriod:  cfg.GetDuration(join(discoveryNS, "network_stats.period")),

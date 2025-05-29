@@ -72,7 +72,7 @@ type discovery struct {
 	scrubber *procutil.DataScrubber
 }
 
-type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
+type networkCollectorFactory func(_ *discoveryConfig) (networkCollector, error)
 
 func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Component, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
 	cfg := newConfig()

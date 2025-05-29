@@ -12,6 +12,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
@@ -88,11 +89,11 @@ func getAssetName(module string, debug bool) string {
 //go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-net.c pkg/ebpf/bytecode/build/runtime/discovery-net.c pkg/ebpf/c pkg/collector/corechecks/servicediscovery/c/ebpf/runtime pkg/network/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/discovery-net.c pkg/ebpf/bytecode/runtime/discovery-net.go runtime
 
-func runtimeCompile(cfg *discoveryConfig) (runtime.CompiledOutput, error) {
-	return runtime.DiscoveryNet.Compile(&cfg.Config, getCFlags(cfg))
+func runtimeCompile(cfg *ebpf.Config) (runtime.CompiledOutput, error) {
+	return runtime.DiscoveryNet.Compile(cfg, getCFlags(cfg))
 }
 
-func getCFlags(cfg *discoveryConfig) []string {
+func getCFlags(cfg *ebpf.Config) []string {
 	cflags := []string{"-g"}
 
 	if cfg.BPFDebug {
@@ -101,7 +102,7 @@ func getCFlags(cfg *discoveryConfig) []string {
 	return cflags
 }
 
-func (c *eBPFNetworkCollector) initRuntimeCompiled(cfg *discoveryConfig) error {
+func (c *eBPFNetworkCollector) initRuntimeCompiled(cfg *ebpf.Config) error {
 	buf, err := runtimeCompile(cfg)
 	if err != nil {
 		return err
@@ -112,14 +113,14 @@ func (c *eBPFNetworkCollector) initRuntimeCompiled(cfg *discoveryConfig) error {
 	return c.setupManager(buf, manager.Options{})
 }
 
-func (c *eBPFNetworkCollector) initCORE(cfg *discoveryConfig) error {
+func (c *eBPFNetworkCollector) initCORE(cfg *ebpf.Config) error {
 	asset := getAssetName("discovery-net", cfg.BPFDebug)
 	return ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return c.setupManager(ar, o)
 	})
 }
 
-func newNetworkCollector(cfg *discoveryConfig) (networkCollector, error) {
+func newNetworkCollectorWithConfig(cfg *ebpf.Config) (networkCollector, error) {
 	collector := eBPFNetworkCollector{}
 
 	if cfg.EnableCORE {
@@ -145,6 +146,10 @@ func newNetworkCollector(cfg *discoveryConfig) (networkCollector, error) {
 	}
 
 	return &collector, nil
+}
+
+func newNetworkCollector(_ *discoveryConfig) (networkCollector, error) {
+	return newNetworkCollectorWithConfig(ebpf.NewConfig())
 }
 
 func (c *eBPFNetworkCollector) close() {

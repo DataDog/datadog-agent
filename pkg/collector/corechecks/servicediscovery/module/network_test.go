@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 )
 
@@ -89,7 +90,7 @@ func runClient(t *testing.T, proto, addr string) {
 
 func TestNetworkCompile(t *testing.T) {
 	ebpftest.TestBuildMode(t, ebpftest.RuntimeCompiled, "", func(t *testing.T) {
-		config := newConfig()
+		config := ebpf.NewConfig()
 		config.BPFDebug = true
 		out, err := runtimeCompile(config)
 		require.NoError(t, err)
@@ -115,9 +116,9 @@ func TestNetworkCollector(t *testing.T) {
 
 		for _, test := range tests {
 			t.Run(test.proto, func(t *testing.T) {
-				config := newConfig()
+				config := ebpf.NewConfig()
 				config.BPFDebug = true
-				collector, err := newNetworkCollector(config)
+				collector, err := newNetworkCollectorWithConfig(config)
 				require.NoError(t, err)
 				t.Cleanup(func() { collector.close() })
 
