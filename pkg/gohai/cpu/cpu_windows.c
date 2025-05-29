@@ -1,3 +1,7 @@
+// This file is licensed under the MIT License.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 #include "cpu_windows.h"
 #include <windows.h>
 #include <stdio.h>
