@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package module
+package core
 
 import (
 	"fmt"
@@ -32,154 +32,154 @@ const (
 	containerCacheValidity = 2 * time.Second
 )
 
-// serviceInfo holds process data that should be cached between calls to the
+// ServiceInfo holds process data that should be cached between calls to the
 // endpoint.
-type serviceInfo struct {
-	generatedName              string
-	generatedNameSource        string
-	additionalGeneratedNames   []string
-	containerServiceName       string
-	containerServiceNameSource string
-	ddServiceName              string
-	ddServiceInjected          bool
-	tracerMetadata             []tracermetadata.TracerMetadata
-	ports                      []uint16
-	checkedContainerData       bool
-	language                   string
-	apmInstrumentation         string
-	cmdLine                    []string
-	startTimeMilli             uint64
-	rss                        uint64
-	cpuTime                    uint64
-	cpuUsage                   float64
-	containerID                string
-	lastHeartbeat              int64
-	addedToMap                 bool
-	rxBytes                    uint64
-	txBytes                    uint64
-	rxBps                      float64
-	txBps                      float64
+type ServiceInfo struct {
+	GeneratedName              string
+	GeneratedNameSource        string
+	AdditionalGeneratedNames   []string
+	ContainerServiceName       string
+	ContainerServiceNameSource string
+	DDServiceName              string
+	DDServiceInjected          bool
+	TracerMetadata             []tracermetadata.TracerMetadata
+	Ports                      []uint16
+	CheckedContainerData       bool
+	Language                   string
+	APMInstrumentation         string
+	CmdLine                    []string
+	StartTimeMilli             uint64
+	RSS                        uint64
+	CpuTime                    uint64
+	CpuUsage                   float64
+	ContainerID                string
+	LastHeartbeat              int64
+	AddedToMap                 bool
+	RxBytes                    uint64
+	TxBytes                    uint64
+	RxBps                      float64
+	TxBps                      float64
 }
 
-// toModelService fills the model.Service struct pointed to by out, using the
+// ToModelService fills the model.Service struct pointed to by out, using the
 // service info to do it.
-func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Service {
+func (i *ServiceInfo) ToModelService(pid int32, out *model.Service) *model.Service {
 	if i == nil {
-		log.Warn("toModelService called with nil pointer")
+		log.Warn("ToModelService called with nil pointer")
 		return nil
 	}
 
 	out.PID = int(pid)
-	out.GeneratedName = i.generatedName
-	out.GeneratedNameSource = i.generatedNameSource
-	out.AdditionalGeneratedNames = i.additionalGeneratedNames
-	out.ContainerServiceName = i.containerServiceName
-	out.ContainerServiceNameSource = i.containerServiceNameSource
-	out.DDService = i.ddServiceName
-	out.DDServiceInjected = i.ddServiceInjected
-	out.TracerMetadata = i.tracerMetadata
-	out.Ports = i.ports
-	out.APMInstrumentation = i.apmInstrumentation
-	out.Language = i.language
-	out.Type = string(servicetype.Detect(i.ports))
-	out.RSS = i.rss
-	out.CommandLine = i.cmdLine
-	out.StartTimeMilli = i.startTimeMilli
-	out.CPUCores = i.cpuUsage
-	out.ContainerID = i.containerID
-	out.LastHeartbeat = i.lastHeartbeat
-	out.RxBytes = i.rxBytes
-	out.TxBytes = i.txBytes
-	out.RxBps = i.rxBps
-	out.TxBps = i.txBps
+	out.GeneratedName = i.GeneratedName
+	out.GeneratedNameSource = i.GeneratedNameSource
+	out.AdditionalGeneratedNames = i.AdditionalGeneratedNames
+	out.ContainerServiceName = i.ContainerServiceName
+	out.ContainerServiceNameSource = i.ContainerServiceNameSource
+	out.DDService = i.DDServiceName
+	out.DDServiceInjected = i.DDServiceInjected
+	out.TracerMetadata = i.TracerMetadata
+	out.Ports = i.Ports
+	out.APMInstrumentation = i.APMInstrumentation
+	out.Language = i.Language
+	out.Type = string(servicetype.Detect(i.Ports))
+	out.RSS = i.RSS
+	out.CommandLine = i.CmdLine
+	out.StartTimeMilli = i.StartTimeMilli
+	out.CPUCores = i.CpuUsage
+	out.ContainerID = i.ContainerID
+	out.LastHeartbeat = i.LastHeartbeat
+	out.RxBytes = i.RxBytes
+	out.TxBytes = i.TxBytes
+	out.RxBps = i.RxBps
+	out.TxBps = i.TxBps
 
 	return out
 }
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=impl_mock_linux.go
 
-type timeProvider interface {
+type TimeProvider interface {
 	Now() time.Time
 }
 
-type realTime struct{}
+type RealTime struct{}
 
-func (realTime) Now() time.Time { return time.Now() }
+func (RealTime) Now() time.Time { return time.Now() }
 
-type pidSet map[int32]struct{}
+type PidSet map[int32]struct{}
 
-func (s pidSet) has(pid int32) bool {
+func (s PidSet) has(pid int32) bool {
 	_, present := s[pid]
 	return present
 }
 
-func (s pidSet) add(pid int32) {
+func (s PidSet) add(pid int32) {
 	s[pid] = struct{}{}
 }
 
-func (s pidSet) remove(pid int32) {
+func (s PidSet) remove(pid int32) {
 	delete(s, pid)
 }
 
-type discoveryCore struct {
-	config *discoveryConfig
+type Discovery struct {
+	Config *DiscoveryConfig
 
-	// cache maps pids to data that should be cached between calls to the endpoint.
-	cache map[int32]*serviceInfo
+	// Cache maps pids to data that should be cached between calls to the endpoint.
+	Cache map[int32]*ServiceInfo
 
-	// potentialServices stores processes that we have seen once in the previous
+	// PotentialServices stores processes that we have seen once in the previous
 	// iteration, but not yet confirmed to be a running service.
-	potentialServices pidSet
+	PotentialServices PidSet
 
-	// runningServices stores services that we have previously confirmed as
+	// RunningServices stores services that we have previously confirmed as
 	// running.
-	runningServices pidSet
+	RunningServices PidSet
 
-	// ignorePids stores processes to be excluded from discovery
-	ignorePids pidSet
+	// IgnorePids stores processes to be excluded from discovery
+	IgnorePids PidSet
 
-	// lastGlobalCPUTime stores the total cpu time of the system from the last time
+	// LastGlobalCPUTime stores the total cpu time of the system from the last time
 	// the endpoint was called.
-	lastGlobalCPUTime uint64
+	LastGlobalCPUTime uint64
 
-	// lastCPUTimeUpdate is the last time lastGlobalCPUTime was updated.
-	lastCPUTimeUpdate time.Time
+	// LastCPUTimeUpdate is the last time lastGlobalCPUTime was updated.
+	LastCPUTimeUpdate time.Time
 
-	lastNetworkStatsUpdate time.Time
+	LastNetworkStatsUpdate time.Time
 
-	wmeta  workloadmeta.Component
-	tagger tagger.Component
+	WMeta  workloadmeta.Component
+	Tagger tagger.Component
 
-	timeProvider timeProvider
-	network      networkCollector
+	TimeProvider TimeProvider
+	Network      NetworkCollector
 
-	networkErrorLimit *log.Limit
+	NetworkErrorLimit *log.Limit
 }
 
 // cleanCache deletes dead PIDs from the cache. Note that this does not actually
 // shrink the map but should free memory for the service name strings referenced
 // from it. This function is not thread-safe and it is up to the caller to ensure
 // proper locking.
-func (c *discoveryCore) cleanCache(alivePids pidSet) {
-	for pid, info := range c.cache {
+func (c *Discovery) cleanCache(alivePids PidSet) {
+	for pid, info := range c.Cache {
 		if alivePids.has(pid) {
 			continue
 		}
 
-		if info.addedToMap {
-			err := c.network.removePid(uint32(pid))
+		if info.AddedToMap {
+			err := c.Network.RemovePid(uint32(pid))
 			if err != nil {
 				log.Warn("unable to remove pid from network collector", pid, err)
 			}
 		}
 
-		delete(c.cache, pid)
+		delete(c.Cache, pid)
 	}
 }
 
 // cleanPidSets deletes dead PIDs from the provided pidSets. This function is not
 // thread-safe and it is up to the caller to ensure proper locking.
-func (c *discoveryCore) cleanPidSets(alivePids pidSet, sets ...pidSet) {
+func (c *Discovery) cleanPidSets(alivePids PidSet, sets ...PidSet) {
 	for _, set := range sets {
 		for pid := range set {
 			if alivePids.has(pid) {
@@ -192,13 +192,13 @@ func (c *discoveryCore) cleanPidSets(alivePids pidSet, sets ...pidSet) {
 }
 
 // updateNetworkStats updates the network statistics for all services in the cache.
-func (c *discoveryCore) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
-	for pid, info := range c.cache {
-		if !info.addedToMap {
-			err := c.network.addPid(uint32(pid))
+func (c *Discovery) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
+	for pid, info := range c.Cache {
+		if !info.AddedToMap {
+			err := c.Network.AddPid(uint32(pid))
 			if err == nil {
-				info.addedToMap = true
-			} else if c.networkErrorLimit.ShouldLog() {
+				info.AddedToMap = true
+			} else if c.NetworkErrorLimit.ShouldLog() {
 				// This error can occur if the eBPF map used by the network
 				// collector is full.
 				log.Warnf("unable to add to network collector %v: %v", pid, err)
@@ -206,34 +206,34 @@ func (c *discoveryCore) updateNetworkStats(deltaSeconds float64, response *model
 			continue
 		}
 
-		stats, err := c.network.getStats(uint32(pid))
+		stats, err := c.Network.GetStats(uint32(pid))
 		if err != nil {
 			log.Warnf("unable to get network stats %v: %v", pid, err)
 			continue
 		}
 
-		deltaRx := stats.Rx - info.rxBytes
-		deltaTx := stats.Tx - info.txBytes
+		deltaRx := stats.Rx - info.RxBytes
+		deltaTx := stats.Tx - info.TxBytes
 
-		info.rxBps = float64(deltaRx) / deltaSeconds
-		info.txBps = float64(deltaTx) / deltaSeconds
+		info.RxBps = float64(deltaRx) / deltaSeconds
+		info.TxBps = float64(deltaTx) / deltaSeconds
 
-		info.rxBytes = stats.Rx
-		info.txBytes = stats.Tx
+		info.RxBytes = stats.Rx
+		info.TxBytes = stats.Tx
 	}
 
 	updateResponseNetworkStats := func(services []model.Service) {
 		for i := range services {
 			service := &services[i]
-			info, ok := c.cache[int32(service.PID)]
+			info, ok := c.Cache[int32(service.PID)]
 			if !ok {
 				continue
 			}
 
-			service.RxBps = info.rxBps
-			service.TxBps = info.txBps
-			service.RxBytes = info.rxBytes
-			service.TxBytes = info.txBytes
+			service.RxBps = info.RxBps
+			service.TxBps = info.TxBps
+			service.RxBytes = info.RxBytes
+			service.TxBytes = info.TxBytes
 		}
 	}
 
@@ -242,14 +242,14 @@ func (c *discoveryCore) updateNetworkStats(deltaSeconds float64, response *model
 }
 
 // maybeUpdateNetworkStats updates network statistics if enough time has passed since the last update.
-func (c *discoveryCore) maybeUpdateNetworkStats(response *model.ServicesResponse) {
-	if c.network == nil {
+func (c *Discovery) maybeUpdateNetworkStats(response *model.ServicesResponse) {
+	if c.Network == nil {
 		return
 	}
 
-	now := c.timeProvider.Now()
-	delta := now.Sub(c.lastNetworkStatsUpdate)
-	if delta < c.config.networkStatsPeriod {
+	now := c.TimeProvider.Now()
+	delta := now.Sub(c.LastNetworkStatsUpdate)
+	if delta < c.Config.NetworkStatsPeriod {
 		return
 	}
 
@@ -257,14 +257,14 @@ func (c *discoveryCore) maybeUpdateNetworkStats(response *model.ServicesResponse
 
 	c.updateNetworkStats(deltaSeconds, response)
 
-	c.lastNetworkStatsUpdate = now
+	c.LastNetworkStatsUpdate = now
 }
 
 // updateServicesCPUStats updates the CPU stats of cached services, as well as the
 // global CPU time cache for future updates. This function is not thread-safe and
 // it is up to the caller to ensure proper locking.
-func (c *discoveryCore) updateServicesCPUStats(response *model.ServicesResponse) error {
-	if time.Since(c.lastCPUTimeUpdate) < c.config.cpuUsageUpdateDelay {
+func (c *Discovery) updateServicesCPUStats(response *model.ServicesResponse) error {
+	if time.Since(c.LastCPUTimeUpdate) < c.Config.CPUUsageUpdateDelay {
 		return nil
 	}
 
@@ -273,27 +273,27 @@ func (c *discoveryCore) updateServicesCPUStats(response *model.ServicesResponse)
 		return fmt.Errorf("could not get global CPU time: %w", err)
 	}
 
-	for pid, info := range c.cache {
-		_ = updateCPUCoresStats(int(pid), info, c.lastGlobalCPUTime, globalCPUTime)
+	for pid, info := range c.Cache {
+		_ = updateCPUCoresStats(int(pid), info, c.LastGlobalCPUTime, globalCPUTime)
 	}
 
 	updateResponseCPUStats := func(services []model.Service) {
 		for i := range services {
 			service := &services[i]
-			info, ok := c.cache[int32(service.PID)]
+			info, ok := c.Cache[int32(service.PID)]
 			if !ok {
 				continue
 			}
 
-			service.CPUCores = info.cpuUsage
+			service.CPUCores = info.CpuUsage
 		}
 	}
 
 	updateResponseCPUStats(response.StartedServices)
 	updateResponseCPUStats(response.HeartbeatServices)
 
-	c.lastGlobalCPUTime = globalCPUTime
-	c.lastCPUTimeUpdate = time.Now()
+	c.LastGlobalCPUTime = globalCPUTime
+	c.LastCPUTimeUpdate = time.Now()
 
 	return nil
 }
@@ -302,14 +302,14 @@ func (c *discoveryCore) updateServicesCPUStats(response *model.ServicesResponse)
 // running are still alive. If not, it will use the latest cached information
 // about them to generate a stop event for the service. This function is not
 // thread-safe and it is up to the caller to ensure proper locking.
-func (c *discoveryCore) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
-	for pid := range c.runningServices {
+func (c *Discovery) handleStoppedServices(response *model.ServicesResponse, alivePids PidSet) {
+	for pid := range c.RunningServices {
 		if alivePids.has(pid) {
 			continue
 		}
 
-		c.runningServices.remove(pid)
-		info, ok := c.cache[pid]
+		c.RunningServices.remove(pid)
+		info, ok := c.Cache[pid]
 		if !ok {
 			log.Warnf("could not get service from the cache to generate a stopped service event for PID %v", pid)
 			continue
@@ -317,22 +317,22 @@ func (c *discoveryCore) handleStoppedServices(response *model.ServicesResponse, 
 
 		// Build service struct in place in the slice
 		response.StoppedServices = append(response.StoppedServices, model.Service{})
-		info.toModelService(pid, &response.StoppedServices[len(response.StoppedServices)-1])
+		info.ToModelService(pid, &response.StoppedServices[len(response.StoppedServices)-1])
 	}
 }
 
 // updateCacheInfo updates the cache with the latest heartbeat information.
-func (c *discoveryCore) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
+func (c *Discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
 	updateCachedHeartbeat := func(service *model.Service) {
-		info, ok := c.cache[int32(service.PID)]
+		info, ok := c.Cache[int32(service.PID)]
 		if !ok {
 			log.Warnf("could not access service info from the cache when update last heartbeat for PID %v start event", service.PID)
 			return
 		}
 
-		info.lastHeartbeat = now.Unix()
-		info.ports = service.Ports
-		info.rss = service.RSS
+		info.LastHeartbeat = now.Unix()
+		info.Ports = service.Ports
+		info.RSS = service.RSS
 	}
 
 	for i := range response.StartedServices {
@@ -346,7 +346,7 @@ func (c *discoveryCore) updateCacheInfo(response *model.ServicesResponse, now ti
 	}
 }
 
-func getServiceNameFromContainerTags(tags []string) (string, string) {
+func GetServiceNameFromContainerTags(tags []string) (string, string) {
 	// The tags we look for service name generation, in their priority order.
 	// The map entries will be filled as we go through the containers tags.
 	tagsPriority := []struct {
@@ -401,11 +401,11 @@ func getServiceNameFromContainerTags(tags []string) (string, string) {
 	return "", ""
 }
 
-func (c *discoveryCore) getContainersMap() map[int]*workloadmeta.Container {
-	containers := c.wmeta.ListContainersWithFilter(workloadmeta.GetRunningContainers)
+func (c *Discovery) GetContainersMap() map[int]*workloadmeta.Container {
+	containers := c.WMeta.ListContainersWithFilter(workloadmeta.GetRunningContainers)
 	containersMap := make(map[int]*workloadmeta.Container, len(containers))
 
-	metricsProvider := metrics.GetProvider(option.New(c.wmeta))
+	metricsProvider := metrics.GetProvider(option.New(c.WMeta))
 
 	for _, container := range containers {
 		collector := metricsProvider.GetCollector(provider.NewRuntimeMetadata(
@@ -430,7 +430,7 @@ func (c *discoveryCore) getContainersMap() map[int]*workloadmeta.Container {
 	return containersMap
 }
 
-func (c *discoveryCore) getProcessContainerInfo(pid int, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) (string, []string, bool) {
+func (c *Discovery) getProcessContainerInfo(pid int, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) (string, []string, bool) {
 	container, ok := containers[pid]
 	if !ok {
 		return "", nil, false
@@ -447,7 +447,7 @@ func (c *discoveryCore) getProcessContainerInfo(pid int, containers map[int]*wor
 	// Getting the tags from the tagger. This logic is borrowed from
 	// the GetContainers helper in pkg/process/util/containers.
 	entityID := types.NewEntityID(types.ContainerID, containerID)
-	entityTags, err := c.tagger.Tag(entityID, types.HighCardinality)
+	entityTags, err := c.Tagger.Tag(entityID, types.HighCardinality)
 	if err != nil {
 		log.Tracef("Could not get tags for container %s: %v", containerID, err)
 		return containerID, collectorTags, false
@@ -458,7 +458,7 @@ func (c *discoveryCore) getProcessContainerInfo(pid int, containers map[int]*wor
 	return containerID, tags, true
 }
 
-func (c *discoveryCore) enrichContainerData(service *model.Service, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) {
+func (c *Discovery) EnrichContainerData(service *model.Service, containers map[int]*workloadmeta.Container, containerTagsCache map[string][]string) {
 	containerID, containerTags, ok := c.getProcessContainerInfo(service.PID, containers, containerTagsCache)
 	if !ok {
 		return
@@ -472,33 +472,33 @@ func (c *discoveryCore) enrichContainerData(service *model.Service, containers m
 		return
 	}
 
-	tagName, serviceName := getServiceNameFromContainerTags(containerTags)
+	tagName, serviceName := GetServiceNameFromContainerTags(containerTags)
 	service.ContainerServiceName = serviceName
 	service.ContainerServiceNameSource = tagName
 	service.CheckedContainerData = true
 
-	info, ok := c.cache[int32(service.PID)]
+	info, ok := c.Cache[int32(service.PID)]
 	if ok {
-		info.containerServiceName = serviceName
-		info.containerServiceNameSource = tagName
-		info.checkedContainerData = true
-		info.containerID = containerID
+		info.ContainerServiceName = serviceName
+		info.ContainerServiceNameSource = tagName
+		info.CheckedContainerData = true
+		info.ContainerID = containerID
 	}
 }
 
-func (c *discoveryCore) close() {
-	c.cleanCache(pidSet{})
-	if c.network != nil {
-		c.network.close()
-		c.network = nil
+func (c *Discovery) Close() {
+	c.cleanCache(PidSet{})
+	if c.Network != nil {
+		c.Network.Close()
+		c.Network = nil
 	}
-	clear(c.cache)
-	clear(c.ignorePids)
-	clear(c.potentialServices)
-	clear(c.runningServices)
+	clear(c.Cache)
+	clear(c.IgnorePids)
+	clear(c.PotentialServices)
+	clear(c.RunningServices)
 }
 
-func (c *discoveryCore) updateRSS(response *model.ServicesResponse) {
+func (c *Discovery) updateRSS(response *model.ServicesResponse) {
 	updateResponseRSS := func(services []model.Service) {
 		for i := range services {
 			service := &services[i]
@@ -516,32 +516,32 @@ func (c *discoveryCore) updateRSS(response *model.ServicesResponse) {
 	updateResponseRSS(response.HeartbeatServices)
 }
 
-func (c *discoveryCore) getServices(params params, pids []int32, context any, getService func(context any, pid int32) *model.Service) (*model.ServicesResponse, error) {
+func (c *Discovery) GetServices(params Params, pids []int32, context any, getService func(context any, pid int32) *model.Service) (*model.ServicesResponse, error) {
 	response := &model.ServicesResponse{
-		StartedServices:   make([]model.Service, 0, len(c.potentialServices)),
+		StartedServices:   make([]model.Service, 0, len(c.PotentialServices)),
 		StoppedServices:   make([]model.Service, 0),
 		HeartbeatServices: make([]model.Service, 0),
 	}
 
-	alivePids := make(pidSet, len(pids))
-	containers := c.getContainersMap()
+	alivePids := make(PidSet, len(pids))
+	containers := c.GetContainersMap()
 	containerTagsCache := make(map[string][]string)
 
-	now := c.timeProvider.Now()
+	now := c.TimeProvider.Now()
 
 	for _, pid := range pids {
 		alivePids.add(pid)
 
-		_, knownService := c.runningServices[pid]
+		_, knownService := c.RunningServices[pid]
 		if knownService {
-			info, ok := c.cache[pid]
+			info, ok := c.Cache[pid]
 			if !ok {
 				// Should never happen
 				continue
 			}
 
-			serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0)
-			if now.Sub(serviceHeartbeatTime).Truncate(time.Minute) < params.heartbeatTime {
+			serviceHeartbeatTime := time.Unix(info.LastHeartbeat, 0)
+			if now.Sub(serviceHeartbeatTime).Truncate(time.Minute) < params.HeartbeatTime {
 				// We only need to refresh the service info (ports, etc.) for
 				// this service if it's time to send a heartbeat.
 				continue
@@ -552,7 +552,7 @@ func (c *discoveryCore) getServices(params params, pids []int32, context any, ge
 		if service == nil {
 			continue
 		}
-		c.enrichContainerData(service, containers, containerTagsCache)
+		c.EnrichContainerData(service, containers, containerTagsCache)
 
 		if knownService {
 			service.LastHeartbeat = now.Unix()
@@ -560,18 +560,18 @@ func (c *discoveryCore) getServices(params params, pids []int32, context any, ge
 			continue
 		}
 
-		if _, ok := c.potentialServices[pid]; ok {
+		if _, ok := c.PotentialServices[pid]; ok {
 			// We have seen it first in the previous call of getServices, so it
 			// is confirmed to be running.
-			c.runningServices.add(pid)
-			delete(c.potentialServices, pid)
+			c.RunningServices.add(pid)
+			delete(c.PotentialServices, pid)
 			service.LastHeartbeat = now.Unix()
 			response.StartedServices = append(response.StartedServices, *service)
 			continue
 		}
 
 		// This is a new potential service
-		c.potentialServices.add(pid)
+		c.PotentialServices.add(pid)
 	}
 
 	c.updateRSS(response)
@@ -579,7 +579,7 @@ func (c *discoveryCore) getServices(params params, pids []int32, context any, ge
 	c.handleStoppedServices(response, alivePids)
 
 	c.cleanCache(alivePids)
-	c.cleanPidSets(alivePids, c.ignorePids, c.potentialServices)
+	c.cleanPidSets(alivePids, c.IgnorePids, c.PotentialServices)
 
 	if err := c.updateServicesCPUStats(response); err != nil {
 		log.Warnf("updating services CPU stats: %s", err)
@@ -587,7 +587,7 @@ func (c *discoveryCore) getServices(params params, pids []int32, context any, ge
 
 	c.maybeUpdateNetworkStats(response)
 
-	response.RunningServicesCount = len(c.runningServices)
+	response.RunningServicesCount = len(c.RunningServices)
 
 	return response, nil
 }

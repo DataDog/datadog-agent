@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package module
+package core
 
 import (
 	"strings"
@@ -18,28 +18,28 @@ import (
 
 const (
 	discoveryNS = "discovery"
-	// maxCommLen is maximum command name length to process when checking for non-reportable commands,
+	// MaxCommLen is maximum command name length to process when checking for non-reportable commands,
 	// is one byte less (excludes end of line) than the maximum of /proc/<pid>/comm
 	// defined in https://man7.org/linux/man-pages/man5/proc.5.html.
-	maxCommLen = 15
+	MaxCommLen = 15
 )
 
-type discoveryConfig struct {
-	cpuUsageUpdateDelay time.Duration
-	networkStatsEnabled bool
-	networkStatsPeriod  time.Duration
-	ignoreComms         map[string]struct{}
-	ignoreServices      map[string]struct{}
+type DiscoveryConfig struct {
+	CPUUsageUpdateDelay time.Duration
+	NetworkStatsEnabled bool
+	NetworkStatsPeriod  time.Duration
+	IgnoreComms         map[string]struct{}
+	IgnoreServices      map[string]struct{}
 }
 
-func newConfig() *discoveryConfig {
+func NewConfig() *DiscoveryConfig {
 	cfg := ddconfig.SystemProbe()
 	sysconfig.Adjust(cfg)
 
-	conf := &discoveryConfig{
-		cpuUsageUpdateDelay: cfg.GetDuration(join(discoveryNS, "cpu_usage_update_delay")),
-		networkStatsEnabled: cfg.GetBool(join(discoveryNS, "network_stats.enabled")),
-		networkStatsPeriod:  cfg.GetDuration(join(discoveryNS, "network_stats.period")),
+	conf := &DiscoveryConfig{
+		CPUUsageUpdateDelay: cfg.GetDuration(join(discoveryNS, "cpu_usage_update_delay")),
+		NetworkStatsEnabled: cfg.GetBool(join(discoveryNS, "network_stats.enabled")),
+		NetworkStatsPeriod:  cfg.GetDuration(join(discoveryNS, "network_stats.period")),
 	}
 
 	conf.loadIgnoredComms(cfg.GetStringSlice(join(discoveryNS, "ignored_command_names")))
@@ -49,33 +49,33 @@ func newConfig() *discoveryConfig {
 }
 
 // loadIgnoredComms read process names that should not be reported as a service from input string
-func (config *discoveryConfig) loadIgnoredComms(comms []string) {
+func (config *DiscoveryConfig) loadIgnoredComms(comms []string) {
 	if len(comms) == 0 {
 		log.Warn("loading ignored commands found empty commands list")
 		return
 	}
-	config.ignoreComms = make(map[string]struct{}, len(comms))
+	config.IgnoreComms = make(map[string]struct{}, len(comms))
 
 	for _, comm := range comms {
-		if len(comm) > maxCommLen {
-			config.ignoreComms[comm[:maxCommLen]] = struct{}{}
-			log.Warnf("truncating command name %q has %d bytes to %d", comm, len(comm), maxCommLen)
+		if len(comm) > MaxCommLen {
+			config.IgnoreComms[comm[:MaxCommLen]] = struct{}{}
+			log.Warnf("truncating command name %q has %d bytes to %d", comm, len(comm), MaxCommLen)
 		} else if len(comm) > 0 {
-			config.ignoreComms[comm] = struct{}{}
+			config.IgnoreComms[comm] = struct{}{}
 		}
 	}
 }
 
 // loadIgnoredServices saves names that should not be reported as a service
-func (config *discoveryConfig) loadIgnoredServices(services []string) {
+func (config *DiscoveryConfig) loadIgnoredServices(services []string) {
 	if len(services) == 0 {
 		log.Debug("loading ignored services found empty services list")
 		return
 	}
-	config.ignoreServices = make(map[string]struct{}, len(services))
+	config.IgnoreServices = make(map[string]struct{}, len(services))
 
 	for _, service := range services {
-		config.ignoreServices[service] = struct{}{}
+		config.IgnoreServices[service] = struct{}{}
 	}
 }
 

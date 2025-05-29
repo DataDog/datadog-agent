@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package module
+package core
 
 import (
 	"net/url"
@@ -13,21 +13,21 @@ import (
 
 const (
 	heartbeatParam = "heartbeat"
-	heartbeatTime  = 15 * time.Minute
+	HeartbeatTime  = 15 * time.Minute
 )
 
-type params struct {
-	heartbeatTime time.Duration
+type Params struct {
+	HeartbeatTime time.Duration
 }
 
-func defaultParams() params {
-	return params{
-		heartbeatTime: heartbeatTime,
+func DefaultParams() Params {
+	return Params{
+		HeartbeatTime: HeartbeatTime,
 	}
 }
 
-func (params params) updateQuery(query url.Values) {
-	query.Set(heartbeatParam, strconv.Itoa(int(params.heartbeatTime.Seconds())))
+func (params Params) UpdateQuery(query url.Values) {
+	query.Set(heartbeatParam, strconv.Itoa(int(params.HeartbeatTime.Seconds())))
 }
 
 func parseDuration(raw string) (time.Duration, error) {
@@ -39,8 +39,8 @@ func parseDuration(raw string) (time.Duration, error) {
 	return time.Duration(val) * time.Second, err
 }
 
-func parseParams(query url.Values) (params, error) {
-	params := defaultParams()
+func ParseParams(query url.Values) (Params, error) {
+	params := DefaultParams()
 
 	raw := query.Get(heartbeatParam)
 	if raw != "" {
@@ -48,7 +48,7 @@ func parseParams(query url.Values) (params, error) {
 		if err != nil {
 			return params, err
 		}
-		params.heartbeatTime = heartbeat
+		params.HeartbeatTime = heartbeat
 	}
 
 	return params, nil

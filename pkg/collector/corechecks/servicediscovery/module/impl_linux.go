@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux
 
 package module
 
@@ -26,6 +26,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/detector"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -55,9 +56,9 @@ var _ module.Module = &discovery{}
 
 // discovery is an implementation of the Module interface for the discovery module.
 type discovery struct {
-	core discoveryCore
+	core core.Discovery
 
-	config *discoveryConfig
+	config *core.DiscoveryConfig
 
 	mux *sync.RWMutex
 
@@ -72,13 +73,13 @@ type discovery struct {
 	scrubber *procutil.DataScrubber
 }
 
-type networkCollectorFactory func(_ *discoveryConfig) (networkCollector, error)
+type networkCollectorFactory func(_ *core.DiscoveryConfig) (core.NetworkCollector, error)
 
-func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Component, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
-	cfg := newConfig()
+func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Component, tp core.TimeProvider, getNetworkCollector networkCollectorFactory) *discovery {
+	cfg := core.NewConfig()
 
-	var network networkCollector
-	if cfg.networkStatsEnabled {
+	var network core.NetworkCollector
+	if cfg.NetworkStatsEnabled {
 		var err error
 		network, err = getNetworkCollector(cfg)
 		if err != nil {
@@ -91,17 +92,17 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 	}
 
 	return &discovery{
-		core: discoveryCore{
-			config:            cfg,
-			cache:             make(map[int32]*serviceInfo),
-			potentialServices: make(pidSet),
-			runningServices:   make(pidSet),
-			ignorePids:        make(pidSet),
-			wmeta:             wmeta,
-			tagger:            tagger,
-			timeProvider:      tp,
-			network:           network,
-			networkErrorLimit: log.NewLogLimit(10, 10*time.Minute),
+		core: core.Discovery{
+			Config:            cfg,
+			Cache:             make(map[int32]*core.ServiceInfo),
+			PotentialServices: make(core.PidSet),
+			RunningServices:   make(core.PidSet),
+			IgnorePids:        make(core.PidSet),
+			WMeta:             wmeta,
+			Tagger:            tagger,
+			TimeProvider:      tp,
+			Network:           network,
+			NetworkErrorLimit: log.NewLogLimit(10, 10*time.Minute),
 		},
 		config:             cfg,
 		mux:                &sync.RWMutex{},
@@ -113,7 +114,7 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	d := newDiscoveryWithNetwork(deps.WMeta, deps.Tagger, realTime{}, newNetworkCollector)
+	d := newDiscoveryWithNetwork(deps.WMeta, deps.Tagger, core.RealTime{}, newNetworkCollector)
 
 	return d, nil
 }
@@ -137,7 +138,7 @@ func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	s.core.close()
+	s.core.Close()
 	clear(s.noPortTries)
 }
 
@@ -166,17 +167,17 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 	defer s.mux.Unlock()
 
 	state := &state{
-		Cache:             make(map[int]*model.Service, len(s.core.cache)),
+		Cache:             make(map[int]*model.Service, len(s.core.Cache)),
 		NoPortTries:       make(map[int]int, len(s.noPortTries)),
-		PotentialServices: make([]int, 0, len(s.core.potentialServices)),
-		RunningServices:   make([]int, 0, len(s.core.runningServices)),
-		IgnorePids:        make([]int, 0, len(s.core.ignorePids)),
-		NetworkEnabled:    s.core.network != nil,
+		PotentialServices: make([]int, 0, len(s.core.PotentialServices)),
+		RunningServices:   make([]int, 0, len(s.core.RunningServices)),
+		IgnorePids:        make([]int, 0, len(s.core.IgnorePids)),
+		NetworkEnabled:    s.core.Network != nil,
 	}
 
-	for pid, info := range s.core.cache {
+	for pid, info := range s.core.Cache {
 		service := &model.Service{}
-		info.toModelService(pid, service)
+		info.ToModelService(pid, service)
 		state.Cache[int(pid)] = service
 	}
 
@@ -184,21 +185,21 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 		state.NoPortTries[int(pid)] = tries
 	}
 
-	for pid := range s.core.potentialServices {
+	for pid := range s.core.PotentialServices {
 		state.PotentialServices = append(state.PotentialServices, int(pid))
 	}
 
-	for pid := range s.core.runningServices {
+	for pid := range s.core.RunningServices {
 		state.RunningServices = append(state.RunningServices, int(pid))
 	}
 
-	for pid := range s.core.ignorePids {
+	for pid := range s.core.IgnorePids {
 		state.IgnorePids = append(state.IgnorePids, int(pid))
 	}
 
-	state.LastGlobalCPUTime = s.core.lastGlobalCPUTime
-	state.LastCPUTimeUpdate = s.core.lastCPUTimeUpdate.Unix()
-	state.LastNetworkStatsUpdate = s.core.lastNetworkStatsUpdate.Unix()
+	state.LastGlobalCPUTime = s.core.LastGlobalCPUTime
+	state.LastCPUTimeUpdate = s.core.LastCPUTimeUpdate.Unix()
+	state.LastNetworkStatsUpdate = s.core.LastNetworkStatsUpdate.Unix()
 
 	utils.WriteAsJSON(w, state, utils.CompactOutput)
 }
@@ -217,14 +218,14 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 	context := newParsingContext()
 
-	containers := s.core.getContainersMap()
+	containers := s.core.GetContainersMap()
 	containerTagsCache := make(map[string][]string)
 	for _, pid := range pids {
 		service := s.getService(context, pid)
 		if service == nil {
 			continue
 		}
-		s.core.enrichContainerData(service, containers, containerTagsCache)
+		s.core.EnrichContainerData(service, containers, containerTagsCache)
 
 		services = append(services, *service)
 	}
@@ -235,7 +236,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 // handleCheck is the handler for the /check endpoint.
 // Returns the list of service discovery events.
 func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
-	params, err := parseParams(req.URL.Query())
+	params, err := core.ParseParams(req.URL.Query())
 	if err != nil {
 		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -424,17 +425,17 @@ func newParsingContext() parsingContext {
 
 // shouldIgnoreService returns true if the service should be excluded from handling.
 func (s *discovery) shouldIgnoreService(name string) bool {
-	if len(s.config.ignoreServices) == 0 {
+	if len(s.core.Config.IgnoreServices) == 0 {
 		return false
 	}
-	_, found := s.config.ignoreServices[name]
+	_, found := s.core.Config.IgnoreServices[name]
 
 	return found
 }
 
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
-func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
+func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 	proc := &process.Process{
 		Pid: pid,
 	}
@@ -484,17 +485,17 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 
 	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
 
-	return &serviceInfo{
-		generatedName:            nameMeta.Name,
-		generatedNameSource:      string(nameMeta.Source),
-		additionalGeneratedNames: nameMeta.AdditionalNames,
-		ddServiceName:            nameMeta.DDService,
-		tracerMetadata:           tracerMetadataArr,
-		language:                 string(lang),
-		apmInstrumentation:       string(apmInstrumentation),
-		ddServiceInjected:        nameMeta.DDServiceInjected,
-		cmdLine:                  truncateCmdline(lang, cmdline),
-		startTimeMilli:           uint64(createTime),
+	return &core.ServiceInfo{
+		GeneratedName:            nameMeta.Name,
+		GeneratedNameSource:      string(nameMeta.Source),
+		AdditionalGeneratedNames: nameMeta.AdditionalNames,
+		DDServiceName:            nameMeta.DDService,
+		TracerMetadata:           tracerMetadataArr,
+		Language:                 string(lang),
+		APMInstrumentation:       string(apmInstrumentation),
+		DDServiceInjected:        nameMeta.DDServiceInjected,
+		CmdLine:                  truncateCmdline(lang, cmdline),
+		StartTimeMilli:           uint64(createTime),
 	}, nil
 }
 
@@ -562,23 +563,23 @@ func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error
 }
 
 // addIgnoredPid store excluded pid.
-func (c *discoveryCore) addIgnoredPid(pid int32) {
-	c.ignorePids[pid] = struct{}{}
+func (d *discovery) addIgnoredPid(pid int32) {
+	d.core.IgnorePids[pid] = struct{}{}
 }
 
 // shouldIgnorePid returns true if process should be excluded from handling.
-func (c *discoveryCore) shouldIgnorePid(pid int32) bool {
-	_, found := c.ignorePids[pid]
+func (d *discovery) shouldIgnorePid(pid int32) bool {
+	_, found := d.core.IgnorePids[pid]
 	return found
 }
 
 // getService gets information for a single service.
 func (s *discovery) getService(context parsingContext, pid int32) *model.Service {
-	if s.core.shouldIgnorePid(pid) {
+	if s.shouldIgnorePid(pid) {
 		return nil
 	}
 	if s.shouldIgnoreComm(pid) {
-		s.core.addIgnoredPid(pid)
+		s.addIgnoredPid(pid)
 		return nil
 	}
 
@@ -593,7 +594,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 
 		if tries >= maxPortCheckTries {
 			log.Tracef("[pid: %d] ignoring due to no ports", pid)
-			s.core.addIgnoredPid(pid)
+			s.addIgnoredPid(pid)
 			delete(s.noPortTries, pid)
 		}
 		return nil
@@ -602,8 +603,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	// Reset the try counter since we only count tries in a row.
 	delete(s.noPortTries, pid)
 
-	var info *serviceInfo
-	cached, ok := s.core.cache[pid]
+	var info *core.ServiceInfo
+	cached, ok := s.core.Cache[pid]
 	if ok {
 		info = cached
 	} else {
@@ -612,26 +613,26 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 			return nil
 		}
 
-		s.core.cache[pid] = info
+		s.core.Cache[pid] = info
 	}
 
-	preferredName := info.ddServiceName
+	preferredName := info.DDServiceName
 	if preferredName == "" {
-		preferredName = info.generatedName
+		preferredName = info.GeneratedName
 	}
 	if s.shouldIgnoreService(preferredName) {
-		s.core.addIgnoredPid(pid)
+		s.addIgnoredPid(pid)
 		return nil
 	}
 
 	service := &model.Service{}
-	info.toModelService(pid, service)
+	info.ToModelService(pid, service)
 	service.Ports = ports
 
 	return service
 }
 
-func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
+func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -641,7 +642,7 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	}
 
 	context := newParsingContext()
-	return s.core.getServices(params, pids, context, func(context any, pid int32) *model.Service {
+	return s.core.GetServices(params, pids, context, func(context any, pid int32) *model.Service {
 		return s.getService(context.(parsingContext), pid)
 	})
 }

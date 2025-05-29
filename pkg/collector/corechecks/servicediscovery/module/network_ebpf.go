@@ -12,6 +12,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -31,7 +32,7 @@ const (
 
 type eBPFNetworkCollector struct {
 	m        *ddebpf.Manager
-	statsMap *ebpfmaps.GenericMap[NetworkStatsKey, NetworkStats]
+	statsMap *ebpfmaps.GenericMap[core.NetworkStatsKey, core.NetworkStats]
 }
 
 func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options manager.Options) error {
@@ -65,7 +66,7 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 		return fmt.Errorf("failed to start manager: %w", err)
 	}
 
-	statsMap, err := ebpfmaps.GetMap[NetworkStatsKey, NetworkStats](c.m.Manager, statsMapName)
+	statsMap, err := ebpfmaps.GetMap[core.NetworkStatsKey, core.NetworkStats](c.m.Manager, statsMapName)
 	if err != nil {
 		return fmt.Errorf("failed to get map '%s': %w", statsMapName, err)
 	}
@@ -120,7 +121,7 @@ func (c *eBPFNetworkCollector) initCORE(cfg *ebpf.Config) error {
 	})
 }
 
-func newNetworkCollectorWithConfig(cfg *ebpf.Config) (networkCollector, error) {
+func newNetworkCollectorWithConfig(cfg *ebpf.Config) (core.NetworkCollector, error) {
 	collector := eBPFNetworkCollector{}
 
 	if cfg.EnableCORE {
@@ -148,31 +149,31 @@ func newNetworkCollectorWithConfig(cfg *ebpf.Config) (networkCollector, error) {
 	return &collector, nil
 }
 
-func newNetworkCollector(_ *discoveryConfig) (networkCollector, error) {
+func newNetworkCollector(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
 	return newNetworkCollectorWithConfig(ebpf.NewConfig())
 }
 
-func (c *eBPFNetworkCollector) close() {
+func (c *eBPFNetworkCollector) Close() {
 	if err := c.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping network collector: %v", err)
 	}
 }
 
-func (c *eBPFNetworkCollector) addPid(pid uint32) error {
-	key := NetworkStatsKey{Pid: pid}
-	var val NetworkStats
+func (c *eBPFNetworkCollector) AddPid(pid uint32) error {
+	key := core.NetworkStatsKey{Pid: pid}
+	var val core.NetworkStats
 
 	return c.statsMap.Put(&key, &val)
 }
 
-func (c *eBPFNetworkCollector) removePid(pid uint32) error {
-	key := NetworkStatsKey{Pid: pid}
+func (c *eBPFNetworkCollector) RemovePid(pid uint32) error {
+	key := core.NetworkStatsKey{Pid: pid}
 	return c.statsMap.Delete(&key)
 }
 
-func (c *eBPFNetworkCollector) getStats(pid uint32) (NetworkStats, error) {
-	key := NetworkStatsKey{Pid: pid}
-	var val NetworkStats
+func (c *eBPFNetworkCollector) GetStats(pid uint32) (core.NetworkStats, error) {
+	key := core.NetworkStatsKey{Pid: pid}
+	var val core.NetworkStats
 	err := c.statsMap.Lookup(&key, &val)
 	return val, err
 }

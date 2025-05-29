@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux
 
 package module
 
@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -31,12 +32,12 @@ var ignoreFamily = map[string]struct{}{
 }
 
 var (
-	procCommBufferPool = ddsync.NewSlicePool[byte](maxCommLen, poolCapacity)
+	procCommBufferPool = ddsync.NewSlicePool[byte](core.MaxCommLen, poolCapacity)
 )
 
 // shouldIgnoreComm returns true if process should be ignored
 func (s *discovery) shouldIgnoreComm(pid int32) bool {
-	if s.config.ignoreComms == nil {
+	if s.config.IgnoreComms == nil {
 		return false
 	}
 	commPath := kernel.HostProc(strconv.Itoa(int(pid)), "comm")
@@ -62,7 +63,7 @@ func (s *discovery) shouldIgnoreComm(pid int32) bool {
 	}
 
 	comm := strings.TrimSuffix(string((*buf)[:n]), "\n")
-	_, found := s.config.ignoreComms[comm]
+	_, found := s.config.IgnoreComms[comm]
 
 	return found
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -120,15 +121,15 @@ func TestNetworkCollector(t *testing.T) {
 				config.BPFDebug = true
 				collector, err := newNetworkCollectorWithConfig(config)
 				require.NoError(t, err)
-				t.Cleanup(func() { collector.close() })
+				t.Cleanup(func() { collector.Close() })
 
 				runServer(t, test.proto, test.addr)
 
 				pid := uint32(os.Getpid())
-				err = collector.addPid(pid)
+				err = collector.AddPid(pid)
 				require.NoError(t, err)
 
-				before, err := collector.getStats(pid)
+				before, err := collector.GetStats(pid)
 				require.NoError(t, err)
 
 				t.Log("stats before", before)
@@ -136,7 +137,7 @@ func TestNetworkCollector(t *testing.T) {
 				for i := 0; i < iterations; i++ {
 					runClient(t, test.proto, test.addr)
 
-					after, err := collector.getStats(pid)
+					after, err := collector.GetStats(pid)
 					require.NoError(t, err)
 
 					t.Log("stats after", after)
@@ -146,9 +147,9 @@ func TestNetworkCollector(t *testing.T) {
 					before = after
 				}
 
-				err = collector.removePid(pid)
+				err = collector.RemovePid(pid)
 				require.NoError(t, err)
-				_, err = collector.getStats(pid)
+				_, err = collector.GetStats(pid)
 				require.Error(t, err)
 			})
 		}
@@ -167,8 +168,8 @@ func TestNetwork(t *testing.T) {
 
 	pid := os.Getpid()
 
-	params := defaultParams()
-	params.heartbeatTime = 0
+	params := core.DefaultParams()
+	params.HeartbeatTime = 0
 
 	// Get the service to be recognized as started
 	_ = getServicesWithParams(t, discovery.url, &params)
@@ -203,7 +204,7 @@ func TestNetwork(t *testing.T) {
 }
 
 func TestGetNetworkCollectorError(t *testing.T) {
-	_ = setupDiscoveryModuleWithNetwork(t, func(_ *discoveryConfig) (networkCollector, error) {
+	_ = setupDiscoveryModuleWithNetwork(t, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
 		return nil, errors.New("fail")
 	})
 }
@@ -211,7 +212,7 @@ func TestGetNetworkCollectorError(t *testing.T) {
 func TestNetworkStatsDisabled(t *testing.T) {
 	t.Setenv("DD_DISCOVERY_NETWORK_STATS_ENABLED", "false")
 
-	setupDiscoveryModuleWithNetwork(t, func(_ *discoveryConfig) (networkCollector, error) {
+	setupDiscoveryModuleWithNetwork(t, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
 		t.FailNow()
 		return nil, nil
 	})
@@ -248,8 +249,8 @@ func TestNetworkStats(t *testing.T) {
 	}
 
 	mockCtrl := gomock.NewController(t)
-	mock := NewMocknetworkCollector(mockCtrl)
-	discovery := setupDiscoveryModuleWithNetwork(t, func(_ *discoveryConfig) (networkCollector, error) {
+	mock := core.NewMockNetworkCollector(mockCtrl)
+	discovery := setupDiscoveryModuleWithNetwork(t, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
 		return mock, nil
 	})
 
@@ -261,8 +262,8 @@ func TestNetworkStats(t *testing.T) {
 	cmd, cancel := startService()
 	pid := cmd.Process.Pid
 
-	mock.EXPECT().addPid(uint32(pid)).Times(1)
-	mock.EXPECT().addPid(gomock.Not(uint32(pid))).AnyTimes()
+	mock.EXPECT().AddPid(uint32(pid)).Times(1)
+	mock.EXPECT().AddPid(gomock.Not(uint32(pid))).AnyTimes()
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		now := mockedTime
@@ -273,19 +274,19 @@ func TestNetworkStats(t *testing.T) {
 		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 	}, 30*time.Second, 100*time.Millisecond)
 
-	params := defaultParams()
-	params.heartbeatTime = 0
+	params := core.DefaultParams()
+	params.HeartbeatTime = 0
 
 	now := mockedTime
 	discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
 
 	_ = getServicesWithParams(t, discovery.url, &params)
 
-	mock.EXPECT().getStats(gomock.Not(uint32(pid))).AnyTimes().Return(NetworkStats{
+	mock.EXPECT().GetStats(gomock.Not(uint32(pid))).AnyTimes().Return(core.NetworkStats{
 		Rx: 0,
 		Tx: 0,
 	}, nil)
-	mock.EXPECT().getStats(uint32(pid)).Return(NetworkStats{
+	mock.EXPECT().GetStats(uint32(pid)).Return(core.NetworkStats{
 		Rx: 1000,
 		Tx: 2000,
 	}, nil)
@@ -298,7 +299,7 @@ func TestNetworkStats(t *testing.T) {
 	now = now.Add(10 * time.Second)
 	discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
 
-	mock.EXPECT().getStats(uint32(pid)).Return(NetworkStats{
+	mock.EXPECT().GetStats(uint32(pid)).Return(core.NetworkStats{
 		Rx: 3000,
 		Tx: 8000,
 	}, nil)
@@ -313,10 +314,10 @@ func TestNetworkStats(t *testing.T) {
 	stopService(cmd, cancel)
 
 	discovery.mockTimeProvider.EXPECT().Now().Return(now).AnyTimes()
-	mock.EXPECT().removePid(uint32(pid)).Return(nil).Times(1)
-	mock.EXPECT().removePid(gomock.Not(uint32(pid))).AnyTimes()
+	mock.EXPECT().RemovePid(uint32(pid)).Return(nil).Times(1)
+	mock.EXPECT().RemovePid(gomock.Not(uint32(pid))).AnyTimes()
 	r := getServicesWithParams(t, discovery.url, &params)
 	t.Log(r.StoppedServices)
 
-	mock.EXPECT().close().Times(1)
+	mock.EXPECT().Close().Times(1)
 }

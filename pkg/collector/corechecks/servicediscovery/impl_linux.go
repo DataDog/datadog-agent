@@ -11,7 +11,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/module"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/wlm"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -33,7 +33,7 @@ func newLinuxImpl(store workloadmeta.Component, tagger tagger.Component) (osImpl
 	useWorkloadmeta := pkgconfigsetup.SystemProbe().GetBool("discovery.use_workloadmeta")
 	log.Info("useWorkloadmeta", "useWorkloadmeta", useWorkloadmeta)
 	if useWorkloadmeta {
-		discoveryWLM, err := module.NewDiscoveryWLM(store, tagger)
+		discoveryWLM, err := wlm.NewDiscoveryWLM(store, tagger)
 		if err != nil {
 			return nil, err
 		}

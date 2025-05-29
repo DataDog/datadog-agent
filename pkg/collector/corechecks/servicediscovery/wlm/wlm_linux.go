@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package module
+package wlm
 
 import (
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -17,30 +18,25 @@ import (
 // DiscoveryWLM is the implementation of the service discovery check based on the workloadmeta component.
 type DiscoveryWLM struct {
 	wmeta         workloadmeta.Component
-	discoveryCore *discoveryCore
+	discoveryCore *core.Discovery
 }
 
 // NewDiscoveryWLM creates a new DiscoveryWLM instance.
 func NewDiscoveryWLM(store workloadmeta.Component, tagger tagger.Component) (*DiscoveryWLM, error) {
-	config := newConfig()
-	network, err := newNetworkCollector(config)
-	if err != nil {
-		network = nil
-	}
-
+	config := core.NewConfig()
 	return &DiscoveryWLM{
 		wmeta: store,
-		discoveryCore: &discoveryCore{
-			config:            config,
-			cache:             make(map[int32]*serviceInfo),
-			potentialServices: make(pidSet),
-			runningServices:   make(pidSet),
-			ignorePids:        make(pidSet),
-			wmeta:             store,
-			tagger:            tagger,
-			timeProvider:      realTime{},
-			network:           network,
-			networkErrorLimit: log.NewLogLimit(10, 10*time.Minute),
+		discoveryCore: &core.Discovery{
+			Config:            config,
+			Cache:             make(map[int32]*core.ServiceInfo),
+			PotentialServices: make(core.PidSet),
+			RunningServices:   make(core.PidSet),
+			IgnorePids:        make(core.PidSet),
+			WMeta:             store,
+			Tagger:            tagger,
+			TimeProvider:      core.RealTime{},
+			Network:           nil,
+			NetworkErrorLimit: log.NewLogLimit(10, 10*time.Minute),
 		},
 	}, nil
 }
@@ -85,17 +81,17 @@ func (d *DiscoveryWLM) DiscoverServices() (*model.ServicesResponse, error) {
 		procMap[int32(proc.pid)] = &proc
 	}
 
-	resp, err := d.discoveryCore.getServices(params{}, pids, nil, func(_ any, pid int32) *model.Service {
-		info, ok := d.discoveryCore.cache[pid]
+	resp, err := d.discoveryCore.GetServices(core.Params{}, pids, nil, func(_ any, pid int32) *model.Service {
+		info, ok := d.discoveryCore.Cache[pid]
 		if ok {
-			return info.toModelService(pid, &model.Service{})
+			return info.ToModelService(pid, &model.Service{})
 		}
 
-		info = &serviceInfo{
-			containerID: procMap[pid].container.ID,
+		info = &core.ServiceInfo{
+			ContainerID: procMap[pid].container.ID,
 		}
-		d.discoveryCore.cache[pid] = info
-		return info.toModelService(pid, &model.Service{})
+		d.discoveryCore.Cache[pid] = info
+		return info.ToModelService(pid, &model.Service{})
 	})
 	if err != nil {
 		return nil, err
@@ -108,5 +104,5 @@ func (d *DiscoveryWLM) DiscoverServices() (*model.ServicesResponse, error) {
 
 // Close closes the discovery module.
 func (d *DiscoveryWLM) Close() {
-	d.discoveryCore.close()
+	d.discoveryCore.Close()
 }
