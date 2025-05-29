@@ -603,6 +603,11 @@ func setFleetPoliciesDir(path string) error {
 //   - If the new config fails to start the Agent, then after a timeout the
 //     watchdog will restore the stable config.
 func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
+	// open event that signal the end of the experiment
+	// this will terminate other running instances of the watchdog
+	// this allows for running multiple experiments in sequence
+	_ = setWatchdogStopEvent()
+
 	// Set the registry key to point to the experiment config
 	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "experiment")
 	err := setFleetPoliciesDir(experimentPath)
@@ -665,6 +670,11 @@ func restoreStableConfigFromExperiment(ctx HookContext) error {
 //
 // Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
 func preStopConfigExperimentDatadogAgent(_ HookContext) error {
+	// set watchdog stop to make sure the watchdog stops
+	// don't care if it fails cause we will proceed with the stop anyway
+	// this will just stop a watchdog that is running
+	_ = setWatchdogStopEvent()
+
 	// Set the registry key to point to the previous stable config
 	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
 	err := setFleetPoliciesDir(stablePath)
@@ -684,9 +694,17 @@ func preStopConfigExperimentDatadogAgent(_ HookContext) error {
 //
 // Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
 func postPromoteConfigExperimentDatadogAgent(_ HookContext) error {
+	err := setWatchdogStopEvent()
+	if err != nil {
+		// if we can't set the event it means the watchdog has failed
+		// In this case, we were already promoting the experiment
+		// so we can continue without error
+		log.Errorf("failed to set premote event: %s", err)
+	}
+
 	// Set the registry key to point to the stable config (which now contains the promoted experiment)
 	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	err := setFleetPoliciesDir(stablePath)
+	err = setFleetPoliciesDir(stablePath)
 	if err != nil {
 		return err
 	}
