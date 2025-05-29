@@ -8,17 +8,14 @@
 package compiler
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-
 	"github.com/cilium/ebpf"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 var MinimumKernelVersion = kernel.VersionCode(5, 17, 0)
@@ -121,7 +118,7 @@ func TestCompileBPFProgram(t *testing.T) {
 		Types:       map[ir.TypeID]ir.Type{pointer.ID: pointer, pointee.ID: pointee},
 		MaxTypeID:   132,
 	}
-	obj, err := CompileBPFProgram(p)
+	obj, err := CompileBPFProgram(p, nil)
 	if err != nil {
 		t.Fatalf("Failed to compile BPF program: %v", err)
 	}
@@ -130,9 +127,9 @@ func TestCompileBPFProgram(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to load ebpf spec: %v", err)
 	}
-	fmt.Println(spec)
+	t.Log(spec)
 
-	fmt.Println("Loading...")
+	t.Log("Loading...")
 	opts := ebpf.CollectionOptions{
 		Programs: ebpf.ProgramOptions{
 			LogLevel:    (ebpf.LogLevelBranch | ebpf.LogLevelInstruction | ebpf.LogLevelStats),
@@ -143,11 +140,11 @@ func TestCompileBPFProgram(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to load ebpf obj: %v", err)
 	}
-	fmt.Println(bpfObj)
+	t.Log(bpfObj)
 
 	prog, ok := bpfObj.Programs["probe_run_with_cookie"]
 	if !ok {
 		t.Fatalf("Failed to find ebpf program: %v", bpfObj)
 	}
-	fmt.Println(prog)
+	t.Log(prog)
 }
