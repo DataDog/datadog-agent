@@ -3004,3 +3004,66 @@ func (s *TracerSuite) TestTLSRawClient() {
 		}, time.Second*5, time.Millisecond*200)
 	})
 }
+
+func (s *TracerSuite) TestTCPSynRst() {
+	// test for dialing a server that is closed - so we first send a SYN packet, and immediately get a RST back
+	t := s.T()
+	cfg := testConfig()
+
+	tr := setupTracer(t, cfg)
+
+	// create a linux socket which will reserve a port for us
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+	require.NoError(t, err)
+	defer unix.Close(fd)
+
+	// get the port it bound to
+	addr, err := unix.Getsockname(fd)
+	require.NoError(t, err)
+	port := addr.(*unix.SockaddrInet4).Port
+
+	localAddr := &net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: port,
+	}
+	d := net.Dialer{
+		Timeout:   100 * time.Millisecond,
+		LocalAddr: localAddr,
+	}
+
+	// dial 47, a reserved port, to get a RST
+	remoteAddr := &net.TCPAddr{
+		IP:   net.ParseIP("127.0.0.1"),
+		Port: 47,
+	}
+	_, err = d.Dial("tcp", remoteAddr.String())
+	require.Error(t, err)
+
+	// currently our tracer variants do not see this type of failed connection
+	const canSeeConnection = false
+
+	if canSeeConnection {
+		var conn *network.ConnectionStats
+		var ok bool
+
+		// for ebpfless, wait for the packet capture to appear
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			connections, cleanup := getConnections(collect, tr)
+			defer cleanup()
+			conn, ok = findConnection(localAddr, remoteAddr, connections)
+			require.True(collect, ok)
+		}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
+
+		require.True(t, ok)
+		assert.Equal(t, network.OUTGOING, conn.Direction)
+
+		assert.Equal(t, 1, conn.TCPFailures[uint16(unix.ECONNREFUSED)])
+	} else {
+		// make sure the connection hasn't appeared after 1 second
+		time.Sleep(1 * time.Second)
+		connections, cleanup := getConnections(t, tr)
+		defer cleanup()
+		_, ok := findConnection(localAddr, remoteAddr, connections)
+		require.False(t, ok)
+	}
+}

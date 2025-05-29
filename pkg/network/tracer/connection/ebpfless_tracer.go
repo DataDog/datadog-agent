@@ -258,6 +258,11 @@ func (t *ebpfLessTracer) processConnection(
 		maxTrackedConns := int(t.config.MaxTrackedConnections)
 		storeConnOk = ebpfless.WriteMapWithSizeLimit(t.conns, tuple, conn, maxTrackedConns)
 	case ebpfless.ProcessResultCloseConn:
+		if isNewConn {
+			// this can occur when a SYN packet is sent to a closed port and it gets back a RST.
+			// for now, our tracers do not support this type of failed connection (see TestTCPSynRst)
+			return nil
+		}
 		delete(t.conns, tuple)
 		closeCallback(conn)
 	case ebpfless.ProcessResultMapFull:
@@ -315,7 +320,7 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		tuple := ebpfless.MakeEbpflessTuple(conn.ConnectionTuple)
 		dir, ok := t.tcp.GetConnDirection(tuple)
 		if !ok {
-			return network.UNKNOWN, fmt.Errorf("finalizeConnectionDirection: expected to find TCP connection for tuple: %+v", tuple)
+			return network.UNKNOWN, fmt.Errorf("determineConnectionDirection: expected to find TCP connection for tuple: %+v", tuple)
 		}
 		switch dir {
 		case network.INCOMING:
