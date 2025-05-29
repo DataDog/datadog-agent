@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
@@ -31,7 +30,7 @@ const (
 )
 
 type eBPFNetworkCollector struct {
-	m        *ddebpf.Manager
+	m        *ebpf.Manager
 	statsMap *ebpfmaps.GenericMap[core.NetworkStatsKey, core.NetworkStats]
 }
 
@@ -51,7 +50,7 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendpage", UID: moduleName}, KProbeMaxActive: maxActive})
 	}
 
-	c.m = ddebpf.NewManagerWithDefault(&manager.Manager{
+	c.m = ebpf.NewManagerWithDefault(&manager.Manager{
 		Probes: probes,
 		Maps: []*manager.Map{
 			{Name: statsMapName},
@@ -71,8 +70,8 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 		return fmt.Errorf("failed to get map '%s': %w", statsMapName, err)
 	}
 
-	ddebpf.AddNameMappings(c.m.Manager, moduleName)
-	ddebpf.AddProbeFDMappings(c.m.Manager)
+	ebpf.AddNameMappings(c.m.Manager, moduleName)
+	ebpf.AddProbeFDMappings(c.m.Manager)
 
 	c.statsMap = statsMap
 
@@ -116,7 +115,7 @@ func (c *eBPFNetworkCollector) initRuntimeCompiled(cfg *ebpf.Config) error {
 
 func (c *eBPFNetworkCollector) initCORE(cfg *ebpf.Config) error {
 	asset := getAssetName("discovery-net", cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
+	return ebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return c.setupManager(ar, o)
 	})
 }
