@@ -36,7 +36,7 @@ func getCFlags(config *ddebpf.Config) []string {
 }
 
 // CompileBPFProgram compiles the eBPF program.
-func CompileBPFProgram(program ir.Program) (ebpfruntime.CompiledOutput, error) {
+func CompileBPFProgram(program ir.Program, extraCodeSink io.Writer) (ebpfruntime.CompiledOutput, error) {
 	generatedCode := bytes.NewBuffer(nil)
 	smProgram, err := sm.GenerateProgram(program)
 	if err != nil {
@@ -55,6 +55,9 @@ func CompileBPFProgram(program ir.Program) (ebpfruntime.CompiledOutput, error) {
 		t, err := template.New("generated_code").Parse(string(source))
 		if err != nil {
 			return err
+		}
+		if extraCodeSink != nil {
+			out = io.MultiWriter(out, extraCodeSink)
 		}
 		return t.Execute(out, generatedCode.String())
 	}

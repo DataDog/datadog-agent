@@ -57,15 +57,15 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   __maybe_unused int chase_steps = 0;
   uint64_t stack_hash = 0;
   global_ctx.stack_walk->regs = *regs;
-  global_ctx.stack_walk->stack.pcs.pcs[0] = regs->ip;
-  global_ctx.stack_walk->stack.fps[0] = regs->bp;
+  global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG;
+  global_ctx.stack_walk->stack.fps[0] = regs->DWARF_BP_REG;
   if (params->frameless) {
     if (bpf_probe_read_user(&global_ctx.stack_walk->stack.pcs.pcs[1],
                             sizeof(global_ctx.stack_walk->stack.pcs.pcs[1]),
                             (void*)(regs->sp))) {
       return 1;
     }
-    global_ctx.stack_walk->stack.fps[1] = regs->bp;
+    global_ctx.stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
     global_ctx.stack_walk->idx_shift = 1;
   }
   global_ctx.stack_walk->stack.pcs.len =
@@ -91,7 +91,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   global_ctx.regs = &global_ctx.stack_walk->regs;
 
   frame_data_t frame_data = {
-      .fp = global_ctx.regs->bp,
+      .fp = global_ctx.regs->DWARF_BP_REG,
       .stack_idx = 0,
   };
   if (params->stack_machine_pc != 0) {
