@@ -292,18 +292,14 @@ func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigChe
 	response.ConfigErrors = GetConfigErrors()
 
 	if scrub {
-		unresolved := ac.getUnresolvedTemplates()
-		scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
-		for ids, configs := range unresolved {
-			scrubbedConfigs := make([]integration.Config, len(configs))
-			for idx, config := range configs {
-				scrubbedConfigs[idx] = ac.scrubConfig(config)
-			}
-			scrubbedUnresolved[ids] = scrubbedConfigs
+		unresolved := ac.getUnresolvedConfigs()
+		scrubbedUnresolved := make(map[string]integration.Config, len(unresolved))
+		for id, config := range unresolved {
+			scrubbedUnresolved[id] = ac.scrubConfig(config)
 		}
 		response.Unresolved = scrubbedUnresolved
 	} else {
-		response.Unresolved = ac.getUnresolvedTemplates()
+		response.Unresolved = ac.getUnresolvedConfigs()
 	}
 
 	return response
@@ -620,10 +616,10 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
 }
 
-// getUnresolvedTemplates returns all templates in the cache, in their unresolved
+// getUnresolvedConfigs returns all the active configs, in their unresolved
 // state.
-func (ac *AutoConfig) getUnresolvedTemplates() map[string][]integration.Config {
-	return ac.store.templateCache.getUnresolvedTemplates()
+func (ac *AutoConfig) getUnresolvedConfigs() map[string]integration.Config {
+	return ac.cfgMgr.getActiveConfigs()
 }
 
 // GetIDOfCheckWithEncryptedSecrets returns the ID that a checkID had before
