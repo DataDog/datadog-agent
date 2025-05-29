@@ -26,6 +26,7 @@ import (
 	"debug/dwarf"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"iter"
 	"maps"
 	"math"
@@ -1197,52 +1198,11 @@ func (v *rootVisitor) computeLocations(
 	typ ir.Type,
 	locField *dwarf.Field,
 ) ([]ir.Location, error) {
-	totalSize := typ.GetByteSize()
-	var locations []ir.Location
-	switch locField.Class {
-	case dwarf.ClassLocListPtr:
-		offset, ok := locField.Val.(int64)
-		if !ok {
-			return nil, fmt.Errorf(
-				"unexpected location field type: %T", locField.Val,
-			)
-		}
-		loclist, err := v.loclistReader.Read(unit, offset, totalSize)
-		if err != nil {
-			return nil, err
-		}
-		if len(loclist.Default) > 0 {
-			return nil, fmt.Errorf("unexpected default location pieces")
-		}
-		locations = loclist.Locations
-
-	case dwarf.ClassExprLoc:
-		instr, ok := locField.Val.([]byte)
-		if !ok {
-			return nil, fmt.Errorf(
-				"unexpected location field type: %T", locField.Val,
-			)
-		}
-		pieces, err := loclist.ParseInstructions(instr, v.object.PointerSize(), totalSize)
-		if err != nil {
-			return nil, err
-		}
-		// BUG: This should take into consideration the ranges of the current
-		// block, not necessarily the ranges of the subprogram.
-		for _, r := range subprogramRanges {
-			locations = append(locations, ir.Location{
-				Range:  r,
-				Pieces: pieces,
-			})
-		}
-	default:
-		return nil, fmt.Errorf(
-			"unexpected %s class: %s",
-			locField.Attr, locField.Class,
-		)
-	}
-
-	return locations, nil
+	// BUG: We shouldn't pass subprogramRanges below; we should take into
+	// consideration the ranges of the current block, not necessarily the ranges
+	// of the subprogram.
+	return dwarfutil.ProcessLocations(
+		locField, unit, v.loclistReader, subprogramRanges, typ.GetByteSize(), v.object.PointerSize())
 }
 
 // maybeGetAttr is a helper function that returns the value of an attribute if
