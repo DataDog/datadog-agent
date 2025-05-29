@@ -1,5 +1,5 @@
 ad_identifiers:
-  - _dbm_mysql_aurora
+  - _dbm_mysql
 init_config:
 instances:
     ## @param host - string - optional
@@ -32,5 +32,6 @@ instances:
       instance_endpoint: "%%host%%"
 
     tags:
+      - "dbinstanceidentifier:%%extra_dbinstanceidentifier%%"
       - "dbclusteridentifier:%%extra_dbclusteridentifier%%"
       - "region:%%extra_region%%"
