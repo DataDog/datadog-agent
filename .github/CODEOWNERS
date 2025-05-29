@@ -756,5 +756,9 @@
 # teams everytime we change something that's only related to bazel.
 
 # Bazel build related files
-*.bzl                                    @DataDog/agent-delivery
-*.bazel                                  @DataDog/agent-delivery
+/**/*.bzl                                @DataDog/agent-delivery
+/**/*.bazel                              @DataDog/agent-delivery
+/.bazelrc                                @DataDog/agent-delivery
+/MODULE.bazel.lock                       @DataDog/agent-delivery
+/bazel                                   @DataDog/agent-delivery
+/deps                                    @DataDog/agent-delivery

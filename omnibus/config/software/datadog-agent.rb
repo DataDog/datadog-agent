@@ -28,9 +28,15 @@ end
 
 source path: '..',
        options: {
-         exclude: ["**/testdata/**/*"],
+         exclude: [
+           "**/testdata/**/*",
+           "bazel-*/**/*",
+         ],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
+
+# The path to the original source for commands that we don't want to run on a copy
+source_path = File.absolute_path(File.join(File.dirname(project.filepath), "../../.."))
 
 always_build true
 
@@ -90,64 +96,82 @@ build do
     end
   end
 
-  # we assume the go deps are already installed before running omnibus
-  if windows_target?
-    platform = windows_arch_i386? ? "x86" : "x64"
-    do_windows_sysprobe = ""
-    if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-      do_windows_sysprobe = "--windows-sysprobe"
-    end
-    command "dda inv -- -e rtloader.clean"
-    command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env
-    command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
-    command "dda inv -- -e systray.build --major-version #{major_version_arg}", env: env
-  else
-    command "dda inv -- -e rtloader.clean"
-    command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
-    command "dda inv -- -e rtloader.install"
-    bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
-
-    include_sds = ""
-    if linux_target?
-        include_sds = "--include-sds" # we only support SDS on Linux targets for now
-    end
-    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
-  end
-
   if osx_target?
     conf_dir = "#{install_dir}/etc"
   else
     conf_dir = "#{install_dir}/etc/datadog-agent"
   end
-  mkdir conf_dir
-  mkdir "#{install_dir}/bin"
-  unless windows_target?
-    mkdir "#{install_dir}/run/"
-    mkdir "#{install_dir}/scripts/"
-  end
 
-  # move around bin and config files
-  move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
-  delete 'bin/agent/dist/conf.d'
+  if with_bazel?
+    # Note: we run these commands not from the copy that Omnibus does but from the original "untouched" checkout
+    target = "//rtloader:datadog-agent-three"
+    command "bazel build #{target}", cwd: source_path
+    command "cp $(bazel cquery --output=files #{target}) #{install_dir}/embedded/lib", cwd: source_path
+    if linux_target?
+      command "patchelf --add-rpath #{install_dir}/embedded/lib #{install_dir}/embedded/lib/libdatadog-agent-three.so"
+    end
 
-  unless windows_target?
-    copy 'bin/agent', "#{install_dir}/bin/"
+    target = "//cmd/agent:agent_binaries"
+    command "bazel build #{target}", cwd: source_path
+    command "tar -xvf $(bazel cquery --output=files #{target}) -C #{install_dir}", cwd: source_path
+
+    target = "//cmd/agent:agent_configs"
+    command "bazel build #{target}", cwd: source_path
+    command "tar -xvf $(bazel cquery --output=files #{target}) -C #{conf_dir}", cwd: source_path
+
+    unless windows_target?
+      mkdir "#{install_dir}/run/"
+      mkdir "#{install_dir}/scripts/"
+    end
   else
-    copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
-    copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
-    copy 'bin/agent/dist', "#{install_dir}/bin/agent"
-    mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
+    # we assume the go deps are already installed before running omnibus
+    if windows_target?
+      platform = windows_arch_i386? ? "x86" : "x64"
+      do_windows_sysprobe = ""
+      if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+        do_windows_sysprobe = "--windows-sysprobe"
+      end
+      command "dda inv -- -e rtloader.clean"
+      command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env
+      command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
+      command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+      command "dda inv -- -e systray.build --major-version #{major_version_arg}", env: env
+    else
+      command "dda inv -- -e rtloader.clean"
+      command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env
+      command "dda inv -- -e rtloader.install"
+      bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
+
+      include_sds = ""
+      if linux_target?
+        include_sds = "--include-sds" # we only support SDS on Linux targets for now
+      end
+      command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
+    end
+
+    mkdir conf_dir
+    mkdir "#{install_dir}/bin"
+    unless windows_target?
+      mkdir "#{install_dir}/run/"
+      mkdir "#{install_dir}/scripts/"
+    end
+
+    # move around bin and config files
+    move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
+    copy 'bin/agent/dist/conf.d/.', "#{conf_dir}"
+    delete 'bin/agent/dist/conf.d'
+
+    unless windows_target?
+      copy 'bin/agent', "#{install_dir}/bin/"
+    else
+      copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
+      copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
+      copy 'bin/agent/dist', "#{install_dir}/bin/agent"
+      mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
+    end
   end
-  if ENV["ENABLE_BAZEL"]
-    # Run the Bazel build
-    target = "//cmd/trace-agent"
-    command "bazel build #{target}"
-    # Get the binary out
-    mkdir "bin/trace-agent"
-    command "cp $(bazel cquery --output=files #{target}) bin/trace-agent"
-  elsif not ENV["ENABLE_BAZEL"] and not bundled_agents.include? "trace-agent"
+
+  if not bundled_agents.include? "trace-agent"
     platform = windows_arch_i386? ? "x86" : "x64"
     command "dda inv -- -e trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   end
@@ -192,7 +216,7 @@ build do
       command "dda inv -- -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
     end
 
-  #   move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+    move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example" unless with_bazel?
   end
 
   # System-probe eBPF files

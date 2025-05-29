@@ -308,27 +308,44 @@ go_binary(
 )
 
 pkg_tar(
-    name = "agent_dist",
+    name = "agent_configs",
     srcs = [
-        ":bin_files",
         ":config_files",
+        ":datadog_yaml",
     ],
-    package_dir = "bin/agent",
 )
 
 generate_config(
     name = "datadog_yaml",
-    out = "datadog.yaml",
+    out = "datadog.yaml.example",
     build_type = "agent-py3",
+)
+
+generate_config(
+    name = "system-probe_yaml",
+    out = "system-probe.yaml.example",
+    build_type = "system-probe",
+)
+
+generate_config(
+    name = "security-agent_yaml",
+    out = "security-agent.yaml.example",
+    build_type = "security-agent",
 )
 
 pkg_files(
     name = "config_files",
-    srcs = [":datadog_yaml"] + glob(["dist/conf.d/%s.d/**" % check for check in AGENT_CORECHECKS]),
-    renames = {
-        ":datadog_yaml": "dist/datadog.yaml",
-    },
+    srcs = [
+        ":datadog_yaml",
+        ":security-agent_yaml",
+        ":system-probe_yaml",
+    ] + glob(["dist/conf.d/%s.d/**" % check for check in AGENT_CORECHECKS]),
     strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_tar(
+    name = "agent_binaries",
+    srcs = [":bin_files"],
 )
 
 pkg_files(
@@ -340,4 +357,5 @@ pkg_files(
     attributes = pkg_attributes(
         mode = "0755",
     ),
+    prefix = "/bin/agent",
 )

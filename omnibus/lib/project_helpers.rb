@@ -19,3 +19,7 @@ end
 def do_repackage?
   return !ENV.fetch('OMNIBUS_REPACKAGE_SOURCE_URL', '').empty?
 end
+
+def with_bazel?
+  return !ENV.fetch('OMNIBUS_USE_BAZEL', '').empty?
+end

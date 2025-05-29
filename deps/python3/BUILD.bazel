@@ -2,6 +2,10 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 
 configure_make(
     name = "python3",
+    args = [
+        "-j",
+        "4",
+    ],
     configure_options = [
         "--enable-ipv6",
         "--with-ensurepip=yes",
@@ -33,7 +37,7 @@ configure_make(
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Allow python to test its modules at build time
-        "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib:$$EXT_BUILD_DEPS/libxcrypt/lib",
+        "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib:$$EXT_BUILD_DEPS/libxcrypt/lib:$$EXT_BUILD_DEPS/libffi/lib64",
     },
     install_prefix = "py_install",
     lib_source = "@python3//:all",

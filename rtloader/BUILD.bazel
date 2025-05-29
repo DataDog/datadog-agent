@@ -4,7 +4,6 @@ cc_binary(
         "three/three.cpp",
         "three/three.h",
         "three/three_mem.cpp",
-        "three/constants.h",
         "common/cgo_free.h",
         "common/cgo_free.c",
         "common/log.c",
@@ -33,10 +32,10 @@ cc_binary(
     ],
     local_defines = [
         'DATADOG_AGENT_THREE',
-        '_DEFAULT_PYTHON_HOME=\\"/TODO/somewhere/to/be/decided\\"',
     ],
     deps = [
         "//deps/python3",
+        ":constants_header",
     ],
     copts = [
         "-Irtloader/include",
@@ -47,6 +46,20 @@ cc_binary(
     visibility = ["//visibility:public"],
 )
 
+genrule(
+    name = "constants_h",
+    srcs = ["three/constants.h.in"],
+    outs = ["constants.h"],
+    cmd_bash = """
+    sed -E 's/@Python3_STDLIB@/../g' $< > $@
+    """,
+)
+
+cc_library(
+    name = "constants_header",
+    hdrs = [":constants_h"],
+    includes = ["."],
+)
 
 cc_library(
     name = "rtloader",
