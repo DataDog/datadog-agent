@@ -22,10 +22,16 @@ type DiscoveryWLM struct {
 
 // NewDiscoveryWLM creates a new DiscoveryWLM instance.
 func NewDiscoveryWLM(store workloadmeta.Component, tagger tagger.Component) (*DiscoveryWLM, error) {
+	config := newConfig()
+	network, err := newNetworkCollector(config)
+	if err != nil {
+		network = nil
+	}
+
 	return &DiscoveryWLM{
 		wmeta: store,
 		discoveryCore: &discoveryCore{
-			config:            newConfig(),
+			config:            config,
 			cache:             make(map[int32]*serviceInfo),
 			potentialServices: make(pidSet),
 			runningServices:   make(pidSet),
@@ -33,7 +39,7 @@ func NewDiscoveryWLM(store workloadmeta.Component, tagger tagger.Component) (*Di
 			wmeta:             store,
 			tagger:            tagger,
 			timeProvider:      realTime{},
-			network:           nil,
+			network:           network,
 			networkErrorLimit: log.NewLogLimit(10, 10*time.Minute),
 		},
 	}, nil
