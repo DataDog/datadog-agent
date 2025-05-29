@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package disk is the one I want to test.
 package disk
 
 import (
