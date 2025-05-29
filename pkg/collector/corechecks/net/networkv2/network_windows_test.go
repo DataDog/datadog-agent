@@ -260,7 +260,7 @@ collect_connection_state: true
 
 	var customTags []string
 
-	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -404,7 +404,7 @@ excluded_interfaces:
 	err := networkCheck.Run()
 	assert.Nil(t, err)
 
-	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0"}
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
@@ -484,7 +484,7 @@ excluded_interface_re: "eth[0-9]"
 	err = networkCheck.Run()
 	assert.Nil(t, err)
 
-	eth0Tags := []string{"device:eth0", "device_name:eth0", "speed:10000", "mtu:1500"}
+	eth0Tags := []string{"device:eth0", "device_name:eth0"}
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_rcvd", float64(10), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.bytes_sent", float64(11), "", eth0Tags)
 	mockSender.AssertNotCalled(t, "Rate", "system.net.packets_in.count", float64(12), "", eth0Tags)
