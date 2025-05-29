@@ -1436,7 +1436,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, 
 	}
 	p.enabledEventTypesLock.Unlock()
 
-	filterReport, err := kfilters.NewFilterReport(p.config.Probe, rs)
+	filterReport, err := kfilters.ComputeFilters(p.config.Probe, rs)
 	if err != nil {
 		return nil, err
 	}
