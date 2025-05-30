@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    New hook on the system call setsockopt.
+    Workload protection (CWS) can now generate events based on the setsockopt syscall
