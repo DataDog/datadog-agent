@@ -113,7 +113,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectInjection: true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
-				// Records the false readOnlyRootFilesystem but doesn't Add the initContainers, volumes and mounts
+				// Records the false readOnlyRootFilesystem but doesn't add the initContainers, volumes and mounts
 				sidecar.SecurityContext = &corev1.SecurityContext{
 					ReadOnlyRootFilesystem: pointer.Ptr(false),
 				}
@@ -153,7 +153,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectInjection:      true,
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				sidecar := *NewWebhook(mockConfig).getDefaultSidecarTemplate()
-				// Records the false readOnlyRootFilesystem but doesn't Add the initContainers, volumes and mounts
+				// Records the false readOnlyRootFilesystem but doesn't add the initContainers, volumes and mounts
 				sidecar.SecurityContext = &corev1.SecurityContext{
 					ReadOnlyRootFilesystem: pointer.Ptr(false),
 				}
@@ -196,7 +196,7 @@ func TestInjectAgentSidecar(t *testing.T) {
 			ExpectedPodAfterInjection: func() *corev1.Pod {
 				webhook := NewWebhook(mockConfig)
 				sidecar := webhook.getDefaultSidecarTemplate()
-				// Records the false readOnlyRootFilesystem but doesn't Add the initContainers, volumes and mounts
+				// Records the false readOnlyRootFilesystem but doesn't add the initContainers, volumes and mounts
 				sidecar.SecurityContext = &corev1.SecurityContext{
 					ReadOnlyRootFilesystem: pointer.Ptr(false),
 				}

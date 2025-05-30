@@ -36,7 +36,7 @@ func withEnvOverrides(container *corev1.Container, extraEnv ...corev1.EnvVar) (b
 				break
 			}
 		}
-		// If the environment variable doesn't exist, Add it to the container
+		// If the environment variable doesn't exist, add it to the container
 		if !found {
 			container.Env = append(container.Env, envVarOverride)
 			mutated = true
