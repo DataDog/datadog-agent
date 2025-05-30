@@ -8,7 +8,7 @@ Probes:
       Events:
         - ID: 1
           Type: 39 EventRootType ProbeEvent
-          InjectionPCs: ["0x491c0a"]
+          InjectionPCs: [655084]
           Condition: null
       Snapshot: false
     - ID: c
@@ -19,7 +19,7 @@ Probes:
       Events:
         - ID: 2
           Type: 40 EventRootType ProbeEvent
-          InjectionPCs: ["0x491c73"]
+          InjectionPCs: [655200]
           Condition: null
       Snapshot: false
     - ID: d
@@ -30,47 +30,47 @@ Probes:
       Events:
         - ID: 3
           Type: 41 EventRootType ProbeEvent
-          InjectionPCs: ["0x491daa"]
+          InjectionPCs: [655516]
           Condition: null
       Snapshot: false
 Subprograms:
     - ID: 1
       Name: main.mapArg
-      OutOfLinePCRanges: [0x491c00..0x491c56]
+      OutOfLinePCRanges: [0x9fee0..0x9ff50]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 1 GoMapType map[string]int
           Locations:
-            - Range: 0x491c00..0x491c2d
+            - Range: 0x9fee0..0x9ff18
               Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []
     - ID: 2
       Name: main.bigMapArg
-      OutOfLinePCRanges: [0x491c60..0x491d1b]
+      OutOfLinePCRanges: [0x9ff50..0xa0010]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 19 GoMapType map[string]main.bigStruct
           Locations:
-            - Range: 0x491c60..0x491c93
+            - Range: 0x9ff50..0x9ff88
               Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
-            - Range: 0x491c93..0x491d1b
-              Pieces: [{Size: 0, InReg: false, StackOffset: 8, Register: 0}]
+            - Range: 0x9ff88..0xa0010
+              Pieces: [{Size: 0, InReg: false, StackOffset: 16, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []
     - ID: 3
       Name: main.stringArg
-      OutOfLinePCRanges: [0x491da0..0x491e11]
+      OutOfLinePCRanges: [0xa0090..0xa0110]
       InlinePCRanges: []
       Variables:
         - Name: s
           Type: 17 GoStringHeaderType string
           Locations:
-            - Range: 0x491da0..0x491dbe
+            - Range: 0xa0090..0xa00b4
               Pieces:
                 - Size: 8
                   InReg: true
@@ -79,7 +79,7 @@ Subprograms:
                 - Size: 8
                   InReg: true
                   StackOffset: 0
-                  Register: 3
+                  Register: 1
           IsParameter: true
           IsReturn: false
       Lines: []
@@ -87,7 +87,7 @@ Types:
     - __kind: GoMapType
       ID: 1
       Name: map[string]int
-      GoRuntimeType: 63456
+      GoRuntimeType: 63360
       GoKind: 21
       HeaderType: 3 GoSwissMapHeaderType map<string,int>
     - __kind: PointerType
@@ -214,7 +214,7 @@ Types:
       ID: 14
       Name: noalg.map.group[string]int
       ByteSize: 200
-      GoRuntimeType: 70464
+      GoRuntimeType: 70368
       GoKind: 25
       Fields:
         - Name: ctrl
@@ -236,7 +236,7 @@ Types:
       ID: 16
       Name: noalg.struct { key string; elem int }
       ByteSize: 24
-      GoRuntimeType: 70336
+      GoRuntimeType: 70240
       GoKind: 25
       Fields:
         - Name: key
@@ -269,7 +269,7 @@ Types:
     - __kind: GoMapType
       ID: 19
       Name: map[string]main.bigStruct
-      GoRuntimeType: 63584
+      GoRuntimeType: 63488
       GoKind: 21
       HeaderType: 21 GoSwissMapHeaderType map<string,main.bigStruct>
     - __kind: PointerType
@@ -366,7 +366,7 @@ Types:
       ID: 27
       Name: noalg.map.group[string]main.bigStruct
       ByteSize: 200
-      GoRuntimeType: 70720
+      GoRuntimeType: 70624
       GoKind: 25
       Fields:
         - Name: ctrl
@@ -388,7 +388,7 @@ Types:
       ID: 29
       Name: noalg.struct { key string; elem *main.bigStruct }
       ByteSize: 24
-      GoRuntimeType: 70592
+      GoRuntimeType: 70496
       GoKind: 25
       Fields:
         - Name: key
@@ -408,7 +408,7 @@ Types:
       ID: 31
       Name: main.bigStruct
       ByteSize: 184
-      GoRuntimeType: 112352
+      GoRuntimeType: 112256
       GoKind: 25
       Fields:
         - Name: Field1
