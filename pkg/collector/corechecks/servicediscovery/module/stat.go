@@ -120,7 +120,7 @@ func updateCPUCoresStats(pid int, info *serviceInfo, lastGlobalCPUTime, currentG
 	processTimeDelta := float64(usrTime + sysTime - info.cpuTime)
 	globalTimeDelta := float64(currentGlobalCPUTime - lastGlobalCPUTime)
 
-	info.cpuUsage = processTimeDelta / globalTimeDelta * float64(runtime.NumCPU())
+	info.CPUCores = processTimeDelta / globalTimeDelta * float64(runtime.NumCPU())
 	info.cpuTime = usrTime + sysTime
 
 	return nil
