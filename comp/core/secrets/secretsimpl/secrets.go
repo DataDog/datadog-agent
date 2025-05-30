@@ -420,22 +420,20 @@ var (
 		"api_key",
 		"app_key",
 		"additional_endpoints",
+		"orchestrator_additional_endpoints",
 	}
-	// tests override this to test refresh logic
-	allowlistEnabled = true
-	allowlistMutex   sync.RWMutex
+	allowlistMutex sync.RWMutex
 )
 
 func isAllowlistEnabled() bool {
 	allowlistMutex.RLock()
 	defer allowlistMutex.RUnlock()
-	return allowlistEnabled
+	return true
 }
 
-func setAllowlistEnabled(value bool) {
+func setAllowlistEnabled(_ bool) {
 	allowlistMutex.Lock()
 	defer allowlistMutex.Unlock()
-	allowlistEnabled = value
 }
 
 func secretMatchesAllowlist(secretCtx secretContext) bool {
