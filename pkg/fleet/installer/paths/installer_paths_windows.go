@@ -72,7 +72,7 @@ func init() {
 	}
 	DatadogInstallerData = filepath.Join(DatadogDataDir, "Installer")
 	PackagesPath = filepath.Join(DatadogInstallerData, "packages")
-	ConfigsPath = filepath.Join(DatadogInstallerData, "configs")
+	ConfigsPath = filepath.Join(DatadogInstallerData, "managed")
 	RootTmpDir = filepath.Join(DatadogInstallerData, "tmp")
 	RunPath = filepath.Join(PackagesPath, "run")
 
