@@ -3016,6 +3016,10 @@ func (s *TracerSuite) TestTCPSynRst() {
 
 	tr := setupTracer(t, cfg)
 
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
+		t.Skip("failed connections not (yet) supported on fentry")
+	}
+
 	// create a linux socket which will reserve a port for us
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
 	require.NoError(t, err)
