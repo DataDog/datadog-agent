@@ -241,6 +241,7 @@ def flare(ctx: Context, tmp_flare_folder: Path, dest_folder: Path, keep_uncompre
     ctx.run(f"mkdir -p {tmp_flare_folder}/stacks")
     ctx.run(f"cp -r {kmt_os.stacks_dir} {tmp_flare_folder}/stacks", warn=True)
     ctx.run(f"sudo virsh list --all > {tmp_flare_folder}/virsh_list.txt", warn=True)
+    ctx.run(f"cp {kmt_os.kmt_setup_info} {tmp_flare_folder}", warn=True)
 
     virsh_config_folder = tmp_flare_folder / 'vm-configs'
     ctx.run(f"mkdir -p {virsh_config_folder}", warn=True)
