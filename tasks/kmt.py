@@ -496,6 +496,16 @@ def update_resources(
 ):
     kmt_os = get_kmt_os()
 
+    cm = ConfigManager()
+    setup = cm.config.get("setup")
+    if setup is None:
+        raise Exit("KMT setup information not recorded. Please run `dda inv kmt.init` to generate it.")
+
+    if setup == "remote":
+        raise Exit(
+            "KMT is initialized as remote-only. In this mode local VMs are not allowed. Run `dda inv kmt.init` to re-initialize with support for local VMs"
+        )
+
     warn("Updating resource dependencies will delete all running stacks.")
     if ask("are you sure you want to continue? (y/n)").lower() != "y":
         raise Exit("[-] Update aborted")
