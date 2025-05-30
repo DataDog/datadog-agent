@@ -7,6 +7,7 @@ package log
 
 import (
 	"bytes"
+	"encoding/json"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -66,71 +67,58 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 }
 
 // splitJSONBytes takes input bytes which may contain one or more JSON objects, or
-// plain text. This handles an edge case where multiple JSON logs are sent back-to-back
-// with no delay, which occasionally causes them to be combined into one message.
+// plain text, or a combination of both. This handles an edge case where multiple JSON
+// logs are sent back-to-back with no delay, which occasionally causes them to be combined.
 // E.g. `{"msg": "A"}\n{"msg": "B"}\n` would cause "B" to be dropped by the backend.
-// O(n) time complexity for JSON, O(1) for plaintext.
+// Runs in O(n) time complexity.
 func splitJSONBytes(input []byte) [][]byte {
 	trimmed := bytes.TrimSpace(input)
-	if len(trimmed) == 0 {
+	if len(trimmed) <= 0 {
 		return nil
 	}
 
-	// if it doesn’t even start like JSON, just return the whole thing
-	if trimmed[0] != '{' {
-		return [][]byte{trimmed}
-	}
+	var out [][]byte
+	n := len(trimmed)
+	offset := 0
 
-	var (
-		out      [][]byte
-		depth    int
-		inString bool
-		escape   bool
-		startIdx int
-		lastEnd  int
-	)
-
-	for i, c := range trimmed {
-		if escape {
-			// the char after '\' is ignored for structure
-			escape = false
-			continue
+	for offset < n {
+		// find the next “{” which might start JSON
+		idx := bytes.IndexByte(trimmed[offset:], '{')
+		if idx < 0 {
+			// no more JSON: emit the rest as one plain-text chunk
+			tail := bytes.TrimSpace(trimmed[offset:])
+			if len(tail) > 0 {
+				out = append(out, tail)
+			}
+			break
 		}
-		switch c {
-		case '\\':
-			escape = true
-		case '"':
-			inString = !inString
-		default:
-			if !inString {
-				if c == '{' {
-					if depth == 0 {
-						startIdx = i
-					}
-					depth++
-				} else if c == '}' {
-					depth--
-					if depth == 0 {
-						// finished a full object
-						out = append(out, trimmed[startIdx:i+1])
-						lastEnd = i + 1
-					}
-				}
+
+		start := offset + idx
+		// emit any plain-text before that “{”
+		if start > offset {
+			prefix := bytes.TrimSpace(trimmed[offset:start])
+			if len(prefix) > 0 {
+				out = append(out, prefix)
 			}
 		}
-	}
 
-	// anything left after the last JSON object
-	if lastEnd < len(trimmed) {
-		tail := bytes.TrimSpace(trimmed[lastEnd:])
-		if len(tail) > 0 {
-			out = append(out, tail)
+		// try to decode a complete JSON value
+		dec := json.NewDecoder(bytes.NewReader(trimmed[start:]))
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err != nil {
+			// incomplete JSON: emit the rest as plain-text
+			tail := bytes.TrimSpace(trimmed[start:])
+			if len(tail) > 0 {
+				out = append(out, tail)
+			}
+			break
 		}
+
+		// got one JSON object
+		out = append(out, raw)
+		// advance past it
+		offset = start + int(dec.InputOffset())
 	}
 
-	// if we never saw any complete JSON, fall back
-	if len(out) == 0 {
-		return [][]byte{trimmed}
-	}
 	return out
 }
