@@ -9,6 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
@@ -18,8 +21,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"slices"
-	"strings"
 )
 
 const (
@@ -460,8 +461,9 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 
 	clusterTags := taglist.NewTagList()
 	if task.ClusterName != "" {
+		// only add cluster_name to the task level tags, not global
 		if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-			clusterTags.AddLow(tags.ClusterName, task.ClusterName)
+			taskTags.AddLow(tags.ClusterName, task.ClusterName)
 		}
 		clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
 	}
