@@ -13,7 +13,7 @@ from tasks.kernel_matrix_testing.compiler import get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import download_rootfs
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.tool import Exit, ask, info, is_root
+from tasks.kernel_matrix_testing.tool import Exit, ask, info, is_root, warn
 from tasks.libs.common.utils import is_installed
 
 if TYPE_CHECKING:
