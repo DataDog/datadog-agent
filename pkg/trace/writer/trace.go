@@ -29,7 +29,7 @@ const defaultConnectionLimit = 5
 
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
-var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
+var MaxPayloadSize = 3_200_000 // 3.2MB is the maximum allowed by the Datadog API
 
 type samplerTPSReader interface {
 	GetTargetTPS() float64
