@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
@@ -45,20 +46,31 @@ type UserSamples struct {
 }
 
 // NewUserSamples creates a new UserSamples instance.
-func NewUserSamples(config model.Reader) *UserSamples {
+func NewUserSamples(config model.Reader, sourceSamples []*config.AutoMultilineSample) *UserSamples {
 	tokenizer := NewTokenizer(0)
 	s := make([]*UserSample, 0)
 	var err error
-	raw := config.Get("logs_config.auto_multi_line_detection_custom_samples")
-	if raw != nil {
-		if str, ok := raw.(string); ok && str != "" {
+
+	for _, sample := range sourceSamples {
+		log.Debugf("Adding source user sample: %+v", sample)
+		s = append(s, &UserSample{
+			Sample:         sample.Sample,
+			Label:          sample.Label,
+			Regex:          sample.Regex,
+			MatchThreshold: sample.MatchThreshold,
+		})
+	}
+
+	rawMainSamples := config.Get("logs_config.auto_multi_line_detection_custom_samples")
+	if rawMainSamples != nil {
+		if str, ok := rawMainSamples.(string); ok && str != "" {
 			err = json.Unmarshal([]byte(str), &s)
 		} else {
 			err = structure.UnmarshalKey(config, "logs_config.auto_multi_line_detection_custom_samples", &s)
 		}
 
 		if err != nil {
-			log.Error("Failed to unmarshal custom samples: ", err)
+			log.Error("Failed to unmarshal main config custom samples: ", err)
 			s = make([]*UserSample, 0)
 		}
 	}
