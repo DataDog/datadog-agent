@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// ScrubCR scrubs sensitive information from a Custom Resource Manifest
+// ScrubCRManifest scrubs sensitive information from a Custom Resource Manifest
 func ScrubCRManifest(r *unstructured.Unstructured, scrubber *DataScrubber) {
 	// Scrub spec fields
 	if spec, ok := r.Object["spec"]; ok {
