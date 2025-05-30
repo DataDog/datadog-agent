@@ -93,6 +93,8 @@ def run(
     logs_folder="e2e_logs",
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
+    cd_in_module=False,
+    native_instrumentation=False,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -150,13 +152,16 @@ def run(
 
     cmd = f"gotestsum --format {gotestsum_format} "
     scrubber_raw_command = ""
+    native_instrumentation_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
     if running_in_ci():
         scrubber_raw_command = (
             # Using custom go command piped with scrubber sed instructions https://github.com/gotestyourself/gotestsum#custom-go-test-command
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+        if native_instrumentation:
+            native_instrumentation_command = "'--toolexec=orchestrion toolexec'"
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- {native_instrumentation_command} -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
     # Strings can come with extra double-quotes which can break the command, remove them
     clean_run = []
@@ -201,8 +206,8 @@ def run(
         junit_tar=junit_tar,
         result_json=result_json,
         test_profiler=None,
+        cd_in_module=cd_in_module,
     )
-
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
     if running_in_ci():

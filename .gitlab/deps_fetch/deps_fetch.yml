@@ -92,6 +92,9 @@ go_e2e_deps:
   extends: .cache
   script:
     - if [ -f modcache_e2e.tar.xz  ]; then exit 0; fi
+    - cd test/new-e2e
+    - go install github.com/DataDog/orchestrion
+    - cd ../..
     - dda inv -- -e new-e2e-tests.deps
     - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
   artifacts:
