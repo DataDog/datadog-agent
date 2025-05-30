@@ -3010,6 +3010,10 @@ func (s *TracerSuite) TestTCPSynRst() {
 	t := s.T()
 	cfg := testConfig()
 
+	if isPrebuilt(cfg) {
+		t.Skip("failed connections not supported on prebuilt")
+	}
+
 	tr := setupTracer(t, cfg)
 
 	// create a linux socket which will reserve a port for us
