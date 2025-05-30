@@ -29,29 +29,38 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	namespace := "datadog"
 	secretName := "apikeyrefresh"
 	apiKeyOld := "abcdefghijklmnopqrstuvwxyz123456"
+	additionalapiKeyOld := "abcdefghijklmnopqrstuvwxyz789012"
 
 	// apply secret containing the old API key which is used by the agent
 	suite.applySecret(namespace, secretName, map[string][]byte{"apikey": []byte(apiKeyOld)})
+	suite.applySecret(namespace, secretName, map[string][]byte{"additionalapikey": []byte(additionalapiKeyOld)})
+
+	helm := fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL, suite.Env().FakeIntake.URL)
 
 	// install the agent with old API key
 	suite.UpdateEnv(
 		awskubernetes.KindProvisioner(
 			awskubernetes.WithAgentOptions(
 				kubernetesagentparams.WithNamespace(namespace),
-				kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL)),
+				kubernetesagentparams.WithHelmValues(helm),
 			),
 		),
 	)
 
 	// verify that the old API key exists in the orchestrator resources payloads
 	suite.eventuallyHasExpectedAPIKey(apiKeyOld)
+	suite.eventuallyHasExpectedAPIKey(additionalapiKeyOld)
 
 	// update the secret with a new API key and agent will refresh it
 	apiKeyNew := "123456abcdefghijklmnopqrstuvwxyz"
 	suite.applySecret(namespace, secretName, map[string][]byte{"apikey": []byte(apiKeyNew)})
 
-	// verify that the new API key exists in the orchestrator resources payloads
+	additionalapiKeyNew := "789012abcdefghijklmnopqrstuvwxyz"
+	suite.applySecret(namespace, secretName, map[string][]byte{"additionalapikey": []byte(additionalapiKeyNew)})
+
+	// verify that the new API keys exists in the orchestrator resources payloads
 	suite.eventuallyHasExpectedAPIKey(apiKeyNew)
+	suite.eventuallyHasExpectedAPIKey(additionalapiKeyNew)
 }
 
 // applySecret creates or updates a secret in the given namespace with the provided data.
