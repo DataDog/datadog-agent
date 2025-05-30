@@ -55,6 +55,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
+    "./pkg/dyninst/...",
     "./pkg/gpu/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
@@ -1010,7 +1011,21 @@ def go_package_dirs(packages, build_tags):
 
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
-    packages_arg = " ".join(packages)
+
+    # Prepend module path if the package path is relative
+    # and doesn't start with ./ (which go list handles correctly for local paths)
+    if not is_windows:
+        full_path_packages = []
+        module_path = "github.com/DataDog/datadog-agent/"
+        for pkg in packages:
+            if not pkg.startswith(".") and not pkg.startswith(module_path):
+                full_path_packages.append(module_path + pkg)
+            else:
+                full_path_packages.append(pkg)
+        packages_arg = " ".join(full_path_packages)
+    else:
+        packages_arg = " ".join(packages)
+
     cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]

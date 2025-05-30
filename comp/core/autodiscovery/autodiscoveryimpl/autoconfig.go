@@ -252,50 +252,16 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 
 // GetConfigCheck returns scrubbed information from all configuration providers
 func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
-	var response integration.ConfigCheckResponse
-
-	configSlice := ac.GetAllConfigs()
-	sort.Slice(configSlice, func(i, j int) bool {
-		return configSlice[i].Name < configSlice[j].Name
-	})
-
-	configResponses := make([]integration.ConfigResponse, len(configSlice))
-
-	for i, config := range configSlice {
-		instanceIDs := make([]string, len(config.Instances))
-		for j, instance := range config.Instances {
-			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
-		}
-		configResponses[i] = integration.ConfigResponse{
-			Config:      ac.scrubConfig(config),
-			InstanceIDs: instanceIDs,
-		}
-	}
-
-	response.Configs = configResponses
-
-	response.ResolveWarnings = GetResolveWarnings()
-	response.ConfigErrors = GetConfigErrors()
-
-	unresolved := ac.getUnresolvedTemplates()
-	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
-
-	for ids, configs := range unresolved {
-		scrubbedConfigs := make([]integration.Config, len(configs))
-		for idx, config := range configs {
-			scrubbedConfigs[idx] = ac.scrubConfig(config)
-		}
-
-		scrubbedUnresolved[ids] = scrubbedConfigs
-	}
-
-	response.Unresolved = scrubbedUnresolved
-
-	return response
+	return ac.buildConfigCheckResponse(true)
 }
 
 // getRawConfigCheck returns information from all configuration providers
 func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
+	return ac.buildConfigCheckResponse(false)
+}
+
+// buildConfigCheckResponse is a helper to build the ConfigCheckResponse for both scrubbed and raw configs.
+func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigCheckResponse {
 	var response integration.ConfigCheckResponse
 
 	configSlice := ac.GetAllConfigs()
@@ -310,6 +276,11 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 		for j, instance := range config.Instances {
 			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
 		}
+
+		if scrub {
+			config = ac.scrubConfig(config)
+		}
+
 		configResponses[i] = integration.ConfigResponse{
 			Config:      config,
 			InstanceIDs: instanceIDs,
@@ -317,10 +288,19 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 	}
 
 	response.Configs = configResponses
-
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
-	response.Unresolved = ac.getUnresolvedTemplates()
+
+	if scrub {
+		unresolved := ac.getUnresolvedConfigs()
+		scrubbedUnresolved := make(map[string]integration.Config, len(unresolved))
+		for id, config := range unresolved {
+			scrubbedUnresolved[id] = ac.scrubConfig(config)
+		}
+		response.Unresolved = scrubbedUnresolved
+	} else {
+		response.Unresolved = ac.getUnresolvedConfigs()
+	}
 
 	return response
 }
@@ -636,10 +616,10 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
 }
 
-// getUnresolvedTemplates returns all templates in the cache, in their unresolved
+// getUnresolvedConfigs returns all the active configs, in their unresolved
 // state.
-func (ac *AutoConfig) getUnresolvedTemplates() map[string][]integration.Config {
-	return ac.store.templateCache.getUnresolvedTemplates()
+func (ac *AutoConfig) getUnresolvedConfigs() map[string]integration.Config {
+	return ac.cfgMgr.getActiveConfigs()
 }
 
 // GetIDOfCheckWithEncryptedSecrets returns the ID that a checkID had before

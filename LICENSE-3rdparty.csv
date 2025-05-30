@@ -995,6 +995,12 @@ core,github.com/go-delve/delve/pkg/dwarf/op,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/goversion,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/logflags,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-ini/ini,Apache-2.0,Copyright 2014 Unknwon
+core,github.com/go-json-experiment/json,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
+core,github.com/go-json-experiment/json/internal,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
+core,github.com/go-json-experiment/json/internal/jsonflags,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
+core,github.com/go-json-experiment/json/internal/jsonopts,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
+core,github.com/go-json-experiment/json/internal/jsonwire,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
+core,github.com/go-json-experiment/json/jsontext,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
 core,github.com/go-kit/log,MIT,Copyright (c) 2021 Go kit
 core,github.com/go-kit/log/level,MIT,Copyright (c) 2021 Go kit
 core,github.com/go-logfmt/logfmt,MIT,Copyright (c) 2015 go-logfmt
