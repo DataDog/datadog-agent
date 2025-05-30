@@ -1,15 +1,5 @@
 receivers:
     otlp:
-    prometheus/user-defined:
-      config:
-        scrape_configs:
-          - job_name: 'datadog-agent'
-            scrape_interval: 60s
-            metric_name_validation_scheme: legacy
-            scrape_protocols:
-              - "PrometheusText0.0.4"
-            static_configs:
-              - targets: ['0.0.0.0:8888']
 
 exporters:
     datadog:
@@ -27,6 +17,9 @@ processors:
   infraattributes/user-defined:
 
 service:
+    telemetry:
+      metrics:
+        level: none
     extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
     pipelines:
         traces:
@@ -34,7 +27,7 @@ service:
             processors: [infraattributes/user-defined]
             exporters: [datadog]
         metrics:
-            receivers: [nop, prometheus/user-defined]
+            receivers: [nop]
             processors: [infraattributes/user-defined]
             exporters: [datadog]
         logs:
