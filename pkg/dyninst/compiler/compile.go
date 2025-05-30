@@ -8,8 +8,15 @@
 package compiler
 
 import (
+	"bytes"
+	"io"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpfruntime "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/dyninst/ebpf/event.c pkg/ebpf/bytecode/build/runtime/dyninst_event.c pkg/ebpf/c
@@ -20,6 +27,7 @@ func getCFlags(config *ddebpf.Config) []string {
 		"-g",
 		"-Wno-unused-variable",
 		"-Wno-unused-function",
+		"-DDYNINST_GENERATED_CODE",
 	}
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
@@ -28,14 +36,37 @@ func getCFlags(config *ddebpf.Config) []string {
 }
 
 // CompileBPFProgram compiles the eBPF program.
-func CompileBPFProgram() error {
-	// TODO: actually include generated code
+func CompileBPFProgram(program ir.Program, extraCodeSink io.Writer) (ebpfruntime.CompiledOutput, error) {
+	generatedCode := bytes.NewBuffer(nil)
+	smProgram, err := sm.GenerateProgram(program)
+	if err != nil {
+		return nil, err
+	}
+	err = codegen.GenerateCCode(smProgram, generatedCode)
+	if err != nil {
+		return nil, err
+	}
+
+	injector := func(in io.Reader, out io.Writer) error {
+		source, err := io.ReadAll(in)
+		if err != nil {
+			return err
+		}
+		t, err := template.New("generated_code").Parse(string(source))
+		if err != nil {
+			return err
+		}
+		if extraCodeSink != nil {
+			out = io.MultiWriter(out, extraCodeSink)
+		}
+		return t.Execute(out, generatedCode.String())
+	}
+
 	cfg := ddebpf.NewConfig()
 	opts := ebpfruntime.CompileOptions{
 		AdditionalFlags:  getCFlags(cfg),
-		ModifyCallback:   nil,
+		ModifyCallback:   injector,
 		UseKernelHeaders: true,
 	}
-	_, err := ebpfruntime.Dyninstevent.CompileWithOptions(cfg, opts)
-	return err
+	return ebpfruntime.Dyninstevent.CompileWithOptions(cfg, opts)
 }
