@@ -84,6 +84,7 @@ void initLogger(rtloader_t *rtloader) {
 
 void GetClusterName(char **);
 void GetConfig(char*, char **);
+void GetRemoteConfig(char*, char **);
 void GetHostname(char **);
 void GetHostTags(char **);
 void GetVersion(char **);
@@ -103,6 +104,7 @@ void EmitAgentTelemetry(char *, char *, double, char *);
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
 	set_get_config_cb(rtloader, GetConfig);
+	set_get_remote_config_cb(rtloader, GetRemoteConfig);
 	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_host_tags_cb(rtloader, GetHostTags);
 	set_get_version_cb(rtloader, GetVersion);
