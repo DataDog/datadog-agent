@@ -35,7 +35,6 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
 
     struct setsockopt_event_t event = {
         .syscall.retval = retval,
-        .syscall_ctx.id = syscall->ctx_id,
         .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .socket = syscall->setsockopt.socket,
         .level = syscall->setsockopt.level,
@@ -63,4 +62,9 @@ HOOK_SYSCALL_EXIT(setsockopt) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_set_sock_opt_ret(ctx, retval);
 }
+
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_setsockopt_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_set_sock_opt_ret(args, args->ret);
+}
+
 #endif

@@ -1508,7 +1508,7 @@ func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals a binary representation of itself
 func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext)
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
 	if err != nil {
 		return 0, err
 	}
