@@ -47,6 +47,7 @@ class Linux:
     shared_dir = Path("/opt/kernel-version-testing")
     libvirt_socket = "qemu:///system"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
+    config_path = kmt_dir / "config.json"
 
     qemu_conf = os.path.join("/", "etc", "libvirt", "qemu.conf")
 
@@ -128,6 +129,7 @@ class MacOS:
     libvirt_socket = f"qemu:///system?socket={libvirt_system_dir}/libvirt-sock"
     virtlogd_conf = get_homebrew_prefix() / "etc/libvirt/virtlogd.conf"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
+    config_path = kmt_dir / "config.json"
 
     packages = ["aria2", "fio", "socat", "libvirt", "gnu-sed", "qemu", "libvirt", "wget"]
 
@@ -239,7 +241,7 @@ def flare(ctx: Context, tmp_flare_folder: Path, dest_folder: Path, keep_uncompre
     ctx.run(f"mkdir -p {tmp_flare_folder}/stacks")
     ctx.run(f"cp -r {kmt_os.stacks_dir} {tmp_flare_folder}/stacks", warn=True)
     ctx.run(f"sudo virsh list --all > {tmp_flare_folder}/virsh_list.txt", warn=True)
-    ctx.run(f"cp {kmt_os.kmt_setup_info} {tmp_flare_folder}", warn=True)
+    ctx.run(f"cp {kmt_os.config_path} {tmp_flare_folder}/config.json", warn=True)
 
     virsh_config_folder = tmp_flare_folder / 'vm-configs'
     ctx.run(f"mkdir -p {virsh_config_folder}", warn=True)
