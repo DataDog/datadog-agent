@@ -21,74 +21,64 @@ const (
 	agentLogsVolumeName    = "agent-log"
 )
 
-type feature string
-
-const (
-	readOnlyRootFilesystemFeature feature = "read-only-root-filesystem"
-	eksFargateLoggingFeature      feature = "eks-fargate-logging"
-	clusterAgentFeature           feature = "cluster-agent"
-)
-
-var featuresToVolumes = map[feature][]corev1.Volume{
-	readOnlyRootFilesystemFeature: {
-		{
-			Name: agentConfigVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
-		{
-			Name: agentOptionsVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
-		{
-			Name: agentTmpVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
-		},
-		{
-			Name: agentLogsVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
+var readOnlyRootFilesystemVolumes = []corev1.Volume{
+	{
+		Name: agentConfigVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	},
-	eksFargateLoggingFeature: {
-		{
-			Name: agentOptionsVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
-			},
+	{
+		Name: agentOptionsVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	},
+	{
+		Name: agentTmpVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	},
+	{
+		Name: agentLogsVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	},
 }
 
-var featuresToVolumeMounts = map[feature][]corev1.VolumeMount{
-	readOnlyRootFilesystemFeature: {
-		{
-			Name:      agentConfigVolumeName,
-			MountPath: "/etc/datadog-agent",
-		},
-		{
-			Name:      agentOptionsVolumeName,
-			MountPath: "/opt/datadog-agent/run",
-		},
-		{
-			Name:      agentTmpVolumeName,
-			MountPath: "/tmp",
-		},
-		{
-			Name:      agentLogsVolumeName,
-			MountPath: "/var/log/datadog",
+var kubernetesAPILoggingVolumes = []corev1.Volume{
+	{
+		Name: agentOptionsVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	},
-	eksFargateLoggingFeature: {
-		{
-			Name:      agentOptionsVolumeName,
-			MountPath: "/opt/datadog-agent/run",
-		},
+}
+
+var readOnlyRootFilesystemVolumeMounts = []corev1.VolumeMount{
+	{
+		Name:      agentConfigVolumeName,
+		MountPath: "/etc/datadog-agent",
+	},
+	{
+		Name:      agentOptionsVolumeName,
+		MountPath: "/opt/datadog-agent/run",
+	},
+	{
+		Name:      agentTmpVolumeName,
+		MountPath: "/tmp",
+	},
+	{
+		Name:      agentLogsVolumeName,
+		MountPath: "/var/log/datadog",
+	},
+}
+
+var kubernetesAPILoggingVolumeMounts = []corev1.VolumeMount{
+	{
+		Name:      agentOptionsVolumeName,
+		MountPath: "/opt/datadog-agent/run",
 	},
 }

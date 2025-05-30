@@ -46,7 +46,7 @@ func TestWithEnvOverrides(t *testing.T) {
 			},
 		},
 		{
-			name: "Happy path - add a new environment variable",
+			name: "Happy path - Add a new environment variable",
 			baseContainer: &corev1.Container{
 				Env: []corev1.EnvVar{{Name: "Foo", Value: "Bar"}},
 			},

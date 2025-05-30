@@ -67,7 +67,7 @@ type Webhook struct {
 	isLangDetectEnabled          bool
 	isLangDetectReportingEnabled bool
 	isClusterAgentEnabled        bool
-	isEKSLoggingEnabled          bool
+	isKubeletAPILoggingEnabled   bool
 	clusterAgentCmdPort          int
 	clusterAgentServiceName      string
 }
@@ -101,7 +101,7 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		clusterAgentServiceName:      datadogConfig.GetString("cluster_agent.kubernetes_service_name"),
 		clusterAgentCmdPort:          datadogConfig.GetInt("cluster_agent.cmd_port"),
 		isClusterAgentEnabled:        datadogConfig.GetBool("admission_controller.agent_sidecar.cluster_agent.enabled"),
-		isEKSLoggingEnabled:          datadogConfig.GetBool("admission_controller.agent_sidecar.eks_logging.enabled"),
+		isKubeletAPILoggingEnabled:   datadogConfig.GetBool("admission_controller.agent_sidecar.kubelet_api_logging.enabled"),
 		isLangDetectEnabled:          datadogConfig.GetBool("language_detection.enabled"),
 		isLangDetectReportingEnabled: datadogConfig.GetBool("language_detection.reporting.enabled"),
 	}
@@ -158,24 +158,6 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	}
 }
 
-func (w *Webhook) getFeatures() []feature {
-	var features []feature
-
-	if w.isClusterAgentEnabled {
-		features = append(features, clusterAgentFeature)
-	}
-
-	if w.isEKSLoggingEnabled {
-		features = append(features, eksFargateLoggingFeature)
-	}
-
-	if w.isReadOnlyRootFilesystem() {
-		features = append(features, readOnlyRootFilesystemFeature)
-	}
-
-	return features
-}
-
 // isReadOnlyRootFilesystem returns whether the agent sidecar should have the readOnlyRootFilesystem security setup
 func (w *Webhook) isReadOnlyRootFilesystem() bool {
 	if len(w.profileOverrides) == 0 {
@@ -191,7 +173,7 @@ func (w *Webhook) isReadOnlyRootFilesystem() bool {
 func attachVolume(p *corev1.Pod, v corev1.Volume) error {
 	for _, vol := range p.Spec.Volumes {
 		if vol.Name == v.Name {
-			return fmt.Errorf("there is already a volume with the name: %s", v.Name)
+			return &VolumeAlreadyAttached{vol.Name}
 		}
 	}
 
@@ -200,9 +182,9 @@ func attachVolume(p *corev1.Pod, v corev1.Volume) error {
 }
 
 func mountVolume(c *corev1.Container, vm corev1.VolumeMount) error {
-	for _, mount := range c.VolumeMounts {
-		if mount.MountPath == vm.MountPath {
-			return fmt.Errorf("%s is already mounted with the name %s", mount.MountPath, mount.Name)
+	for _, mnt := range c.VolumeMounts {
+		if mnt.MountPath == vm.MountPath {
+			return &PathAlreadyMounted{mnt.MountPath}
 		}
 	}
 
@@ -234,21 +216,31 @@ func (w *Webhook) injectAgentSidecar(pod *corev1.Pod, _ string, _ dynamic.Interf
 			}()
 		}
 
-		features := w.getFeatures()
-
-		volumes := w.getVolumeTemplates(features...)
+		volumes := w.getVolumeTemplates()
 		for _, vol := range volumes {
 			err := attachVolume(pod, vol)
 			if err != nil {
-				log.Error(err)
+				var attached VolumeAlreadyAttached
+				if errors.As(err, &attached) {
+					log.Error(err)
+				} else {
+					// This should never happen
+					log.Errorf("unexpected error: %v", err)
+				}
 			}
 		}
 
-		mounts := w.getVolumeMountTemplates(features...)
+		mounts := w.getVolumeMountTemplates()
 		for _, m := range mounts {
 			err := mountVolume(agentSidecarContainer, m)
 			if err != nil {
-				log.Error(err)
+				var mounted PathAlreadyMounted
+				if errors.As(err, &mounted) {
+					log.Error(err)
+				} else {
+					// This should never happen
+					log.Errorf("unexpected error: %v", err)
+				}
 			}
 		}
 
@@ -308,32 +300,40 @@ func (w *Webhook) getSecurityInitTemplate() *corev1.Container {
 	}
 }
 
-func (w *Webhook) getVolumeTemplates(feats ...feature) []corev1.Volume {
-	volumes := newSet[corev1.Volume]()
+func (w *Webhook) getVolumeTemplates() []corev1.Volume {
+	volumes := NewPseudoSet[corev1.Volume]()
 
-	for _, feat := range feats {
-		if vols, ok := featuresToVolumes[feat]; ok {
-			for _, vol := range vols {
-				volumes.add(vol)
-			}
+	if w.isReadOnlyRootFilesystem() {
+		for _, vol := range readOnlyRootFilesystemVolumes {
+			volumes.Add(vol)
 		}
 	}
 
-	return volumes.toSlice()
+	if w.isKubeletAPILoggingEnabled {
+		for _, vol := range kubernetesAPILoggingVolumes {
+			volumes.Add(vol)
+		}
+	}
+
+	return volumes.Slice()
 }
 
-func (w *Webhook) getVolumeMountTemplates(feats ...feature) []corev1.VolumeMount {
-	volumeMounts := newSet[corev1.VolumeMount]()
+func (w *Webhook) getVolumeMountTemplates() []corev1.VolumeMount {
+	volumeMounts := NewPseudoSet[corev1.VolumeMount]()
 
-	for _, feat := range feats {
-		if vms, ok := featuresToVolumeMounts[feat]; ok {
-			for _, vm := range vms {
-				volumeMounts.add(vm)
-			}
+	if w.isReadOnlyRootFilesystem() {
+		for _, vm := range readOnlyRootFilesystemVolumeMounts {
+			volumeMounts.Add(vm)
 		}
 	}
 
-	return volumeMounts.toSlice()
+	if w.isKubeletAPILoggingEnabled {
+		for _, vm := range kubernetesAPILoggingVolumeMounts {
+			volumeMounts.Add(vm)
+		}
+	}
+
+	return volumeMounts.Slice()
 }
 
 func (w *Webhook) addSecurityConfigToAgent(agentContainer *corev1.Container) {
@@ -400,7 +400,6 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 	}
 
 	if w.isClusterAgentEnabled {
-
 		_, _ = withEnvOverrides(agentContainer, corev1.EnvVar{
 			Name:  "DD_CLUSTER_AGENT_ENABLED",
 			Value: "true",
@@ -423,7 +422,7 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 		})
 	}
 
-	if w.isEKSLoggingEnabled {
+	if w.isKubeletAPILoggingEnabled {
 		_, _ = withEnvOverrides(agentContainer,
 			corev1.EnvVar{
 				Name:  "DD_LOGS_CONFIG_K8S_CONTAINER_USE_KUBELET_API",

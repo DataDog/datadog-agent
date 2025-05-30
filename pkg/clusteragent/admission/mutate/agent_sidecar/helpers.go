@@ -7,22 +7,26 @@
 
 package agentsidecar
 
-type set[T comparable] map[T]struct{}
-
-func (s set[T]) add(e T) {
-	s[e] = struct{}{}
+type PseudoSet[T comparable] struct {
+	content map[T]struct{}
 }
 
-func (s set[T]) toSlice() []T {
+func (s *PseudoSet[T]) Add(e T) {
+	s.content[e] = struct{}{}
+}
+
+func (s *PseudoSet[T]) Slice() []T {
 	var buf []T
 
-	for key := range s {
-		buf = append(buf, key)
+	for k := range s.content {
+		buf = append(buf, k)
 	}
 
 	return buf
 }
 
-func newSet[T comparable]() set[T] {
-	return make(map[T]struct{})
+func NewPseudoSet[T comparable]() PseudoSet[T] {
+	return PseudoSet[T]{
+		content: make(map[T]struct{}),
+	}
 }
