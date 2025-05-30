@@ -848,8 +848,8 @@ var (
 	// SetSockoptConstants is the list of available actions for setsockopt events
 	// generate_constants:SetSockopt Actions,SetSockopt Actions are the supported actions for the setsockopt event.
 	SetSockoptConstants = map[string]int{
-		"SOL_SOCKET":   syscall.SOL_SOCKET,
-		"SO_REUSEADDR": syscall.SO_REUSEADDR,
+		"SOL_SOCKET":       syscall.SOL_SOCKET,
+		"SO_ATTACH_FILTER": syscall.SO_ATTACH_FILTER,
 	}
 )
 
