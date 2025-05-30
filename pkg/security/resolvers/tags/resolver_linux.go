@@ -9,6 +9,7 @@ package tags
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -89,7 +90,7 @@ func (t *LinuxResolver) Start(ctx context.Context) error {
 }
 
 func needsTagsResolution(workload *Workload) bool {
-	return len(workload.ContainerID) != 0 && !workload.Selector.IsReady()
+	return (len(workload.ContainerID) != 0 || len(workload.CGroupID) != 0) && !workload.Selector.IsReady()
 }
 
 // checkTags checks if the tags of a workload were properly set
@@ -119,15 +120,49 @@ func (t *LinuxResolver) checkTags(pendingWorkload *Workload) {
 
 // fetchTags fetches tags for the provided workload
 func (t *LinuxResolver) fetchTags(workload *Workload) error {
-	newTags, err := t.ResolveWithErr(workload.ContainerID)
-	if err != nil {
-		return fmt.Errorf("failed to resolve %s: %w", workload.ContainerID, err)
+	var newTags []string
+	var err error
+
+	if workload.ContainerID != "" {
+		// Container-based workload
+		newTags, err = t.ResolveWithErr(workload.ContainerID)
+		if err != nil {
+			return fmt.Errorf("failed to resolve container %s: %w", workload.ContainerID, err)
+		}
+	} else if workload.CGroupID != "" {
+		// Cgroup-based workload
+		cgroupID := string(workload.CGroupID)
+
+		// Extract service name from the cgroup ID path
+		serviceName := cgroupID
+		if parts := strings.Split(cgroupID, "/"); len(parts) > 0 {
+			serviceName = parts[len(parts)-1]
+		}
+		// Create basic tags for the cgroup
+		newTags = []string{
+			"service:" + serviceName,
+			"version:latest",
+		}
+	} else {
+		return fmt.Errorf("workload has neither container ID nor cgroup ID")
 	}
 
-	workload.Selector.Image = utils.GetTagValue("image_name", newTags)
-	workload.Selector.Tag = utils.GetTagValue("image_tag", newTags)
-	if len(workload.Selector.Image) != 0 && len(workload.Selector.Tag) == 0 {
-		workload.Selector.Tag = "latest"
+	// Set the workload selector based on the tags
+	workload.Tags = newTags
+	if workload.ContainerID != "" {
+		// For containers, use image_name and image_tag
+		workload.Selector.Image = utils.GetTagValue("image_name", newTags)
+		workload.Selector.Tag = utils.GetTagValue("image_tag", newTags)
+		if len(workload.Selector.Image) != 0 && len(workload.Selector.Tag) == 0 {
+			workload.Selector.Tag = "latest"
+		}
+	} else {
+		// For cgroups, use service and version tags
+		workload.Selector.Image = utils.GetTagValue("service", newTags)
+		workload.Selector.Tag = utils.GetTagValue("version", newTags)
+		if workload.Selector.Tag == "" {
+			workload.Selector.Tag = "*"
+		}
 	}
 
 	return nil

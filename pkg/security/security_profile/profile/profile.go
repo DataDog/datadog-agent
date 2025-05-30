@@ -646,6 +646,12 @@ func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
 		if entry.ContainerID == workload.ContainerID {
 			return true
 		}
+		// Check if the cgroup IDs match when the workload has a cgroup context and no container ID
+		if entry.ContainerID == "" && workload.ContainerID == "" &&
+			entry.CGroup.CGroupID != "" && workload.CGroupContext.CGroupID != "" &&
+			entry.CGroup.CGroupID == workload.CGroupContext.CGroupID {
+			return true
+		}
 	}
 	return false
 }
