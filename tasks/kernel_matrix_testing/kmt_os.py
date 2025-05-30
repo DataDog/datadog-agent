@@ -47,7 +47,6 @@ class Linux:
     shared_dir = Path("/opt/kernel-version-testing")
     libvirt_socket = "qemu:///system"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
-    kmt_setup_info = kmt_dir / "kmt-setup.info"
 
     qemu_conf = os.path.join("/", "etc", "libvirt", "qemu.conf")
 
@@ -129,7 +128,6 @@ class MacOS:
     libvirt_socket = f"qemu:///system?socket={libvirt_system_dir}/libvirt-sock"
     virtlogd_conf = get_homebrew_prefix() / "etc/libvirt/virtlogd.conf"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
-    kmt_setup_info = kmt_dir / "kmt-setup.info"
 
     packages = ["aria2", "fio", "socat", "libvirt", "gnu-sed", "qemu", "libvirt", "wget"]
 

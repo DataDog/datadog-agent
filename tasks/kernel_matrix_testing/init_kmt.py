@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.compiler import get_compiler
+from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import download_rootfs
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
-from tasks.kernel_matrix_testing.setup import KMTSetupInfo, KMTSetupType
 from tasks.kernel_matrix_testing.tool import Exit, ask, info, is_root
 from tasks.libs.common.utils import is_installed
 
@@ -118,6 +118,6 @@ def init_kernel_matrix_testing_system(
 
     get_compiler(ctx).start()
 
-    setup_info = KMTSetupInfo(KMTSetupType.remote) if remote_setup_only else KMTSetupInfo(KMTSetupType.full)
-    info(f"[+] Saving KMT setup information {setup_info}")
-    setup_info.save(kmt_os.kmt_setup_info)
+    cm = ConfigManager()
+    cm.config["setup"] = "remote" if remote_setup_only else "full"
+    cm.save()
