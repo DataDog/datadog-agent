@@ -9,8 +9,10 @@
 package tests
 
 import (
+	"fmt"
 	"syscall"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 
@@ -24,7 +26,7 @@ func TestSetSockOpt(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_setsockopt",
-			Expression: `setsockopt.level == SOL_SOCKET && setsockopt.optname == SO_REUSEADDR`,
+			Expression: `setsockopt.level == SOL_SOCKET && setsockopt.optname == SO_ATTACH_FILTER`,
 		},
 	}
 
@@ -36,7 +38,21 @@ func TestSetSockOpt(t *testing.T) {
 
 	t.Run("setsockopt", func(t *testing.T) {
 		var fd int
+		type SockFilter struct {
+			Code uint16
+			Jt   uint8
+			Jf   uint8
+			K    uint32
+		}
+
+		type SockFprog struct {
+			Len    uint16
+			_      [6]byte
+			Filter *SockFilter
+		}
+
 		defer func() {}()
+
 		test.WaitSignal(t, func() error {
 			var err error
 			fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_RAW, syscall.IPPROTO_TCP)
@@ -45,7 +61,29 @@ func TestSetSockOpt(t *testing.T) {
 			}
 			defer syscall.Close(fd)
 
-			return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+			filter := []SockFilter{
+				{Code: 0x06, Jt: 0, Jf: 0, K: 0xFFFFFFFF}, // BPF_RET | BPF_K
+			}
+			prog := SockFprog{
+				Len:    uint16(len(filter)),
+				Filter: &filter[0],
+			}
+
+			_, _, errno := syscall.Syscall6(
+				syscall.SYS_SETSOCKOPT,
+				uintptr(fd),
+				uintptr(syscall.SOL_SOCKET),
+				uintptr(syscall.SO_ATTACH_FILTER),
+				uintptr(unsafe.Pointer(&prog)),
+				uintptr(unsafe.Sizeof(prog)),
+				0,
+			)
+
+			if errno != 0 {
+				return fmt.Errorf("setsockopt failed: %v", errno)
+			}
+
+			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_setsockopt")
 
@@ -56,7 +94,7 @@ func TestSetSockOpt(t *testing.T) {
 			assert.Equal(t, int(syscall.SOL_SOCKET), level)
 
 			optname, _ := event.GetFieldValue("setsockopt.optname")
-			assert.Equal(t, int(syscall.SO_REUSEADDR), optname)
+			assert.Equal(t, int(syscall.SO_ATTACH_FILTER), optname)
 		})
 	})
 
