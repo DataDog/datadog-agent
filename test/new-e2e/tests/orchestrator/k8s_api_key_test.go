@@ -31,18 +31,20 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	apiKeyOld := "abcdefghijklmnopqrstuvwxyz123456"
 	additionalapiKeyOld := "abcdefghijklmnopqrstuvwxyz789012"
 
-	// apply secret containing the old API key which is used by the agent
-	suite.applySecret(namespace, secretName, map[string][]byte{"apikey": []byte(apiKeyOld)})
-	suite.applySecret(namespace, secretName, map[string][]byte{"additionalapikey": []byte(additionalapiKeyOld)})
+	// apply secrets containing the old API keys which are used by the agent
+	suite.applySecret(namespace, secretName, map[string][]byte{
+		"apikey":           []byte(apiKeyOld),
+		"additionalapikey": []byte(additionalapiKeyOld),
+	})
 
-	helm := fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL, suite.Env().FakeIntake.URL)
+	helmValues := fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL, suite.Env().FakeIntake.URL)
 
 	// install the agent with old API key
 	suite.UpdateEnv(
 		awskubernetes.KindProvisioner(
 			awskubernetes.WithAgentOptions(
 				kubernetesagentparams.WithNamespace(namespace),
-				kubernetesagentparams.WithHelmValues(helm),
+				kubernetesagentparams.WithHelmValues(helmValues),
 			),
 		),
 	)
@@ -51,12 +53,14 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	suite.eventuallyHasExpectedAPIKey(apiKeyOld)
 	suite.eventuallyHasExpectedAPIKey(additionalapiKeyOld)
 
-	// update the secret with a new API key and agent will refresh it
+	// update the secrets with the new API keys and agent will refresh it
 	apiKeyNew := "123456abcdefghijklmnopqrstuvwxyz"
-	suite.applySecret(namespace, secretName, map[string][]byte{"apikey": []byte(apiKeyNew)})
-
 	additionalapiKeyNew := "789012abcdefghijklmnopqrstuvwxyz"
-	suite.applySecret(namespace, secretName, map[string][]byte{"additionalapikey": []byte(additionalapiKeyNew)})
+
+	suite.applySecret(namespace, secretName, map[string][]byte{
+		"apikey":           []byte(apiKeyNew),
+		"additionalapikey": []byte(additionalapiKeyNew),
+	})
 
 	// verify that the new API keys exists in the orchestrator resources payloads
 	suite.eventuallyHasExpectedAPIKey(apiKeyNew)
