@@ -190,6 +190,6 @@ func TestBuildEndpoints(t *testing.T) {
 
 	endpoints, err := buildEndpoints(deps.Config, deps.Log, config.OTelCollectorIntakeOrigin)
 	assert.Nil(t, err)
-	assert.Equal(t, "agent-http-intake.logs.datadoghq.com", endpoints.Main.Host)
+	assert.Equal(t, "agent-http-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	assert.Equal(t, config.OTelCollectorIntakeOrigin, endpoints.Main.Origin)
 }

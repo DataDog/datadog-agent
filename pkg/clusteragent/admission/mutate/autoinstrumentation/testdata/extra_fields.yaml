@@ -9,4 +9,4 @@ apm_config:
             language: "python"
         fooBar: "baz"
         ddTraceVersions:
-          python: "v2"
+          python: "v3"

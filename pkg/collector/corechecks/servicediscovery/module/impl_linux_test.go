@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 	"go.uber.org/fx"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
@@ -43,11 +44,11 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
@@ -77,7 +78,7 @@ type testDiscoveryModule struct {
 	url              string
 	mockWmeta        workloadmetamock.Mock
 	mockTagger       taggermock.Mock
-	mockTimeProvider *servicediscovery.Mocktimer
+	mockTimeProvider *MocktimeProvider
 }
 
 // setProcessContainer creates mock process and container entities in workloadmeta for testing.
@@ -108,7 +109,7 @@ func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCo
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 
 	mux := gorillamux.NewRouter()
 
@@ -397,6 +398,17 @@ func TestServiceName(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
 	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
+	trMeta := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "test-runtime-id",
+		TracerLanguage: "go",
+		ServiceName:    "test-service",
+	}
+	data, err := trMeta.MarshalMsg(nil)
+	require.NoError(t, err)
+
+	createTracerMemfd(t, data)
+
 	listener, err := net.Listen("tcp", "")
 	require.NoError(t, err)
 	f, err := listener.(*net.TCPListener).File()
@@ -420,21 +432,25 @@ func TestServiceName(t *testing.T) {
 	f.Close()
 
 	pid := cmd.Process.Pid
+	var startEvent *model.Service
 	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.StartedServices)
+		startEvent = findService(pid, resp.StartedServices)
 		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(collect, "foo_bar", startEvent.DDService)
-		assert.Equal(collect, startEvent.DDService, startEvent.Name)
 		assert.Equal(collect, "sleep", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), startEvent.GeneratedNameSource)
 		assert.False(collect, startEvent.DDServiceInjected)
 		assert.Equal(collect, startEvent.ContainerID, "")
 		assert.Equal(collect, startEvent.LastHeartbeat, mockedTime.Unix())
 	}, 30*time.Second, 100*time.Millisecond)
+
+	// Verify tracer metadata
+	assert.Equal(t, []tracermetadata.TracerMetadata{trMeta}, startEvent.TracerMetadata)
+	assert.Equal(t, string(language.Go), startEvent.Language)
 }
 
 func TestServiceLifetime(t *testing.T) {
@@ -465,7 +481,6 @@ func TestServiceLifetime(t *testing.T) {
 	checkService := func(t assert.TestingT, service *model.Service, expectedTime time.Time) {
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(t, "foo_bar", service.DDService)
-		assert.Equal(t, service.DDService, service.Name)
 		assert.Equal(t, "sleep", service.GeneratedName)
 		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
 		assert.False(t, service.DDServiceInjected)
@@ -787,7 +802,6 @@ func TestNodeDocker(t *testing.T) {
 		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, "test_nodejs-https-server", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), startEvent.GeneratedNameSource)
-		assert.Equal(collect, startEvent.GeneratedName, startEvent.Name)
 		assert.Equal(collect, "provided", startEvent.APMInstrumentation)
 		assert.Equal(collect, "web_service", startEvent.Type)
 		assertStat(collect, *startEvent)
@@ -975,7 +989,6 @@ func TestDocker(t *testing.T) {
 	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid1111)
 	require.Contains(t, startEvent.Ports, uint16(1234))
 	require.Contains(t, startEvent.ContainerID, "dummyCID")
-	require.Contains(t, startEvent.Name, "http.server")
 	require.Contains(t, startEvent.GeneratedName, "http.server")
 	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, startEvent.ContainerServiceName, "foo_from_app_tag")
@@ -1050,8 +1063,8 @@ func TestCache(t *testing.T) {
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Equal(t, serviceNames[i], discovery.cache[pid].ddServiceName)
-		require.False(t, discovery.cache[pid].ddServiceInjected)
+		require.Equal(t, serviceNames[i], discovery.cache[pid].DDService)
+		require.False(t, discovery.cache[pid].DDServiceInjected)
 	}
 
 	cancel()
@@ -1101,7 +1114,7 @@ func TestMaxPortCheck(t *testing.T) {
 	params.heartbeatTime = 0
 
 	mockCtrl := gomock.NewController(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 	discovery := newDiscovery(t, mTimeProvider)
 
@@ -1387,6 +1400,51 @@ func getStateResponse(t *testing.T, url string) *state {
 	resp.Body.Close()
 
 	return &state
+}
+
+func createTracerMemfd(t *testing.T, data []byte) int {
+	t.Helper()
+	fd, err := unix.MemfdCreate("datadog-tracer-info-xxx", 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { unix.Close(fd) })
+	err = unix.Ftruncate(fd, int64(len(data)))
+	require.NoError(t, err)
+	mappedData, err := unix.Mmap(fd, 0, len(data), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	require.NoError(t, err)
+	copy(mappedData, data)
+	err = unix.Munmap(mappedData)
+	require.NoError(t, err)
+	return fd
+}
+
+func TestValidInvalidTracerMetadata(t *testing.T) {
+	discovery := newDiscovery(t, nil)
+	require.NotEmpty(t, discovery)
+	self := os.Getpid()
+
+	t.Run("valid metadata", func(t *testing.T) {
+		// Test with valid metadata from file
+		curDir, err := testutil.CurDir()
+		require.NoError(t, err)
+		testDataPath := filepath.Join(curDir, "testdata/tracer_cpp.data")
+		data, err := os.ReadFile(testDataPath)
+		require.NoError(t, err)
+
+		createTracerMemfd(t, data)
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
+		require.Equal(t, apm.Provided, apm.Instrumentation(info.APMInstrumentation))
+	})
+
+	t.Run("invalid metadata", func(t *testing.T) {
+		createTracerMemfd(t, []byte("invalid data"))
+
+		info, err := discovery.getServiceInfo(int32(self))
+		require.NoError(t, err)
+		require.Equal(t, apm.None, apm.Instrumentation(info.APMInstrumentation))
+	})
 }
 
 func TestStateEndpoint(t *testing.T) {

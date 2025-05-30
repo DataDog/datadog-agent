@@ -994,7 +994,7 @@ func newAcceptEventSerializer(e *model.Event) *AcceptEventSerializer {
 	aes := &AcceptEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Accept.Addr,
 			model.AddressFamily(e.Accept.AddrFamily).String()),
-		Hostnames: e.Accept.Hostnames,
+		Hostnames: e.FieldHandlers.ResolveAcceptHostnames(e, &e.Accept),
 	}
 	return aes
 }
@@ -1013,7 +1013,7 @@ func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 		Addr: newIPPortFamilySerializer(&e.Connect.Addr,
 			model.AddressFamily(e.Connect.AddrFamily).String()),
 		Protocol:  model.L4Protocol(e.Connect.Protocol).String(),
-		Hostnames: e.Connect.Hostnames,
+		Hostnames: e.FieldHandlers.ResolveConnectHostnames(e, &e.Connect),
 	}
 	return ces
 }
@@ -1535,9 +1535,6 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	case model.SyscallsEventType:
 		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:
-		s.EventContextSerializer.Outcome = serializeOutcome(0)
-		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
-	case model.FullDNSResponseEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
 	case model.IMDSEventType:

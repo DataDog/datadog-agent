@@ -117,7 +117,8 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 
-	err = installAgentPackage(env, "experiment", nil, "start_agent_experiment.log")
+	args := getStartExperimentMSIArgs()
+	err = installAgentPackage(env, "experiment", args, "start_agent_experiment.log")
 	if err != nil {
 		// we failed to install the Agent, we need to restore the stable Agent
 		// to leave the system in a consistent state.
@@ -213,17 +214,27 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 	}
 	defer m.Disconnect()
 
-	instService, err := winutil.OpenService(m, "Datadog Installer", windows.SERVICE_QUERY_STATUS)
+	instService, err := winutil.OpenService(m, "Datadog Installer", windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer instService.Close()
 
-	dataDogService, err := winutil.OpenService(m, "datadogagent", windows.SERVICE_QUERY_STATUS)
+	dataDogService, err := winutil.OpenService(m, "datadogagent", windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer dataDogService.Close()
+
+	// Start the services we intend to monitor
+	// Relying on the MSI or another tool to start the services before this
+	// call can be racy, particularly since the MSI only starts the Agent
+	// service, which in turn starts the Installer service sometime later.
+	// On success, Start() blocks until the service enters StartPending state.
+	_ = instService.Start()
+	_ = dataDogService.Start()
+	// Ignore errors from starting the services, the following loop will
+	// detect if the services are not running and return an error.
 
 	// main watchdog loop
 	// Watch the Installer and Agent services and ensure they stay running
@@ -291,19 +302,19 @@ func installAgentPackage(env *env.Env, target string, args []string, logFileName
 	// and we need to reinstall it with the same configuration
 	// and we wipe out our registry keys containing the configuration
 	// that the next install would have used
-	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, paths.DatadogDataDir)
-	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, paths.DatadogProgramFilesDir)
+	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, env.MsiParams.ApplicationDataDirectory)
+	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, env.MsiParams.ProjectLocation)
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
 		msi.WithMsiFromPackagePath(target, datadogAgent),
 		msi.WithLogFile(logFile),
 	}
-	if env.AgentUserName != "" {
-		opts = append(opts, msi.WithDdAgentUserName(env.AgentUserName))
+	if env.MsiParams.AgentUserName != "" {
+		opts = append(opts, msi.WithDdAgentUserName(env.MsiParams.AgentUserName))
 	}
-	if env.AgentUserPassword != "" {
-		opts = append(opts, msi.WithDdAgentUserPassword(env.AgentUserPassword))
+	if env.MsiParams.AgentUserPassword != "" {
+		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
 	additionalArgs := []string{"FLEET_INSTALL=1", dataDir, projectLocation}
 
@@ -459,22 +470,37 @@ func getAgentUserNameFromRegistry() (string, error) {
 	return user, nil
 }
 
-// getenv returns an Env struct with values from the environment.
+// getenv returns an Env struct with values from the environment, supplemented by values from the registry.
 //
 // See also env.FromEnv()
 //
-// This function also reads the Agent user name from the registry if it is not set in the environment.
+// This function prefers values from the environment, falling back to the registry if not set, for values:
+//   - Agent user name
+//   - Project location
+//   - Application data directory
+//
+// This accomplishes the following:
+//   - ensures setup carries over settings from previous installs (i.e. before remote updates)
+//   - ensures subcommands provide the correct options even if the MSI removes the registry keys (like during rollback)
 func getenv() *env.Env {
 	env := env.FromEnv()
 
 	// fallback to registry for agent user
-	if env.AgentUserName == "" {
+	if env.MsiParams.AgentUserName == "" {
 		user, err := getAgentUserNameFromRegistry()
 		if err != nil {
 			log.Warnf("Could not read Agent user from registry: %v", err)
 		} else {
-			env.AgentUserName = user
+			env.MsiParams.AgentUserName = user
 		}
+	}
+
+	// fallback to registry for custom paths
+	if env.MsiParams.ProjectLocation == "" {
+		env.MsiParams.ProjectLocation = paths.DatadogProgramFilesDir
+	}
+	if env.MsiParams.ApplicationDataDirectory == "" {
+		env.MsiParams.ApplicationDataDirectory = paths.DatadogDataDir
 	}
 
 	return env
@@ -512,4 +538,26 @@ func restoreStableAgentFromExperiment(ctx HookContext, env *env.Env) error {
 	}
 
 	return nil
+}
+
+// getStartExperimentMSIArgs returns additional MSI arguments to be passed during experiment installation.
+//
+// This is primarily used for testing purposes to inject custom MSI arguments during experiment installation,
+// for example, to add WIXFAILWHENDEFERRED=1 to test MSI rollback.
+// The arguments are read from the registry key "HKLM\SOFTWARE\Datadog\Datadog Agent\ExperimentMSIArgs".
+func getStartExperimentMSIArgs() []string {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SOFTWARE\Datadog\Datadog Agent`,
+		registry.ALL_ACCESS)
+	if err != nil {
+		return []string{}
+	}
+	defer k.Close()
+
+	args, _, err := k.GetStringsValue("StartExperimentMSIArgs")
+	if err != nil {
+		return []string{}
+	}
+
+	return args
 }

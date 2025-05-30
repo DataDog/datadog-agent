@@ -347,6 +347,24 @@ tcp_method: prefer_SACK
 				TCPMethod:             payload.TCPConfigPreferSACK,
 			},
 		},
+		{
+			name: "Enabling TCP SYN compatibility mode",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_syn_paris_traceroute_mode: true
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:              "1.2.3.4",
+				MinCollectionInterval:     time.Duration(60) * time.Second,
+				Namespace:                 "my-namespace",
+				Protocol:                  payload.ProtocolTCP,
+				Timeout:                   setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                    setup.DefaultNetworkPathMaxTTL,
+				TCPSynParisTracerouteMode: true,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

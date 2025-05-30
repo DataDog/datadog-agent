@@ -55,6 +55,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
+    "./pkg/dyninst/...",
     "./pkg/gpu/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
@@ -430,6 +431,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
         "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
+        "pkg/dyninst/compiler/compile.go": "dyninst_event",
         "pkg/gpu/compile.go": "gpu",
     }
 
@@ -550,6 +552,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
+            ],
+            "pkg/dyninst/output/framing.go": [
+                "pkg/dyninst/ebpf/framing.h",
             ],
         }
         # TODO this uses the system clang, rather than the version-pinned copy we ship. Will this cause problems?
@@ -1006,7 +1011,21 @@ def go_package_dirs(packages, build_tags):
 
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
-    packages_arg = " ".join(packages)
+
+    # Prepend module path if the package path is relative
+    # and doesn't start with ./ (which go list handles correctly for local paths)
+    if not is_windows:
+        full_path_packages = []
+        module_path = "github.com/DataDog/datadog-agent/"
+        for pkg in packages:
+            if not pkg.startswith(".") and not pkg.startswith(module_path):
+                full_path_packages.append(module_path + pkg)
+            else:
+                full_path_packages.append(pkg)
+        packages_arg = " ".join(full_path_packages)
+    else:
+        packages_arg = " ".join(packages)
+
     cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
@@ -1107,6 +1126,7 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
             "prefetch_file",
             "fake_server",
             "sample_service",
+            "standalone_attacher",
         ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1405,12 +1425,15 @@ def run_ninja(
         kernel_release,
         with_unit_test,
     )
+
+    # generate full compilation database for easy clangd integration
+    with open("compile_commands.json", "w") as compiledb:
+        ctx.run(f"ninja -f {nf_path} -t compdb", out_stream=compiledb)
+
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
     else:
-        with open("compile_commands.json", "w") as compiledb:
-            ctx.run(f"ninja -f {nf_path} -t compdb {target}", out_stream=compiledb)
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
@@ -1937,6 +1960,10 @@ def _test_docker_image_list():
     # Temporary: GoTLS monitoring inside containers tests are flaky in the CI, so at the meantime, the tests are
     # disabled, so we can skip downloading a redundant image.
     images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
+
+    # Add images used in docker run commands
+    images.add("public.ecr.aws/docker/library/alpine:3.20.3")
+
     return images
 
 

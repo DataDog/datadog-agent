@@ -59,21 +59,6 @@ func TestConvert(t *testing.T) {
 		agentConfig    string
 	}{
 		{
-			name:           "connectors/no-dd-connector",
-			provided:       "connectors/no-dd-connector/config.yaml",
-			expectedResult: "connectors/no-dd-connector/config.yaml",
-		},
-		{
-			name:           "connectors/already-set",
-			provided:       "connectors/already-set/config.yaml",
-			expectedResult: "connectors/already-set/config.yaml",
-		},
-		{
-			name:           "connectors/set-default",
-			provided:       "connectors/set-default/config.yaml",
-			expectedResult: "connectors/set-default/config-result.yaml",
-		},
-		{
 			name:           "extensions/empty-extensions",
 			provided:       "extensions/empty-extensions/config.yaml",
 			expectedResult: "extensions/empty-extensions/config-result.yaml",
