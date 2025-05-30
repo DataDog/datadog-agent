@@ -3017,53 +3017,47 @@ func (s *TracerSuite) TestTCPSynRst() {
 	require.NoError(t, err)
 	defer unix.Close(fd)
 
+	// bind it to a port
+	unixLaddr := &unix.SockaddrInet4{
+		Port: 0,
+	}
+	copy(unixLaddr.Addr[:], net.ParseIP("127.0.0.1").To4())
+	err = unix.Bind(fd, unixLaddr)
+	require.NoError(t, err)
+
 	// get the port it bound to
 	addr, err := unix.Getsockname(fd)
 	require.NoError(t, err)
-	port := addr.(*unix.SockaddrInet4).Port
-
 	localAddr := &net.TCPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
-		Port: port,
-	}
-	d := net.Dialer{
-		Timeout:   100 * time.Millisecond,
-		LocalAddr: localAddr,
+		IP:   addr.(*unix.SockaddrInet4).Addr[:],
+		Port: addr.(*unix.SockaddrInet4).Port,
 	}
 
-	// dial 47, a reserved port, to get a RST
-	remoteAddr := &net.TCPAddr{
-		IP:   net.ParseIP("127.0.0.1"),
+	unixRemoteAddr := &unix.SockaddrInet4{
 		Port: 47,
 	}
-	_, err = d.Dial("tcp", remoteAddr.String())
+	copy(unixRemoteAddr.Addr[:], net.ParseIP("127.0.0.1").To4())
+	err = unix.Connect(fd, unixRemoteAddr)
 	require.Error(t, err)
-
-	// currently our tracer variants do not see this type of failed connection
-	const canSeeConnection = false
-
-	if canSeeConnection {
-		var conn *network.ConnectionStats
-		var ok bool
-
-		// for ebpfless, wait for the packet capture to appear
-		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			connections, cleanup := getConnections(collect, tr)
-			defer cleanup()
-			conn, ok = findConnection(localAddr, remoteAddr, connections)
-			require.True(collect, ok)
-		}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
-
-		require.True(t, ok)
-		assert.Equal(t, network.OUTGOING, conn.Direction)
-
-		assert.Equal(t, 1, conn.TCPFailures[uint16(unix.ECONNREFUSED)])
-	} else {
-		// make sure the connection hasn't appeared after 1 second
-		time.Sleep(1 * time.Second)
-		connections, cleanup := getConnections(t, tr)
-		defer cleanup()
-		_, ok := findConnection(localAddr, remoteAddr, connections)
-		require.False(t, ok)
+	require.Equal(t, unix.ECONNREFUSED, err)
+	remoteAddr := &net.TCPAddr{
+		IP:   unixRemoteAddr.Addr[:],
+		Port: unixRemoteAddr.Port,
 	}
+
+	var conn *network.ConnectionStats
+	var ok bool
+
+	// for ebpfless, wait for the packet capture to appear
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		conn, ok = findConnection(localAddr, remoteAddr, connections)
+		require.True(collect, ok)
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
+
+	// there is both an incoming and outgoing connection on loopback, just make sure it's not UNKNOWN
+	assert.NotEqual(t, network.UNKNOWN, conn.Direction)
+
+	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
 }
