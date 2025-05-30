@@ -1539,7 +1539,6 @@ func TestHandleECSTask(t *testing.T) {
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
-						"cluster_name:ecs-cluster",
 						"ecs_cluster_name:ecs-cluster",
 					},
 					StandardTags: []string{},
