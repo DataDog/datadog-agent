@@ -36,11 +36,9 @@ import (
 )
 
 type testCase struct {
-	name                 string
-	binary               string
-	probes               []config.Probe
-	expectedRawSampleLen int
-	expectedDataByteLen  int
+	name   string
+	binary string
+	probes []config.Probe
 }
 
 func TestDyninst(t *testing.T) {
