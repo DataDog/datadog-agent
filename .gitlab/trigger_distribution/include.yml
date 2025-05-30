@@ -1,7 +1,6 @@
 
 include:
   - .gitlab/common/shared.yml
-  - .gitlab/common/variables_and_templates.yml
   - .gitlab/deploy_packages/winget.yml
   - .gitlab/deploy_containers/deploy_containers_a7.yml
   - .gitlab/deploy_containers/deploy_mutable_image_tags.yml

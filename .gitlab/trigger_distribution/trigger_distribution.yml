@@ -2,7 +2,6 @@
 
 trigger_distribution:
   stage: trigger_distribution
-  allow_failure: true
   rules: !reference [.on_deploy_success]
   trigger:
     include:
@@ -10,7 +9,6 @@ trigger_distribution:
 
 trigger_distribution_on_failure:
   stage: trigger_distribution
-  allow_failure: true
   rules: !reference [.on_deploy_manual]
   trigger:
     include:
