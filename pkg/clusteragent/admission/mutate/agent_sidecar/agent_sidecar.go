@@ -427,8 +427,7 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 			corev1.EnvVar{
 				Name:  "DD_LOGS_ENABLED",
 				Value: "true",
-			},
-			corev1.EnvVar{
+			}, corev1.EnvVar{
 				Name:  "DD_LOGS_CONFIG_K8S_CONTAINER_USE_KUBELET_API",
 				Value: "true",
 			}, corev1.EnvVar{
