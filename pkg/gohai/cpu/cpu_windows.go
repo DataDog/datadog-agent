@@ -77,25 +77,25 @@ func extract(caption, field string) string {
 
 func getCPUInfo() *Info {
 	var cInfo cpuInfo
-	var cCpuInfo C.CPU_INFO
+	var cCPUInfo C.CPU_INFO
 
-	ret := C.computeCoresAndProcessors(&cCpuInfo)
+	ret := C.computeCoresAndProcessors(&cCPUInfo)
 	if ret != 0 {
 		log.Errorf("failed to get CPU information, error code: %d", ret)
 		return &Info{}
 	}
 
 	// Copy C struct values to Go struct
-	cInfo.corecount = int(cCpuInfo.corecount)
-	cInfo.logicalcount = int(cCpuInfo.logicalcount)
-	cInfo.pkgcount = int(cCpuInfo.pkgcount)
-	cInfo.numaNodeCount = int(cCpuInfo.numaNodeCount)
-	cInfo.relationGroups = int(cCpuInfo.relationGroups)
-	cInfo.maxProcsInGroups = int(cCpuInfo.maxProcsInGroups)
-	cInfo.activeProcsInGroups = int(cCpuInfo.activeProcsInGroups)
-	cInfo.l1CacheSize = uint64(cCpuInfo.l1CacheSize)
-	cInfo.l2CacheSize = uint64(cCpuInfo.l2CacheSize)
-	cInfo.l3CacheSize = uint64(cCpuInfo.l3CacheSize)
+	cInfo.corecount = int(cCPUInfo.corecount)
+	cInfo.logicalcount = int(cCPUInfo.logicalcount)
+	cInfo.pkgcount = int(cCPUInfo.pkgcount)
+	cInfo.numaNodeCount = int(cCPUInfo.numaNodeCount)
+	cInfo.relationGroups = int(cCPUInfo.relationGroups)
+	cInfo.maxProcsInGroups = int(cCPUInfo.maxProcsInGroups)
+	cInfo.activeProcsInGroups = int(cCPUInfo.activeProcsInGroups)
+	cInfo.l1CacheSize = uint64(cCPUInfo.l1CacheSize)
+	cInfo.l2CacheSize = uint64(cCPUInfo.l2CacheSize)
+	cInfo.l3CacheSize = uint64(cCPUInfo.l3CacheSize)
 
 	// Get additional CPU information from Windows registry
 	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
