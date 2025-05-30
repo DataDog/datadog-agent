@@ -13,6 +13,7 @@ from invoke.context import Context
 
 from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
 from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_platforms
+from tasks.kernel_matrix_testing.setup import KMTSetupInfo, KMTSetupType, kmt_setup_info
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, destroy_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, convert_kmt_arch_or_local, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, VMCONFIG
@@ -757,14 +758,8 @@ def gen_config_for_stack(
 
     vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_by_set(vms, sets), vcpu, memory, ci, template)
 
-    kmt_os = get_kmt_os()
-    if not kmt_os.kmt_setup_info.exists():
-        raise Exit("Unable to find KMT setup information. Run `dda inv kmt.init` to generate it")
-
-    with open(kmt_os.kmt_setup_info) as f:
-        setup_info = json.load(f)
-
-    if setup_info["setup"] == "remote":
+    setup_info: KMTSetupInfo = kmt_setup_info()
+    if setup_info.setup == KMTSetupType.remote:
         for vmset in vm_config["vmsets"]:
             if vmset["arch"] == "local":
                 raise Exit(
