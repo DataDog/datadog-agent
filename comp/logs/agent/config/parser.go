@@ -8,7 +8,10 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+
 	yaml "gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type yamlLogsConfigsWrapper struct {
@@ -19,10 +22,12 @@ type yamlLogsConfigsWrapper struct {
 // returns an error if the parsing failed.
 func ParseJSON(data []byte) ([]*LogsConfig, error) {
 	var configs []*LogsConfig
+	log.Debugf("Parsing JSON logs config: %s", string(data))
 	err := json.Unmarshal(data, &configs)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse JSON logs config: %v", err)
 	}
+	log.Debugf("Parsed JSON logs config: %+v", configs)
 	return configs, nil
 }
 
