@@ -8,7 +8,9 @@
 // Package probe holds probe related files
 package probe
 
-import "github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+import (
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+)
 
 // Opts defines some probe options
 type Opts struct {
