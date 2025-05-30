@@ -27,7 +27,6 @@ if TYPE_CHECKING:
         Kernel,
         KMTArchName,
         KMTArchNameOrLocal,
-        KMTSetupInfo,
         PathOrStr,
         Platforms,
         Recipe,
