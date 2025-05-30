@@ -191,4 +191,4 @@ service:
             exporter:
               otlp:
                 protocol: http/protobuf
-                endpoint: localhost:15678
+                endpoint: http://localhost:15678

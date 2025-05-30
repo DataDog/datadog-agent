@@ -52,7 +52,7 @@ func configureInternalMetrics(conf *confmap.Conf) {
 		return
 	}
 
-	addDefaultPeriodicOTLPReader(conf)
+	addDefaultReaders(conf)
 	addComponentToConfig(conf, otlpRecvDefault)
 	addDDExpToInternalPipeline(conf, otlpRecvDefault, getDatadogExporters(conf))
 }
@@ -88,7 +88,7 @@ func configureExistingMetricReaders(conf *confmap.Conf) {
 	}
 }
 
-func addDefaultPeriodicOTLPReader(conf *confmap.Conf) {
+func addDefaultReaders(conf *confmap.Conf) {
 	stringMapConf := conf.ToStringMap()
 	service, ok := stringMapConf["service"]
 	if !ok {
@@ -132,6 +132,19 @@ func addDefaultPeriodicOTLPReader(conf *confmap.Conf) {
 			},
 		},
 	})
+	// mreaders = append(mreaders, map[string]any{
+	// 	"pull": map[string]any{
+	// 		"exporter": map[string]any{
+	// 			"prometheus": map[string]any{
+	// 				"host":                "localhost",
+	// 				"port":                8888,
+	// 				"without_scope_info":  true,
+	// 				"without_type_suffix": true,
+	// 				"without_units":       true,
+	// 			},
+	// 		},
+	// 	},
+	// })
 	svcTelemMtrcMap["readers"] = mreaders
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
@@ -148,7 +161,7 @@ func handleExistingPeriodicOTLPExporter(conf *confmap.Conf, endpoint string, pro
 		return
 	}
 
-	addDefaultPeriodicOTLPReader(conf)
+	addDefaultReaders(conf)
 	addComponentToConfig(conf, otlpRecvDefault)
 	addDDExpToInternalPipeline(conf, otlpRecvDefault, getDatadogExporters(conf))
 }

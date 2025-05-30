@@ -111,7 +111,7 @@ func (s *minimalTestSuite) TestOTelAgentStatus() {
 }
 
 func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
-	const expectedCfg = `service:
+	const expectedCfg = `
   extensions:
   - pprof/dd-autoconfigured
   - zpages/dd-autoconfigured
