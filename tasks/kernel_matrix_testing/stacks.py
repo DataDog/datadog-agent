@@ -200,7 +200,10 @@ def launch_stack(
 
     if remote_vms_in_config(vm_config):
         if ssh_key_obj is None:
-            raise Exit("No ssh key provided. Pass with '--ssh-key=<key-name>' or configure it with kmt.config-ssh-key")
+            raise Exit("""
+You cannot launch remote VMs. We recommend that you use `dda inv kmt.config-ssh-key` to setup SSH keys to target remote VMs.
+Alternatively you can provide the name of the SSH key file to use via the `--ssh-key` parameter.
+            """)
 
         ensure_key_in_agent(ctx, ssh_key_obj)
         ensure_key_in_ec2(ctx, ssh_key_obj)

@@ -370,9 +370,10 @@ def ls(_, distro=True, custom=False):
         "remote-setup-only": "If set, then KMT will only allow remote VMs.",
         "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>. This parameter is required unless --lite or --all-images is specified.",
         "all-images": "Download all available VM images for the current architecture. This is equivalent to the previous default behavior.",
+        "skip_ssh_setup": "Skip step to setup SSH files for interacting with remote AWS VMs",
     }
 )
-def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False):
+def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False, skip_ssh_setup=False):
     if not remote_setup_only and not all_images and images is None:
         if (
             ask(
@@ -393,8 +394,9 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
 
-    info("[+] Kernel matrix testing system initialized successfully")
-    config_ssh_key(ctx)
+    if not skip_ssh_setup:
+        info("[+] Kernel matrix testing system initialized successfully")
+        config_ssh_key(ctx)
 
 
 @task
@@ -492,12 +494,18 @@ def config_ssh_key(ctx: Context):
     }
 )
 def update_resources(
-    ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None
+        ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None, all_images: bool = False,
 ):
     kmt_os = get_kmt_os()
 
+    if images is None and not all_images:
+        raise Exit("""
+Comma separated list of images must be specified with `--images` parameter. Use `dda inv kmt.ls` to view available images. Use the string from the "VM Name" column in the list of images.
+If you want to download all images specify the `--all-images` parameter. Downloading all images will use 100GB+ of disk space.
+""")
+
     warn("Updating resource dependencies will delete all running stacks.")
-    if ask("are you sure you want to continue? (y/n)").lower() != "y":
+    if ask("are you sure you want to continue? (y/n) ").lower() != "y":
         raise Exit("[-] Update aborted")
 
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
@@ -1159,6 +1167,9 @@ def images_matching_ci(_: Context, domains: list[LibvirtDomain]):
 
 
 def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms) -> list[LibvirtDomain]:
+    cm = ConfigManager()
+    can_target_remote_vms = ssh_key is not None or cm.config.get("ssh") is not None
+
     def _get_infrastructure(ctx, stack, ssh_key, vms, alien_vms):
         if alien_vms:
             alien_vms_path = Path(alien_vms)
@@ -1166,7 +1177,10 @@ def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms) -> list[Li
                 raise Exit(f"No alien VMs profile found @ {alien_vms_path}")
             return build_alien_infrastructure(alien_vms_path)
 
-        ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+        ssh_key_obj = None
+        if can_target_remote_vms:
+            ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
+
         return build_infrastructure(stack, ssh_key_obj)
 
     if vms is None and alien_vms is None:
@@ -1181,6 +1195,17 @@ def get_target_domains(ctx, stack, ssh_key, arch_obj, vms, alien_vms) -> list[Li
     if not images_matching_ci(ctx, domains):
         if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
             raise Exit("[-] Aborting due to version mismatch")
+
+    # check that user is not targetting remote VMs
+    if not can_target_remote_vms:
+        for d in domains:
+            if d.arch == "local":
+                continue
+
+            raise Exit("""
+You cannot target remote VMs. We recommend that you use `dda inv kmt.config-ssh-key` to setup SSH keys to target remote VMs.
+Alternatively you can provide the name of the SSH key file to use via the `--ssh-key` parameter.
+            """)
 
     return domains
 
