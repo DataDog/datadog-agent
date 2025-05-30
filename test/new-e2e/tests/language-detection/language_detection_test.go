@@ -68,7 +68,7 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 			pid = s.getPidForCommand(command)
 			return len(pid) > 0
 		},
-		60*time.Second, 100*time.Millisecond,
+		60*time.Second, 5*time.Second,
 		fmt.Sprintf("pid not found for command %s", command),
 	)
 
@@ -79,7 +79,7 @@ func (s *languageDetectionSuite) checkDetectedLanguage(command string, language 
 			actualLanguage, err = s.getLanguageForPid(pid, source)
 			return err == nil && actualLanguage == language
 		},
-		60*time.Second, 100*time.Millisecond,
+		60*time.Second, 5*time.Second,
 		fmt.Sprintf("language match not found, pid = %s, expected = %s, actual = %s, err = %v",
 			pid, language, actualLanguage, err),
 	)
@@ -110,13 +110,18 @@ func (s *languageDetectionSuite) getLanguageForPid(pid string, source string) (s
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == headerLine {
-			scanner.Scan() // entity line
-			scanner.Scan() // pid
-			scanner.Scan() // nspid
-			scanner.Scan() // container id
-			scanner.Scan() // creation time
-			scanner.Scan() // language
-			return scanner.Text()[len("Language: "):], nil
+			// Look for the language line specifically by its prefix
+			const languageFieldPrefix = "Language: "
+
+			// Scan until we find the language line or reach end of output
+			for scanner.Scan() {
+				line = scanner.Text()
+				if strings.HasPrefix(line, languageFieldPrefix) {
+					return line[len(languageFieldPrefix):], nil
+				}
+			}
+
+			return "", errors.New("language field not found after entity header")
 		}
 	}
 
