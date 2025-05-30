@@ -11,6 +11,8 @@
       else
         export ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
       fi
+    # XXX: Test 'nightly' behaviour
+    - BUCKET_BRANCH="nightly"
     # Caching setup
     - DOCKER_CACHE_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"
     - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_TARGET}"
