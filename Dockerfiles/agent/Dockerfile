@@ -123,8 +123,7 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  # Install tzdata-legacy to allow reading of legacy timezones (e.g. US/Central)
-  && apt install -y iproute2 libseccomp2 tzdata tzdata-legacy adduser
+  && apt install -y iproute2 libseccomp2 tzdata adduser
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
