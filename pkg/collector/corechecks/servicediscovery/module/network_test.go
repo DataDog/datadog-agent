@@ -98,7 +98,7 @@ func TestNetworkCompile(t *testing.T) {
 	})
 }
 
-func ebpfMapGet(t *testing.T, collector networkCollector, pid int32) (err error, stats NetworkStats) {
+func ebpfMapGet(collector networkCollector, pid int32) (err error, stats NetworkStats) {
 	stats = NetworkStats{}
 	err = collector.(*eBPFNetworkCollector).statsMap.Lookup(&NetworkStatsKey{Pid: uint32(pid)}, &stats)
 	return err, stats
@@ -141,9 +141,9 @@ func TestNetworkCollector(t *testing.T) {
 				require.NotContains(t, stats, uint32(pid))
 				require.NotContains(t, stats, uint32(otherPid))
 
-				err, _ = ebpfMapGet(t, collector, int32(pid))
+				err, _ = ebpfMapGet(collector, int32(pid))
 				require.NoError(t, err)
-				err, _ = ebpfMapGet(t, collector, int32(otherPid))
+				err, _ = ebpfMapGet(collector, int32(otherPid))
 				require.NoError(t, err)
 
 				beforeAll, err := collector.getStats(pidSet)
@@ -179,11 +179,11 @@ func TestNetworkCollector(t *testing.T) {
 				require.Contains(t, removedAll, uint32(otherPid))
 				require.NotContains(t, removedAll, uint32(otherPid+1))
 
-				err, _ = ebpfMapGet(t, collector, int32(pid))
+				err, _ = ebpfMapGet(collector, int32(pid))
 				require.ErrorIs(t, err, ebpf.ErrKeyNotExist)
-				err, _ = ebpfMapGet(t, collector, int32(otherPid))
+				err, _ = ebpfMapGet(collector, int32(otherPid))
 				require.NoError(t, err)
-				err, _ = ebpfMapGet(t, collector, int32(otherPid+1))
+				err, _ = ebpfMapGet(collector, int32(otherPid+1))
 				require.NoError(t, err)
 
 				// Remove the rest and check that the map is empty
@@ -192,9 +192,9 @@ func TestNetworkCollector(t *testing.T) {
 				removedAll, err = collector.getStats(pidSet)
 				require.NoError(t, err)
 				require.Empty(t, removedAll)
-				err, _ = ebpfMapGet(t, collector, int32(otherPid))
+				err, _ = ebpfMapGet(collector, int32(otherPid))
 				require.ErrorIs(t, err, ebpf.ErrKeyNotExist)
-				err, _ = ebpfMapGet(t, collector, int32(otherPid+1))
+				err, _ = ebpfMapGet(collector, int32(otherPid+1))
 				require.ErrorIs(t, err, ebpf.ErrKeyNotExist)
 			})
 		}
