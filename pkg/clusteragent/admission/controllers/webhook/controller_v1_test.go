@@ -961,6 +961,8 @@ func TestGenerateTemplatesV1(t *testing.T) {
 
 func TestGetValidatingWebhookSkeletonV1(t *testing.T) {
 	mockConfig := configmock.New(t)
+	testUnlabelledSetting := "admission_controller.test.unlabelled"
+	mockConfig.BindEnvAndSetDefault(testUnlabelledSetting, false)
 	failurePolicy := admiv1.Ignore
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
@@ -968,8 +970,8 @@ func TestGetValidatingWebhookSkeletonV1(t *testing.T) {
 	path := "/bar"
 	defaultTimeout := mockConfig.GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
-	namespaceSelector, _ := common.DefaultLabelSelectors(true)
-	_, objectSelector := common.DefaultLabelSelectors(false)
+	namespaceSelector, _ := common.DefaultValidatingLabelSelectors(true, mockConfig, testUnlabelledSetting)
+	_, objectSelector := common.DefaultValidatingLabelSelectors(false, mockConfig, testUnlabelledSetting)
 	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition) admiv1.ValidatingWebhook {
 		return admiv1.ValidatingWebhook{
 			Name: "datadog.webhook.foo",
@@ -1056,7 +1058,7 @@ func TestGetValidatingWebhookSkeletonV1(t *testing.T) {
 			c := &ControllerV1{}
 			c.config = NewConfig(false, tt.namespaceSelector, false, mockConfig)
 
-			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
+			nsSelector, objSelector := common.DefaultValidatingLabelSelectors(tt.namespaceSelector, mockConfig, testUnlabelledSetting)
 
 			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
 		})
@@ -1073,8 +1075,8 @@ func TestGetMutatingWebhookSkeletonV1(t *testing.T) {
 	path := "/bar"
 	defaultTimeout := mockConfig.GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
-	namespaceSelector, _ := common.DefaultLabelSelectors(true)
-	_, objectSelector := common.DefaultLabelSelectors(false)
+	namespaceSelector, _ := common.DefaultMutatingLabelSelectors(true)
+	_, objectSelector := common.DefaultMutatingLabelSelectors(false)
 	webhook := func(to *int32, objSelector, nsSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition) admiv1.MutatingWebhook {
 		return admiv1.MutatingWebhook{
 			Name: "datadog.webhook.foo",
@@ -1162,7 +1164,7 @@ func TestGetMutatingWebhookSkeletonV1(t *testing.T) {
 			c := &ControllerV1{}
 			c.config = NewConfig(false, tt.namespaceSelector, false, mockConfig)
 
-			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
+			nsSelector, objSelector := common.DefaultMutatingLabelSelectors(tt.namespaceSelector)
 
 			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1.OperationType{admiv1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
 		})
