@@ -1063,8 +1063,8 @@ func TestCache(t *testing.T) {
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Equal(t, serviceNames[i], discovery.cache[pid].ddServiceName)
-		require.False(t, discovery.cache[pid].ddServiceInjected)
+		require.Equal(t, serviceNames[i], discovery.cache[pid].DDService)
+		require.False(t, discovery.cache[pid].DDServiceInjected)
 	}
 
 	cancel()
@@ -1434,8 +1434,8 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self))
 		require.NoError(t, err)
-		require.Equal(t, language.CPlusPlus, info.language)
-		require.Equal(t, apm.Provided, info.apmInstrumentation)
+		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
+		require.Equal(t, apm.Provided, apm.Instrumentation(info.APMInstrumentation))
 	})
 
 	t.Run("invalid metadata", func(t *testing.T) {
@@ -1443,7 +1443,7 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self))
 		require.NoError(t, err)
-		require.Equal(t, apm.None, info.apmInstrumentation)
+		require.Equal(t, apm.None, apm.Instrumentation(info.APMInstrumentation))
 	})
 }
 
