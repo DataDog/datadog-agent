@@ -321,7 +321,7 @@ func (t *TCPProcessor) Process(conn *network.ConnectionStats, timestampNs uint64
 	t.updateRstFlag(conn, st, pktType, tcp, payloadLen)
 
 	// sync the ConnectionStats direction if necessary
-	if conn.Direction == network.UNKNOWN && st.connDirection != network.UNKNOWN {
+	if conn.Direction == network.UNKNOWN {
 		conn.Direction = st.connDirection
 	}
 
