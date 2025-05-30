@@ -430,7 +430,7 @@ var (
 func isAllowlistEnabled() bool {
 	allowlistMutex.RLock()
 	defer allowlistMutex.RUnlock()
-	return allowlistEnabled
+	return false
 }
 
 func setAllowlistEnabled(value bool) {
@@ -440,31 +440,25 @@ func setAllowlistEnabled(value bool) {
 }
 
 func secretMatchesAllowlist(secretCtx secretContext) bool {
-	return true
-	/*
-		if !isAllowlistEnabled() {
+	if !isAllowlistEnabled() {
+		return true
+	}
+	for _, allowedKey := range allowlistPaths {
+		if slices.Contains(secretCtx.path, allowedKey) {
 			return true
 		}
-		for _, allowedKey := range allowlistPaths {
-			if slices.Contains(secretCtx.path, allowedKey) {
-				return true
-			}
-		}
-		return false
-	*/
+	}
+	return false
 }
 
 // matchesAllowlist returns whether the handle is allowed, by matching all setting paths that
 // handle appears at against the allowlist
 func (r *secretResolver) matchesAllowlist(handle string) bool {
-	return true
-	/*
-		// if allowlist is disabled, consider every handle a match
-		if !isAllowlistEnabled() {
-			return true
-		}
-		return slices.ContainsFunc(r.origin[handle], secretMatchesAllowlist)
-	*/
+	// if allowlist is disabled, consider every handle a match
+	if !isAllowlistEnabled() {
+		return true
+	}
+	return slices.ContainsFunc(r.origin[handle], secretMatchesAllowlist)
 }
 
 // for all secrets returned by the backend command, notify subscribers (if allowlist lets them),
