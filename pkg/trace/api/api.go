@@ -669,8 +669,9 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
 	ts.PayloadAccepted.Inc()
 
-	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID()); ctags != "" {
-		tp.SetStringAttribute(tagContainersTags, ctags)
+	ctags := getContainerTagsList(r.conf.ContainerTags, tp.ContainerID())
+	if len(ctags) > 0 {
+		tp.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
 	}
 	// TODO: Add process tags
 
@@ -680,7 +681,10 @@ func (r *HTTPReceiver) handleTracesV1(w http.ResponseWriter, req *http.Request) 
 		ClientComputedTopLevel: isHeaderTrue(header.ComputedTopLevel, req.Header.Get(header.ComputedTopLevel)),
 		ClientComputedStats:    isHeaderTrue(header.ComputedStats, req.Header.Get(header.ComputedStats)),
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
+		ContainerTags:          ctags,
 	}
+
+	// TODO: add to the waitgroup to prevent sending on closed channel
 	r.outV1 <- payload
 }
 

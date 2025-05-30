@@ -534,6 +534,28 @@ func TestReceiverV1DecodingError(t *testing.T) {
 	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v1.0"}).TracesDropped.DecodingError.Load())
 }
 
+func FuzzHandleTracesV1NoPanic(f *testing.F) {
+	traces := testutil.GetTestTracesV1(1, 1, false)
+	bts, err := traces.MarshalMsg(nil)
+	require.Nil(f, err)
+	f.Add(bts)
+	conf := newTestReceiverConfig()
+	r := newTestReceiverFromConfig(conf)
+	server := httptest.NewServer(r.handleWithVersion(V10, r.handleTraces))
+	defer server.Close()
+	// We just want to make sure our server never panics, regardless of the input
+	f.Fuzz(func(t *testing.T, data []byte) {
+		req, err := http.NewRequest("POST", server.URL, bytes.NewBuffer(data))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/msgpack")
+		client := &http.Client{}
+		resp, _ := client.Do(req)
+		if resp != nil {
+			resp.Body.Close()
+		}
+	})
+}
+
 func TestReceiverDecodingError(t *testing.T) {
 	assert := assert.New(t)
 	conf := newTestReceiverConfig()

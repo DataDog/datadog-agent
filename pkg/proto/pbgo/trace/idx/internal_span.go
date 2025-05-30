@@ -6,6 +6,7 @@
 package idx
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -143,6 +144,10 @@ type InternalTraceChunk struct {
 	DecisionMakerRef uint32
 }
 
+func (c *InternalTraceChunk) Origin() string {
+	return c.Strings.Get(c.OriginRef)
+}
+
 // InternalSpan is a span structure that is optimized for trace-agent usage
 // Namely it stores Attributes as a map for fast key lookups and holds a pointer to the strings slice
 // so a span holds all local context necessary to understand all fields
@@ -183,24 +188,101 @@ type InternalSpan struct {
 	Kind SpanKind
 }
 
+// SpanKind returns the string representation of the span kind
+func (s *InternalSpan) SpanKind() string {
+	switch s.Kind {
+	case SpanKind_SPAN_KIND_INTERNAL:
+		return "internal"
+	case SpanKind_SPAN_KIND_SERVER:
+		return "server"
+	case SpanKind_SPAN_KIND_CLIENT:
+		return "client"
+	case SpanKind_SPAN_KIND_PRODUCER:
+		return "producer"
+	case SpanKind_SPAN_KIND_CONSUMER:
+		return "consumer"
+	default:
+		return "unknown"
+	}
+}
+
 func (s *InternalSpan) Service() string {
 	return s.Strings.Get(s.ServiceRef)
+}
+
+func (s *InternalSpan) SetService(svc string) {
+	// TODO: remove old string?
+	s.ServiceRef = s.Strings.Add(svc)
 }
 
 func (s *InternalSpan) Name() string {
 	return s.Strings.Get(s.NameRef)
 }
 
+func (s *InternalSpan) SetName(name string) {
+	// TODO: remove old string?
+	s.NameRef = s.Strings.Add(name)
+}
+
 func (s *InternalSpan) Resource() string {
 	return s.Strings.Get(s.ResourceRef)
 }
 
+func (s *InternalSpan) SetResource(resource string) {
+	s.ResourceRef = s.Strings.Add(resource)
+}
+
+func (s *InternalSpan) Type() string {
+	return s.Strings.Get(s.TypeRef)
+}
+
+func (s *InternalSpan) SetType(t string) {
+	s.TypeRef = s.Strings.Add(t)
+}
+
+func (s *InternalSpan) Env() string {
+	return s.Strings.Get(s.EnvRef)
+}
+
+func (s *InternalSpan) SetEnv(e string) {
+	s.EnvRef = s.Strings.Add(e)
+}
+
 // GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
-func (s *InternalSpan) GetAttributeAsString(key string) string {
+func (s *InternalSpan) GetAttributeAsString(key string) (string, bool) {
 	if attr, ok := s.Attributes[s.Strings.Lookup(key)]; ok {
-		return attr.AsString(s.Strings)
+		return attr.AsString(s.Strings), true
 	}
-	return ""
+	return "", false
+}
+
+// GetAttributeAsFloat64 returns the attribute as a float64 and a boolean indicating if the attribute was found
+func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
+	if attr, ok := s.Attributes[s.Strings.Lookup(key)]; ok {
+		doubleVal, err := attr.AsDoubleValue(s.Strings)
+		if err != nil {
+			return 0, false
+		}
+		return doubleVal, true
+	}
+	return 0, false
+}
+
+func (s *InternalSpan) SetStringAttribute(key, value string) {
+	// TODO: removing a string
+	s.Attributes[s.Strings.Add(key)] = &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: s.Strings.Add(value),
+		},
+	}
+}
+
+func (s *InternalSpan) DeleteAttribute(key string) {
+	// TODO: removing a string
+	keyIdx := s.Strings.Lookup(key)
+	if keyIdx != 0 {
+		delete(s.Attributes, keyIdx)
+	}
 }
 
 // InternalSpanLink is a span link structure that is optimized for trace-agent usage
@@ -215,15 +297,24 @@ type InternalSpanLink struct {
 	Flags         uint32
 }
 
-func (s *InternalSpanLink) GetAttributeAsString(key string) string {
-	if attr, ok := s.Attributes[s.Strings.Lookup(key)]; ok {
-		return attr.AsString(s.Strings)
+func (sl *InternalSpanLink) GetAttributeAsString(key string) (string, bool) {
+	if attr, ok := sl.Attributes[sl.Strings.Lookup(key)]; ok {
+		return attr.AsString(sl.Strings), true
 	}
-	return ""
+	return "", false
 }
 
-func (s *InternalSpanLink) Tracestate() string {
-	return s.Strings.Get(s.TracestateRef)
+func (sl *InternalSpanLink) SetStringAttribute(key, value string) {
+	// TODO: removing a string
+	sl.Attributes[sl.Strings.Add(key)] = &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: sl.Strings.Add(value),
+		},
+	}
+}
+
+func (sl *InternalSpanLink) Tracestate() string {
+	return sl.Strings.Get(sl.TracestateRef)
 }
 
 // InternalSpanEvent is a span event structure that is optimized for trace-agent usage
@@ -265,5 +356,34 @@ func (attr *AnyValue) AsString(strTable *StringTable) string {
 		return "{" + strings.Join(valuesStr, ",") + "}"
 	default:
 		return ""
+	}
+}
+
+// AsDoubleValue returns the attribute in float64 format, returning an error if the attribute is not a float64 or can't be converted to a float64
+func (attr *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
+	switch v := attr.Value.(type) {
+	case *AnyValue_StringValueRef:
+		doubleVal, err := strconv.ParseFloat(strTable.Get(v.StringValueRef), 64)
+		if err != nil {
+			return 0, fmt.Errorf("string value not a float64: %w", err)
+		}
+		return doubleVal, nil
+	case *AnyValue_BoolValue:
+		if v.BoolValue {
+			return 1, nil
+		}
+		return 0, nil
+	case *AnyValue_DoubleValue:
+		return v.DoubleValue, nil
+	case *AnyValue_IntValue:
+		return float64(v.IntValue), nil
+	case *AnyValue_BytesValue:
+		return 0, fmt.Errorf("bytes value not a float64")
+	case *AnyValue_ArrayValue:
+		return 0, fmt.Errorf("array value not a float64")
+	case *AnyValue_KeyValueList:
+		return 0, fmt.Errorf("key-value list value not a float64")
+	default:
+		return 0, fmt.Errorf("unknown value type not a float64")
 	}
 }

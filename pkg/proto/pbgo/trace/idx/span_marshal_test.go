@@ -250,19 +250,19 @@ func FuzzSpanLinkMarshalUnmarshal(f *testing.F) {
 	})
 }
 
-func (link *InternalSpanLink) assertEqual(t *testing.T, expected *InternalSpanLink) {
-	assert.Equal(t, expected.TraceID, link.TraceID)
-	assert.Equal(t, expected.SpanID, link.SpanID)
-	assert.Len(t, link.Attributes, len(expected.Attributes))
+func (sl *InternalSpanLink) assertEqual(t *testing.T, expected *InternalSpanLink) {
+	assert.Equal(t, expected.TraceID, sl.TraceID)
+	assert.Equal(t, expected.SpanID, sl.SpanID)
+	assert.Len(t, sl.Attributes, len(expected.Attributes))
 	for k, v := range expected.Attributes {
 		// If a key is overwritten in unmarshalling it can result in a different index
 		// so we need to lookup the key from the strings table
 		expectedKey := expected.Strings.Get(k)
-		actualKeyIndex := link.Strings.lookup[expectedKey]
-		link.Attributes[actualKeyIndex].assertEqual(t, v, link.Strings, expected.Strings)
+		actualKeyIndex := sl.Strings.lookup[expectedKey]
+		sl.Attributes[actualKeyIndex].assertEqual(t, v, sl.Strings, expected.Strings)
 	}
-	assert.Equal(t, expected.Strings.Get(expected.TracestateRef), link.Strings.Get(link.TracestateRef))
-	assert.Equal(t, expected.FlagsRef, link.FlagsRef)
+	assert.Equal(t, expected.Strings.Get(expected.TracestateRef), sl.Strings.Get(sl.TracestateRef))
+	assert.Equal(t, expected.FlagsRef, sl.FlagsRef)
 }
 
 func FuzzSpanEventMarshalUnmarshal(f *testing.F) {

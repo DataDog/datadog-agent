@@ -491,7 +491,7 @@ func UnmarshalSpanLinks(bts []byte, strings *StringTable) (links []*InternalSpan
 }
 
 // UnmarshalMsg unmarshals a SpanLink from a byte stream, updating the strings slice with new strings
-func (link *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (sl *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	var numFields uint32
 	numFields, o, err = limitedReadMapHeaderBytes(bts)
 	if err != nil {
@@ -508,31 +508,31 @@ func (link *InternalSpanLink) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		}
 		switch fieldNum {
 		case 1: // traceID
-			link.TraceID, o, err = msgp.ReadBytesBytes(o, nil)
+			sl.TraceID, o, err = msgp.ReadBytesBytes(o, nil)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read trace ID")
 				return
 			}
 		case 2: // spanID
-			link.SpanID, o, err = msgp.ReadUint64Bytes(o)
+			sl.SpanID, o, err = msgp.ReadUint64Bytes(o)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span ID")
 				return
 			}
 		case 3: // attributes
-			link.Attributes, o, err = UnmarshalKeyValueMap(o, link.Strings)
+			sl.Attributes, o, err = UnmarshalKeyValueMap(o, sl.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read attributes")
 				return
 			}
 		case 4: // tracestate
-			link.TracestateRef, o, err = UnmarshalStreamingString(o, link.Strings)
+			sl.TracestateRef, o, err = UnmarshalStreamingString(o, sl.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read tracestate")
 				return
 			}
 		case 5: // flags
-			link.Flags, o, err = msgp.ReadUint32Bytes(o)
+			sl.Flags, o, err = msgp.ReadUint32Bytes(o)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read flags")
 				return
@@ -612,22 +612,22 @@ func (kv *KeyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *Ser
 }
 
 // MarshalMsg marshals a SpanLink into a byte stream
-func (link *InternalSpanLink) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
+func (sl *InternalSpanLink) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
 	o = msgp.AppendMapHeader(bts, 5)
 	o = msgp.AppendUint32(o, 1) // traceID
-	o = msgp.AppendBytes(o, link.TraceID)
+	o = msgp.AppendBytes(o, sl.TraceID)
 	o = msgp.AppendUint32(o, 2) // spanID
-	o = msgp.AppendUint64(o, link.SpanID)
+	o = msgp.AppendUint64(o, sl.SpanID)
 	o = msgp.AppendUint32(o, 3) // attributes
-	o, err = MarshalAttributesMap(o, link.Attributes, link.Strings, serStrings)
+	o, err = MarshalAttributesMap(o, sl.Attributes, sl.Strings, serStrings)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to marshal attributes")
 		return
 	}
 	o = msgp.AppendUint32(o, 4) // tracestate
-	o = serStrings.AppendStreamingString(link.Strings.Get(link.TracestateRef), link.TracestateRef, o)
+	o = serStrings.AppendStreamingString(sl.Strings.Get(sl.TracestateRef), sl.TracestateRef, o)
 	o = msgp.AppendUint32(o, 5) // flags
-	o = msgp.AppendUint32(o, link.Flags)
+	o = msgp.AppendUint32(o, sl.Flags)
 	return
 }
 
