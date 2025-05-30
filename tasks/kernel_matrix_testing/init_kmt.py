@@ -107,6 +107,8 @@ def init_kernel_matrix_testing_system(
         if all_images or images:
             info("[+] Downloading VM images")
             download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", arch=None, images=None if all_images else images)
+    else:
+        warn("[-] Skipping local VM image download since remote only setup is selected")
 
     # Copy the SSH key we use to connect
     gen_ssh_key(ctx, kmt_os.kmt_dir)

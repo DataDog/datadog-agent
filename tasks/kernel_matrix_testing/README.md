@@ -41,10 +41,10 @@ This will download all the resources required to launch the VMs, and install all
 # Initialize with specific VM images
 dda inv -e kmt.init --images=ubuntu_22.04,debian_10
 
-# Initialize with all available VM images
+# Initialize and download all available VM images for your architecture
 dda inv -e kmt.init --all-images
 
-# Or initialize for remote usage only. This mode will only allow KMT to setup remote VMs.
+# If you intend to use KMT *only* for managing remote VMs
 dda inv -e kmt.init --remote-setup-only
 ```
 

@@ -762,7 +762,7 @@ def gen_config_for_stack(
         for vmset in vm_config["vmsets"]:
             if vmset["arch"] == "local":
                 raise Exit(
-                    "KMT initialized for remote only usage. Local VMs not supprted. To use KMT locally run `dda inv -e kmt.init`"
+                    "KMT initialized for remote only usage. Local VMs not supported. To use KMT locally run `dda inv -e kmt.init`"
                 )
 
     vm_config_str = json.dumps(vm_config, indent=4)
