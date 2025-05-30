@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package module
+package core
 
 import (
 	"net/url"
@@ -14,31 +14,31 @@ import (
 )
 
 func TestParams(t *testing.T) {
-	def := defaultParams()
+	def := DefaultParams()
 
 	values := url.Values{}
-	params, err := parseParams(values)
+	params, err := ParseParams(values)
 	require.NoError(t, err)
 	require.Equal(t, def, params)
 
 	values.Set(heartbeatParam, "abc")
-	_, err = parseParams(values)
+	_, err = ParseParams(values)
 	require.Error(t, err)
 
 	values.Set(heartbeatParam, "0")
-	params, err = parseParams(values)
+	params, err = ParseParams(values)
 	require.NoError(t, err)
-	require.Equal(t, time.Duration(0), params.heartbeatTime)
+	require.Equal(t, time.Duration(0), params.HeartbeatTime)
 
 	values.Set(heartbeatParam, "5")
-	params, err = parseParams(values)
+	params, err = ParseParams(values)
 	require.NoError(t, err)
-	require.Equal(t, 5*time.Second, params.heartbeatTime)
+	require.Equal(t, 5*time.Second, params.HeartbeatTime)
 
-	params = defaultParams()
-	params.heartbeatTime = 2 * time.Second
-	params.updateQuery(values)
-	params, err = parseParams(values)
+	params = DefaultParams()
+	params.HeartbeatTime = 2 * time.Second
+	params.UpdateQuery(values)
+	params, err = ParseParams(values)
 	require.NoError(t, err)
-	require.Equal(t, 2*time.Second, params.heartbeatTime)
+	require.Equal(t, 2*time.Second, params.HeartbeatTime)
 }
