@@ -47,6 +47,7 @@ class Linux:
     shared_dir = Path("/opt/kernel-version-testing")
     libvirt_socket = "qemu:///system"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
+    kmt_setup_info = kmt_dir / "kmt-setup.info"
 
     qemu_conf = os.path.join("/", "etc", "libvirt", "qemu.conf")
 
@@ -110,6 +111,8 @@ class Linux:
         ctx.run(f"apt-cache policy{' '.join(Linux.packages)} > {flare_folder / 'packages.txt'}", warn=True)
         ctx.run(f"ip r > {flare_folder / 'ip_r.txt'}", warn=True)
         ctx.run(f"ip a > {flare_folder / 'ip_a.txt'}", warn=True)
+        ctx.run(f"sudo cp /etc/libvirt/qemu.conf {flare_folder / 'qemu.conf'}", warn=True)
+        ctx.run(f"sudo ls -lhR /home/kernel-version-testing/ > {flare_folder / 'kmt.files'}", warn=True)
 
 
 class MacOS:
@@ -126,6 +129,7 @@ class MacOS:
     libvirt_socket = f"qemu:///system?socket={libvirt_system_dir}/libvirt-sock"
     virtlogd_conf = get_homebrew_prefix() / "etc/libvirt/virtlogd.conf"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
+    kmt_setup_info = kmt_dir / "kmt-setup.info"
 
     packages = ["aria2", "fio", "socat", "libvirt", "gnu-sed", "qemu", "libvirt", "wget"]
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import getpass
+import json
 import os
 import shutil
 import sys
@@ -16,7 +17,7 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, info, is_root
 from tasks.libs.common.utils import is_installed
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import PathOrStr
+    from tasks.kernel_matrix_testing.types import KMTSetupInfo, PathOrStr
 
 
 def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):
@@ -24,7 +25,9 @@ def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):
     ctx.run(f"chmod 600 {kmt_dir}/ddvm_rsa")
 
 
-def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images: str | None = None, all_images: bool = False):
+def init_kernel_matrix_testing_system(
+    ctx: Context, images: str | None = None, all_images: bool = False, remote_setup_only: bool = False
+):
     kmt_os = get_kmt_os()
 
     info("[+] Installing OS-specific general requirements...")
@@ -77,7 +80,7 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images: str | No
             f"Running {pulumi_test_cmd} failed, check that the installation is correct (see tasks/kernel_matrix_testing/README.md)"
         )
 
-    if not lite:
+    if not remote_setup_only:
         if shutil.which("libvirtd") is None:
             if Path("/opt/homebrew/sbin/libvirtd").exists():
                 raise Exit(
@@ -100,13 +103,10 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images: str | No
     ctx.run(f"{sudo} install -d -m 0755 -g {kmt_os.libvirt_group} -o {user} {kmt_os.shared_dir}")
 
     # download dependencies
-    if not lite:
-        info("[+] Downloading VM images")
-        if not all_images and not images:
-            raise Exit(
-                "No images specified for download. Use --images parameter to specify which images to download, or --all-images to download all images."
-            )
-        download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", arch=None, images=None if all_images else images)
+    if not remote_setup_only:
+        if all_images or images:
+            info("[+] Downloading VM images")
+            download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", arch=None, images=None if all_images else images)
 
     # Copy the SSH key we use to connect
     gen_ssh_key(ctx, kmt_os.kmt_dir)
@@ -117,3 +117,10 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images: str | No
     info(f"[+] User '{getpass.getuser()}' in group 'docker'")
 
     get_compiler(ctx).start()
+
+    # mark this setup as remote only
+    setup_info: KMTSetupInfo = {"setup": "remote"} if remote_setup_only else {"setup": "full"}
+    with open(kmt_os.kmt_setup_info, "w") as f:
+        setup_info_str = json.dumps(setup_info, indent=4)
+        info(f"[+] Saving KMT setup information {setup_info_str}")
+        json.dump(setup_info, f, indent=4)

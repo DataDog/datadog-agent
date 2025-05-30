@@ -367,18 +367,28 @@ def ls(_, distro=True, custom=False):
 
 @task(
     help={
-        "lite": "If set, then do not download any VM images locally",
+        "remote-setup-only": "If set, then KMT will only allow remote VMs.",
         "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>. This parameter is required unless --lite or --all-images is specified.",
         "all-images": "Download all available VM images for the current architecture. This is equivalent to the previous default behavior.",
     }
 )
-def init(ctx: Context, lite=False, images: str | None = None, all_images=False):
-    if not lite and not all_images and images is None:
-        raise Exit(
-            "The --images parameter is required unless --lite or --all-images is specified. Use 'dda inv kmt.ls' to see available images."
-        )
+def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False):
+    if not remote_setup_only and not all_images and images is None:
+        if (
+            ask(
+                "[!] No VM images will be downloaded because no `--images' specifed and `--all-images` is false. Continue anyway [y/N]? "
+            )
+            != "y"
+        ):
+            raise Exit(
+                "The `--images` parameter is required unless `--all-images` is specified. Use 'dda inv kmt.ls' to see available images."
+            )
+
+    if not remote_setup_only and not all_images:
+        info("[+] Use `dda inv kmt.update-resources --images=<list>` to download specific images for local use.")
+
     try:
-        init_kernel_matrix_testing_system(ctx, lite, images, all_images)
+        init_kernel_matrix_testing_system(ctx, images, all_images, remote_setup_only)
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e

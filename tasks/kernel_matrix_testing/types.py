@@ -13,6 +13,7 @@ from tasks.libs.types.arch import KMTArchName
 KMTArchNameOrLocal = KMTArchName | Literal['local']
 PathOrStr = os.PathLike | str
 Component = Literal['system-probe', 'security-agent']
+KMTSetupType = Literal['remote', 'full']
 
 
 class DependenciesLayout(TypedDict):  # noqa: F841
@@ -111,3 +112,7 @@ class StackOutputArchData(TypedDict):
 
 
 StackOutput = dict[KMTArchName, StackOutputArchData]
+
+
+class KMTSetupInfo(TypedDict):
+    setup: KMTSetupType

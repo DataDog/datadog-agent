@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         Kernel,
         KMTArchName,
         KMTArchNameOrLocal,
+        KMTSetupInfo,
         PathOrStr,
         Platforms,
         Recipe,
@@ -755,6 +756,21 @@ def gen_config_for_stack(
     vm_config = json.loads(orig_vm_config)
 
     vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_by_set(vms, sets), vcpu, memory, ci, template)
+
+    kmt_os = get_kmt_os()
+    if not kmt_os.kmt_setup_info.exists():
+        raise Exit("Unable to find KMT setup information. Run `dda inv kmt.init` to generate it")
+
+    with open(kmt_os.kmt_setup_info) as f:
+        setup_info = json.load(f)
+
+    if setup_info["setup"] == "remote":
+        for vmset in vm_config["vmsets"]:
+            if vmset["arch"] == "local":
+                raise Exit(
+                    "KMT initialized for remote only usage. Local VMs not supprted. To use KMT locally run `dda inv -e kmt.init`"
+                )
+
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
