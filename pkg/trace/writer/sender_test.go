@@ -280,9 +280,9 @@ func TestSender(t *testing.T) {
 		}
 		// Enable and failover MRF on s1, enable and not failover on s2, disabled on s3
 		senders[0].cfg.isMRF = true
-		senders[0].cfg.isMRFEnabled = func() bool { return true }
+		senders[0].cfg.MRFFailoverAPM = func() bool { return true }
 		senders[1].cfg.isMRF = true
-		senders[1].cfg.isMRFEnabled = func() bool { return false }
+		senders[1].cfg.MRFFailoverAPM = func() bool { return false }
 
 		assert.True(senders[0].isEnabled())
 		assert.False(senders[1].isEnabled())
