@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -75,8 +75,8 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		}
 		env := traceutil.GetOTelEnv(otelres)
 		hostname := traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
-		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeServiceVersion)
-		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+		version := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, string(semconv.ServiceVersionKey))
+		cid := traceutil.GetOTelAttrValInResAndSpanAttrs(otelspan, otelres, true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 		var ctags []string
 		if cid != "" {
 			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
