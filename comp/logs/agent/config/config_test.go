@@ -293,7 +293,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -516,7 +516,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), "test-track", "test-proto", "test-source")
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
