@@ -343,6 +343,15 @@ var (
 	// Tags: -
 	MetricHashResolverHashCacheLen = newRuntimeMetric(".hash_resolver.cache_len")
 
+	// File resolver metrics
+
+	// MetricFileResolverCacheHit is the name of the metric used to report file resolver cache hits
+	// Tags: -
+	MetricFileResolverCacheHit = newRuntimeMetric(".file_resolver.cache_hit")
+	// MetricFileResolverCacheMiss is the name of the metric used to report file resolver cache misses
+	// Tags: -
+	MetricFileResolverCacheMiss = newRuntimeMetric(".file_resolver.cache_miss")
+
 	// Namespace resolver metrics
 
 	// MetricNamespaceResolverNetNSHandle is the name of the metric used to report the count of netns handles

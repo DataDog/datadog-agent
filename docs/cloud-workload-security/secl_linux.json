@@ -2188,6 +2188,46 @@
           "property_doc_link": "common-pathkey-inode-doc"
         },
         {
+          "name": "exec.file.metadatas.abi",
+          "definition": "[Experimental] ABI of the file (only for executable ones)",
+          "property_doc_link": "exec-file-metadatas-abi-doc"
+        },
+        {
+          "name": "exec.file.metadatas.architecture",
+          "definition": "[Experimental] Architecture of the file (only for executable ones)",
+          "property_doc_link": "exec-file-metadatas-architecture-doc"
+        },
+        {
+          "name": "exec.file.metadatas.compression",
+          "definition": "[Experimental] Compression type of the file (only for compressed files)",
+          "property_doc_link": "exec-file-metadatas-compression-doc"
+        },
+        {
+          "name": "exec.file.metadatas.is_executable",
+          "definition": "[Experimental] Tells if the file is executable or not",
+          "property_doc_link": "exec-file-metadatas-is_executable-doc"
+        },
+        {
+          "name": "exec.file.metadatas.is_garble_obfuscated",
+          "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
+          "property_doc_link": "exec-file-metadatas-is_garble_obfuscated-doc"
+        },
+        {
+          "name": "exec.file.metadatas.is_upx_packed",
+          "definition": "[Experimental] Tells if the binary has been packed using UPX",
+          "property_doc_link": "exec-file-metadatas-is_upx_packed-doc"
+        },
+        {
+          "name": "exec.file.metadatas.size",
+          "definition": "[Experimental] Size of the file",
+          "property_doc_link": "exec-file-metadatas-size-doc"
+        },
+        {
+          "name": "exec.file.metadatas.type",
+          "definition": "[Experimental] Type of the file",
+          "property_doc_link": "exec-file-metadatas-type-doc"
+        },
+        {
           "name": "exec.file.mode",
           "definition": "Mode of the file",
           "property_doc_link": "common-filefields-mode-doc"
@@ -10348,6 +10388,102 @@
       "examples": []
     },
     {
+      "name": "exec.file.metadatas.abi",
+      "link": "exec-file-metadatas-abi-doc",
+      "type": "int",
+      "definition": "[Experimental] ABI of the file (only for executable ones)",
+      "prefixes": [
+        "exec.file.metadatas"
+      ],
+      "constants": "ABI",
+      "constants_link": "abi",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadatas.architecture",
+      "link": "exec-file-metadatas-architecture-doc",
+      "type": "int",
+      "definition": "[Experimental] Architecture of the file (only for executable ones)",
+      "prefixes": [
+        "exec.file.metadatas"
+      ],
+      "constants": "Architecture",
+      "constants_link": "architecture",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadatas.compression",
+      "link": "exec-file-metadatas-compression-doc",
+      "type": "int",
+      "definition": "[Experimental] Compression type of the file (only for compressed files)",
+      "prefixes": [
+        "exec.file.metadatas"
+      ],
+      "constants": "CompressionType",
+      "constants_link": "compressiontype",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadatas.is_executable",
+      "link": "exec-file-metadatas-is_executable-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the file is executable or not",
+      "prefixes": [
+        "exec.file.metadatas"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadatas.is_garble_obfuscated",
+      "link": "exec-file-metadatas-is_garble_obfuscated-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
+      "prefixes": [
+        "exec.file.metadatas"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadatas.is_upx_packed",
+      "link": "exec-file-metadatas-is_upx_packed-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the binary has been packed using UPX",
+      "prefixes": [
+        "exec.file.metadatas"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadatas.size",
+      "link": "exec-file-metadatas-size-doc",
+      "type": "int",
+      "definition": "[Experimental] Size of the file",
+      "prefixes": [
+        "exec.file.metadatas"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadatas.type",
+      "link": "exec-file-metadatas-type-doc",
+      "type": "int",
+      "definition": "[Experimental] Type of the file",
+      "prefixes": [
+        "exec.file.metadatas"
+      ],
+      "constants": "FileType",
+      "constants_link": "filetype",
+      "examples": []
+    },
+    {
       "name": "exec.syscall.path",
       "link": "exec-syscall-path-doc",
       "type": "string",
@@ -11309,6 +11445,52 @@
     }
   ],
   "constants": [
+    {
+      "name": "ABI",
+      "link": "abi",
+      "description": "ABI used for binary compilation.",
+      "all": [
+        {
+          "name": "BIT32",
+          "architecture": "all"
+        },
+        {
+          "name": "BIT64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ABI",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Architecture",
+      "link": "architecture",
+      "description": "Architecture of the binary.",
+      "all": [
+        {
+          "name": "X86",
+          "architecture": "all"
+        },
+        {
+          "name": "X86_64",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ARCHITECTURE",
+          "architecture": "all"
+        }
+      ]
+    },
     {
       "name": "BPF attach types",
       "link": "bpf-attach-types",
@@ -12572,6 +12754,41 @@
       ]
     },
     {
+      "name": "CompressionType",
+      "link": "compressiontype",
+      "description": "Compression algorithm.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "GZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZSTD",
+          "architecture": "all"
+        },
+        {
+          "name": "7Z",
+          "architecture": "all"
+        },
+        {
+          "name": "BZIP2",
+          "architecture": "all"
+        },
+        {
+          "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "DNS Responses",
       "link": "dns-responses",
       "description": "DNS Responses are the supported response codes",
@@ -13631,6 +13848,53 @@
       ]
     },
     {
+      "name": "FileType",
+      "link": "filetype",
+      "description": "File types.",
+      "all": [
+        {
+          "name": "EMPTY",
+          "architecture": "all"
+        },
+        {
+          "name": "SHELL_SCRIPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TEXT",
+          "architecture": "all"
+        },
+        {
+          "name": "COMPRESSED",
+          "architecture": "all"
+        },
+        {
+          "name": "ENCRYPTED",
+          "architecture": "all"
+        },
+        {
+          "name": "BINARY",
+          "architecture": "all"
+        },
+        {
+          "name": "LINUX_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "WINDOWS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MACOS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "FILE_LESS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Inode mode constants",
       "link": "inode-mode-constants",
       "description": "Inode mode constants are the supported file type constants as well as the file mode constants.",
@@ -14378,6 +14642,25 @@
         },
         {
           "name": "IP_PROTO_RAW",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "LinkageType",
+      "link": "linkagetype",
+      "description": "Linkage types.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "STATIC",
+          "architecture": "all"
+        },
+        {
+          "name": "DYNAMIC",
           "architecture": "all"
         }
       ]
