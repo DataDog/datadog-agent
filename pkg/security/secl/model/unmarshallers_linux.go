@@ -1505,3 +1505,21 @@ func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	return cursor, nil
 }
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	if len(data) < 12 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Socket = binary.NativeEndian.Uint32(data[0:4])
+
+	e.Level = binary.NativeEndian.Uint32(data[4:8])
+	e.OptName = binary.NativeEndian.Uint32(data[8:12])
+	return 12 + read, nil
+}
