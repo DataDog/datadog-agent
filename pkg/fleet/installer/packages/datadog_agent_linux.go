@@ -44,8 +44,9 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	agentPackage = "datadog-agent"
-	agentSymlink = "/usr/bin/datadog-agent"
+	agentPackage     = "datadog-agent"
+	agentSymlink     = "/usr/bin/datadog-agent"
+	installerSymlink = "/usr/bin/datadog-installer"
 )
 
 var (
