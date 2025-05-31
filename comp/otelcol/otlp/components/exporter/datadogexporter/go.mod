@@ -15,7 +15,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.65.1
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.27.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.126.0
 	github.com/stretchr/testify v1.10.0
