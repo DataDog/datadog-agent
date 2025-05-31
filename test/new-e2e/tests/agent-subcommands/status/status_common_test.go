@@ -184,6 +184,10 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			shouldBePresent: true,
 		},
 		{
+			name:            "Fleet Automation",
+			shouldBePresent: true,
+		},
+		{
 			name:            "Runtime Security",
 			shouldBePresent: false,
 		},

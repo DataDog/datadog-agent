@@ -37,7 +37,9 @@ import (
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/daemonchecker/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
@@ -53,6 +55,7 @@ import (
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -138,6 +141,10 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provides the rdnssquerier module
 		rdnsquerierfx.Module(),
+
+		installerexec.Module(),
+		daemoncheckerfx.Module(),
+		fleetfx.Module(),
 
 		// Provide network path bundle
 		networkpath.Bundle(),
