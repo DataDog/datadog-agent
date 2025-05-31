@@ -435,9 +435,23 @@ def build_repackaged_agent(ctx, log_level="info"):
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
-    for env_var in ["DD_CC", "DD_CXX", "DD_CMAKE_TOOLCHAIN"]:
-        if (value := os.environ.get(f"{env_var}_PATH")) is not None:
-            env[env_var] = value
+    # Set up compiler flags (assumes an environment based on our glibc-targeting toolchains)
+    if architecture == "amd64":
+        env.update(
+            {
+                "DD_CC": "x86_64-unknown-linux-gnu-gcc",
+                "DD_CXX": "x86_64-unknown-linux-gnu-g++",
+                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake",
+            }
+        )
+    elif architecture == "arm64":
+        env.update(
+            {
+                "DD_CC": "aarch64-unknown-linux-gnu-gcc",
+                "DD_CXX": "aarch64-unknown-linux-gnu-g++",
+                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake",
+            }
+        )
 
     print("Using the following package as a base:", env['OMNIBUS_REPACKAGE_SOURCE_URL'])
 
