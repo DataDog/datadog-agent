@@ -46,16 +46,16 @@ import (
 )
 
 const (
-	pathCheck = "/check"
+	pathCheck    = "/check"
+	pathLanguage = "/language"
+	pathIo       = "/io"
+	pathNetwork  = "/network"
+	pathServices = "/services"
 
 	// Use a low cache validity to ensure that we refresh information every time
 	// the check is run if needed. This is the same as cacheValidityNoRT in
 	// pkg/process/checks/container.go.
 	containerCacheValidity = 2 * time.Second
-
-	// The maximum number of times that we check if a process has open ports
-	// before ignoring it forever.
-	maxPortCheckTries = 10
 )
 
 // Ensure discovery implements the module.Module interface.
@@ -119,10 +119,6 @@ type discovery struct {
 	// cache maps pids to data that should be cached between calls to the endpoint.
 	cache map[int32]*serviceInfo
 
-	// noPortTries stores the number of times in a row that we did not find
-	// open ports for this process.
-	noPortTries map[int32]int
-
 	// potentialServices stores processes that we have seen once in the previous
 	// iteration, but not yet confirmed to be a running service.
 	potentialServices pidSet
@@ -180,7 +176,6 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 		config:             cfg,
 		mux:                &sync.RWMutex{},
 		cache:              make(map[int32]*serviceInfo),
-		noPortTries:        make(map[int32]int),
 		potentialServices:  make(pidSet),
 		runningServices:    make(pidSet),
 		ignorePids:         make(pidSet),
@@ -212,6 +207,11 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
 	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
+
+	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+	httpMux.HandleFunc(pathLanguage, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleLanguage))
+	httpMux.HandleFunc(pathNetwork, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleNetwork))
+
 	return nil
 }
 
@@ -226,7 +226,6 @@ func (s *discovery) Close() {
 		s.network = nil
 	}
 	clear(s.cache)
-	clear(s.noPortTries)
 	clear(s.ignorePids)
 	clear(s.potentialServices)
 	clear(s.runningServices)
@@ -240,7 +239,6 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 
 type state struct {
 	Cache                  map[int]*model.Service `json:"cache"`
-	NoPortTries            map[int]int            `json:"no_port_tries"`
 	PotentialServices      []int                  `json:"potential_services"`
 	RunningServices        []int                  `json:"running_services"`
 	IgnorePids             []int                  `json:"ignore_pids"`
@@ -258,7 +256,6 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 	state := &state{
 		Cache:             make(map[int]*model.Service, len(s.cache)),
-		NoPortTries:       make(map[int]int, len(s.noPortTries)),
 		PotentialServices: make([]int, 0, len(s.potentialServices)),
 		RunningServices:   make([]int, 0, len(s.runningServices)),
 		IgnorePids:        make([]int, 0, len(s.ignorePids)),
@@ -271,9 +268,6 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 		state.Cache[int(pid)] = service
 	}
 
-	for pid, tries := range s.noPortTries {
-		state.NoPortTries[int(pid)] = tries
-	}
 
 	for pid := range s.potentialServices {
 		state.PotentialServices = append(state.PotentialServices, int(pid))
@@ -333,7 +327,7 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	services, err := s.getServices(params)
+	services, err := s.getCheckServices(params)
 	if err != nil {
 		_ = log.Errorf("failed to handle /discovery%s: %v", pathCheck, err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -341,6 +335,46 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 	}
 
 	utils.WriteAsJSON(w, services, utils.CompactOutput)
+}
+
+func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+	params, err := parseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	services, err := s.getServices(params)
+	if err != nil {
+		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
+}
+
+func (s *discovery) handleLanguage(w http.ResponseWriter, req *http.Request) {
+	params, err := parseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	log.Debugf("/discovery/language params: %+v", params)
+}
+
+func (s *discovery) handleNetwork(w http.ResponseWriter, req *http.Request) {
+	params, err := parseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathCheck, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	log.Debugf("/discovery/network params: %+v", params)
 }
 
 // socketInfo stores information related to each socket.
@@ -680,20 +714,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		return nil
 	}
 	if len(ports) == 0 {
-		tries := s.noPortTries[pid]
-		tries++
-		s.noPortTries[pid] = tries
-
-		if tries >= maxPortCheckTries {
-			log.Tracef("[pid: %d] ignoring due to no ports", pid)
-			s.addIgnoredPid(pid)
-			delete(s.noPortTries, pid)
-		}
 		return nil
 	}
-
-	// Reset the try counter since we only count tries in a row.
-	delete(s.noPortTries, pid)
 
 	rss, err := getRSS(pid)
 	if err != nil {
@@ -750,16 +772,9 @@ func (s *discovery) cleanCache(alivePids pidSet) {
 		delete(s.cache, pid)
 	}
 
-	for pid := range s.noPortTries {
-		if alivePids.has(pid) {
-			continue
-		}
-
-		delete(s.noPortTries, pid)
-	}
 }
 
-func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
+func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.CheckResponse) {
 	for pid, info := range s.cache {
 		if !info.addedToMap {
 			err := s.network.addPid(uint32(pid))
@@ -808,7 +823,7 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Ser
 	updateResponseNetworkStats(response.HeartbeatServices)
 }
 
-func (s *discovery) maybeUpdateNetworkStats(response *model.ServicesResponse) {
+func (s *discovery) maybeUpdateNetworkStats(response *model.CheckResponse) {
 	if s.network == nil {
 		return
 	}
@@ -843,7 +858,7 @@ func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
 // updateServicesCPUStats updates the CPU stats of cached services, as well as the
 // global CPU time cache for future updates. This function is not thread-safe and
 // it is up to the caller to ensure s.mux is locked.
-func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) error {
+func (s *discovery) updateServicesCPUStats(response *model.CheckResponse) error {
 	if time.Since(s.lastCPUTimeUpdate) < s.config.cpuUsageUpdateDelay {
 		return nil
 	}
@@ -1018,7 +1033,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[i
 	}
 }
 
-func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
+func (s *discovery) updateCacheInfo(response *model.CheckResponse, now time.Time) {
 	updateCachedHeartbeat := func(service *model.Service) {
 		info, ok := s.cache[int32(service.PID)]
 		if !ok {
@@ -1046,7 +1061,7 @@ func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.T
 // running are still alive. If not, it will use the latest cached information
 // about them to generate a stop event for the service. This function is not
 // thread-safe and it is up to the caller to ensure s.mux is locked.
-func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
+func (s *discovery) handleStoppedServices(response *model.CheckResponse, alivePids pidSet) {
 	for pid := range s.runningServices {
 		if alivePids.has(pid) {
 			continue
@@ -1066,7 +1081,7 @@ func (s *discovery) handleStoppedServices(response *model.ServicesResponse, aliv
 }
 
 // getStatus returns the list of currently running services.
-func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
+func (s *discovery) getCheckServices(params params) (*model.CheckResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -1077,7 +1092,7 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 
 	context := newParsingContext()
 
-	response := &model.ServicesResponse{
+	response := &model.CheckResponse{
 		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
 		StoppedServices:   make([]model.Service, 0),
 		HeartbeatServices: make([]model.Service, 0),
@@ -1147,6 +1162,26 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	s.maybeUpdateNetworkStats(response)
 
 	response.RunningServicesCount = len(s.runningServices)
+
+	return response, nil
+}
+
+func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	response := &model.ServicesResponse{
+		Services: make([]model.Service, 0),
+	}
+
+	context := newParsingContext()
+
+	for _, pid := range params.pids {
+		service := s.getService(context, int32(pid))
+		if service == nil {
+			continue
+		}
+		response.Services = append(response.Services, *service)
+	}
 
 	return response, nil
 }

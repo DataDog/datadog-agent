@@ -104,6 +104,14 @@ type Component interface {
 	// to all entities with kind KindGPU.
 	ListGPUs() []*GPU
 
+	// GetService returns metadata about a service. It fetches the entity
+	// with kind KindService and the given ID.
+	GetService(id string) (*Service, error)
+
+	// ListServices returns metadata about all known services, equivalent
+	// to all entities with kind KindService.
+	ListServices() []*Service
+
 	// ListProcessesWithFilter returns all the processes for which the passed
 	// filter evaluates to true.
 	ListProcessesWithFilter(filterFunc EntityFilterFunc[*Process]) []*Process

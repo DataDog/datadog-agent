@@ -54,7 +54,7 @@ func TestIgnoreComm(t *testing.T) {
 	seen := make(map[int]model.Service)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp := getServices(collect, discovery.url)
-		for _, s := range resp.StartedServices {
+		for _, s := range resp.Services {
 			seen[s.PID] = s
 		}
 
