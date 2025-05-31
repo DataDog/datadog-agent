@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -36,9 +37,11 @@ func TestNewComponent(t *testing.T) {
 		t.Skip("Skipping test on macOS runners with an existing Agent.")
 	}
 
+	ipcComp := ipcmock.New(t)
+
 	// Start a mock gRPC server.
-	grpcServer, authToken, grpcErr := grpc.NewMockGrpcSecureServer("5001")
-	require.NoError(t, grpcErr)
+	grpcServer, err := grpc.NewMockGrpcSecureServer("5001", ipcComp.GetAuthToken(), ipcComp.GetTLSServerConfig())
+	require.NoError(t, err)
 	defer grpcServer.Stop()
 
 	// Instantiate the component.
@@ -48,15 +51,11 @@ func TestNewComponent(t *testing.T) {
 		Log:    logmock.New(t),
 		Params: tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-			RemoteTokenFetcher: func(config.Component) func() (string, error) {
-				return func() (string, error) {
-					return authToken, nil
-				}
-			},
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		IPC:       ipcComp,
 	}
-	_, err := NewComponent(req)
+	_, err = NewComponent(req)
 	require.NoError(t, err)
 }
 
@@ -69,13 +68,9 @@ func TestNewComponentNonBlocking(t *testing.T) {
 		Log:    logmock.New(t),
 		Params: tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-			RemoteTokenFetcher: func(config.Component) func() (string, error) {
-				return func() (string, error) {
-					return "", nil
-				}
-			},
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		IPC:       ipcmock.New(t),
 	}
 	_, err := NewComponent(req)
 	require.NoError(t, err)
@@ -90,13 +85,9 @@ func TestNewComponentSetsTaggerListEndpoint(t *testing.T) {
 		Log:    logmock.New(t),
 		Params: tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
-			RemoteTokenFetcher: func(config.Component) func() (string, error) {
-				return func() (string, error) {
-					return "something", nil
-				}
-			},
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		IPC:       ipcmock.New(t),
 	}
 	provides, err := NewComponent(req)
 	require.NoError(t, err)

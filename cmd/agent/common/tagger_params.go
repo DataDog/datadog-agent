@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
@@ -29,11 +28,6 @@ func DualTaggerParams() (tagger.DualParams, tagger.RemoteParams) {
 					return "", err
 				}
 				return strings.TrimPrefix(target, "https://"), nil
-			},
-			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-				return func() (string, error) {
-					return security.GetClusterAgentAuthToken(c)
-				}
 			},
 			RemoteFilter: types.NewFilterBuilder().Exclude(types.KubernetesPodUID).Build(types.HighCardinality),
 		}

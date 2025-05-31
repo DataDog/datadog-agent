@@ -6,7 +6,6 @@
 package check
 
 import (
-	"context"
 	"os"
 	"path"
 	"testing"
@@ -14,8 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -34,13 +32,11 @@ func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 	testDir := t.TempDir()
 
 	configPath := path.Join(testDir, "datadog.yaml")
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("auth_token_file_path", path.Join(testDir, "auth_token"))
 
-	_, err := security.FetchOrCreateAuthToken(context.Background(), mockConfig)
-	require.NoError(t, err)
+	// creating in-memory auth artifacts
+	ipcmock.New(t)
 
-	err = os.WriteFile(configPath, []byte("hostname: test"), 0644)
+	err := os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
 	return &command.GlobalParams{
