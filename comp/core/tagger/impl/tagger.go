@@ -56,6 +56,7 @@ const (
 type datadogConfig struct {
 	checksCardinality                  types.TagCardinality // Cardinality for checks
 	dogstatsdCardinality               types.TagCardinality // Cardinality for DogStatsD Custom Metrics.
+	logsCardinality                    types.TagCardinality // Cardinality for logs
 	dogstatsdEntityIDPrecedenceEnabled bool                 // Disable Origin Detection for DogStatsD metrics when EntityID is set.
 	dogstatsdOptOutEnabled             bool                 // Disable Origin Detection if enabled and cardinality is none.
 	originDetectionUnifiedEnabled      bool                 // Unifies Origin Detection mechanisms to use the same logic.
@@ -158,15 +159,20 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 
 	checksTagCardinalityRawConfig := cfg.GetString("checks_tag_cardinality")
 	dogstatsdTagCardinalityRawConfig := cfg.GetString("dogstatsd_tag_cardinality")
+	logsTagCardinalityRawConfig := cfg.GetString("logs_tag_cardinality")
 
 	var err error
-	dc.checksCardinality, err = types.StringToTagCardinality(checksTagCardinalityRawConfig)
+	dc.checksCardinality, err = types.StringToTagCardinalityWithDefault(checksTagCardinalityRawConfig, types.LowCardinality)
 	if err != nil {
 		log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
 	}
-	dc.dogstatsdCardinality, err = types.StringToTagCardinality(dogstatsdTagCardinalityRawConfig)
+	dc.dogstatsdCardinality, err = types.StringToTagCardinalityWithDefault(dogstatsdTagCardinalityRawConfig, types.LowCardinality)
 	if err != nil {
 		log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
+	}
+	dc.logsCardinality, err = types.StringToTagCardinalityWithDefault(logsTagCardinalityRawConfig, types.HighCardinality)
+	if err != nil {
+		log.Warnf("failed to parse logs tag cardinality, defaulting to high. Error: %s", err)
 	}
 	telemetryStore := telemetry.NewStore(telemetryComp)
 	if tagStore == nil {
@@ -194,6 +200,9 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
 	if cardinality == types.ChecksConfigCardinality {
 		cardinality = t.datadogConfig.checksCardinality
+	}
+	if cardinality == types.LogsConfigCardinality {
+		cardinality = t.datadogConfig.logsCardinality
 	}
 	if entityID.Empty() {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
