@@ -1,10 +1,6 @@
 # deploy mutable image tags stage
 # Contains jobs which deploy Agent 7 related mutable image tags to the registries. That means - not uploading the image, but only creating the tags.
 
-include:
-  - .gitlab/common/container_publish_job_templates.yml
-  - .gitlab/deploy_containers/conditions.yml
-
 .deploy_mutable_image_tags_base:
   extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
@@ -18,8 +14,7 @@ include:
 deploy_mutable_image_tags-a7:
   extends: .deploy_mutable_image_tags_base
   stage: deploy_mutable_image_tags
-  rules:
-    !reference [.on_final]
+  rules: !reference [.on_final]
   parallel:
     matrix:
       - IMG_TAG_REFERENCE_SUFFIX: [""]
@@ -48,8 +43,7 @@ deploy_mutable_image_tags-a7:
 deploy_mutable_image_tags-a7_internal:
   extends: .deploy_mutable_image_tags_base
   stage: deploy_mutable_image_tags
-  rules:
-    !reference [.on_internal_final]
+  rules: !reference [.on_internal_final]
   parallel:
     matrix:
       - IMG_TAG_REFERENCE_SUFFIX: "-jmx"
@@ -62,8 +56,7 @@ deploy_mutable_image_tags-a7_internal:
 deploy_mutable_image_tags-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
-  rules:
-    !reference [.on_final]
+  rules: !reference [.on_final]
   before_script:
     - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}
@@ -72,8 +65,7 @@ deploy_mutable_image_tags-dogstatsd:
 deploy_mutable_image_tags-a7-fips:
   extends: .deploy_mutable_image_tags_base
   stage: deploy_mutable_image_tags
-  rules:
-    !reference [.on_final]
+  rules: !reference [.on_final]
   parallel:
     matrix:
       - IMG_TAG_REFERENCE_SUFFIX: "-fips"
