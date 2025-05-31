@@ -290,6 +290,42 @@ def manual_threshold_update(self, filename="static_gate_report.json"):
     notify_threshold_update(pr_url)
 
 
+@task
+def debug_specific_quality_gate(ctx, gate_name):
+    """
+    Executes a single static quality gate to compare it to its ancestor and run debug on it
+
+    :param ctx: Invoke context
+    :param gate_name: Static quality gates to debug
+    :return:
+    """
+    if not gate_name:
+        raise Exit(
+            code=0,
+            message="Please ensure to set the GATE_NAME variable inside of the manual job execution gitlab page when executing this debug job.",
+        )
+
+    quality_gates_module = __import__("tasks.static_quality_gates", fromlist=[gate_name])
+    gate_inputs = {"ctx": ctx}
+    try:
+        gate_module = getattr(quality_gates_module, gate_name)
+    except AttributeError as e:
+        raise Exit(
+            code=0,
+            message=f"The provided quality gate to debug ({gate_name}) is invalid and wasn't found as part of tasks.static_quality_gates.",
+        ) from e
+
+    # As it is a debug job we do not want the job to actually fail on failures.
+    try:
+        gate_module.debug_entrypoint(**gate_inputs)
+    except NotImplementedError:
+        print(f"The {gate_name} static quality gate doesn't support debugging yet.")
+    except Exception as e:
+        print(
+            f"The {gate_name} debugging failed with the following trace:\n{traceback.format_exc()}\nError message:\n{str(e)}"
+        )
+
+
 @task()
 def exception_threshold_bump(ctx):
     """

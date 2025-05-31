@@ -5,3 +5,7 @@ def entrypoint(**kwargs):
     generic_package_agent_quality_gate(
         "static_quality_gate_dogstatsd_rpm_amd64", "amd64", "centos", "datadog-dogstatsd", **kwargs
     )
+
+
+def debug_entrypoint(**kwargs):
+    raise NotImplementedError()
