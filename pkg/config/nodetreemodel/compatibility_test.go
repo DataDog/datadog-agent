@@ -9,6 +9,7 @@ package nodetreemodel
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 	"testing"
 
@@ -129,4 +130,177 @@ func TestCompareAllSettingsWithoutDefault(t *testing.T) {
 	assert.NoError(t, err)
 	yamlText = string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
+}
+
+func TestCompareGetEnvVars(t *testing.T) {
+	dataYaml := ``
+
+	t.Run("With BindEnv", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+			cfg.BindEnv("port", "TEST_PORT")
+			cfg.BindEnv("host", "TEST_HOST")
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
+		})
+
+		viperEnvVars := viperConf.GetEnvVars()
+		ntmEnvVars := ntmConf.GetEnvVars()
+
+		sort.Strings(viperEnvVars)
+		sort.Strings(ntmEnvVars)
+
+		assert.Equal(t, viperEnvVars, ntmEnvVars, "viper and ntm should return the same environment variables")
+
+		expected := []string{"TEST_PORT", "TEST_HOST", "TEST_LOG_LEVEL"}
+		for _, ev := range expected {
+			assert.Contains(t, viperEnvVars, ev, "viper missing expected env var: %s", ev)
+			assert.Contains(t, ntmEnvVars, ev, "ntm missing expected env var: %s", ev)
+		}
+	})
+
+	t.Run("Without BindEnv", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, nil)
+
+		assert.Empty(t, viperConf.GetEnvVars(), "viper should return no env vars without BindEnv")
+		assert.Empty(t, ntmConf.GetEnvVars(), "ntm should return no env vars without BindEnv")
+	})
+
+	t.Run("With EnvPrefix", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+			cfg.SetEnvPrefix("MYAPP")
+			cfg.BindEnv("port") // No explicit name — will use prefix
+		})
+
+		expected := "MYAPP_PORT"
+
+		assert.Contains(t, viperConf.GetEnvVars(), expected, "viper should apply EnvPrefix")
+		assert.Contains(t, ntmConf.GetEnvVars(), expected, "ntm should apply EnvPrefix")
+	})
+
+	t.Run("With EnvKeyReplacer", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+			cfg.BindEnv("log.level")
+		})
+
+		expected := "DD_LOG_LEVEL" // Default prefix is "DD" for viper and ntm when initializing the config
+
+		assert.Contains(t, viperConf.GetEnvVars(), expected, "viper should apply EnvKeyReplacer")
+		assert.Contains(t, ntmConf.GetEnvVars(), expected, "ntm should apply EnvKeyReplacer")
+	})
+
+	t.Run("With EnvPrefix and EnvKeyReplacer", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+			cfg.SetEnvPrefix("MYAPP")
+			cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+			cfg.BindEnv("db.connection.url")
+		})
+
+		expected := "MYAPP_DB_CONNECTION_URL"
+
+		assert.Contains(t, viperConf.GetEnvVars(), expected, "viper should apply prefix and replacer")
+		assert.Contains(t, ntmConf.GetEnvVars(), expected, "ntm should apply prefix and replacer")
+	})
+}
+
+func TestCompareGetKnownKeysLowercased(t *testing.T) {
+	t.Run("Includes SetKnown keys", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.SetKnown("PORT")
+			cfg.SetKnown("host")
+		})
+
+		wantKeys := []string{"port", "host"}
+		assert.ElementsMatch(t, wantKeys, keys(viperConf.GetKnownKeysLowercased()))
+		assert.ElementsMatch(t, wantKeys, keys(ntmConf.GetKnownKeysLowercased()))
+	})
+
+	t.Run("Includes defaults", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.SetDefault("TIMEOUT", 30)
+		})
+
+		wantKeys := []string{"timeout"}
+		assert.ElementsMatch(t, wantKeys, keys(viperConf.GetKnownKeysLowercased()))
+		assert.ElementsMatch(t, wantKeys, keys(ntmConf.GetKnownKeysLowercased()))
+	})
+
+	t.Run("Includes environment bindings", func(t *testing.T) {
+		t.Setenv("TEST_LOG_LEVEL", "debug")
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
+		})
+
+		wantKeys := []string{"log", "log.level"}
+		assert.ElementsMatch(t, wantKeys, keys(viperConf.GetKnownKeysLowercased()))
+		assert.ElementsMatch(t, wantKeys, keys(ntmConf.GetKnownKeysLowercased()))
+	})
+
+	t.Run("Combined known/default/env", func(t *testing.T) {
+		t.Setenv("TEST_LOG_LEVEL", "debug")
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.SetKnown("PORT")
+			cfg.SetDefault("TIMEOUT", 30)
+			cfg.BindEnv("log.level", "TEST_LOG_LEVEL")
+		})
+
+		wantKeys := []string{"port", "timeout", "log", "log.level"}
+		assert.ElementsMatch(t, wantKeys, keys(viperConf.GetKnownKeysLowercased()))
+		assert.ElementsMatch(t, wantKeys, keys(ntmConf.GetKnownKeysLowercased()))
+	})
+}
+
+func TestCompareAllKeysLowercased(t *testing.T) {
+	t.Run("Keys from YAML only", func(t *testing.T) {
+		dataYaml := `
+port: 8080
+host: localhost
+log:
+  level: info
+`
+		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+			cfg.SetKnown("port")
+			cfg.SetKnown("host")
+			cfg.SetKnown("log.level")
+		})
+
+		wantKeys := []string{"port", "host", "log.level"}
+		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
+		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
+	})
+
+	t.Run("Keys from defaults", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.SetDefault("PORT", 8080)
+			cfg.SetDefault("HOST", "localhost")
+			cfg.SetDefault("log.level", "info")
+		})
+
+		wantKeys := []string{"port", "host", "log.level"}
+		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
+		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
+	})
+
+	t.Run("Keys from mixed sources", func(t *testing.T) {
+		t.Setenv("TEST_API_KEY", "12345")
+
+		dataYaml := `port: 8080`
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+			cfg.SetKnown("port")
+			cfg.SetDefault("HOST", "localhost")
+			cfg.BindEnv("api_key", "TEST_API_KEY")
+		})
+
+		wantKeys := []string{"port", "host", "api_key"}
+		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
+		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
+	})
+}
+
+// Utility function to extract keys from a map
+func keys(m map[string]interface{}) []string {
+	var result []string
+	for k := range m {
+		result = append(result, k)
+	}
+	return result
 }
