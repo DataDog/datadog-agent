@@ -675,9 +675,11 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 
-		if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
-			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
-		}
+		fmt.Printf("CELIAN NOT DESTROYING STACK %s WITH PROVISIONER %s\n", bs.params.stackName, id)
+
+		// if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
+		// 	bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
+		// }
 	}
 }
 
