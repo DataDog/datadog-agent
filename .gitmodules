@@ -1,0 +1,3 @@
+[submodule "golinkinterceptor"]
+	path = golinkinterceptor
+	url = https://github.com/L3n41c/golinkinterceptor
