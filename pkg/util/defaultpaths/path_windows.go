@@ -53,7 +53,8 @@ func init() {
 	}
 }
 
-func getInstallPath() string {
+// GetInstallPath returns the fully qualified path to the datadog-agent executable
+func GetInstallPath() string {
 	// fetch the installation path from the registry
 	installpath := filepath.Join(_here, "..")
 	var s string
@@ -79,7 +80,7 @@ func getInstallPath() string {
 func GetDistPath() string {
 	if len(distPath) == 0 {
 		var s string
-		if s = getInstallPath(); s == "" {
+		if s = GetInstallPath(); s == "" {
 			return ""
 		}
 		distPath = filepath.Join(s, `bin/agent/dist`)

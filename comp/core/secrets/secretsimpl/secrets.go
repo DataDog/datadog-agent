@@ -16,8 +16,10 @@ import (
 	stdmaps "maps"
 	"math/rand"
 	"net/http"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -36,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -44,6 +48,61 @@ import (
 const auditFileBasename = "secret-audit-file.json"
 
 var newClock = clock.New
+
+var allowedKeysByBackend = map[string]map[string]interface{}{
+	"aws.secrets": {
+		"secret_id": true,
+		"aws_session": map[string]bool{
+			"aws_region":            true,
+			"aws_access_key_id":     true,
+			"aws_secret_access_key": true,
+			"aws_profile":           true,
+			"aws_role_arn":          true,
+			"aws_external_id":       true,
+		},
+	},
+	"aws.ssm": {
+		"parameter_path": true,
+		"parameters":     true,
+	},
+	"azure.keyvault": {
+		"secret_id":   true,
+		"keyvaulturl": true,
+		"azure_session": map[string]bool{
+			"azure_tenant_id":            true,
+			"azure_client_id":            true,
+			"azure_client_secret":        true,
+			"azure_certificate_path":     true,
+			"azure_certificate_password": true,
+		},
+	},
+	"hashicorp.vault": {
+		"vault_address":    true,
+		"vault_tls_config": true,
+		"secret_path":      true,
+		"secrets":          true,
+		"vault_session": map[string]bool{
+			"vault_role_id":   true,
+			"vault_secret_id": true,
+			"vault_username":  true,
+			"vault_password":  true,
+		},
+	},
+	"akeyless": {
+		"akeyless_url": true,
+		"secret_path":  true,
+		"akeyless_session": map[string]bool{
+			"akeyless_access_id":  true,
+			"akeyless_access_key": true,
+		},
+	},
+	"file.json": {
+		"file_path": true,
+	},
+	"file.yaml": {
+		"file_path": true,
+	},
+}
 
 type provides struct {
 	fx.Out
@@ -88,6 +147,8 @@ type secretResolver struct {
 	// list of handles and where they were found
 	origin handleToContext
 
+	backendType             string
+	backendConfig           map[string]interface{}
 	backendCommand          string
 	backendArguments        []string
 	backendTimeout          int
@@ -217,7 +278,28 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if !r.enabled {
 		return
 	}
+	r.backendType = params.Type
+	r.backendConfig = params.Config
+	if r.backendType != "" {
+		if err := validateTypeAndConfig(r.backendType, r.backendConfig); err != nil {
+			log.Errorf("%v", err)
+		}
+	}
 	r.backendCommand = params.Command
+	// only use the backend type option if the backend command is not set
+	if r.backendType != "" && r.backendCommand == "" {
+		if runtime.GOOS == "windows" {
+			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "secret-generic-connector.exe")
+		} else {
+			nonWindowsPath := path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+			permission, _ := filesystem.NewPermission()
+			err := permission.RestrictAccessToUser(nonWindowsPath)
+			if err != nil {
+				log.Warnf("Cannot give the user access to %s: %s", nonWindowsPath, err)
+			}
+			r.backendCommand = nonWindowsPath
+		}
+	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
 	if r.backendTimeout == 0 {
@@ -244,6 +326,35 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if r.auditFileMaxSize == 0 {
 		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
 	}
+}
+
+func validateTypeAndConfig(backendType string, backendConfig map[string]interface{}) error {
+	allowed, ok := allowedKeysByBackend[backendType]
+	if !ok {
+		return fmt.Errorf("unsupported backend type: %s", backendType)
+	}
+
+	for key, val := range backendConfig {
+		allowedVal, ok := allowed[key]
+		if !ok {
+			return fmt.Errorf("unsupported key '%s' for backend '%s'", key, backendType)
+		}
+
+		// If value in the allowed map is another map (nested config), validate nested keys
+		if nestedAllowed, ok := allowedVal.(map[string]bool); ok {
+			nestedConfig, ok := val.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("key '%s' should be a map", key)
+			}
+
+			for nestedKey := range nestedConfig {
+				if _, ok := nestedAllowed[nestedKey]; !ok {
+					return fmt.Errorf("unsupported nested key '%s.%s' for backend '%s'", key, nestedKey, backendType)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func isEnc(str string) (bool, string) {
