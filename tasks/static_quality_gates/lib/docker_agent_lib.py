@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_byte_input
@@ -110,7 +111,10 @@ def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent"
     if flavor != "dogstatsd" and is_nightly_run:
         flavor += "-nightly"
     url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
-    # Fetch the on wire and on disk size of the image from the url
-    image_on_wire_size, image_on_disk_size = get_image_url_size(ctx, metric_handler, gate_name, url)
-    # Check if the docker image is within acceptable bounds
-    check_image_size(image_on_wire_size, image_on_disk_size, max_on_wire_size, max_on_disk_size)
+    print(f"Constructed URL: {url}")
+    with tempfile.TemporaryDirectory() as tempdir:
+        os.chdir(tempdir)
+        # Fetch the on wire and on disk size of the image from the url
+        image_on_wire_size, image_on_disk_size = get_image_url_size(ctx, metric_handler, gate_name, url)
+        # Check if the docker image is within acceptable bounds
+        check_image_size(image_on_wire_size, image_on_disk_size, max_on_wire_size, max_on_disk_size)
