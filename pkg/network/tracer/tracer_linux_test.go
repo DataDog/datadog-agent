@@ -3004,3 +3004,68 @@ func (s *TracerSuite) TestTLSRawClient() {
 		}, time.Second*5, time.Millisecond*200)
 	})
 }
+
+func (s *TracerSuite) TestTCPSynRst() {
+	// test for dialing a server that is closed - so we first send a SYN packet, and immediately get a RST back
+	t := s.T()
+	cfg := testConfig()
+
+	if isPrebuilt(cfg) {
+		t.Skip("failed connections not supported on prebuilt")
+	}
+
+	tr := setupTracer(t, cfg)
+
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
+		t.Skip("failed connections not (yet) supported on fentry")
+	}
+
+	// create a linux socket which will reserve a port for us
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+	require.NoError(t, err)
+	defer unix.Close(fd)
+
+	// bind it to a port
+	unixLaddr := &unix.SockaddrInet4{
+		Port: 0,
+	}
+	copy(unixLaddr.Addr[:], net.ParseIP("127.0.0.1").To4())
+	err = unix.Bind(fd, unixLaddr)
+	require.NoError(t, err)
+
+	// get the port it bound to
+	addr, err := unix.Getsockname(fd)
+	require.NoError(t, err)
+	localAddr := &net.TCPAddr{
+		IP:   addr.(*unix.SockaddrInet4).Addr[:],
+		Port: addr.(*unix.SockaddrInet4).Port,
+	}
+
+	unixRemoteAddr := &unix.SockaddrInet4{
+		Port: 47,
+	}
+	copy(unixRemoteAddr.Addr[:], net.ParseIP("127.0.0.1").To4())
+	err = unix.Connect(fd, unixRemoteAddr)
+	require.Error(t, err)
+	require.Equal(t, unix.ECONNREFUSED, err)
+	remoteAddr := &net.TCPAddr{
+		IP:   unixRemoteAddr.Addr[:],
+		Port: unixRemoteAddr.Port,
+	}
+
+	var conn *network.ConnectionStats
+	var ok bool
+
+	// for ebpfless, wait for the packet capture to appear
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		conn, ok = findConnection(localAddr, remoteAddr, connections)
+		require.True(collect, ok)
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
+
+	// there is both an incoming and outgoing connection on loopback, just make sure it's not UNKNOWN
+	assert.NotEqual(t, network.UNKNOWN, conn.Direction)
+
+	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
+}
