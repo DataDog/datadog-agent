@@ -1,0 +1,7 @@
+{{ with .fleetAutomationStatus }}
+{{ if .remoteManagementEnabled }}
+Fleet Management is enabled
+{{ else }}
+Fleet Management is disabled
+{{ end }}
+{{ end }}
