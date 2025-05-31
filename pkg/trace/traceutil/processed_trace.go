@@ -7,12 +7,25 @@ package traceutil
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
 	TraceChunk             *pb.TraceChunk
 	Root                   *pb.Span
+	TracerEnv              string
+	AppVersion             string
+	TracerHostname         string
+	ClientDroppedP0sWeight float64
+	GitCommitSha           string
+	ImageTag               string
+}
+
+// ProcessedTraceV1 represents a trace being processed in the agent.
+type ProcessedTraceV1 struct {
+	TraceChunk             *idx.InternalTraceChunk
+	Root                   *idx.InternalSpan
 	TracerEnv              string
 	AppVersion             string
 	TracerHostname         string

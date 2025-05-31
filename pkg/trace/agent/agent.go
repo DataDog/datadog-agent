@@ -80,6 +80,8 @@ type Concentrator interface {
 	Stop()
 	// Add a stats Input to be concentrated and flushed
 	Add(t stats.Input)
+	// AddV1 a stats InputV1 to be concentrated and flushed
+	AddV1(t stats.InputV1)
 }
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -121,6 +123,9 @@ type Agent struct {
 	// In takes incoming payloads to be processed by the agent.
 	In chan *api.Payload
 
+	// InV1 takes incoming V1 payloads to be processed by the agent.
+	InV1 chan *api.PayloadV1
+
 	// config
 	conf *config.AgentConfig
 
@@ -142,6 +147,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
+	inV1 := make(chan *api.PayloadV1, conf.TraceBuffer)
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
 		oconf.Statsd = statsd
@@ -163,6 +169,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		StatsWriter:           statsWriter,
 		obfuscatorConf:        &oconf,
 		In:                    in,
+		InV1:                  inV1,
 		conf:                  conf,
 		ctx:                   ctx,
 		DebugServer:           api.NewDebugServer(conf),
@@ -170,7 +177,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		Timing:                timing,
 	}
 	agnt.SamplerMetrics.Add(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.NoPrioritySampler, agnt.RareSampler)
-	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
+	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, inV1, agnt, telemetryCollector, statsd, timing)
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp)
@@ -248,7 +255,16 @@ func (a *Agent) work() {
 		}
 		a.Process(p)
 	}
+}
 
+func (a *Agent) workV1() {
+	for {
+		p, ok := <-a.InV1
+		if !ok {
+			return
+		}
+		a.ProcessV1(p)
+	}
 }
 
 func (a *Agent) loop() {
@@ -441,6 +457,147 @@ func (a *Agent) Process(p *api.Payload) {
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.Add(statsInput)
+	}
+}
+
+// Process is the default work unit that receives a trace, transforms it and
+// passes it downstream.
+func (a *Agent) ProcessV1(p *api.PayloadV1) {
+	if len(p.TracerPayload.Chunks) == 0 {
+		log.Debugf("Skipping received empty payload")
+		return
+	}
+	now := time.Now()
+	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_v1_ms", now)
+	// ts := p.Source
+	// sampledChunks := new(writer.SampledChunks)
+	statsInput := stats.NewStatsInputV1(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID(), p.ClientComputedStats, p.ProcessTags)
+
+	// p.TracerPayload.Env = normalize.NormalizeTagValue(p.TracerPayload.Env)
+	// // TODO: We should find a way to not repeat container tags resolution downstream in the stats writer.
+	// // We will first need to deprecate the `enable_cid_stats` feature flag.
+	// // Set payload's container tags just in case we're processing a payload that was not received via the agent's receiver
+	// // (e.g. an OTEL converted payload)
+	// if len(p.ContainerTags) == 0 && a.conf.ContainerTags != nil {
+	// 	cTags, err := a.conf.ContainerTags(p.TracerPayload.ContainerID)
+	// 	if err != nil {
+	// 		log.Debugf("Failed getting container tags for ID %s: %v", p.TracerPayload.ContainerID, err)
+	// 	} else {
+	// 		p.ContainerTags = cTags
+	// 	}
+	// }
+
+	// gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
+
+	// a.discardSpans(p)
+
+	// for i := 0; i < len(p.Chunks()); {
+	// 	chunk := p.Chunk(i)
+	// 	if len(chunk.Spans) == 0 {
+	// 		log.Debugf("Skipping received empty trace")
+	// 		p.RemoveChunk(i)
+	// 		continue
+	// 	}
+
+	// 	tracen := int64(len(chunk.Spans))
+	// 	ts.SpansReceived.Add(tracen)
+	// 	err := a.normalizeTrace(p.Source, chunk.Spans)
+	// 	if err != nil {
+	// 		log.Debugf("Dropping invalid trace: %s", err)
+	// 		ts.SpansDropped.Add(tracen)
+	// 		p.RemoveChunk(i)
+	// 		continue
+	// 	}
+
+	// 	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
+	// 	root := traceutil.GetRoot(chunk.Spans)
+	// 	setChunkAttributes(chunk, root)
+	// 	if allowed, denyingRule := a.Blacklister.Allows(root); !allowed {
+	// 		log.Debugf("Trace rejected by ignore resources rules. root: %v matching rule: \"%s\"", root, denyingRule.String())
+	// 		ts.TracesFiltered.Inc()
+	// 		ts.SpansFiltered.Add(tracen)
+	// 		p.RemoveChunk(i)
+	// 		continue
+	// 	}
+
+	// 	if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags, a.conf.RequireTagsRegex, a.conf.RejectTagsRegex) {
+	// 		log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
+	// 		ts.TracesFiltered.Inc()
+	// 		ts.SpansFiltered.Add(tracen)
+	// 		p.RemoveChunk(i)
+	// 		continue
+	// 	}
+
+	// 	// Extra sanitization steps of the trace.
+	// 	for _, span := range chunk.Spans {
+	// 		for k, v := range a.conf.GlobalTags {
+	// 			if k == tagOrigin {
+	// 				chunk.Origin = v
+	// 			} else {
+	// 				traceutil.SetMeta(span, k, v)
+	// 			}
+	// 		}
+	// 		if a.SpanModifier != nil {
+	// 			a.SpanModifier.ModifySpan(chunk, span)
+	// 		}
+	// 		a.obfuscateSpan(span)
+	// 		a.Truncate(span)
+	// 		if p.ClientComputedTopLevel {
+	// 			traceutil.UpdateTracerTopLevel(span)
+	// 		}
+	// 	}
+	// 	a.Replacer.Replace(chunk.Spans)
+
+	// 	a.setRootSpanTags(root)
+	// 	if !p.ClientComputedTopLevel {
+	// 		// Figure out the top-level spans now as it involves modifying the Metrics map
+	// 		// which is not thread-safe while samplers and concentrator might modify it too.
+	// 		traceutil.ComputeTopLevel(chunk.Spans)
+	// 	}
+
+	// 	a.setPayloadAttributes(p, root, chunk)
+
+	// 	pt := processedTrace(p, chunk, root, imageTag, gitCommitSha)
+	// 	if !p.ClientComputedStats {
+	// 		statsInput.Traces = append(statsInput.Traces, *pt.Clone())
+	// 	}
+
+	// 	keep, numEvents := a.sample(now, ts, pt)
+	// 	if !keep && len(pt.TraceChunk.Spans) == 0 {
+	// 		// The entire trace was dropped and no spans were kept.
+	// 		p.RemoveChunk(i)
+	// 		continue
+	// 	}
+	// 	p.ReplaceChunk(i, pt.TraceChunk)
+
+	// 	if !pt.TraceChunk.DroppedTrace {
+	// 		// Now that we know this trace has been sampled,
+	// 		// if this is the first trace we have processed since restart,
+	// 		// set a special set of tags on its root span to track that this
+	// 		// customer has successfully onboarded onto APM.
+	// 		a.setFirstTraceTags(root)
+	// 		sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
+	// 	}
+	// 	sampledChunks.EventCount += int64(numEvents)
+	// 	sampledChunks.Size += pt.TraceChunk.Msgsize()
+	// 	i++
+
+	// 	if sampledChunks.Size > writer.MaxPayloadSize {
+	// 		// payload size is getting big; split and flush what we have so far
+	// 		sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
+	// 		i = 0
+	// 		sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
+	// 		a.TraceWriter.WriteChunks(sampledChunks)
+	// 		sampledChunks = new(writer.SampledChunks)
+	// 	}
+	// }
+	// sampledChunks.TracerPayload = p.TracerPayload
+	// sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
+	// if sampledChunks.Size > 0 {
+	// 	a.TraceWriter.WriteChunks(sampledChunks)
+	// }
+	if len(statsInput.Traces) > 0 {
+		a.Concentrator.AddV1(statsInput)
 	}
 }
 

@@ -84,8 +84,9 @@ func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
 }
 
 type mockConcentrator struct {
-	stats []stats.Input
-	mu    sync.Mutex
+	stats   []stats.Input
+	statsV1 []stats.InputV1
+	mu      sync.Mutex
 }
 
 func (c *mockConcentrator) Start() {}
@@ -94,6 +95,11 @@ func (c *mockConcentrator) Add(t stats.Input) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.stats = append(c.stats, t)
+}
+func (c *mockConcentrator) AddV1(t stats.InputV1) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.statsV1 = append(c.statsV1, t)
 }
 func (c *mockConcentrator) Reset() []stats.Input {
 	c.mu.Lock()
@@ -2013,7 +2019,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		conf:              cfg,
 		Timing:            &timing.NoopReporter{},
 	}
-	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, agnt, telemetry.NewNoopCollector(), statsd, &timing.NoopReporter{})
+	agnt.Receiver = api.NewHTTPReceiver(cfg, dynConf, in, nil, agnt, telemetry.NewNoopCollector(), statsd, &timing.NoopReporter{})
 	now := time.Now()
 	smallKeptSpan := &pb.Span{
 		TraceID:  1,

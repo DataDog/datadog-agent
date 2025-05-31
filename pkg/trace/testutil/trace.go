@@ -9,6 +9,7 @@ import (
 	"math/rand"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -123,6 +124,42 @@ func GetTestTraces(traceN, size int, realisticIDs bool) pb.Traces {
 			trace = append(trace, span)
 		}
 		traces = append(traces, trace)
+	}
+	return traces
+}
+
+// GetTestTraces returns a []Trace that is composed by “traceN“ number
+// of traces, each one composed by “size“ number of spans.
+func GetTestTracesV1(traceN, size int, realisticIDs bool) *idx.InternalTracerPayload {
+	strings := idx.NewStringTable()
+	traces := &idx.InternalTracerPayload{Strings: strings}
+
+	r := rand.New(rand.NewSource(42))
+
+	for i := 0; i < traceN; i++ {
+		traceID := make([]byte, 16)
+		r.Read(traceID)
+		chunk := idx.InternalTraceChunk{
+			Strings: strings,
+			// Calculate a trace ID which is predictable (this is why we seed)
+			// but still spreads on a wide spectrum so that, among other things,
+			// sampling algorithms work in a realistic way.
+			TraceID: traceID,
+		}
+
+		spans := []*idx.InternalSpan{}
+		for j := 0; j < size; j++ {
+			span := GetTestSpanV1(strings)
+			if realisticIDs {
+				// Need to have different span IDs else traces are rejected
+				// because they are not correct (indeed, a trace with several
+				// spans boasting the same span ID is not valid)
+				span.SpanID += uint64(j)
+			}
+			spans = append(spans, span)
+		}
+		chunk.Spans = spans
+		traces.Chunks = append(traces.Chunks, &chunk)
 	}
 	return traces
 }
