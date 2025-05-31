@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package datadog.remoteagent;
 
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+
 option go_package = "pkg/proto/pbgo/core"; // golang
 
 message StatusSection {
@@ -82,5 +86,32 @@ message GetTelemetryResponse {
     //
     // https://prometheus.io/docs/instrumenting/exposition_formats/#text-based-format
     string prom_text = 1;
+  }
+}
+message ConfigSnapshot {
+message SettingSnapshot {
+    string key = 1;
+    google.protobuf.Value value = 2;
+  }
+
+  repeated SettingSnapshot settings = 1;
+
+}
+
+message SingleUpdate {
+  string key = 1;
+  // Timestamp indicating when the update was processed.
+  // Remote agents may choose how to handle updates with an earlier timestamp
+  // than one they have already seen.
+  google.protobuf.Timestamp updated_at = 2;
+  google.protobuf.Value previous_value = 3;
+  google.protobuf.Value new_value = 4;
+
+}
+
+message ConfigEvent {
+  oneof event {
+    ConfigSnapshot snapshot = 1;
+    SingleUpdate update = 2;
   }
 }
