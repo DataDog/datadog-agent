@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package common
+package packets
 
 import (
 	"net"
@@ -21,18 +21,12 @@ func clearLayer(layer *layers.BaseLayer) {
 
 // SerializeLayers doesn't populate these fields, so we exclude them from equality comparison
 func clearBuffers(parser *FrameParser) {
-	clearLayer(&parser.Ethernet.BaseLayer)
 	clearLayer(&parser.IP4.BaseLayer)
 	clearLayer(&parser.TCP.BaseLayer)
 	clearLayer(&parser.ICMP4.BaseLayer)
 }
 
 func TestFrameParserTCP(t *testing.T) {
-	eth := &layers.Ethernet{
-		SrcMAC:       net.HardwareAddr{0x01, 0x02, 0x03, 0x04, 0x05, 0x06},
-		DstMAC:       net.HardwareAddr{0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c},
-		EthernetType: layers.EthernetTypeIPv4,
-	}
 	ip4 := &layers.IPv4{
 		Version:  4,
 		TTL:      123,
@@ -60,7 +54,7 @@ func TestFrameParserTCP(t *testing.T) {
 		FixLengths:       true,
 		ComputeChecksums: true,
 	}
-	err = gopacket.SerializeLayers(buf, opts, eth, ip4, tcp, payload)
+	err = gopacket.SerializeLayers(buf, opts, ip4, tcp, payload)
 	require.NoError(t, err)
 
 	parser := NewFrameParser()
@@ -70,7 +64,6 @@ func TestFrameParserTCP(t *testing.T) {
 
 	clearBuffers(parser)
 
-	require.EqualExportedValues(t, eth, &parser.Ethernet)
 	require.EqualExportedValues(t, ip4, &parser.IP4)
 	require.EqualExportedValues(t, tcp, &parser.TCP)
 	require.Equal(t, payload, parser.Payload)
@@ -91,11 +84,6 @@ func TestFrameParserICMP4(t *testing.T) {
 	require.NoError(t, err)
 	tcpBytes := buf.Bytes()[:8]
 
-	eth := &layers.Ethernet{
-		SrcMAC:       net.HardwareAddr{0x01, 0x02, 0x03, 0x04, 0x05, 0x06},
-		DstMAC:       net.HardwareAddr{0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c},
-		EthernetType: layers.EthernetTypeIPv4,
-	}
 	ip4 := &layers.IPv4{
 		Version:  4,
 		TTL:      123,
@@ -114,7 +102,7 @@ func TestFrameParserICMP4(t *testing.T) {
 		FixLengths:       true,
 		ComputeChecksums: true,
 	}
-	err = gopacket.SerializeLayers(buf, opts, eth, ip4, icmp4, payload)
+	err = gopacket.SerializeLayers(buf, opts, ip4, icmp4, payload)
 	require.NoError(t, err)
 
 	parser := NewFrameParser()
@@ -124,7 +112,6 @@ func TestFrameParserICMP4(t *testing.T) {
 
 	clearBuffers(parser)
 
-	require.EqualExportedValues(t, eth, &parser.Ethernet)
 	require.EqualExportedValues(t, ip4, &parser.IP4)
 	require.EqualExportedValues(t, icmp4, &parser.ICMP4)
 
@@ -140,21 +127,26 @@ func TestFrameParserICMP4(t *testing.T) {
 }
 
 func TestFrameParserUnrecognizedPacket(t *testing.T) {
-	eth := &layers.Ethernet{
-		SrcMAC:       net.HardwareAddr{0x01, 0x02, 0x03, 0x04, 0x05, 0x06},
-		DstMAC:       net.HardwareAddr{0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c},
-		EthernetType: layers.EthernetTypeARP,
+	ip4 := &layers.IPv4{
+		Version:  4,
+		TTL:      123,
+		SrcIP:    net.ParseIP("127.0.0.1"),
+		DstIP:    net.ParseIP("127.0.0.2"),
+		Id:       41821,
+		Protocol: layers.IPProtocolSCTP,
 	}
-	arp := &layers.ARP{
-		Protocol: layers.EthernetTypeARP,
+	sctp := &layers.SCTP{
+		SrcPort: 42,
+		DstPort: 123,
 	}
+	payload := gopacket.Payload([]byte{42})
 
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{
 		FixLengths:       true,
 		ComputeChecksums: true,
 	}
-	err := gopacket.SerializeLayers(buf, opts, eth, arp)
+	err := gopacket.SerializeLayers(buf, opts, ip4, sctp, payload)
 	require.NoError(t, err)
 
 	parser := NewFrameParser()
@@ -165,11 +157,6 @@ func TestFrameParserUnrecognizedPacket(t *testing.T) {
 
 func TestFrameParserTLSPacket(t *testing.T) {
 	// tests a TLS packet which has one extra layer we don't care about
-	eth := &layers.Ethernet{
-		SrcMAC:       net.HardwareAddr{0x01, 0x02, 0x03, 0x04, 0x05, 0x06},
-		DstMAC:       net.HardwareAddr{0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c},
-		EthernetType: layers.EthernetTypeIPv4,
-	}
 	ip4 := &layers.IPv4{
 		Version:  4,
 		TTL:      123,
@@ -198,7 +185,7 @@ func TestFrameParserTLSPacket(t *testing.T) {
 		FixLengths:       true,
 		ComputeChecksums: true,
 	}
-	err = gopacket.SerializeLayers(buf, opts, eth, ip4, tcp, tls)
+	err = gopacket.SerializeLayers(buf, opts, ip4, tcp, tls)
 	require.NoError(t, err)
 
 	parser := NewFrameParser()
@@ -208,7 +195,6 @@ func TestFrameParserTLSPacket(t *testing.T) {
 
 	clearBuffers(parser)
 
-	require.EqualExportedValues(t, eth, &parser.Ethernet)
 	require.EqualExportedValues(t, ip4, &parser.IP4)
 	require.EqualExportedValues(t, tcp, &parser.TCP)
 }

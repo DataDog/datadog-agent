@@ -80,7 +80,7 @@ func runSackTraceroute(ctx context.Context, p Params) (*sackResult, error) {
 	defer cancel()
 
 	// create the raw packet connection which watches for TCP/ICMP responses
-	driver, err := newSackDriver(ctx, p, local.AddrPort().Addr())
+	driver, err := newSackDriver(p, local.AddrPort().Addr())
 	if err != nil {
 		return nil, fmt.Errorf("failed to init sack driver: %w", err)
 	}
