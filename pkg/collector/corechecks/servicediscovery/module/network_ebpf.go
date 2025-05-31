@@ -12,7 +12,8 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpfmaps "github.com/DataDog/datadog-agent/pkg/ebpf/maps"
@@ -29,8 +30,8 @@ const (
 )
 
 type eBPFNetworkCollector struct {
-	m        *ddebpf.Manager
-	statsMap *ebpfmaps.GenericMap[NetworkStatsKey, NetworkStats]
+	m        *ebpf.Manager
+	statsMap *ebpfmaps.GenericMap[core.NetworkStatsKey, core.NetworkStats]
 }
 
 func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options manager.Options) error {
@@ -49,7 +50,7 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 			&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kretprobe__tcp_sendpage", UID: moduleName}, KProbeMaxActive: maxActive})
 	}
 
-	c.m = ddebpf.NewManagerWithDefault(&manager.Manager{
+	c.m = ebpf.NewManagerWithDefault(&manager.Manager{
 		Probes: probes,
 		Maps: []*manager.Map{
 			{Name: statsMapName},
@@ -64,13 +65,13 @@ func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options ma
 		return fmt.Errorf("failed to start manager: %w", err)
 	}
 
-	statsMap, err := ebpfmaps.GetMap[NetworkStatsKey, NetworkStats](c.m.Manager, statsMapName)
+	statsMap, err := ebpfmaps.GetMap[core.NetworkStatsKey, core.NetworkStats](c.m.Manager, statsMapName)
 	if err != nil {
 		return fmt.Errorf("failed to get map '%s': %w", statsMapName, err)
 	}
 
-	ddebpf.AddNameMappings(c.m.Manager, moduleName)
-	ddebpf.AddProbeFDMappings(c.m.Manager)
+	ebpf.AddNameMappings(c.m.Manager, moduleName)
+	ebpf.AddProbeFDMappings(c.m.Manager)
 
 	c.statsMap = statsMap
 
@@ -88,11 +89,11 @@ func getAssetName(module string, debug bool) string {
 //go:generate $GOPATH/bin/include_headers pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-net.c pkg/ebpf/bytecode/build/runtime/discovery-net.c pkg/ebpf/c pkg/collector/corechecks/servicediscovery/c/ebpf/runtime pkg/network/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/discovery-net.c pkg/ebpf/bytecode/runtime/discovery-net.go runtime
 
-func runtimeCompile(cfg *discoveryConfig) (runtime.CompiledOutput, error) {
-	return runtime.DiscoveryNet.Compile(&cfg.Config, getCFlags(cfg))
+func runtimeCompile(cfg *ebpf.Config) (runtime.CompiledOutput, error) {
+	return runtime.DiscoveryNet.Compile(cfg, getCFlags(cfg))
 }
 
-func getCFlags(cfg *discoveryConfig) []string {
+func getCFlags(cfg *ebpf.Config) []string {
 	cflags := []string{"-g"}
 
 	if cfg.BPFDebug {
@@ -101,7 +102,7 @@ func getCFlags(cfg *discoveryConfig) []string {
 	return cflags
 }
 
-func (c *eBPFNetworkCollector) initRuntimeCompiled(cfg *discoveryConfig) error {
+func (c *eBPFNetworkCollector) initRuntimeCompiled(cfg *ebpf.Config) error {
 	buf, err := runtimeCompile(cfg)
 	if err != nil {
 		return err
@@ -112,14 +113,14 @@ func (c *eBPFNetworkCollector) initRuntimeCompiled(cfg *discoveryConfig) error {
 	return c.setupManager(buf, manager.Options{})
 }
 
-func (c *eBPFNetworkCollector) initCORE(cfg *discoveryConfig) error {
+func (c *eBPFNetworkCollector) initCORE(cfg *ebpf.Config) error {
 	asset := getAssetName("discovery-net", cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
+	return ebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return c.setupManager(ar, o)
 	})
 }
 
-func newNetworkCollector(cfg *discoveryConfig) (networkCollector, error) {
+func newNetworkCollectorWithConfig(cfg *ebpf.Config) (core.NetworkCollector, error) {
 	collector := eBPFNetworkCollector{}
 
 	if cfg.EnableCORE {
@@ -147,27 +148,31 @@ func newNetworkCollector(cfg *discoveryConfig) (networkCollector, error) {
 	return &collector, nil
 }
 
-func (c *eBPFNetworkCollector) close() {
+func newNetworkCollector(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
+	return newNetworkCollectorWithConfig(ebpf.NewConfig())
+}
+
+func (c *eBPFNetworkCollector) Close() {
 	if err := c.m.Stop(manager.CleanAll); err != nil {
 		log.Errorf("error stopping network collector: %v", err)
 	}
 }
 
-func (c *eBPFNetworkCollector) addPid(pid uint32) error {
-	key := NetworkStatsKey{Pid: pid}
-	var val NetworkStats
+func (c *eBPFNetworkCollector) AddPid(pid uint32) error {
+	key := core.NetworkStatsKey{Pid: pid}
+	var val core.NetworkStats
 
 	return c.statsMap.Put(&key, &val)
 }
 
-func (c *eBPFNetworkCollector) removePid(pid uint32) error {
-	key := NetworkStatsKey{Pid: pid}
+func (c *eBPFNetworkCollector) RemovePid(pid uint32) error {
+	key := core.NetworkStatsKey{Pid: pid}
 	return c.statsMap.Delete(&key)
 }
 
-func (c *eBPFNetworkCollector) getStats(pid uint32) (NetworkStats, error) {
-	key := NetworkStatsKey{Pid: pid}
-	var val NetworkStats
+func (c *eBPFNetworkCollector) GetStats(pid uint32) (core.NetworkStats, error) {
+	key := core.NetworkStatsKey{Pid: pid}
+	var val core.NetworkStats
 	err := c.statsMap.Lookup(&key, &val)
 	return val, err
 }

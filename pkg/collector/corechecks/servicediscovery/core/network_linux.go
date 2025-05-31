@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package module
+package core
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=network_mock_linux.go
 
-type networkCollector interface {
-	close()
-	addPid(pid uint32) error
-	removePid(pid uint32) error
-	getStats(pid uint32) (NetworkStats, error)
+// NetworkCollector defines the interface for collecting network statistics.
+type NetworkCollector interface {
+	Close()
+	AddPid(pid uint32) error
+	RemovePid(pid uint32) error
+	GetStats(pid uint32) (NetworkStats, error)
 }
