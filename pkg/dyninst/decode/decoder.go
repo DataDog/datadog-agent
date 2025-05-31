@@ -45,7 +45,7 @@ func NewDecoder(program *ir.Program) *Decoder {
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
 			decoder.typesToProbesAndEvents[event.Type.ID] = probeEvent{
-				event: &event,
+				event: event,
 				probe: probe,
 			}
 		}
@@ -71,7 +71,7 @@ func (d *Decoder) Decode(buf []byte) error {
 		return fmt.Errorf("could not get first root data item from buffer: %s", err)
 	}
 
-	eventRoot, ok := d.program.Types[firstDataItem.header.Type].(*ir.EventRootType)
+	eventRoot, ok := d.program.Types[ir.TypeID(firstDataItem.header.Type)].(*ir.EventRootType)
 	if !ok {
 		return errors.New("expected event of type root first")
 	}
@@ -101,7 +101,7 @@ func (d *Decoder) parseDataToGoValue(addressPassMap map[uint64]*dataItem, irType
 		return d.parseDataToGoBaseTypeValue(v, data)
 	case *ir.PointerType:
 		// For pointers, we just return the raw address as a uint64
-		if len(data) < v.GetByteSize() {
+		if len(data) < int(v.GetByteSize()) {
 			return nil, errors.New("passed data not long enough for pointer")
 		}
 		addr := binary.NativeEndian.Uint64(data)
@@ -110,13 +110,12 @@ func (d *Decoder) parseDataToGoValue(addressPassMap map[uint64]*dataItem, irType
 			return nil, errors.New("pointer not found in address pass map")
 		}
 
-		return d.parseDataToGoValue(addressPassMap, d.program.Types[pointedValue.header.Type], pointedValue.data)
+		return d.parseDataToGoValue(addressPassMap, d.program.Types[ir.TypeID(pointedValue.header.Type)], pointedValue.data)
 	case *ir.StructureType:
 		structFields := map[string]any{}
 		structure := irType.(*ir.StructureType)
 		for _, field := range structure.Fields {
-			fieldType := d.program.Types[field.Type]
-			v, err := d.parseDataToGoValue(addressPassMap, fieldType, data[field.Offset:field.Offset+uint32(fieldType.GetByteSize())])
+			v, err := d.parseDataToGoValue(addressPassMap, field.Type, data[field.Offset:field.Offset+uint32(field.Type.GetByteSize())])
 			if err != nil {
 				return nil, err
 			}
@@ -133,8 +132,7 @@ func (d *Decoder) parseDataToGoValue(addressPassMap map[uint64]*dataItem, irType
 		sliceHeaderFields := map[string]any{}
 		sliceHeader := irType.(*ir.StructureType)
 		for _, field := range sliceHeader.Fields {
-			fieldType := d.program.Types[field.Type]
-			v, err := d.parseDataToGoValue(addressPassMap, fieldType, data[field.Offset:field.Offset+uint32(fieldType.GetByteSize())])
+			v, err := d.parseDataToGoValue(addressPassMap, field.Type, data[field.Offset:field.Offset+uint32(field.Type.GetByteSize())])
 			if err != nil {
 				return nil, err
 			}
@@ -154,8 +152,7 @@ func (d *Decoder) parseDataToGoValue(addressPassMap map[uint64]*dataItem, irType
 		stringHeaderFields := map[string]any{}
 		stringHeader := irType.(*ir.StructureType)
 		for _, field := range stringHeader.Fields {
-			fieldType := d.program.Types[field.Type]
-			v, err := d.parseDataToGoValue(addressPassMap, fieldType, data[field.Offset:field.Offset+uint32(fieldType.GetByteSize())])
+			v, err := d.parseDataToGoValue(addressPassMap, field.Type, data[field.Offset:field.Offset+uint32(field.Type.GetByteSize())])
 			if err != nil {
 				return nil, err
 			}

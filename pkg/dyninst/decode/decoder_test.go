@@ -21,16 +21,15 @@ import (
 func TestDecode(t *testing.T) {
 	irData := ir.Program{
 		ID: 1,
-		Types: []ir.Type{
-			&ir.PointerType{
+		Types: map[ir.TypeID]ir.Type{
+			0: &ir.PointerType{
 				TypeCommon: ir.TypeCommon{
-					ID:   0,
-					Name: "*main.Param",
-					Size: 8,
+					ID:       0,
+					Name:     "*main.Param",
+					ByteSize: 8,
 				},
 				GoTypeAttributes: ir.GoTypeAttributes{
-					HasGoKind: true,
-					GoKind:    reflect.Pointer,
+					GoKind: reflect.Pointer,
 				},
 				Pointee: &ir.StructureType{
 					TypeCommon: ir.TypeCommon{
@@ -38,55 +37,53 @@ func TestDecode(t *testing.T) {
 					},
 				},
 			},
-			&ir.StructureType{
+			1: &ir.StructureType{
 				TypeCommon: ir.TypeCommon{
-					ID:   1,
-					Name: "main.Param",
-					Size: 8,
+					ID:       1,
+					Name:     "main.Param",
+					ByteSize: 8,
 				},
 				GoTypeAttributes: ir.GoTypeAttributes{
-					HasGoKind: true,
-					GoKind:    reflect.Struct,
+					GoKind: reflect.Struct,
 				},
 				Fields: []ir.Field{
 					{
 						Name:   "idx",
 						Offset: 0,
-						Type:   2,
+						Type:   ir.TypeID(2),
 					},
 					{
 						Name:   "random",
 						Offset: 4,
-						Type:   2,
+						Type:   ir.TypeID(2),
 					},
 				},
 			},
-			&ir.BaseType{
+			2: &ir.BaseType{
 				TypeCommon: ir.TypeCommon{
-					ID:   2,
-					Name: "uint32",
-					Size: 4,
+					ID:       2,
+					Name:     "uint32",
+					ByteSize: 4,
 				},
 				GoTypeAttributes: ir.GoTypeAttributes{
-					HasGoKind: true,
-					GoKind:    reflect.Uint32,
+					GoKind: reflect.Uint32,
 				},
 			},
-			&ir.EventRootType{
+			3: &ir.EventRootType{
 				TypeCommon: ir.TypeCommon{
-					ID:   3,
-					Name: "param",
-					Size: 8,
+					ID:       3,
+					Name:     "param",
+					ByteSize: 8,
 				},
-				Expressions: []ir.RootExpression{
+				Expressions: []*ir.RootExpression{
 					{
 						Offset: 0,
 						Expression: ir.Expression{
 							Type: &ir.PointerType{
 								TypeCommon: ir.TypeCommon{
-									Name: "*main.Param",
-									ID:   0,
-									Size: 8,
+									Name:     "*main.Param",
+									ID:       0,
+									ByteSize: 8,
 								},
 							},
 						},
