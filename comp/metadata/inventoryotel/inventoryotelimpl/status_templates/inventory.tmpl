@@ -1,5 +1,0 @@
-{{ if .enabled -}}
-{{- range $key, $value := .otel_metadata }}
-  {{ $key }}: {{ $value }}
-{{- end }}
-{{- end }}
