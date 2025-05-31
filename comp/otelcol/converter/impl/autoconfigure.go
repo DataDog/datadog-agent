@@ -36,8 +36,8 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	// infra attributes processor
 	addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
 
-	// prometheus receiver
-	addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+	// configure internal metrics pipeline
+	configureInternalMetrics(conf)
 
 	// add datadog agent sourced config
 	addCoreAgentConfig(conf, c.coreConfig)
