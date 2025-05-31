@@ -250,6 +250,10 @@ func TestRedisObfuscator(t *testing.T) {
 			"HSET key field ?",
 		},
 		{
+			"HSET key field1 value field2 value",
+			"HSET key field1 ? field2 ?",
+		},
+		{
 			"HSETNX key field value",
 			"HSETNX key field ?",
 		},
