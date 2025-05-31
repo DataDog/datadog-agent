@@ -103,7 +103,7 @@ func (h *Host) InstallDocker() {
 	case e2eos.AmazonLinux:
 		h.remote.MustExecute(`sudo sh -c "yum -y install docker"`)
 	default:
-		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
+		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh -- --version 28.0.4")
 	}
 }
 
