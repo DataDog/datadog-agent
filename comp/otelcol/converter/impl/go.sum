@@ -243,8 +243,8 @@ github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:
 github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo0=
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
-go.opentelemetry.io/collector/confmap v1.32.0 h1:Xv/ZcncpQdACwvQvd8CFJgdO/jpBWcOoh9mSnEl0hpc=
-go.opentelemetry.io/collector/confmap v1.32.0/go.mod h1:fJC2ZOmFz2nClyhyGRYB92Fl8SMppsnt/7y3AHPlDRY=
+go.opentelemetry.io/collector/confmap v1.32.1-0.20250523042642-a867641d12bd h1:UBbsPALtNTzDCPf5ODcBOoQAYIzH+bpyK53UG2hotwI=
+go.opentelemetry.io/collector/confmap v1.32.1-0.20250523042642-a867641d12bd/go.mod h1:fJC2ZOmFz2nClyhyGRYB92Fl8SMppsnt/7y3AHPlDRY=
 go.opentelemetry.io/collector/confmap/provider/envprovider v1.32.0 h1:Fjy77UKpcRQL8nxZQR50lq8q7AQWgYyYvXEh8zecX0U=
 go.opentelemetry.io/collector/confmap/provider/envprovider v1.32.0/go.mod h1:wKiwW7mZO+mQ6LSUKuNKQ1UA6aLWk0r7cJn+OwcVmOE=
 go.opentelemetry.io/collector/confmap/provider/fileprovider v1.32.0 h1:33M/JutbzMhCchWqvYqIPoyWvNbY5Ys3nRVjMGrQLyQ=
@@ -255,8 +255,8 @@ go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.32.0 h1:B8aMecZ4
 go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.32.0/go.mod h1:Y1rsCHxOTNEk5uUU8X4IoMq5ytdwj4fMACob+Bd2WqM=
 go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.32.0 h1:56taZ7Jdz7EkVKsofRuYox23hR52ZLSQgpnQLveZ9uw=
 go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.32.0/go.mod h1:i/DQbT0e+2VtzSRY3G21bgNXPMr7vL9je45gIRcx9yw=
-go.opentelemetry.io/collector/featuregate v1.32.0 h1:ArSnZF3hxXC09aO7v2Ff9XSCA8oI/hkWSv+lYnpSCac=
-go.opentelemetry.io/collector/featuregate v1.32.0/go.mod h1:Y/KsHbvREENKvvN9RlpiWk/IGBK+CATBYzIIpU7nccc=
+go.opentelemetry.io/collector/featuregate v1.32.1-0.20250523042642-a867641d12bd h1:n/J5U63Ynm4UWjieTNvxCZ2fxs/Hv9kWoYhF9iV3xnM=
+go.opentelemetry.io/collector/featuregate v1.32.1-0.20250523042642-a867641d12bd/go.mod h1:Y/KsHbvREENKvvN9RlpiWk/IGBK+CATBYzIIpU7nccc=
 go.uber.org/atomic v1.4.0/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/atomic v1.5.0/go.mod h1:sABNBOSYdrvTF6hTgEIbc7YasKWGhgEQZyfxyTvoXHQ=
 go.uber.org/atomic v1.11.0 h1:ZvwS0R+56ePWxUNi+Atn9dWONBPp/AUETXlHW0DxSjE=
