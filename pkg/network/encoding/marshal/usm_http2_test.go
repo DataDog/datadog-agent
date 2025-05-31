@@ -9,6 +9,7 @@ package marshal
 
 import (
 	"testing"
+	"unique"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/proto"
@@ -56,7 +57,7 @@ func (s *HTTP2Suite) TestFormatHTTP2Stats() {
 
 	httpKey2 := httpKey1
 	httpKey2.Path = http.Path{
-		Content:  http.Interner.GetString("/testpath-2"),
+		Content:  unique.Make("/testpath-2"),
 		FullPath: true,
 	}
 	http2Stats2 := http.NewRequestStats()

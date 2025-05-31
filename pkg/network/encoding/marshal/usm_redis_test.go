@@ -85,7 +85,7 @@ func (s *RedisSuite) TestFormatRedisStats() {
 				DbStats: &model.DatabaseStats_Redis{
 					Redis: &model.RedisStats{
 						Command:   model.RedisCommand_RedisGetCommand,
-						KeyName:   dummyKey.KeyName.Get(),
+						KeyName:   dummyKey.KeyName.Value(),
 						Truncated: dummyKey.Truncated,
 						ErrorToStats: map[int32]*model.RedisStatsEntry{
 							0: {

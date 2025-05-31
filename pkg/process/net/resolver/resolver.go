@@ -11,10 +11,10 @@ import (
 	"net/netip"
 	"sync"
 	"time"
+	"unique"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/benbjohnson/clock"
-	"go4.org/intern"
 
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -35,7 +35,7 @@ var resolverTelemetry = struct {
 }
 
 type containerIDEntry struct {
-	cid   *intern.Value
+	cid   unique.Handle[string]
 	inUse bool
 }
 
@@ -125,7 +125,7 @@ containersLoop:
 				continue
 			}
 			l.addrToCtrID[*networkAddr] = &containerIDEntry{
-				cid:   intern.GetByString(ctr.Id),
+				cid:   unique.Make(ctr.Id),
 				inUse: true,
 			}
 		}
@@ -141,7 +141,7 @@ containersLoop:
 		}
 
 		l.ctrForPid[pid] = &containerIDEntry{
-			cid:   intern.GetByString(cid),
+			cid:   unique.Make(cid),
 			inUse: true,
 		}
 	}
@@ -209,7 +209,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		cid := conn.Laddr.ContainerId
 		if cid == "" {
 			if v, ok := l.ctrForPid[int(conn.Pid)]; ok {
-				cid = v.cid.Get().(string)
+				cid = v.cid.Value()
 			}
 		}
 
@@ -291,7 +291,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			Port:     int32(raddr.Port()),
 			Protocol: conn.Type,
 		}]; ok {
-			conn.Raddr.ContainerId = v.cid.Get().(string)
+			conn.Raddr.ContainerId = v.cid.Value()
 		} else {
 			log.Tracef("could not resolve raddr %v", conn.Raddr)
 		}

@@ -8,6 +8,8 @@
 package redis
 
 import (
+	"unique"
+
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -17,7 +19,7 @@ func NewKey(saddr, daddr util.Address, sport, dport uint16, command CommandType,
 	return Key{
 		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
 		Command:       command,
-		KeyName:       Interner.GetString(keyName),
+		KeyName:       unique.Make(keyName),
 		Truncated:     truncated,
 	}
 }
