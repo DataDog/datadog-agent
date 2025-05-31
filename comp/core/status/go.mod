@@ -5,7 +5,6 @@ go 1.23.0
 require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/dustin/go-humanize v1.0.1
 	github.com/fatih/color v1.18.0
 	github.com/spf13/cast v1.8.0
@@ -19,11 +18,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.62.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -41,7 +37,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
