@@ -26,6 +26,7 @@ type flavor struct {
 
 var flavors = map[string]flavor{
 	"default":    {path: "defaultscript/default_script.go", run: defaultscript.SetupDefaultScript},
+	"APM SSI":    {path: "defaultscript/ssi_standalone.go", run: defaultscript.SetupAPMSSIScript},
 	"databricks": {path: "djm/databricks.go", run: djm.SetupDatabricks},
 	"emr":        {path: "djm/emr.go", run: djm.SetupEmr},
 	"dataproc":   {path: "djm/dataproc.go", run: djm.SetupDataproc},
