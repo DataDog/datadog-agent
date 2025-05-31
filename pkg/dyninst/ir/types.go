@@ -114,7 +114,7 @@ type PointerType struct {
 	GoTypeAttributes
 
 	// Pointee is the type that the pointer points to.
-	Pointee Type
+	Pointee TypeID
 }
 
 func (t *PointerType) irType() {}
@@ -139,7 +139,7 @@ type Field struct {
 	// Offset in the parent structure.
 	Offset uint32
 	// Type is the type of the field.
-	Type Type
+	Type TypeID
 }
 
 // ArrayType is an array type in the target program.
@@ -152,7 +152,7 @@ type ArrayType struct {
 	// HasCount is true if the array has a count.
 	HasCount bool
 	// Element is the type of the element in the array.
-	Element Type
+	Element TypeID
 }
 
 func (t *ArrayType) irType() {}
@@ -199,7 +199,7 @@ type GoSliceDataType struct {
 	syntheticType
 
 	// Type of the elements in the slice.
-	Element Type
+	Element TypeID
 }
 
 func (GoSliceDataType) irType() {}
@@ -234,7 +234,7 @@ type GoMapType struct {
 	TypeCommon
 	GoTypeAttributes
 
-	HeaderType Type
+	HeaderType TypeID
 }
 
 func (GoMapType) irType() {}
@@ -254,9 +254,9 @@ func (GoHMapHeaderType) irType() {}
 type GoHMapBucketType struct {
 	*StructureType
 	// KeyType is the type of the key in the hash map.
-	KeyType Type
+	KeyType TypeID
 	// ValueType is the type of the value in the hash map.
-	ValueType Type
+	ValueType TypeID
 }
 
 func (GoHMapBucketType) irType() {}
