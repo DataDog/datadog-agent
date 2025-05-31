@@ -34,10 +34,7 @@ __attribute__((always_inline)) struct dns_event_t *reset_dns_event(struct __sk_b
     fill_network_context(&evt->network, skb, pkt);
 
     struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
-    if (entry == NULL) {
-        evt->container.container_id[0] = 0;
-    } else {
-        copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
+    if (entry != NULL) {
         evt->container.cgroup_context = entry->container.cgroup_context;
     }
 

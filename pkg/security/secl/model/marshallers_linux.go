@@ -73,14 +73,12 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 // MarshalProcCache marshals a binary representation of itself
 func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal proc_cache_t
-	if len(data) < ContainerIDLen {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughSpace
 	}
 
-	copy(data[0:ContainerIDLen], []byte(e.ContainerID))
-	binary.NativeEndian.PutUint64(data[ContainerIDLen:ContainerIDLen+8], uint64(e.CGroup.CGroupFlags))
-
-	written := ContainerIDLen + 8
+	binary.NativeEndian.PutUint64(data[0:8], uint64(e.CGroup.CGroupFlags))
+	written := 8
 
 	// process without cgroup should be mainly pid 1
 	// TODO: fix empty cgroup path key for not-pid-1 processes
