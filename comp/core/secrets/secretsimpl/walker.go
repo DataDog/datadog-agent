@@ -6,6 +6,7 @@
 package secretsimpl
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
@@ -53,6 +54,19 @@ func (w *walker) slice(currentSlice []interface{}, yamlPath []string) error {
 	return nil
 }
 
+func mapStringsToInterfaceArray(stringMap map[string][]string) map[interface{}]interface{} {
+	result := make(map[interface{}]interface{})
+	for k, v := range stringMap {
+		arr := make([]interface{}, len(v))
+		for idx := range v {
+			arr[idx] = v[idx]
+		}
+
+		result[k] = arr
+	}
+	return result
+}
+
 // hash handles map types, the walker will recursively explore each element of the map continuing its search for
 // strings to replace.
 func (w *walker) hash(currentMap map[interface{}]interface{}, yamlPath []string) error {
@@ -64,7 +78,19 @@ func (w *walker) hash(currentMap map[interface{}]interface{}, yamlPath []string)
 
 		switch v := currentMap[configKey].(type) {
 		case string:
-			if newValue, err := w.string(v, path); err == nil {
+			if configKey == "orchestrator_additional_endpoints" ||
+				configKey == "additional_endpoints" {
+
+				var endpoints map[string][]string
+				if err := json.Unmarshal([]byte(v), &endpoints); err != nil {
+					return err
+				}
+				expanded := mapStringsToInterfaceArray(endpoints)
+				currentMap[configKey] = expanded
+				if err := w.hash(expanded, path); err != nil {
+					return err
+				}
+			} else if newValue, err := w.string(v, path); err == nil {
 				currentMap[configKey] = newValue
 			} else {
 				return err

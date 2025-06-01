@@ -2352,6 +2352,33 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	return nil
 }
 
+func mapStringsToInterfaceArray(stringMap map[string][]string) map[interface{}]interface{} {
+	result := make(map[interface{}]interface{})
+	for k, v := range stringMap {
+		arr := make([]interface{}, len(v))
+		for idx := range v {
+			arr[idx] = v[idx]
+		}
+
+		result[k] = arr
+	}
+	return result
+}
+
+func interfaceArrayToMapStrings(stringMap map[interface{}]interface{}) map[string][]string {
+	result := make(map[string][]string)
+	for k, v := range stringMap {
+		varr := v.([]interface{})
+		arr := make([]string, len(varr))
+		for idx := range varr {
+			arr[idx] = varr[idx].(string)
+		}
+
+		result[k.(string)] = arr
+	}
+	return result
+}
+
 // confgAssignAtPath assigns a value to the given setting of the config
 // This works around viper issues that prevent us from assigning to fields that have a dot in the
 // name (example: 'additional_endpoints.http://url.com') and also allows us to assign to individual
@@ -2417,7 +2444,24 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 
 	// retrieve the config value at the known field
 	startingValue := config.Get(settingName)
-	iterateValue := startingValue
+	var iterateValue interface{}
+
+	serialized := false
+	var root interface{}
+
+	switch v := startingValue.(type) {
+	case string:
+		var decoded map[string][]string
+		if err := json.Unmarshal([]byte(v), &decoded); err != nil {
+			return err
+		}
+		root = mapStringsToInterfaceArray(decoded)
+		iterateValue = root
+		serialized = true
+	default:
+		iterateValue = startingValue
+	}
+
 	// iterate down until we find the final object that we are able to modify
 	for k, elem := range trailingElements {
 		switch modifyValue := iterateValue.(type) {
@@ -2464,6 +2508,11 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 		default:
 			return fmt.Errorf("cannot assign to setting '%s' of type %T", settingPath, iterateValue)
 		}
+	}
+
+	if serialized {
+		value, _ := json.Marshal(interfaceArrayToMapStrings(root.(map[interface{}]interface{})))
+		startingValue = string(value)
 	}
 
 	config.Set(settingName, startingValue, pkgconfigmodel.SourceAgentRuntime)
