@@ -78,6 +78,49 @@ func TestContainerRegex(t *testing.T) {
 	assert.True(t, ad.MatchContainer("bar"))
 }
 
+func TestAnnotationsRegex(t *testing.T) {
+	ad := &ADConfig{
+		KubeAnnotations: &InclExcl{
+			InclRe: map[string]string{
+				"component-name": "comp.*",
+			},
+			ExclRe: map[string]string{
+				"component-name": "(comp1|comp2|comp3)",
+			},
+		},
+	}
+	ad.defaultAD()
+	ad.AnnotationsRe.init(ad.KubeAnnotations)
+	assert.NotNil(t, ad.AnnotationsRe)
+	assert.NotNil(t, ad.AnnotationsRe.Incl)
+	assert.NotNil(t, ad.AnnotationsRe.Excl)
+	assert.True(t, ad.AnnotationsRe.IsIncluded("component-name", "comp5"))
+	assert.True(t, ad.AnnotationsRe.IsIncluded("component-name", "comp6"))
+	assert.True(t, ad.AnnotationsRe.IsExcluded("component-name", "comp1"))
+	assert.True(t, ad.AnnotationsRe.IsExcluded("component-name", "comp2"))
+	assert.True(t, ad.AnnotationsRe.IsExcluded("component-name", "comp3"))
+}
+
+// Verify that PrometheusCheck correctly handles annotation inclusion and exclusion via regexp
+func TestPrometheusAnnotationRegexp(t *testing.T) {
+	ad := &ADConfig{
+		KubeAnnotations: &InclExcl{
+			InclRe: map[string]string{
+				"component-name": "comp.*",
+			},
+			ExclRe: map[string]string{
+				"component-name": "(comp1|comp2|comp3)",
+			},
+		},
+	}
+	check := &PrometheusCheck{AD: ad}
+	check.Init(2)
+	assert.True(t, check.IsIncluded(PrometheusAnnotations{"component-name": "comp0"}))
+	assert.False(t, check.IsExcluded(PrometheusAnnotations{"component-name": "comp0"}, "test"))
+	assert.False(t, check.IsIncluded(PrometheusAnnotations{"component-name": "comp1"}))
+	assert.True(t, check.IsExcluded(PrometheusAnnotations{"component-name": "comp1"}, "test"))
+}
+
 func TestPrometheusIsMatchingAnnotations(t *testing.T) {
 	tests := []struct {
 		name           string
