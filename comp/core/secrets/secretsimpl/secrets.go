@@ -422,18 +422,21 @@ var (
 		"additional_endpoints",
 		"orchestrator_additional_endpoints",
 	}
-	allowlistMutex sync.RWMutex
+	// tests override this to test refresh logic
+	allowlistEnabled = true
+	allowlistMutex   sync.RWMutex
 )
 
 func isAllowlistEnabled() bool {
 	allowlistMutex.RLock()
 	defer allowlistMutex.RUnlock()
-	return true
+	return allowlistEnabled
 }
 
-func setAllowlistEnabled(_ bool) {
+func setAllowlistEnabled(value bool) {
 	allowlistMutex.Lock()
 	defer allowlistMutex.Unlock()
+	allowlistEnabled = value
 }
 
 func secretMatchesAllowlist(secretCtx secretContext) bool {
