@@ -56,10 +56,6 @@ const (
 const BatchSize = C.CONN_CLOSED_BATCH_SIZE
 const SizeofBatch = C.sizeof_batch_t
 
-const TCPFailureConnReset = C.TCP_CONN_FAILED_RESET
-const TCPFailureConnTimeout = C.TCP_CONN_FAILED_TIMEOUT
-const TCPFailureConnRefused = C.TCP_CONN_FAILED_REFUSED
-
 const SizeofConn = C.sizeof_conn_t
 
 type ClassificationProgram = uint32
