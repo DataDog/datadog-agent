@@ -17,7 +17,7 @@ package attributes
 import (
 	"fmt"
 
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 )
 
 type processAttributes struct {
@@ -41,13 +41,13 @@ func (pattrs *processAttributes) extractTags() []string {
 	// TODO: check if this order should be changed.
 	switch {
 	case pattrs.ExecutableName != "": // otelcol
-		tags = append(tags, fmt.Sprintf("%s:%s", conventions.AttributeProcessExecutableName, pattrs.ExecutableName))
+		tags = append(tags, fmt.Sprintf("%s:%s", string(conventions.ProcessExecutableNameKey), pattrs.ExecutableName))
 	case pattrs.ExecutablePath != "": // /usr/bin/cmd/otelcol
-		tags = append(tags, fmt.Sprintf("%s:%s", conventions.AttributeProcessExecutablePath, pattrs.ExecutablePath))
+		tags = append(tags, fmt.Sprintf("%s:%s", string(conventions.ProcessExecutablePathKey), pattrs.ExecutablePath))
 	case pattrs.Command != "": // cmd/otelcol
-		tags = append(tags, fmt.Sprintf("%s:%s", conventions.AttributeProcessCommand, pattrs.Command))
+		tags = append(tags, fmt.Sprintf("%s:%s", string(conventions.ProcessCommandKey), pattrs.Command))
 	case pattrs.CommandLine != "": // cmd/otelcol --config="/path/to/config.yaml"
-		tags = append(tags, fmt.Sprintf("%s:%s", conventions.AttributeProcessCommandLine, pattrs.CommandLine))
+		tags = append(tags, fmt.Sprintf("%s:%s", string(conventions.ProcessCommandLineKey), pattrs.CommandLine))
 	}
 
 	// For now, we don't care about the process ID nor the process owner.
