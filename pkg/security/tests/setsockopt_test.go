@@ -82,7 +82,7 @@ func TestSetSockOpt(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_setsockopt")
 		})
 	})
