@@ -249,7 +249,6 @@ struct syscall_cache_t {
         } sysctl;
 
         struct {
-            int socket;
             int level;
             int optname;
         } setsockopt;

@@ -1427,7 +1427,6 @@ A setsockopt was executed
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`setsockopt.socket`](#setsockopt-socket-doc) | Socket file descriptor |
 
 ### Event `setuid`
 
@@ -3403,13 +3402,6 @@ Definition: Socket option name
 
 
 
-### `setsockopt.socket` {#setsockopt-socket-doc}
-Type: int
-
-Definition: Socket file descriptor
-
-
-
 ### `setuid.euid` {#setuid-euid-doc}
 Type: int
 
@@ -4647,7 +4639,7 @@ SetSockopt Actions are the supported actions for the setsockopt event.
 | Name | Architectures |
 | ---- |---------------|
 | `SOL_SOCKET` | all |
-| `SO_REUSEADDR` | all |
+| `SO_ATTACH_FILTER` | all |
 
 ### `Signal constants` {#signal-constants}
 Signal constants are the supported signals for the kill syscall.

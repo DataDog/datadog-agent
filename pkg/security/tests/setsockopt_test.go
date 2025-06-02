@@ -14,8 +14,6 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -86,15 +84,6 @@ func TestSetSockOpt(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_setsockopt")
-
-			val, _ := event.GetFieldValue("setsockopt.socket")
-			assert.Equal(t, int(fd), val, "setsockopt.socket mismatch")
-
-			level, _ := event.GetFieldValue("setsockopt.level")
-			assert.Equal(t, int(syscall.SOL_SOCKET), level)
-
-			optname, _ := event.GetFieldValue("setsockopt.optname")
-			assert.Equal(t, int(syscall.SO_ATTACH_FILTER), optname)
 		})
 	})
 

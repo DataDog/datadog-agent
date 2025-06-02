@@ -15,7 +15,6 @@ long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket,
         .policy = policy,
         .async = async,
         .setsockopt = {
-            .socket = socket,
             .level = level,
             .optname = optname,
         }
@@ -35,12 +34,9 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
 
     struct setsockopt_event_t event = {
         .syscall.retval = retval,
-        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
-        .socket = syscall->setsockopt.socket,
         .level = syscall->setsockopt.level,
         .optname = syscall->setsockopt.optname,
     };
-    //bpf_printk("DEBUG SETSOCKOPT | socket: %d | level: %d | optname: %d\n", event.socket, event.level, event.optname); 
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);

@@ -1513,13 +1513,11 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	data = data[read:]
-	if len(data) < 12 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Socket = binary.NativeEndian.Uint32(data[0:4])
-
-	e.Level = binary.NativeEndian.Uint32(data[4:8])
-	e.OptName = binary.NativeEndian.Uint32(data[8:12])
-	return 12 + read, nil
+	e.Level = binary.NativeEndian.Uint32(data[0:4])
+	e.OptName = binary.NativeEndian.Uint32(data[4:8])
+	return 8 + read, nil
 }

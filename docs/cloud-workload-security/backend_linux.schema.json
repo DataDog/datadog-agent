@@ -1652,10 +1652,6 @@
     },
     "SetSockOptEvent": {
       "properties": {
-        "socket": {
-          "type": "integer",
-          "description": "Socket file descriptor"
-        },
         "level": {
           "type": "integer",
           "description": "Level at which the option is defined"
@@ -1668,7 +1664,6 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "socket",
         "level",
         "optname"
       ],

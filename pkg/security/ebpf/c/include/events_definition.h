@@ -525,7 +525,6 @@ struct setsockopt_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
 
-    int socket;
     int level;
     int optname;
 };

@@ -5778,11 +5778,6 @@
           "name": "setsockopt.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
-        },
-        {
-          "name": "setsockopt.socket",
-          "definition": "Socket file descriptor",
-          "property_doc_link": "setsockopt-socket-doc"
         }
       ]
     },
@@ -11074,18 +11069,6 @@
       "examples": []
     },
     {
-      "name": "setsockopt.socket",
-      "link": "setsockopt-socket-doc",
-      "type": "int",
-      "definition": "Socket file descriptor",
-      "prefixes": [
-        "setsockopt"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "setuid.euid",
       "link": "setuid-euid-doc",
       "type": "int",
@@ -15187,7 +15170,7 @@
           "architecture": "all"
         },
         {
-          "name": "SO_REUSEADDR",
+          "name": "SO_ATTACH_FILTER",
           "architecture": "all"
         }
       ]

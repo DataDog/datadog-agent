@@ -992,7 +992,6 @@ type SysCtlEvent struct {
 // SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
-	Socket  uint32 `field:"socket"`  // SECLDoc[socket] Definition:`Socket file descriptor`
 	Level   uint32 `field:"level"`   // SECLDoc[level] Definition:`Socket level`
 	OptName uint32 `field:"optname"` // SECLDoc[optname] Definition:`Socket option name`
 }

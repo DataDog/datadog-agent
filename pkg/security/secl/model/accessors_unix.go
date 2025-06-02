@@ -16583,17 +16583,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
-	case "setsockopt.socket":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.SetSockOpt.Socket)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
 	case "setuid.euid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -23590,7 +23579,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"setsockopt.level",
 		"setsockopt.optname",
 		"setsockopt.retval",
-		"setsockopt.socket",
 		"setuid.euid",
 		"setuid.euser",
 		"setuid.fsuid",
@@ -26175,8 +26163,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setsockopt.optname":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.retval":
-		return "setsockopt", reflect.Int, "int", nil
-	case "setsockopt.socket":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setuid.euid":
 		return "setuid", reflect.Int, "int", nil
@@ -38444,13 +38430,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "setsockopt.retval"}
 		}
 		ev.SetSockOpt.SyscallEvent.Retval = int64(rv)
-		return nil
-	case "setsockopt.socket":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.socket"}
-		}
-		ev.SetSockOpt.Socket = uint32(rv)
 		return nil
 	case "setuid.euid":
 		rv, ok := value.(int)
