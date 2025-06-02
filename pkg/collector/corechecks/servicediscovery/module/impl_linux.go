@@ -207,6 +207,7 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
+	httpMux.HandleFunc("/network-stats", s.handleNetworkStatsEndpoint)
 	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
 	return nil
 }
@@ -1136,4 +1137,53 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	response.RunningServicesCount = len(s.runningServices)
 
 	return response, nil
+}
+
+// handleNetworkStatsEndpoint is the handler for the /network-stats endpoint.
+// Returns network statistics for the provided list of PIDs.
+func (s *discovery) handleNetworkStatsEndpoint(w http.ResponseWriter, req *http.Request) {
+	if s.network == nil {
+		http.Error(w, "network stats collection is not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Parse PIDs from query parameter
+	pidsStr := req.URL.Query().Get("pids")
+	if pidsStr == "" {
+		http.Error(w, "missing required 'pids' query parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Split and parse PIDs
+	pidStrs := strings.Split(pidsStr, ",")
+	pids := make(pidSet, len(pidStrs))
+	for _, pidStr := range pidStrs {
+		pid, err := strconv.ParseInt(pidStr, 10, 32)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid PID format: %s", pidStr), http.StatusBadRequest)
+			return
+		}
+		pids.add(int32(pid))
+	}
+
+	// Get network stats
+	stats, err := s.network.getStats(pids)
+	if err != nil {
+		log.Errorf("failed to get network stats: %v", err)
+		http.Error(w, "failed to get network stats", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert stats to response format
+	response := model.NetworkStatsResponse{
+		Stats: make(map[int]model.NetworkStats, len(stats)),
+	}
+	for pid, stat := range stats {
+		response.Stats[int(pid)] = model.NetworkStats{
+			RxBytes: stat.Rx,
+			TxBytes: stat.Tx,
+		}
+	}
+
+	utils.WriteAsJSON(w, response, utils.CompactOutput)
 }
