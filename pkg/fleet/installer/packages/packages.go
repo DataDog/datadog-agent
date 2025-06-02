@@ -38,6 +38,13 @@ type hooks struct {
 	postStartConfigExperiment   packageHook
 	preStopConfigExperiment     packageHook
 	postPromoteConfigExperiment packageHook
+
+	// Background hooks for Windows
+	postStartExperimentBackground         packageHook
+	postStopExperimentBackground          packageHook
+	postStartConfigExperimentBackground   packageHook
+	preStopConfigExperimentBackground     packageHook
+	postPromoteConfigExperimentBackground packageHook
 }
 
 // Hooks is the interface for the hooks.
@@ -56,6 +63,13 @@ type Hooks interface {
 	PostStartConfigExperiment(ctx context.Context, pkg string) error
 	PreStopConfigExperiment(ctx context.Context, pkg string) error
 	PostPromoteConfigExperiment(ctx context.Context, pkg string) error
+
+	// Background hooks for Windows
+	PostStartExperimentBackground(ctx context.Context, pkg string) error
+	PostStopExperimentBackground(ctx context.Context, pkg string) error
+	PostStartConfigExperimentBackground(ctx context.Context, pkg string) error
+	PreStopConfigExperimentBackground(ctx context.Context, pkg string) error
+	PostPromoteConfigExperimentBackground(ctx context.Context, pkg string) error
 }
 
 // NewHooks creates a new Hooks instance that will execute hooks via the CLI.
@@ -129,6 +143,31 @@ func (h *hooksCLI) PreStopConfigExperiment(ctx context.Context, pkg string) erro
 // PostPromoteConfigExperiment calls the post-promote-config-experiment hook for the package.
 func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
 	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PostStartExperimentBackground calls the post-start-experiment hook for the package in the background.
+func (h *hooksCLI) PostStartExperimentBackground(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, true, pkg, "postStartExperimentBackground", PackageTypeOCI, false, nil)
+}
+
+// PostStopExperimentBackground calls the post-stop-experiment hook for the package in the background.
+func (h *hooksCLI) PostStopExperimentBackground(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, true, pkg, "postStopExperimentBackground", PackageTypeOCI, false, nil)
+}
+
+// PostStartConfigExperimentBackground calls the post-start-config-experiment hook for the package in the background.
+func (h *hooksCLI) PostStartConfigExperimentBackground(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, true, pkg, "postStartConfigExperimentBackground", PackageTypeOCI, false, nil)
+}
+
+// PreStopConfigExperimentBackground calls the pre-stop-config-experiment hook for the package in the background.
+func (h *hooksCLI) PreStopConfigExperimentBackground(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, true, pkg, "preStopConfigExperimentBackground", PackageTypeOCI, false, nil)
+}
+
+// PostPromoteConfigExperimentBackground calls the post-promote-config-experiment hook for the package in the background.
+func (h *hooksCLI) PostPromoteConfigExperimentBackground(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, true, pkg, "postPromoteConfigExperimentBackground", PackageTypeOCI, false, nil)
 }
 
 // PackageType is the type of package.
@@ -266,6 +305,16 @@ func getHook(pkg string, name string) packageHook {
 		return h.preStopConfigExperiment
 	case "postPromoteConfigExperiment":
 		return h.postPromoteConfigExperiment
+	case "postStartExperimentBackground":
+		return h.postStartExperimentBackground
+	case "postStopExperimentBackground":
+		return h.postStopExperimentBackground
+	case "postStartConfigExperimentBackground":
+		return h.postStartConfigExperimentBackground
+	case "preStopConfigExperimentBackground":
+		return h.preStopConfigExperimentBackground
+	case "postPromoteConfigExperimentBackground":
+		return h.postPromoteConfigExperimentBackground
 	}
 	return nil
 }

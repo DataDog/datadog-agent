@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
@@ -332,4 +333,84 @@ func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err er
 	cmd := i.newInstallerCmd(ctx, "hooks", hookContext)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
+}
+
+// PostStartExperimentBackground runs the post-start-experiment hook in the background.
+func (i *InstallerExec) PostStartExperimentBackground(ctx context.Context, pkg string) error {
+	hookCtx := packages.HookContext{
+		Context:     ctx,
+		Hook:        "postStartExperimentBackground",
+		Package:     pkg,
+		PackageType: packages.PackageTypeOCI,
+	}
+	serializedHookCtx, err := json.Marshal(hookCtx)
+	if err != nil {
+		return fmt.Errorf("failed to serialize hook context: %w", err)
+	}
+	cmd := i.newInstallerCmd(ctx, "hooks", string(serializedHookCtx))
+	return cmd.Start()
+}
+
+// PostStopExperimentBackground runs the post-stop-experiment hook in the background.
+func (i *InstallerExec) PostStopExperimentBackground(ctx context.Context, pkg string) error {
+	hookCtx := packages.HookContext{
+		Context:     ctx,
+		Hook:        "postStopExperimentBackground",
+		Package:     pkg,
+		PackageType: packages.PackageTypeOCI,
+	}
+	serializedHookCtx, err := json.Marshal(hookCtx)
+	if err != nil {
+		return fmt.Errorf("failed to serialize hook context: %w", err)
+	}
+	cmd := i.newInstallerCmd(ctx, "hooks", string(serializedHookCtx))
+	return cmd.Start()
+}
+
+// PostStartConfigExperimentBackground runs the post-start-config-experiment hook in the background.
+func (i *InstallerExec) PostStartConfigExperimentBackground(ctx context.Context, pkg string) error {
+	hookCtx := packages.HookContext{
+		Context:     ctx,
+		Hook:        "postStartConfigExperimentBackground",
+		Package:     pkg,
+		PackageType: packages.PackageTypeOCI,
+	}
+	serializedHookCtx, err := json.Marshal(hookCtx)
+	if err != nil {
+		return fmt.Errorf("failed to serialize hook context: %w", err)
+	}
+	cmd := i.newInstallerCmd(ctx, "hooks", string(serializedHookCtx))
+	return cmd.Start()
+}
+
+// PreStopConfigExperimentBackground runs the pre-stop-config-experiment hook in the background.
+func (i *InstallerExec) PreStopConfigExperimentBackground(ctx context.Context, pkg string) error {
+	hookCtx := packages.HookContext{
+		Context:     ctx,
+		Hook:        "preStopConfigExperimentBackground",
+		Package:     pkg,
+		PackageType: packages.PackageTypeOCI,
+	}
+	serializedHookCtx, err := json.Marshal(hookCtx)
+	if err != nil {
+		return fmt.Errorf("failed to serialize hook context: %w", err)
+	}
+	cmd := i.newInstallerCmd(ctx, "hooks", string(serializedHookCtx))
+	return cmd.Start()
+}
+
+// PostPromoteConfigExperimentBackground runs the post-promote-config-experiment hook in the background.
+func (i *InstallerExec) PostPromoteConfigExperimentBackground(ctx context.Context, pkg string) error {
+	hookCtx := packages.HookContext{
+		Context:     ctx,
+		Hook:        "postPromoteConfigExperimentBackground",
+		Package:     pkg,
+		PackageType: packages.PackageTypeOCI,
+	}
+	serializedHookCtx, err := json.Marshal(hookCtx)
+	if err != nil {
+		return fmt.Errorf("failed to serialize hook context: %w", err)
+	}
+	cmd := i.newInstallerCmd(ctx, "hooks", string(serializedHookCtx))
+	return cmd.Start()
 }
