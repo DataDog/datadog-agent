@@ -1548,7 +1548,7 @@ func TestNetworkStatsEndpoint(t *testing.T) {
 			}
 
 			// Setup discovery module with mock network collector
-			module := setupDiscoveryModuleWithNetwork(t, func(cfg *discoveryConfig) (networkCollector, error) {
+			module := setupDiscoveryModuleWithNetwork(t, func(_ *discoveryConfig) (networkCollector, error) {
 				if tt.networkEnabled {
 					return mockNetwork, nil
 				}
