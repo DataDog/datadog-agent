@@ -9,6 +9,7 @@ package loadstore
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +36,7 @@ func newEntity(metricName, ns, deployment, podName, containerName string) *Entit
 		ContainerName: containerName,
 	}
 }
+
 func TestLocalAutoscalingWorkloadCheck(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	testTime := time.Now().Unix()
@@ -58,8 +60,48 @@ func TestLocalAutoscalingWorkloadCheck(t *testing.T) {
 	workloadEntityList := resp.LocalAutoscalingWorkloadEntities
 	assert.Len(t, workloadEntityList, 1)
 	entity := workloadEntityList[0]
-	assert.Equal(t, "workload-test-ns", entity.EntityStatus["Namespace"].(string))
-	assert.Equal(t, "test-deployment", entity.EntityStatus["PodOwner"].(string))
-	assert.Equal(t, "container.cpu.usage", entity.EntityStatus["MetricName"].(string))
-	assert.Equal(t, 2, entity.EntityStatus["Datapoints(PodLevel)"].(int))
+	assert.Equal(t, "workload-test-ns", entity["Namespace"].(string))
+	assert.Equal(t, "test-deployment", entity["PodOwner"].(string))
+	assert.Equal(t, "container.cpu.usage", entity["MetricName"].(string))
+	assert.Equal(t, 2, entity["Datapoints(PodLevel)"].(int))
+}
+
+func TestDump(t *testing.T) {
+	// Create test data
+	entities := []LocalAutoscalingWorkloadEntity{
+		{
+			"Namespace":            "workload-apm",
+			"PodOwner":             "go-app",
+			"MetricName":           "container.memory.usage",
+			"Datapoints(PodLevel)": 1,
+		},
+		{
+			"Namespace":            "workload-redis",
+			"PodOwner":             "redis-query",
+			"MetricName":           "container.cpu.usage",
+			"Datapoints(PodLevel)": 2,
+		},
+		{
+			"Namespace":            "workload-nginx",
+			"PodOwner":             "nginx",
+			"MetricName":           "container.memory.usage",
+			"Datapoints(PodLevel)": 3,
+		},
+	}
+
+	response := &LocalWorkloadMetricStoreInfo{
+		LocalAutoscalingWorkloadEntities: entities,
+	}
+
+	// Capture output
+	var output strings.Builder
+	response.Dump(&output)
+
+	// Verify output format
+	expectedOutput := `Namespace: workload-apm, PodOwner: go-app, MetricName: container.memory.usage, Datapoints: 1
+Namespace: workload-redis, PodOwner: redis-query, MetricName: container.cpu.usage, Datapoints: 2
+Namespace: workload-nginx, PodOwner: nginx, MetricName: container.memory.usage, Datapoints: 3
+`
+
+	assert.Equal(t, expectedOutput, output.String())
 }
