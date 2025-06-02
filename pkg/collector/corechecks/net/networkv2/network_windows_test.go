@@ -71,9 +71,9 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 func (n *fakeNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
 	switch kind {
 	case "tcp4":
-		return n.tcp4Stats, n.tcp4Error
+		return n.tcp4Stats, n.tcp4StatsError
 	case "tcp6":
-		return n.tcp6Stats, n.tcp6Error
+		return n.tcp6Stats, n.tcp6StatsError
 	}
 }
 
