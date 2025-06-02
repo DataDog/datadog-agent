@@ -34,7 +34,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -1639,7 +1638,7 @@ func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupMode
 
 func (tm *testModule) writePlatformSpecificTimeoutError(b *strings.Builder) {
 	b.WriteString(GetEBPFStatusMetrics(tm.probe))
-	b.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
+	// b.WriteString(spew.Sdump(ebpftelemetry.GetProbeStats()))
 }
 
 func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...func(event *model.Event, rule *rules.Rule) error) {

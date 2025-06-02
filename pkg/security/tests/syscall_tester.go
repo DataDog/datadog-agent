@@ -60,6 +60,7 @@ func runSyscallTesterFunc(ctx context.Context, t *testing.T, path string, args .
 	t.Helper()
 	sideTester := exec.CommandContext(ctx, path, args...)
 	output, err := sideTester.CombinedOutput()
+	fmt.Println("OUTPUT: ", string(output))
 
 	if err != nil {
 		t.Logf("syscall tester output: %s", string(output))

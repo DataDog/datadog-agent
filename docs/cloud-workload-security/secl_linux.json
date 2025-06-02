@@ -1596,7 +1596,7 @@
     },
     {
       "name": "chmod",
-      "definition": "A file’s permissions were changed",
+      "definition": "A file's permissions were changed",
       "type": "File",
       "from_agent_version": "7.27",
       "experimental": false,
@@ -1730,7 +1730,7 @@
     },
     {
       "name": "chown",
-      "definition": "A file’s owner was changed",
+      "definition": "A file's owner was changed",
       "type": "File",
       "from_agent_version": "7.27",
       "experimental": false,
@@ -5758,6 +5758,35 @@
       ]
     },
     {
+      "name": "setrlimit",
+      "definition": "A setrlimit command was executed",
+      "type": "Process",
+      "from_agent_version": "7.36",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setrlimit.resource",
+          "definition": "Resource type being limited",
+          "property_doc_link": "setrlimit-resource-doc"
+        },
+        {
+          "name": "setrlimit.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "setrlimit.rlim_cur",
+          "definition": "Soft limit value",
+          "property_doc_link": "setrlimit-rlim_cur-doc"
+        },
+        {
+          "name": "setrlimit.rlim_max",
+          "definition": "Hard limit value",
+          "property_doc_link": "setrlimit-rlim_max-doc"
+        }
+      ]
+    },
+    {
       "name": "setuid",
       "definition": "A process changed its effective uid",
       "type": "Process",
@@ -9493,6 +9522,7 @@
         "removexattr",
         "rename",
         "rmdir",
+        "setrlimit",
         "setxattr",
         "signal",
         "splice",
@@ -11014,6 +11044,42 @@
       "definition": "New group of the process",
       "prefixes": [
         "setgid"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setrlimit.resource",
+      "link": "setrlimit-resource-doc",
+      "type": "int",
+      "definition": "Resource type being limited",
+      "prefixes": [
+        "setrlimit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setrlimit.rlim_cur",
+      "link": "setrlimit-rlim_cur-doc",
+      "type": "int",
+      "definition": "Soft limit value",
+      "prefixes": [
+        "setrlimit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setrlimit.rlim_max",
+      "link": "setrlimit-rlim_max-doc",
+      "type": "int",
+      "definition": "Hard limit value",
+      "prefixes": [
+        "setrlimit"
       ],
       "constants": "",
       "constants_link": "",
@@ -15108,6 +15174,77 @@
         {
           "name": "PTRACE_POKEMTETAGS",
           "architecture": "arm64"
+        }
+      ]
+    },
+    {
+      "name": "Resource limit types",
+      "link": "resource-limit-types",
+      "description": "Resource limit types are the supported resource types for setrlimit syscall.",
+      "all": [
+        {
+          "name": "RLIMIT_CPU",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_FSIZE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_DATA",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_STACK",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_CORE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_RSS",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_NPROC",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_NOFILE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_MEMLOCK",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_AS",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_LOCKS",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_SIGPENDING",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_MSGQUEUE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_NICE",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_RTPRIO",
+          "architecture": "all"
+        },
+        {
+          "name": "RLIMIT_RTTIME",
+          "architecture": "all"
         }
       ]
     },

@@ -23,6 +23,7 @@
 #include <err.h>
 #include <limits.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -195,6 +196,64 @@ int ptrace_attach() {
         wait(NULL);
         sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
     }
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_nofile() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 1024;  // soft limit
+    rlim.rlim_max = 2048;  // hard limit
+    
+    if (setrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+        perror("setrlimit RLIMIT_NOFILE");
+        return EXIT_FAILURE;
+    }
+
+    printf("setrlimit RLIMIT_NOFILE: %lu\n", rlim.rlim_cur);
+    
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_nproc() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 512;   // soft limit
+    rlim.rlim_max = 1024;  // hard limit
+    
+    if (setrlimit(RLIMIT_NPROC, &rlim) < 0) {
+        perror("setrlimit RLIMIT_NPROC");
+        return EXIT_FAILURE;
+    }
+
+    printf("setrlimit RLIMIT_NPROC: %lu\n", rlim.rlim_cur);
+    
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_stack() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 8192 * 1024;   // 8MB soft limit
+    rlim.rlim_max = 16384 * 1024;  // 16MB hard limit
+    
+    if (setrlimit(RLIMIT_STACK, &rlim) < 0) {
+        perror("setrlimit RLIMIT_STACK");
+        return EXIT_FAILURE;
+    }
+    
+    return EXIT_SUCCESS;
+}
+
+int setrlimit_core() {
+    struct rlimit rlim;
+    rlim.rlim_cur = 0;      // no core dumps
+    rlim.rlim_max = 0;      // no core dumps
+    
+    if (setrlimit(RLIMIT_CORE, &rlim) < 0) {
+        perror("setrlimit RLIMIT_CORE");
+        return EXIT_FAILURE;
+    }
+
+    printf("setrlimit RLIMIT_CORE: %lu\n", rlim.rlim_cur);
+    
     return EXIT_SUCCESS;
 }
 
@@ -1253,6 +1312,7 @@ int main(int argc, char **argv) {
         int sub_argc = last_arg - i;
         char **sub_argv = argv + i;
         int exit_code = 0;
+        printf("Yihaaaaaa\n");
 
         if (strcmp(cmd, "check") == 0) {
             exit_code = EXIT_SUCCESS;
@@ -1262,6 +1322,15 @@ int main(int argc, char **argv) {
             exit_code = ptrace_traceme();
         } else if (strcmp(cmd, "ptrace-attach") == 0) {
             exit_code = ptrace_attach();
+        } else if (strcmp(cmd, "setrlimit-nofile") == 0) {
+            printf("YOLOOOOOOO\n");
+            exit_code = setrlimit_nofile();
+        } else if (strcmp(cmd, "setrlimit-nproc") == 0) {
+            exit_code = setrlimit_nproc();
+        } else if (strcmp(cmd, "setrlimit-stack") == 0) {
+            exit_code = setrlimit_stack();
+        } else if (strcmp(cmd, "setrlimit-core") == 0) {
+            exit_code = setrlimit_core();
         } else if (strcmp(cmd, "span-open") == 0) {
             exit_code = span_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pipe-chown") == 0) {

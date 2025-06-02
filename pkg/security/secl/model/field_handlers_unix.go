@@ -861,6 +861,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveSetgidGroup(ev, &ev.SetGID)
 		_ = ev.FieldHandlers.ResolveSetgidEGroup(ev, &ev.SetGID)
 		_ = ev.FieldHandlers.ResolveSetgidFSGroup(ev, &ev.SetGID)
+	case "setrlimit":
 	case "setuid":
 		_ = ev.FieldHandlers.ResolveSetuidUser(ev, &ev.SetUID)
 		_ = ev.FieldHandlers.ResolveSetuidEUser(ev, &ev.SetUID)

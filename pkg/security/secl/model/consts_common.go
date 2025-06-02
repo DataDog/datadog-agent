@@ -516,6 +516,7 @@ func initConstants() {
 	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
 	initSysCtlActionConstants()
+	initRlimitConstants()
 }
 
 // RetValError represents a syscall return error value

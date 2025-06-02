@@ -1,105 +1,165 @@
 #ifndef _HOOKS_SETRLIMIT_H_
 #define _HOOKS_SETRLIMIT_H_
 
-#include "constants/syscall_macro.h"
-#include "helpers/discarders.h"
-#include "helpers/syscalls.h"
+#include "constants/syscall_macro.h"   
+#include "helpers/discarders.h"        
+#include "helpers/syscalls.h"          
+#include "events_definition.h"        
 
-struct setrlimit_syscall_t {
-    int resource;
-    struct rlimit *rlim;
+#define SETRLIMIT_RATE_LIMITER  100     
+
+static const int important_resources[] = {
+    RLIMIT_CPU,
+    RLIMIT_FSIZE,
+    RLIMIT_NOFILE,
+    RLIMIT_STACK,
+    RLIMIT_NPROC,
+    RLIMIT_CORE
 };
 
-int __attribute__((always_inline)) trace__sys_setrlimit(int resource, struct rlimit *rlim) {
-    bpf_printk("======= sarra setrlimit\n");
-    if (is_discarded_by_pid()) {
+HOOK_SYSCALL_ENTRY2(setrlimit,
+                    unsigned int, resource,
+                    const struct rlimit __user *, new_rlim)
+{
+    bool is_important = false;
+    for (int i = 0; i < ARRAY_SIZE(important_resources); i++) {
+        if (resource == important_resources[i]) {
+            is_important = true;
+            break;
+        }
+    }
+    if (!is_important &&
+        !pid_rate_limiter_allow(SETRLIMIT_RATE_LIMITER, 1)) {
         return 0;
     }
 
-    // Read the rlimit values from user space
-    struct rlimit krlim = {};
-    if (bpf_probe_read(&krlim, sizeof(krlim), rlim) != 0) {
-        krlim.rlim_cur = 0;
-        krlim.rlim_max = 0;
+    struct rlimit rlim;
+    if (bpf_probe_read_user(&rlim, sizeof(rlim), new_rlim) < 0) {
+        return 0;
     }
 
-    struct policy_t policy = fetch_policy(EVENT_SETRLIMIT);
-    struct syscall_cache_t syscall = {
-        .type = EVENT_SETRLIMIT,
-        .policy = policy,
+    struct syscall_cache_t cache = {
+        .type        = EVENT_SETRLIMIT,
         .setrlimit = {
-            .resource = resource,
-            .rlim_cur = krlim.rlim_cur,
-            .rlim_max = krlim.rlim_max,
-            .pid = 0,
+            .resource     = resource,
+            .rlim_cur     = rlim.rlim_cur,
+            .rlim_max     = rlim.rlim_max,
+            .pid          = bpf_get_current_pid_tgid() >> 32,
         }
     };
-
-    cache_syscall(&syscall);
+    cache_syscall(&cache);
     return 0;
 }
 
+HOOK_ENTRY("security_task_setrlimit")
+int hook_security_task_setrlimit(ctx_t *ctx)
+{
+    struct task_struct   *tsk      = (struct task_struct *)CTX_PARM1(ctx);
+    unsigned int          resource = (unsigned int)CTX_PARM2(ctx);
+    const struct rlimit  *new_rlim = (const struct rlimit *)CTX_PARM3(ctx);
 
-
-// //HOOK_ENTRY("do_prlimit"){
-// int hook_do_prlimit(ctx_t *ctx) {
-//     bpf_printk(" =============== sarra do_prlimit\n");
-//     return 0;
-// }
-
-
-
-HOOK_SYSCALL_ENTRY2(setrlimit, int, resource, struct rlimit *, rlim) {
-    bpf_printk("======= sarra setrlimit\n");
-    return trace__sys_setrlimit(resource, rlim);
-}
-HOOK_SYSCALL_ENTRY3(prlimit64, pid_t, pid, int, resource, struct rlimit *, rlim) {
-    bpf_printk("======= sarra prlimit\n");
-    return trace__sys_setrlimit(resource, rlim);
-}
-
-
-int __attribute__((always_inline)) sys_setrlimit_ret(void *ctx, int retval) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_SETRLIMIT);
-    if (!syscall) {
+    struct syscall_cache_t *cache = peek_syscall(EVENT_SETRLIMIT);
+    if (!cache) {
         return 0;
     }
 
-    struct setrlimit_event_t event = {
-        .event = {
-            .timestamp = bpf_ktime_get_ns(),
-            .type = EVENT_SETRLIMIT,
-            .flags = 0,
-        },
-        .syscall = {
-            .retval = retval,
-        },
-        .resource = syscall->setrlimit.resource,
-        .rlim_cur = syscall->setrlimit.rlim_cur,
-        .rlim_max = syscall->setrlimit.rlim_max,
+    if (cache->setrlimit.resource != resource) {
+        return 0;
+    }
+
+    struct rlimit rlim;
+    if (bpf_probe_read(&rlim, sizeof(rlim), new_rlim) < 0) {
+        return 0;
+    }
+
+    cache->setrlimit.rlim_cur = rlim.rlim_cur;
+    cache->setrlimit.rlim_max = rlim.rlim_max;
+    cache->setrlimit.pid      = get_root_nr_from_task_struct(tsk);
+    
+    return 0;
+}
+
+static __always_inline int
+sys_setrlimit_ret(void *ctx, int ret)
+{
+    struct syscall_cache_t *cache = pop_syscall(EVENT_SETRLIMIT);
+    if (!cache) {
+        return 0;
+    }
+
+    struct setrlimit_event_t evt = {
+        .syscall.retval = ret,
+        .resource = cache->setrlimit.resource,
+        .rlim_cur = cache->setrlimit.rlim_cur,
+        .rlim_max = cache->setrlimit.rlim_max,
     };
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
+    struct proc_cache_t *pc = fill_process_context(&evt.process);
+    fill_container_context(pc, &evt.container);
+    fill_span_context(&evt.span);
 
-    send_event(ctx, EVENT_SETRLIMIT, event);
+    send_event(ctx, EVENT_SETRLIMIT, evt);
     return 0;
 }
 
 HOOK_SYSCALL_EXIT(setrlimit) {
-    int retval = SYSCALL_PARMRET(ctx);
-    bpf_printk(" =============== sarra setrlimit exit\n");
-    return sys_setrlimit_ret(ctx, retval);
+    return sys_setrlimit_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
+
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_setrlimit_exit,
+                         struct tracepoint_raw_syscalls_sys_exit_t *args)
+{
+    return sys_setrlimit_ret(args, args->ret);
+}
+
+HOOK_SYSCALL_ENTRY4(prlimit64,
+                    pid_t, pid,
+                    int, resource,
+                    const struct rlimit __user *, new_limit,
+                    struct rlimit __user *, old_limit)
+{
+    if (new_limit == NULL) {
+        return 0;
+    }
+
+    bool is_important = false;
+    for (int i = 0; i < ARRAY_SIZE(important_resources); i++) {
+        if (resource == important_resources[i]) {
+            is_important = true;
+            break;
+        }
+    }
+    if (!is_important &&
+        !pid_rate_limiter_allow(SETRLIMIT_RATE_LIMITER, 1)) {
+        return 0;
+    }
+
+    struct rlimit rlim;
+    if (bpf_probe_read_user(&rlim, sizeof(rlim), new_limit) < 0) {
+        return 0;
+    }
+
+    struct syscall_cache_t cache = {
+        .type        = EVENT_SETRLIMIT,
+        .setrlimit = {
+            .resource     = resource,
+            .rlim_cur     = rlim.rlim_cur,
+            .rlim_max     = rlim.rlim_max,
+            .pid          = bpf_get_current_pid_tgid() >> 32,
+        }
+    };
+    cache_syscall(&cache);
+    return 0;
+}
+
 HOOK_SYSCALL_EXIT(prlimit64) {
-    int retval = SYSCALL_PARMRET(ctx);
-    bpf_printk(" =============== sarra prlimit64 exit\n");
-    return sys_setrlimit_ret(ctx, retval);
+    return sys_setrlimit_ret(ctx, (int)SYSCALL_PARMRET(ctx));
 }
 
-// TAIL_CALL_TRACEPOINT_FNC(handle_sys_setrlimit_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-//     return sys_setrlimit_ret(args, args->ret);
-// }
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_prlimit64_exit,
+                         struct tracepoint_raw_syscalls_sys_exit_t *args)
+{
+    return sys_setrlimit_ret(args, args->ret);
+}
 
-#endif
+#endif  // _HOOKS_SETRLIMIT_H_

@@ -25,17 +25,13 @@ func getSetrlimitProbes(fentry bool) []*manager.Probe {
 		SyscallFuncName: "prlimit64",
 	}, fentry, EntryAndExit)...)
 
-	// setrlimitProbes = append(setrlimitProbes, &manager.Probe{
-	// 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
-	// 		UID:          SecurityAgentUID,
-	// 		EBPFFuncName: "hook_setrlimit_check_attach",
-	// 	},
-	// })
-	// setrlimitProbes = append(setrlimitProbes, &manager.Probe{
-	// 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
-	// 		UID:          SecurityAgentUID,
-	// 		EBPFFuncName: "hook_arch_setrlimit",
-	// 	},
-	// })
+	// Add the LSM hook for setrlimit
+	setrlimitProbes = append(setrlimitProbes, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "hook_security_task_setrlimit",
+		},
+	})
+
 	return setrlimitProbes
 }
