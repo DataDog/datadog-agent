@@ -75,6 +75,7 @@ func (n *fakeNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
 	case "tcp6":
 		return n.tcp6Stats, n.tcp6StatsError
 	}
+	return nil, nil
 }
 
 type MockCommandRunner struct {
