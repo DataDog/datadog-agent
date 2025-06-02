@@ -148,6 +148,8 @@ type SetDefinition struct {
 	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
 	Size         int                    `yaml:"size" json:"size,omitempty"`
 	TTL          *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
+	Private      bool                   `yaml:"private" json:"private,omitempty"`
+	Inherited    bool                   `yaml:"inherited" json:"inherited,omitempty"`
 }
 
 // KillDefinition describes the 'kill' section of a rule action

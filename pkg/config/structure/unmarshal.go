@@ -111,6 +111,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		o(fs)
 	}
 	rawval := cfg.Get(key)
+
 	// Don't create a reflect.Value out of nil, just return immediately
 	if rawval == nil {
 		return nil
@@ -376,6 +377,12 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 	if isScalarKind(target) {
 		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 			return copyLeaf(target, leaf, fs)
+		}
+		if inner, ok := input.(nodetreemodel.InnerNode); ok {
+			// An empty inner node is treated like a nil value, nothing to copy
+			if len(inner.ChildrenKeys()) == 0 {
+				return nil
+			}
 		}
 		return fmt.Errorf("at %v: scalar required, but input is not a leaf: %v of %T", currPath, input, input)
 	} else if target.Kind() == reflect.Map {

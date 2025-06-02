@@ -60,6 +60,14 @@ __attribute__((always_inline)) int is_raw_packet_enabled() {
     return enabled && *enabled;
 }
 
+__attribute__((always_inline)) int is_raw_packet_allowed(struct packet_t *pkt) {
+    // do not handle tcp packet outside of SYN without process context
+    if (pkt->ns_flow.flow.l4_protocol == IPPROTO_TCP && !pkt->tcp.syn && pkt->pid <= 0) {
+        return 0;
+    }
+    return 1;
+}
+
 SEC("classifier/ingress")
 int classifier_raw_packet_ingress(struct __sk_buff *skb) {
     if (!is_raw_packet_enabled()) {
@@ -72,8 +80,7 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
     }
     resolve_pid(pkt);
 
-    // do not handle packet without process context
-    if (pkt->pid < 0) {
+    if (!is_raw_packet_allowed(pkt)) {
         return ACT_OK;
     }
 
@@ -98,8 +105,7 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     }
     resolve_pid(pkt);
 
-    // do not handle packet without process context
-    if (pkt->pid < 0) {
+    if (!is_raw_packet_allowed(pkt)) {
         return ACT_OK;
     }
 

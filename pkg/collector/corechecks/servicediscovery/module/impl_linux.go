@@ -64,31 +64,10 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	name                       string
-	generatedName              string
-	generatedNameSource        string
-	additionalGeneratedNames   []string
-	containerServiceName       string
-	containerServiceNameSource string
-	ddServiceName              string
-	ddServiceInjected          bool
-	tracerMetadata             []tracermetadata.TracerMetadata
-	ports                      []uint16
-	checkedContainerData       bool
-	language                   language.Language
-	apmInstrumentation         apm.Instrumentation
-	cmdLine                    []string
-	startTimeMilli             uint64
-	rss                        uint64
-	cpuTime                    uint64
-	cpuUsage                   float64
-	containerID                string
-	lastHeartbeat              int64
-	addedToMap                 bool
-	rxBytes                    uint64
-	txBytes                    uint64
-	rxBps                      float64
-	txBps                      float64
+	model.Service
+	checkedContainerData bool
+	addedToMap           bool
+	cpuTime              uint64
 }
 
 // toModelService fills the model.Service struct pointed to by out, using the
@@ -99,33 +78,14 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 		return nil
 	}
 
+	*out = i.Service
 	out.PID = int(pid)
-	out.Name = i.name
-	out.GeneratedName = i.generatedName
-	out.GeneratedNameSource = i.generatedNameSource
-	out.AdditionalGeneratedNames = i.additionalGeneratedNames
-	out.ContainerServiceName = i.containerServiceName
-	out.ContainerServiceNameSource = i.containerServiceNameSource
-	out.DDService = i.ddServiceName
-	out.DDServiceInjected = i.ddServiceInjected
-	out.TracerMetadata = i.tracerMetadata
-	out.Ports = i.ports
-	out.APMInstrumentation = string(i.apmInstrumentation)
-	out.Language = string(i.language)
-	out.Type = string(servicetype.Detect(i.ports))
-	out.RSS = i.rss
-	out.CommandLine = i.cmdLine
-	out.StartTimeMilli = i.startTimeMilli
-	out.CPUCores = i.cpuUsage
-	out.ContainerID = i.containerID
-	out.LastHeartbeat = i.lastHeartbeat
-	out.RxBytes = i.rxBytes
-	out.TxBytes = i.txBytes
-	out.RxBps = i.rxBps
-	out.TxBps = i.txBps
+	out.Type = string(servicetype.Detect(i.Ports))
 
 	return out
 }
+
+//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=impl_mock_linux.go
 
 type timeProvider interface {
 	Now() time.Time
@@ -624,25 +584,21 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	nameMeta := detector.GetServiceName(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
-	name := nameMeta.DDService
-	if name == "" {
-		name = nameMeta.Name
-	}
-
 	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
 
 	return &serviceInfo{
-		name:                     name,
-		generatedName:            nameMeta.Name,
-		generatedNameSource:      string(nameMeta.Source),
-		additionalGeneratedNames: nameMeta.AdditionalNames,
-		ddServiceName:            nameMeta.DDService,
-		tracerMetadata:           tracerMetadataArr,
-		language:                 lang,
-		apmInstrumentation:       apmInstrumentation,
-		ddServiceInjected:        nameMeta.DDServiceInjected,
-		cmdLine:                  truncateCmdline(lang, cmdline),
-		startTimeMilli:           uint64(createTime),
+		Service: model.Service{
+			GeneratedName:            nameMeta.Name,
+			GeneratedNameSource:      string(nameMeta.Source),
+			AdditionalGeneratedNames: nameMeta.AdditionalNames,
+			DDService:                nameMeta.DDService,
+			DDServiceInjected:        nameMeta.DDServiceInjected,
+			TracerMetadata:           tracerMetadataArr,
+			Language:                 string(lang),
+			APMInstrumentation:       string(apmInstrumentation),
+			CommandLine:              truncateCmdline(lang, cmdline),
+			StartTimeMilli:           uint64(createTime),
+		},
 	}, nil
 }
 
@@ -757,7 +713,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.cache[pid] = info
 	}
 
-	if s.shouldIgnoreService(info.name) {
+	preferredName := info.DDService
+	if preferredName == "" {
+		preferredName = info.GeneratedName
+	}
+	if s.shouldIgnoreService(preferredName) {
 		s.addIgnoredPid(pid)
 		return nil
 	}
@@ -819,14 +779,14 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Ser
 			continue
 		}
 
-		deltaRx := stats.Rx - info.rxBytes
-		deltaTx := stats.Tx - info.txBytes
+		deltaRx := stats.Rx - info.RxBytes
+		deltaTx := stats.Tx - info.TxBytes
 
-		info.rxBps = float64(deltaRx) / deltaSeconds
-		info.txBps = float64(deltaTx) / deltaSeconds
+		info.RxBps = float64(deltaRx) / deltaSeconds
+		info.TxBps = float64(deltaTx) / deltaSeconds
 
-		info.rxBytes = stats.Rx
-		info.txBytes = stats.Tx
+		info.RxBytes = stats.Rx
+		info.TxBytes = stats.Tx
 	}
 
 	updateResponseNetworkStats := func(services []model.Service) {
@@ -837,10 +797,10 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Ser
 				continue
 			}
 
-			service.RxBps = info.rxBps
-			service.TxBps = info.txBps
-			service.RxBytes = info.rxBytes
-			service.TxBytes = info.txBytes
+			service.RxBps = info.RxBps
+			service.TxBps = info.TxBps
+			service.RxBytes = info.RxBytes
+			service.TxBytes = info.TxBytes
 		}
 	}
 
@@ -905,7 +865,7 @@ func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) err
 				continue
 			}
 
-			service.CPUCores = info.cpuUsage
+			service.CPUCores = info.CPUCores
 		}
 	}
 
@@ -1051,10 +1011,10 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[i
 
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
-		serviceInfo.containerServiceName = serviceName
-		serviceInfo.containerServiceNameSource = tagName
+		serviceInfo.ContainerServiceName = serviceName
+		serviceInfo.ContainerServiceNameSource = tagName
 		serviceInfo.checkedContainerData = true
-		serviceInfo.containerID = containerID
+		serviceInfo.ContainerID = containerID
 	}
 }
 
@@ -1066,9 +1026,9 @@ func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.T
 			return
 		}
 
-		info.lastHeartbeat = now.Unix()
-		info.ports = service.Ports
-		info.rss = service.RSS
+		info.LastHeartbeat = now.Unix()
+		info.Ports = service.Ports
+		info.RSS = service.RSS
 	}
 
 	for i := range response.StartedServices {
@@ -1140,7 +1100,7 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 				continue
 			}
 
-			serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0)
+			serviceHeartbeatTime := time.Unix(info.LastHeartbeat, 0)
 			if now.Sub(serviceHeartbeatTime).Truncate(time.Minute) < params.heartbeatTime {
 				// We only need to refresh the service info (ports, etc.) for
 				// this service if it's time to send a heartbeat.
@@ -1172,7 +1132,6 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 
 		// This is a new potential service
 		s.potentialServices.add(pid)
-		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
 	}
 
 	s.updateCacheInfo(response, now)
