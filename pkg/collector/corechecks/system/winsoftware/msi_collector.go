@@ -108,27 +108,32 @@ func (mc *MSICollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 
 func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*SoftwareEntry, error) {
 	// Helper to fetch a property
-	getProp := func(propName string) string {
-		const bufSize = windows.MAX_PATH
-		buf := make([]uint16, bufSize)
-		bufLen := uint32(bufSize)
-		ret := msiGetProductInfo(propName, &productCode[0], &buf[0], bufLen)
-		if errors.Is(ret, windows.ERROR_SUCCESS) {
-			return windows.UTF16ToString(buf[:bufLen])
+	getProp := func(propName string) (string, error) {
+		buf := make([]uint16, windows.MAX_PATH)
+		bufLen := uint32(len(buf))
+		ret := windows.ERROR_MORE_DATA
+		for errors.Is(ret, windows.ERROR_MORE_DATA) {
+			ret = msiGetProductInfo(propName, &productCode[0], &buf[0], &bufLen)
+			if errors.Is(ret, windows.ERROR_SUCCESS) {
+				return windows.UTF16ToString(buf[:bufLen]), nil
+			}
+			buf = make([]uint16, bufLen)
 		}
-		return ""
+		return "", fmt.Errorf("unexpected return from msiGetProductInfo for %s: %w", propName, ret)
 	}
 
 	properties := make(map[string]string)
 	for _, propName := range propertiesToFetch {
-		propValue := getProp(propName)
-		if propValue != "" {
+		propValue, err := getProp(propName)
+		if err == nil {
 			if propName == msiVersionString {
 				// Split by dots, trim leading zeros from each part, rejoin
 				properties[propName] = trimVersion(propValue)
 			} else {
 				properties[propName] = propValue
 			}
+		} else {
+			return nil, err
 		}
 	}
 

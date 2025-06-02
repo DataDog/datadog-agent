@@ -37,7 +37,7 @@ func msiEnumProducts(index uint32, productCodeBuf *uint16, context *uint32, sidB
 	return windows.Errno(ret)
 }
 
-func msiGetProductInfo(propName string, productCode *uint16, buf *uint16, bufLen uint32) windows.Errno {
+func msiGetProductInfo(propName string, productCode *uint16, buf *uint16, bufLen *uint32) windows.Errno {
 	propNamePtr, err := syscall.UTF16FromString(propName)
 	if err != nil {
 		// EINVAL is the only error returned from UTF16FromString
@@ -47,7 +47,7 @@ func msiGetProductInfo(propName string, productCode *uint16, buf *uint16, bufLen
 		uintptr(unsafe.Pointer(productCode)),
 		uintptr(unsafe.Pointer(&propNamePtr[0])),
 		uintptr(unsafe.Pointer(buf)),
-		uintptr(unsafe.Pointer(&bufLen)),
+		uintptr(unsafe.Pointer(bufLen)),
 	)
 	return windows.Errno(ret)
 }
