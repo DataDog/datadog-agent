@@ -317,7 +317,7 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 }
 
 func resetMapping[K comparable, V any](m map[K]V) {
-	for key, _ := range m {
+	for key := range m {
 		delete(m, key)
 	}
 }
