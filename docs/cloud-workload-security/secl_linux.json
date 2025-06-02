@@ -15168,6 +15168,86 @@
         {
           "name": "SOL_SOCKET",
           "architecture": "all"
+        },
+        {
+          "name": "SO_DEBUG",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_REUSEADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TYPE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DONTROUTE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BROADCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDBUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVBUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDBUFFORCE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVBUFFORCE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_KEEPALIVE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_OOBINLINE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NO_CHECK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PRIORITY",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_LINGER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BSDCOMPAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSCRED",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERCRED",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVLOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDLOWAT",
+          "architecture": "all"
         }
       ]
     },
@@ -15178,6 +15258,38 @@
       "all": [
         {
           "name": "SO_ATTACH_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DETACH_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MARK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PROTOCOL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RXQ_OVFL",
           "architecture": "all"
         }
       ]

@@ -848,12 +848,44 @@ var (
 	// SetSockoptLevelConstants is the list of available levels for setsockopt events
 	// generate_constants:SetSockopt Levels,SetSockopt Levels are the supported levels for the setsockopt event.
 	SetSockoptLevelConstants = map[string]int{
-		"SOL_SOCKET": syscall.SOL_SOCKET,
+		"SOL_SOCKET":     syscall.SOL_SOCKET,
+		"SO_DEBUG":       syscall.SO_DEBUG,
+		"SO_REUSEADDR":   syscall.SO_REUSEADDR,
+		"SO_TYPE":        syscall.SO_TYPE,
+		"SO_ERROR":       syscall.SO_ERROR,
+		"SO_DONTROUTE":   syscall.SO_DONTROUTE,
+		"SO_BROADCAST":   syscall.SO_BROADCAST,
+		"SO_SNDBUF":      syscall.SO_SNDBUF,
+		"SO_RCVBUF":      syscall.SO_RCVBUF,
+		"SO_SNDBUFFORCE": syscall.SO_SNDBUFFORCE,
+		"SO_RCVBUFFORCE": syscall.SO_RCVBUFFORCE,
+		"SO_KEEPALIVE":   syscall.SO_KEEPALIVE,
+		"SO_OOBINLINE":   syscall.SO_OOBINLINE,
+		"SO_NO_CHECK":    syscall.SO_NO_CHECK,
+		"SO_PRIORITY":    syscall.SO_PRIORITY,
+		"SO_LINGER":      syscall.SO_LINGER,
+		"SO_BSDCOMPAT":   syscall.SO_BSDCOMPAT,
+		"SO_PASSCRED":    syscall.SO_PASSCRED,
+		"SO_PEERCRED":    syscall.SO_PEERCRED,
+		"SO_RCVLOWAT":    syscall.SO_RCVLOWAT,
+		"SO_SNDLOWAT":    syscall.SO_SNDLOWAT,
+		// "SO_REUEPORT", "SO_RCVTIMEO", "SO_SNDTIMEO" are not defined in syscall package
 	}
+
 	// SetSockOptOptNameConstants is the list of available options for setsockopt events
 	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event.
 	SetSockOptOptNameConstants = map[string]int{
 		"SO_ATTACH_FILTER": syscall.SO_ATTACH_FILTER,
+		"SO_DETACH_FILTER": syscall.SO_DETACH_FILTER,
+		"SO_PEERNAME":      syscall.SO_PEERNAME,
+		"SO_PEERSEC":       syscall.SO_PEERSEC,
+		"SO_PASSSEC":       syscall.SO_PASSSEC,
+		"SO_MARK":          syscall.SO_MARK,
+		"SO_PROTOCOL":      syscall.SO_PROTOCOL,
+		"SO_DOMAIN":        syscall.SO_DOMAIN,
+		"SO_RXQ_OVFL":      syscall.SO_RXQ_OVFL,
+		// "SO_GET_FILTER", "SO_ATTACH_REUSEPORT_CBPF", "SO_ATTACH_REUSEPORT_EBPF" are not defined in syscall package
+
 	}
 )
 

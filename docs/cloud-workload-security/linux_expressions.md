@@ -4639,6 +4639,26 @@ SetSockopt Levels are the supported levels for the setsockopt event.
 | Name | Architectures |
 | ---- |---------------|
 | `SOL_SOCKET` | all |
+| `SO_DEBUG` | all |
+| `SO_REUSEADDR` | all |
+| `SO_TYPE` | all |
+| `SO_ERROR` | all |
+| `SO_DONTROUTE` | all |
+| `SO_BROADCAST` | all |
+| `SO_SNDBUF` | all |
+| `SO_RCVBUF` | all |
+| `SO_SNDBUFFORCE` | all |
+| `SO_RCVBUFFORCE` | all |
+| `SO_KEEPALIVE` | all |
+| `SO_OOBINLINE` | all |
+| `SO_NO_CHECK` | all |
+| `SO_PRIORITY` | all |
+| `SO_LINGER` | all |
+| `SO_BSDCOMPAT` | all |
+| `SO_PASSCRED` | all |
+| `SO_PEERCRED` | all |
+| `SO_RCVLOWAT` | all |
+| `SO_SNDLOWAT` | all |
 
 ### `SetSockopt Options` {#setsockopt-options}
 SetSockopt Options are the supported options for the setsockopt event.
@@ -4646,6 +4666,14 @@ SetSockopt Options are the supported options for the setsockopt event.
 | Name | Architectures |
 | ---- |---------------|
 | `SO_ATTACH_FILTER` | all |
+| `SO_DETACH_FILTER` | all |
+| `SO_PEERNAME` | all |
+| `SO_PEERSEC` | all |
+| `SO_PASSSEC` | all |
+| `SO_MARK` | all |
+| `SO_PROTOCOL` | all |
+| `SO_DOMAIN` | all |
+| `SO_RXQ_OVFL` | all |
 
 ### `Signal constants` {#signal-constants}
 Signal constants are the supported signals for the kill syscall.
