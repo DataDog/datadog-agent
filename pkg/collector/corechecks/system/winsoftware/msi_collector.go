@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"golang.org/x/sys/windows"
 	"runtime"
-	"syscall"
 )
 
 // MSI property names from Windows Installer API
@@ -88,7 +87,7 @@ func (mc *MSICollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 			return entries, warnings, fmt.Errorf("error enumerating products at index %d: %d", index, ret)
 		}
 
-		msiProductCode := syscall.UTF16ToString(productCodeBuf[:])
+		msiProductCode := windows.UTF16ToString(productCodeBuf[:])
 		entry, err := getMsiProductInfo(productCodeBuf[:], msiPropertiesToFetch)
 		if err != nil {
 			// Add warning and continue processing other entries
@@ -98,7 +97,7 @@ func (mc *MSICollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 		}
 
 		if context == MSIINSTALLCONTEXT_USERMANAGED || context == MSIINSTALLCONTEXT_USERUNMANAGED {
-			entry.UserSID = syscall.UTF16ToString(sidBuf[:sidLen])
+			entry.UserSID = windows.UTF16ToString(sidBuf[:sidLen])
 		}
 		entry.Properties[msiProductCode] = msiProductCode
 		entries = append(entries, entry)
@@ -115,7 +114,7 @@ func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*Softw
 		bufLen := uint32(bufSize)
 		ret := msiGetProductInfo(propName, &productCode[0], &buf[0], bufLen)
 		if errors.Is(ret, windows.ERROR_SUCCESS) {
-			return syscall.UTF16ToString(buf[:bufLen])
+			return windows.UTF16ToString(buf[:bufLen])
 		}
 		return ""
 	}

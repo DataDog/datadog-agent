@@ -14,11 +14,11 @@ import (
 )
 
 var (
-	msi                = syscall.NewLazyDLL("msi.dll")
+	msi                = windows.NewLazySystemDLL("msi.dll")
 	msiGetProductInfoW = msi.NewProc("MsiGetProductInfoW")
 	// For detecting per-user installations
 	msiEnumProductsExW = msi.NewProc("MsiEnumProductsExW")
-	advapi32           = syscall.NewLazyDLL("advapi32.dll")
+	advapi32           = windows.NewLazySystemDLL("advapi32.dll")
 	procRegLoadKey     = advapi32.NewProc("RegLoadKeyW")
 	procRegUnLoadKey   = advapi32.NewProc("RegUnLoadKeyW")
 )
