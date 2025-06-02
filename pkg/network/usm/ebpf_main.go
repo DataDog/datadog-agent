@@ -11,20 +11,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"slices"
-	"time"
 	"unsafe"
 
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/features"
-	"github.com/davecgh/go-spew/spew"
-	"golang.org/x/sys/unix"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/davecgh/go-spew/spew"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -52,11 +48,12 @@ var (
 		kafka.Spec,
 		postgres.Spec,
 		redis.Spec,
-		javaTLSSpec,
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
 		opensslSpec,
 		goTLSSpec,
+		istioSpec,
+		nodejsSpec,
 	}
 )
 
@@ -69,10 +66,8 @@ const (
 	tupleByPidFDMap                        = "tuple_by_pid_fd"
 	pidFDByTupleMap                        = "pid_fd_by_tuple"
 
-	sockFDLookup         = "kprobe__sockfd_lookup_light"
-	sockFDLookupRet      = "kretprobe__sockfd_lookup_light"
-	netifReceiveSkbTp    = "tracepoint__net__netif_receive_skb"
-	netifReceiveSkbRawTp = "raw_tracepoint__net__netif_receive_skb"
+	sockFDLookup    = "kprobe__sockfd_lookup_light"
+	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
 
 	tcpCloseProbe = "kprobe__tcp_close"
 
@@ -93,29 +88,10 @@ type ebpfProgram struct {
 	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
 
-	// Used for connection_protocol data expiration
-	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
-	buildMode  buildmode.Type
+	buildMode buildmode.Type
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
-	netifProbe := manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: netifReceiveSkbTp,
-			UID:          probeUID,
-		},
-	}
-	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
-		netifProbe = manager.Probe{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: netifReceiveSkbRawTp,
-				UID:          probeUID,
-			},
-			TracepointCategory: "net",
-			TracepointName:     "netif_receive_skb",
-		}
-	}
-
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -130,17 +106,10 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe__tcp_sendmsg",
-					UID:          probeUID,
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: tcpCloseProbe,
 					UID:          probeUID,
 				},
 			},
-			&netifProbe,
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: protocolDispatcherSocketFilterFunction,
@@ -171,13 +140,10 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 	}
 
 	program := &ebpfProgram{
-		Manager:               ddebpf.NewManager(mgr, &ebpftelemetry.ErrorsTelemetryModifier{}),
+		Manager:               ddebpf.NewManager(mgr, "usm", &ebpftelemetry.ErrorsTelemetryModifier{}),
 		cfg:                   c,
 		connectionProtocolMap: connectionProtocolMap,
 	}
-
-	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr)
-	goTLSSpec.Factory = newGoTLSProgramProtocolFactory(mgr)
 
 	if err := program.initProtocols(c); err != nil {
 		return nil, err
@@ -204,7 +170,7 @@ func (e *ebpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowRuntimeCompiledFallback && !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("co-re load failed: %w", err)
 		}
 		log.Warnf("co-re load failed. attempting fallback: %s", err)
@@ -217,10 +183,14 @@ func (e *ebpfProgram) Init() error {
 			return nil
 		}
 
-		if !e.cfg.AllowPrecompiledFallback {
+		if !e.cfg.AllowPrebuiltFallback {
 			return fmt.Errorf("runtime compilation failed: %w", err)
 		}
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
+	}
+
+	if prebuilt.IsDeprecated() {
+		log.Warn("using deprecated prebuilt USM monitor")
 	}
 
 	e.buildMode = buildmode.Prebuilt
@@ -242,30 +212,24 @@ func (e *ebpfProgram) Start() error {
 		}
 		e.connectionProtocolMap = m
 	}
-	mapCleaner, err := e.setupMapCleaner()
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-	} else {
-		e.mapCleaner = mapCleaner
-	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
-		func(protocols.Protocol, *manager.Manager) {})
+		func(protocol protocols.Protocol) error { return protocol.PreStart() },
+		func(protocols.Protocol) {})
 
 	// No protocols could be enabled, abort.
 	if len(e.enabledProtocols) == 0 {
 		return errNoProtocols
 	}
 
-	err = e.Manager.Start()
+	err := e.Manager.Start()
 	if err != nil {
 		return err
 	}
 
 	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "post-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart(m) },
-		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop(m) })
+		func(protocol protocols.Protocol) error { return protocol.PostStart() },
+		func(protocol protocols.Protocol) { protocol.Stop() })
 
 	// We check again if there are protocols that could be enabled, and abort if
 	// it is not the case.
@@ -287,14 +251,22 @@ func (e *ebpfProgram) Start() error {
 
 // Close stops the ebpf program and cleans up all resources.
 func (e *ebpfProgram) Close() error {
-	e.mapCleaner.Stop()
-	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
-		protocol.Stop(m)
+	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
+	var err error
+	// We need to stop the perf maps and ring buffers before stopping the protocols, as we need to stop sending events
+	// to them. If we don't do this, we might send events on closed channels which will panic.
+	for _, pm := range e.PerfMaps {
+		err = errors.Join(err, pm.Stop(manager.CleanAll))
+	}
+	for _, rb := range e.RingBuffers {
+		err = errors.Join(err, rb.Stop(manager.CleanAll))
+	}
+	stopProtocolWrapper := func(protocol protocols.Protocol) error {
+		protocol.Stop()
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
-	ebpftelemetry.UnregisterTelemetry(e.Manager.Manager)
-	return e.Stop(manager.CleanAll)
+	return errors.Join(err, e.Stop(manager.CleanAll))
 }
 
 func (e *ebpfProgram) initCORE() error {
@@ -349,38 +321,75 @@ func (e *ebpfProgram) getProtocolsForBuildMode() ([]*protocols.ProtocolSpec, []*
 // TailCalls to the program's lists. Also, we're providing a cleanup method (the return value) which allows removal
 // of the elements we added in case of a failure in the initialization.
 func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protocols.ProtocolSpec) func() {
-	for _, spec := range protocols {
-		e.Maps = append(e.Maps, spec.Maps...)
-		e.Probes = append(e.Probes, spec.Probes...)
-		e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
+	// Track already existing items
+	existingMaps := make(map[string]struct{})
+	existingProbes := make(map[string]struct{})
+	existingTailCalls := make(map[string]struct{})
+
+	// Populate sets with existing elements
+	for _, m := range e.Maps {
+		existingMaps[m.Name] = struct{}{}
 	}
+	for _, p := range e.Probes {
+		existingProbes[p.EBPFFuncName] = struct{}{}
+	}
+	for _, tc := range e.tailCallRouter {
+		existingTailCalls[tc.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
+	}
+
+	// Track newly added elements for cleanup
+	var addedMaps []*manager.Map
+	var addedProbes []*manager.Probe
+	var addedTailCalls []manager.TailCallRoute
+
+	for _, spec := range protocols {
+		for _, m := range spec.Maps {
+			if _, exists := existingMaps[m.Name]; !exists {
+				e.Maps = append(e.Maps, m)
+				addedMaps = append(addedMaps, m)
+				existingMaps[m.Name] = struct{}{}
+			}
+		}
+
+		for _, p := range spec.Probes {
+			if _, exists := existingProbes[p.EBPFFuncName]; !exists {
+				e.Probes = append(e.Probes, p)
+				addedProbes = append(addedProbes, p)
+				existingProbes[p.EBPFFuncName] = struct{}{}
+			}
+		}
+
+		for _, tc := range spec.TailCalls {
+			if _, exists := existingTailCalls[tc.ProbeIdentificationPair.EBPFFuncName]; !exists {
+				e.tailCallRouter = append(e.tailCallRouter, tc)
+				addedTailCalls = append(addedTailCalls, tc)
+				existingTailCalls[tc.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
+			}
+		}
+	}
+
+	// Cleanup function to remove only what was added
 	return func() {
 		e.Maps = slices.DeleteFunc(e.Maps, func(m *manager.Map) bool {
-			for _, spec := range protocols {
-				for _, specMap := range spec.Maps {
-					if m.Name == specMap.Name {
-						return true
-					}
+			for _, added := range addedMaps {
+				if m.Name == added.Name {
+					return true
 				}
 			}
 			return false
 		})
 		e.Probes = slices.DeleteFunc(e.Probes, func(p *manager.Probe) bool {
-			for _, spec := range protocols {
-				for _, probe := range spec.Probes {
-					if p.EBPFFuncName == probe.EBPFFuncName {
-						return true
-					}
+			for _, added := range addedProbes {
+				if p.EBPFFuncName == added.EBPFFuncName {
+					return true
 				}
 			}
 			return false
 		})
 		e.tailCallRouter = slices.DeleteFunc(e.tailCallRouter, func(tc manager.TailCallRoute) bool {
-			for _, spec := range protocols {
-				for _, tailCall := range spec.TailCalls {
-					if tc.ProbeIdentificationPair.EBPFFuncName == tailCall.ProbeIdentificationPair.EBPFFuncName {
-						return true
-					}
+			for _, added := range addedTailCalls {
+				if tc.ProbeIdentificationPair.EBPFFuncName == added.ProbeIdentificationPair.EBPFFuncName {
+					return true
 				}
 			}
 			return false
@@ -394,10 +403,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
 
-	options.RLimit = &unix.Rlimit{
-		Cur: math.MaxUint64,
-		Max: math.MaxUint64,
-	}
+	options.RemoveRlimit = true
 
 	options.MapSpecEditors = map[string]manager.MapSpecEditor{
 		connectionStatesMap: {
@@ -446,7 +452,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
 	options.TailCallRouter = e.tailCallRouter
 	for _, p := range supported {
-		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
+		p.Instance.ConfigureOptions(&options)
 	}
 	if e.cfg.InternalTelemetryEnabled {
 		for _, pm := range e.PerfMaps {
@@ -459,32 +465,52 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
+	// We might have shared maps, probes and TCs between supported and not supported protocols. We need to make sure
+	// that we're not excluding a shared resource if it is used by at least one supported protocol.
+	supportedMaps := make(map[string]struct{})
+	supportedProbes := make(map[string]struct{})
+	supportedTCs := make(map[string]struct{})
+	for _, p := range supported {
+		for _, m := range p.Maps {
+			supportedMaps[m.Name] = struct{}{}
+		}
+		for _, probe := range p.Probes {
+			supportedProbes[probe.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
+		}
+		for _, tc := range p.TailCalls {
+			supportedTCs[tc.ProbeIdentificationPair.EBPFFuncName] = struct{}{}
+		}
+	}
+
 	// Add excluded functions from disabled protocols
 	for _, p := range notSupported {
 		for _, m := range p.Maps {
-			// Unused maps still need to have a non-zero size
-			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
-				MaxEntries: uint32(1),
-				EditorFlag: manager.EditMaxEntries,
+			if _, ok := supportedMaps[m.Name]; ok {
+				log.Debugf("map %s is shared between enabled and disabled protocols", m.Name)
+				continue
 			}
+			options.ExcludedMaps = append(options.ExcludedMaps, m.Name)
 
 			log.Debugf("disabled map: %v", m.Name)
 		}
 
 		for _, probe := range p.Probes {
+			if _, ok := supportedProbes[probe.ProbeIdentificationPair.EBPFFuncName]; ok {
+				log.Debugf("probe %s is shared between enabled and disabled protocols", probe.ProbeIdentificationPair.EBPFFuncName)
+				continue
+			}
 			options.ExcludedFunctions = append(options.ExcludedFunctions, probe.ProbeIdentificationPair.EBPFFuncName)
+			log.Debugf("disabled probe: %v", probe.ProbeIdentificationPair.EBPFFuncName)
 		}
 
 		for _, tc := range p.TailCalls {
+			if _, ok := supportedTCs[tc.ProbeIdentificationPair.EBPFFuncName]; ok {
+				log.Debugf("tail call %s is shared between enabled and disabled protocols", tc.ProbeIdentificationPair.EBPFFuncName)
+				continue
+			}
 			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
+			log.Debugf("disabled tail call: %v", tc.ProbeIdentificationPair.EBPFFuncName)
 		}
-	}
-
-	// exclude unused netif_receive_skb probe
-	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
-		options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbTp)
-	} else {
-		options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbRawTp)
 	}
 
 	err := e.InitWithOptions(buf, &options)
@@ -497,23 +523,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return err
-}
-
-const connProtoTTL = 3 * time.Minute
-const connProtoCleaningInterval = 5 * time.Minute
-
-func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
-	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](e.connectionProtocolMap, 1024)
-	if err != nil {
-		return nil, err
-	}
-
-	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, _ netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
-		return (now - int64(val.Updated)) > ttl
-	})
-
-	return mapCleaner, nil
 }
 
 func getAssetName(module string, debug bool) string {
@@ -568,30 +577,38 @@ func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName s
 	}
 }
 
-func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} {
+func (e *ebpfProgram) getProtocolStats() (map[protocols.ProtocolType]interface{}, func()) {
 	ret := make(map[protocols.ProtocolType]interface{})
+	cleaners := make([]func(), 0)
 
 	for _, protocol := range e.enabledProtocols {
-		ps := protocol.Instance.GetStats()
+		ps, cleaner := protocol.Instance.GetStats()
 		if ps != nil {
 			ret[ps.Type] = ps.Stats
 		}
+		if cleaner != nil {
+			cleaners = append(cleaners, cleaner)
+		}
 	}
 
-	return ret
+	return ret, func() {
+		for _, c := range cleaners {
+			c()
+		}
+	}
 }
 
 // executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).
 // If the callback failed, then we call the error callback (`errorCb`). Eventually returning a list of protocols which
 // successfully executed the callback.
-func (e *ebpfProgram) executePerProtocol(protocolList []*protocols.ProtocolSpec, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, errorCb func(protocols.Protocol, *manager.Manager)) []*protocols.ProtocolSpec {
+func (e *ebpfProgram) executePerProtocol(protocolList []*protocols.ProtocolSpec, phaseName string, cb func(protocols.Protocol) error, errorCb func(protocols.Protocol)) []*protocols.ProtocolSpec {
 	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
 	// we'll keep in a temporary copy and return it at the end.
 	res := make([]*protocols.ProtocolSpec, 0)
 	for _, protocol := range protocolList {
-		if err := cb(protocol.Instance, e.Manager.Manager); err != nil {
+		if err := cb(protocol.Instance); err != nil {
 			if errorCb != nil {
-				errorCb(protocol.Instance, e.Manager.Manager)
+				errorCb(protocol.Instance)
 			}
 			log.Errorf("could not complete %q phase of %q monitoring: %s", phaseName, protocol.Instance.Name(), err)
 			continue
@@ -621,7 +638,7 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 	e.disabledProtocols = make([]*protocols.ProtocolSpec, 0)
 
 	for _, spec := range knownProtocols {
-		protocol, err := spec.Factory(c)
+		protocol, err := spec.Factory(e.Manager.Manager, c)
 		if err != nil {
 			return &errNotSupported{err}
 		}
