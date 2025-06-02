@@ -40,7 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath"
 	nvidia "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson"
-	oracle "github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
@@ -102,6 +102,8 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(nvidia.CheckName, nvidia.Factory())
 	corecheckLoader.RegisterCheck(oracle.CheckName, oracle.Factory())
 	corecheckLoader.RegisterCheck(oracle.OracleDbmCheckName, oracle.Factory())
+	// corecheckLoader.RegisterCheck(disk.CheckName, disk.Factory())
+
 	if cfg.GetBool("use_diskv2_check") {
 		corecheckLoader.RegisterCheck(disk.CheckName, diskv2.Factory())
 	} else {

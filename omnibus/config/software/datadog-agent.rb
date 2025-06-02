@@ -100,6 +100,7 @@ build do
     command "dda inv -- -e rtloader.clean"
     command "dda inv -- -e rtloader.make --install-prefix \"#{windows_safe_path(python_3_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\" \\\"-DPython3_EXECUTABLE=#{windows_safe_path(python_3_embedded)}\\python.exe\\\" \\\"-DCMAKE_BUILD_TYPE=RelWithDebInfo\\\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
+    command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor checks --agent-bin ./bin/agent/checks-agent.exe", env: env
     command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
     command "dda inv -- -e systray.build --major-version #{major_version_arg}", env: env
   else
@@ -112,6 +113,7 @@ build do
     if linux_target?
         include_sds = "--include-sds" # we only support SDS on Linux targets for now
     end
+    command "dda inv -- -e agent.build --exclude-rtloader --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor checks --agent-bin ./bin/agent/checks-agent", env: env
     command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --major-version #{major_version_arg} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
   end
 
@@ -137,6 +139,7 @@ build do
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/checks-agent.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
@@ -288,6 +291,7 @@ build do
     block do
       LINUX_BINARIES = [
         "#{install_dir}/bin/agent/agent",
+        "#{install_dir}/bin/agent/checks-agent",
         "#{install_dir}/embedded/bin/trace-agent",
         "#{install_dir}/embedded/bin/process-agent",
         "#{install_dir}/embedded/bin/security-agent",
