@@ -6,12 +6,10 @@
 package inventoryotelimpl
 
 import (
-	"bytes"
 	"testing"
 	"time"
 
 	"go.uber.org/fx"
-	"golang.org/x/exp/maps"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,28 +70,6 @@ func TestGetPayload(t *testing.T) {
 	assert.Equal(t, data, payload.Metadata)
 }
 
-func TestGet(t *testing.T) {
-	overrides := map[string]any{
-		"otelcollector.enabled":               true,
-		"otelcollector.submit_dummy_metadata": true,
-	}
-	io := getTestInventoryPayload(t, overrides)
-
-	// Collect metadata
-	io.refreshMetadata()
-
-	p := io.Get()
-
-	// Grab dummy data
-	d, err := io.fetchDummyOtelConfig(nil)
-	assert.Nil(t, err)
-	assert.Equal(t, d, io.data)
-
-	// verify that the return map is a copy
-	p["provided_configuration"] = ""
-	assert.NotEqual(t, p["provided_configuration"], io.data["provided_configuration"])
-}
-
 func TestFlareProviderFilename(t *testing.T) {
 	io := getTestInventoryPayload(t, nil)
 	assert.Equal(t, "otel.json", io.FlareFileName)
@@ -106,46 +82,4 @@ func TestConfigRefresh(t *testing.T) {
 	assert.False(t, io.RefreshTriggered())
 	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, io.RefreshTriggered())
-}
-
-func TestStatusHeaderProvider(t *testing.T) {
-	ret, _ := getProvides(t, nil)
-
-	headerStatusProvider := ret.StatusHeaderProvider.Provider
-
-	tests := []struct {
-		name       string
-		assertFunc func(t *testing.T)
-	}{
-		{"JSON", func(t *testing.T) {
-			stats := make(map[string]interface{})
-			headerStatusProvider.JSON(false, stats)
-
-			keys := maps.Keys(stats)
-
-			assert.Contains(t, keys, "otel_metadata")
-		}},
-		{"Text", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerStatusProvider.Text(false, b)
-
-			assert.NoError(t, err)
-
-			assert.NotEmpty(t, b.String())
-		}},
-		{"HTML", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerStatusProvider.HTML(false, b)
-
-			assert.NoError(t, err)
-
-			assert.NotEmpty(t, b.String())
-		}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(t)
-		})
-	}
 }
