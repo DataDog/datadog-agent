@@ -1,6 +1,9 @@
 #ifndef __CONTEXT_H__
 #define __CONTEXT_H__
 
+// Must precede asm/ptrace.h
+#include "kconfig.h"
+
 #include <asm/ptrace.h>
 #include "bpf_tracing.h"
 #include "types.h"

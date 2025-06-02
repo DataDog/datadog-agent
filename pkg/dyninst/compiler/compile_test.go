@@ -11,25 +11,13 @@ import (
 	"testing"
 
 	"github.com/cilium/ebpf"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-var MinimumKernelVersion = kernel.VersionCode(5, 17, 0)
-
-func skipIfKernelNotSupported(t *testing.T) {
-	curKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if curKernelVersion < MinimumKernelVersion {
-		t.Skipf("Kernel version %v is not supported", curKernelVersion)
-	}
-}
-
 func TestCompileBPFProgram(t *testing.T) {
-	skipIfKernelNotSupported(t)
+	// skipIfKernelNotSupported(t)
 
 	pointee := &ir.BaseType{
 		TypeCommon: ir.TypeCommon{

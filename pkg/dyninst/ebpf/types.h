@@ -1,6 +1,7 @@
 #ifndef __TYPES_H__
 #define __TYPES_H__
 
+#include "kconfig.h"
 #include "ktypes.h"
 #include "binary_search.h"
 
