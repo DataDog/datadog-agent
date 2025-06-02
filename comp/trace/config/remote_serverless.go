@@ -18,3 +18,7 @@ import (
 func remote(corecompcfg.Component, string, ipc.Component) (config.RemoteClient, error) {
 	return nil, errors.New("remote configuration is not supported in serverless")
 }
+
+func mrfRemoteClient(ipcAddress string, ipc ipc.Component) (config.RemoteClient, error) {
+	return nil, errors.New("remote configuration is not supported in serverless")
+}

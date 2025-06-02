@@ -35,7 +35,8 @@ type rareSampler interface {
 
 // RemoteConfigHandler holds pointers to samplers that need to be updated when APM remote config changes
 type RemoteConfigHandler struct {
-	remoteClient                  config.RemoteClient
+	client                        config.RemoteClient
+	mrfClient                     config.RemoteClient
 	prioritySampler               prioritySampler
 	errorsSampler                 errorsSampler
 	rareSampler                   rareSampler
@@ -63,7 +64,8 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 	}
 
 	return &RemoteConfigHandler{
-		remoteClient:    conf.RemoteConfigClient,
+		client:          conf.RemoteConfigClient,
+		mrfClient:       conf.MRFRemoteConfigClient,
 		prioritySampler: prioritySampler,
 		rareSampler:     rareSampler,
 		errorsSampler:   errorsSampler,
@@ -88,13 +90,56 @@ func (h *RemoteConfigHandler) Start() {
 		return
 	}
 
-	h.remoteClient.Start()
-	h.remoteClient.Subscribe(state.ProductAPMSampling, h.onUpdate)
-	h.remoteClient.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+	h.client.Start()
+	h.client.Subscribe(state.ProductAPMSampling, h.onUpdate)
+	h.client.Subscribe(state.ProductAgentConfig, h.onAgentConfigUpdate)
+	if h.mrfClient != nil {
+		h.mrfClient.Start()
+		h.mrfClient.Subscribe(state.ProductAgentFailover, h.mrfUpdateCallback)
+	}
+}
+
+// mrfUpdateCallback is the callback function for the AGENT_FAILOVER configs.
+// It fetches all the configs targeting the agent and applies the failover_apm settings.
+// Note: we only care about APM (failover_apm) configuration, but Logs (failover_logs) and Metrics (failover_metrics)
+// may also be present on the MRF configuration. These are handled on the core agent RC.
+func (h *RemoteConfigHandler) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	var failoverAPM *bool
+	var failoverAPMCfgPth string
+	for cfgPath, update := range updates {
+		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
+		if err != nil {
+			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			continue
+		}
+
+		if mrfUpdate == nil || mrfUpdate.FailoverAPM == nil {
+			continue
+		}
+
+		if failoverAPM == nil || *mrfUpdate.FailoverAPM {
+			failoverAPM = mrfUpdate.FailoverAPM
+			failoverAPMCfgPth = cfgPath
+
+			if *mrfUpdate.FailoverAPM {
+				break
+			}
+		}
+	}
+
+	h.agentConfig.MRFFailoverAPMRC = failoverAPM
+	if failoverAPM != nil {
+		pkglog.Infof("Setting `multi_region_failover.failover_apm: %t` through remote config", *failoverAPM)
+		applyStateCallback(failoverAPMCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	}
 }
 
 func (h *RemoteConfigHandler) onAgentConfigUpdate(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	mergedConfig, err := state.MergeRCAgentConfig(h.remoteClient.UpdateApplyStatus, updates)
+	mergedConfig, err := state.MergeRCAgentConfig(h.client.UpdateApplyStatus, updates)
 	if err != nil {
 		log.Debugf("couldn't merge the agent config from remote configuration: %s", err)
 		return
