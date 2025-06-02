@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 const (
@@ -81,6 +81,7 @@ instances:
 )
 
 func TestConvertDocker(t *testing.T) {
+	mockConfig := configmock.New(t)
 	dir := t.TempDir()
 
 	src := filepath.Join(dir, "docker_daemon.yaml")
@@ -98,15 +99,15 @@ func TestConvertDocker(t *testing.T) {
 
 	assert.Equal(t, dockerNewConf, string(newConf))
 
-	assert.Equal(t, true, pkgconfigsetup.Datadog().GetBool("exclude_pause_container"))
+	assert.Equal(t, true, mockConfig.GetBool("exclude_pause_container"))
 	assert.Equal(t, []string{"name:test", "name:some_image.*", "image:some_image_2", "image:some_image_3"},
-		pkgconfigsetup.Datadog().GetStringSlice("ac_exclude"))
-	assert.Equal(t, []string{"image:some_image_3"}, pkgconfigsetup.Datadog().GetStringSlice("ac_include"))
+		mockConfig.GetStringSlice("ac_exclude"))
+	assert.Equal(t, []string{"image:some_image_3"}, mockConfig.GetStringSlice("ac_include"))
 
-	assert.Equal(t, "/host/test/proc", pkgconfigsetup.Datadog().GetString("container_proc_root"))
-	assert.Equal(t, "/host/test/sys/fs/cgroup", pkgconfigsetup.Datadog().GetString("container_cgroup_root"))
+	assert.Equal(t, "/host/test/proc", mockConfig.GetString("container_proc_root"))
+	assert.Equal(t, "/host/test/sys/fs/cgroup", mockConfig.GetString("container_cgroup_root"))
 	assert.Equal(t, map[string]string{"test1": "test1", "test2": "test2"},
-		pkgconfigsetup.Datadog().GetStringMapString("docker_labels_as_tags"))
+		mockConfig.GetStringMapString("docker_labels_as_tags"))
 
 	// test overwrite
 	err = ImportDockerConf(src, dst, false, configConverter)

@@ -12,8 +12,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 ////////////////////////////////
@@ -27,15 +25,14 @@ import (
 type ProfileOverride struct {
 	EnvVars              []corev1.EnvVar             `json:"env,omitempty"`
 	ResourceRequirements corev1.ResourceRequirements `json:"resources,omitempty"`
+	SecurityContext      *corev1.SecurityContext     `json:"securityContext,omitempty"`
 }
 
 // loadSidecarProfiles returns the profile overrides provided by the user
 // It returns an error in case of miss-configuration or in case more than
 // one profile is configured
-func loadSidecarProfiles() ([]ProfileOverride, error) {
+func loadSidecarProfiles(profilesJSON string) ([]ProfileOverride, error) {
 	// Read and parse profiles
-	profilesJSON := pkgconfigsetup.Datadog().GetString("admission_controller.agent_sidecar.profiles")
-
 	var profiles []ProfileOverride
 
 	err := json.Unmarshal([]byte(profilesJSON), &profiles)
@@ -52,16 +49,15 @@ func loadSidecarProfiles() ([]ProfileOverride, error) {
 
 // applyProfileOverrides applies the profile overrides to the container. It
 // returns a boolean that indicates if the container was mutated
-func applyProfileOverrides(container *corev1.Container) (bool, error) {
+func applyProfileOverrides(container *corev1.Container, profiles []ProfileOverride) (bool, error) {
 	if container == nil {
 		return false, fmt.Errorf("can't apply profile overrides to nil containers")
 	}
 
-	profiles, err := loadSidecarProfiles()
-
-	if err != nil {
-		return false, err
+	if profiles == nil {
+		return false, fmt.Errorf("can't apply nil profiles")
 	}
+
 	if len(profiles) == 0 {
 		return false, nil
 	}
@@ -85,6 +81,13 @@ func applyProfileOverrides(container *corev1.Container) (bool, error) {
 		}
 		mutated = true
 	}
+
+	// Apply security context overrides
+	overridden, err = withSecurityContextOverrides(container, overrides.SecurityContext)
+	if err != nil {
+		return false, err
+	}
+	mutated = mutated || overridden
 
 	return mutated, nil
 }

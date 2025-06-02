@@ -7,16 +7,27 @@ import platform
 import re
 import subprocess
 from collections.abc import Iterable
+from datetime import datetime, timedelta
 from functools import lru_cache
 
 import requests
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.git import get_default_branch
+from tasks.libs.common.user_interactions import yes_no_question
 
 try:
     import semver
-    from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
+    from github import (
+        Auth,
+        Github,
+        GithubException,
+        GithubIntegration,
+        GithubObject,
+        InputGitTreeElement,
+        PullRequest,
+    )
     from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
@@ -26,7 +37,7 @@ from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]
 
-RELEASE_BRANCH_PATTERN = re.compile(r"\d+\.\d+\.x")
+RELEASE_BRANCH_PATTERN = re.compile(r"^\d+\.\d+\.x$")
 
 
 class GithubAPI:
@@ -38,7 +49,7 @@ class GithubAPI:
 
     def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
-        self._github = Github(auth=self._auth)
+        self._github = Github(auth=self._auth, per_page=100)
         org = repository.split("/")
         self._organization = org[0] if len(org) > 1 else None
         self._repository = self._github.get_repo(repository)
@@ -51,6 +62,22 @@ class GithubAPI:
 
         return self._repository
 
+    def graphql(self, query):
+        """
+        Perform a GraphQL query against the Github API.
+        """
+
+        headers = {"Authorization": "Bearer " + self._auth.token, "Content-Type": "application/json"}
+        res = requests.post(
+            "https://api.github.com/graphql",
+            headers=headers,
+            json={"query": query},
+            timeout=10,
+        )
+        if res.status_code == 200:
+            return res.json()
+        raise RuntimeError(f"Failed to query Github: {res.text}")
+
     def get_branch(self, branch_name):
         """
         Gets info on a given branch in the given Github repository.
@@ -62,11 +89,13 @@ class GithubAPI:
                 return None
             raise e
 
-    def create_pr(self, pr_title, pr_body, base_branch, target_branch):
+    def create_pr(self, pr_title, pr_body, base_branch, target_branch, draft=False):
         """
         Creates a PR in the given Github repository.
         """
-        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, head=target_branch)
+        return self._repository.create_pull(
+            title=pr_title, body=pr_body, base=base_branch, head=target_branch, draft=draft
+        )
 
     def update_pr(self, pull_number, milestone_number, labels):
         """
@@ -88,6 +117,136 @@ class GithubAPI:
             if milestone.title == milestone_name:
                 return milestone
         return None
+
+    def get_branch_protection(self, branch_name: str):
+        """
+        Get the protection of a given branch
+        """
+        branch = self.get_branch(branch_name)
+        if not branch:
+            raise Exit(color_message(f"Branch {branch_name} not found", Color.RED), code=1)
+        elif not branch.protected:
+            raise Exit(color_message(f"Branch {branch_name} doesn't have protection", Color.RED), code=1)
+        try:
+            protection = branch.get_protection()
+        except GithubException as e:
+            if e.status == 403:
+                error_msg = f"""Can't access {branch_name} branch protection, probably due to missing permissions. You need either:
+    - A Personal Access Token (PAT) needs the "repo" permissions.
+    - Or a fine-grained token needs the "Administration" repository permissions.
+"""
+                raise PermissionError(error_msg) from e
+            raise
+        return protection
+
+    def protection_to_payload(self, protection_raw_data: dict) -> dict:
+        """
+        Convert the protection object to a payload.
+        See https://docs.github.com/en/rest/branches/branch-protection?apiVersion=2022-11-28#update-branch-protection
+
+        The following seems to be defined at the Org scale, so we're not resending them here:
+        - required_pull_request_reviews > dismissal_restrictions
+        - required_pull_request_reviews > bypass_pull_request_allowances
+        """
+        prot = protection_raw_data
+        return {
+            "required_status_checks": {
+                "strict": prot["required_status_checks"]["strict"],
+                "checks": [
+                    {"context": check["context"], "app_id": -1 if check["app_id"] is None else check["app_id"]}
+                    for check in prot["required_status_checks"]["checks"]
+                ],
+            },
+            "enforce_admins": prot["enforce_admins"]["enabled"],
+            "required_pull_request_reviews": {
+                "dismiss_stale_reviews": prot["required_pull_request_reviews"]["dismiss_stale_reviews"],
+                "require_code_owner_reviews": prot["required_pull_request_reviews"]["require_code_owner_reviews"],
+                "required_approving_review_count": prot["required_pull_request_reviews"][
+                    "required_approving_review_count"
+                ],
+                "require_last_push_approval": prot["required_pull_request_reviews"]["require_last_push_approval"],
+            },
+            "restrictions": {
+                "users": prot["restrictions"]["users"],
+                "teams": prot["restrictions"]["teams"],
+                "apps": [app["slug"] for app in prot["restrictions"]["apps"]],
+            },
+            "required_linear_history": prot["required_linear_history"]["enabled"],
+            "allow_force_pushes": prot["allow_force_pushes"]["enabled"],
+            "allow_deletions": prot["allow_deletions"]["enabled"],
+            "block_creations": prot["block_creations"]["enabled"],
+            "required_conversation_resolution": prot["required_conversation_resolution"]["enabled"],
+            "lock_branch": prot["lock_branch"]["enabled"],
+            "allow_fork_syncing": prot["allow_fork_syncing"]["enabled"],
+        }
+
+    def get_branch_required_checks(self, branch_name: str) -> list[str]:
+        """
+        Get the required checks for a given branch
+        """
+        return self.get_branch_protection(branch_name).required_status_checks.contexts
+
+    def add_branch_required_check(self, branch_name: str, checks: list[str], force: bool = False) -> None:
+        """
+        Add required checks to a given branch
+
+        It uses the Github API directly to add the required checks to the branch.
+        Using the "checks" argument is not supported by PyGithub.
+        :calls: `PUT /repos/{owner}/{repo}/branches/{branch}/protection
+
+        """
+        current_protection = self.get_branch_protection(branch_name)
+        current_required_checks = current_protection.required_status_checks.contexts
+        new_required_checks = []
+        for check in checks:
+            if check in current_required_checks:
+                print(
+                    color_message(
+                        f"Ignoring the '{check}' check as it is already required on the {branch_name} branch",
+                        Color.ORANGE,
+                    )
+                )
+            else:
+                new_required_checks.append(check)
+        if not new_required_checks:
+            print(color_message("No new checks to add", Color.GREEN))
+            return
+        print(
+            color_message(
+                f"Warning: You are about to add the following checks to the {branch_name} branch:\n{new_required_checks}",
+                Color.ORANGE,
+            )
+        )
+        print(color_message(f"Current required checks: {sorted(current_required_checks)}", Color.GREY))
+        if force or yes_no_question("Are you sure?", default=False):
+            # We're crafting the request and not using PyGithub because it doesn't support passing the checks variable instead of contexts.
+            protection_url = f"{self.repo.url}/branches/{branch_name}/protection"
+            headers = {
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
+            payload = self.protection_to_payload(current_protection.raw_data)
+            payload["required_status_checks"]["checks"] = sorted(
+                payload["required_status_checks"]["checks"]
+                + [{"context": check, "app_id": -1} for check in new_required_checks],
+                key=lambda x: x['context'],
+            )
+
+            response = requests.put(protection_url, headers=headers, json=payload, timeout=10)
+            if response.status_code != 200:
+                print(
+                    color_message(
+                        f"Error while sending the PUT request to {protection_url}\n{response.text}", Color.RED
+                    )
+                )
+                raise Exit(
+                    color_message(f"Failed to update the required checks for the {branch_name} branch", Color.RED),
+                    code=1,
+                )
+            print(color_message(f"The {checks} checks were successfully added!", Color.GREEN))
+        else:
+            print(color_message("Aborting changes to the branch required checks", Color.GREEN))
 
     def is_release_note_needed(self, pull_number):
         """
@@ -126,8 +285,13 @@ class GithubAPI:
         issues = self._repository.get_issues(milestone=m, state='all', labels=labels)
         return [i.as_pull_request() for i in issues if i.pull_request is not None]
 
-    def get_pr_for_branch(self, branch_name):
-        return self._repository.get_pulls(state="open", head=f'DataDog:{branch_name}')
+    def get_pr_for_branch(self, head_branch_name=None, base_branch_name=None):
+        query_params = {"state": "open"}
+        if head_branch_name:
+            query_params["head"] = f'DataDog:{head_branch_name}'
+        if base_branch_name:
+            query_params["base"] = base_branch_name
+        return self._repository.get_pulls(**query_params)
 
     def get_tags(self, pattern=""):
         """
@@ -173,7 +337,7 @@ class GithubAPI:
             "Accept": "application/vnd.github.v3+json",
         }
         # Retrying this request if needed is handled by the caller
-        with requests.get(url, headers=headers, stream=True) as r:
+        with requests.get(url, headers=headers, stream=True, timeout=10) as r:
             r.raise_for_status()
             zip_target_path = os.path.join(destination_dir, f"{destination_file}.zip")
             with open(zip_target_path, "wb") as f:
@@ -198,9 +362,18 @@ class GithubAPI:
 
         return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
 
-    def latest_release(self) -> str:
+    def latest_release(self, major_version=7) -> str:
+        if major_version == 6:
+            return max((r for r in self.get_releases() if r.title.startswith('6.53')), key=lambda r: r.created_at).title
         release = self._repository.get_latest_release()
         return release.title
+
+    def latest_release_tag(self) -> str:
+        release = self._repository.get_latest_release()
+        return release.tag_name
+
+    def get_releases(self):
+        return self._repository.get_releases()
 
     def latest_unreleased_release_branches(self):
         """
@@ -271,6 +444,22 @@ class GithubAPI:
 
         return [label.name for label in pr.get_labels()]
 
+    def update_review_complexity_labels(self, pr_id: int, new_label: str) -> None:
+        """
+        Updates the review complexity label of a pull request
+        """
+        pr = self.get_pr(pr_id)
+        already_there = False
+        for label in pr.get_labels():
+            if label.name.endswith(" review"):
+                if label.name == new_label:
+                    already_there = True
+                else:
+                    pr.remove_from_labels(label.name)
+
+        if not already_there:
+            pr.add_to_labels(new_label)
+
     def get_pr_files(self, pr_id: int) -> list[str]:
         """
         Returns the files involved in the PR
@@ -283,10 +472,16 @@ class GithubAPI:
         """
         Get the members of a team.
         """
+        team = self.get_team(team_slug)
+        return team.get_members()
+
+    def get_team(self, team_slug: str):
+        """
+        Get the team object.
+        """
         assert self._organization
         org = self._github.get_organization(self._organization)
-        team = org.get_team_by_slug(team_slug)
-        return team.get_members()
+        return org.get_team_by_slug(team_slug)
 
     def search_issues(self, query: str):
         """
@@ -298,6 +493,27 @@ class GithubAPI:
     def is_organization_member(self, user):
         organization = self._repository.organization
         return (user.company and 'datadog' in user.company.casefold()) or organization.has_in_members(user)
+
+    def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
+        # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
+        base_tree = self._repository.get_git_tree(tree['base_tree'])
+        git_tree = self._repository.create_git_tree(
+            [InputGitTreeElement(**blob) for blob in tree['tree']], base_tree=base_tree
+        )
+        commit = self._repository.create_git_commit(
+            commit_message,
+            git_tree,
+            [self._repository.get_git_commit(tree['base_tree'])],
+        )
+        # The update ref API endpoint is not available in PyGithub, so we need to use the raw API
+        data = {"sha": commit.sha, "force": False}
+        headers = {"Authorization": "Bearer " + self._auth.token, "Content-Type": "application/json"}
+        res = requests.patch(
+            url=f"{self._repository.url}/git/refs/heads/{branch_name}", json=data, headers=headers, timeout=10
+        )
+        if res.status_code == 200:
+            return res.json()
+        raise Exit(f"Failed to update the reference {branch_name} with commit {commit.sha}: {res.text}")
 
     def _chose_auth(self, public_repo):
         """
@@ -364,11 +580,110 @@ class GithubAPI:
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
 
-    def create_label(self, name, color, description=""):
+    def create_label(self, name, color, description="", exist_ok=False):
         """
         Creates a label in the given GitHub repository.
         """
-        return self._repository.create_label(name, color, description)
+
+        try:
+            return self._repository.create_label(name, color, description)
+        except GithubException as e:
+            if not (
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
+            ):
+                raise e
+
+    def create_milestone(self, title, exist_ok=False):
+        """
+        Creates a milestone in the given GitHub repository.
+        """
+
+        try:
+            return self._repository.create_milestone(title)
+        except GithubException as e:
+            if not (
+                e.status == 422
+                and len(e.data["errors"]) == 1
+                and e.data["errors"][0]["code"] == "already_exists"
+                and exist_ok
+            ):
+                raise e
+
+    def create_release(self, tag, message, draft=True):
+        return self._repository.create_git_release(
+            tag=tag,
+            name=tag,
+            message=message,
+            draft=draft,
+        )
+
+    def get_codereview_complexity(self, pr_id: int) -> str:
+        """
+        Get the complexity of the code review for a given PR, taking into account the number of files, lines and comments.
+        """
+        pr = self._repository.get_pull(pr_id)
+        # Criteria are defined with the average of PR attributes (files, lines, comments) so that:
+        # - easy PRs are merged in less than 1 day
+        # - hard PRs are merged in more than 1 week
+        # More details about criteria definition: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
+        criteria = {
+            'easy': {'files': 4, 'lines': 150, 'comments': 2},
+            'hard': {'files': 12, 'lines': 650, 'comments': 9},
+        }
+        if (
+            pr.changed_files < criteria['easy']['files']
+            and pr.additions + pr.deletions < criteria['easy']['lines']
+            and pr.review_comments < criteria['easy']['comments']
+        ):
+            return 'short review'
+        elif (
+            pr.changed_files > criteria['hard']['files']
+            or pr.additions + pr.deletions > criteria['hard']['lines']
+            or pr.review_comments > criteria['hard']['comments']
+        ):
+            return 'long review'
+        return 'medium review'
+
+    def find_teams(self, obj, exclude_teams=None, exclude_permissions=None, depth=None):
+        """Get teams from a Github object (repository or team)"""
+        teams = []
+        if depth is not None:
+            depth -= 1
+        for team in obj.get_teams():
+            if (
+                exclude_teams
+                and team.name in exclude_teams
+                or exclude_permissions
+                and team.permission in exclude_permissions
+            ):
+                continue
+            teams.append(team)
+            if depth is None or depth > 0:
+                teams.extend(self.find_teams(team, depth=depth))
+        return teams
+
+    def get_active_users(self, duration_days=183):
+        """Get the set of reviewers within the last <duration_days>"""
+        actors = set()
+        since_date = datetime.now() - timedelta(days=duration_days)
+        for pr in self._repository.get_pulls(state="all"):
+            actors.add(pr.user.login)
+            if pr.created_at < since_date:
+                break
+            for review in pr.get_reviews():
+                if review.user:
+                    actors.add(review.user.login)
+        return actors
+
+    def get_direct_team_members(self, team):
+        query = '{ organization(login: "datadog") { team(slug: "TEAM")  { members(membership: IMMEDIATE) { nodes { login } } } } }'.replace(
+            "TEAM", team
+        )
+        data = self.graphql(query)
+        return [member["login"] for member in data["data"]["organization"]["team"]["members"]["nodes"]]
 
 
 def get_github_teams(users):
@@ -380,7 +695,7 @@ def get_github_teams(users):
 def query_teams(login):
     query = get_user_query(login)
     headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"}
-    response = requests.post("https://api.github.com/graphql", headers=headers, data=query)
+    response = requests.post("https://api.github.com/graphql", headers=headers, data=query, timeout=10)
     data = response.json()
     teams = []
     try:
@@ -400,13 +715,10 @@ def get_user_query(login):
     return query + string_var
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False):
+def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)
-
-    # Find milestone based on what the next final version is. If the milestone does not exist, fail.
-    milestone_name = str(version)
 
     milestone = github.get_milestone_by_name(milestone_name)
 
@@ -422,7 +734,7 @@ Make sure that milestone is open before trying again.""",
 
     pr = github.create_pr(
         pr_title=title,
-        pr_body="",
+        pr_body=body,
         base_branch=base_branch,
         target_branch=target_branch,
     )
@@ -438,13 +750,10 @@ Make sure that milestone is open before trying again.""",
     labels = [
         "changelog/no-changelog",
         "qa/no-code-change",
-        "team/agent-delivery",
-        "team/agent-release-management",
-        "category/release_operations",
     ]
 
-    if changelog_pr:
-        labels.append("backport/main")
+    if other_labels:
+        labels += other_labels
 
     updated_pr = github.update_pr(
         pull_number=pr.number,
@@ -462,3 +771,26 @@ Make sure that milestone is open before trying again.""",
     print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
 
     return updated_pr.html_url
+
+
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+    if milestone:
+        milestone_name = milestone
+    else:
+        from tasks.libs.releasing.json import get_current_milestone
+
+        milestone_name = get_current_milestone()
+
+    labels = [
+        "team/agent-delivery",
+    ]
+    if changelog_pr:
+        labels.append(f"backport/{get_default_branch()}")
+
+    return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels)
+
+
+def ask_review_actor(pr):
+    for event in pr.get_issue_events():
+        if event.event == "labeled" and event.label.name == "ask-review":
+            return event.actor.name or event.actor.login

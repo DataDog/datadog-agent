@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 )
@@ -41,12 +41,10 @@ hosts: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org,
 	offset = 10
 )
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 func testNTPQueryError(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return nil, fmt.Errorf("test error from NTP")
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 func testNTPQueryInvalid(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
@@ -54,7 +52,6 @@ func testNTPQueryInvalid(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	}, nil
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 func testNTPQuery(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
@@ -359,9 +356,11 @@ func TestDefaultHostConfig(t *testing.T) {
 	getCloudProviderNTPHosts = func(_ context.Context) []string { return nil }
 	defer func() { getCloudProviderNTPHosts = cloudproviders.GetCloudProviderNTPHosts }()
 
+	mockConfig := configmock.New(t)
+
 	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
-	pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
+	mockConfig.SetWithoutSource("cloud_provider_metadata", []string{})
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")

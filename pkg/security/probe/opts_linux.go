@@ -21,18 +21,26 @@ type Opts struct {
 	StatsdClient statsd.ClientInterface
 	// PathResolutionEnabled defines if the path resolution is enabled
 	PathResolutionEnabled bool
-	// TagsResolver will override the default one. Mainly here for tests.
-	TagsResolver tags.Resolver
+	// EnvsVarResolutionEnabled defines if environment variables resolution is enabled
+	EnvsVarResolutionEnabled bool
+	// Tagger will override the default one. Mainly here for tests.
+	Tagger tags.Tagger
 	// SyscallsMonitorEnabled enable syscalls map monitor
 	SyscallsMonitorEnabled bool
 	// TTYFallbackEnabled enable the tty procfs fallback
 	TTYFallbackEnabled bool
 	// EBPFLessEnabled use ebpfless source
 	EBPFLessEnabled bool
+	// DNSPort allows to change the DNS port where the events are captured from
+	DNSPort uint16
 }
 
 func (o *Opts) normalize() {
 	if o.StatsdClient == nil {
 		o.StatsdClient = &statsd.NoOpClient{}
+	}
+
+	if o.DNSPort == 0 {
+		o.DNSPort = 53
 	}
 }

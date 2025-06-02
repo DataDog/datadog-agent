@@ -1,12 +1,11 @@
 import os
 import sys
 
-from invoke import Exit, task
+from invoke import task
 
-from tasks.agent import build as agent_build
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.go import deps
+from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -23,25 +22,11 @@ def build(
     flavor=AgentFlavor.base.name,
     install_path=None,
     major_version='7',
-    python_runtimes='3',
-    go_mod="mod",
-    bundle=False,
+    go_mod="readonly",
 ):
     """
     Build the trace agent.
     """
-
-    if bundle:
-        return agent_build(
-            ctx,
-            race=race,
-            build_include=build_include,
-            build_exclude=build_exclude,
-            flavor=flavor,
-            major_version=major_version,
-            python_runtimes=python_runtimes,
-            go_mod=go_mod,
-        )
 
     flavor = AgentFlavor[flavor]
     if flavor.is_ot():
@@ -51,13 +36,12 @@ def build(
         ctx,
         install_path=install_path,
         major_version=major_version,
-        python_runtimes=python_runtimes,
     )
 
     # generate windows resources
     if sys.platform == 'win32':
         build_messagetable(ctx)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/trace-agent/windows/resources/trace-agent.rc",
@@ -92,21 +76,18 @@ def build(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, go_mod="mod"):
+def integration_tests(ctx, race=False, go_mod="readonly", timeout="10m"):
     """
     Run integration tests for trace agent
     """
-    if sys.platform == 'win32':
-        raise Exit(message='trace-agent integration tests are not supported on Windows', code=0)
-
-    if install_deps:
-        deps(ctx)
-
-    go_build_tags = " ".join(get_default_build_tags(build="test"))
-    race_opt = "-race" if race else ""
-
-    go_cmd = f'go test -mod={go_mod} {race_opt} -v -tags "{go_build_tags}"'
-    ctx.run(f"{go_cmd} ./cmd/trace-agent/test/testsuite/...", env={"INTEGRATION": "yes"})
+    containerized_integration_tests(
+        ctx,
+        TRACE_AGENT_IT_CONF,
+        race=race,
+        remote_docker=False,
+        go_mod=go_mod,
+        timeout=timeout,
+    )
 
 
 @task

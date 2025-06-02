@@ -6,16 +6,9 @@
 package sender
 
 import (
-	"bytes"
+	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-)
-
-var (
-	// LineSerializer is a shared line serializer.
-	LineSerializer Serializer = &lineSerializer{}
-	// ArraySerializer is a shared line serializer.
-	ArraySerializer Serializer = &arraySerializer{}
 )
 
 // Serializer transforms a batch of messages into a payload.
@@ -23,45 +16,48 @@ var (
 // raw []byte data from unstructured messages or turning structured
 // messages into []byte data).
 type Serializer interface {
-	Serialize(messages []*message.Message) []byte
-}
-
-// lineSerializer transforms a message array into a payload
-// separating content by new line character.
-type lineSerializer struct{}
-
-// Serialize concatenates all messages using
-// a new line characater as a separator,
-// for example:
-// "{"message":"content1"}", "{"message":"content2"}"
-// returns, "{"message":"content1"}\n{"message":"content2"}"
-func (s *lineSerializer) Serialize(messages []*message.Message) []byte {
-	var buffer bytes.Buffer
-	for i, message := range messages {
-		if i > 0 {
-			buffer.WriteByte('\n')
-		}
-		buffer.Write(message.GetContent())
-	}
-	return buffer.Bytes()
+	Serialize(message *message.Message, writer io.Writer) error
+	Finish(writer io.Writer) error
+	Reset()
 }
 
 // arraySerializer transforms a message array into a array string payload.
-type arraySerializer struct{}
+type arraySerializer struct {
+	isFirstMessage bool
+}
+
+// NewArraySerializer creates a new arraySerializer
+func NewArraySerializer() Serializer {
+	return &arraySerializer{isFirstMessage: true}
+}
 
 // Serialize transforms all messages into a array string
 // for example:
 // "{"message":"content1"}", "{"message":"content2"}"
 // returns, "[{"message":"content1"},{"message":"content2"}]"
-func (s *arraySerializer) Serialize(messages []*message.Message) []byte {
-	var buffer bytes.Buffer
-	buffer.WriteByte('[')
-	for i, message := range messages {
-		if i > 0 {
-			buffer.WriteByte(',')
+func (s *arraySerializer) Serialize(message *message.Message, writer io.Writer) error {
+	if s.isFirstMessage {
+		if _, err := writer.Write([]byte{'['}); err != nil {
+			return err
 		}
-		buffer.Write(message.GetContent())
+		s.isFirstMessage = false
+	} else {
+		if _, err := writer.Write([]byte{','}); err != nil {
+			return err
+		}
 	}
-	buffer.WriteByte(']')
-	return buffer.Bytes()
+	_, err := writer.Write(message.GetContent())
+	return err
+}
+
+// Finish writes the closing bracket for JSON array
+func (s *arraySerializer) Finish(writer io.Writer) error {
+	_, err := writer.Write([]byte{']'})
+	s.Reset()
+	return err
+}
+
+// Reset resets the serializer to its initial state
+func (s *arraySerializer) Reset() {
+	s.isFirstMessage = true
 }

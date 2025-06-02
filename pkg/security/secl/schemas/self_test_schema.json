@@ -1,0 +1,69 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "self_test.schema.json",
+    "type": "object",
+    "properties": {
+        "agent": {
+            "type": "object",
+            "properties": {
+                "rule_id": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string"
+                }
+            },
+            "required": ["rule_id", "version"]
+        },
+        "date": {
+            "$ref": "datetime.schema.json"
+        },
+        "hostname": {
+            "type": "string"
+        },
+        "service": {
+            "type": "string"
+        },
+        "status": {
+            "type": "string"
+        },
+        "succeeded_tests": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "failed_tests": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "timestamp": {
+            "type": "number"
+        },
+        "title": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "agent",
+        "date",
+        "hostname",
+        "service",
+        "status",
+        "timestamp",
+        "title"
+    ],
+    "oneOf": [
+        {
+            "required": ["succeeded_tests"]
+        },
+        {
+            "required": ["failed_tests"]
+        },
+        {
+            "required": ["succeeded_tests", "failed_tests"]
+        }
+    ]
+}

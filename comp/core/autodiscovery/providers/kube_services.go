@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -35,7 +36,7 @@ const (
 // KubeServiceConfigProvider implements the ConfigProvider interface for the apiserver.
 type KubeServiceConfigProvider struct {
 	lister         listersv1.ServiceLister
-	upToDate       bool
+	upToDate       *atomic.Bool
 	configErrors   map[string]ErrorMsgSet
 	telemetryStore *telemetry.Store
 }
@@ -58,6 +59,7 @@ func NewKubeServiceConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, tele
 		lister:         servicesInformer.Lister(),
 		configErrors:   make(map[string]ErrorMsgSet),
 		telemetryStore: telemetryStore,
+		upToDate:       atomic.NewBool(false),
 	}
 
 	if _, err := servicesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -84,29 +86,25 @@ func (k *KubeServiceConfigProvider) String() string {
 }
 
 // Collect retrieves services from the apiserver, builds Config objects and returns them
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (k *KubeServiceConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (k *KubeServiceConfigProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	services, err := k.lister.List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
-	k.upToDate = true
+	k.upToDate.Store(true)
 
 	return k.parseServiceAnnotations(services, pkgconfigsetup.Datadog())
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in the apiserver
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (k *KubeServiceConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
-	return k.upToDate, nil
+func (k *KubeServiceConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
+	return k.upToDate.Load(), nil
 }
 
 func (k *KubeServiceConfigProvider) invalidate(obj interface{}) {
 	if obj != nil {
 		log.Trace("Invalidating configs on new/deleted service")
-		k.upToDate = false
+		k.upToDate.Store(false)
 	}
 }
 
@@ -122,7 +120,7 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	castedOld, ok := old.(*v1.Service)
 	if !ok {
 		log.Errorf("Expected a *v1.Service type, got: %T", old)
-		k.upToDate = false
+		k.upToDate.Store(false)
 		return
 	}
 	// Quick exit if resversion did not change
@@ -132,7 +130,7 @@ func (k *KubeServiceConfigProvider) invalidateIfChanged(old, obj interface{}) {
 	// Compare annotations
 	if valuesDiffer(castedObj.Annotations, castedOld.Annotations, kubeServiceAnnotationPrefix) {
 		log.Trace("Invalidating configs on service change")
-		k.upToDate = false
+		k.upToDate.Store(false)
 		return
 	}
 }

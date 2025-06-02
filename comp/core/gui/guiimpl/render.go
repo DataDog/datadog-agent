@@ -9,13 +9,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"expvar"
-	"html/template"
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )
 
 var fmap = status.HTMLFmap()
@@ -76,7 +76,7 @@ func renderError(name string) (string, error) {
 func fillTemplate(w io.Writer, data Data, request string) error {
 	t := template.New(request + ".tmpl")
 	t.Funcs(fmap)
-	tmpl, err := viewsFS.ReadFile("views/templates/" + request + ".tmpl")
+	tmpl, err := templatesFS.ReadFile("views/templates/" + request + ".tmpl")
 	if err != nil {
 		return err
 	}

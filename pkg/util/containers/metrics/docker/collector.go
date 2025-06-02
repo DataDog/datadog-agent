@@ -15,14 +15,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -37,7 +37,7 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+		Constructor: func(cache *provider.Cache, wmeta option.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 			return newDockerCollector(cache, wmeta)
 		},
 	})
@@ -46,10 +46,10 @@ func init() {
 type dockerCollector struct {
 	du            *docker.DockerUtil
 	pidCache      *provider.Cache
-	metadataStore optional.Option[workloadmeta.Component]
+	metadataStore option.Option[workloadmeta.Component]
 }
 
-func newDockerCollector(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+func newDockerCollector(cache *provider.Cache, wmeta option.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
 	if !env.IsFeaturePresent(env.Docker) {
@@ -88,7 +88,7 @@ func (d *dockerCollector) GetContainerStats(_, containerID string, _ time.Durati
 	if err != nil {
 		return nil, err
 	}
-	outStats := convertContainerStats(&stats.Stats)
+	outStats := convertContainerStats(stats)
 
 	contSpec, err := d.spec(containerID)
 	if err == nil {
@@ -169,7 +169,7 @@ func (d *dockerCollector) GetSelfContainerID() (string, error) {
 }
 
 // stats returns stats by container ID
-func (d *dockerCollector) stats(containerID string) (*types.StatsJSON, error) {
+func (d *dockerCollector) stats(containerID string) (*container.StatsResponse, error) {
 	stats, err := d.du.GetContainerStats(context.TODO(), containerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get container stats for %s: %w", containerID, err)
@@ -183,7 +183,7 @@ func (d *dockerCollector) pids(containerID string) ([]int, error) {
 	return d.du.GetContainerPIDs(context.TODO(), containerID)
 }
 
-func (d *dockerCollector) spec(containerID string) (*types.ContainerJSON, error) {
+func (d *dockerCollector) spec(containerID string) (*container.InspectResponse, error) {
 	contSpec, err := d.du.Inspect(context.TODO(), containerID, false)
 	if err != nil {
 		return nil, err
@@ -218,7 +218,7 @@ func (d *dockerCollector) refreshPIDCache(currentTime time.Time, cacheValidity t
 	return nil
 }
 
-func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *container.InspectResponse) {
 	if spec == nil || containerStats == nil {
 		return
 	}
@@ -227,7 +227,7 @@ func fillStatsFromSpec(containerStats *provider.ContainerStats, spec *types.Cont
 	computeMemoryLimit(containerStats, spec)
 }
 
-func computeMemoryLimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+func computeMemoryLimit(containerStats *provider.ContainerStats, spec *container.InspectResponse) {
 	if spec == nil || spec.HostConfig == nil || containerStats.Memory == nil {
 		return
 	}
@@ -237,7 +237,7 @@ func computeMemoryLimit(containerStats *provider.ContainerStats, spec *types.Con
 	}
 }
 
-func convertNetworkStats(stats *types.StatsJSON) *provider.ContainerNetworkStats {
+func convertNetworkStats(stats *container.StatsResponse) *provider.ContainerNetworkStats {
 	containerNetworkStats := &provider.ContainerNetworkStats{
 		Timestamp:   stats.Read,
 		BytesSent:   pointer.Ptr(0.0),

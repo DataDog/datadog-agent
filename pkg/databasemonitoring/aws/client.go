@@ -9,18 +9,20 @@ package aws
 
 import (
 	"context"
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"time"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=rdsclient_mockgen.go
 
-// RDSClient is the interface for describing aurora cluster endpoints
-type RDSClient interface {
-	GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string) (map[string]*AuroraCluster, error)
+// RdsClient is the interface for describing cluster and instance endpoints
+type RdsClient interface {
+	GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error)
 	GetAuroraClustersFromTags(ctx context.Context, tags []string) ([]string, error)
+	GetRdsInstancesFromTags(ctx context.Context, tags []string, dbmTag string) ([]Instance, error)
 }
 
 // rdsService defines the interface for describing cluster instances. It exists here to facilitate testing
@@ -35,8 +37,8 @@ type Client struct {
 	client rdsService
 }
 
-// NewRDSClient creates a new AWS client for querying RDS
-func NewRDSClient(region string) (*Client, string, error) {
+// NewRdsClient creates a new AWS client for querying RDS
+func NewRdsClient(region string) (*Client, string, error) {
 	if region == "" {
 		identity, err := ec2.GetInstanceIdentity(context.Background())
 		if err != nil {

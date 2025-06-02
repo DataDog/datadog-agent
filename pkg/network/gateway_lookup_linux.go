@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -142,7 +142,7 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 
 		var s Subnet
 		var err error
-		err = kernel.WithNS(g.rootNetNs, func() error {
+		err = netnsutil.WithNS(g.rootNetNs, func() error {
 			var ifi *net.Interface
 			ifi, err = net.InterfaceByIndex(r.IfIndex)
 			if err != nil {

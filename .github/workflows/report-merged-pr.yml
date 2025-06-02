@@ -1,0 +1,36 @@
+# Report PR merged event to Datadog
+
+name: Report Merged PR
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [closed]
+
+permissions: {}
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DD_API_KEY: ${{ secrets.REPORT_MERGED_PR_DD_API_KEY }}
+
+jobs:
+  if_merged:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Send merge event to Datadog
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          dda inv -- -e github.pr-merge-dd-event-sender -p "$PR_NUMBER"

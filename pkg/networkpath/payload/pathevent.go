@@ -6,7 +6,11 @@
 // Package payload contains Network Path payload
 package payload
 
-import "github.com/DataDog/datadog-agent/pkg/network"
+import (
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/network/payload"
+)
 
 // Protocol defines supported network protocols
 // Please define new protocols based on the Keyword from:
@@ -19,6 +23,28 @@ const (
 	// ProtocolUDP is the UDP protocol.
 	ProtocolUDP Protocol = "UDP"
 )
+
+// TCPMethod is the method used to run a TCP traceroute.
+type TCPMethod string
+
+const (
+	// TCPConfigSYN means to only perform SYN traceroutes
+	TCPConfigSYN TCPMethod = "syn"
+	// TCPConfigSACK means to only perform SACK traceroutes
+	TCPConfigSACK TCPMethod = "sack"
+	// TCPConfigPreferSACK means to try SACK, and fall back to SYN if the remote doesn't support SACK
+	TCPConfigPreferSACK TCPMethod = "prefer_sack"
+	// TCPConfigSYNSocket means to use a SYN with TCP socket options to perform the traceroute (windows only)
+	TCPConfigSYNSocket TCPMethod = "syn_socket"
+)
+
+// TCPDefaultMethod is what method to use when nothing is specified
+const TCPDefaultMethod TCPMethod = TCPConfigSYN
+
+// MakeTCPMethod converts a TCP traceroute method from config into a TCPMethod
+func MakeTCPMethod(method string) TCPMethod {
+	return TCPMethod(strings.ToLower(method))
+}
 
 // PathOrigin origin of the path e.g. network_traffic, network_path_integration
 type PathOrigin string
@@ -33,9 +59,13 @@ const (
 // NetworkPathHop encapsulates the data for a single
 // hop within a path
 type NetworkPathHop struct {
-	TTL       int     `json:"ttl"`
-	IPAddress string  `json:"ip_address"`
-	Hostname  string  `json:"hostname,omitempty"`
+	TTL       int    `json:"ttl"`
+	IPAddress string `json:"ip_address"`
+
+	// hostname is the reverse DNS of the ip_address
+	// TODO (separate PR): we might want to rename it to reverse_dns_hostname for consistency with destination.reverse_dns_hostname
+	Hostname string `json:"hostname,omitempty"`
+
 	RTT       float64 `json:"rtt,omitempty"`
 	Reachable bool    `json:"reachable"`
 }
@@ -44,7 +74,7 @@ type NetworkPathHop struct {
 // about the source of a path
 type NetworkPathSource struct {
 	Hostname    string       `json:"hostname"`
-	Via         *network.Via `json:"via,omitempty"`
+	Via         *payload.Via `json:"via,omitempty"`
 	NetworkID   string       `json:"network_id,omitempty"` // Today this will be a VPC ID since we only resolve AWS resources
 	Service     string       `json:"service,omitempty"`
 	ContainerID string       `json:"container_id,omitempty"`
@@ -53,10 +83,11 @@ type NetworkPathSource struct {
 // NetworkPathDestination encapsulates information
 // about the destination of a path
 type NetworkPathDestination struct {
-	Hostname  string `json:"hostname"`
-	IPAddress string `json:"ip_address"`
-	Port      uint16 `json:"port"`
-	Service   string `json:"service,omitempty"`
+	Hostname           string `json:"hostname"`
+	IPAddress          string `json:"ip_address"`
+	Port               uint16 `json:"port"`
+	Service            string `json:"service,omitempty"`
+	ReverseDNSHostname string `json:"reverse_dns_hostname,omitempty"`
 }
 
 // NetworkPath encapsulates data that defines a

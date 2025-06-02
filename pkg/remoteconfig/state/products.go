@@ -6,9 +6,11 @@
 package state
 
 var validProducts = map[string]struct{}{
+	ProductInstallerConfig:              {},
 	ProductUpdaterCatalogDD:             {},
 	ProductUpdaterAgent:                 {},
 	ProductUpdaterTask:                  {},
+	ProductActionPlatformRunnerKeys:     {},
 	ProductAgentConfig:                  {},
 	ProductAgentFailover:                {},
 	ProductAgentTask:                    {},
@@ -31,15 +33,22 @@ var validProducts = map[string]struct{}{
 	ProductTesting1:                     {},
 	ProductTesting2:                     {},
 	ProductOrchestratorK8sCRDs:          {},
+	ProductHaAgent:                      {},
+	ProductNDMDeviceProfilesCustom:      {},
+	ProductMetricControl:                {},
 }
 
 const (
+	// ProductInstallerConfig is the product used to receive the installer configuration
+	ProductInstallerConfig = "INSTALLER_CONFIG"
 	// ProductUpdaterCatalogDD is the product used to receive the package catalog from datadog
 	ProductUpdaterCatalogDD = "UPDATER_CATALOG_DD"
 	// ProductUpdaterAgent is the product used to receive defaults versions to install
 	ProductUpdaterAgent = "UPDATER_AGENT"
 	// ProductUpdaterTask is the product used to receive tasks to execute
 	ProductUpdaterTask = "UPDATER_TASK"
+	// ProductActionPlatformRunnerKeys is to receive signing keys for the action platform "private action runner"
+	ProductActionPlatformRunnerKeys = "AP_RUNNER_KEYS"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentFailover is to receive the multi-region failover configuration
@@ -84,4 +93,10 @@ const (
 	ProductTesting2 = "TESTING2"
 	// ProductOrchestratorK8sCRDs receives values for k8s crds
 	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
+	// ProductHaAgent is the HA Agent product
+	ProductHaAgent = "HA_AGENT"
+	// ProductNDMDeviceProfilesCustom receives user-created SNMP profiles for network device monitoring
+	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
+	// ProductMetricControl receives configuration for the metrics control.
+	ProductMetricControl = "METRIC_CONTROL"
 )

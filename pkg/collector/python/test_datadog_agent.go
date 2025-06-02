@@ -9,14 +9,20 @@ package python
 
 import (
 	"context"
+	"math/rand/v2"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -55,7 +61,7 @@ func testHeaders(t *testing.T) {
 	Headers(&headers)
 	require.NotNil(t, headers)
 
-	h := util.HTTPHeaders()
+	h := httpHeaders()
 	yamlPayload, _ := yaml.Marshal(h)
 	assert.Equal(t, string(yamlPayload), C.GoString(headers))
 }
@@ -83,4 +89,88 @@ func testSetExternalTags(t *testing.T) {
 	assert.Equal(t,
 		"- - test_hostname\n  - test_source_type:\n    - tag1\n    - tag2\n",
 		string(yamlPayload))
+}
+
+func testEmitAgentTelemetry(t *testing.T) {
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+
+	// Test second time for laziness check
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+
+	// Test for lock problems
+	wg := sync.WaitGroup{}
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			time.Sleep(time.Millisecond * time.Duration(rand.IntN(10)))
+			EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("gauge"))
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
+	// Test that changing the metric type doesn't crash the agent for all the permutations
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_metric"), 1.0, C.CString("counter"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("histogram"))
+
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("counter"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("counter"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("histogram"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_counter"), 1.0, C.CString("gauge"))
+
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("histogram"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("histogram"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("counter"))
+	EmitAgentTelemetry(C.CString("test_check"), C.CString("test_histogram"), 1.0, C.CString("gauge"))
+
+	assert.True(t, true)
+}
+
+func testObfuscaterConfig(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	conf := pkgconfigmock.New(t)
+	pkgconfigsetup.InitConfig(conf)
+	o := lazyInitObfuscator()
+	o.Stop()
+	expected := obfuscate.Config{
+		ES: obfuscate.JSONConfig{
+			Enabled:            true,
+			KeepValues:         []string{},
+			ObfuscateSQLValues: []string{},
+		},
+		OpenSearch: obfuscate.JSONConfig{
+			Enabled:            true,
+			KeepValues:         []string{},
+			ObfuscateSQLValues: []string{},
+		},
+		Mongo:                defaultMongoObfuscateSettings,
+		SQLExecPlan:          defaultSQLPlanObfuscateSettings,
+		SQLExecPlanNormalize: defaultSQLPlanNormalizeSettings,
+		HTTP: obfuscate.HTTPConfig{
+			RemoveQueryString: false,
+			RemovePathDigits:  false,
+		},
+		Redis: obfuscate.RedisConfig{
+			Enabled:       true,
+			RemoveAllArgs: false,
+		},
+		Valkey: obfuscate.ValkeyConfig{
+			Enabled:       true,
+			RemoveAllArgs: false,
+		},
+		Memcached: obfuscate.MemcachedConfig{
+			Enabled:     true,
+			KeepCommand: false,
+		},
+		CreditCard: obfuscate.CreditCardsConfig{
+			Enabled:    true,
+			Luhn:       false,
+			KeepValues: []string{},
+		},
+		Cache: obfuscate.CacheConfig{
+			Enabled: true,
+			MaxSize: 5000000,
+		},
+	}
+	assert.Equal(t, expected, obfuscaterConfig)
 }

@@ -10,22 +10,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"testing"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
-	"github.com/DataDog/sketches-go/ddsketch"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata/payload"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
+	"github.com/DataDog/sketches-go/ddsketch"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgConfigModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgConfigSetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -49,8 +52,8 @@ func OTLPConfigFromPorts(bindHost string, gRPCPort uint, httpPort uint) map[stri
 }
 
 // LoadConfig from a given path.
-func LoadConfig(path string) (pkgConfigModel.Reader, error) {
-	cfg := pkgConfigModel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+func LoadConfig(t *testing.T, path string) (pkgConfigModel.Reader, error) {
+	cfg := configmock.New(t)
 	pkgConfigSetup.OTLP(cfg)
 	cfg.SetConfigFile(path)
 	err := cfg.ReadInConfig()
@@ -390,7 +393,7 @@ type MockStatsProcessor struct {
 }
 
 // ProcessStats implements the stats processor interface
-func (s *MockStatsProcessor) ProcessStats(in *pb.ClientStatsPayload, _, _ string) {
+func (s *MockStatsProcessor) ProcessStats(in *pb.ClientStatsPayload, _, _, _ string) {
 	s.In = append(s.In, in)
 }
 
@@ -607,4 +610,26 @@ func ProcessLogsAgentRequest(w http.ResponseWriter, r *http.Request) JSONLogs {
 	_, err = w.Write([]byte(`{"status":"ok"}`))
 	handleError(w, err, 0)
 	return jsonLogs
+}
+
+// TestTaggerClient is used to store sample tags for testing purposes
+type TestTaggerClient struct {
+	TagMap map[string][]string
+}
+
+// NewTestTaggerClient creates and returns a new testTaggerClient with an empty string map
+func NewTestTaggerClient() *TestTaggerClient {
+	return &TestTaggerClient{
+		TagMap: make(map[string][]string),
+	}
+}
+
+// Tag mocks taggerimpl.Tag functionality for the purpose of testing, removing dependency on Taggerimpl
+func (t *TestTaggerClient) Tag(entityID types.EntityID, _ types.TagCardinality) ([]string, error) {
+	return t.TagMap[entityID.String()], nil
+}
+
+// GlobalTags mocks taggerimpl.GlobalTags functionality for purpose of testing, removing dependency on Taggerimpl
+func (t *TestTaggerClient) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return t.TagMap[types.NewEntityID("internal", "global-entity-id").String()], nil
 }

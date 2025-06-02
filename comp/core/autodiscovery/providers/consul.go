@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -237,7 +238,7 @@ func (p *ConsulConfigProvider) getTemplates(ctx context.Context, key string) []i
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
 		return templates
 	}
-	return utils.BuildTemplates(key, checkNames, initConfigs, instances, false)
+	return utils.BuildTemplates(key, checkNames, initConfigs, instances, false, "")
 }
 
 // getValue returns value, error
@@ -287,12 +288,7 @@ func (p *ConsulConfigProvider) getJSONValue(ctx context.Context, key string) ([]
 func isTemplateField(key string) bool {
 	tplKeys := []string{instancePath, checkNamePath, initConfigPath}
 
-	for _, tpl := range tplKeys {
-		if key == tpl {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tplKeys, key)
 }
 
 // GetConfigErrors is not implemented for the ConsulConfigProvider

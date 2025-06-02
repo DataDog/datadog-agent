@@ -23,6 +23,7 @@ const (
 	logsConfigPath          = "logs"
 	checksPath              = "checks"
 	checkIDPath             = "check.id"
+	checkTagCardinality     = "check_tag_cardinality"
 )
 
 // ExtractTemplatesFromMap looks for autodiscovery configurations in a given
@@ -76,7 +77,10 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 	}
 	// ParseBool returns `true` only on success cases
 	ignoreAdTags, _ := strconv.ParseBool(input[prefix+ignoreAutodiscoveryTags])
-	return BuildTemplates(key, checkNames, initConfigs, instances, ignoreAdTags), nil
+
+	cardinality := input[prefix+checkTagCardinality]
+
+	return BuildTemplates(key, checkNames, initConfigs, instances, ignoreAdTags, cardinality), nil
 }
 
 // extractLogsTemplatesFromMap returns the logs configuration from a given map,
@@ -166,20 +170,20 @@ func ParseJSONValue(value string) ([][]integration.Data, error) {
 
 // BuildTemplates returns check configurations configured according to the
 // passed in AD identifier, check names, init, instance configs and their
-// `ignoreAutoDiscoveryTags` field.
-func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool) []integration.Config {
+// `ignoreAutoDiscoveryTags`, `CheckTagCardinality` fields.
+func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][]integration.Data, ignoreAutodiscoveryTags bool, checkCard string) []integration.Config {
 	templates := make([]integration.Config, 0)
 
 	// sanity checks
 	if len(checkNames) != len(initConfigs) || len(checkNames) != len(instances) {
-		log.Errorf("Template entries don't all have the same length. "+
+		log.Errorf("Template entries in entity with ID %q don't all have the same length. "+
 			"checkNames: %d, initConfigs: %d, instances: %d. Not using them.",
-			len(checkNames), len(initConfigs), len(instances))
+			adID, len(checkNames), len(initConfigs), len(instances))
 		return templates
 	}
 	for idx := range initConfigs {
 		if len(initConfigs[idx]) != 1 {
-			log.Error("Templates init Configs list is not valid, not using Templates entries")
+			log.Errorf("Templates init Configs list in entity with ID %q is not valid, not using Templates entries", adID)
 			return templates
 		}
 	}
@@ -192,6 +196,7 @@ func BuildTemplates(adID string, checkNames []string, initConfigs, instances [][
 				Instances:               []integration.Data{instance},
 				ADIdentifiers:           []string{adID},
 				IgnoreAutodiscoveryTags: ignoreAutodiscoveryTags,
+				CheckTagCardinality:     checkCard,
 			})
 		}
 	}

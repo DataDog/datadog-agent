@@ -10,7 +10,6 @@ package docker
 import (
 	"testing"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 
@@ -22,13 +21,13 @@ import (
 func Test_convertCPUStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          types.CPUStats
+		input          container.CPUStats
 		expectedOutput provider.ContainerCPUStats
 	}{
 		{
 			name: "basic",
-			input: types.CPUStats{
-				CPUUsage: types.CPUUsage{
+			input: container.CPUStats{
+				CPUUsage: container.CPUUsage{
 					TotalUsage:        42,
 					UsageInKernelmode: 43,
 					UsageInUsermode:   44,
@@ -52,12 +51,12 @@ func Test_convertCPUStats(t *testing.T) {
 func Test_convertMemoryStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          types.MemoryStats
+		input          container.MemoryStats
 		expectedOutput provider.ContainerMemStats
 	}{
 		{
 			name: "basic",
-			input: types.MemoryStats{
+			input: container.MemoryStats{
 				Commit:            44,
 				CommitPeak:        45,
 				PrivateWorkingSet: 46,
@@ -81,12 +80,12 @@ func Test_convertMemoryStats(t *testing.T) {
 func Test_convertIOStats(t *testing.T) {
 	tests := []struct {
 		name           string
-		input          types.StorageStats
+		input          container.StorageStats
 		expectedOutput provider.ContainerIOStats
 	}{
 		{
 			name: "basic",
-			input: types.StorageStats{
+			input: container.StorageStats{
 				ReadCountNormalized:  42,
 				ReadSizeBytes:        43,
 				WriteCountNormalized: 44,
@@ -133,13 +132,13 @@ func Test_convetrPIDStats(t *testing.T) {
 func Test_computeCPULimit(t *testing.T) {
 	tests := []struct {
 		name          string
-		spec          *types.ContainerJSON
+		spec          *container.InspectResponse
 		expectedLimit float64
 	}{
 		{
 			name: "No CPU Limit",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{},
 				},
 			},
@@ -147,8 +146,8 @@ func Test_computeCPULimit(t *testing.T) {
 		},
 		{
 			name: "Nano CPUs",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{
 						Resources: container.Resources{
 							NanoCPUs: 5000000000,
@@ -160,8 +159,8 @@ func Test_computeCPULimit(t *testing.T) {
 		},
 		{
 			name: "CPU Percent",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{
 						Resources: container.Resources{
 							CPUPercent: 50,
@@ -173,8 +172,8 @@ func Test_computeCPULimit(t *testing.T) {
 		},
 		{
 			name: "CPU Count",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{
 						Resources: container.Resources{
 							CPUCount: 2,

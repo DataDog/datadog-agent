@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle/config"
+	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -34,8 +36,8 @@ const (
 )
 
 const (
-	expectedSessionsDefault           = 2
-	expectedSessionsWithCustomQueries = 3
+	expectedSessionsDefault           = 6
+	expectedSessionsWithCustomQueries = 6
 )
 
 func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
@@ -122,6 +124,13 @@ func getConnectData(t *testing.T, userType int) config.ConnectionConfig {
 	}
 }
 
+func getSysConnection(t *testing.T) (*sql.DB, error) {
+	connection := getConnectData(t, useSysUser)
+	databaseUrl := go_ora.BuildUrl(connection.Server, connection.Port, connection.ServiceName, connection.Username, connection.Password, nil)
+	conn, err := sql.Open("oracle", databaseUrl)
+	return conn, err
+}
+
 func newTestCheck(t *testing.T, connectConfig config.ConnectionConfig, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
 	var err error
 	c := Check{}
@@ -153,6 +162,11 @@ func newTestCheck(t *testing.T, connectConfig config.ConnectionConfig, instanceC
 		assert.Contains(t, c.configTags, dbmsTag, "c.configTags doesn't contain static tags")
 	}
 
+	if oracleLibDir := os.Getenv("ORACLE_TEST_ORACLE_CLIENT_LIB_DIR"); oracleLibDir != "" {
+		c.config.InstanceConfig.OracleClientLibDir = oracleLibDir
+		c.config.InstanceConfig.OracleClient = true
+	}
+
 	return c, sender
 }
 
@@ -163,7 +177,13 @@ func newLegacyCheck(t *testing.T, instanceConfigAddition string, initConfig stri
 }
 
 func newDefaultCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {
-	return newTestCheck(t, getConnectData(t, useDefaultUser), instanceConfigAddition, initConfig)
+	c, m := newTestCheck(t, getConnectData(t, useDefaultUser), instanceConfigAddition, initConfig)
+	var err error
+	var n int
+	err = getWrapper(&c, &n, "select 1 from dual")
+	require.NoError(t, err, "can't execute a test query")
+
+	return c, m
 }
 
 func newSysCheck(t *testing.T, instanceConfigAddition string, initConfig string) (Check, *mocksender.MockSender) {

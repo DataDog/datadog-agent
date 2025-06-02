@@ -18,8 +18,8 @@ const (
 	DefaultProcessAgentLogFile = "/opt/datadog-agent/logs/process-agent.log"
 	// DefaultOTelAgentLogFile is the default otel-agent log file
 	DefaultOTelAgentLogFile = "/opt/datadog-agent/logs/otel-agent.log"
-	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeAddress = "/opt/datadog-agent/run/sysprobe.sock"
+	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
+	DefaultSystemProbeAddress = "/opt/datadog-agent/run/sysprobe.sock"
 	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
 	defaultEventMonitorAddress    = "/opt/datadog-agent/run/event-monitor.sock"
 	defaultSystemProbeLogFilePath = "/opt/datadog-agent/logs/system-probe.log"
@@ -29,6 +29,8 @@ const (
 	InstallPath = "/opt/datadog-agent"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = ""
+	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
 )
 
 // called by init in config.go, to ensure any os-specific config is done

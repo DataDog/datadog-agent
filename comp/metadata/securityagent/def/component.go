@@ -6,7 +6,7 @@
 // Package securityagent is the metadata provider for security-agent process
 package securityagent
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // Component is the component type.
 type Component interface{}

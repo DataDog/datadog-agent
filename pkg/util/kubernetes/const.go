@@ -62,6 +62,38 @@ const (
 	ServiceKind = "Service"
 	// NamespaceKind represents the NamespaceKind object kind
 	NamespaceKind = "Namespace"
+	// ClusterRoleKind represents the ClusterRole object kind
+	ClusterRoleKind = "ClusterRole"
+	// ClusterRoleBindingKind represents the ClusterRoleBinding object kind
+	ClusterRoleBindingKind = "ClusterRoleBinding"
+	// CustomResourceDefinitionKind represents the CustomResourceDefinition object kind
+	CustomResourceDefinitionKind = "CustomResourceDefinition"
+	// HorizontalPodAutoscalerKind represents the HorizontalPodAutoscaler object kind
+	HorizontalPodAutoscalerKind = "HorizontalPodAutoscaler"
+	// IngressKind represents the Ingress object kind
+	IngressKind = "Ingress"
+	// LimitRangeKind represents the LimitRange object kind
+	LimitRangeKind = "LimitRange"
+	// NetworkPolicyKind represents the NetworkPolicy object kind
+	NetworkPolicyKind = "NetworkPolicy"
+	// NodeKind represents the Node object kind
+	NodeKind = "Node"
+	// PersistentVolumeKind represents the PersistentVolume object kind
+	PersistentVolumeKind = "PersistentVolume"
+	// PersistentVolumeClaimKind represents the PersistentVolumeClaim object kind
+	PersistentVolumeClaimKind = "PersistentVolumeClaim"
+	// PodDisruptionBudgetKind represents the PodDisruptionBudget object kind
+	PodDisruptionBudgetKind = "PodDisruptionBudget"
+	// RoleKind represents the Role object kind
+	RoleKind = "Role"
+	// RoleBindingKind represents the RoleBinding object kind
+	RoleBindingKind = "RoleBinding"
+	// ServiceAccountKind represents the ServiceAccount object kind
+	ServiceAccountKind = "ServiceAccount"
+	// StorageClassKind represents the StorageClass object kind
+	StorageClassKind = "StorageClass"
+	// VerticalPodAutoscalerKind represents the VerticalPodAutoscaler object kind
+	VerticalPodAutoscalerKind = "VerticalPodAutoscaler"
 
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"

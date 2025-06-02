@@ -16,15 +16,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/sys/unix"
 
-	"github.com/cihub/seelog"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
-
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
-
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -49,10 +46,10 @@ type Conntracker interface {
 	Describe(descs chan<- *prometheus.Desc)
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
-	GetTranslationForConn(*network.ConnectionStats) *network.IPTranslation
-	// GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
+	GetTranslationForConn(*network.ConnectionTuple) *network.IPTranslation
+	// GetType returns a string describing the conntracker type
 	GetType() string
-	DeleteTranslation(*network.ConnectionStats)
+	DeleteTranslation(*network.ConnectionTuple)
 	DumpCachedTable(context.Context) (map[uint32][]DebugConntrackEntry, error)
 	Close()
 }
@@ -112,6 +109,24 @@ var conntrackerTelemetry = struct {
 	prometheus.NewDesc(telemetryModuleName+"__orphan_size", "Gauge measuring the number of orphaned items in the conntrack cache", nil, nil),
 }
 
+// isNetlinkConntrackSupported checks if we have the right capabilities
+// for netlink conntrack; NET_ADMIN is required
+func isNetlinkConntrackSupported() bool {
+	// check if we have the right capabilities for the netlink NewConntracker
+	// NET_ADMIN is required
+	caps, err := capability.NewPid2(0)
+	if err == nil {
+		err = caps.Load()
+	}
+
+	if err != nil {
+		log.Warnf("could not check if netlink conntracker is supported: %s", err)
+		return false
+	}
+
+	return caps.Get(capability.EFFECTIVE, capability.CAP_NET_ADMIN)
+}
+
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
 func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
 	var (
@@ -119,16 +134,8 @@ func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component
 		conntracker Conntracker
 	)
 
-	// check if we have the right capabilities for the netlink NewConntracker
-	// NET_ADMIN is required
-	if caps, err := capability.NewPid2(0); err == nil {
-		if err = caps.Load(); err != nil {
-			return nil, fmt.Errorf("could not load process capabilities: %w", err)
-		}
-
-		if !caps.Get(capability.EFFECTIVE, capability.CAP_NET_ADMIN) {
-			return nil, ErrNotPermitted
-		}
+	if !isNetlinkConntrackSupported() {
+		return nil, ErrNotPermitted
 	}
 
 	done := make(chan struct{})
@@ -182,7 +189,7 @@ func (ctr *realConntracker) GetType() string {
 	return "netlink"
 }
 
-func (ctr *realConntracker) GetTranslationForConn(c *network.ConnectionStats) *network.IPTranslation {
+func (ctr *realConntracker) GetTranslationForConn(c *network.ConnectionTuple) *network.IPTranslation {
 	then := time.Now()
 	defer func() {
 		conntrackerTelemetry.getsDuration.Observe(float64(time.Since(then).Nanoseconds()))
@@ -218,7 +225,7 @@ func (ctr *realConntracker) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(conntrackerTelemetry.orphanSize, prometheus.CounterValue, float64(ctr.cache.orphans.Len()))
 }
 
-func (ctr *realConntracker) DeleteTranslation(c *network.ConnectionStats) {
+func (ctr *realConntracker) DeleteTranslation(c *network.ConnectionTuple) {
 	then := time.Now()
 
 	ctr.Lock()
@@ -401,7 +408,7 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 		}
 	}
 
-	if log.ShouldLog(seelog.TraceLvl) {
+	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("%s", c)
 	}
 
@@ -423,7 +430,7 @@ func (cc *conntrackCache) removeOrphans(now time.Time) (removed int64) {
 
 		cc.cache.Remove(o.key)
 		removed++
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("removed orphan %+v", o.key)
 		}
 	}

@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The MSI installer uses 7zr.exe to decompress the embedded Python.

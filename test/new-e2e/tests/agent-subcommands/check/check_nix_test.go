@@ -7,14 +7,13 @@
 package check
 
 import (
-	_ "embed"
 	"testing"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
@@ -22,16 +21,10 @@ type linuxCheckSuite struct {
 	baseCheckSuite
 }
 
-//go:embed fixtures/hello.yaml
-var customCheckYaml []byte
-
-//go:embed fixtures/hello.py
-var customCheckPython []byte
-
 func TestLinuxCheckSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &linuxCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
-		agentparams.WithFile("/etc/datadog-agent/conf.d/hello.yaml", string(customCheckYaml), true),
+		agentparams.WithIntegration("hello.d", string(customCheckYaml)),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/hello.py", string(customCheckPython), true),
 	))))
 }

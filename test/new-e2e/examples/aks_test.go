@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	azurekubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/azure/kubernetes"
+	azurekubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/azure/kubernetes"
 )
 
 type aksSuite struct {

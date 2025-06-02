@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
@@ -30,13 +29,13 @@ import (
 const testPath = "./testdata/pipeline.yaml"
 
 func buildTestFactories(t *testing.T) otelcol.Factories {
-	extensions, err := extension.MakeFactoryMap()
+	extensions, err := otelcol.MakeFactoryMap[extension.Factory]()
 	require.NoError(t, err)
-	processors, err := processor.MakeFactoryMap()
+	processors, err := otelcol.MakeFactoryMap[processor.Factory]()
 	require.NoError(t, err)
-	exporters, err := exporter.MakeFactoryMap(otlpexporter.NewFactory())
+	exporters, err := otelcol.MakeFactoryMap[exporter.Factory](otlpexporter.NewFactory())
 	require.NoError(t, err)
-	receivers, err := receiver.MakeFactoryMap(otlpreceiver.NewFactory())
+	receivers, err := otelcol.MakeFactoryMap[receiver.Factory](otlpreceiver.NewFactory())
 	require.NoError(t, err)
 
 	return otelcol.Factories{
@@ -60,7 +59,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 			ProviderFactories: []confmap.ProviderFactory{
 				NewProviderFactory(cfgMap),
 			},
-			ConverterFactories: []confmap.ConverterFactory{expandconverter.NewFactory()},
+			ConverterFactories: []confmap.ConverterFactory{},
 		},
 	}
 	// build default provider from same data
@@ -72,7 +71,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 				envprovider.NewFactory(),
 				yamlprovider.NewFactory(),
 			},
-			ConverterFactories: []confmap.ConverterFactory{expandconverter.NewFactory()},
+			ConverterFactories: []confmap.ConverterFactory{},
 		},
 	}
 

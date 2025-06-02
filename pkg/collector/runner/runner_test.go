@@ -6,6 +6,7 @@
 package runner
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -15,11 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 
+	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -109,50 +113,53 @@ func newScheduler() *scheduler.Scheduler {
 }
 
 func assertAsyncWorkerCount(t *testing.T, count int) {
-	for idx := 0; idx < 75; idx++ {
-		workers := expvars.GetWorkerCount()
-		if workers == count {
-			// This may seem superfluous but we want to ensure that at least one
-			// assertion runs in all cases
-			require.Equal(t, count, workers)
-			return
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	require.Equal(t, count, expvars.GetWorkerCount())
+	require.Eventually(t, func() bool {
+		return expvars.GetWorkerCount() == count
+	}, 750*time.Millisecond, 10*time.Millisecond)
 }
 
 func assertAsyncBool(t *testing.T, actualValueFunc func() bool, expectedValue bool) {
-	for idx := 0; idx < 20; idx++ {
-		actualValue := actualValueFunc()
-		if actualValue == expectedValue {
-			// This may seem superfluous but we want to ensure that at least one
-			// assertion runs in all cases
-			require.Equal(t, expectedValue, actualValue)
-			return
-		}
-
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	require.Equal(t, expectedValue, actualValueFunc())
+	require.Eventually(t, func() bool {
+		return actualValueFunc() == expectedValue
+	}, 200*time.Millisecond, 10*time.Millisecond)
 }
 
-func testSetUp(t *testing.T) {
+func testSetUp(t *testing.T) model.Config {
+	mockConfig := configmock.New(t)
 	assertAsyncWorkerCount(t, 0)
 	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
+
+	// at the end of the test, ensure that the worker count is 0
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		ticker := time.NewTicker(10 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if expvars.GetWorkerCount() == 0 {
+					return
+				}
+			}
+		}
+	})
+
+	return mockConfig
 }
 
 // Tests
 
 func TestNewRunner(t *testing.T) {
-	testSetUp(t)
-	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "3")
+	mockConfig := testSetUp(t)
+	mockConfig.SetWithoutSource("check_runners", "3")
 
-	r := NewRunner(aggregator.NewNoOpSenderManager())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -163,10 +170,10 @@ func TestNewRunner(t *testing.T) {
 }
 
 func TestRunnerAddWorker(t *testing.T) {
-	testSetUp(t)
-	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "1")
+	mockConfig := testSetUp(t)
+	mockConfig.SetWithoutSource("check_runners", "1")
 
-	r := NewRunner(aggregator.NewNoOpSenderManager())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -178,10 +185,10 @@ func TestRunnerAddWorker(t *testing.T) {
 }
 
 func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
-	testSetUp(t)
-	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "2")
+	mockConfig := testSetUp(t)
+	mockConfig.SetWithoutSource("check_runners", "2")
 
-	r := NewRunner(aggregator.NewNoOpSenderManager())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer func() {
 		r.Stop()
@@ -197,8 +204,8 @@ func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
 }
 
 func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
-	testSetUp(t)
-	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "0")
+	mockConfig := testSetUp(t)
+	mockConfig.SetWithoutSource("check_runners", "0")
 
 	testCases := [][]int{
 		{0, 10, 4},
@@ -212,7 +219,7 @@ func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 		assertAsyncWorkerCount(t, 0)
 		min, max, expectedWorkers := testCase[0], testCase[1], testCase[2]
 
-		r := NewRunner(aggregator.NewNoOpSenderManager())
+		r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 		require.NotNil(t, r)
 
 		for checks := min; checks <= max; checks++ {
@@ -234,7 +241,7 @@ func TestRunner(t *testing.T) {
 		checks[idx] = newCheck(t, fmt.Sprintf("mycheck_%d:123", idx), false, nil)
 	}
 
-	r := NewRunner(aggregator.NewNoOpSenderManager())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -249,9 +256,9 @@ func TestRunner(t *testing.T) {
 }
 
 func TestRunnerStop(t *testing.T) {
-	testSetUp(t)
+	mockConfig := testSetUp(t)
 
-	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "10")
+	mockConfig.SetWithoutSource("check_runners", "10")
 	numChecks := 8
 
 	checks := make([]*testCheck, numChecks)
@@ -262,7 +269,7 @@ func TestRunnerStop(t *testing.T) {
 		checks[idx].RunLock.Lock()
 	}
 
-	r := NewRunner(aggregator.NewNoOpSenderManager())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -302,9 +309,9 @@ func TestRunnerStop(t *testing.T) {
 }
 
 func TestRunnerStopWithStuckCheck(t *testing.T) {
-	testSetUp(t)
+	mockConfig := testSetUp(t)
 
-	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "10")
+	mockConfig.SetWithoutSource("check_runners", "10")
 	numChecks := 8
 
 	checks := make([]*testCheck, numChecks)
@@ -320,7 +327,7 @@ func TestRunnerStopWithStuckCheck(t *testing.T) {
 	blockedCheck.RunLock.Lock()
 	blockedCheck.StopLock.Lock()
 
-	r := NewRunner(aggregator.NewNoOpSenderManager())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -359,8 +366,8 @@ func TestRunnerStopWithStuckCheck(t *testing.T) {
 }
 
 func TestRunnerStopCheck(t *testing.T) {
-	testSetUp(t)
-	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "3")
+	mockConfig := testSetUp(t)
+	mockConfig.SetWithoutSource("check_runners", "3")
 
 	testCheck := newCheck(t, "mycheck:123", false, nil)
 	blockedCheck := newCheck(t, "mycheck2:123", false, nil)
@@ -369,7 +376,7 @@ func TestRunnerStopCheck(t *testing.T) {
 	blockedCheck.RunLock.Lock()
 	blockedCheck.StopLock.Lock()
 
-	r := NewRunner(aggregator.NewNoOpSenderManager())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer func() {
 		r.Stop()
@@ -407,13 +414,13 @@ func TestRunnerStopCheck(t *testing.T) {
 }
 
 func TestRunnerScheduler(t *testing.T) {
-	testSetUp(t)
-	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "3")
+	mockConfig := testSetUp(t)
+	mockConfig.SetWithoutSource("check_runners", "3")
 
 	sched1 := newScheduler()
 	sched2 := newScheduler()
 
-	r := NewRunner(aggregator.NewNoOpSenderManager())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 
@@ -427,13 +434,13 @@ func TestRunnerScheduler(t *testing.T) {
 }
 
 func TestRunnerShouldAddCheckStats(t *testing.T) {
-	testSetUp(t)
-	pkgconfigsetup.Datadog().SetWithoutSource("check_runners", "3")
+	mockConfig := testSetUp(t)
+	mockConfig.SetWithoutSource("check_runners", "3")
 
 	testCheck := newCheck(t, "test", false, nil)
 	sched := newScheduler()
 
-	r := NewRunner(aggregator.NewNoOpSenderManager())
+	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)
 	defer r.Stop()
 

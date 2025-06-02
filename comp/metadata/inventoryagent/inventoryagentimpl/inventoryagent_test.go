@@ -13,21 +13,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
-	"github.com/stretchr/testify/assert"
-
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -47,7 +51,8 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			hostnameimpl.MockModule(),
 		),
 	)
 }
@@ -108,42 +113,40 @@ func TestInitDataErrorInstallInfo(t *testing.T) {
 
 func TestInitData(t *testing.T) {
 	sysprobeOverrides := map[string]any{
-		"dynamic_instrumentation.enabled":                            true,
-		"remote_configuration.enabled":                               true,
-		"runtime_security_config.enabled":                            true,
-		"event_monitoring_config.network.enabled":                    true,
-		"runtime_security_config.activity_dump.enabled":              true,
-		"runtime_security_config.remote_configuration.enabled":       true,
-		"network_config.enabled":                                     true,
-		"service_monitoring_config.enable_http_monitoring":           true,
-		"service_monitoring_config.tls.native.enabled":               true,
-		"service_monitoring_config.enabled":                          true,
-		"service_monitoring_config.tls.java.enabled":                 true,
-		"service_monitoring_config.enable_http2_monitoring":          true,
-		"service_monitoring_config.enable_kafka_monitoring":          true,
-		"service_monitoring_config.enable_postgres_monitoring":       true,
-		"service_monitoring_config.enable_redis_monitoring":          true,
-		"service_monitoring_config.tls.istio.enabled":                true,
-		"service_monitoring_config.enable_http_stats_by_status_code": true,
-		"service_monitoring_config.tls.go.enabled":                   true,
-		"discovery.enabled":                                          true,
-		"system_probe_config.enable_tcp_queue_length":                true,
-		"system_probe_config.enable_oom_kill":                        true,
-		"windows_crash_detection.enabled":                            true,
-		"system_probe_config.enable_co_re":                           true,
-		"system_probe_config.enable_runtime_compiler":                true,
-		"system_probe_config.enable_kernel_header_download":          true,
-		"system_probe_config.allow_precompiled_fallback":             true,
-		"system_probe_config.telemetry_enabled":                      true,
-		"system_probe_config.max_conns_per_message":                  10,
-		"system_probe_config.disable_ipv6":                           false,
-		"network_config.collect_tcp_v4":                              true,
-		"network_config.collect_tcp_v6":                              true,
-		"network_config.collect_udp_v4":                              true,
-		"network_config.collect_udp_v6":                              true,
-		"network_config.enable_protocol_classification":              true,
-		"network_config.enable_gateway_lookup":                       true,
-		"network_config.enable_root_netns":                           true,
+		"dynamic_instrumentation.enabled":                      true,
+		"remote_configuration.enabled":                         true,
+		"runtime_security_config.enabled":                      true,
+		"event_monitoring_config.network.enabled":              true,
+		"runtime_security_config.activity_dump.enabled":        true,
+		"runtime_security_config.remote_configuration.enabled": true,
+		"network_config.enabled":                               true,
+		"service_monitoring_config.enable_http_monitoring":     true,
+		"service_monitoring_config.tls.native.enabled":         true,
+		"service_monitoring_config.enabled":                    true,
+		"service_monitoring_config.enable_http2_monitoring":    true,
+		"service_monitoring_config.enable_kafka_monitoring":    true,
+		"service_monitoring_config.enable_postgres_monitoring": true,
+		"service_monitoring_config.enable_redis_monitoring":    true,
+		"service_monitoring_config.tls.istio.enabled":          true,
+		"service_monitoring_config.tls.go.enabled":             true,
+		"discovery.enabled":                                    true,
+		"system_probe_config.enable_tcp_queue_length":          true,
+		"system_probe_config.enable_oom_kill":                  true,
+		"windows_crash_detection.enabled":                      true,
+		"system_probe_config.enable_co_re":                     true,
+		"system_probe_config.enable_runtime_compiler":          true,
+		"system_probe_config.enable_kernel_header_download":    true,
+		"system_probe_config.allow_prebuilt_fallback":          true,
+		"system_probe_config.telemetry_enabled":                true,
+		"system_probe_config.max_conns_per_message":            10,
+		"system_probe_config.disable_ipv6":                     false,
+		"network_config.collect_tcp_v4":                        true,
+		"network_config.collect_tcp_v6":                        true,
+		"network_config.collect_udp_v4":                        true,
+		"network_config.collect_udp_v6":                        true,
+		"network_config.enable_protocol_classification":        true,
+		"network_config.enable_gateway_lookup":                 true,
+		"network_config.enable_root_netns":                     true,
 	}
 
 	overrides := map[string]any{
@@ -175,11 +178,14 @@ func TestInitData(t *testing.T) {
 	}
 	ia := getTestInventoryPayload(t, overrides, sysprobeOverrides)
 	ia.refreshMetadata()
+	isFips, err := fips.Enabled()
+	assert.Nil(t, err)
 
 	expected := map[string]any{
 		"agent_version":                    version.AgentVersion,
 		"agent_startup_time_ms":            pkgconfigsetup.StartTime.UnixMilli(),
 		"flavor":                           flavor.GetFlavor(),
+		"fips_mode":                        isFips,
 		"config_apm_dd_url":                "http://name:********@someintake.example.com/",
 		"config_dd_url":                    "http://name:********@someintake.example.com/",
 		"config_site":                      "test",
@@ -191,7 +197,6 @@ func TestInitData(t *testing.T) {
 		"config_eks_fargate":               true,
 
 		"feature_process_language_detection_enabled": true,
-		"feature_fips_enabled":                       true,
 		"feature_logs_enabled":                       true,
 		"feature_cspm_enabled":                       true,
 		"feature_cspm_host_benchmarks_enabled":       true,
@@ -216,10 +221,8 @@ func TestInitData(t *testing.T) {
 		"feature_usm_kafka_enabled":                    true,
 		"feature_usm_postgres_enabled":                 true,
 		"feature_usm_redis_enabled":                    true,
-		"feature_usm_java_tls_enabled":                 true,
 		"feature_usm_http2_enabled":                    true,
 		"feature_usm_istio_enabled":                    true,
-		"feature_usm_http_by_status_code_enabled":      true,
 		"feature_usm_go_tls_enabled":                   true,
 		"feature_discovery_enabled":                    true,
 		"feature_tcp_queue_length_enabled":             true,
@@ -271,10 +274,11 @@ func TestFlareProviderFilename(t *testing.T) {
 }
 
 func TestConfigRefresh(t *testing.T) {
+	cfg := configmock.New(t)
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
@@ -475,6 +479,8 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 		return "", fmt.Errorf("some error")
 	}
 
+	isPrebuiltDeprecated := prebuilt.IsDeprecated()
+
 	ia := getTestInventoryPayload(t, nil, nil)
 	ia.fetchSystemProbeMetadata()
 
@@ -484,17 +490,15 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_cws_security_profiles_enabled"].(bool))
 	assert.True(t, ia.data["feature_cws_remote_config_enabled"].(bool))
 	assert.False(t, ia.data["feature_networks_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_http_enabled"].(bool))
-	assert.False(t, ia.data["feature_networks_https_enabled"].(bool))
+	assert.True(t, ia.data["feature_networks_http_enabled"].(bool))
+	assert.True(t, ia.data["feature_networks_https_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_redis_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
+	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
@@ -502,7 +506,9 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.True(t, ia.data["system_probe_core_enabled"].(bool))
 	assert.False(t, ia.data["system_probe_runtime_compilation_enabled"].(bool))
 	assert.False(t, ia.data["system_probe_kernel_headers_download_enabled"].(bool))
-	assert.True(t, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
+	if runtime.GOOS == "linux" {
+		assert.Equal(t, !isPrebuiltDeprecated, ia.data["system_probe_prebuilt_fallback_enabled"].(bool))
+	}
 	assert.False(t, ia.data["system_probe_telemetry_enabled"].(bool))
 	assert.Equal(t, 600, ia.data["system_probe_max_connections_per_message"].(int))
 	assert.True(t, ia.data["system_probe_track_tcp_4_connections"].(bool))
@@ -527,7 +533,8 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			hostnameimpl.MockModule(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)
@@ -543,10 +550,8 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_postgres_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.False(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
@@ -621,7 +626,7 @@ system_probe_config:
   enable_co_re: true
   enable_runtime_compiler: true
   enable_kernel_header_download: true
-  allow_precompiled_fallback: true
+  allow_prebuilt_fallback: true
   telemetry_enabled: true
   max_conns_per_message: 123
 
@@ -644,10 +649,8 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_usm_kafka_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_postgres_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_redis_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_java_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_http2_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
-	assert.True(t, ia.data["feature_usm_http_by_status_code_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_discovery_enabled"].(bool))
 	assert.True(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
@@ -667,6 +670,14 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
 	assert.True(t, ia.data["system_probe_root_namespace_enabled"].(bool))
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
+}
+
+func TestFetchFleet(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"config_id": "my-config",
+	}, nil)
+	ia.fetchFleetMetadata()
+	assert.Equal(t, "my-config", ia.data["config_id"].(string))
 }
 
 func TestGetProvidedConfigurationDisable(t *testing.T) {

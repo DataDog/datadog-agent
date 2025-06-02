@@ -75,7 +75,9 @@ namespace Datadog.AgentCustomActions
             var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
             if (!string.IsNullOrEmpty(upgradeDetected)) // This is an upgrade, conditionally set rollback flags.
             {
+                _session.Log($"WIX_UPGRADE_DETECTED: {_session["WIX_UPGRADE_DETECTED"]}");
                 var versionString = _nativeMethods.GetVersionString(upgradeDetected);
+                _session.Log($"versionString: {versionString}");
                 // Using Version class
                 // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
                 var currentVersion = new Version(versionString);

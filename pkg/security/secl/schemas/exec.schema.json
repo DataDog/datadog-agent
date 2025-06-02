@@ -1,0 +1,30 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "exec.schema.json",
+    "type": "object",
+    "anyOf": [
+        {
+            "$ref": "container_event.schema.json"
+        },
+        {
+            "$ref": "host_event.schema.json"
+        }
+    ],
+    "allOf": [
+        {
+            "properties": {
+                "process": {
+                    "type": "object",
+                    "not": {
+                        "required": [
+                            "exit_time"
+                        ]
+                    }
+                }
+            },
+            "required": [
+                "process"
+            ]
+        }
+    ]
+}

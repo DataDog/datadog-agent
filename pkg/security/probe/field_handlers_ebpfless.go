@@ -23,26 +23,29 @@ import (
 
 // EBPFLessFieldHandlers defines a field handlers
 type EBPFLessFieldHandlers struct {
-	config    *config.Config
+	*BaseFieldHandlers
 	resolvers *resolvers.EBPFLessResolvers
-	hostname  string
 }
 
-// ResolveService returns the service tag based on the process context
-func (fh *EBPFLessFieldHandlers) ResolveService(ev *model.Event, _ *model.BaseEvent) string {
-	entry, _ := fh.ResolveProcessCacheEntry(ev)
-	if entry == nil {
-		return ""
+// NewEBPFLessFieldHandlers returns a new EBPFLessFieldHandlers
+func NewEBPFLessFieldHandlers(config *config.Config, resolvers *resolvers.EBPFLessResolvers, hostname string) (*EBPFLessFieldHandlers, error) {
+	bfh, err := NewBaseFieldHandlers(config, hostname)
+	if err != nil {
+		return nil, err
 	}
-	return getProcessService(fh.config, entry)
+
+	return &EBPFLessFieldHandlers{
+		BaseFieldHandlers: bfh,
+		resolvers:         resolvers,
+	}, nil
 }
 
 // ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ func(*model.ProcessCacheEntry, error)) (*model.ProcessCacheEntry, bool) {
 	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
 		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
 			Pid:  ev.PIDContext.Pid,
-			NSID: ev.NSID,
+			NSID: ev.PIDContext.NSID,
 		})
 	}
 
@@ -126,11 +129,16 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *mod
 	return envs
 }
 
+// ResolveProcessIsThread returns true is the process is a thread
+func (fh *EBPFLessFieldHandlers) ResolveProcessIsThread(_ *model.Event, process *model.Process) bool {
+	return !process.IsExec
+}
+
 // GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
 func (fh *EBPFLessFieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
 		Pid:  ev.PIDContext.Pid,
-		NSID: ev.NSID,
+		NSID: ev.PIDContext.NSID,
 	})
 	if ev.ProcessCacheEntry == nil {
 		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Pid, false)
@@ -152,6 +160,11 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupID(_ *model.Event, _ *model.CGroup
 	return ""
 }
 
+// ResolveCGroupVersion resolves the version of the cgroup API
+func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.CGroupContext) int {
+	return 0
+}
+
 // ResolveCGroupManager resolves the manager of the cgroup
 func (fh *EBPFLessFieldHandlers) ResolveCGroupManager(_ *model.Event, _ *model.CGroupContext) string {
 	return ""
@@ -170,7 +183,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *mode
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
-		if entry, _ := fh.ResolveProcessCacheEntry(ev); entry != nil {
+		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
 			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
 		}
 	}
@@ -190,7 +203,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *m
 // ResolveContainerTags resolves the container tags of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ContainerID != "" {
-		e.Tags = fh.resolvers.TagsResolver.Resolve(string(e.ContainerID))
+		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ContainerID)
 	}
 	return e.Tags
 }
@@ -379,7 +392,7 @@ func (fh *EBPFLessFieldHandlers) ResolveAWSSecurityCredentials(_ *model.Event) [
 
 // ResolveSyscallCtxArgs resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
-	e.Resolved = true
+	e.Resolved = false
 }
 
 // ResolveSyscallCtxArgsStr1 resolve syscall ctx
@@ -410,11 +423,6 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt2(_ *model.Event, e *mo
 // ResolveSyscallCtxArgsInt3 resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt3(_ *model.Event, e *model.SyscallContext) int {
 	return int(e.IntArg3)
-}
-
-// ResolveHostname resolve the hostname
-func (fh *EBPFLessFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
-	return fh.hostname
 }
 
 // ResolveOnDemandName resolves the on-demand event name
@@ -460,4 +468,34 @@ func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg4Str(_ *model.Event, _ *model
 // ResolveOnDemandArg4Uint resolves the uint value of the fourth argument of hooked function
 func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg4Uint(_ *model.Event, _ *model.OnDemandEvent) int {
 	return 0
+}
+
+// ResolveOnDemandArg5Str resolves the string value of the fifth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg5Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg5Uint resolves the uint value of the fifth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg5Uint(_ *model.Event, _ *model.OnDemandEvent) int {
+	return 0
+}
+
+// ResolveOnDemandArg6Str resolves the string value of the sixth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg6Str(_ *model.Event, _ *model.OnDemandEvent) string {
+	return ""
+}
+
+// ResolveOnDemandArg6Uint resolves the uint value of the sixth argument of hooked function
+func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg6Uint(_ *model.Event, _ *model.OnDemandEvent) int {
+	return 0
+}
+
+// ResolveConnectHostnames resolves the hostnames of a connect event
+func (fh *EBPFLessFieldHandlers) ResolveConnectHostnames(_ *model.Event, e *model.ConnectEvent) []string {
+	return e.Hostnames
+}
+
+// ResolveAcceptHostnames resolves the hostnames of an accept event
+func (fh *EBPFLessFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.AcceptEvent) []string {
+	return e.Hostnames
 }

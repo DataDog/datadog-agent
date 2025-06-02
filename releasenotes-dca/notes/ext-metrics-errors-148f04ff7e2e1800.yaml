@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Error messages displayed in the DatadogMetric `Error` condition has been improved to reflect more accurately the source of the error.

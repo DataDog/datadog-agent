@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +19,7 @@ func TestServerlessLoggingInServerlessContext(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, err := seelog.LoggerFromWriterWithMinLevel(w, seelog.DebugLvl)
+	l, err := LoggerFromWriterWithMinLevel(w, DebugLvl)
 	assert.NoError(t, err)
 
 	SetupLogger(l, "debug")

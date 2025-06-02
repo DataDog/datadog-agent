@@ -10,7 +10,7 @@ package docker
 import (
 	"fmt"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
@@ -21,7 +21,7 @@ import (
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
+func convertContainerStats(stats *container.StatsResponse) *provider.ContainerStats {
 	return &provider.ContainerStats{
 		Timestamp: stats.Read,
 		CPU:       convertCPUStats(&stats.CPUStats),
@@ -31,7 +31,7 @@ func convertContainerStats(stats *types.Stats) *provider.ContainerStats {
 	}
 }
 
-func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
+func convertCPUStats(cpuStats *container.CPUStats) *provider.ContainerCPUStats {
 	return &provider.ContainerCPUStats{
 		Total:            pointer.Ptr(float64(cpuStats.CPUUsage.TotalUsage)),
 		System:           pointer.Ptr(float64(cpuStats.CPUUsage.UsageInKernelmode)),
@@ -41,7 +41,7 @@ func convertCPUStats(cpuStats *types.CPUStats) *provider.ContainerCPUStats {
 	}
 }
 
-func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats {
+func convertMemoryStats(memStats *container.MemoryStats) *provider.ContainerMemStats {
 	containerMemStats := &provider.ContainerMemStats{
 		UsageTotal: pointer.Ptr(float64(memStats.Usage)),
 		Limit:      pointer.Ptr(float64(memStats.Limit)),
@@ -68,7 +68,7 @@ func convertMemoryStats(memStats *types.MemoryStats) *provider.ContainerMemStats
 	return containerMemStats
 }
 
-func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
+func convertIOStats(ioStats *container.BlkioStats) *provider.ContainerIOStats {
 	containerIOStats := provider.ContainerIOStats{
 		ReadBytes:       pointer.Ptr(0.0),
 		WriteBytes:      pointer.Ptr(0.0),
@@ -130,14 +130,14 @@ func convertIOStats(ioStats *types.BlkioStats) *provider.ContainerIOStats {
 	return &containerIOStats
 }
 
-func convertPIDStats(pidStats *types.PidsStats) *provider.ContainerPIDStats {
+func convertPIDStats(pidStats *container.PidsStats) *provider.ContainerPIDStats {
 	return &provider.ContainerPIDStats{
 		ThreadCount: pointer.Ptr(float64(pidStats.Current)),
 		ThreadLimit: pointer.Ptr(float64(pidStats.Limit)),
 	}
 }
 
-func computeCPULimit(containerStats *provider.ContainerStats, spec *types.ContainerJSON) {
+func computeCPULimit(containerStats *provider.ContainerStats, spec *container.InspectResponse) {
 	if spec == nil || spec.HostConfig == nil || containerStats.CPU == nil {
 		return
 	}

@@ -1,7 +1,6 @@
 ---
 default_branch: main
 collapse_pre_releases: true
-no_show_source: true
 release_tag_re: '^7\.([\d.-]|rc|devel)+$'
 pre_release_tag_re: '(?P<pre_release>-rc\.\d+)$'
 template: |
@@ -35,7 +34,8 @@ template: |
               List deprecations notes here, or remove this section.
           security:
             - |
-              Add security notes here, or remove this section.
+              Include security notes here, or remove this section if none. Specific CVEs are handled automatically and should not be mentioned directly in the changelog.
+              For instance, if you bumped a lib to fix a CVE, just mention the bump.
           fixes:
             - |
               Add normal bug fixes here, or remove this section.

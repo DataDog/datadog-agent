@@ -10,6 +10,7 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,11 +60,6 @@ func (c *Check) init() error {
 		}
 	}
 
-	if c.config.ReportedHostname != "" {
-		c.dbHostname = c.config.ReportedHostname
-	} else if i.HostName.Valid {
-		c.dbHostname = i.HostName.String
-	}
 	if i.HostName.Valid {
 		tags = append(tags, fmt.Sprintf("real_hostname:%s", i.HostName.String))
 	}
@@ -81,6 +77,21 @@ func (c *Check) init() error {
 	}
 	c.cdbName = d.Name
 	tags = append(tags, fmt.Sprintf("cdb:%s", c.cdbName))
+
+	if c.config.ReportedHostname != "" {
+		c.dbResolvedHostname = c.config.ReportedHostname
+	} else if i.HostName.Valid {
+		c.dbResolvedHostname = i.HostName.String
+	}
+	if !c.config.ExcludeHostname {
+		c.dbHostname = c.dbResolvedHostname
+	}
+	if c.dbHostname == "" {
+		log.Errorf("%s failed to determine hostname, consider setting reported_hostname", c.logPrompt)
+	}
+	c.dbInstanceIdentifier = c.createDatabaseIdentifier()
+	tags = append(tags, "database_instance:"+c.dbInstanceIdentifier)
+
 	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s", c.dbHostname))
 	isMultitenant := true
 	if d.Cdb == "NO" {
@@ -143,6 +154,20 @@ func (c *Check) init() error {
 		}
 	}
 
+	if ht == oci && c.dbResolvedHostname == "" {
+		var hostname string
+		err = getWrapper(c, &hostname, `SELECT JSON_VALUE(cloud_identity, '$.DATABASE_NAME') || '.'
+  ||JSON_VALUE(cloud_identity, '$.PUBLIC_DOMAIN_NAME') AS host_name
+  FROM v$pdbs`)
+		if err != nil {
+			log.Errorf("failed to query OCI hostname: %s", err)
+		}
+		if hostname != "" {
+			c.dbHostname = hostname
+			c.dbResolvedHostname = hostname
+		}
+	}
+
 	tags = append(tags, fmt.Sprintf("hosting_type:%s", ht))
 	c.hostingType = ht
 	c.tagsWithoutDbRole = make([]string, len(tags))
@@ -155,4 +180,40 @@ func (c *Check) init() error {
 	c.initialized = true
 
 	return nil
+}
+
+func (c *Check) createDatabaseIdentifier() string {
+	tags := make(map[string]string, len(c.tags))
+	for _, tag := range c.tags {
+		if strings.Contains(tag, ":") {
+			parts := strings.SplitN(tag, ":", 2)
+			if len(parts) == 2 {
+				if tags[parts[0]] != "" {
+					tags[parts[0]] = fmt.Sprintf("%s,%s", tags[parts[0]], parts[1])
+				} else {
+					tags[parts[0]] = parts[1]
+				}
+			}
+		}
+	}
+	tags["resolved_hostname"] = c.dbResolvedHostname
+	tags["server"] = c.config.Server
+	tags["port"] = fmt.Sprintf("%d", c.config.Port)
+	tags["cdb_name"] = c.cdbName
+	tags["service_name"] = c.config.ServiceName
+
+	identifier := c.config.DatabaseIdentifier.Template
+
+	re := regexp.MustCompile(`\$([a-z_]+)`)
+	matches := re.FindAllString(identifier, -1)
+	for _, match := range matches {
+		key := strings.TrimPrefix(match, "$")
+		if value, ok := tags[key]; ok && value != "" {
+			identifier = strings.ReplaceAll(identifier, match, value)
+		} else {
+			log.Warnf("%s failed to replace %s in database identifier template", c.logPrompt, match)
+		}
+	}
+
+	return identifier
 }

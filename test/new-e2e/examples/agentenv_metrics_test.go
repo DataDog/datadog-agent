@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -46,6 +46,5 @@ func (v *fakeintakeSuiteMetrics) Test3_FakeIntakeReceivesSystemUptimeHigherThanZ
 		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("system.uptime", client.WithMetricValueHigherThan(0))
 		assert.NoError(c, err)
 		assert.Greater(c, len(metrics), 0, "no 'system.uptime' with value higher than 0 yet")
-		assert.Greater(c, len(metrics), 0, "no 'system.load.1' metrics yet")
 	}, 5*time.Minute, 10*time.Second)
 }

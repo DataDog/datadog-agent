@@ -8,86 +8,44 @@ package ddflareextensionimpl
 
 import (
 	"sync"
-
-	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/otelcol"
-	"gopkg.in/yaml.v2"
 )
 
 type configStore struct {
-	provided *otelcol.Config
-	enhanced *otelcol.Config
-	mu       sync.RWMutex
+	providedConf string
+	envConf      string
+	enhancedConf string
+	mu           sync.RWMutex
 }
 
-// setProvidedConf stores the config into configStoreImpl.
-func (c *configStore) setProvidedConf(config *otelcol.Config) {
+func (c *configStore) setProvided(conf string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	c.provided = config
+	c.providedConf = conf
 }
 
-// setEnhancedConf stores the config into configStoreImpl.
-func (c *configStore) setEnhancedConf(config *otelcol.Config) {
+func (c *configStore) set(envConf string, enhancedConf string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	c.enhanced = config
+	c.enhancedConf = enhancedConf
+	c.envConf = envConf
 }
 
-func confToString(conf *otelcol.Config) (string, error) {
-	cfg := confmap.New()
-	err := cfg.Marshal(conf)
-	if err != nil {
-		return "", err
-	}
-	bytesConf, err := yaml.Marshal(cfg.ToStringMap())
-	if err != nil {
-		return "", err
-	}
-
-	return string(bytesConf), nil
+func (c *configStore) getProvidedConf() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.providedConf
 }
 
-// getProvidedConf returns a string representing the enhanced collector configuration.
-func (c *configStore) getProvidedConf() (*confmap.Conf, error) {
+func (c *configStore) getEnhancedConf() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	conf := confmap.New()
-	err := conf.Marshal(c.provided)
-	if err != nil {
-		return nil, err
-	}
-	return conf, nil
+	return c.enhancedConf
 }
 
-// getEnhancedConf returns a string representing the enhanced collector configuration.
-func (c *configStore) getEnhancedConf() (*confmap.Conf, error) {
+func (c *configStore) getEnvConf() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	conf := confmap.New()
-	err := conf.Marshal(c.enhanced)
-	if err != nil {
-		return nil, err
-	}
-	return conf, nil
-}
-
-// getProvidedConfAsString returns a string representing the enhanced collector configuration string.
-func (c *configStore) getProvidedConfAsString() (string, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return confToString(c.provided)
-}
-
-// getEnhancedConfAsString returns a string representing the enhanced collector configuration string.
-func (c *configStore) getEnhancedConfAsString() (string, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return confToString(c.enhanced)
+	return c.envConf
 }

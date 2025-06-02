@@ -6,27 +6,16 @@
 package apiimpl
 
 import (
-	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
 	"time"
 
 	gorilla "github.com/gorilla/mux"
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
-	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
-	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 )
 
 const cmdServerName string = "CMD API Server"
@@ -34,8 +23,6 @@ const cmdServerShortName string = "CMD"
 
 func (server *apiServer) startCMDServer(
 	cmdAddr string,
-	tlsConfig *tls.Config,
-	tlsCertPool *x509.CertPool,
 	tmf observability.TelemetryMiddlewareFactory,
 ) (err error) {
 	// get the transport we're going to use under HTTP
@@ -47,48 +34,13 @@ func (server *apiServer) startCMDServer(
 	}
 
 	// gRPC server
-	authInterceptor := grpcutil.AuthInterceptor(parseToken)
-	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, cmdAddr)),
-		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+	grpcServer := server.grpcComponent.BuildServer()
+
+	// gRPC gateway mux
+	gwmux, gxmuxErr := server.grpcComponent.BuildGatewayMux(cmdAddr)
+	if gxmuxErr != nil {
+		return gxmuxErr
 	}
-
-	s := grpc.NewServer(opts...)
-	pb.RegisterAgentServer(s, &grpcServer{})
-	pb.RegisterAgentSecureServer(s, &serverSecure{
-		configService:    server.rcService,
-		configServiceMRF: server.rcServiceMRF,
-		taggerServer:     taggerserver.NewServer(server.taggerComp),
-		taggerComp:       server.taggerComp,
-		// TODO(components): decide if workloadmetaServer should be componentized itself
-		workloadmetaServer: workloadmetaServer.NewServer(server.wmeta),
-		dogstatsdServer:    server.dogstatsdServer,
-		capture:            server.capture,
-		pidMap:             server.pidMap,
-	})
-
-	dcreds := credentials.NewTLS(&tls.Config{
-		ServerName: cmdAddr,
-		RootCAs:    tlsCertPool,
-	})
-	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
-
-	// starting grpc gateway
-	ctx := context.Background()
-	gwmux := runtime.NewServeMux()
-	err = pb.RegisterAgentHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return fmt.Errorf("error registering agent handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	err = pb.RegisterAgentSecureHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return fmt.Errorf("error registering agent secure handler from endpoint %s: %v", cmdAddr, err)
-	}
-
 	// Setup multiplexer
 	// create the REST HTTP router
 	agentMux := gorilla.NewRouter()
@@ -104,12 +56,6 @@ func (server *apiServer) startCMDServer(
 		http.StripPrefix("/agent",
 			agent.SetupHandlers(
 				agentMux,
-				server.wmeta,
-				server.logsAgentComp,
-				server.senderManager,
-				server.secretResolver,
-				server.collector,
-				server.autoConfig,
 				server.endpointProviders,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
@@ -119,12 +65,17 @@ func (server *apiServer) startCMDServer(
 	cmdMuxHandler := tmf.Middleware(cmdServerShortName)(cmdMux)
 	cmdMuxHandler = observability.LogResponseHandler(cmdServerName)(cmdMuxHandler)
 
-	srv := grpcutil.NewMuxedGRPCServer(
-		cmdAddr,
-		tlsConfig,
-		s,
-		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second),
-	)
+	tlsConfig := server.ipc.GetTLSServerConfig()
+
+	srv := &http.Server{
+		Addr:      cmdAddr,
+		Handler:   cmdMuxHandler,
+		TLSConfig: tlsConfig,
+	}
+
+	if grpcServer != nil {
+		srv = helpers.NewMuxedGRPCServer(cmdAddr, tlsConfig, grpcServer, cmdMuxHandler, time.Duration(server.cfg.GetInt64("server_timeout"))*time.Second)
+	}
 
 	startServer(server.cmdListener, srv, cmdServerName)
 

@@ -79,12 +79,20 @@ const (
 	CgroupTracingEventType
 	// DNSEventType DNS event
 	DNSEventType
+	// ShortDNSResponseEventType DNS Response event
+	ShortDNSResponseEventType
+	// FullDNSResponseEventType DNS Response event
+	FullDNSResponseEventType
 	// NetDeviceEventType is sent for events on net devices
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
 	VethPairEventType
+	// AcceptEventType Accept event
+	AcceptEventType
 	// BindEventType Bind event
 	BindEventType
+	// ConnectEventType Connect event
+	ConnectEventType
 	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
@@ -97,6 +105,14 @@ const (
 	LoginUIDWriteEventType
 	// CgroupWriteEventType is sent when a new cgroup was created
 	CgroupWriteEventType
+	// RawPacketEventType raw packet event
+	RawPacketEventType
+	// NetworkFlowMonitorEventType is sent to monitor network activity
+	NetworkFlowMonitorEventType
+	// StatEventType stat event (used kernel side only)
+	StatEventType
+	// SysCtlEventType sysctl event
+	SysCtlEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -115,20 +131,8 @@ const (
 	// LastApproverEventType is the last event that accepts approvers
 	LastApproverEventType = SpliceEventType
 
-	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType EventType = iota
-	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
-	CustomLostWriteEventType
-	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
-	CustomRulesetLoadedEventType
-	// CustomHeartbeatEventType is the custom event used to report a heartbeat event
-	CustomHeartbeatEventType
-	// CustomForkBombEventType is the custom event used to report the detection of a fork bomb
-	CustomForkBombEventType
-	// CustomTruncatedParentsEventType is the custom event used to report that the parents of a path were truncated
-	CustomTruncatedParentsEventType
-	// CustomSelfTestEventType is the custom event used to report the results of a self test run
-	CustomSelfTestEventType
+	// CustomEventType represents a custom event type
+	CustomEventType EventType = iota
 
 	// CreateNewFileEventType event
 	CreateNewFileEventType
@@ -227,6 +231,10 @@ func (t EventType) String() string {
 		return "veth_pair"
 	case BindEventType:
 		return "bind"
+	case AcceptEventType:
+		return "accept"
+	case ConnectEventType:
+		return "connect"
 	case UnshareMountNsEventType:
 		return "unshare_mntns"
 	case SyscallsEventType:
@@ -235,19 +243,14 @@ func (t EventType) String() string {
 		return "imds"
 	case OnDemandEventType:
 		return "ondemand"
-
-	case CustomLostReadEventType:
-		return "lost_events_read"
-	case CustomLostWriteEventType:
-		return "lost_events_write"
-	case CustomRulesetLoadedEventType:
-		return "ruleset_loaded"
-	case CustomForkBombEventType:
-		return "fork_bomb"
-	case CustomTruncatedParentsEventType:
-		return "truncated_parents"
-	case CustomSelfTestEventType:
-		return "self_test"
+	case RawPacketEventType:
+		return "packet"
+	case NetworkFlowMonitorEventType:
+		return "network_flow_monitor"
+	case StatEventType:
+		return "stat"
+	case CustomEventType:
+		return "custom_event"
 	case CreateNewFileEventType:
 		return "create"
 	case DeleteFileEventType:
@@ -266,6 +269,12 @@ func (t EventType) String() string {
 		return "change_permission"
 	case LoginUIDWriteEventType:
 		return "login_uid_write"
+	case CgroupWriteEventType:
+		return "cgroup_write"
+	case SysCtlEventType:
+		return "sysctl"
+	case FullDNSResponseEventType:
+		return "dns_response"
 	default:
 		return "unknown"
 	}

@@ -9,8 +9,9 @@
 package journald
 
 import (
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
@@ -20,7 +21,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new Launcher
-func NewLauncher(_ *flareController.FlareController) *Launcher {
+func NewLauncher(*flareController.FlareController, tagger.Component) *Launcher {
 	return &Launcher{}
 }
 

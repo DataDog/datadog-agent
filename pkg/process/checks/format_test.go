@@ -135,6 +135,7 @@ Processes
     Lib:    600 B
     Data:   700 B
     Dirty:  800 B
+  Tags: 
   CPU: Total: 3% System: 2% User: 1%
   Threads: 100
   Nice: 2
@@ -694,5 +695,5 @@ Process Lifecyle Events
 // assertEqualAnyLineBreak is an assertion helper to compare strings ignoring the \r character
 func assertEqualAnyLineBreak(t *testing.T, expected, actual string) {
 	t.Helper()
-	assert.Equal(t, expected, strings.Replace(actual, "\r\n", "\n", -1))
+	assert.Equal(t, expected, strings.ReplaceAll(actual, "\r\n", "\n"))
 }

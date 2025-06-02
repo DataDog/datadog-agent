@@ -36,6 +36,11 @@ func TestMMapEvent(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("mmap", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC, unix.MAP_SHARED|unix.MAP_ANON)
@@ -47,17 +52,13 @@ func TestMMapEvent(t *testing.T) {
 				return fmt.Errorf("couldn't unmap memory segment: %w", err)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "mmap", event.GetType(), "wrong event type")
 			assert.Equal(t, uint64(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), event.MMap.Protection&(unix.PROT_READ|unix.PROT_WRITE|unix.PROT_EXEC), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
 
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), false)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 
 			test.validateMMapSchema(t, event)
@@ -81,6 +82,11 @@ func TestMMapApproverZero(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	test.WaitSignal(t, func() error {
 		data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_NONE, unix.MAP_SHARED|unix.MAP_ANON)
 		if err != nil {
@@ -91,17 +97,13 @@ func TestMMapApproverZero(t *testing.T) {
 			return fmt.Errorf("couldn't unmap memory segment: %w", err)
 		}
 		return nil
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "mmap", event.GetType(), "wrong event type")
 		assert.Equal(t, uint64(unix.PROT_NONE), event.MMap.Protection&(unix.PROT_NONE), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
 
 		value, _ := event.GetFieldValue("event.async")
 		assert.Equal(t, value.(bool), false)
 
-		executable, err := os.Executable()
-		if err != nil {
-			t.Fatal(err)
-		}
 		assertFieldEqual(t, event, "process.file.path", executable)
 
 		test.validateMMapSchema(t, event)

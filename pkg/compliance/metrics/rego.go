@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	opametrics "github.com/open-policy-agent/opa/metrics"
+	opametrics "github.com/open-policy-agent/opa/v1/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cast"
 )

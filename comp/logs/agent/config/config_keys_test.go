@@ -18,7 +18,7 @@ import (
 )
 
 func getLogsConfigKeys(t *testing.T) (config.Component, *LogsConfigKeys) {
-	configMock := fxutil.Test[config.Component](
+	mockConfig := fxutil.Test[config.Component](
 		t,
 		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: map[string]any{
@@ -26,19 +26,25 @@ func getLogsConfigKeys(t *testing.T) (config.Component, *LogsConfigKeys) {
 		}}),
 	)
 
-	return configMock, defaultLogsConfigKeys(configMock)
+	return mockConfig, defaultLogsConfigKeys(mockConfig)
 }
 
 func TestGetAPIKeyGetter(t *testing.T) {
-	configMock, l := getLogsConfigKeys(t)
+	mockConfig, l := getLogsConfigKeys(t)
 
-	assert.Equal(t, "1234", l.getAPIKeyGetter()())
+	apiKey, path := l.getMainAPIKey()
+	assert.Equal(t, "1234", apiKey)
+	assert.Equal(t, "api_key", path)
 
-	configMock.SetWithoutSource("api_key", "abcd")
-	assert.Equal(t, "abcd", l.getAPIKeyGetter()())
+	mockConfig.SetWithoutSource("api_key", "abcd")
+	apiKey, path = l.getMainAPIKey()
+	assert.Equal(t, "abcd", apiKey)
+	assert.Equal(t, "api_key", path)
 
-	configMock.SetWithoutSource("logs_config.api_key", "5678")
-	assert.Equal(t, "5678", l.getAPIKeyGetter()())
+	mockConfig.SetWithoutSource("logs_config.api_key", "5678")
+	apiKey, path = l.getMainAPIKey()
+	assert.Equal(t, "5678", apiKey)
+	assert.Equal(t, "logs_config.api_key", path)
 }
 
 func TestGetAdditionalEndpoints(t *testing.T) {
@@ -62,7 +68,7 @@ func TestGetAdditionalEndpoints(t *testing.T) {
 		},
 	}
 
-	configMock, l := getLogsConfigKeys(t)
+	mockConfig, l := getLogsConfigKeys(t)
 
 	// Test with a JSON directly set
 	jsonString := `[{
@@ -78,14 +84,15 @@ func TestGetAdditionalEndpoints(t *testing.T) {
 			"Port":        5678,
 			"is_reliable": false
 		}]`
-	configMock.SetWithoutSource("logs_config.additional_endpoints", jsonString)
+	mockConfig.SetWithoutSource("logs_config.additional_endpoints", jsonString)
 
-	endpoints := l.getAdditionalEndpoints()
+	endpoints, path := l.getAdditionalEndpoints()
 	assert.Equal(t, expected, endpoints)
+	assert.Equal(t, "logs_config.additional_endpoints", path)
 
 	// Test with a regular setup from the configuration file
-	configMock.UnsetForSource("logs_config.additional_endpoints", model.SourceUnknown)
-	configMock.SetWithoutSource("logs_config.additional_endpoints",
+	mockConfig.UnsetForSource("logs_config.additional_endpoints", model.SourceUnknown)
+	mockConfig.SetWithoutSource("logs_config.additional_endpoints",
 		[]map[string]interface{}{
 			{
 				"api_key":     "apiKey2",
@@ -101,6 +108,7 @@ func TestGetAdditionalEndpoints(t *testing.T) {
 				"is_reliable": false,
 			},
 		})
-	endpoints = l.getAdditionalEndpoints()
+	endpoints, _ = l.getAdditionalEndpoints()
 	assert.Equal(t, expected, endpoints)
+	assert.Equal(t, "logs_config.additional_endpoints", path)
 }

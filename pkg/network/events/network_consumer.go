@@ -32,7 +32,7 @@ func (n *NetworkConsumer) ID() string {
 // NewNetworkConsumer returns a new NetworkConsumer instance
 func NewNetworkConsumer(evm *eventmonitor.EventMonitor) (*NetworkConsumer, error) {
 	h := Consumer()
-	if err := evm.AddEventConsumer(h); err != nil {
+	if err := evm.AddEventConsumerHandler(h); err != nil {
 		return nil, err
 	}
 	return &NetworkConsumer{}, nil

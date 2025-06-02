@@ -18,6 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -87,6 +89,7 @@ func TestCommonHeaderProviderText(t *testing.T) {
   Python Version: n/a
   Build arch: %s
   Agent flavor: %s
+  FIPS Mode: not available
   Log Level: info
 
   Paths
@@ -97,8 +100,8 @@ func TestCommonHeaderProviderText(t *testing.T) {
 `, pid, goVersion, arch, agentFlavor, config.GetString("confd_path"), config.GetString("additional_checksd"))
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
-	output := strings.Replace(buffer.String(), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(buffer.String(), "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }
@@ -127,6 +130,33 @@ func TestCommonHeaderProviderTime(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, data, "time_nano")
 	assert.EqualValues(t, int64(2000000000), data["time_nano"])
+}
+
+func assertLogLevel(t *testing.T, provider status.HeaderProvider, expected string) {
+	t.Helper()
+
+	data := map[string]interface{}{}
+	err := provider.JSON(false, data)
+	require.NoError(t, err)
+
+	require.Contains(t, data, "config")
+	require.Contains(t, data["config"], "log_level")
+
+	cfg, ok := data["config"].(map[string]string)
+	require.True(t, ok)
+
+	require.EqualValues(t, expected, cfg["log_level"])
+}
+
+func TestCommonHeaderProviderConfig(t *testing.T) {
+	config := config.NewMock(t)
+	provider := newCommonHeaderProvider(agentParams, config)
+
+	config.Set("log_level", "info", model.SourceAgentRuntime)
+	assertLogLevel(t, provider, "info")
+
+	config.Set("log_level", "warn", model.SourceAgentRuntime)
+	assertLogLevel(t, provider, "warn")
 }
 
 func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
@@ -159,6 +189,7 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
   Python Version: n/a
   Build arch: %s
   Agent flavor: %s
+  FIPS Mode: proxy
   Log Level: info
 
   Paths
@@ -175,8 +206,8 @@ func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {
 `, pid, goVersion, arch, agentFlavor, config.GetString("confd_path"), config.GetString("additional_checksd"))
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedTextOutput, "\r\n", "\n", -1)
-	output := strings.Replace(buffer.String(), "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedTextOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(buffer.String(), "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }
@@ -203,7 +234,7 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 	// We have to do this strings replacement because html/temaplte escapes the `+` sign
 	// https://github.com/golang/go/issues/42506
 	result := buffer.String()
-	unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+	unescapedResult := strings.ReplaceAll(result, "&#43;", "+")
 
 	expectedHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
@@ -212,6 +243,7 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    FIPS Mode: not available<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -231,8 +263,8 @@ func TestCommonHeaderProviderHTML(t *testing.T) {
 `, version.AgentVersion, agentFlavor, pid, config.GetString("confd_path"), config.GetString("additional_checksd"), goVersion, arch)
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedHTMLOutput, "\r\n", "\n", -1)
-	output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedHTMLOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(unescapedResult, "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }
@@ -266,7 +298,7 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 	// We have to do this strings replacement because html/temaplte escapes the `+` sign
 	// https://github.com/golang/go/issues/42506
 	result := buffer.String()
-	unescapedResult := strings.Replace(result, "&#43;", "+", -1)
+	unescapedResult := strings.ReplaceAll(result, "&#43;", "+")
 
 	expectedHTMLOutput := fmt.Sprintf(`<div class="stat">
   <span class="stat_title">Agent Info</span>
@@ -275,6 +307,7 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
     Flavor: %s<br>
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
+    FIPS Mode: proxy<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -302,8 +335,8 @@ func TestCommonHeaderProviderHTMLWithFipsInformation(t *testing.T) {
 `, version.AgentVersion, agentFlavor, pid, config.GetString("confd_path"), config.GetString("additional_checksd"), goVersion, arch)
 
 	// We replace windows line break by linux so the tests pass on every OS
-	expectedResult := strings.Replace(expectedHTMLOutput, "\r\n", "\n", -1)
-	output := strings.Replace(unescapedResult, "\r\n", "\n", -1)
+	expectedResult := strings.ReplaceAll(expectedHTMLOutput, "\r\n", "\n")
+	output := strings.ReplaceAll(unescapedResult, "\r\n", "\n")
 
 	assert.Equal(t, expectedResult, output)
 }

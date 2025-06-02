@@ -16,6 +16,14 @@ import (
 )
 
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
+	if c.db == nil {
+		// Reconnect if the connection is lost
+		// If reconnect fails, return the error
+		err := reconnectOnConnectionLose(c)
+		if err != nil {
+			return err
+		}
+	}
 	err := c.db.Select(s, sql, binds...)
 	err = handleError(c, &c.db, err)
 	if err != nil {
@@ -25,6 +33,12 @@ func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error
 }
 
 func getWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
+	if c.db == nil {
+		err := reconnectOnConnectionLose(c)
+		if err != nil {
+			return err
+		}
+	}
 	err := c.db.Get(s, sql, binds...)
 	err = handleError(c, &c.db, err)
 	if err != nil {
@@ -130,4 +144,14 @@ func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
 		log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
 		closeDatabase(c, *db)
 	}
+}
+
+func reconnectOnConnectionLose(c *Check) error {
+	db, err := c.Connect()
+	if err != nil {
+		log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
+		closeDatabase(c, c.db)
+	}
+	c.db = db
+	return err
 }

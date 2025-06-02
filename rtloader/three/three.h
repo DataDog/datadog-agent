@@ -6,13 +6,6 @@
 #ifndef DATADOG_AGENT_RTLOADER_THREE_H
 #define DATADOG_AGENT_RTLOADER_THREE_H
 
-// Some preprocessor sanity for builds (2+3 common sources)
-#ifndef DATADOG_AGENT_THREE
-#    error Build requires defining DATADOG_AGENT_THREE
-#elif defined(DATADOG_AGENT_TWO) && defined(DATADOG_AGENT_THREE)
-#    error "DATADOG_AGENT_TWO and DATADOG_AGENT_THREE are mutually exclusive - define only one of the two."
-#endif
-
 #include <atomic>
 #include <map>
 #include <mutex>
@@ -49,7 +42,6 @@ public:
       thread id>,) in <module 'threading'".
       Even if Python ignores it, the exception ends up in the log files for
       upstart/syslog/...
-      Since we don't call Py_Finalize, we don't free _pythonHome here either.
 
       More info here:
       https://stackoverflow.com/questions/8774958/keyerror-in-module-threading-after-a-successful-py-test-run/12639040#12639040
@@ -64,6 +56,7 @@ public:
 
     bool getClass(const char *module, RtLoaderPyObject *&pyModule, RtLoaderPyObject *&pyClass);
     bool getAttrString(RtLoaderPyObject *obj, const char *attributeName, char *&value) const;
+    bool getAttrBool(RtLoaderPyObject *obj, const char *attributeName, bool &value) const;
     bool getCheck(RtLoaderPyObject *py_class, const char *init_config_str, const char *instance_str,
                   const char *check_id_str, const char *check_name, const char *agent_config_str,
                   RtLoaderPyObject *&check);
@@ -114,6 +107,7 @@ public:
     void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
     void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);
+    void setEmitAgentTelemetryCb(cb_emit_agent_telemetry_t);
 
     void initPymemStats();
     void getPymemStats(pymem_stats_t &);
@@ -134,20 +128,6 @@ public:
     void setIsExcludedCb(cb_is_excluded_t);
 
 private:
-    //! initPythonHome member.
-    /*!
-      \brief This member function sets the Python home for the underlying python3 interpreter.
-      \param pythonHome A C-string to the target python home for the python runtime.
-    */
-    void initPythonHome(const char *pythonHome = NULL);
-
-    //! initPythonExe member.
-    /*!
-      \brief This member function sets the path to the underlying python3 interpreter.
-      \param python_exe A C-string to the target python executable.
-    */
-    void initPythonExe(const char *python_exe = NULL);
-
     //! _importFrom member.
     /*!
       \brief This member function imports a Python object by name from the specified
@@ -188,8 +168,9 @@ private:
     */
     typedef std::vector<std::string> PyPaths;
 
-    wchar_t *_pythonHome; /*!< unicode string with the PYTHONHOME for the underlying interpreter */
-    wchar_t *_pythonExe; /*!< unicode string with the path to the executable of the underlying interpreter */
+    PyConfig _config;
+    std::string _pythonHome;
+    std::string _pythonExe;
     PyObject *_baseClass; /*!< PyObject * pointer to the base Agent check class */
     PyPaths _pythonPaths; /*!< string vector containing paths in the PYTHONPATH */
     PyThreadState *_threadState; /*!< PyThreadState * pointer to the saved Python interpreter thread state */

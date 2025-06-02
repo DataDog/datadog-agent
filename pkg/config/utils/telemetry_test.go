@@ -6,19 +6,17 @@
 package utils
 
 import (
-	"strings"
 	"testing"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestIsCheckTelemetryEnabled(t *testing.T) {
 	assert := assert.New(t)
 
-	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.InitConfig(mockConfig)
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("agent_telemetry.enabled", false)
 	mockConfig.SetWithoutSource("telemetry.enabled", false)
 
 	assert.False(IsCheckTelemetryEnabled("cpu", mockConfig))

@@ -7,8 +7,10 @@
 package selftests
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -37,20 +39,30 @@ func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`create.file.name == "%s" && create.file.device_path =~ "%s" && process.pid == %d`, basename, filepath.ToSlash(devicePath), os.Getpid()),
+		Expression: fmt.Sprintf(`create.file.name == "%s" && create.file.device_path =~ "%s"`, basename, filepath.ToSlash(devicePath)),
+		Silent:     true,
 	}
 }
 
 // GenerateEvent generate an event
-func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
+func (o *WindowsCreateFileSelfTest) GenerateEvent(ctx context.Context) error {
 	o.isSuccess = false
 
-	file, err := os.Create(o.filename)
-	if err != nil {
+	cmd := exec.CommandContext(ctx,
+		"powershell",
+		"-c",
+		"New-Item",
+		"-Path",
+		o.filename,
+		"-ItemType",
+		"file",
+	)
+	if err := cmd.Run(); err != nil {
 		log.Debugf("error creating file: %v", err)
 		return err
 	}
-	return file.Close()
+
+	return os.Remove(o.filename)
 }
 
 // HandleEvent handles self test events

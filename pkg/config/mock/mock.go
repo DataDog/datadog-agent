@@ -8,13 +8,14 @@ package mock
 
 import (
 	"bytes"
-	"strings"
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -26,21 +27,6 @@ var (
 // mockConfig should only be used in tests
 type mockConfig struct {
 	model.Config
-}
-
-// Set is used for setting configuration in tests
-func (c *mockConfig) Set(key string, value interface{}, source model.Source) {
-	c.Config.Set(key, value, source)
-}
-
-// SetWithoutSource is used for setting configuration in tests
-func (c *mockConfig) SetWithoutSource(key string, value interface{}) {
-	c.Config.SetWithoutSource(key, value)
-}
-
-// SetKnown is used for setting configuration in tests
-func (c *mockConfig) SetKnown(key string) {
-	c.Config.SetKnown(key)
 }
 
 // New creates a mock for the config
@@ -58,14 +44,15 @@ func New(t testing.TB) model.Config {
 		m.Lock()
 		defer m.Unlock()
 		isConfigMocked = false
-		setup.SetDatadog(originalDatadogConfig)
+		setup.SetDatadog(originalDatadogConfig) // nolint: forbidigo // legitimate use of SetDatadog
 	})
 
 	// Configure Datadog global configuration
-	newCfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	newCfg := create.NewConfig("datadog")
 	// Configuration defaults
-	setup.SetDatadog(newCfg)
+	setup.SetDatadog(newCfg) // nolint forbidigo legitimate use of SetDatadog
 	setup.InitConfig(newCfg)
+	newCfg.SetTestOnlyDynamicSchema(true)
 	return &mockConfig{newCfg}
 }
 
@@ -107,13 +94,20 @@ func NewSystemProbe(t testing.TB) model.Config {
 			m.Lock()
 			defer m.Unlock()
 			isSystemProbeConfigMocked = false
-			setup.SetSystemProbe(originalConfig)
+			setup.SetSystemProbe(originalConfig) // nolint forbidigo legitimate use of SetSystemProbe
 		})
 	}
 
 	// Configure Datadog global configuration
-	setup.SetSystemProbe(model.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_")))
+	setup.SetSystemProbe(create.NewConfig("system-probe")) // nolint forbidigo legitimate use of SetSystemProbe
 	// Configuration defaults
 	setup.InitSystemProbeConfig(setup.SystemProbe())
+	setup.SystemProbe().SetTestOnlyDynamicSchema(true)
 	return &mockConfig{setup.SystemProbe()}
+}
+
+// SetDefaultConfigType sets the config type for the mock config in use
+func SetDefaultConfigType(t *testing.T, configType string) {
+	mockConfig := New(t)
+	mockConfig.SetConfigType(configType)
 }

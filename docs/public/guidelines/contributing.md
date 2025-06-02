@@ -8,7 +8,7 @@ This document provides some basic guidelines for contributing to this repository
 
   * If you think you've found an issue, please search the [Agent Troubleshooting][agent-troubleshooting] section to see if it's known.
   * If you’re still unsure about the issue, you may reach out to the [Datadog support](https://docs.datadoghq.com/help/) team with [a flare](https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/) from your Agent.
-  * Finally, you can open a Github issue.
+  * Finally, you can open a Github issue. Add as much information as possible to help us triage the issue.
 
 ## Pull Requests
 
@@ -16,34 +16,37 @@ Have you fixed a bug or written a new check and want to share it? Many thanks!
 
 In order to ease/speed up our review, here are some items you can check/improve when submitting your PR:
 
-=== "Contributor Checklist"
-    - [X] Have a proper commit history (we advise you to rebase if needed) with clear commit messages.
+/// tab | Contributor Checklist
+- [X] Have a proper commit history (we advise you to rebase if needed) with clear commit messages.
+- [X] Write tests for the code you wrote.
+- [X] Preferably make sure that all tests pass locally.
+- [X] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.
+- [X] Use [Reno](#reno) to create a release note.
+- [X] Open your PR against the `main` branch.
+- [X] Sign the Contributor Licence Agreement.
+- [X] Sign your commits.
+- [X] Provide adequate QA/testing plan information.
+///
 
-    - [X] Write tests for the code you wrote.
+/// tab | Reviewer Checklist
+- [X] The added code comes with tests.
+- [X] The CI is green, all tests are passing (required or not).
+- [X] All applicable labels are set on the PR (see [PR labels list](#pr-labels)).
+- [X] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
+///
 
-    - [X] Preferably make sure that all tests pass locally.
-
-    - [X] Summarize your PR with an explanatory title and a message describing your changes, cross-referencing any related bugs/PRs.
-
-    - [X] Use [Reno](#reno) to create a release note.
-
-    - [X] Open your PR against the `main` branch.
-
-    - [X] Provide adequate QA/testing plan information.
-
-=== "Reviewer Checklist"
-    - [X] The added code comes with tests.
-
-    - [X] The CI is green, all tests are passing (required or not).
-
-    - [X] All applicable labels are set on the PR (see [PR labels list](#pr-labels)).
-
-    - [X] If applicable, the [config template](https://github.com/DataDog/datadog-agent/blob/main/pkg/config/config_template.yaml) has been updated.
-
-!!! note
-    Adding GitHub labels is only possible for contributors with write access.
+/// note
+Adding GitHub labels is only possible for contributors with write access.
+///
 
 Your pull request must pass all CI tests before we will merge it. If you're seeing an error and don't think it's your fault, it may not be! [Join us on Slack](https://chat.datadoghq.com) or [send us an email](mailto:support@datadoghq.com), and together we'll get it sorted out.
+
+### Merge protection
+
+We have safety measures to protect our repository. As an external contributor, you are required to:
+
+1. Sign our [Contributor License Agreement](https://cla.datadoghq.com/DataDog/datadog-agent) (CLA). You will receive a message once your PR is opened to sign the agreement.
+2. Provide signed commits before merging. To learn how to sign your commits, follow [this procedure from Github](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
 
 ### Keep it small, focused
 
@@ -225,12 +228,13 @@ For internal PRs (from people in the Datadog organization), you have few extra l
     - `qa/done` label is recommended in case of code changes ***and*** manual / automated QA done before merge.
     - `qa/no-code-change` is recommended if there's no code changes in the Agent binary code.
 
-    !!! note "Important"
-        Use `qa/no-code-change` if your PR only changes tests or a module/package that does not end up in the Agent build. All of the following do not require QA:
+    /// note | Important
+    Use `qa/no-code-change` if your PR only changes tests or a module/package that does not end up in the Agent build. All of the following do not require QA:
 
-        - Changing the CI configuration without impacting the Agent packaging.
-        - Changing the documentation.
-        - Changing the developer tooling.
+    - Changing the CI configuration without impacting the Agent packaging.
+    - Changing the documentation.
+    - Changing the developer tooling.
+    ///
 
 - `major_change`: to flag the PR as a major change impacting many/all teams working on the agent and will require deeper QA (example: when we change the Python version shipped in the agent).
 - `need-change/operator`, `need-change/helm`: indicate that the configuration needs to be modified in the operator / helm chart as well.

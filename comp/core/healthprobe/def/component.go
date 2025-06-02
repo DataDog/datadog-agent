@@ -6,7 +6,7 @@
 // Package healthprobe implements the health check server
 package healthprobe
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {

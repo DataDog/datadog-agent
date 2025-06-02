@@ -11,7 +11,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
@@ -23,7 +22,7 @@ import (
 // Should probably be generated at some point
 type MockClient struct {
 	FakeRawClient                   *client.Client
-	FakeContainerList               []types.Container
+	FakeContainerList               []container.Summary
 	FakeImageNameMapping            map[string]string
 	FakeImages                      []image.Summary
 	FakeStorageStats                []*StorageStats
@@ -40,7 +39,7 @@ func (d *MockClient) RawClient() *client.Client {
 }
 
 // RawContainerList is a mock method
-func (d *MockClient) RawContainerList(context.Context, container.ListOptions) ([]types.Container, error) {
+func (d *MockClient) RawContainerList(context.Context, container.ListOptions) ([]container.Summary, error) {
 	return d.FakeContainerList, d.FakeError
 }
 

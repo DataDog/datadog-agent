@@ -14,9 +14,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 var (
@@ -33,6 +34,7 @@ func TestCreateEndpointUrl(t *testing.T) {
 }
 
 func TestSendHTTPRequestToEndpoint(t *testing.T) {
+	mockConfig := configmock.New(t)
 
 	// Create a fake server that send a 200 Response if there the 'DD-API-KEY' header has value 'api_key1'
 	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +48,8 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 	}))
 	defer ts1.Close()
 
-	client := defaultforwarder.NewHTTPClient(pkgconfigsetup.Datadog())
+	log := logmock.New(t)
+	client := defaultforwarder.NewHTTPClient(mockConfig, 1, log)
 
 	// With the correct API Key, it should be a 200
 	statusCodeWithKey, responseBodyWithKey, _, errWithKey := sendHTTPRequestToEndpoint(context.Background(), client, ts1.URL, endpointInfoTest, apiKey1)
@@ -62,6 +65,9 @@ func TestSendHTTPRequestToEndpoint(t *testing.T) {
 }
 
 func TestAcceptRedirection(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockLog := logmock.New(t)
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		//  * the original flare request URL, which redirects on HEAD to /post-target
 		if r.Method == "HEAD" && r.RequestURI == "/support/flare" {
@@ -76,7 +82,7 @@ func TestAcceptRedirection(t *testing.T) {
 
 	ddURL := ts.URL
 
-	client := clientWithOneRedirects()
+	client := clientWithOneRedirects(mockConfig, 1, mockLog)
 
 	url := ddURL + "/support/flare"
 	statusCode, err := sendHTTPHEADRequestToEndpoint(url, client)
@@ -88,4 +94,17 @@ func TestAcceptRedirection(t *testing.T) {
 	assert.Equal(t, 500, statusCode2)
 	assert.Error(t, err2)
 
+}
+
+func TestGetLogsUseTCP(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	mockConfig.SetWithoutSource("logs_enabled", true)
+	assert.False(t, getLogsUseTCP())
+
+	mockConfig.SetWithoutSource("logs_config.force_use_tcp", true)
+	assert.True(t, getLogsUseTCP())
+
+	mockConfig.SetWithoutSource("logs_config.force_use_http", true)
+	assert.False(t, getLogsUseTCP())
 }

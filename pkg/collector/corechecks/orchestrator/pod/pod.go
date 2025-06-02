@@ -16,6 +16,9 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -25,10 +28,11 @@ import (
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckName is the name of the check
@@ -50,17 +54,28 @@ type Check struct {
 	processor  *processors.Processor
 	config     *oconfig.OrchestratorConfig
 	systemInfo *model.SystemInfo
+	store      workloadmeta.Component
+	cfg        config.Component
+	tagger     tagger.Component
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(
+		func() check.Check {
+			return newCheck(store, cfg, tagger)
+		},
+	)
 }
 
-func newCheck() check.Check {
+func newCheck(store workloadmeta.Component, cfg config.Component, tagger tagger.Component) check.Check {
+	extraTags := cfg.GetStringSlice(oconfig.OrchestratorNSKey("extra_tags"))
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
-		config:    oconfig.NewDefaultOrchestratorConfig(),
+		config:    oconfig.NewDefaultOrchestratorConfig(extraTags),
+		store:     store,
+		cfg:       cfg,
+		tagger:    tagger,
 	}
 }
 
@@ -93,7 +108,7 @@ func (c *Check) Configure(
 	}
 
 	if c.processor == nil {
-		c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
+		c.processor = processors.NewProcessor(k8sProcessors.NewPodHandlers(c.cfg, c.store, c.tagger))
 	}
 
 	if c.sender == nil {
@@ -145,18 +160,20 @@ func (c *Check) Run() error {
 			NodeType:         orchestrator.K8sPod,
 			ClusterID:        c.clusterID,
 			ManifestProducer: true,
+			Kind:             kubernetes.PodKind,
+			APIVersion:       "v1",
+			CollectorTags:    []string{"kube_api_version:v1"},
 		},
-		HostName:           c.hostName,
-		ApiGroupVersionTag: "kube_api_version:v1",
-		SystemInfo:         c.systemInfo,
+		HostName:   c.hostName,
+		SystemInfo: c.systemInfo,
 	}
 
-	processResult, processed := c.processor.Process(ctx, podList)
+	processResult, listed, processed := c.processor.Process(ctx, podList)
 	if processed == -1 {
 		return fmt.Errorf("unable to process pods: a panic occurred")
 	}
 
-	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
+	orchestrator.SetCacheStats(listed, processed, ctx.NodeType)
 
 	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
 	c.sender.OrchestratorManifest(processResult.ManifestMessages, c.clusterID)

@@ -9,9 +9,8 @@ package cgroups
 
 import (
 	"fmt"
+	"io/fs"
 	"path/filepath"
-
-	"github.com/karrick/godirwalk"
 )
 
 const (
@@ -47,26 +46,24 @@ func newReaderV1(procPath string, mountPoints map[string]string, baseController 
 func (r *readerV1) parseCgroups() (map[string]Cgroup, error) {
 	res := make(map[string]Cgroup)
 
-	err := godirwalk.Walk(r.cgroupRoot, &godirwalk.Options{
-		AllowNonDirectory: true,
-		Unsorted:          true,
-		Callback: func(fullPath string, de *godirwalk.Dirent) error {
-			if !de.IsDir() {
-				return nil
-			}
-
-			id, err := r.filter(fullPath, de.Name())
-			if id != "" {
-				relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
-				if err != nil {
-					return err
-				}
-
-				res[id] = newCgroupV1(id, relPath, r.baseController, r.mountPoints, r.pidMapper)
-			}
-
+	err := filepath.WalkDir(r.cgroupRoot, func(fullPath string, de fs.DirEntry, err error) error {
+		if err != nil {
 			return err
-		},
+		}
+		if !de.IsDir() {
+			return nil
+		}
+
+		id, err := r.filter(fullPath, de.Name())
+		if id != "" {
+			relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
+			if err != nil {
+				return err
+			}
+
+			res[id] = newCgroupV1(id, relPath, r.baseController, r.mountPoints, r.pidMapper)
+		}
+		return err
 	})
 
 	return res, err

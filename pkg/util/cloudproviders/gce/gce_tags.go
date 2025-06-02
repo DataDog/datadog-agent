@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build gce
-
 package gce
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -101,6 +100,10 @@ func GetTags(ctx context.Context) ([]string, error) {
 		}
 	}
 
+	if providerKind := pkgconfigsetup.Datadog().GetString("provider_kind"); providerKind != "" {
+		tags = append(tags, fmt.Sprintf("provider_kind:%s", providerKind))
+	}
+
 	// save tags to the cache in case we exceed quotas later
 	cache.Cache.Set(tagsCacheKey, tags, cache.NoExpiration)
 
@@ -111,10 +114,5 @@ func GetTags(ctx context.Context) ([]string, error) {
 func isAttributeExcluded(attr string) bool {
 
 	excludedAttributes := pkgconfigsetup.Datadog().GetStringSlice("exclude_gce_tags")
-	for _, excluded := range excludedAttributes {
-		if attr == excluded {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(excludedAttributes, attr)
 }

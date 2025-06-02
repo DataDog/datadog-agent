@@ -13,8 +13,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -27,6 +29,8 @@ type APIServerDeps struct {
 	WorkloadMeta workloadmeta.Component
 	Status       status.Component
 	Settings     settings.Component
+	Tagger       tagger.Component
+	Secrets      secrets.Component
 }
 
 func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWriter, *http.Request)) http.HandlerFunc {
@@ -52,4 +56,5 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 		workloadList(w, true, deps.WorkloadMeta)
 	}).Methods("GET")
 	r.HandleFunc("/check/{check}", checkHandler).Methods("GET")
+	r.HandleFunc("/secret/refresh", injectDeps(deps, secretRefreshHandler)).Methods("GET")
 }

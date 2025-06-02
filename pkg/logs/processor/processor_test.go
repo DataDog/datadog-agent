@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -314,6 +315,7 @@ func TestBuffering(t *testing.T) {
 	}
 
 	hostnameComponent, _ := hostnameinterface.NewMock("testHostnameFromEnvVar")
+	pm := metrics.NewNoopPipelineMonitor("")
 
 	p := &Processor{
 		encoder:                   JSONEncoder,
@@ -326,8 +328,10 @@ func TestBuffering(t *testing.T) {
 		sds: sdsProcessor{
 			maxBufferSize: len("hello1world") + len("hello2world") + len("hello3world") + 1,
 			buffering:     true,
-			scanner:       sds.CreateScanner(42),
+			scanner:       sds.CreateScanner("42"),
 		},
+		pipelineMonitor: pm,
+		utilization:     pm.MakeUtilizationMonitor("processor"),
 	}
 
 	var processedMessages atomic.Int32
@@ -490,4 +494,43 @@ func newStructuredMessage(content []byte, source *sources.LogSource, status stri
 	msg := message.NewStructuredMessage(&structuredContent, message.NewOrigin(source), status, 0)
 	msg.SetContent(content)
 	return msg
+}
+
+func BenchmarkMaskSequences(b *testing.B) {
+	processor := &Processor{
+		processingRules: []*config.ProcessingRule{
+			{
+				Type:               config.MaskSequences,
+				Regex:              regexp.MustCompile("(?:api_key=[a-f0-9]{28})"),
+				ReplacePlaceholder: "api_key=****************************",
+			},
+		},
+	}
+
+	msg := newMessage(nil, &sources.LogSource{
+		Config: &config.LogsConfig{},
+	}, "")
+
+	b.Run("always matching", func(b *testing.B) {
+		// what we benchmark here is the worse case scenario where the regex matches every time
+		content := []byte("[1234] log message, api_key=1234567890123456789012345678")
+		b.ResetTimer()
+
+		for range b.N {
+			msg.SetContent(content)
+			processor.applyRedactingRules(msg)
+		}
+	})
+
+	b.Run("never matching", func(b *testing.B) {
+		// what we benchmark here is the best case scenario where the regex never matches
+		content := []byte("nothing to see here")
+		b.ResetTimer()
+
+		for range b.N {
+			msg.SetContent(content)
+			processor.applyRedactingRules(msg)
+		}
+	})
+
 }

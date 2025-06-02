@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed a spinlock corruption in the Windows driver ddprocmon.sys that can cause system hangs and memory corruption when system-probe.exe is shutting down.

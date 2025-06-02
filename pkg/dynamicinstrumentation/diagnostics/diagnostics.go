@@ -78,5 +78,10 @@ func (m *DiagnosticManager) update(id probeInstanceID, d *ditypes.DiagnosticUplo
 	}
 }
 
+// StopGlobalDiagnostics stops diagnostics from running and closes the updates channel
+func StopGlobalDiagnostics() {
+	close(Diagnostics.Updates)
+}
+
 // Diagnostics is a global instance of a diagnostic manager
 var Diagnostics = NewDiagnosticManager()

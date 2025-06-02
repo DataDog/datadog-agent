@@ -11,12 +11,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("Docker availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("Docker availability", diagnose)
 }
 
 // diagnose the docker availability on the system

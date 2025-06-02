@@ -7,12 +7,17 @@
 package eval
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
+)
+
+const (
+	maxRegisterIteration = 100
 )
 
 // RuleID - ID of a Rule
@@ -43,10 +48,12 @@ type RuleEvaluator struct {
 	fields      []Field
 
 	partialEvals map[Field]BoolEvalFnc
+
+	registers []Register
 }
 
 // NewRule returns a new rule
-func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
+func NewRule(id string, expression string, parsingContext *ast.ParsingContext, opts *Opts, tags ...string) (*Rule, error) {
 	if opts.MacroStore == nil {
 		opts.WithMacroStore(&MacroStore{})
 	}
@@ -59,13 +66,19 @@ func NewRule(id string, expression string, opts *Opts, tags ...string) *Rule {
 		panic(err)
 	}
 
+	astRule, err := parsingContext.ParseRule(expression)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Rule{
 		ID:          id,
 		Expression:  expression,
 		Opts:        opts,
 		Tags:        tags,
 		pprofLabels: labelSet,
-	}
+		ast:         astRule,
+	}, nil
 }
 
 // IsPartialAvailable checks if partial have been generated for the given Field
@@ -189,11 +202,7 @@ func (r *Rule) Parse(parsingContext *ast.ParsingContext) error {
 
 // NewRuleEvaluator returns a new evaluator for a rule
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
-	macros := make(map[MacroID]*MacroEvaluator)
-	for _, macro := range opts.MacroStore.List() {
-		macros[macro.ID] = macro.evaluator
-	}
-	state := NewState(model, "", macros)
+	state := NewState(model, "", opts.MacroStore)
 
 	eval, _, err := nodeToEvaluator(rule.BooleanExpression, opts, state)
 	if err != nil {
@@ -217,23 +226,55 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		}
 	}
 
+	// handle rule with iterator registers
+	if len(state.registers) > 0 {
+		// NOTE: limit to only one register for now to avoid computation and evaluation
+		// of all the combination
+		if len(state.registers) > 1 {
+			return nil, &ErrIteratorVariable{Err: errors.New("iterator variable limit to one per rule")}
+		}
+
+		regID, field := state.registers[0].ID, state.registers[0].Field
+		lenEval, err := model.GetEvaluator(field+".length", regID, 0)
+		if err != nil {
+			return nil, &ErrIteratorVariable{Err: err}
+		}
+
+		evalBoolFnc := evalBool.EvalFnc
+
+		// eval with each possible value of the registers
+		evalBool.EvalFnc = func(ctx *Context) bool {
+			size := min(lenEval.Eval(ctx).(int), maxRegisterIteration)
+
+			for i := 0; i != size; i++ {
+				ctx.Registers[regID] = i
+				if evalBoolFnc(ctx) {
+					// invalidate the cache
+					clear(ctx.RegisterCache)
+
+					return true
+				}
+
+				// invalidate the cache
+				clear(ctx.RegisterCache)
+			}
+
+			return false
+		}
+	}
+
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
 		EventType:   eventType,
 		fieldValues: state.fieldValues,
 		fields:      KeysOfMap(state.fieldValues),
+		registers:   state.registers,
 	}, nil
 }
 
 // GenEvaluator - Compile and generates the RuleEvaluator
-func (r *Rule) GenEvaluator(model Model, parsingCtx *ast.ParsingContext) error {
+func (r *Rule) GenEvaluator(model Model) error {
 	r.Model = model
-
-	if r.ast == nil {
-		if err := r.Parse(parsingCtx); err != nil {
-			return err
-		}
-	}
 
 	evaluator, err := NewRuleEvaluator(r.ast, model, r.Opts)
 	if err != nil {
@@ -283,7 +324,7 @@ func (r *Rule) genPartials(field Field) error {
 		return err
 	}
 
-	state := NewState(r.Model, field, macroPartial)
+	state := NewState(r.Model, field, partialMacroEvaluatorGetter(macroPartial))
 	pEval, _, err := nodeToEvaluator(r.ast.BooleanExpression, r.Opts, state)
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
@@ -303,4 +344,11 @@ func (r *Rule) genPartials(field Field) error {
 	r.evaluator.setPartial(field, pEvalBool.EvalFnc)
 
 	return nil
+}
+
+type partialMacroEvaluatorGetter map[MacroID]*MacroEvaluator
+
+func (p partialMacroEvaluatorGetter) GetMacroEvaluator(macroID string) (*MacroEvaluator, bool) {
+	v, ok := p[macroID]
+	return v, ok
 }

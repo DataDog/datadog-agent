@@ -51,6 +51,8 @@ int __attribute__((always_inline)) sys_chmod_ret(void *ctx, int retval) {
         return 0;
     }
 
+    set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
+
     struct chmod_event_t event = {
         .syscall.retval = retval,
         .syscall_ctx.id = syscall->ctx_id,
@@ -89,8 +91,7 @@ HOOK_SYSCALL_EXIT(fchmodat2) {
     return sys_chmod_ret(ctx, retval);
 }
 
-SEC("tracepoint/handle_sys_chmod_exit")
-int tracepoint_handle_sys_chmod_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_chmod_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_chmod_ret(args, args->ret);
 }
 

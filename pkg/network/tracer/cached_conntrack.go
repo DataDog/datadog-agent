@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,7 +40,9 @@ func newCachedConntrack(procRoot string, conntrackCreator func(netns.NsHandle) (
 	}
 
 	cache.cache.OnEvicted = func(_ lru.Key, v interface{}) {
-		v.(netlink.Conntrack).Close()
+		if vt, ok := v.(netlink.Conntrack); ok {
+			vt.Close()
+		}
 	}
 
 	return cache
@@ -66,6 +68,11 @@ func (cache *cachedConntrack) Exists(c *network.ConnectionStats) (bool, error) {
 func (cache *cachedConntrack) exists(c *network.ConnectionStats, netns uint32, pid int) (bool, error) {
 	ctrk, err := cache.ensureConntrack(uint64(netns), pid)
 	if err != nil {
+		// special case for ErrNotPermitted
+		if errors.Is(err, netlink.ErrNotPermitted) {
+			return false, nil
+		}
+
 		return false, err
 	}
 
@@ -126,10 +133,19 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 
 	v, ok := cache.cache.Get(ino)
 	if ok {
-		return v.(netlink.Conntrack), nil
+		switch vt := v.(type) {
+		case netlink.Conntrack:
+			return vt, nil
+		case error:
+			return nil, vt
+		}
 	}
 
-	ns, err := kernel.GetNetNamespaceFromPid(cache.procRoot, pid)
+	if pid == 0 {
+		return nil, nil
+	}
+
+	ns, err := netnsutil.GetNetNamespaceFromPid(cache.procRoot, pid)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -143,6 +159,8 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 	ctrk, err := cache.conntrackCreator(ns)
 	if err != nil {
 		log.Errorf("could not create conntrack object for net ns %d: %s", ino, err)
+		// negative cache the error
+		cache.cache.Add(ino, err)
 		return nil, err
 	}
 

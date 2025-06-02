@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build functionaltests || stresstests
+//go:build functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -11,6 +11,7 @@ package tests
 import (
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -23,6 +24,7 @@ const (
 	noWrapperType     wrapperType = "" //nolint:deadcode,unused
 	stdWrapperType    wrapperType = "std"
 	dockerWrapperType wrapperType = "docker"
+	podmanWrapperType wrapperType = "podman"
 	multiWrapperType  wrapperType = "multi"
 )
 
@@ -77,8 +79,10 @@ type dockerCmdWrapper struct {
 	executable    string
 	mountSrc      string
 	mountDest     string
+	pid           int64
 	containerName string
 	containerID   string
+	cgroupID      string
 	image         string
 }
 
@@ -100,9 +104,24 @@ func (d *dockerCmdWrapper) start() ([]byte, error) {
 	d.containerName = fmt.Sprintf("docker-wrapper-%s", utils.RandString(6))
 	cmd := exec.Command(d.executable, "run", "--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined", "--rm", "--cap-add", "NET_ADMIN", "-d", "--name", d.containerName, "-v", d.mountSrc+":"+d.mountDest, d.image, "sleep", "1200")
 	out, err := cmd.CombinedOutput()
-	if err == nil {
-		d.containerID = strings.TrimSpace(string(out))
+	if err != nil {
+		return nil, err
 	}
+
+	d.containerID = strings.TrimSpace(string(out))
+
+	cmd = exec.Command(d.executable, "inspect", "--format", "{{ .State.Pid }}", d.containerID)
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+
+	d.pid, _ = strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
+
+	if d.cgroupID, err = getPIDCGroup(uint32(d.pid)); err != nil {
+		return nil, err
+	}
+
 	return out, err
 }
 
@@ -128,12 +147,6 @@ func (d *dockerCmdWrapper) Run(t *testing.T, name string, fnc func(t *testing.T,
 	})
 }
 
-func (d *dockerCmdWrapper) RunTest(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
-	t.Run(name, func(t *testing.T) {
-		fnc(t, d.Type(), d.Command)
-	})
-}
-
 func (d *dockerCmdWrapper) Type() wrapperType {
 	return dockerWrapperType
 }
@@ -151,16 +164,30 @@ func (d *dockerCmdWrapper) selectImageFromLibrary(kind string) error {
 	return err
 }
 
-func newDockerCmdWrapper(mountSrc, mountDest string, kind string) (*dockerCmdWrapper, error) {
-	executable, err := exec.LookPath("docker")
+func newDockerCmdWrapper(mountSrc, mountDest string, kind string, runtimeCommand string) (*dockerCmdWrapper, error) {
+	if runtimeCommand == "" {
+		runtimeCommand = "docker"
+	}
+
+	executable, err := exec.LookPath(runtimeCommand)
 	if err != nil {
 		return nil, err
 	}
 
 	// check docker is available
 	cmd := exec.Command(executable, "version")
-	if err := cmd.Run(); err != nil {
+	output, err := cmd.Output()
+	if err != nil {
 		return nil, err
+	}
+
+	for _, line := range strings.Split(strings.ToLower(string(output)), "\n") {
+		splited := strings.SplitN(line, ":", 2)
+		if splited[0] == "client" && len(splited) > 1 {
+			if client := strings.TrimSpace(splited[1]); client != "" && !strings.Contains(client, runtimeCommand) {
+				return nil, fmt.Errorf("client doesn't report as '%s' but as '%s'", runtimeCommand, client)
+			}
+		}
 	}
 
 	wrapper := &dockerCmdWrapper{

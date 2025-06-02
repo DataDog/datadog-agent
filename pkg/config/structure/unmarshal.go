@@ -8,19 +8,26 @@ package structure
 
 import (
 	"fmt"
+	"os"
 	"reflect"
-	"slices"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/mitchellh/mapstructure"
+	"github.com/spf13/cast"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 )
 
 // features allowed for handling edge-cases
 type featureSet struct {
 	allowSquash        bool
 	convertEmptyStrNil bool
+	convertArrayToMap  bool
+	errorUnused        bool
 }
 
 // UnmarshalKeyOption is an option that affects the enabled features in UnmarshalKey
@@ -32,29 +39,84 @@ var EnableSquash UnmarshalKeyOption = func(fs *featureSet) {
 	fs.allowSquash = true
 }
 
+// ErrorUnused allows UnmarshalKey to return an error if there are unused keys in the config.
+var ErrorUnused UnmarshalKeyOption = func(fs *featureSet) {
+	fs.errorUnused = true
+}
+
 // ConvertEmptyStringToNil allows UnmarshalKey to implicitly convert empty strings into nil slices
 var ConvertEmptyStringToNil UnmarshalKeyOption = func(fs *featureSet) {
 	fs.convertEmptyStrNil = true
 }
 
-// error for when a key is not found
-var errNotFound = fmt.Errorf("not found")
+// ImplicitlyConvertArrayToMapSet allows UnmarshalKey to implicitly convert an array of []interface{} to a map[interface{}]bool
+var ImplicitlyConvertArrayToMapSet UnmarshalKeyOption = func(fs *featureSet) {
+	fs.convertArrayToMap = true
+}
+
+// errorUnused is a mapstructure.DecoderConfig that enables erroring on unused keys
+var errorUnused = func(cfg *mapstructure.DecoderConfig) {
+	cfg.ErrorUnused = true
+}
+
+// legacyConvertArrayToMap convert array to map when DD_CONF_NODETREEMODEL is disabled
+var legacyConvertArrayToMap = func(c *mapstructure.DecoderConfig) {
+	c.DecodeHook = func(rf reflect.Kind, rt reflect.Kind, data interface{}) (interface{}, error) {
+		if rf != reflect.Slice {
+			return data, nil
+		}
+		if rt != reflect.Map {
+			return data, nil
+		}
+		newData := map[interface{}]bool{}
+		for _, i := range data.([]interface{}) {
+			newData[i] = true
+		}
+		return newData, nil
+	}
+}
 
 // UnmarshalKey retrieves data from the config at the given key and deserializes it
-// to be stored on the target struct. It is implemented entirely using reflection, and
-// does not depend upon details of the data model of the config.
-// Target struct can use of struct tag of "yaml", "json", or "mapstructure" to rename fields
+// to be stored on the target struct.
+//
+// When DD_CONF_NODETREEMODEL is enabled we use the implementation using reflection, and do not depend upon details of
+// the data model of the config. Target struct can use of struct tag of "yaml", "json", or "mapstructure" to rename fields
+//
+// Else the viper/legacy version is used.
 func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
+	nodetreemodel := os.Getenv("DD_CONF_NODETREEMODEL")
+	if nodetreemodel == "enable" || nodetreemodel == "unmarshal" {
+		return unmarshalKeyReflection(cfg, key, target, opts...)
+	}
+
+	fs := &featureSet{}
+	for _, o := range opts {
+		o(fs)
+	}
+
+	decodeHooks := []func(c *mapstructure.DecoderConfig){}
+	if fs.convertArrayToMap {
+		decodeHooks = append(decodeHooks, legacyConvertArrayToMap)
+	}
+	if fs.errorUnused {
+		decodeHooks = append(decodeHooks, errorUnused)
+	}
+
+	return cfg.UnmarshalKey(key, target, decodeHooks...)
+}
+
+func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
 	fs := &featureSet{}
 	for _, o := range opts {
 		o(fs)
 	}
 	rawval := cfg.Get(key)
+
 	// Don't create a reflect.Value out of nil, just return immediately
 	if rawval == nil {
 		return nil
 	}
-	source, err := newNode(reflect.ValueOf(rawval))
+	input, err := nodetreemodel.NewNodeTree(rawval, cfg.GetSource(key))
 	if err != nil {
 		return err
 	}
@@ -62,242 +124,29 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 	if outValue.Kind() == reflect.Pointer {
 		outValue = reflect.Indirect(outValue)
 	}
+	rootPath := []string{}
 	switch outValue.Kind() {
 	case reflect.Map:
-		return copyMap(outValue, source, fs)
+		return copyMap(outValue, input, rootPath, fs)
 	case reflect.Struct:
-		return copyStruct(outValue, source, fs)
+		return copyStruct(outValue, input, rootPath, fs)
 	case reflect.Slice:
-		if arr, ok := source.(arrayNode); ok {
-			return copyList(outValue, arr, fs)
+		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
+			thing := leaf.Get()
+			if arr, ok := thing.([]interface{}); ok {
+				return copyList(outValue, makeNodeArray(arr), rootPath, fs)
+			}
 		}
-		if isEmptyString(source) {
+		if isEmptyString(input) {
 			if fs.convertEmptyStrNil {
 				return nil
 			}
 			return fmt.Errorf("treating empty string as a nil slice not allowed for UnmarshalKey without ConvertEmptyStrNil option")
 		}
-		return fmt.Errorf("can not UnmarshalKey to a slice from a non-list source: %T", source)
+		return fmt.Errorf("can not UnmarshalKey to a slice from a non-list input: %T", input)
 	default:
 		return fmt.Errorf("can only UnmarshalKey to struct, map, or slice, got %v", outValue.Kind())
 	}
-}
-
-// leafNode represents a leaf with a scalar value
-
-type leafNode interface {
-	GetBool() (bool, error)
-	GetInt() (int, error)
-	GetFloat() (float64, error)
-	GetString() (string, error)
-}
-
-type leafNodeImpl struct {
-	// val must be a scalar kind
-	val reflect.Value
-}
-
-var _ leafNode = (*leafNodeImpl)(nil)
-var _ node = (*leafNodeImpl)(nil)
-
-// arrayNode represents a node with an ordered array of children
-
-type arrayNode interface {
-	Size() int
-	Index(int) (node, error)
-}
-
-type arrayNodeImpl struct {
-	// val must be a Slice with Len() and Index()
-	val reflect.Value
-}
-
-var _ arrayNode = (*arrayNodeImpl)(nil)
-var _ node = (*arrayNodeImpl)(nil)
-
-// node represents an arbitrary node of the tree
-
-type node interface {
-	GetChild(string) (node, error)
-	ChildrenKeys() ([]string, error)
-}
-
-type innerNodeImpl struct {
-	// val must be a struct
-	val reflect.Value
-}
-
-type innerMapNodeImpl struct {
-	// val must be a map[string]interface{}
-	val reflect.Value
-	// remapCase maps each lower-case key to the original case. This
-	// enables GetChild to retrieve values using case-insensitive keys
-	remapCase map[string]string
-}
-
-var _ node = (*innerNodeImpl)(nil)
-var _ node = (*innerMapNodeImpl)(nil)
-
-// all nodes, leaf, inner, and array nodes, each act as nodes
-func newNode(v reflect.Value) (node, error) {
-	if v.Kind() == reflect.Struct {
-		return &innerNodeImpl{val: v}, nil
-	} else if v.Kind() == reflect.Map {
-		return &innerMapNodeImpl{val: v, remapCase: makeRemapCase(v)}, nil
-	} else if v.Kind() == reflect.Slice {
-		return &arrayNodeImpl{val: v}, nil
-	} else if isScalarKind(v) {
-		return &leafNodeImpl{val: v}, nil
-	}
-	return nil, fmt.Errorf("could not create node from: %v of type %T and kind %v", v, v, v.Kind())
-}
-
-// GetChild returns the child node at the given case-insensitive key, or an error if not found
-func (n *innerNodeImpl) GetChild(key string) (node, error) {
-	findex := findFieldMatch(n.val, key)
-	if findex == -1 {
-		return nil, errNotFound
-	}
-	inner := n.val.Field(findex)
-	if inner.Kind() == reflect.Interface {
-		inner = inner.Elem()
-	}
-	return newNode(inner)
-}
-
-// ChildrenKeys returns the list of keys of the children of the given node, if it is a map
-func (n *innerNodeImpl) ChildrenKeys() ([]string, error) {
-	structType := n.val.Type()
-	keys := make([]string, 0, n.val.NumField())
-	for i := 0; i < structType.NumField(); i++ {
-		f := structType.Field(i)
-		ch, _ := utf8.DecodeRuneInString(f.Name)
-		if unicode.IsLower(ch) {
-			continue
-		}
-		fieldKey, _ := fieldNameToKey(f)
-		keys = append(keys, fieldKey)
-	}
-	return keys, nil
-}
-
-// GetChild returns the child node at the given case-insensitive key, or an error if not found
-func (n *innerMapNodeImpl) GetChild(key string) (node, error) {
-	mkey := n.remapCase[strings.ToLower(key)]
-	inner := n.val.MapIndex(reflect.ValueOf(mkey))
-	if !inner.IsValid() {
-		return nil, errNotFound
-	}
-	if inner.Kind() == reflect.Interface {
-		inner = inner.Elem()
-	}
-	return newNode(inner)
-}
-
-// ChildrenKeys returns the list of keys of the children of the given node, if it is a map
-func (n *innerMapNodeImpl) ChildrenKeys() ([]string, error) {
-	mapkeys := n.val.MapKeys()
-	keys := make([]string, 0, len(mapkeys))
-	for _, kv := range mapkeys {
-		if kstr, ok := kv.Interface().(string); ok {
-			keys = append(keys, kstr)
-		} else {
-			return nil, fmt.Errorf("map node has invalid non-string key: %v", kv)
-		}
-	}
-	// map keys are iterated non-deterministically, sort them
-	slices.Sort(keys)
-	return keys, nil
-}
-
-// GetChild returns an error because array node does not have children accessible by name
-func (n *arrayNodeImpl) GetChild(string) (node, error) {
-	return nil, fmt.Errorf("arrayNodeImpl.GetChild not implemented")
-}
-
-// ChildrenKeys returns an error because array node does not have children accessible by name
-func (n *arrayNodeImpl) ChildrenKeys() ([]string, error) {
-	return nil, fmt.Errorf("arrayNodeImpl.ChildrenKeys not implemented")
-}
-
-// Size returns number of children in the list
-func (n *arrayNodeImpl) Size() int {
-	return n.val.Len()
-}
-
-// Index returns the kth element of the list
-func (n *arrayNodeImpl) Index(k int) (node, error) {
-	// arrayNodeImpl assumes val is an Array with Len() and Index()
-	elem := n.val.Index(k)
-	if elem.Kind() == reflect.Interface {
-		elem = elem.Elem()
-	}
-	return newNode(elem)
-}
-
-// GetChild returns an error because a leaf has no children
-func (n *leafNodeImpl) GetChild(key string) (node, error) {
-	return nil, fmt.Errorf("can't GetChild(%s) of a leaf node", key)
-}
-
-// ChildrenKeys returns an error because a leaf has no children
-func (n *leafNodeImpl) ChildrenKeys() ([]string, error) {
-	return nil, fmt.Errorf("can't get ChildrenKeys of a leaf node")
-}
-
-// GetBool returns the scalar as a bool, or an error otherwise
-func (n *leafNodeImpl) GetBool() (bool, error) {
-	if n.val.Kind() == reflect.Bool {
-		return n.val.Bool(), nil
-	} else if n.val.Kind() == reflect.String {
-		return convertToBool(n.val.String())
-	}
-	return false, newConversionError(n.val, "bool")
-}
-
-// GetInt returns the scalar as a int, or an error otherwise
-func (n *leafNodeImpl) GetInt() (int, error) {
-	switch n.val.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return int(n.val.Int()), nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return int(n.val.Uint()), nil
-	case reflect.Float32, reflect.Float64:
-		return int(n.val.Float()), nil
-	}
-	return 0, newConversionError(n.val, "int")
-}
-
-// GetFloat returns the scalar as a float64, or an error otherwise
-func (n *leafNodeImpl) GetFloat() (float64, error) {
-	switch n.val.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return float64(n.val.Int()), nil
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return float64(n.val.Uint()), nil
-	case reflect.Float32, reflect.Float64:
-		return float64(n.val.Float()), nil
-	}
-	return 0, newConversionError(n.val, "float")
-}
-
-// GetString returns the scalar as a string, or an error otherwise
-func (n *leafNodeImpl) GetString() (string, error) {
-	if n.val.Kind() == reflect.String {
-		return n.val.String(), nil
-	}
-	return "", newConversionError(n.val, "string")
-}
-
-// convert a string to a bool using standard yaml constants
-func convertToBool(text string) (bool, error) {
-	lower := strings.ToLower(text)
-	if lower == "y" || lower == "yes" || lower == "on" || lower == "true" || lower == "1" {
-		return true, nil
-	} else if lower == "n" || lower == "no" || lower == "off" || lower == "false" || lower == "0" {
-		return false, nil
-	}
-	return false, newConversionError(reflect.ValueOf(text), "bool")
 }
 
 type specifierSet map[string]struct{}
@@ -333,8 +182,9 @@ func fieldNameToKey(field reflect.StructField) (string, specifierSet) {
 	return strings.ToLower(name), specifiers
 }
 
-func copyStruct(target reflect.Value, source node, fs *featureSet) error {
+func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
 	targetType := target.Type()
+	usedFields := make(map[string]struct{})
 	for i := 0; i < targetType.NumField(); i++ {
 		f := targetType.Field(i)
 		ch, _ := utf8.DecodeRuneInString(f.Name)
@@ -342,55 +192,108 @@ func copyStruct(target reflect.Value, source node, fs *featureSet) error {
 			continue
 		}
 		fieldKey, specifiers := fieldNameToKey(f)
+		nextPath := append(currPath, fieldKey)
 		if _, ok := specifiers["squash"]; ok {
 			if !fs.allowSquash {
 				return fmt.Errorf("feature 'squash' not allowed for UnmarshalKey without EnableSquash option")
 			}
-			err := copyAny(target.FieldByName(f.Name), source, fs)
+
+			err := copyAny(target.FieldByName(f.Name), input, nextPath, fs)
 			if err != nil {
 				return err
 			}
+			usedFields[fieldKey] = struct{}{}
 			continue
 		}
-		child, err := source.GetChild(fieldKey)
-		if err == errNotFound {
+		child, err := input.GetChild(fieldKey)
+		if err == nodetreemodel.ErrNotFound {
 			continue
 		}
 		if err != nil {
 			return err
 		}
-		err = copyAny(target.FieldByName(f.Name), child, fs)
+		err = copyAny(target.FieldByName(f.Name), child, nextPath, fs)
 		if err != nil {
 			return err
+		}
+		usedFields[fieldKey] = struct{}{}
+	}
+
+	if fs.errorUnused {
+		inner, ok := input.(nodetreemodel.InnerNode)
+		if !ok {
+			return fmt.Errorf("input is not an inner node")
+		}
+		var unusedKeys []string
+		for _, key := range inner.ChildrenKeys() {
+			if _, used := usedFields[key]; !used {
+				unusedKeys = append(unusedKeys, key)
+			}
+		}
+		if len(unusedKeys) > 0 {
+			sort.Strings(unusedKeys)
+			return fmt.Errorf("found unused config keys: %v", unusedKeys)
 		}
 	}
 	return nil
 }
 
-func copyMap(target reflect.Value, source node, _ *featureSet) error {
-	// TODO: Should handle maps with more complex types in a future PR
-	ktype := reflect.TypeOf("")
-	vtype := reflect.TypeOf("")
+func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
+	ktype := target.Type().Key()
+	vtype := target.Type().Elem()
 	mtype := reflect.MapOf(ktype, vtype)
 	results := reflect.MakeMap(mtype)
 
-	mapKeys, err := source.ChildrenKeys()
-	if err != nil {
-		return err
+	if leaf, ok := input.(nodetreemodel.LeafNode); ok {
+		leafValue := leaf.Get()
+		if nodetreemodel.IsNilValue(leafValue) {
+			return nil
+		}
+		if fs.convertArrayToMap {
+			if arr, ok := leafValue.([]interface{}); ok {
+				// convert []interface{} to map[interface{}]bool
+				create := make(map[interface{}]bool)
+				for k := range len(arr) {
+					item := arr[k]
+					create[fmt.Sprintf("%s", item)] = true
+				}
+				converted, err := nodetreemodel.NewNodeTree(create, model.SourceUnknown)
+				if err != nil {
+					return err
+				}
+				input = converted
+			}
+		}
+		if m, ok := leafValue.(map[string]interface{}); ok {
+			var err error
+			input, err = nodetreemodel.NewNodeTree(m, model.SourceUnknown)
+			if err != nil {
+				return err
+			}
+		}
 	}
+
+	inner, ok := input.(nodetreemodel.InnerNode)
+	if !ok {
+		return fmt.Errorf("at %v: cannot assign to a map from input: %v of %T", currPath, input, input)
+	}
+
+	mapKeys := inner.ChildrenKeys()
 	for _, mkey := range mapKeys {
-		child, err := source.GetChild(mkey)
+		child, err := inner.GetChild(mkey)
 		if err != nil {
 			return err
 		}
 		if child == nil {
 			continue
 		}
-		if scalar, ok := child.(leafNode); ok {
-			if mval, err := scalar.GetString(); err == nil {
+		if scalar, ok := child.(nodetreemodel.LeafNode); ok {
+			if mval, err := cast.ToStringE(scalar.Get()); vtype == reflect.TypeOf("") && err == nil {
 				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(mval))
+			} else if bval, err := cast.ToBoolE(scalar.Get()); vtype == reflect.TypeOf(true) && err == nil {
+				results.SetMapIndex(reflect.ValueOf(mkey), reflect.ValueOf(bval))
 			} else {
-				return fmt.Errorf("TODO: only map[string]string supported currently")
+				return fmt.Errorf("only map[string]string and map[string]bool supported currently")
 			}
 		}
 	}
@@ -398,41 +301,41 @@ func copyMap(target reflect.Value, source node, _ *featureSet) error {
 	return nil
 }
 
-func copyLeaf(target reflect.Value, source leafNode, _ *featureSet) error {
-	if source == nil {
-		return fmt.Errorf("source value is not a scalar")
+func copyLeaf(target reflect.Value, input nodetreemodel.LeafNode, _ *featureSet) error {
+	if input == nil {
+		return fmt.Errorf("input value is not a scalar")
 	}
 	switch target.Kind() {
 	case reflect.Bool:
-		v, err := source.GetBool()
+		v, err := cast.ToBoolE(input.Get())
 		if err != nil {
-			return err
+			return fmt.Errorf("could not convert %#v to bool", input.Get())
 		}
 		target.SetBool(v)
 		return nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		v, err := source.GetInt()
+		v, err := cast.ToIntE(input.Get())
 		if err != nil {
 			return err
 		}
 		target.SetInt(int64(v))
 		return nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		v, err := source.GetInt()
+		v, err := cast.ToIntE(input.Get())
 		if err != nil {
 			return err
 		}
 		target.SetUint(uint64(v))
 		return nil
 	case reflect.Float32, reflect.Float64:
-		v, err := source.GetFloat()
+		v, err := cast.ToFloat64E(input.Get())
 		if err != nil {
 			return err
 		}
 		target.SetFloat(float64(v))
 		return nil
 	case reflect.String:
-		v, err := source.GetString()
+		v, err := cast.ToStringE(input.Get())
 		if err != nil {
 			return err
 		}
@@ -442,22 +345,20 @@ func copyLeaf(target reflect.Value, source leafNode, _ *featureSet) error {
 	return fmt.Errorf("unsupported scalar type %v", target.Kind())
 }
 
-func copyList(target reflect.Value, source arrayNode, fs *featureSet) error {
-	if source == nil {
-		return fmt.Errorf("source value is not a list")
+func copyList(target reflect.Value, inputList []nodetreemodel.Node, currPath []string, fs *featureSet) error {
+	if inputList == nil {
+		return fmt.Errorf("input value is not a list")
 	}
 	elemType := target.Type()
 	elemType = elemType.Elem()
-	numElems := source.Size()
+	numElems := len(inputList)
 	results := reflect.MakeSlice(reflect.SliceOf(elemType), numElems, numElems)
 	for k := 0; k < numElems; k++ {
-		elemSource, err := source.Index(k)
-		if err != nil {
-			return err
-		}
+		elemSource := inputList[k]
 		ptrOut := reflect.New(elemType)
 		outTarget := ptrOut.Elem()
-		err = copyAny(outTarget, elemSource, fs)
+		nextPath := append(currPath, fmt.Sprintf("%d", k))
+		err := copyAny(outTarget, elemSource, nextPath, fs)
 		if err != nil {
 			return err
 		}
@@ -467,35 +368,56 @@ func copyList(target reflect.Value, source arrayNode, fs *featureSet) error {
 	return nil
 }
 
-func copyAny(target reflect.Value, source node, fs *featureSet) error {
+func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, fs *featureSet) error {
 	if target.Kind() == reflect.Pointer {
 		allocPtr := reflect.New(target.Type().Elem())
 		target.Set(allocPtr)
 		target = allocPtr.Elem()
 	}
 	if isScalarKind(target) {
-		if leaf, ok := source.(leafNode); ok {
+		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 			return copyLeaf(target, leaf, fs)
 		}
-		return fmt.Errorf("can't copy into target: scalar required, but source is not a leaf")
-	} else if target.Kind() == reflect.Map {
-		return copyMap(target, source, fs)
-	} else if target.Kind() == reflect.Struct {
-		return copyStruct(target, source, fs)
-	} else if target.Kind() == reflect.Slice {
-		if arr, ok := source.(arrayNode); ok {
-			return copyList(target, arr, fs)
+		if inner, ok := input.(nodetreemodel.InnerNode); ok {
+			// An empty inner node is treated like a nil value, nothing to copy
+			if len(inner.ChildrenKeys()) == 0 {
+				return nil
+			}
 		}
-		return fmt.Errorf("can't copy into target: []T required, but source is not an array")
+		return fmt.Errorf("at %v: scalar required, but input is not a leaf: %v of %T", currPath, input, input)
+	} else if target.Kind() == reflect.Map {
+		return copyMap(target, input, currPath, fs)
+	} else if target.Kind() == reflect.Struct {
+		return copyStruct(target, input, currPath, fs)
+	} else if target.Kind() == reflect.Slice {
+		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
+			leafValue := leaf.Get()
+			if nodetreemodel.IsNilValue(leafValue) {
+				return nil
+			}
+			if arr, ok := leafValue.([]interface{}); ok {
+				return copyList(target, makeNodeArray(arr), currPath, fs)
+			}
+		}
+		return fmt.Errorf("at %v: []T required, but input is not an array: %v of %T", currPath, input, input)
 	} else if target.Kind() == reflect.Invalid {
-		return fmt.Errorf("can't copy invalid value %s : %v", target, target.Kind())
+		return fmt.Errorf("at %v: invalid value %s : %v", currPath, target, target.Kind())
 	}
-	return fmt.Errorf("unknown value to copy: %v", target.Type())
+	return fmt.Errorf("at %v: unknown value to copy: %v of %T", currPath, input, input)
 }
 
-func isEmptyString(source node) bool {
-	if leaf, ok := source.(leafNode); ok {
-		if str, err := leaf.GetString(); err == nil {
+func makeNodeArray(vals []interface{}) []nodetreemodel.Node {
+	res := make([]nodetreemodel.Node, 0, len(vals))
+	for _, v := range vals {
+		node, _ := nodetreemodel.NewNodeTree(v, model.SourceUnknown)
+		res = append(res, node)
+	}
+	return res
+}
+
+func isEmptyString(input nodetreemodel.Node) bool {
+	if leaf, ok := input.(nodetreemodel.LeafNode); ok {
+		if str, err := cast.ToStringE(leaf.Get()); err == nil {
 			return str == ""
 		}
 	}
@@ -505,37 +427,4 @@ func isEmptyString(source node) bool {
 func isScalarKind(v reflect.Value) bool {
 	k := v.Kind()
 	return (k >= reflect.Bool && k <= reflect.Float64) || k == reflect.String
-}
-
-func makeRemapCase(v reflect.Value) map[string]string {
-	remap := make(map[string]string)
-	iter := v.MapRange()
-	for iter.Next() {
-		mkey := ""
-		switch k := iter.Key().Interface().(type) {
-		case string:
-			mkey = k
-		default:
-			mkey = fmt.Sprintf("%s", k)
-		}
-		remap[strings.ToLower(mkey)] = mkey
-	}
-	return remap
-}
-
-func findFieldMatch(val reflect.Value, key string) int {
-	// case-insensitive match for struct names
-	key = strings.ToLower(key)
-	schema := val.Type()
-	for i := 0; i < schema.NumField(); i++ {
-		fieldKey, _ := fieldNameToKey(schema.Field(i))
-		if key == fieldKey {
-			return i
-		}
-	}
-	return -1
-}
-
-func newConversionError(v reflect.Value, expectType string) error {
-	return fmt.Errorf("could not convert to %s: %v of type %T and Kind %v", expectType, v, v, v.Kind())
 }

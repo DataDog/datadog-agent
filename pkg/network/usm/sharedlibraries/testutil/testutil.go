@@ -19,19 +19,28 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	protocolstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	protocolstestutil "github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // mutex protecting build process
 var mux sync.Mutex
 
+// BuildFmapperScanner creates a new pattern scanner for the fmapper program,
+// that scans for the "awaiting signal" pattern that indicates that the program
+// has started correctly.
+func BuildFmapperScanner(t testing.TB) *protocolstestutil.PatternScanner {
+	patternScanner, err := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), protocolstestutil.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+	return patternScanner
+}
+
 // OpenFromProcess launches the specified external program which holds an active
 // handle to the given paths.
 func OpenFromProcess(t *testing.T, programExecutable string, paths ...string) (*exec.Cmd, error) {
 	cmd := exec.Command(programExecutable, paths...)
-	patternScanner := protocolstestutil.NewScanner(regexp.MustCompile("awaiting signal"), make(chan struct{}, 1))
+	patternScanner := BuildFmapperScanner(t)
 	cmd.Stdout = patternScanner
 	cmd.Stderr = patternScanner
 

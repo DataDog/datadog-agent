@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"golang.org/x/net/http/httpproxy"
+	"golang.org/x/net/http2"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,7 +62,7 @@ func minTLSVersionFromConfig(cfg pkgconfigmodel.Reader) uint16 {
 }
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
-func CreateHTTPTransport(cfg pkgconfigmodel.Reader) *http.Transport {
+func CreateHTTPTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*http.Transport)) *http.Transport {
 	// It’s OK to reuse the same file for all the http.Transport objects we create
 	// because all the writes to that file are protected by a global mutex.
 	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
@@ -123,6 +124,10 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader) *http.Transport {
 
 	if proxies := cfg.GetProxies(); proxies != nil {
 		transport.Proxy = GetProxyTransportFunc(proxies, cfg)
+	}
+
+	for _, transportOption := range transportOptions {
+		transportOption(transport)
 	}
 
 	return transport
@@ -222,5 +227,23 @@ func GetProxyTransportFunc(p *pkgconfigmodel.Proxy, cfg pkgconfigmodel.Reader) f
 		}
 
 		return url, err
+	}
+}
+
+// WithHTTP2 returns a http2 as a transport option
+func WithHTTP2() func(*http.Transport) {
+	return func(transport *http.Transport) {
+		err := http2.ConfigureTransport(transport)
+		if err != nil {
+			log.Warnf("Failed to configure HTTP/2 transport: %v. Resolving to best available protocol", err)
+		}
+	}
+}
+
+// MaxConnsPerHost configures the maximum number of connections that can be created
+// per host on the http transport
+func MaxConnsPerHost(maxConns int) func(*http.Transport) {
+	return func(transport *http.Transport) {
+		transport.MaxConnsPerHost = maxConns
 	}
 }

@@ -28,6 +28,32 @@ type TraceWriterInfo struct {
 	SingleMaxSize     atomic.Int64
 }
 
+// Acc accumulates stats from the incoming update info
+func (twi *TraceWriterInfo) Acc(update *TraceWriterInfo) {
+	twi.Payloads.Add(update.Payloads.Load())
+	twi.Traces.Add(update.Traces.Load())
+	twi.Events.Add(update.Events.Load())
+	twi.Spans.Add(update.Spans.Load())
+	twi.Errors.Add(update.Errors.Load())
+	twi.Retries.Add(update.Retries.Load())
+	twi.Bytes.Add(update.Bytes.Load())
+	twi.BytesUncompressed.Add(update.BytesUncompressed.Load())
+	twi.SingleMaxSize.Add(update.SingleMaxSize.Load())
+}
+
+// Reset all the stored info to zero
+func (twi *TraceWriterInfo) Reset() {
+	twi.Payloads.Store(0)
+	twi.Traces.Store(0)
+	twi.Events.Store(0)
+	twi.Spans.Store(0)
+	twi.Errors.Store(0)
+	twi.Retries.Store(0)
+	twi.Bytes.Store(0)
+	twi.BytesUncompressed.Store(0)
+	twi.SingleMaxSize.Store(0)
+}
+
 // StatsWriterInfo represents statistics from the stats writer.
 type StatsWriterInfo struct {
 	// all atomic values are included as values in this struct, to simplify
@@ -44,21 +70,45 @@ type StatsWriterInfo struct {
 	Bytes          atomic.Int64
 }
 
+// Acc accumulates stats from the incoming update info
+func (swi *StatsWriterInfo) Acc(update *StatsWriterInfo) {
+	swi.Payloads.Add(update.Payloads.Load())
+	swi.ClientPayloads.Add(update.ClientPayloads.Load())
+	swi.StatsBuckets.Add(update.StatsBuckets.Load())
+	swi.StatsEntries.Add(update.StatsEntries.Load())
+	swi.Errors.Add(update.Errors.Load())
+	swi.Retries.Add(update.Retries.Load())
+	swi.Splits.Add(update.Splits.Load())
+	swi.Bytes.Add(update.Bytes.Load())
+}
+
+// Reset all the stored info to zero
+func (swi *StatsWriterInfo) Reset() {
+	swi.Payloads.Store(0)
+	swi.ClientPayloads.Store(0)
+	swi.StatsBuckets.Store(0)
+	swi.StatsEntries.Store(0)
+	swi.Errors.Store(0)
+	swi.Retries.Store(0)
+	swi.Splits.Store(0)
+	swi.Bytes.Store(0)
+}
+
 // UpdateTraceWriterInfo updates internal trace writer stats
-func UpdateTraceWriterInfo(tws TraceWriterInfo) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-	traceWriterInfo = tws
+func UpdateTraceWriterInfo(tws *TraceWriterInfo) {
+	ift.infoMu.Lock()
+	defer ift.infoMu.Unlock()
+	ift.traceWriterInfo = tws
 }
 
 func publishTraceWriterInfo() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return traceWriterInfo
+	ift.infoMu.RLock()
+	defer ift.infoMu.RUnlock()
+	return ift.traceWriterInfo
 }
 
 // MarshalJSON implements encoding/json.MarshalJSON.
-func (twi TraceWriterInfo) MarshalJSON() ([]byte, error) {
+func (twi *TraceWriterInfo) MarshalJSON() ([]byte, error) {
 	asMap := map[string]float64{
 		"Payloads":          float64(twi.Payloads.Load()),
 		"Traces":            float64(twi.Traces.Load()),
@@ -74,20 +124,20 @@ func (twi TraceWriterInfo) MarshalJSON() ([]byte, error) {
 }
 
 // UpdateStatsWriterInfo updates internal stats writer stats
-func UpdateStatsWriterInfo(sws StatsWriterInfo) {
-	infoMu.Lock()
-	defer infoMu.Unlock()
-	statsWriterInfo = sws
+func UpdateStatsWriterInfo(sws *StatsWriterInfo) {
+	ift.infoMu.Lock()
+	defer ift.infoMu.Unlock()
+	ift.statsWriterInfo = sws
 }
 
 func publishStatsWriterInfo() interface{} {
-	infoMu.RLock()
-	defer infoMu.RUnlock()
-	return statsWriterInfo
+	ift.infoMu.RLock()
+	defer ift.infoMu.RUnlock()
+	return ift.statsWriterInfo
 }
 
 // MarshalJSON implements encoding/json.MarshalJSON.
-func (swi StatsWriterInfo) MarshalJSON() ([]byte, error) {
+func (swi *StatsWriterInfo) MarshalJSON() ([]byte, error) {
 	asMap := map[string]float64{
 		"Payloads":       float64(swi.Payloads.Load()),
 		"ClientPayloads": float64(swi.ClientPayloads.Load()),

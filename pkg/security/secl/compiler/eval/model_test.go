@@ -12,7 +12,6 @@ import (
 	"net"
 	"reflect"
 	"syscall"
-	"unsafe"
 )
 
 var legacyFields = map[Field]Field{
@@ -41,54 +40,6 @@ type testProcess struct {
 	orNameValues  func() *StringValues
 	orArray       []*testItem
 	orArrayValues func() *StringValues
-}
-
-type testItemListIterator struct {
-	prev *list.Element
-}
-
-func (t *testItemListIterator) Front(ctx *Context) unsafe.Pointer {
-	if front := ctx.Event.(*testEvent).process.list.Front(); front != nil {
-		t.prev = front
-		return unsafe.Pointer(front)
-	}
-	return nil
-}
-
-func (t *testItemListIterator) Next() unsafe.Pointer {
-	if next := t.prev.Next(); next != nil {
-		t.prev = next
-		return unsafe.Pointer(next)
-	}
-	return nil
-}
-
-type testItemArrayIterator struct {
-	event *testEvent
-	index int
-}
-
-func (t *testItemArrayIterator) Front(ctx *Context) unsafe.Pointer {
-	t.event = ctx.Event.(*testEvent)
-
-	array := ctx.Event.(*testEvent).process.array
-	if t.index < len(array) {
-		t.index++
-		return unsafe.Pointer(array[0])
-	}
-	return nil
-}
-
-func (t *testItemArrayIterator) Next() unsafe.Pointer {
-	array := t.event.process.array
-	if t.index < len(array) {
-		value := array[t.index]
-		t.index++
-
-		return unsafe.Pointer(value)
-	}
-
-	return nil
 }
 
 type testOpen struct {
@@ -156,22 +107,26 @@ func (m *testModel) ValidateField(key string, value FieldValue) error {
 	return nil
 }
 
-func (m *testModel) GetIterator(field Field) (Iterator, error) {
-	switch field {
-	case "process.list":
-		return &testItemListIterator{}, nil
-	case "process.array":
-		return &testItemArrayIterator{}, nil
-	}
-
-	return nil, &ErrIteratorNotSupported{Field: field}
-}
-
 func (m *testModel) GetFieldRestrictions(_ Field) []EventType {
 	return nil
 }
 
-func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
+func (m *testModel) GetIteratorLen(field Field) (func(ctx *Context) int, error) {
+	switch field {
+
+	case "process.list":
+		return func(ctx *Context) int {
+			return ctx.Event.(*testEvent).process.list.Len()
+		}, nil
+	case "process.array":
+		return func(ctx *Context) int {
+			return len(ctx.Event.(*testEvent).process.array)
+		}, nil
+	}
+	return nil, &ErrFieldNotFound{Field: field}
+}
+
+func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Evaluator, error) {
 	switch field {
 
 	case "network.ip":
@@ -180,7 +135,8 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			EvalFnc: func(ctx *Context) net.IPNet {
 				return ctx.Event.(*testEvent).network.ip
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "network.cidr":
@@ -189,7 +145,8 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			EvalFnc: func(ctx *Context) net.IPNet {
 				return ctx.Event.(*testEvent).network.cidr
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "network.ips":
@@ -200,6 +157,8 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 				ipnets = append(ipnets, ctx.Event.(*testEvent).network.ips...)
 				return ipnets
 			},
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "network.cidrs":
@@ -208,15 +167,16 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			EvalFnc: func(ctx *Context) []net.IPNet {
 				return ctx.Event.(*testEvent).network.cidrs
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.name":
-
 		return &StringEvaluator{
 			EvalFnc:     func(ctx *Context) string { return ctx.Event.(*testEvent).process.name },
 			Field:       field,
 			OpOverrides: GlobCmp,
+			Offset:      offset,
 		}, nil
 
 	case "process.argv0":
@@ -224,18 +184,20 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 		return &StringEvaluator{
 			EvalFnc: func(ctx *Context) string { return ctx.Event.(*testEvent).process.argv0 },
 			Field:   field,
+			Offset:  offset,
 		}, nil
 
 	case "process.uid":
 
 		return &IntEvaluator{
 			EvalFnc: func(ctx *Context) int {
-				// to test optimisation
+				// to test optimization
 				ctx.Event.(*testEvent).uidEvaluated = true
 
 				return ctx.Event.(*testEvent).process.uid
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.gid":
@@ -247,7 +209,8 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 
 				return ctx.Event.(*testEvent).process.gid
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.pid":
@@ -259,7 +222,8 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 
 				return ctx.Event.(*testEvent).process.pid
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.is_root":
@@ -267,9 +231,43 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 		return &BoolEvaluator{
 			EvalFnc: func(ctx *Context) bool { return ctx.Event.(*testEvent).process.isRoot },
 			Field:   field,
+			Offset:  offset,
+		}, nil
+
+	case "process.list.length":
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				return ctx.Event.(*testEvent).process.list.Len()
+			},
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.list.key":
+
+		if regID != "" {
+			return &IntArrayEvaluator{
+				EvalFnc: func(ctx *Context) []int {
+					idx := ctx.Registers[regID]
+
+					var i int
+
+					el := ctx.Event.(*testEvent).process.list.Front()
+					for el != nil {
+						if i == idx {
+							return []int{el.Value.(*testItem).key}
+						}
+						el = el.Next()
+						i++
+					}
+
+					return nil
+				},
+				Field:  field,
+				Offset: offset,
+				Weight: IteratorWeight,
+			}, nil
+		}
 
 		return &IntArrayEvaluator{
 			EvalFnc: func(ctx *Context) []int {
@@ -287,10 +285,35 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 				return result
 			},
 			Field:  field,
+			Offset: offset,
 			Weight: IteratorWeight,
 		}, nil
 
 	case "process.list.value":
+
+		if regID != "" {
+			return &StringArrayEvaluator{
+				EvalFnc: func(ctx *Context) []string {
+					idx := ctx.Registers[regID]
+
+					var i int
+
+					el := ctx.Event.(*testEvent).process.list.Front()
+					for el != nil {
+						if i == idx {
+							return []string{el.Value.(*testItem).value}
+						}
+						el = el.Next()
+						i++
+					}
+
+					return nil
+				},
+				Field:  field,
+				Offset: offset,
+				Weight: IteratorWeight,
+			}, nil
+		}
 
 		return &StringArrayEvaluator{
 			EvalFnc: func(ctx *Context) []string {
@@ -308,10 +331,35 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 				return values
 			},
 			Field:  field,
+			Offset: offset,
 			Weight: IteratorWeight,
 		}, nil
 
 	case "process.list.flag":
+
+		if regID != "" {
+			return &BoolArrayEvaluator{
+				EvalFnc: func(ctx *Context) []bool {
+					idx := ctx.Registers[regID]
+
+					var i int
+
+					el := ctx.Event.(*testEvent).process.list.Front()
+					for el != nil {
+						if i == idx {
+							return []bool{el.Value.(*testItem).flag}
+						}
+						el = el.Next()
+						i++
+					}
+
+					return nil
+				},
+				Field:  field,
+				Offset: offset,
+				Weight: IteratorWeight,
+			}, nil
+		}
 
 		return &BoolArrayEvaluator{
 			EvalFnc: func(ctx *Context) []bool {
@@ -330,9 +378,32 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			},
 			Field:  field,
 			Weight: IteratorWeight,
+			Offset: offset,
+		}, nil
+
+	case "process.array.length":
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				return len(ctx.Event.(*testEvent).process.array)
+			},
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.array.key":
+
+		if regID != "" {
+			return &IntArrayEvaluator{
+				EvalFnc: func(ctx *Context) []int {
+					idx := ctx.Registers[regID]
+
+					return []int{ctx.Event.(*testEvent).process.array[idx].key}
+				},
+				Field:  field,
+				Weight: IteratorWeight,
+				Offset: offset,
+			}, nil
+		}
 
 		return &IntArrayEvaluator{
 			EvalFnc: func(ctx *Context) []int {
@@ -346,9 +417,23 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			},
 			Field:  field,
 			Weight: IteratorWeight,
+			Offset: offset,
 		}, nil
 
 	case "process.array.value":
+
+		if regID != "" {
+			return &StringArrayEvaluator{
+				EvalFnc: func(ctx *Context) []string {
+					idx := ctx.Registers[regID]
+
+					return []string{ctx.Event.(*testEvent).process.array[idx].value}
+				},
+				Field:  field,
+				Weight: IteratorWeight,
+				Offset: offset,
+			}, nil
+		}
 
 		return &StringArrayEvaluator{
 			EvalFnc: func(ctx *Context) []string {
@@ -362,6 +447,7 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			},
 			Field:  field,
 			Weight: IteratorWeight,
+			Offset: offset,
 		}, nil
 
 	case "process.array.flag":
@@ -386,7 +472,8 @@ func (m *testModel) GetEvaluator(field Field, _ RegisterID) (Evaluator, error) {
 			EvalFnc: func(ctx *Context) int {
 				return int(ctx.Event.(*testEvent).process.createdAt)
 			},
-			Field: field,
+			Field:  field,
+			Offset: offset,
 		}, nil
 
 	case "process.or_name":
@@ -586,116 +673,116 @@ func (e *testEvent) GetFieldValue(field Field) (interface{}, error) {
 	return nil, &ErrFieldNotFound{Field: field}
 }
 
-func (e *testEvent) GetFieldEventType(field Field) (string, error) {
+func (e *testEvent) GetFieldMetadata(field Field) (string, reflect.Kind, string, error) {
 	switch field {
 
 	case "network.ip":
 
-		return "network", nil
+		return "network", reflect.Struct, "net.IP", nil
 
 	case "network.ips":
 
-		return "network", nil
+		return "network", reflect.Array, "net.IP", nil
 
 	case "network.cidr":
 
-		return "network", nil
+		return "network", reflect.Struct, "net.IP", nil
 
 	case "network.cidrs":
 
-		return "network", nil
+		return "network", reflect.Array, "net.IP", nil
 
 	case "process.name":
 
-		return "", nil
+		return "", reflect.String, "string", nil
 
 	case "process.argv0":
 
-		return "", nil
+		return "", reflect.String, "string", nil
 
 	case "process.uid":
 
-		return "", nil
+		return "", reflect.Int, "int", nil
 
 	case "process.gid":
 
-		return "", nil
+		return "", reflect.Int, "int", nil
 
 	case "process.pid":
 
-		return "", nil
+		return "", reflect.Int, "int", nil
 
 	case "process.is_root":
 
-		return "", nil
+		return "", reflect.Bool, "bool", nil
 
 	case "process.list.key":
 
-		return "", nil
+		return "", reflect.Int, "int", nil
 
 	case "process.list.value":
 
-		return "", nil
+		return "", reflect.String, "string", nil
 
 	case "process.list.flag":
 
-		return "", nil
+		return "", reflect.Bool, "bool", nil
 
 	case "process.array.key":
 
-		return "", nil
+		return "", reflect.Int, "int", nil
 
 	case "process.array.value":
 
-		return "", nil
+		return "", reflect.String, "string", nil
 
 	case "process.array.flag":
 
-		return "", nil
+		return "", reflect.Bool, "bool", nil
 
 	case "process.created_at":
 
-		return "", nil
+		return "", reflect.Int, "int", nil
 
 	case "process.or_name":
 
-		return "", nil
+		return "", reflect.String, "string", nil
 
 	case "process.or_array.value":
 
-		return "", nil
+		return "", reflect.String, "string", nil
 
 	case "open.filename":
 
-		return "open", nil
+		return "open", reflect.String, "string", nil
 
 	case "retval":
 
-		return "", nil
+		return "", reflect.Int, "int", nil
 
 	case "open.flags":
 
-		return "open", nil
+		return "open", reflect.Int, "int", nil
 
 	case "open.mode":
 
-		return "open", nil
+		return "open", reflect.Int, "int", nil
 
 	case "open.opened_at":
 
-		return "open", nil
+		return "open", reflect.Int, "int", nil
 
 	case "mkdir.filename":
 
-		return "mkdir", nil
+		return "mkdir", reflect.String, "string", nil
 
 	case "mkdir.mode":
 
-		return "mkdir", nil
+		return "mkdir", reflect.Int, "int", nil
 
 	}
 
-	return "", &ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", &ErrFieldNotFound{Field: field}
 }
 
 func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
@@ -793,96 +880,6 @@ func (e *testEvent) SetFieldValue(field Field, value interface{}) error {
 	}
 
 	return &ErrFieldNotFound{Field: field}
-}
-
-func (e *testEvent) GetFieldType(field Field) (reflect.Kind, error) {
-	switch field {
-
-	case "network.ip":
-
-		return reflect.Struct, nil
-
-	case "network.ips":
-
-		return reflect.Array, nil
-
-	case "network.cidr":
-
-		return reflect.Struct, nil
-
-	case "network.cidrs":
-
-		return reflect.Array, nil
-
-	case "process.name":
-
-		return reflect.String, nil
-
-	case "process.argv0":
-
-		return reflect.String, nil
-
-	case "process.uid":
-
-		return reflect.Int, nil
-
-	case "process.gid":
-
-		return reflect.Int, nil
-
-	case "process.pid":
-
-		return reflect.Int, nil
-
-	case "process.is_root":
-
-		return reflect.Bool, nil
-
-	case "process.list.key":
-		return reflect.Int, nil
-
-	case "process.list.value":
-		return reflect.Int, nil
-
-	case "process.list.flag":
-		return reflect.Bool, nil
-
-	case "process.array.key":
-		return reflect.Int, nil
-
-	case "process.array.value":
-		return reflect.String, nil
-
-	case "process.array.flag":
-		return reflect.Bool, nil
-
-	case "open.filename":
-
-		return reflect.String, nil
-
-	case "retval":
-
-		return reflect.Int, nil
-
-	case "open.flags":
-
-		return reflect.Int, nil
-
-	case "open.mode":
-
-		return reflect.Int, nil
-
-	case "mkdir.filename":
-
-		return reflect.String, nil
-
-	case "mkdir.mode":
-
-		return reflect.Int, nil
-
-	}
-
-	return reflect.Invalid, &ErrFieldNotFound{Field: field}
 }
 
 var testConstants = map[string]interface{}{

@@ -97,5 +97,7 @@ func (t *Telemetry) Count(tx Transaction) {
 
 // Log logs the telemetry.
 func (t *Telemetry) Log() {
-	log.Debugf("%s stats summary: %s", t.protocol, t.metricGroup.Summary())
+	if log.ShouldLog(log.DebugLvl) {
+		log.Debugf("%s stats summary: %s", t.protocol, t.metricGroup.Summary())
+	}
 }

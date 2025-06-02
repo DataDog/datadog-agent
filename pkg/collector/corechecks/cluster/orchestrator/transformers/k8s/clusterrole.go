@@ -9,6 +9,7 @@ package k8s
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
 
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -16,7 +17,7 @@ import (
 
 // ExtractClusterRole returns the protobuf model corresponding to a
 // Kubernetes ClusterRole resource.
-func ExtractClusterRole(cr *rbacv1.ClusterRole) *model.ClusterRole {
+func ExtractClusterRole(ctx processors.ProcessorContext, cr *rbacv1.ClusterRole) *model.ClusterRole {
 	clusterRole := &model.ClusterRole{
 		Metadata: extractMetadata(&cr.ObjectMeta),
 		Rules:    extractPolicyRules(cr.Rules),
@@ -27,7 +28,9 @@ func ExtractClusterRole(cr *rbacv1.ClusterRole) *model.ClusterRole {
 		}
 	}
 
+	pctx := ctx.(*processors.K8sProcessorContext)
 	clusterRole.Tags = append(clusterRole.Tags, transformers.RetrieveUnifiedServiceTags(cr.ObjectMeta.Labels)...)
+	clusterRole.Tags = append(clusterRole.Tags, transformers.RetrieveMetadataTags(cr.ObjectMeta.Labels, cr.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return clusterRole
 }

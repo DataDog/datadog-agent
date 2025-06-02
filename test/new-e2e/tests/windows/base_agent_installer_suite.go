@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	platformCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
@@ -21,14 +20,13 @@ type BaseAgentInstallerSuite[Env any] struct {
 	e2e.BaseSuite[Env]
 
 	AgentPackage *windowsAgent.Package
-	OutputDir    string
 }
 
 // InstallAgent installs the Agent on a given Windows host. It will pass all the parameters to the MSI installer.
 func (b *BaseAgentInstallerSuite[Env]) InstallAgent(host *components.RemoteHost, options ...windowsAgent.InstallAgentOption) (string, error) {
 	b.T().Helper()
 	opts := []windowsAgent.InstallAgentOption{
-		windowsAgent.WithInstallLogFile(filepath.Join(b.OutputDir, "install.log")),
+		windowsAgent.WithInstallLogFile(filepath.Join(b.SessionOutputDir(), "install.log")),
 	}
 	opts = append(opts, options...)
 	return windowsAgent.InstallAgent(host, opts...)
@@ -40,21 +38,11 @@ func (b *BaseAgentInstallerSuite[Env]) NewTestClientForHost(host *components.Rem
 	return platformCommon.NewWindowsTestClient(b, host)
 }
 
-// BeforeTest overrides the base BeforeTest to perform some additional per-test setup like configuring the output directory.
-func (b *BaseAgentInstallerSuite[Env]) BeforeTest(suiteName, testName string) {
-	b.BaseSuite.BeforeTest(suiteName, testName)
-
-	var err error
-	b.OutputDir, err = runner.GetTestOutputDir(runner.GetProfile(), b.T())
-	if err != nil {
-		b.T().Fatalf("should get output dir")
-	}
-	b.T().Logf("Output dir: %s", b.OutputDir)
-}
-
 // SetupSuite overrides the base SetupSuite to perform some additional setups like setting the package to install.
 func (b *BaseAgentInstallerSuite[Env]) SetupSuite() {
 	b.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer b.CleanupOnSetupFailure()
 
 	var err error
 	b.AgentPackage, err = windowsAgent.GetPackageFromEnv()

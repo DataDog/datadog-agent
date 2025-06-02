@@ -11,6 +11,7 @@ package ecs
 import (
 	"fmt"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -27,16 +28,17 @@ type TaskCollector struct {
 }
 
 // NewTaskCollector creates a new collector for the ECS Task resource.
-func NewTaskCollector() *TaskCollector {
+func NewTaskCollector(tagger tagger.Component) *TaskCollector {
 	return &TaskCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsStable:           false,
-			IsMetadataProducer: true,
-			IsManifestProducer: false,
-			Name:               "ecstasks",
-			NodeType:           orchestrator.ECSTask,
+			IsStable:                             false,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   false,
+			Name:                                 "ecstasks",
+			NodeType:                             orchestrator.ECSTask,
+			SupportsTerminatedResourceCollection: false,
 		},
-		processor: processors.NewProcessor(new(ecs.TaskHandlers)),
+		processor: processors.NewProcessor(ecs.NewTaskHandlers(tagger)),
 	}
 }
 
@@ -59,6 +61,11 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		tasks = append(tasks, t.fetchContainers(rcfg, newTask))
 	}
 
+	return t.Process(rcfg, tasks)
+}
+
+// Process is used to process the resources.
+func (t *TaskCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := &processors.ECSProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              rcfg.Config,
@@ -66,6 +73,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 			NodeType:         t.metadata.NodeType,
 			ManifestProducer: t.metadata.IsManifestProducer,
 			ClusterID:        rcfg.ClusterID,
+			CollectorTags:    nil,
 		},
 		AWSAccountID: rcfg.AWSAccountID,
 		ClusterName:  rcfg.ClusterName,
@@ -74,7 +82,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 		Hostname:     rcfg.HostName,
 	}
 
-	processResult, processed := t.processor.Process(ctx, tasks)
+	processResult, listed, processed := t.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, fmt.Errorf("unable to process resources: a panic occurred")
@@ -82,7 +90,7 @@ func (t *TaskCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Co
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 
@@ -99,7 +107,12 @@ func (t *TaskCollector) fetchContainers(rcfg *collectors.CollectorRunConfig, tas
 	for _, container := range task.Containers {
 		c, err := rcfg.WorkloadmetaStore.GetContainer(container.ID)
 		if err != nil {
-			log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
+			// ECS can create internal pause containers that are not available in the workloadmeta store.
+			// https://github.com/DataDog/datadog-agent/blob/7.58.0/pkg/util/containers/filter.go#L184
+			// It is standard for tasks running with the awsvpc network mode
+			// https://github.com/aws/amazon-ecs-agent/blob/v1.88.0/agent/api/task/task.go#L68
+			// We can ignore the error and continue as there is nothing we can do about it.
+			log.Debugc(err.Error(), orchestrator.ExtraLogContext...)
 			continue
 		}
 		ecsTask.Containers = append(ecsTask.Containers, c)

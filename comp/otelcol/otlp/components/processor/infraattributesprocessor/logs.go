@@ -9,27 +9,29 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/zap"
 )
 
 type infraAttributesLogProcessor struct {
+	infraTags   infraTagsProcessor
 	logger      *zap.Logger
-	tagger      taggerClient
 	cardinality types.TagCardinality
-	generateID  GenerateKubeMetadataEntityID
+	cfg         *Config
 }
 
-func newInfraAttributesLogsProcessor(set processor.Settings, cfg *Config, tagger taggerClient, generateID GenerateKubeMetadataEntityID) (*infraAttributesLogProcessor, error) {
+func newInfraAttributesLogsProcessor(
+	set processor.Settings,
+	infraTags infraTagsProcessor,
+	cfg *Config,
+) (*infraAttributesLogProcessor, error) {
 	ialp := &infraAttributesLogProcessor{
+		infraTags:   infraTags,
 		logger:      set.Logger,
-		tagger:      tagger,
 		cardinality: cfg.Cardinality,
-		generateID:  generateID,
+		cfg:         cfg,
 	}
-
 	set.Logger.Info("Logs Infra Attributes Processor configured")
 	return ialp, nil
 }
@@ -38,39 +40,7 @@ func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.
 	rls := ld.ResourceLogs()
 	for i := 0; i < rls.Len(); i++ {
 		resourceAttributes := rls.At(i).Resource().Attributes()
-		entityIDs := entityIDsFromAttributes(resourceAttributes, ialp.generateID)
-		tagMap := make(map[string]string)
-
-		// Get all unique tags from resource attributes and global tags
-		for _, entityID := range entityIDs {
-			entityTags, err := ialp.tagger.Tag(entityID.String(), ialp.cardinality)
-			if err != nil {
-				ialp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
-				continue
-			}
-			for _, tag := range entityTags {
-				k, v := splitTag(tag)
-				_, hasTag := tagMap[k]
-				if k != "" && v != "" && !hasTag {
-					tagMap[k] = v
-				}
-			}
-		}
-		globalTags, err := ialp.tagger.GlobalTags(ialp.cardinality)
-		if err != nil {
-			ialp.logger.Error("Cannot get global tags", zap.Error(err))
-		}
-		for _, tag := range globalTags {
-			k, v := splitTag(tag)
-			_, hasTag := tagMap[k]
-			if k != "" && v != "" && !hasTag {
-				tagMap[k] = v
-			}
-		}
-		// Add all tags as resource attributes
-		for k, v := range tagMap {
-			resourceAttributes.PutStr(k, v)
-		}
+		ialp.infraTags.ProcessTags(ialp.logger, ialp.cardinality, resourceAttributes, ialp.cfg.AllowHostnameOverride)
 	}
 	return ld, nil
 }

@@ -83,6 +83,11 @@ typedef struct {
     __u32 rtt_var;
     __u32 saddr;
     __u32 daddr;
+    __u32 saddr_fl4;
+    __u32 daddr_fl4;
+    __u32 saddr_fl6[4];
+    __u32 daddr_fl6[4];
+
     __u16 sport;
     __u16 dport;
     __u16 sport_via_sk;
@@ -90,14 +95,11 @@ typedef struct {
     __u16 sport_via_sk_via_sk_buf;
     __u16 dport_via_sk_via_sk_buf;
     __u16 family;
-    __u32 saddr_fl4;
-    __u32 daddr_fl4;
     __u16 sport_fl4;
     __u16 dport_fl4;
-    __u32 saddr_fl6[4];
-    __u32 daddr_fl6[4];
     __u16 sport_fl6;
     __u16 dport_fl6;
+
     __u16 transport_header;
     __u16 network_header;
     __u16 mac_header;

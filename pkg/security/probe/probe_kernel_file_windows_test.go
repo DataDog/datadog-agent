@@ -18,9 +18,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 
 	"golang.org/x/sys/windows"
 )
@@ -40,9 +42,10 @@ func createTestProbe() (*WindowsProbe, error) {
 	if err != nil {
 		return nil, err
 	}
-	wp.isRenameEnabled = true
-	wp.isDeleteEnabled = true
-	wp.isWriteEnabled = true
+
+	wp.enabledEventTypes[model.FileRenameEventType.String()] = true
+	wp.enabledEventTypes[model.DeleteFileEventType.String()] = true
+	wp.enabledEventTypes[model.WriteFileEventType.String()] = true
 
 	err = wp.Init()
 
@@ -114,7 +117,7 @@ func processUntil(t *testing.T, et *etwTester, target interface{}, count int) {
 
 		case n := <-et.notify:
 			switch n.(type) {
-			case *createHandleArgs, *createNewFileArgs, *cleanupArgs, *closeArgs, *writeArgs, *setDeleteArgs, *deletePathArgs, *renameArgs, *renamePath:
+			case *createArgs, *createNewFileArgs, *cleanupArgs, *closeArgs, *writeArgs, *setDeleteArgs, *deletePathArgs, *renameArgs, *renamePath:
 				et.notifications = append(et.notifications, n)
 				if reflect.TypeOf(n) == reflect.TypeOf(target) {
 					targetcount++
@@ -145,7 +148,7 @@ func processUntilAllClosed(t *testing.T, et *etwTester) {
 		case n := <-et.notify:
 			notify := false
 			switch n.(type) {
-			case *createHandleArgs, *createNewFileArgs:
+			case *createArgs, *createNewFileArgs:
 				opencount++
 				notify = true
 
@@ -232,10 +235,10 @@ func testSimpleCreate(t *testing.T, et *etwTester, testfilename string) {
 
 	assert.Equal(t, 4, len(et.notifications), "expected 4 notifications, got %d", len(et.notifications))
 
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if cf, ok := et.notifications[1].(*createNewFileArgs); ok {
@@ -312,10 +315,10 @@ func testSimpleFileWrite(t *testing.T, et *etwTester, testfilename string) {
 
 	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
 
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if wa, ok := et.notifications[1].(*writeArgs); ok {
@@ -376,10 +379,10 @@ func testSimpleFileDelete(t *testing.T, et *etwTester, testfilename string) {
 			return
 		}
 	*/
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if wa, ok := et.notifications[1].(*setDeleteArgs); ok {
@@ -434,10 +437,10 @@ func testSimpleFileRename(t *testing.T, et *etwTester, testfilename, testfileren
 
 	//assert.Equal(t, 4, len(et.notifications), "expected 4 notifications, got %d", len(et.notifications))
 
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	// there are a variable number of notifications depending on OS.  FOr some reason, at least on Win11
@@ -504,14 +507,14 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 	// we expect a handle create (12), a cleanup and a close.
 	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
 
-	if c, ok := et.notifications[0].(*createHandleArgs); ok {
+	if c, ok := et.notifications[0].(*createArgs); ok {
 		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
 		// this should be same as sharing argument to Createfile
 		assert.Equal(t, uint32(windows.FILE_SHARE_READ), c.shareAccess, "Sharing mode did not match")
 		assert.Equal(t, expectedCreateOptions, c.createOptions, "Create options did not match")
 
 	} else {
-		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
+		t.Errorf("expected createArgs, got %T", et.notifications[0])
 	}
 
 	if cu, ok := et.notifications[1].(*cleanupArgs); ok {
@@ -547,14 +550,14 @@ func TestETWFileNotifications(t *testing.T) {
 
 	et := createEtwTester(wp)
 
-	wp.fimwg.Add(1)
+	wp.tracingWg.Add(1)
 	go func() {
-		defer wp.fimwg.Done()
+		defer wp.tracingWg.Done()
 
 		var once sync.Once
 		mypid := os.Getpid()
 
-		err := et.p.setupEtw(func(n interface{}, pid uint32) {
+		err := et.p.startFrimTracing(func(n interface{}, pid uint32) {
 			once.Do(func() {
 				close(et.etwStarted)
 			})

@@ -10,13 +10,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
+	netutil "github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 var (
@@ -25,31 +26,33 @@ var (
 
 // Meta is the metadata nested under the meta key
 type Meta struct {
-	SocketHostname string   `json:"socket-hostname"`
-	Timezones      []string `json:"timezones"`
-	SocketFqdn     string   `json:"socket-fqdn"`
-	EC2Hostname    string   `json:"ec2-hostname"`
-	Hostname       string   `json:"hostname"`
-	HostAliases    []string `json:"host_aliases"`
-	InstanceID     string   `json:"instance-id"`
-	AgentHostname  string   `json:"agent-hostname,omitempty"`
-	ClusterName    string   `json:"cluster-name,omitempty"`
+	SocketHostname            string   `json:"socket-hostname"`
+	Timezones                 []string `json:"timezones"`
+	SocketFqdn                string   `json:"socket-fqdn"`
+	EC2Hostname               string   `json:"ec2-hostname"`
+	Hostname                  string   `json:"hostname"`
+	HostAliases               []string `json:"host_aliases"`
+	InstanceID                string   `json:"instance-id"`
+	AgentHostname             string   `json:"agent-hostname,omitempty"`
+	ClusterName               string   `json:"cluster-name,omitempty"`
+	LegacyResolutionHostname  string   `json:"legacy-resolution-hostname,omitempty"`
+	HostnameResolutionVersion int      `json:"hostname-resolution-version,omitempty"`
 }
 
 // GetMetaFromCache returns the metadata information about the host from the cache and returns it, if the cache is
 // empty, then it queries the information directly
-func GetMetaFromCache(ctx context.Context, conf model.Reader) *Meta {
+func GetMetaFromCache(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component) *Meta {
 	res, _ := cache.Get[*Meta](
 		metaCacheKey,
 		func() (*Meta, error) {
-			return GetMeta(ctx, conf), nil
+			return getMeta(ctx, conf, hostname), nil
 		},
 	)
 	return res
 }
 
-// GetMeta returns the metadata information about the host and refreshes the cache
-func GetMeta(ctx context.Context, conf model.Reader) *Meta {
+// getMeta returns the metadata information about the host and refreshes the cache
+func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterface.Component) *Meta {
 	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
 	ec2Hostname, _ := ec2.GetHostname(ctx)
@@ -57,19 +60,25 @@ func GetMeta(ctx context.Context, conf model.Reader) *Meta {
 
 	var agentHostname string
 
-	hostnameData, _ := hostname.GetWithProvider(ctx)
+	hostnameData, _ := hostnameComp.GetWithProvider(ctx)
 	if conf.GetBool("hostname_force_config_as_canonical") && hostnameData.FromConfiguration() {
 		agentHostname = hostnameData.Hostname
 	}
 
 	m := &Meta{
-		SocketHostname: osHostname,
-		Timezones:      []string{tzname},
-		SocketFqdn:     util.Fqdn(osHostname),
-		EC2Hostname:    ec2Hostname,
-		HostAliases:    cloudproviders.GetHostAliases(ctx),
-		InstanceID:     instanceID,
-		AgentHostname:  agentHostname,
+		SocketHostname:            osHostname,
+		Timezones:                 []string{tzname},
+		SocketFqdn:                netutil.Fqdn(osHostname),
+		EC2Hostname:               ec2Hostname,
+		HostAliases:               cloudproviders.GetHostAliases(ctx),
+		InstanceID:                instanceID,
+		AgentHostname:             agentHostname,
+		HostnameResolutionVersion: 1,
+	}
+
+	legacyResolutionHostnameData, _ := hostname.GetWithLegacyResolutionProvider(ctx)
+	if legacyResolutionHostnameData.Hostname != hostnameData.Hostname {
+		m.LegacyResolutionHostname = legacyResolutionHostnameData.Hostname
 	}
 
 	if finalClusterName := kubelet.GetMetaClusterNameText(ctx, osHostname); finalClusterName != "" {

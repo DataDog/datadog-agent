@@ -9,14 +9,21 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cihub/seelog"
-
+	model "github.com/DataDog/agent-payload/v5/process"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// usmEncoder represents the interface for a generic connections' encoder.
+type usmEncoder interface {
+	// Close closes the encoder.
+	Close()
+	// EncodeConnection encodes USM data for a given connection into the given builder. Returns static tags and dynamic tags.
+	EncodeConnection(network.ConnectionStats, *model.ConnectionBuilder) (uint64, map[string]struct{})
+}
 
 // USMConnectionIndex provides a generic container for USM data pre-aggregated by connection
 type USMConnectionIndex[K comparable, V any] struct {
@@ -192,7 +199,7 @@ func (bc *USMConnectionIndex[K, V]) Close() {
 		var total int
 		for key, value := range bc.data {
 			if !value.claimed {
-				if log.ShouldLog(seelog.TraceLvl) {
+				if log.ShouldLog(log.TraceLvl) {
 					log.Tracef("key %+v unclaimed", key)
 				}
 				total += len(value.Data)

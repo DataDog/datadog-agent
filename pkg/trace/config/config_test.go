@@ -36,33 +36,73 @@ func TestInAzureAppServices(t *testing.T) {
 func TestPeerTagsAggregation(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg := New()
+		cfg.PeerTagsAggregation = false
 		assert.False(t, cfg.PeerTagsAggregation)
 		assert.Empty(t, cfg.PeerTags)
 		assert.Empty(t, cfg.ConfiguredPeerTags())
 	})
 
-	t.Run("enabled", func(t *testing.T) {
+	t.Run("default-enabled", func(t *testing.T) {
 		cfg := New()
-		cfg.PeerTagsAggregation = true
 		assert.Empty(t, cfg.PeerTags)
 		assert.Equal(t, basePeerTags, cfg.ConfiguredPeerTags())
 	})
 	t.Run("disabled-user-tags", func(t *testing.T) {
 		cfg := New()
+		cfg.PeerTagsAggregation = false
 		cfg.PeerTags = []string{"user_peer_tag"}
 		assert.False(t, cfg.PeerTagsAggregation)
 		assert.Empty(t, cfg.ConfiguredPeerTags())
 	})
 	t.Run("enabled-user-tags", func(t *testing.T) {
 		cfg := New()
-		cfg.PeerTagsAggregation = true
 		cfg.PeerTags = []string{"user_peer_tag"}
 		assert.Equal(t, append(basePeerTags, "user_peer_tag"), cfg.ConfiguredPeerTags())
 	})
 	t.Run("dedup", func(t *testing.T) {
 		cfg := New()
-		cfg.PeerTagsAggregation = true
 		cfg.PeerTags = basePeerTags[:2]
 		assert.Equal(t, basePeerTags, cfg.ConfiguredPeerTags())
+	})
+}
+
+func TestMRFFailoverAPM(t *testing.T) {
+	t.Run("undefined", func(t *testing.T) {
+		cfg := New()
+		assert.False(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("default-true", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = true
+		assert.True(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("default-false", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = false
+		assert.False(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("rc-true", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = false
+		val := true
+		cfg.MRFFailoverAPMRC = &val
+		assert.True(t, cfg.MRFFailoverAPM())
+	})
+	t.Run("rc-false", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = true
+		val := false
+		cfg.MRFFailoverAPMRC = &val
+		assert.False(t, cfg.MRFFailoverAPM())
+	})
+	// Test that RC overrides can be removed (set to nil)
+	t.Run("rc-unset", func(t *testing.T) {
+		cfg := New()
+		cfg.MRFFailoverAPMDefault = true
+		val := false
+		cfg.MRFFailoverAPMRC = &val
+		assert.False(t, cfg.MRFFailoverAPM())
+		cfg.MRFFailoverAPMRC = nil
+		assert.True(t, cfg.MRFFailoverAPM())
 	})
 }

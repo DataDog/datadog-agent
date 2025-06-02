@@ -34,8 +34,8 @@ func TestActionKill(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	if !ebpfLessEnabled {
-		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-			return !kv.SupportBPFSendSignal() && env.IsContainerized()
+		checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+			return env.IsContainerized()
 		})
 	}
 
@@ -95,7 +95,7 @@ func TestActionKill(t *testing.T) {
 				"set-signal-handler", ";",
 				"open", testFile, ";",
 				"sleep", "1", ";",
-				"open", testFile, ";",
+				"open", syscallTester, ";",
 				"wait-signal", ";",
 				"signal", "sigusr1", strconv.Itoa(int(os.Getpid())), ";",
 				"sleep", "1",
@@ -109,7 +109,7 @@ func TestActionKill(t *testing.T) {
 				t.Error("signal timeout")
 			}
 			return nil
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*3, "kill_action_usr2")
 		if err != nil {
@@ -123,8 +123,11 @@ func TestActionKill(t *testing.T) {
 			}
 			validateMessageSchema(t, string(msg.Data))
 
-			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGUSR2')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'performed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 			})
@@ -148,7 +151,7 @@ func TestActionKill(t *testing.T) {
 				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 
-				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", testFile, ";", "sleep", "5")
+				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", syscallTester, ";", "sleep", "5")
 				_ = cmd.Run()
 
 				ch <- true
@@ -160,7 +163,7 @@ func TestActionKill(t *testing.T) {
 				t.Error("signal timeout")
 			}
 			return nil
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*5, "kill_action_kill")
 
@@ -175,11 +178,14 @@ func TestActionKill(t *testing.T) {
 			}
 			validateMessageSchema(t, string(msg.Data))
 
-			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGKILL')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at =~ /20.*/)]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'performed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 			})
@@ -193,8 +199,8 @@ func TestActionKill(t *testing.T) {
 func TestActionKillExcludeBinary(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-		return !kv.SupportBPFSendSignal() && env.IsContainerized()
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
 	})
 
 	ruleDefs := []*rules.RuleDefinition{
@@ -233,7 +239,7 @@ func TestActionKillExcludeBinary(t *testing.T) {
 		}()
 
 		return nil
-	}, func(rule *rules.Rule, event *model.Event) bool {
+	}, func(_ *rules.Rule, _ *model.Event) bool {
 		return true
 	}, time.Second*5, "kill_action_kill_exclude")
 
@@ -250,8 +256,8 @@ func TestActionKillRuleSpecific(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	if !ebpfLessEnabled {
-		checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-			return !kv.SupportBPFSendSignal() && env.IsContainerized()
+		checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+			return env.IsContainerized()
 		})
 	}
 
@@ -297,7 +303,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 			timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", testFile, ";", "sleep", "5")
+			cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", syscallTester, ";", "sleep", "5")
 			_ = cmd.Run()
 
 			ch <- true
@@ -309,7 +315,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 			t.Error("signal timeout")
 		}
 		return nil
-	}, func(rule *rules.Rule, event *model.Event) bool {
+	}, func(_ *rules.Rule, _ *model.Event) bool {
 		return true
 	}, time.Second*5, "kill_action_kill")
 
@@ -324,11 +330,14 @@ func TestActionKillRuleSpecific(t *testing.T) {
 		}
 		validateMessageSchema(t, string(msg.Data))
 
-		jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+		jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 			if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGKILL')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 				t.Errorf("element not found %s => %v", string(msg.Data), err)
 			}
 			if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at =~ /20.*/)]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+				t.Errorf("element not found %s => %v", string(msg.Data), err)
+			}
+			if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'performed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 				t.Errorf("element not found %s => %v", string(msg.Data), err)
 			}
 		})
@@ -344,7 +353,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 		}
 		validateMessageSchema(t, string(msg.Data))
 
-		jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+		jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 			if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions`); err == nil {
 				t.Errorf("unexpected rule action %s", string(msg.Data))
 			}
@@ -355,70 +364,8 @@ func TestActionKillRuleSpecific(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestActionKillDisarm(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
-
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
-
-	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
-		return !kv.SupportBPFSendSignal() && env.IsContainerized()
-	})
-
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "kill_action_disarm_executable",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id == ""`,
-			Actions: []*rules.ActionDefinition{
-				{
-					Kill: &rules.KillDefinition{
-						Signal: "SIGKILL",
-					},
-				},
-			},
-		},
-		{
-			ID:         "kill_action_disarm_container",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id != ""`,
-			Actions: []*rules.ActionDefinition{
-				{
-					Kill: &rules.KillDefinition{
-						Signal: "SIGKILL",
-					},
-				},
-			},
-		},
-	}
-
-	sleep := which(t, "sleep")
-	const (
-		enforcementDisarmerContainerPeriod  = 10 * time.Second
-		enforcementDisarmerExecutablePeriod = 10 * time.Second
-	)
-
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
-		enforcementDisarmerContainerEnabled:     true,
-		enforcementDisarmerContainerMaxAllowed:  1,
-		enforcementDisarmerContainerPeriod:      enforcementDisarmerContainerPeriod,
-		enforcementDisarmerExecutableEnabled:    true,
-		enforcementDisarmerExecutableMaxAllowed: 1,
-		enforcementDisarmerExecutablePeriod:     enforcementDisarmerExecutablePeriod,
-		eventServerRetention:                    1 * time.Nanosecond,
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
-	if err != nil {
-		t.Fatal(err)
-	}
+func testActionKillDisarm(t *testing.T, test *testModule, sleep, syscallTester string, disarmerPeriod time.Duration) {
+	t.Helper()
 
 	testKillActionSuccess := func(t *testing.T, ruleID string, cmdFunc func(context.Context)) {
 		test.msgSender.flush()
@@ -436,7 +383,7 @@ func TestActionKillDisarm(t *testing.T) {
 
 			select {
 			case <-ch:
-			case <-time.After(time.Second * 3):
+			case <-time.After(time.Second * 8):
 				t.Error("signal timeout")
 			}
 			return nil
@@ -461,6 +408,9 @@ func TestActionKillDisarm(t *testing.T) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.exited_at =~ /20.*/)]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'performed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
 			})
 
 			return nil
@@ -468,7 +418,7 @@ func TestActionKillDisarm(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	testKillActionIgnored := func(t *testing.T, ruleID string, cmdFunc func(context.Context)) {
+	testKillActionDisarmed := func(t *testing.T, ruleID string, cmdFunc func(context.Context)) {
 		test.msgSender.flush()
 		err := test.GetEventSent(t, func() error {
 			cmdFunc(nil)
@@ -488,8 +438,11 @@ func TestActionKillDisarm(t *testing.T) {
 			validateMessageSchema(t, string(msg.Data))
 
 			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
-				if _, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions`); err == nil {
-					t.Errorf("unexpected rule action %s", string(msg.Data))
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.signal == 'SIGKILL')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'rule_disarmed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 			})
 
@@ -509,8 +462,8 @@ func TestActionKillDisarm(t *testing.T) {
 			})
 		}
 
-		// test that another executable dismars the kill action
-		testKillActionIgnored(t, "kill_action_disarm_executable", func(_ context.Context) {
+		// test that another executable disarms the kill action
+		testKillActionDisarmed(t, "kill_action_disarm_executable", func(_ context.Context) {
 			cmd := exec.Command(sleep, "1")
 			cmd.Env = []string{"TARGETTOKILL=1"}
 			_ = cmd.Run()
@@ -518,7 +471,7 @@ func TestActionKillDisarm(t *testing.T) {
 
 		// test that the kill action is re-armed after both executable cache entries have expired
 		// sleep for: (TTL + cache flush period + 1s) to ensure the cache is flushed
-		time.Sleep(enforcementDisarmerExecutablePeriod + 5*time.Second + 1*time.Second)
+		time.Sleep(disarmerPeriod + 5*time.Second + 1*time.Second)
 		testKillActionSuccess(t, "kill_action_disarm_executable", func(_ context.Context) {
 			cmd := exec.Command(sleep, "1")
 			cmd.Env = []string{"TARGETTOKILL=1"}
@@ -548,20 +501,88 @@ func TestActionKillDisarm(t *testing.T) {
 		}
 		defer newDockerInstance.stop()
 
-		// test that another container dismars the kill action
-		testKillActionIgnored(t, "kill_action_disarm_container", func(_ context.Context) {
+		// test that another container disarms the kill action
+		testKillActionDisarmed(t, "kill_action_disarm_container", func(_ context.Context) {
 			cmd := newDockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "1"}, []string{})
 			_ = cmd.Run()
 		})
 
 		// test that the kill action is re-armed after both container cache entries have expired
 		// sleep for: (TTL + cache flush period + 1s) to ensure the cache is flushed
-		time.Sleep(enforcementDisarmerContainerPeriod + 5*time.Second + 1*time.Second)
+		time.Sleep(disarmerPeriod + 5*time.Second + 1*time.Second)
 		testKillActionSuccess(t, "kill_action_disarm_container", func(_ context.Context) {
 			cmd := newDockerInstance.Command("env", []string{"-i", "-", "TARGETTOKILL=1", "sleep", "5"}, []string{})
 			_ = cmd.Run()
 		})
 	})
+}
+
+func TestActionKillDisarm(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "agent is running in container mode", func(_ *kernel.Version) bool {
+		return env.IsContainerized()
+	})
+
+	sleep := which(t, "sleep")
+
+	const (
+		enforcementDisarmerPeriod = 4 * time.Second
+	)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "kill_action_disarm_executable",
+			Expression: `exec.envs in ["TARGETTOKILL"] && container.id == ""`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			},
+		},
+		{
+			ID:         "kill_action_disarm_container",
+			Expression: `exec.envs in ["TARGETTOKILL"] && container.id != ""`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Kill: &rules.KillDefinition{
+						Signal: "SIGKILL",
+					},
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		enforcementDisarmerContainerEnabled:     true,
+		enforcementDisarmerContainerMaxAllowed:  1,
+		enforcementDisarmerContainerPeriod:      enforcementDisarmerPeriod,
+		enforcementDisarmerExecutableEnabled:    true,
+		enforcementDisarmerExecutableMaxAllowed: 1,
+		enforcementDisarmerExecutablePeriod:     enforcementDisarmerPeriod,
+		eventServerRetention:                    1 * time.Nanosecond,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testActionKillDisarm(t, test, sleep, syscallTester, enforcementDisarmerPeriod)
 }
 
 func TestActionHash(t *testing.T) {
@@ -573,8 +594,17 @@ func TestActionHash(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "hash_action",
+			ID:         "hash_action_open",
 			Expression: `open.file.path == "{{.Root}}/test-hash-action" && open.flags&O_CREAT == O_CREAT`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Hash: &rules.HashDefinition{},
+				},
+			},
+		},
+		{
+			ID:         "hash_action_exec",
+			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Hash: &rules.HashDefinition{},
@@ -593,6 +623,16 @@ func TestActionHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	testExecutable, _, err := test.Path("test-hash-action-exec")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = copyFile(which(t, "touch"), testExecutable, 0755); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testExecutable)
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -618,18 +658,18 @@ func TestActionHash(t *testing.T) {
 				done <- true
 			}()
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "hash_action")
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action_open")
 		})
 
 		err = retry.Do(func() error {
-			msg := test.msgSender.getMsg("hash_action")
+			msg := test.msgSender.getMsg("hash_action_open")
 			if msg == nil {
 				return errors.New("not found")
 			}
 			validateMessageSchema(t, string(msg.Data))
 
-			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
@@ -666,18 +706,18 @@ func TestActionHash(t *testing.T) {
 				done <- true
 			}()
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "hash_action")
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action_open")
 		})
 
 		err = retry.Do(func() error {
-			msg := test.msgSender.getMsg("hash_action")
+			msg := test.msgSender.getMsg("hash_action_open")
 			if msg == nil {
 				return errors.New("not found")
 			}
 			validateMessageSchema(t, string(msg.Data))
 
-			jsonPathValidation(test, msg.Data, func(testMod *testModule, obj interface{}) {
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
@@ -696,4 +736,34 @@ func TestActionHash(t *testing.T) {
 		<-done
 	})
 
+	t.Run("exec", func(t *testing.T) {
+		test.msgSender.flush()
+		test.WaitSignal(t, func() error {
+			return exec.Command(testExecutable, "/tmp/aaa").Run()
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "hash_action_exec")
+		})
+		err = retry.Do(func() error {
+			msg := test.msgSender.getMsg("hash_action_exec")
+			if msg == nil {
+				return errors.New("not found")
+			}
+			validateMessageSchema(t, string(msg.Data))
+
+			jsonPathValidation(test, msg.Data, func(_ *testModule, obj interface{}) {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.state == 'Done')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.trigger == 'process_exit')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+				if el, err := jsonpath.JsonPathLookup(obj, `$.file.hashes`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+					t.Errorf("element not found %s => %v", string(msg.Data), err)
+				}
+			})
+
+			return nil
+		}, retry.Delay(500*time.Millisecond), retry.Attempts(30), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
+	})
 }

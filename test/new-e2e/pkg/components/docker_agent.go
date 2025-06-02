@@ -6,7 +6,7 @@
 package components
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
@@ -23,10 +23,10 @@ type DockerAgent struct {
 	ClientOptions []agentclientparams.Option
 }
 
-var _ e2e.Initializable = (*DockerAgent)(nil)
+var _ common.Initializable = (*DockerAgent)(nil)
 
 // Init is called by e2e test Suite after the component is provisioned.
-func (a *DockerAgent) Init(ctx e2e.Context) (err error) {
+func (a *DockerAgent) Init(ctx common.Context) (err error) {
 	a.Client, err = client.NewDockerAgentClient(ctx, a.DockerAgentOutput, a.ClientOptions...)
 	return err
 }

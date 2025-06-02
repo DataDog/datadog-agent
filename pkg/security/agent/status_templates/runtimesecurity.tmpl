@@ -42,6 +42,32 @@
           {{- end }}
     {{ end }}
 
+
+  SECL Variables
+  ==============
+
+  Global variables:
+  {{ range $variable := .seclGlobalVariables }}
+    - {{ $variable.Name }}: {{ $variable.Value }}
+  {{- end }}
+  {{- if not .seclGlobalVariables }}
+      No variable found
+  {{- end }}
+
+  Scoped variables:
+  {{ range $scope, $vars := .seclScopedVariables }}
+    {{ $scope }}:
+    {{ range $key, $variables := $vars }}
+      {{ $key }}:
+      {{- range $variable := $variables }}
+        - {{ $variable.Name }}: {{ $variable.Value }}
+      {{- end }}
+    {{ end }}
+  {{- end }}
+  {{- if not .seclScopedVariables }}
+      No variable found
+  {{- end }}
+
   {{- with .environment }}
 
   Environment
@@ -60,6 +86,9 @@
     {{- end }}
     {{- if .ringBuffer }}
     Use eBPF ring buffer: {{ .ringBuffer }}
+    {{- end }}
+    {{- if .fentry }}
+    Use fentry: {{ .fentry }}
     {{- end }}
     {{ if .constantFetchers }}
     Available constant fetchers

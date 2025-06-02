@@ -21,6 +21,8 @@ const (
 	// BasenameApproverKernelMapName defines the basename approver kernel map name
 	BasenameApproverKernelMapName = "basename_approvers"
 
+	// PolicyApproverType is the type of policy approver
+	PolicyApproverType = "policy"
 	// BasenameApproverType is the type of basename approver
 	BasenameApproverType = "basename"
 	// FlagApproverType is the type of flags approver
@@ -162,7 +164,7 @@ func fimKFiltersGetter(eventType model.EventType, fields []eval.Field) kfiltersG
 			fieldHandled = append(fieldHandled, handled...)
 		}
 
-		kfs, handled, err := getProcessKFilters(model.FileOpenEventType, approvers)
+		kfs, handled, err := getProcessKFilters(eventType, approvers)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -188,4 +190,5 @@ func init() {
 	KFilterGetters["splice"] = spliceKFiltersGetter
 	KFilterGetters["chdir"] = fimKFiltersGetter(model.FileChdirEventType, []eval.Field{"file"})
 	KFilterGetters["bpf"] = bpfKFiltersGetter
+	KFilterGetters["sysctl"] = sysctlKFiltersGetter
 }

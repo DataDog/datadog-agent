@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build (linux && linux_bpf) || (windows && npm)
+
 package marshal
 
 import (
@@ -10,8 +12,6 @@ import (
 	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/gogo/protobuf/proto"
-
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -35,7 +35,7 @@ func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
 	}
 }
 
-func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
+func (e *httpEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
 	if e == nil {
 		return 0, nil
 	}
@@ -77,10 +77,8 @@ func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *ht
 						w.SetCount(uint32(stats.Count))
 						if latencies := stats.Latencies; latencies != nil {
 
-							// TODO: can we get a streaming marshaller for latencies?
-							blob, _ := proto.Marshal(latencies.ToProto())
 							w.SetLatencies(func(b *bytes.Buffer) {
-								b.Write(blob)
+								latencies.EncodeProto(b)
 							})
 						} else {
 							w.SetFirstLatencySample(stats.FirstLatencySample)

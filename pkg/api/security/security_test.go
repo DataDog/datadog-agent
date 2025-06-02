@@ -8,15 +8,16 @@
 package security
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -29,7 +30,7 @@ func initMockConf(t *testing.T) (model.Config, string) {
 		f.Close()
 	})
 
-	mockConfig := model.NewConfig("datadog", "fake-datadog-yaml", strings.NewReplacer(".", "_"))
+	mockConfig := configmock.New(t)
 	mockConfig.SetConfigFile(f.Name())
 	mockConfig.SetWithoutSource("auth_token", "")
 
@@ -38,7 +39,7 @@ func initMockConf(t *testing.T) (model.Config, string) {
 
 func TestCreateOrFetchAuthTokenValidGen(t *testing.T) {
 	config, expectTokenPath := initMockConf(t)
-	token, err := CreateOrFetchToken(config)
+	token, err := FetchOrCreateAuthToken(context.Background(), config)
 	require.NoError(t, err, fmt.Sprintf("%v", err))
 	assert.True(t, len(token) > authTokenMinimalLen, fmt.Sprintf("%d", len(token)))
 	_, err = os.Stat(expectTokenPath)
@@ -54,7 +55,7 @@ func TestFetchAuthToken(t *testing.T) {
 	_, err = os.Stat(expectTokenPath)
 	require.True(t, os.IsNotExist(err))
 
-	newToken, err := CreateOrFetchToken(config)
+	newToken, err := FetchOrCreateAuthToken(context.Background(), config)
 	require.NoError(t, err, fmt.Sprintf("%v", err))
 	require.True(t, len(newToken) > authTokenMinimalLen, fmt.Sprintf("%d", len(newToken)))
 	_, err = os.Stat(expectTokenPath)

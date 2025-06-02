@@ -1,0 +1,21 @@
+log_level: debug
+ipc_cert_file_path: {{.IPCCertFilePath}}
+
+cmd_port: {{.AgentCMDPort}}
+agent_ipc:
+  port: {{.AgentIpcPort}}
+
+apm_config:
+  enabled: true
+  debug:
+    port: {{.ApmCmdPort}}
+
+security_agent:
+  cmd_port: {{.SecurityCmdPort}}
+
+process_config:
+  run_in_core_agent:
+    enabled: false
+  process_collection:
+    enabled: true
+  cmd_port: {{.ProcessCmdPort}}

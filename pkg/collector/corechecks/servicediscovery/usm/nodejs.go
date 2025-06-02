@@ -25,13 +25,13 @@ func newNodeDetector(ctx DetectionContext) detector {
 	return &nodeDetector{ctx: ctx}
 }
 
-func isJs(path string) bool {
-	return strings.HasSuffix(strings.ToLower(path), ".js")
+func isJs(filepath string) bool {
+	ext := strings.ToLower(path.Ext(filepath))
+	return ext == ".js" || ext == ".mjs" || ext == ".cjs"
 }
 
 func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 	skipNext := false
-	cwd, _ := workingDirFromEnvs(n.ctx.envs)
 	for _, a := range args {
 		if skipNext {
 			skipNext = false
@@ -44,7 +44,7 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				continue
 			}
 		} else {
-			absFile := abs(path.Clean(a), cwd)
+			absFile := n.ctx.resolveWorkingDirRelativePath(path.Clean(a))
 			entryPoint := ""
 			if isJs(a) {
 				entryPoint = absFile
@@ -61,9 +61,14 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 			if _, err := fs.Stat(n.ctx.fs, absFile); err == nil {
 				value, ok := n.findNameFromNearestPackageJSON(entryPoint)
 				if ok {
-					return NewServiceMetadata(value), true
+					return NewServiceMetadata(value, Nodejs), true
 				}
-				break
+
+				// We couldn't find a package.json, fall back to the script/link
+				// name since it should be better than just using "node".
+				base := filepath.Base(absFile)
+				name := strings.TrimSuffix(base, path.Ext(base))
+				return NewServiceMetadata(name, CommandLine), true
 			}
 		}
 	}
@@ -96,8 +101,8 @@ func (n nodeDetector) findNameFromNearestPackageJSON(absFilePath string) (string
 	foundServiceName := ok && len(value) > 0
 	if foundServiceName {
 		// Save package.json path for the instrumentation detector to use.
-		n.ctx.contextMap[NodePackageJSONPath] = currentFilePath
-		n.ctx.contextMap[ServiceSubFS] = n.ctx.fs
+		n.ctx.ContextMap[NodePackageJSONPath] = currentFilePath
+		n.ctx.ContextMap[ServiceSubFS] = n.ctx.fs
 	}
 
 	return value, foundServiceName

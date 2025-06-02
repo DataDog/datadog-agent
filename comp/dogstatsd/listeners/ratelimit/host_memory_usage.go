@@ -6,7 +6,7 @@
 package ratelimit
 
 import (
-	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 var _ memoryUsage = (*hostMemoryUsage)(nil)

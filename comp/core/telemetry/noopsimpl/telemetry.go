@@ -89,10 +89,6 @@ func (t *noopImpl) NewSimpleHistogramWithOpts(_, _, _ string, _ []float64, _ tel
 	return &simpleNoOpHistogram{}
 }
 
-func (t *noopImpl) Meter(_ string, _ ...telemetry.MeterOption) telemetry.Meter {
-	return nil
-}
-
 func (t *noopImpl) RegisterCollector(telemetry.Collector) {}
 
 func (t *noopImpl) UnregisterCollector(telemetry.Collector) bool {

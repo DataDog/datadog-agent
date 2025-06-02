@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/require"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 func (s *languageDetectionSuite) installPython() {
@@ -23,13 +23,13 @@ func (s *languageDetectionSuite) installPython() {
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
 	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "local_process_collector")
+	s.checkDetectedLanguage("python3", "python", "process_language_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr))))
 	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "local_process_collector")
+	s.checkDetectedLanguage("python3", "python", "process_language_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {

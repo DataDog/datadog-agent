@@ -6,14 +6,14 @@
 package launchers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 )
 
 // Launcher implementations launch logs pipelines in response to sources, and
-// mange those pipelines' lifetime.
+// manage those pipelines' lifetime.
 //
 // Launchers are started when the logs-agent starts, or when they are added to
 // the agent, and stopped when it stops.

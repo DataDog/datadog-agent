@@ -46,7 +46,7 @@ else
   end
 
   if debian_target?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
   end
   unless osx_target?
     conflict 'datadog-agent'
@@ -65,15 +65,14 @@ else
   # creates required build directories
   dependency 'preparation'
 
+  dependency "systemd" if linux_target?
+
   # Datadog agent
   dependency 'datadog-iot-agent'
 
   if windows_target?
     dependency 'datadog-agent-finalize'
   end
-
-  # version manifest file
-  dependency 'version-manifest'
 
   do_package = false
 end
@@ -86,7 +85,7 @@ end
 
 if ENV.has_key?('FORCED_PACKAGE_COMPRESSION_LEVEL')
   COMPRESSION_LEVEL = ENV['FORCED_PACKAGE_COMPRESSION_LEVEL'].to_i
-elsif ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+elsif ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -230,3 +229,8 @@ end
 
 exclude '\.git*'
 exclude 'bundler\/git'
+
+if linux_target? or windows_target?
+  strip_build windows_target? || !do_package
+  debug_path ".debug"
+end

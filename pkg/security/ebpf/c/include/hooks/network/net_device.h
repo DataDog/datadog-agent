@@ -85,7 +85,7 @@ int rethook_dev_new_index(ctx_t *ctx) {
 
     struct register_netdevice_cache_t *entry = bpf_map_lookup_elem(&register_netdevice_cache, &id);
     if (entry != NULL) {
-        entry->ifindex.ifindex = (u32)CTX_PARMRET(ctx, 1);
+        entry->ifindex.ifindex = (u32)CTX_PARMRET(ctx);
     }
     return 0;
 };
@@ -109,34 +109,10 @@ int hook___dev_get_by_index(ctx_t *ctx) {
     return 0;
 };
 
-HOOK_ENTRY("__dev_get_by_name")
-int hook___dev_get_by_name(ctx_t *ctx) {
-    u64 id = bpf_get_current_pid_tgid();
-    struct net *net = (struct net *)CTX_PARM1(ctx);
-
-    struct device_name_t name = {
-        .netns = get_netns_from_net(net),
-    };
-    bpf_probe_read_str(&name.name[0], sizeof(name.name), (void *)CTX_PARM2(ctx));
-
-    struct device_ifindex_t *ifindex = bpf_map_lookup_elem(&veth_device_name_to_ifindex, &name);
-    if (ifindex == NULL) {
-        return 0;
-    }
-
-    struct device_ifindex_t entry = {
-        .netns = name.netns,
-        .ifindex = ifindex->ifindex,
-    };
-
-    bpf_map_update_elem(&netdevice_lookup_cache, &id, &entry, BPF_ANY);
-    return 0;
-};
-
 HOOK_EXIT("register_netdevice")
 int rethook_register_netdevice(ctx_t *ctx) {
     u64 id = bpf_get_current_pid_tgid();
-    int ret = CTX_PARMRET(ctx, 1);
+    int ret = CTX_PARMRET(ctx);
     if (ret != 0) {
         // interface registration failed, remove cache entry
         bpf_map_delete_elem(&register_netdevice_cache, &id);

@@ -4,6 +4,7 @@
 #include "bpf_helpers.h"
 #include "ip.h"
 #include "port_range.h"
+#include "pid_tgid.h"
 
 #include "protocols/http/maps.h"
 #include "protocols/tls/go-tls-types.h"
@@ -49,7 +50,7 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
 
     // The code path below should be executed only once during the lifecycle of a TLS connection
     pid_fd_t pid_fd = {
-        .pid = pid_tgid >> 32,
+        .pid = GET_USER_MODE_PID(pid_tgid),
         // fd is populated by the code downstream
         .fd = 0,
     };

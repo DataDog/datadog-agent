@@ -1,0 +1,65 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Target-based workload selection is now available for Single Step Instrumentation. This feature enables you to
+    instrument specific workloads using pod and namespace label selectors. By applying user-defined labels, you can
+    select workloads for instrumentation without modifying applications. For example, the following configuration
+    injects the Python tracer with a default version for pods labeled with `language=python`:
+    ```yaml
+    instrumentation:
+      enabled: true
+      targets:
+        - name: "Python Services"
+          podSelector:
+            matchLabels:
+              language: "python"
+          ddTraceVersions:
+            python: "default"
+    ```
+
+    Targets can also be chained together, with the first matching rule taking precedence. For example, the following
+    configuration installs the Python tracer for pods labeled `language=python` and the Java tracer for pods in a
+    namespace labeled `language=java`. If a pod matches both rules, the first match takes precedence:
+    ```
+    instrumentation:
+      enabled: true
+      targets:
+        - name: "Python Services"
+          podSelector:
+            matchLabels:
+              language: "python"
+          ddTraceVersions:
+            python: "default"
+        - name: "Java Namespaces"
+          namespaceSelector:
+            matchLabels:
+              language: "java"
+          ddTraceVersions:
+            python: "default"
+    ```
+
+    Targets support tracer configuration options in the form of environment variables. All options must have the
+    `DD_` prefix. The following example installs the Python tracer with profiling and data jobs enabled:
+    ```
+    instrumentation:
+      enabled: true
+      targets:
+        - name: "Python Apps"
+          podSelector:
+            matchLabels:
+              language: "python"
+          ddTraceVersions:
+            python: "v2"
+          ddTraceConfigs:
+            - name: "DD_PROFILING_ENABLED"
+              value: "true"
+            - name: "DD_DATA_JOBS_ENABLED"
+              value: "true"
+    ```

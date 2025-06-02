@@ -18,6 +18,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -43,9 +43,10 @@ const maxAcceptedInterval = 14400 // 4h
 const providerName = "host"
 
 type host struct {
-	log       log.Component
-	config    config.Component
-	resources resources.Component
+	log          log.Component
+	config       config.Component
+	resources    resources.Component
+	hostnameComp hostnameinterface.Component
 
 	hostname        string
 	collectInterval time.Duration
@@ -66,6 +67,7 @@ type dependencies struct {
 	Config     config.Component
 	Resources  resources.Component
 	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
 }
 
 type provides struct {
@@ -99,11 +101,12 @@ func newHostProvider(deps dependencies) provides {
 		}
 	}
 
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	h := host{
 		log:             deps.Log,
 		config:          deps.Config,
 		resources:       deps.Resources,
+		hostnameComp:    deps.Hostname,
 		hostname:        hname,
 		collectInterval: collectInterval,
 		serializer:      deps.Serializer,
@@ -113,7 +116,8 @@ func newHostProvider(deps dependencies) provides {
 		MetadataProvider: runnerimpl.NewProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
-			Config: h.config,
+			Config:   h.config,
+			Hostname: h.hostnameComp,
 		}),
 		Endpoint:      api.NewAgentEndpointProvider(h.writePayloadAsJSON, "/metadata/v5", "GET"),
 		GohaiEndpoint: api.NewAgentEndpointProvider(h.writeGohaiPayload, "/metadata/gohai", "GET"),
@@ -152,7 +156,7 @@ func (h *host) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (h *host) writeGohaiPayload(w http.ResponseWriter, _ *http.Request) {
-	payload := gohai.GetPayloadWithProcesses(env.IsContainerized())
+	payload := gohai.GetPayloadWithProcesses(h.hostname, h.config.GetBool("metadata_ip_resolution_from_hostname"), env.IsContainerized())
 	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		httputils.SetJSONError(w, h.log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)

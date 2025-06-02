@@ -91,11 +91,23 @@ type ResourceName string
 
 // Resources name
 const (
+	// Kubernetes GPU resource types by vendor as shown below
+	// https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
+	ResourceGenericNvidiaGPU ResourceName = "nvidia.com/gpu"
+	ResourcePrefixNvidiaMIG  ResourceName = "nvidia.com/mig"
+	ResourcePrefixIntelGPU   ResourceName = "gpu.intel.com/"
+	ResourcePrefixAMDGPU     ResourceName = "amd.com/"
+
 	ResourceCPU              ResourceName = "cpu"
 	ResourceMemory           ResourceName = "memory"
 	ResourceStorage          ResourceName = "storage"
 	ResourceEphemeralStorage ResourceName = "ephemeral-storage"
 )
+
+// GetGPUResourceNames returns the list of GPU resource names
+func GetGPUResourceNames() []ResourceName {
+	return []ResourceName{ResourcePrefixNvidiaMIG, ResourceGenericNvidiaGPU, ResourcePrefixIntelGPU, ResourcePrefixAMDGPU}
+}
 
 // ResourceList is the type of fields in Pod.Spec.Containers.Resources
 type ResourceList map[ResourceName]resource.Quantity
@@ -154,6 +166,8 @@ type EnvVar struct {
 	Name string `json:"name"`
 	// Value of the environment variable.
 	Value string `json:"value,omitempty"`
+	// Source of the environment variable.
+	ValueFrom *struct{} `json:"valueFrom,omitempty"`
 }
 
 // VolumeSpec contains fields for unmarshalling a Pod.Spec.Volumes
@@ -208,14 +222,24 @@ type Conditions struct {
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
 type ContainerStatus struct {
-	Name         string         `json:"name"`
-	Image        string         `json:"image"`
-	ImageID      string         `json:"imageID"`
-	ID           string         `json:"containerID"`
-	Ready        bool           `json:"ready"`
-	RestartCount int            `json:"restartCount"`
-	State        ContainerState `json:"state"`
-	LastState    ContainerState `json:"lastState"`
+	Name                       string                       `json:"name"`
+	Image                      string                       `json:"image"`
+	ImageID                    string                       `json:"imageID"`
+	ID                         string                       `json:"containerID"`
+	Ready                      bool                         `json:"ready"`
+	RestartCount               int                          `json:"restartCount"`
+	State                      ContainerState               `json:"state"`
+	LastState                  ContainerState               `json:"lastState"`
+	ResolvedAllocatedResources []ContainerAllocatedResource `json:"resolvedAllocatedResources,omitempty"`
+}
+
+// ContainerAllocatedResource contains the fields for an assigned resource to a container
+type ContainerAllocatedResource struct {
+	// Name is the name of the resource as specified in the spec (e.g. nvidia.com/gpu)
+	Name string `json:"name,omitempty"`
+
+	// ID is the unique ID of that resource. The format will depend on the resource provider
+	ID string `json:"id,omitempty"`
 }
 
 // IsPending returns if the container doesn't have an ID

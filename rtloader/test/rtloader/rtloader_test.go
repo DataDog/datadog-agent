@@ -96,6 +96,57 @@ with open(r'%s', 'w') as f:
 	helpers.AssertMemoryUsage(t)
 }
 
+func TestSysHomeValue(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+import sys
+with open(r'%s', 'w') as f:
+ f.write(sys.prefix)`, tmpfile.Name())
+
+	output, err := runString(code)
+	if err != nil {
+		t.Fatalf("`test_sys_home` error: %v", err)
+	}
+
+	// Check if the path exists and contains Python-related directories
+	if output == "" {
+		t.Errorf("Python home path is empty")
+	}
+
+	// Check if the path contains typical Python installation directories
+	output = strings.ToLower(output)
+	if !strings.Contains(output, "python") && !strings.Contains(output, "miniforge") && !strings.Contains(output, "conda") {
+		t.Errorf("Python home path '%s' does not appear to be a valid Python installation directory", output)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSysUTFValue(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+import sys
+with open(r'%s', 'w') as f:
+ f.write(str(sys.flags.utf8_mode))`, tmpfile.Name())
+
+	output, err := runString(code)
+	if err != nil {
+		t.Fatalf("`test_sys_home` error: %v", err)
+	}
+
+	if output != "1" {
+		t.Errorf("UTF-8 mode is not enabled, got: %s", output)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
 func TestGetError(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
@@ -253,6 +304,71 @@ with open(r'%s', 'w') as f:
 
 	if output != "True" {
 		t.Errorf("Unexpected printed value: '%s'", output)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestGetAttrBool(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	tests := []struct {
+		name    string
+		code    string
+		success bool
+		value   bool
+	}{
+
+		{
+			name: "Test with a True attribute",
+			code: `import fake_check
+fake_check.foo = True`,
+			success: true,
+			value:   true,
+		}, {
+			name: "Test with a False attribute",
+			code: `import fake_check
+fake_check.foo = False`,
+			success: true,
+			value:   false,
+		}, {
+			name: "Test with a non-bool attribute",
+			code: `import fake_check
+fake_check.foo = "bar"`,
+			success: false,
+			value:   false,
+		}, {
+			name: "Test with a None attribute",
+			code: `import fake_check
+fake_check.foo = None`,
+			success: false,
+			value:   false,
+		}, {
+			name:    "Test with a non-existing attribute",
+			code:    `import fake_check`,
+			success: false,
+			value:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := runString(tt.code); err != nil {
+				t.Fatalf("`TestGetAttrBool` error running code for test case: %v", err)
+			}
+
+			res, err := getFakeModuleWithBool()
+
+			if tt.success && err != nil {
+				t.Fatal(err)
+			}
+
+			if res != tt.value {
+				t.Fatalf("Expected %v, got %v", tt.value, res)
+			}
+		})
 	}
 
 	// Check for leaks

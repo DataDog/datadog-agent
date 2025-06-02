@@ -1,0 +1,26 @@
+[Unit]
+{{- if .Stable}}
+Description=Datadog Process Agent
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-exp.service datadog-agent-process-exp.service
+{{- else}}
+Description=Datadog Process Agent Experiment
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent-exp.service
+Conflicts=datadog-agent.service datadog-agent-process.service
+{{- end}}
+
+[Service]
+Type=simple
+PIDFile={{.InstallDir}}/run/process-agent.pid
+User=dd-agent
+Restart=on-failure
+EnvironmentFile=-{{.EtcDir}}/environment
+Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+ExecStart={{.InstallDir}}/embedded/bin/process-agent --cfgpath={{.EtcDir}}/datadog.yaml --sysprobe-config={{.EtcDir}}/system-probe.yaml --pid={{.InstallDir}}/run/process-agent.pid
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

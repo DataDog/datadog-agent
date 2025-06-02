@@ -9,6 +9,7 @@ package builder
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -16,9 +17,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	vpaclientset "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	apiwatch "k8s.io/apimachinery/pkg/watch"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	ksmbuild "k8s.io/kube-state-metrics/v2/pkg/builder"
 	ksmtypes "k8s.io/kube-state-metrics/v2/pkg/builder/types"
@@ -39,7 +44,6 @@ type Builder struct {
 
 	customResourceClients map[string]interface{}
 	kubeClient            clientset.Interface
-	vpaClient             vpaclientset.Interface
 	namespaces            options.NamespaceList
 	fieldSelectorFilter   string
 	ctx                   context.Context
@@ -91,12 +95,6 @@ func (b *Builder) WithCustomResourceClients(clients map[string]interface{}) {
 	b.ksmBuilder.WithCustomResourceClients(clients)
 }
 
-// WithVPAClient sets the vpaClient property of a Builder so that the verticalpodautoscaler collector can query VPA objects.
-func (b *Builder) WithVPAClient(c vpaclientset.Interface) {
-	b.vpaClient = c
-	b.ksmBuilder.WithVPAClient(c)
-}
-
 // WithMetrics sets the metrics property of a Builder.
 func (b *Builder) WithMetrics(r prometheus.Registerer) {
 	b.ksmBuilder.WithMetrics(r)
@@ -136,7 +134,7 @@ func (b *Builder) WithAllowLabels(l map[string][]string) error {
 
 // WithAllowAnnotations configures which annotations can be returned for metrics
 func (b *Builder) WithAllowAnnotations(l map[string][]string) {
-	b.ksmBuilder.WithAllowAnnotations(l)
+	_ = b.ksmBuilder.WithAllowAnnotations(l)
 }
 
 // WithPodCollectionFromKubelet configures the builder to collect pods from the
@@ -198,15 +196,29 @@ func GenerateStores[T any](
 	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
 
+	isPod := false
+	if _, ok := expectedType.(*corev1.Pod); ok {
+		isPod = true
+	} else if u, ok := expectedType.(*unstructured.Unstructured); ok {
+		isPod = u.GetAPIVersion() == "v1" && u.GetKind() == "Pod"
+	} else if _, ok := expectedType.(*corev1.ConfigMap); ok {
+		configMapStore, err := generateConfigMapStores(b, metricFamilies, useAPIServerCache)
+		if err != nil {
+			log.Debugf("Defaulting to kube-state-metrics for configmap collection: %v", err)
+		} else {
+			log.Debug("Using meta.k8s.io API for configmap collection")
+			return configMapStore
+		}
+	}
+
 	if b.namespaces.IsAllNamespaces() {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
 
-		switch expectedType.(type) {
-		// Pods are handled differently because depending on the configuration
-		// they're collected from the API server or the Kubelet.
-		case *corev1.Pod:
+		if isPod {
+			// Pods are handled differently because depending on the configuration
+			// they're collected from the API server or the Kubelet.
 			handlePodCollection(b, store, client, listWatchFunc, corev1.NamespaceAll, useAPIServerCache)
-		default:
+		} else {
 			listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
 			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
 		}
@@ -217,12 +229,11 @@ func GenerateStores[T any](
 	stores := make([]cache.Store, 0, len(b.namespaces))
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
-		switch expectedType.(type) {
-		// Pods are handled differently because depending on the configuration
-		// they're collected from the API server or the Kubelet.
-		case *corev1.Pod:
+		if isPod {
+			// Pods are handled differently because depending on the configuration
+			// they're collected from the API server or the Kubelet.
 			handlePodCollection(b, store, client, listWatchFunc, ns, useAPIServerCache)
-		default:
+		} else {
 			listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
 			b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
 		}
@@ -341,4 +352,102 @@ func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWat
 
 	listWatcher := listWatchFunc(client, namespace, fieldSelector)
 	b.startReflector(&corev1.Pod{}, store, listWatcher, useAPIServerCache)
+}
+
+func generateConfigMapStores(
+	b *Builder,
+	metricFamilies []generator.FamilyGenerator,
+	useAPIServerCache bool,
+) ([]cache.Store, error) {
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create in-cluster config for metadata client: %w", err)
+	}
+
+	metadataClient, err := metadata.NewForConfig(restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metadata client: %w", err)
+	}
+
+	gvr := schema.GroupVersionResource{
+		Group:    "",
+		Version:  "v1",
+		Resource: "configmaps",
+	}
+
+	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
+	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
+
+	stores := make([]cache.Store, 0)
+
+	if b.namespaces.IsAllNamespaces() {
+		log.Infof("Using NamespaceAll for ConfigMap collection.")
+		store := store.NewMetricsStore(composedMetricGenFuncs, "configmap")
+		listWatcher := createConfigMapListWatch(metadataClient, gvr, v1.NamespaceAll)
+		b.startReflector(&corev1.ConfigMap{}, store, listWatcher, useAPIServerCache)
+		return []cache.Store{store}, nil
+	}
+
+	for _, ns := range b.namespaces {
+		store := store.NewMetricsStore(composedMetricGenFuncs, "configmap")
+		listWatcher := createConfigMapListWatch(metadataClient, gvr, ns)
+		b.startReflector(&corev1.ConfigMap{}, store, listWatcher, useAPIServerCache)
+		stores = append(stores, store)
+	}
+
+	return stores, nil
+}
+
+func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.GroupVersionResource, namespace string) *cache.ListWatch {
+	return &cache.ListWatch{
+		ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
+			result, err := metadataClient.Resource(gvr).Namespace(namespace).List(context.TODO(), options)
+			if err != nil {
+				return nil, err
+			}
+
+			configMapList := &corev1.ConfigMapList{}
+			for _, item := range result.Items {
+				configMapList.Items = append(configMapList.Items, corev1.ConfigMap{
+					ObjectMeta: v1.ObjectMeta{
+						Name:            item.GetName(),
+						Namespace:       item.GetNamespace(),
+						UID:             item.GetUID(),
+						ResourceVersion: item.GetResourceVersion(),
+					},
+				})
+			}
+
+			return configMapList, nil
+		},
+		WatchFunc: func(options v1.ListOptions) (apiwatch.Interface, error) {
+			watcher, err := metadataClient.Resource(gvr).Namespace(namespace).Watch(context.TODO(), options)
+			if err != nil {
+				return nil, err
+			}
+
+			return apiwatch.Filter(watcher, func(event apiwatch.Event) (apiwatch.Event, bool) {
+				if event.Object == nil {
+					return event, false
+				}
+
+				partialObject, ok := event.Object.(*v1.PartialObjectMetadata)
+				if !ok {
+					return event, false
+				}
+
+				configMap := &corev1.ConfigMap{
+					ObjectMeta: v1.ObjectMeta{
+						Name:            partialObject.GetName(),
+						Namespace:       partialObject.GetNamespace(),
+						UID:             partialObject.GetUID(),
+						ResourceVersion: partialObject.GetResourceVersion(),
+					},
+				}
+
+				event.Object = configMap
+				return event, true
+			}), nil
+		},
+	}
 }

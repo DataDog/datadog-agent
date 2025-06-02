@@ -154,7 +154,7 @@ var (
 		},
 	}
 
-	// ProcessSymlinkBasename handles symlink for process enrtries
+	// ProcessSymlinkBasename handles symlink for process entries
 	ProcessSymlinkBasename = &eval.OpOverrides{
 		StringEquals: func(a *eval.StringEvaluator, b *eval.StringEvaluator, state *eval.State) (*eval.BoolEvaluator, error) {
 			path, err := eval.StringEquals(a, b, state)

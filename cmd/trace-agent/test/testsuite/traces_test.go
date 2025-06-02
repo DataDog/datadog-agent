@@ -6,6 +6,8 @@
 package testsuite
 
 import (
+	_ "embed"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +22,9 @@ import (
 
 // create a new config to access default config values
 var defaultAgentConfig = config.New()
+
+//go:embed testdata/v04SpanEvents.msgp
+var rubySpanEventsPayload []byte
 
 func TestTraces(t *testing.T) {
 	var r test.Runner
@@ -41,7 +46,7 @@ func TestTraces(t *testing.T) {
 		p := testutil.GeneratePayload(10, &testutil.TraceConfig{
 			MinSpans: 10,
 			Keep:     true,
-		}, nil)
+		}, &testutil.SpanConfig{NumSpanEvents: 1})
 		if err := r.Post(p); err != nil {
 			t.Fatal(err)
 		}
@@ -97,7 +102,7 @@ func TestTraces(t *testing.T) {
 			t.Fatal(err)
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
-			payloadsEqual(t, append(p[:2], p[3:]...), v)
+			payloadsEqual(t, slices.Delete(p, 2, 3), v)
 		})
 	})
 
@@ -184,6 +189,34 @@ func TestTraces(t *testing.T) {
 		})
 	})
 
+	t.Run("normalize, obfuscate, sqllexer", func(t *testing.T) {
+		if err := r.RunAgent([]byte("apm_config:\r\n  features:[\"sqllexer\"]\r\n")); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
+
+		p := testutil.GeneratePayload(1, &testutil.TraceConfig{
+			MinSpans: 4,
+			Keep:     true,
+		}, nil)
+		for _, span := range p[0] {
+			span.Service = strings.Repeat("a", 200) // Too long
+			span.Name = strings.Repeat("b", 200)    // Too long
+		}
+		p[0][0].Type = "sql"
+		p[0][0].Resource = "SELECT secret FROM users WHERE id = 123"
+		if err := r.Post(p); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			assert.Equal(t, "SELECT secret FROM users WHERE id = ?", v.TracerPayloads[0].Chunks[0].Spans[0].Resource)
+			for _, s := range v.TracerPayloads[0].Chunks[0].Spans {
+				assert.Len(t, s.Service, 100)
+				assert.Len(t, s.Name, 100)
+			}
+		})
+	})
+
 	t.Run("probabilistic", func(t *testing.T) {
 		if err := r.RunAgent([]byte("apm_config:\r\n  probabilistic_sampler:\r\n    enabled: true\r\n    sampling_percentage: 100\r\n")); err != nil {
 			t.Fatal(err)
@@ -199,6 +232,26 @@ func TestTraces(t *testing.T) {
 		}
 		waitForTrace(t, &r, func(v *pb.AgentPayload) {
 			payloadsEqual(t, p, v)
+		})
+	})
+
+	t.Run("ruby-span-events", func(t *testing.T) {
+		if err := r.RunAgent([]byte("apm_config:\r\n  env: my-env")); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
+
+		if err := r.PostBinary("/v0.4/traces", rubySpanEventsPayload); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			assert.Len(t, v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents, 1)
+			spanEvent := v.TracerPayloads[0].Chunks[0].Spans[0].SpanEvents[0]
+			assert.Equal(t, "event-name", spanEvent.Name)
+			assert.NotZero(t, spanEvent.TimeUnixNano)
+			assert.Len(t, spanEvent.Attributes, 1)
+			assert.Equal(t, pb.AttributeAnyValue_AttributeAnyValueType(0), spanEvent.Attributes["key"].Type)
+			assert.Equal(t, "value", spanEvent.Attributes["key"].StringValue)
 		})
 	})
 }
@@ -273,6 +326,15 @@ func spansEqual(s1, s2 *pb.Span) bool {
 	}
 	for k := range s1.Metrics {
 		if _, ok := s2.Metrics[k]; !ok {
+			return false
+		}
+	}
+	if len(s1.SpanEvents) != len(s2.SpanEvents) {
+		return false
+	}
+	for i, se := range s1.SpanEvents {
+		if se.Name != s2.SpanEvents[i].Name ||
+			se.TimeUnixNano != s2.SpanEvents[i].TimeUnixNano {
 			return false
 		}
 	}

@@ -49,6 +49,11 @@ func TestLink(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("link", ifSyscallSupported("SYS_LINK", func(t *testing.T, syscallNB uintptr) {
 		test.WaitSignal(t, func() error {
 			_, _, errno := syscall.Syscall(syscallNB, uintptr(testOldFilePtr), uintptr(testNewFilePtr), 0)
@@ -56,7 +61,7 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assertInode(t, getInode(t, testNewFile), event.Link.Source.Inode)
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -86,7 +91,7 @@ func TestLink(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assertInode(t, getInode(t, testNewFile), event.Link.Source.Inode)
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -145,7 +150,7 @@ func TestLink(t *testing.T) {
 				return fmt.Errorf("failed to create a link with io_uring: %d", ret)
 			}
 			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "link", event.GetType(), "wrong event type")
 			assert.Equal(t, getInode(t, testNewFile), event.Link.Source.Inode, "wrong inode")
 			assertRights(t, event.Link.Source.Mode, uint16(expectedMode))
@@ -158,10 +163,6 @@ func TestLink(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})

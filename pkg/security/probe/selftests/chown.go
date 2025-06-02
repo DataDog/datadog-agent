@@ -9,6 +9,7 @@
 package selftests
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"os/user"
@@ -32,11 +33,12 @@ func (o *ChownSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
 		Expression: fmt.Sprintf(`chown.file.path == "%s"`, o.filename),
+		Silent:     true,
 	}
 }
 
 // GenerateEvent generate an event
-func (o *ChownSelfTest) GenerateEvent() error {
+func (o *ChownSelfTest) GenerateEvent(ctx context.Context) error {
 	o.isSuccess = false
 
 	// we need to use chown (or any other external program) as our PID is discarded by probes
@@ -47,7 +49,7 @@ func (o *ChownSelfTest) GenerateEvent() error {
 		return err
 	}
 
-	cmd := exec.Command("chown", currentUser.Uid, o.filename)
+	cmd := exec.CommandContext(ctx, "chown", currentUser.Uid, o.filename)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running chown: %v", err)
 		return err

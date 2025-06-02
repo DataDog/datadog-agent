@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -66,7 +65,7 @@ type KubeEndpointService struct {
 var _ Service = &KubeEndpointService{}
 
 // NewKubeEndpointsListener returns the kube endpoints implementation of the ServiceListener interface
-func NewKubeEndpointsListener(conf Config, telemetryStore *telemetry.Store) (ServiceListener, error) {
+func NewKubeEndpointsListener(options ServiceListernerDeps) (ServiceListener, error) {
 	// Using GetAPIClient (no wait) as Client should already be initialized by Cluster Agent main entrypoint before
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -83,10 +82,7 @@ func NewKubeEndpointsListener(conf Config, telemetryStore *telemetry.Store) (Ser
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
-	containerFilters, err := newContainerFilters()
-	if err != nil {
-		return nil, err
-	}
+	containerFilters := newContainerFilters()
 
 	return &KubeEndpointsListener{
 		endpoints:          make(map[k8stypes.UID][]*KubeEndpointService),
@@ -95,9 +91,9 @@ func NewKubeEndpointsListener(conf Config, telemetryStore *telemetry.Store) (Ser
 		serviceInformer:    serviceInformer,
 		serviceLister:      serviceInformer.Lister(),
 		promInclAnnot:      getPrometheusIncludeAnnotations(),
-		targetAllEndpoints: conf.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
+		targetAllEndpoints: options.Config.IsProviderEnabled(names.KubeEndpointsFileRegisterName),
 		containerFilters:   containerFilters,
-		telemetryStore:     telemetryStore,
+		telemetryStore:     options.Telemetry,
 	}, nil
 }
 
@@ -454,12 +450,12 @@ func (s *KubeEndpointService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeEndpointService) GetADIdentifiers(context.Context) ([]string, error) {
-	return []string{s.entity}, nil
+func (s *KubeEndpointService) GetADIdentifiers() []string {
+	return []string{s.entity}
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeEndpointService) GetHosts(context.Context) (map[string]string, error) {
+func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
 	if s.hosts == nil {
 		return map[string]string{}, nil
 	}
@@ -467,12 +463,12 @@ func (s *KubeEndpointService) GetHosts(context.Context) (map[string]string, erro
 }
 
 // GetPid is not supported
-func (s *KubeEndpointService) GetPid(context.Context) (int, error) {
+func (s *KubeEndpointService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the endpoint's ports
-func (s *KubeEndpointService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
 	if s.ports == nil {
 		return []ContainerPort{}, nil
 	}
@@ -487,13 +483,18 @@ func (s *KubeEndpointService) GetTags() ([]string, error) {
 	return s.tags, nil
 }
 
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *KubeEndpointService) GetTagsWithCardinality(_ string) ([]string, error) {
+	return s.GetTags()
+}
+
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeEndpointService) GetHostname(context.Context) (string, error) {
+func (s *KubeEndpointService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
 // IsReady returns if the service is ready
-func (s *KubeEndpointService) IsReady(context.Context) bool {
+func (s *KubeEndpointService) IsReady() bool {
 	return true
 }
 
@@ -511,9 +512,7 @@ func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
+func (s *KubeEndpointService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 

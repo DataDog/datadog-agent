@@ -1,0 +1,33 @@
+---
+name: "PR complexity label"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - "[0-9]+.[0-9]+.x"
+  pull_request_review_comment:
+    types: [created, deleted]
+
+permissions: {}
+jobs:
+  codereview-complexity:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Check code review complexity
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: dda inv -- -e github.assign-codereview-label --pr-id="$PR_NUMBER"

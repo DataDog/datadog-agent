@@ -12,8 +12,13 @@ import (
 	"strings"
 	"time"
 
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
@@ -22,10 +27,6 @@ import (
 	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/pkg-manager"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/process"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 
 	"testing"
 )
@@ -34,7 +35,8 @@ type tHelper interface {
 	Helper()
 }
 
-func getServiceManager(host *components.RemoteHost) svcmanager.ServiceManager {
+// GetServiceManager returns the service manager for the host
+func GetServiceManager(host *components.RemoteHost) svcmanager.ServiceManager {
 	if _, err := host.Execute("command -v systemctl"); err == nil {
 		return svcmanager.NewSystemctl(host)
 	}
@@ -77,7 +79,7 @@ type TestClient struct {
 
 // NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
 func NewTestClient(host *components.RemoteHost, agentClient agentclient.Agent, fileManager filemanager.FileManager, helper helpers.Helper) *TestClient {
-	svcManager := getServiceManager(host)
+	svcManager := GetServiceManager(host)
 	pkgManager := getPackageManager(host)
 	return &TestClient{
 		Host:        host,
@@ -181,7 +183,7 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 }
 
 // NewWindowsTestClient create a TestClient for Windows VM
-func NewWindowsTestClient(context e2e.Context, host *components.RemoteHost) *TestClient {
+func NewWindowsTestClient(context common.Context, host *components.RemoteHost) *TestClient {
 	fileManager := filemanager.NewRemoteHost(host)
 	t := context.T()
 

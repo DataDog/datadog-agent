@@ -63,7 +63,7 @@ func (h *testServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func testServer(t *testing.T, testFile string) *httptest.Server {
 	t.Helper()
-	server := httptest.NewServer(&testServerHandler{t: t, testFile: testFile})
+	server := httptest.NewTLSServer(&testServerHandler{t: t, testFile: testFile})
 	t.Logf("test server (serving fake yet valid data) listening on %s", server.URL)
 	return server
 }
@@ -94,7 +94,7 @@ func (h *testServerWarningHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 }
 
 func testServerWarning(t *testing.T) *httptest.Server {
-	server := httptest.NewServer(&testServerWarningHandler{t: t})
+	server := httptest.NewTLSServer(&testServerWarningHandler{t: t})
 	t.Logf("test server (serving data containing worrying values) listening on %s", server.URL)
 	return server
 }
@@ -119,7 +119,7 @@ func (h *testServerErrorHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 }
 
 func testServerError(t *testing.T) *httptest.Server {
-	server := httptest.NewServer(&testServerErrorHandler{t: t})
+	server := httptest.NewTLSServer(&testServerErrorHandler{t: t})
 	t.Logf("test server (serving bad data to trigger errors) listening on %s", server.URL)
 	return server
 }
@@ -331,7 +331,7 @@ func TestError(t *testing.T) {
 	assert.Equal(len(lines[1]), len(lines[2]))
 	assert.Equal("", lines[3])
 	assert.Regexp(regexp.MustCompile(`^  Error: .*$`), lines[4])
-	assert.Equal(fmt.Sprintf("  URL: http://127.0.0.1:%d/debug/vars", port), lines[5])
+	assert.Equal(fmt.Sprintf("  URL: https://127.0.0.1:%d/debug/vars", port), lines[5])
 	assert.Equal("", lines[6])
 	assert.Equal("", lines[7])
 }
@@ -340,8 +340,6 @@ func TestInfoReceiverStats(t *testing.T) {
 	assert := assert.New(t)
 	conf := testInit(t)
 	assert.NotNil(conf)
-
-	assert.NotNil(publishReceiverStats())
 
 	stats := NewReceiverStats()
 	t1 := &TagStats{
@@ -438,6 +436,7 @@ func TestInfoConfig(t *testing.T) {
 	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
 
 	conf.ContainerTags = nil
+	conf.ContainerIDFromOriginInfo = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
 }
@@ -450,7 +449,7 @@ func TestPublishUptime(t *testing.T) {
 }
 
 func TestPublishReceiverStats(t *testing.T) {
-	receiverStats = []TagStats{{
+	ift.receiverStats = []TagStats{{
 		Tags: Tags{
 			Lang:    "go",
 			Service: "service",
@@ -483,6 +482,8 @@ func TestPublishReceiverStats(t *testing.T) {
 				atom(12),
 				atom(13),
 				atom(14),
+				atom(15),
+				atom(16),
 			},
 			TracesFiltered:     atom(4),
 			TracesPriorityNone: atom(5),
@@ -531,14 +532,16 @@ func TestPublishReceiverStats(t *testing.T) {
 				"ServiceInvalid":        4.0,
 				"PeerServiceTruncate":   5.0,
 				"PeerServiceInvalid":    6.0,
-				"SpanNameEmpty":         7.0,
-				"SpanNameTruncate":      8.0,
-				"SpanNameInvalid":       9.0,
-				"ResourceEmpty":         10.0,
-				"TypeTruncate":          11.0,
-				"InvalidStartDate":      12.0,
-				"InvalidDuration":       13.0,
-				"InvalidHTTPStatusCode": 14.0,
+				"BaseServiceTruncate":   7.0,
+				"BaseServiceInvalid":    8.0,
+				"SpanNameEmpty":         9.0,
+				"SpanNameTruncate":      10.0,
+				"SpanNameInvalid":       11.0,
+				"ResourceEmpty":         12.0,
+				"TypeTruncate":          13.0,
+				"InvalidStartDate":      14.0,
+				"InvalidDuration":       15.0,
+				"InvalidHTTPStatusCode": 16.0,
 			},
 			"SpansReceived": 10.0,
 			"TracerVersion": "",
@@ -562,7 +565,7 @@ func TestPublishReceiverStats(t *testing.T) {
 }
 
 func TestPublishWatchdogInfo(t *testing.T) {
-	watchdogInfo = watchdog.Info{
+	ift.watchdogInfo = watchdog.Info{
 		CPU: watchdog.CPUInfo{UserAvg: 1.2},
 		Mem: watchdog.MemInfo{Alloc: 1000},
 	}

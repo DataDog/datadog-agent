@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,44 +39,50 @@ func TestRemovePathIfPresent(t *testing.T) {
 func TestKeysPerDomain(t *testing.T) {
 	for _, tt := range []struct {
 		input    []Endpoint
-		expected map[string][]string
+		expected map[string][]utils.APIKeys
 	}{
 		{
 			input: []Endpoint{
-				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com")},
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path"},
 			},
-			expected: map[string][]string{
-				"http://foo.com": {"key1"},
-			},
-		},
-		{
-			input: []Endpoint{
-				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com")},
-				{APIKey: "key2", Endpoint: getEndpoint(t, "http://foo.com")},
-			},
-			expected: map[string][]string{
-				"http://foo.com": {"key1", "key2"},
+			expected: map[string][]utils.APIKeys{
+				"http://foo.com": {utils.NewAPIKeys("path", "key1")},
 			},
 		},
 		{
 			input: []Endpoint{
-				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com")},
-				{APIKey: "key2", Endpoint: getEndpoint(t, "http://bar.com")},
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path1"},
+				{APIKey: "key2", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path2"},
 			},
-			expected: map[string][]string{
-				"http://foo.com": {"key1"},
-				"http://bar.com": {"key2"},
+			expected: map[string][]utils.APIKeys{
+				"http://foo.com": {
+					utils.NewAPIKeys("path1", "key1"),
+					utils.NewAPIKeys("path2", "key2"),
+				},
 			},
 		},
 		{
 			input: []Endpoint{
-				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com")},
-				{APIKey: "key2", Endpoint: getEndpoint(t, "http://bar.com")},
-				{APIKey: "key3", Endpoint: getEndpoint(t, "http://foo.com")},
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path1"},
+				{APIKey: "key2", Endpoint: getEndpoint(t, "http://bar.com"), ConfigSettingPath: "path2"},
 			},
-			expected: map[string][]string{
-				"http://foo.com": {"key1", "key3"},
-				"http://bar.com": {"key2"},
+			expected: map[string][]utils.APIKeys{
+				"http://foo.com": {utils.NewAPIKeys("path1", "key1")},
+				"http://bar.com": {utils.NewAPIKeys("path2", "key2")},
+			},
+		},
+		{
+			input: []Endpoint{
+				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path1"},
+				{APIKey: "key2", Endpoint: getEndpoint(t, "http://bar.com"), ConfigSettingPath: "path2"},
+				{APIKey: "key3", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path3"},
+			},
+			expected: map[string][]utils.APIKeys{
+				"http://foo.com": {
+					utils.NewAPIKeys("path1", "key1"),
+					utils.NewAPIKeys("path3", "key3"),
+				},
+				"http://bar.com": {utils.NewAPIKeys("path2", "key2")},
 			},
 		},
 	} {

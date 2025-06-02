@@ -9,7 +9,6 @@ package otlp
 
 import (
 	"context"
-	"runtime"
 	"testing"
 	"time"
 
@@ -17,25 +16,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 
 func TestGetComponents(t *testing.T) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
-	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	_, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService())
 	// No duplicate component
 	require.NoError(t, err)
 }
 
 func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
-	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService())
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -60,9 +60,9 @@ func AssertSucessfulRun(t *testing.T, pcfg PipelineConfig) {
 }
 
 func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
-	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	p, err := NewPipeline(pcfg, serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService())
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -71,26 +71,16 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 }
 
 func TestStartPipeline(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
+	cfg := pkgconfigmock.New(t)
+	cfg.SetWithoutSource("hostname", "otlp-testhostname")
 
 	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
-	defer pkgconfigsetup.Datadog().SetWithoutSource("hostname", "")
-
-	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
-	if runtime.GOOS == "windows" {
-		t.Skip("Skip on Windows, see AP-1723 for details")
-	}
-
-	// TODO (AP-1723): Update Collector to version 0.55 before re-enabling.
-	if runtime.GOOS == "darwin" {
-		t.Skip("Skip on macOS, see AP-1723 for details")
-	}
+	cfg := pkgconfigmock.New(t)
+	cfg.SetWithoutSource("hostname", "otlp-testhostname")
 
 	tests := []struct {
 		path string
@@ -110,7 +100,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 
 	for _, testInstance := range tests {
 		t.Run(testInstance.path, func(t *testing.T) {
-			cfg, err := testutil.LoadConfig("./testdata/" + testInstance.path)
+			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
 			pcfg, err := FromAgentConfig(cfg)
 			require.NoError(t, err)

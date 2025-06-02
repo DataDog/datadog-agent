@@ -49,6 +49,11 @@ func TestOpen(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	testFile, testFilePtr, err := test.Path("test-open")
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +73,7 @@ func TestOpen(t *testing.T) {
 				return error(errno)
 			}
 			return syscall.Close(int(fd))
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0755)
@@ -91,7 +96,7 @@ func TestOpen(t *testing.T) {
 				return error(errno)
 			}
 			return syscall.Close(int(fd))
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
@@ -119,7 +124,7 @@ func TestOpen(t *testing.T) {
 				return error(errno)
 			}
 			return syscall.Close(int(fd))
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
@@ -139,7 +144,7 @@ func TestOpen(t *testing.T) {
 				return error(errno)
 			}
 			return syscall.Close(int(fd))
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assertRights(t, uint16(event.Open.Mode), 0711)
@@ -175,7 +180,7 @@ func TestOpen(t *testing.T) {
 				return error(errno)
 			}
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assert.Equal(t, getInode(t, testFileTrunc), event.Open.File.Inode, "wrong inode")
@@ -215,7 +220,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC, int(event.Open.Flags), "wrong flags")
 			assert.Equal(t, getInode(t, testFileTrunc), event.Open.File.Inode, "wrong inode")
@@ -235,7 +240,7 @@ func TestOpen(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 		})
 
@@ -261,7 +266,7 @@ func TestOpen(t *testing.T) {
 				return fmt.Errorf("OpenByHandleAt: %w", err)
 			}
 			return unix.Close(fdInt)
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags), "wrong flags")
 			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
@@ -281,7 +286,7 @@ func TestOpen(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 		})
 		if err != nil {
@@ -324,7 +329,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			return unix.Close(fd)
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			// O_LARGEFILE is added by io_uring during __io_openat_prep
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
@@ -334,10 +339,6 @@ func TestOpen(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 
@@ -366,7 +367,7 @@ func TestOpen(t *testing.T) {
 			}
 
 			return unix.Close(fd)
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			// O_LARGEFILE is added by io_uring during __io_openat_prep
 			assert.Equal(t, syscall.O_CREAT, int(event.Open.Flags&0xfff), "wrong flags")
@@ -376,10 +377,6 @@ func TestOpen(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})
@@ -419,7 +416,7 @@ func TestOpenMetadata(t *testing.T) {
 				return err
 			}
 			return f.Close()
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assertRights(t, event.Open.File.Mode, expectedMode)
 			assertInode(t, event.Open.File.Inode, getInode(t, testFile))
@@ -466,7 +463,7 @@ func TestOpenDiscarded(t *testing.T) {
 				return err
 			}
 			return unix.Close(fd)
-		}, func(e *model.Event, r *rules.Rule) {
+		}, func(_ *model.Event, _ *rules.Rule) {
 			t.Error("shouldn't have received an event")
 		})
 		if err == nil {
@@ -515,7 +512,7 @@ func TestOpenApproverZero(t *testing.T) {
 			return error(errno)
 		}
 		return syscall.Close(int(fd))
-	}, func(event *model.Event, r *rules.Rule) {
+	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "open", event.GetType(), "wrong event type")
 		assert.Equal(t, 0, int(event.Open.Flags), "wrong flags")
 		value, _ := event.GetFieldValue("event.async")

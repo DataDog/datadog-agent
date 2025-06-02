@@ -93,6 +93,7 @@ func TestPull(t *testing.T) {
 						},
 					},
 				},
+				RestartCount: 1,
 			},
 		},
 		{
@@ -145,6 +146,7 @@ func TestPull(t *testing.T) {
 						},
 					},
 				},
+				RestartCount: 1,
 			},
 		},
 	}
@@ -200,6 +202,7 @@ func TestPull(t *testing.T) {
 					CreatedAt: startTime,
 					StartedAt: startTime,
 				},
+				RestartCount: 1,
 			},
 		},
 		{
@@ -249,6 +252,7 @@ func TestPull(t *testing.T) {
 					CreatedAt: startTime,
 					StartedAt: startTime,
 				},
+				RestartCount: 1,
 			},
 		},
 	}

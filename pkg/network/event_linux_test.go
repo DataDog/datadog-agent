@@ -29,12 +29,12 @@ func TestKeyTuplesFromConn(t *testing.T) {
 	destinationAddress := util.AddressFromString("5.6.7.8")
 	destinationPort := uint16(5678)
 
-	connectionStats := ConnectionStats{
+	connectionStats := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: sourceAddress,
 		SPort:  sourcePort,
 		Dest:   destinationAddress,
 		DPort:  destinationPort,
-	}
+	}}
 	keyTuples := ConnectionKeysFromConnectionStats(connectionStats)
 
 	assert.Len(t, keyTuples, 2, "Expected different number of key tuples")
@@ -65,11 +65,12 @@ func TestKeyTuplesFromConnNAT(t *testing.T) {
 	natDestinationAddress := util.AddressFromString("50.60.70.80")
 	natDestinationPort := uint16(8765)
 
-	connectionStats := ConnectionStats{
+	connectionStats := ConnectionStats{ConnectionTuple: ConnectionTuple{
 		Source: sourceAddress,
 		Dest:   destinationAddress,
 		SPort:  sourcePort,
 		DPort:  destinationPort,
+	},
 		IPTranslation: &IPTranslation{
 			ReplSrcIP:   natSourceAddress,
 			ReplDstIP:   natDestinationAddress,

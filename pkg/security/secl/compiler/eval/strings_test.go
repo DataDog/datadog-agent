@@ -260,17 +260,35 @@ func TestRegexp(t *testing.T) {
 }
 
 func BenchmarkRegexpEvaluator(b *testing.B) {
-	pattern := ".*(restore|recovery|readme|instruction|how_to|ransom).*"
+	b.Run("with stars", func(b *testing.B) {
+		pattern := ".*(restore|recovery|readme|instruction|how_to|ransom).*"
 
-	var matcher RegexpStringMatcher
-	if err := matcher.Compile(pattern, false); err != nil {
-		b.Fatal(err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		if !matcher.Matches("123ransom456.txt") {
-			b.Fatal("unexpected result")
+		var matcher RegexpStringMatcher
+		if err := matcher.Compile(pattern, false); err != nil {
+			b.Fatal(err)
 		}
-	}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if !matcher.Matches("123ransom456.txt") {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
+
+	b.Run("without stars", func(b *testing.B) {
+		pattern := "(restore|recovery|readme|instruction|how_to|ransom)"
+
+		var matcher RegexpStringMatcher
+		if err := matcher.Compile(pattern, false); err != nil {
+			b.Fatal(err)
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if !matcher.Matches("123ransom456.txt") {
+				b.Fatal("unexpected result")
+			}
+		}
+	})
 }

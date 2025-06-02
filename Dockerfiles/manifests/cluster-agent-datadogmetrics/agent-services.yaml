@@ -23,7 +23,7 @@ metadata:
   namespace: default
   labels:
     app: "datadog"
-    chart: "datadog-3.49.6"
+    chart: "datadog-3.79.0"
     release: "datadog"
     heritage: "Helm"
 spec:
@@ -43,7 +43,7 @@ metadata:
   namespace: default
   labels:
     app: "datadog"
-    chart: "datadog-3.49.6"
+    chart: "datadog-3.79.0"
     release: "datadog"
     heritage: "Helm"
 spec:
@@ -63,7 +63,7 @@ metadata:
   namespace: default
   labels:
     app: "datadog"
-    chart: "datadog-3.49.6"
+    chart: "datadog-3.79.0"
     release: "datadog"
     heritage: "Helm"
 spec:

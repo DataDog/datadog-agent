@@ -6,11 +6,16 @@
 package assertions
 
 import (
+	"fmt"
+	"io/fs"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"io/fs"
 )
 
 const (
@@ -99,11 +104,16 @@ func (r *RemoteWindowsHostAssertions) NoFileExists(path string, msgAndArgs ...in
 // service running.
 func (r *RemoteWindowsHostAssertions) HasARunningDatadogAgentService() *RemoteWindowsBinaryAssertions {
 	r.suite.T().Helper()
-	r.FileExists(defaultAgentBinPath)
+
+	installPath, err := windowsagent.GetInstallPathFromRegistry(r.remoteHost)
+	r.require.NoError(err)
+	binPath := installPath + `\bin\agent.exe`
+	r.FileExists(binPath)
+
 	r.HasAService("datadogagent").WithStatus("Running")
 	return &RemoteWindowsBinaryAssertions{
 		RemoteWindowsHostAssertions: r,
-		binaryPath:                  defaultAgentBinPath,
+		binaryPath:                  binPath,
 	}
 }
 
@@ -148,4 +158,73 @@ func (r *RemoteWindowsHostAssertions) HasNoRegistryKey(key string) *RemoteWindow
 	r.require.NoError(err)
 	r.require.False(exists)
 	return r
+}
+
+// HasNamedPipe checks if a named pipe exists on the remote host
+func (r *RemoteWindowsHostAssertions) HasNamedPipe(pipeName string) *RemoteWindowsNamedPipeAssertions {
+	r.suite.T().Helper()
+
+	cmd := fmt.Sprintf("Test-Path '%s'", pipeName)
+	out, err := r.remoteHost.Execute(cmd)
+	r.require.NoError(err)
+	out = strings.TrimSpace(out)
+	r.require.Equal("True", out)
+
+	return &RemoteWindowsNamedPipeAssertions{
+		RemoteWindowsHostAssertions: r,
+		pipename:                    pipeName,
+	}
+}
+
+// HasNoNamedPipe checks if a named pipe does not exist on the remote host
+func (r *RemoteWindowsHostAssertions) HasNoNamedPipe(pipeName string) *RemoteWindowsHostAssertions {
+	r.suite.T().Helper()
+
+	cmd := fmt.Sprintf("Test-Path '%s'", pipeName)
+	out, err := r.remoteHost.Execute(cmd)
+	r.require.NoError(err)
+	out = strings.TrimSpace(out)
+	r.require.Equal("False", out)
+
+	return r
+}
+
+// HasARunningDatadogInstallerService verifies that the Datadog Installer service is installed and correctly configured.
+func (r *RemoteWindowsHostAssertions) HasARunningDatadogInstallerService() *RemoteWindowsHostAssertions {
+	r.suite.T().Helper()
+
+	r.HasAService(consts.ServiceName).
+		WithStatus("Running").
+		HasNamedPipe(consts.NamedPipe).
+		WithSecurity(
+			// Only accessible to Administrators and LocalSystem
+			common.NewProtectedSecurityInfo(
+				common.GetIdentityForSID(common.AdministratorsSID),
+				common.GetIdentityForSID(common.LocalSystemSID),
+				[]common.AccessRule{
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.LocalSystemSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+					common.NewExplicitAccessRule(
+						common.GetIdentityForSID(common.AdministratorsSID),
+						common.FileFullControl,
+						common.AccessControlTypeAllow,
+					),
+				},
+			))
+	return r
+}
+
+// HasDatadogInstaller verifies that the Datadog Installer is installed on the remote host.
+func (r *RemoteWindowsHostAssertions) HasDatadogInstaller() *RemoteWindowsInstallerAssertions {
+	r.suite.T().Helper()
+
+	installPath, err := windowsagent.GetInstallPathFromRegistry(r.remoteHost)
+	r.require.NoError(err)
+	bin := r.HasBinary(installPath + `\bin\` + consts.BinaryName)
+	return &RemoteWindowsInstallerAssertions{
+		RemoteWindowsBinaryAssertions: bin,
+	}
 }

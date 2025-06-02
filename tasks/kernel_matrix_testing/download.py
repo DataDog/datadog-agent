@@ -130,7 +130,7 @@ def download_rootfs(
                 branch = branch_mapping.get(f, "master")
                 info(f"[+] {f} needs to be downloaded, using branch {branch}")
                 filename = f"{f}.xz"
-                sum_file = f"{f}.sum"
+                sum_file = f"{f}.xz.sum"
                 wo_qcow2 = '.'.join(f.split('.')[:-1])
                 manifest_file = f"{wo_qcow2}.manifest"
                 # remove this file and sum, uncompressed file too if it exists

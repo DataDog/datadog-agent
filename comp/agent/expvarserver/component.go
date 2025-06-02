@@ -6,7 +6,7 @@
 // Package expvarserver contains the component type for the expVar server.
 package expvarserver
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface{}

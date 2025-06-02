@@ -33,6 +33,9 @@ int test_discarders_event_mask() {
     ret = _is_discarded_by_inode(EVENT_OPEN, mount_id, inode);
     assert_not_zero(ret, "inode should be discarded");
 
+    ret = _is_discarded_by_inode(EVENT_CHMOD, mount_id, inode);
+    assert_zero(ret, "inode shouldn't be discarded");
+
     // add another event type
     ret = discard_inode(EVENT_CHMOD, mount_id, inode, 0, 0);
     assert_zero(ret, "failed to discard the inode");
@@ -53,7 +56,7 @@ int test_discarders_event_mask() {
     ret = _is_discarded_by_inode(EVENT_CHMOD, mount_id, inode);
     assert_not_zero(ret, "inode should be discarded");
 
-    return 0;
+    return 1;
 }
 
 SEC("test/discarders_retention")
@@ -93,7 +96,7 @@ int test_discarders_retention() {
     ret = _is_discarded_by_inode(EVENT_OPEN, mount_id, inode);
     assert_not_zero(ret, "inode should be discarded");
 
-    return 0;
+    return 1;
 }
 
 SEC("test/discarders_revision")
@@ -142,7 +145,7 @@ int test_discarders_revision() {
     ret = _is_discarded_by_inode(EVENT_OPEN, mount_id1, inode1);
     assert_not_zero(ret, "inode should be discarded");
 
-    return 0;
+    return 1;
 }
 
 SEC("test/discarders_mount_revision")
@@ -183,7 +186,7 @@ int test_discarders_mount_revision() {
     ret = _is_discarded_by_inode(EVENT_OPEN, mount_id1, inode1);
     assert_not_zero(ret, "inode should be discarded");
 
-    return 0;
+    return 1;
 }
 
 #endif

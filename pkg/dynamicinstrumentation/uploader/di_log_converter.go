@@ -10,6 +10,8 @@ package uploader
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,7 +80,7 @@ func convertProbe(probe *ditypes.Probe) ditypes.ProbeInSnapshot {
 	}
 }
 
-func convertCaptures(defs []ditypes.Parameter, captures []*ditypes.Param) ditypes.Captures {
+func convertCaptures(defs []*ditypes.Parameter, captures []*ditypes.Param) ditypes.Captures {
 	return ditypes.Captures{
 		Entry: &ditypes.Capture{
 			Arguments: convertArgs(defs, captures),
@@ -86,12 +88,14 @@ func convertCaptures(defs []ditypes.Parameter, captures []*ditypes.Param) ditype
 	}
 }
 
-func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
+func reportCaptureError(defs []*ditypes.Parameter) ditypes.Captures {
+	notCapturedReason := "type unsupported"
+
 	args := make(map[string]*ditypes.CapturedValue)
 	for _, def := range defs {
 		args[def.Name] = &ditypes.CapturedValue{
 			Type:              def.Type,
-			NotCapturedReason: "Failed to instrument, type is unsupported or too complex",
+			NotCapturedReason: notCapturedReason,
 		}
 	}
 	return ditypes.Captures{
@@ -101,32 +105,139 @@ func reportCaptureError(defs []ditypes.Parameter) ditypes.Captures {
 	}
 }
 
-func convertArgs(defs []ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
+func convertArgs(definitions []*ditypes.Parameter, captures []*ditypes.Param) map[string]*ditypes.CapturedValue {
 	args := make(map[string]*ditypes.CapturedValue)
-	for idx, capture := range captures {
-		var argName string
-		if idx < len(defs) {
-			argName = defs[idx].Name
-		} else {
-			argName = fmt.Sprintf("arg_%d", idx)
+	definitionCounter := 0
+	missingCounter := 0
+	// Definitions can be longer than captures, as params/fields marked as DoNotCapture are not included at all in the
+	// the event buffer. As a result, we need to have logic to skip over the missing captures, and push the definitions
+	// to the returned map, including the NotCaptureReason.
+	// We keep track of the number of definitions read, and the number of missing captures to do so.
+	for i := range captures {
+	top:
+		if len(definitions) <= definitionCounter {
+			break
 		}
-
-		if capture == nil {
+		definition := definitions[definitionCounter]
+		if definition == nil || captures[i] == nil {
 			continue
 		}
+		if definition.Kind != uint(captures[i].Kind) || definition.DoNotCapture {
+			// definition is not present in captures, put it in the map and move on
+			args[definition.Name] = &ditypes.CapturedValue{
+				Type:              definition.Type,
+				NotCapturedReason: definition.NotCaptureReason.String(),
+			}
+			definitionCounter++
+			missingCounter++
+			goto top
+		}
 
-		cv := &ditypes.CapturedValue{Type: capture.Type}
+		capture := captures[i]
+		argName := definition.Name
+		if argName == "" {
+			argName = fmt.Sprintf("arg_%d", i)
+		}
+		cv := &ditypes.CapturedValue{
+			Type: definition.Type,
+		}
 		if capture.ValueStr != "" || capture.Type == "string" {
-			// we make a copy of the string so the pointer isn't overwritten in the loop
 			valueCopy := capture.ValueStr
 			cv.Value = &valueCopy
 		}
-		if capture.Fields != nil && idx < len(defs) {
-			cv.Fields = convertArgs(defs[idx].ParameterPieces, capture.Fields)
+
+		// Handle nested fields if both def and capture have them
+		if capture.Fields != nil && definition.ParameterPieces != nil {
+			// For slice types, use convertSlice helper which already exists
+			if uint(capture.Kind) == uint(reflect.Slice) {
+				args[argName] = convertSlice(capture, definition)
+			} else if uint(capture.Kind) == uint(reflect.Array) {
+				//FIXME: this should be optimized to avoid O(n^2) assignment for every event
+				t := convertArgs(definition.ParameterPieces, capture.Fields)
+				ts := []ditypes.CapturedValue{}
+				for i := range t {
+					ts = append(ts, *t[i])
+				}
+				cv.Elements = ts
+				args[argName] = cv
+			} else {
+				// For struct types, recursively process fields
+				cv.Fields = convertArgs(definition.ParameterPieces, capture.Fields)
+				args[argName] = cv
+			}
+		} else {
+			// No nested fields or already handled above
+			args[argName] = cv
 		}
-		args[argName] = cv
+		definitionCounter++
 	}
+
+	definitionsCaptureDifference := len(definitions) - len(captures) - missingCounter
+	if (len(definitions) - definitionsCaptureDifference) >= len(definitions) {
+		return args
+	}
+	remainingDefinitions := definitions[len(definitions)-definitionsCaptureDifference:]
+	for i := range remainingDefinitions {
+		args[remainingDefinitions[i].Name] = &ditypes.CapturedValue{
+			Type:              remainingDefinitions[i].Type,
+			NotCapturedReason: remainingDefinitions[i].NotCaptureReason.String(),
+		}
+	}
+
 	return args
+}
+
+func convertSlice(capture *ditypes.Param, def *ditypes.Parameter) *ditypes.CapturedValue {
+	// The actual definition of the slice elements is in def.ParameterPieces[0].ParameterPieces[0]
+	// So we need to copy it based on the length of capture.Fields
+	defs := []*ditypes.Parameter{}
+
+	if def == nil || def.ParameterPieces == nil || len(def.ParameterPieces) == 0 ||
+		def.ParameterPieces[0] == nil || def.ParameterPieces[0].ParameterPieces == nil || len(def.ParameterPieces[0].ParameterPieces) == 0 {
+
+		for i := range capture.Fields {
+			var (
+				fieldType string
+				fieldKind uint
+				fieldSize int64
+			)
+			if capture.Fields[i] != nil {
+				fieldType = capture.Fields[i].Type
+				fieldKind = uint(capture.Fields[i].Kind)
+				fieldSize = int64(capture.Fields[i].Size)
+			}
+			defs = append(defs, &ditypes.Parameter{
+				Name:      strconv.Itoa(i),
+				Type:      fieldType,
+				Kind:      fieldKind,
+				TotalSize: fieldSize,
+			})
+		}
+	} else {
+		c := []*ditypes.Parameter{def.ParameterPieces[0].ParameterPieces[0]}
+		for i := range capture.Fields {
+			dst := []*ditypes.Parameter{}
+			copyTree(&dst, &c)
+			if len(dst) != 1 {
+				log.Tracef("error while parsing slice definition")
+				break
+			}
+			dst[0].Name = fmt.Sprintf("[%d]%s", i, dst[0].Type)
+			defs = append(defs, dst[0])
+		}
+	}
+	//FIXME: this should be optimized to avoid O(n^2) assignment for every event
+	elements := convertArgs(defs, capture.Fields)
+	elementsSlice := []ditypes.CapturedValue{}
+	for _, element := range elements {
+		elementsSlice = append(elementsSlice, *element)
+	}
+
+	sliceValue := &ditypes.CapturedValue{
+		Type:     capture.Type,
+		Elements: elementsSlice,
+	}
+	return sliceValue
 }
 
 func parseFuncName(funcName string) (string, string) {
@@ -137,7 +248,7 @@ func parseFuncName(funcName string) (string, string) {
 	return "", funcName
 }
 
-func getFunctionArguments(proc *ditypes.ProcessInfo, probe *ditypes.Probe) []ditypes.Parameter {
+func getFunctionArguments(proc *ditypes.ProcessInfo, probe *ditypes.Probe) []*ditypes.Parameter {
 	return proc.TypeMap.Functions[probe.FuncName]
 }
 
@@ -156,4 +267,60 @@ func getProbeUUID(probeID string) string {
 	// we could also validate that the extracted string is a valid UUID,
 	// but it's not necessary since we tolerate IDs that don't parse
 	return parts[1]
+}
+
+func copyTree(dst, src *[]*ditypes.Parameter) {
+	if dst == nil || src == nil || len(*src) == 0 {
+		return
+	}
+	*dst = make([]*ditypes.Parameter, len(*src))
+	for i := range *src {
+		if (*src)[i] == nil {
+			continue
+		}
+
+		// Create a new Parameter object for each element
+		srcParam := (*src)[i]
+		(*dst)[i] = &ditypes.Parameter{
+			Name:             srcParam.Name,
+			ID:               srcParam.ID,
+			Type:             srcParam.Type,
+			TotalSize:        srcParam.TotalSize,
+			Kind:             srcParam.Kind,
+			FieldOffset:      srcParam.FieldOffset,
+			DoNotCapture:     srcParam.DoNotCapture,
+			NotCaptureReason: srcParam.NotCaptureReason,
+		}
+
+		// Deep copy the Location if present
+		if srcParam.Location != nil {
+			(*dst)[i].Location = &ditypes.Location{
+				InReg:            srcParam.Location.InReg,
+				StackOffset:      srcParam.Location.StackOffset,
+				Register:         srcParam.Location.Register,
+				NeedsDereference: srcParam.Location.NeedsDereference,
+				PointerOffset:    srcParam.Location.PointerOffset,
+			}
+		}
+
+		// Deep copy the LocationExpressions slice
+		if len(srcParam.LocationExpressions) > 0 {
+			(*dst)[i].LocationExpressions = make([]ditypes.LocationExpression, len(srcParam.LocationExpressions))
+			for j, expr := range srcParam.LocationExpressions {
+				// Copy the LocationExpression struct
+				(*dst)[i].LocationExpressions[j] = expr
+
+				// Deep copy any IncludedExpressions
+				if len(expr.IncludedExpressions) > 0 {
+					(*dst)[i].LocationExpressions[j].IncludedExpressions = make([]ditypes.LocationExpression, len(expr.IncludedExpressions))
+					copy((*dst)[i].LocationExpressions[j].IncludedExpressions, expr.IncludedExpressions)
+				}
+			}
+		}
+
+		// Recursively copy ParameterPieces
+		if len(srcParam.ParameterPieces) > 0 {
+			copyTree(&((*dst)[i].ParameterPieces), &(srcParam.ParameterPieces))
+		}
+	}
 }

@@ -24,8 +24,13 @@
         },
         {
           "name": "cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "container.created_at",
@@ -66,6 +71,11 @@
           "name": "event.os",
           "definition": "Operating system of the event",
           "property_doc_link": "event-os-doc"
+        },
+        {
+          "name": "event.rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "event-rule-tags-doc"
         },
         {
           "name": "event.service",
@@ -139,8 +149,13 @@
         },
         {
           "name": "process.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "process.ancestors.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "process.ancestors.comm",
@@ -249,7 +264,7 @@
         },
         {
           "name": "process.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -274,7 +289,7 @@
         },
         {
           "name": "process.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -379,7 +394,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -404,7 +419,7 @@
         },
         {
           "name": "process.ancestors.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -423,6 +438,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "process.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "process.ancestors.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -431,6 +451,11 @@
           "name": "process.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "process.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "process.ancestors.pid",
@@ -539,8 +564,13 @@
         },
         {
           "name": "process.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "process.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "process.comm",
@@ -649,7 +679,7 @@
         },
         {
           "name": "process.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -674,7 +704,7 @@
         },
         {
           "name": "process.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -779,7 +809,7 @@
         },
         {
           "name": "process.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -804,7 +834,7 @@
         },
         {
           "name": "process.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -821,6 +851,11 @@
           "name": "process.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "process.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "process.is_kworker",
@@ -894,8 +929,13 @@
         },
         {
           "name": "process.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "process.parent.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "process.parent.comm",
@@ -1004,7 +1044,7 @@
         },
         {
           "name": "process.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1029,7 +1069,7 @@
         },
         {
           "name": "process.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1134,7 +1174,7 @@
         },
         {
           "name": "process.parent.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1159,7 +1199,7 @@
         },
         {
           "name": "process.parent.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1176,6 +1216,11 @@
           "name": "process.parent.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "process.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "process.parent.is_kworker",
@@ -1280,6 +1325,45 @@
       ]
     },
     {
+      "name": "accept",
+      "definition": "An accept was executed",
+      "type": "Network",
+      "from_agent_version": "7.63",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "accept.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "accept-addr-family-doc"
+        },
+        {
+          "name": "accept.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "accept-addr-hostname-doc"
+        },
+        {
+          "name": "accept.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "accept.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "accept.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "accept.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "bind",
       "definition": "A bind was executed",
       "type": "Network",
@@ -1297,9 +1381,19 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "bind.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "bind.addr.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "bind.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "bind-protocol-doc"
         },
         {
           "name": "bind.retval",
@@ -1445,7 +1539,7 @@
         },
         {
           "name": "chdir.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1470,7 +1564,7 @@
         },
         {
           "name": "chdir.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1574,7 +1668,7 @@
         },
         {
           "name": "chmod.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1599,7 +1693,7 @@
         },
         {
           "name": "chmod.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1718,7 +1812,7 @@
         },
         {
           "name": "chown.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1743,7 +1837,7 @@
         },
         {
           "name": "chown.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1784,6 +1878,50 @@
       ]
     },
     {
+      "name": "connect",
+      "definition": "A connect was executed",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "connect.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "connect-addr-family-doc"
+        },
+        {
+          "name": "connect.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "connect-addr-hostname-doc"
+        },
+        {
+          "name": "connect.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "connect.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "connect.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "connect.protocol",
+          "definition": "Socket Protocol",
+          "property_doc_link": "connect-protocol-doc"
+        },
+        {
+          "name": "connect.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "dns",
       "definition": "A DNS request was sent",
       "type": "Network",
@@ -1817,7 +1955,7 @@
         },
         {
           "name": "dns.question.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -1826,9 +1964,19 @@
           "property_doc_link": "dns-question-type-doc"
         },
         {
+          "name": "dns.response.code",
+          "definition": "Response code of the DNS response according to RFC 1035",
+          "property_doc_link": "dns-response-code-doc"
+        },
+        {
           "name": "network.destination.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.destination.port",
@@ -1836,34 +1984,39 @@
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
-          "name": "network.device.ifindex",
-          "definition": "Interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
           "name": "network.device.ifname",
           "definition": "Interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
           "name": "network.l3_protocol",
           "definition": "L3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
         },
         {
           "name": "network.l4_protocol",
           "definition": "L4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "network.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
         },
         {
           "name": "network.size",
           "definition": "Size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
+          "property_doc_link": "common-networkcontext-size-doc"
         },
         {
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -1874,7 +2027,7 @@
     },
     {
       "name": "exec",
-      "definition": "A process was executed or forked",
+      "definition": "A process was executed (does not trigger on fork syscalls).",
       "type": "Process",
       "from_agent_version": "7.27",
       "experimental": false,
@@ -1941,8 +2094,13 @@
         },
         {
           "name": "exec.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "exec.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "exec.comm",
@@ -2051,7 +2209,7 @@
         },
         {
           "name": "exec.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2076,7 +2234,7 @@
         },
         {
           "name": "exec.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2181,7 +2339,7 @@
         },
         {
           "name": "exec.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2206,7 +2364,7 @@
         },
         {
           "name": "exec.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2223,6 +2381,11 @@
           "name": "exec.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "exec.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "exec.is_kworker",
@@ -2360,8 +2523,13 @@
         },
         {
           "name": "exit.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "exit.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "exit.code",
@@ -2475,7 +2643,7 @@
         },
         {
           "name": "exit.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2500,7 +2668,7 @@
         },
         {
           "name": "exit.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2605,7 +2773,7 @@
         },
         {
           "name": "exit.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2630,7 +2798,7 @@
         },
         {
           "name": "exit.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2647,6 +2815,11 @@
           "name": "exit.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "exit.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "exit.is_kworker",
@@ -2758,39 +2931,49 @@
           "property_doc_link": "common-ipportcontext-ip-doc"
         },
         {
+          "name": "network.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
           "name": "network.destination.port",
           "definition": "Port number",
           "property_doc_link": "common-ipportcontext-port-doc"
         },
         {
-          "name": "network.device.ifindex",
-          "definition": "Interface ifindex",
-          "property_doc_link": "network-device-ifindex-doc"
-        },
-        {
           "name": "network.device.ifname",
           "definition": "Interface ifname",
-          "property_doc_link": "network-device-ifname-doc"
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
           "name": "network.l3_protocol",
           "definition": "L3 protocol of the network packet",
-          "property_doc_link": "network-l3_protocol-doc"
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
         },
         {
           "name": "network.l4_protocol",
           "definition": "L4 protocol of the network packet",
-          "property_doc_link": "network-l4_protocol-doc"
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "network.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
         },
         {
           "name": "network.size",
           "definition": "Size in bytes of the network packet",
-          "property_doc_link": "network-size-doc"
+          "property_doc_link": "common-networkcontext-size-doc"
         },
         {
           "name": "network.source.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
         },
         {
           "name": "network.source.port",
@@ -2868,7 +3051,7 @@
         },
         {
           "name": "link.file.destination.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2893,7 +3076,7 @@
         },
         {
           "name": "link.file.destination.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2963,7 +3146,7 @@
         },
         {
           "name": "link.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -2988,7 +3171,7 @@
         },
         {
           "name": "link.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3102,7 +3285,7 @@
         },
         {
           "name": "load_module.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3127,7 +3310,7 @@
         },
         {
           "name": "load_module.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3236,7 +3419,7 @@
         },
         {
           "name": "mkdir.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3261,7 +3444,7 @@
         },
         {
           "name": "mkdir.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3283,6 +3466,16 @@
           "name": "mkdir.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "mkdir.syscall.mode",
+          "definition": "Mode of the new directory",
+          "property_doc_link": "mkdir-syscall-mode-doc"
+        },
+        {
+          "name": "mkdir.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "mkdir-syscall-path-doc"
         }
       ]
     },
@@ -3350,7 +3543,7 @@
         },
         {
           "name": "mmap.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3375,7 +3568,7 @@
         },
         {
           "name": "mmap.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3484,6 +3677,85 @@
       ]
     },
     {
+      "name": "network_flow_monitor",
+      "definition": "A network monitor event was sent",
+      "type": "Network",
+      "from_agent_version": "7.63",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "network_flow_monitor.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.egress.data_size",
+          "definition": "Amount of data transmitted or received",
+          "property_doc_link": "common-networkstats-data_size-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.egress.packet_count",
+          "definition": "Count of network packets transmitted or received",
+          "property_doc_link": "common-networkstats-packet_count-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.ingress.data_size",
+          "definition": "Amount of data transmitted or received",
+          "property_doc_link": "common-networkstats-data_size-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.ingress.packet_count",
+          "definition": "Count of network packets transmitted or received",
+          "property_doc_link": "common-networkstats-packet_count-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "network_flow_monitor-flows-l3_protocol-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "network_flow_monitor-flows-l4_protocol-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        }
+      ]
+    },
+    {
       "name": "open",
       "definition": "A file was opened",
       "type": "File",
@@ -3552,7 +3824,7 @@
         },
         {
           "name": "open.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3577,7 +3849,7 @@
         },
         {
           "name": "open.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3619,6 +3891,80 @@
           "name": "open.syscall.path",
           "definition": "Path argument of the syscall",
           "property_doc_link": "open-syscall-path-doc"
+        }
+      ]
+    },
+    {
+      "name": "packet",
+      "definition": "A raw network packet was captured",
+      "type": "Network",
+      "from_agent_version": "7.60",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "packet.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "packet.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "packet.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "packet.filter",
+          "definition": "pcap filter expression",
+          "property_doc_link": "packet-filter-doc"
+        },
+        {
+          "name": "packet.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l3_protocol-doc"
+        },
+        {
+          "name": "packet.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "packet.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
+        },
+        {
+          "name": "packet.size",
+          "definition": "Size in bytes of the network packet",
+          "property_doc_link": "common-networkcontext-size-doc"
+        },
+        {
+          "name": "packet.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "packet.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "packet.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "packet.tls.version",
+          "definition": "TLS version",
+          "property_doc_link": "packet-tls-version-doc"
         }
       ]
     },
@@ -3701,8 +4047,13 @@
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.comm",
@@ -3811,7 +4162,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3836,7 +4187,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3941,7 +4292,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3966,7 +4317,7 @@
         },
         {
           "name": "ptrace.tracee.ancestors.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -3985,6 +4336,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -3993,6 +4349,11 @@
           "name": "ptrace.tracee.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.pid",
@@ -4101,8 +4462,13 @@
         },
         {
           "name": "ptrace.tracee.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "ptrace.tracee.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "ptrace.tracee.comm",
@@ -4211,7 +4577,7 @@
         },
         {
           "name": "ptrace.tracee.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4236,7 +4602,7 @@
         },
         {
           "name": "ptrace.tracee.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4341,7 +4707,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4366,7 +4732,7 @@
         },
         {
           "name": "ptrace.tracee.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4383,6 +4749,11 @@
           "name": "ptrace.tracee.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "ptrace.tracee.is_kworker",
@@ -4456,8 +4827,13 @@
         },
         {
           "name": "ptrace.tracee.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "ptrace.tracee.parent.comm",
@@ -4566,7 +4942,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4591,7 +4967,7 @@
         },
         {
           "name": "ptrace.tracee.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4696,7 +5072,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4721,7 +5097,7 @@
         },
         {
           "name": "ptrace.tracee.parent.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4738,6 +5114,11 @@
           "name": "ptrace.tracee.parent.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "ptrace.tracee.parent.is_kworker",
@@ -4915,7 +5296,7 @@
         },
         {
           "name": "removexattr.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -4940,7 +5321,7 @@
         },
         {
           "name": "removexattr.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5034,7 +5415,7 @@
         },
         {
           "name": "rename.file.destination.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5059,7 +5440,7 @@
         },
         {
           "name": "rename.file.destination.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5129,7 +5510,7 @@
         },
         {
           "name": "rename.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5154,7 +5535,7 @@
         },
         {
           "name": "rename.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5253,7 +5634,7 @@
         },
         {
           "name": "rmdir.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5278,7 +5659,7 @@
         },
         {
           "name": "rmdir.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5300,6 +5681,11 @@
           "name": "rmdir.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "rmdir.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "rmdir-syscall-path-doc"
         }
       ]
     },
@@ -5484,7 +5870,7 @@
         },
         {
           "name": "setxattr.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5509,7 +5895,7 @@
         },
         {
           "name": "setxattr.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5613,8 +5999,13 @@
         },
         {
           "name": "signal.target.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "signal.target.ancestors.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "signal.target.ancestors.comm",
@@ -5723,7 +6114,7 @@
         },
         {
           "name": "signal.target.ancestors.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5748,7 +6139,7 @@
         },
         {
           "name": "signal.target.ancestors.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5853,7 +6244,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5878,7 +6269,7 @@
         },
         {
           "name": "signal.target.ancestors.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -5897,6 +6288,11 @@
           "property_doc_link": "common-filefields-user-doc"
         },
         {
+          "name": "signal.target.ancestors.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
+        },
+        {
           "name": "signal.target.ancestors.is_kworker",
           "definition": "Indicates whether the process is a kworker",
           "property_doc_link": "common-pidcontext-is_kworker-doc"
@@ -5905,6 +6301,11 @@
           "name": "signal.target.ancestors.is_thread",
           "definition": "Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)",
           "property_doc_link": "common-process-is_thread-doc"
+        },
+        {
+          "name": "signal.target.ancestors.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
         },
         {
           "name": "signal.target.ancestors.pid",
@@ -6013,8 +6414,13 @@
         },
         {
           "name": "signal.target.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "signal.target.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "signal.target.comm",
@@ -6123,7 +6529,7 @@
         },
         {
           "name": "signal.target.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6148,7 +6554,7 @@
         },
         {
           "name": "signal.target.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6253,7 +6659,7 @@
         },
         {
           "name": "signal.target.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6278,7 +6684,7 @@
         },
         {
           "name": "signal.target.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6295,6 +6701,11 @@
           "name": "signal.target.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "signal.target.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "signal.target.is_kworker",
@@ -6368,8 +6779,13 @@
         },
         {
           "name": "signal.target.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
+        },
+        {
+          "name": "signal.target.parent.cgroup.version",
+          "definition": "[Experimental] Version of the cgroup API",
+          "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
           "name": "signal.target.parent.comm",
@@ -6478,7 +6894,7 @@
         },
         {
           "name": "signal.target.parent.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6503,7 +6919,7 @@
         },
         {
           "name": "signal.target.parent.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6608,7 +7024,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6633,7 +7049,7 @@
         },
         {
           "name": "signal.target.parent.interpreter.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6650,6 +7066,11 @@
           "name": "signal.target.parent.interpreter.file.user",
           "definition": "User of the file's owner",
           "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "signal.target.parent.is_exec",
+          "definition": "Indicates whether the process entry is from a new binary execution",
+          "property_doc_link": "common-process-is_exec-doc"
         },
         {
           "name": "signal.target.parent.is_kworker",
@@ -6822,7 +7243,7 @@
         },
         {
           "name": "splice.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6847,7 +7268,7 @@
         },
         {
           "name": "splice.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6879,6 +7300,55 @@
           "name": "splice.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
+      "name": "sysctl",
+      "definition": "A sysctl parameter was read or modified",
+      "type": "Kernel",
+      "from_agent_version": "7.65",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "sysctl.action",
+          "definition": "Action performed on the system control parameter",
+          "property_doc_link": "sysctl-action-doc"
+        },
+        {
+          "name": "sysctl.file_position",
+          "definition": "Position in the sysctl control parameter file at which the action occurred",
+          "property_doc_link": "sysctl-file_position-doc"
+        },
+        {
+          "name": "sysctl.name",
+          "definition": "Name of the system control parameter",
+          "property_doc_link": "sysctl-name-doc"
+        },
+        {
+          "name": "sysctl.name_truncated",
+          "definition": "Indicates that the name field is truncated",
+          "property_doc_link": "sysctl-name_truncated-doc"
+        },
+        {
+          "name": "sysctl.old_value",
+          "definition": "Old value of the system control parameter",
+          "property_doc_link": "sysctl-old_value-doc"
+        },
+        {
+          "name": "sysctl.old_value_truncated",
+          "definition": "Indicates that the old value field is truncated",
+          "property_doc_link": "sysctl-old_value_truncated-doc"
+        },
+        {
+          "name": "sysctl.value",
+          "definition": "New and/or current value for the system control parameter depending on the action type",
+          "property_doc_link": "sysctl-value-doc"
+        },
+        {
+          "name": "sysctl.value_truncated",
+          "definition": "Indicates that the value field is truncated",
+          "property_doc_link": "sysctl-value_truncated-doc"
         }
       ]
     },
@@ -6946,7 +7416,7 @@
         },
         {
           "name": "unlink.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -6971,7 +7441,7 @@
         },
         {
           "name": "unlink.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -7099,7 +7569,7 @@
         },
         {
           "name": "utimes.file.name.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -7124,7 +7594,7 @@
         },
         {
           "name": "utimes.file.path.length",
-          "definition": "Length of the corresponding string",
+          "definition": "Length of the corresponding element",
           "property_doc_link": "common-string-length-doc"
         },
         {
@@ -7489,6 +7959,19 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.data_size",
+      "link": "common-networkstats-data_size-doc",
+      "type": "int",
+      "definition": "Amount of data transmitted or received",
+      "prefixes": [
+        "network_flow_monitor.flows.egress",
+        "network_flow_monitor.flows.ingress"
       ],
       "constants": "",
       "constants_link": "",
@@ -8030,6 +8513,20 @@
       "examples": []
     },
     {
+      "name": "*.ifname",
+      "link": "common-networkdevicecontext-ifname-doc",
+      "type": "string",
+      "definition": "Interface ifname",
+      "prefixes": [
+        "network.device",
+        "network_flow_monitor.device",
+        "packet.device"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.in_upper_layer",
       "link": "common-filefields-in_upper_layer-doc",
       "type": "bool",
@@ -8147,9 +8644,37 @@
       "type": "IP/CIDR",
       "definition": "IP address",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
+        "connect.addr",
         "network.destination",
-        "network.source"
+        "network.source",
+        "network_flow_monitor.flows.destination",
+        "network_flow_monitor.flows.source",
+        "packet.destination",
+        "packet.source"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_exec",
+      "link": "common-process-is_exec-doc",
+      "type": "bool",
+      "definition": "Indicates whether the process entry is from a new binary execution",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
       ],
       "constants": "",
       "constants_link": "",
@@ -8172,6 +8697,26 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_public",
+      "link": "common-ipportcontext-is_public-doc",
+      "type": "bool",
+      "definition": "Whether the IP address belongs to a public network",
+      "prefixes": [
+        "accept.addr",
+        "bind.addr",
+        "connect.addr",
+        "network.destination",
+        "network.source",
+        "network_flow_monitor.flows.destination",
+        "network_flow_monitor.flows.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",
@@ -8266,10 +8811,36 @@
       "examples": []
     },
     {
+      "name": "*.l3_protocol",
+      "link": "common-networkcontext-l3_protocol-doc",
+      "type": "int",
+      "definition": "L3 protocol of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "L3 protocols",
+      "constants_link": "l3-protocols",
+      "examples": []
+    },
+    {
+      "name": "*.l4_protocol",
+      "link": "common-networkcontext-l4_protocol-doc",
+      "type": "int",
+      "definition": "L4 protocol of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "L4 protocols",
+      "constants_link": "l4-protocols",
+      "examples": []
+    },
+    {
       "name": "*.length",
       "link": "common-string-length-doc",
       "type": "int",
-      "definition": "Length of the corresponding string",
+      "definition": "Length of the corresponding element",
       "prefixes": [
         "chdir.file.name",
         "chdir.file.path",
@@ -8296,8 +8867,10 @@
         "mkdir.file.path",
         "mmap.file.name",
         "mmap.file.path",
+        "network_flow_monitor.flows",
         "open.file.name",
         "open.file.path",
+        "process.ancestors",
         "process.ancestors.file.name",
         "process.ancestors.file.path",
         "process.ancestors.interpreter.file.name",
@@ -8310,6 +8883,7 @@
         "process.parent.file.path",
         "process.parent.interpreter.file.name",
         "process.parent.interpreter.file.path",
+        "ptrace.tracee.ancestors",
         "ptrace.tracee.ancestors.file.name",
         "ptrace.tracee.ancestors.file.path",
         "ptrace.tracee.ancestors.interpreter.file.name",
@@ -8332,6 +8906,7 @@
         "rmdir.file.path",
         "setxattr.file.name",
         "setxattr.file.path",
+        "signal.target.ancestors",
         "signal.target.ancestors.file.name",
         "signal.target.ancestors.file.path",
         "signal.target.ancestors.interpreter.file.name",
@@ -8359,7 +8934,7 @@
       "name": "*.manager",
       "link": "common-cgroupcontext-manager-doc",
       "type": "string",
-      "definition": "Lifecycle manager of the cgroup",
+      "definition": "[Experimental] Lifecycle manager of the cgroup",
       "prefixes": [
         "cgroup",
         "exec.cgroup",
@@ -8596,6 +9171,19 @@
       ]
     },
     {
+      "name": "*.network_direction",
+      "link": "common-networkcontext-network_direction-doc",
+      "type": "int",
+      "definition": "Network direction of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "Network directions",
+      "constants_link": "network-directions",
+      "examples": []
+    },
+    {
       "name": "*.package.name",
       "link": "common-fileevent-package-name-doc",
       "type": "string",
@@ -8746,6 +9334,19 @@
       "examples": []
     },
     {
+      "name": "*.packet_count",
+      "link": "common-networkstats-packet_count-doc",
+      "type": "int",
+      "definition": "Count of network packets transmitted or received",
+      "prefixes": [
+        "network_flow_monitor.flows.egress",
+        "network_flow_monitor.flows.ingress"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.path",
       "link": "common-fileevent-path-doc",
       "type": "string",
@@ -8832,9 +9433,15 @@
       "type": "int",
       "definition": "Port number",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
+        "connect.addr",
         "network.destination",
-        "network.source"
+        "network.source",
+        "network_flow_monitor.flows.destination",
+        "network_flow_monitor.flows.source",
+        "packet.destination",
+        "packet.source"
       ],
       "constants": "",
       "constants_link": "",
@@ -8868,11 +9475,13 @@
       "type": "int",
       "definition": "Return value of the syscall",
       "prefixes": [
+        "accept",
         "bind",
         "bpf",
         "chdir",
         "chmod",
         "chown",
+        "connect",
         "link",
         "load_module",
         "mkdir",
@@ -8943,6 +9552,19 @@
       ],
       "constants": "File mode constants",
       "constants_link": "file-mode-constants",
+      "examples": []
+    },
+    {
+      "name": "*.size",
+      "link": "common-networkcontext-size-doc",
+      "type": "int",
+      "definition": "Size in bytes of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -9139,10 +9761,69 @@
       "examples": []
     },
     {
+      "name": "*.version",
+      "link": "common-cgroupcontext-version-doc",
+      "type": "int",
+      "definition": "[Experimental] Version of the cgroup API",
+      "prefixes": [
+        "cgroup",
+        "exec.cgroup",
+        "exit.cgroup",
+        "process.ancestors.cgroup",
+        "process.cgroup",
+        "process.parent.cgroup",
+        "ptrace.tracee.ancestors.cgroup",
+        "ptrace.tracee.cgroup",
+        "ptrace.tracee.parent.cgroup",
+        "signal.target.ancestors.cgroup",
+        "signal.target.cgroup",
+        "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "accept.addr.family",
+      "link": "accept-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "accept"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "accept.addr.hostname",
+      "link": "accept-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
+      "prefixes": [
+        "accept"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "bind.addr.family",
       "link": "bind-addr-family-doc",
       "type": "int",
       "definition": "Address family",
+      "prefixes": [
+        "bind"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "bind.protocol",
+      "link": "bind-protocol-doc",
+      "type": "int",
+      "definition": "Socket Protocol",
       "prefixes": [
         "bind"
       ],
@@ -9415,6 +10096,42 @@
       "examples": []
     },
     {
+      "name": "connect.addr.family",
+      "link": "connect-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.addr.hostname",
+      "link": "connect-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "connect.protocol",
+      "link": "connect-protocol-doc",
+      "type": "int",
+      "definition": "Socket Protocol",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "container.created_at",
       "link": "container-created_at-doc",
       "type": "int",
@@ -9480,7 +10197,7 @@
       "type": "int",
       "definition": "the class looked up by the DNS question",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "DNS qclasses",
       "constants_link": "dns-qclasses",
@@ -9492,7 +10209,7 @@
       "type": "int",
       "definition": "the total count of questions in the DNS request",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -9504,7 +10221,7 @@
       "type": "int",
       "definition": "the total DNS request size in bytes",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -9516,7 +10233,7 @@
       "type": "string",
       "definition": "the queried domain name",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -9528,10 +10245,22 @@
       "type": "int",
       "definition": "a two octet code which specifies the DNS question type",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "DNS qtypes",
       "constants_link": "dns-qtypes",
+      "examples": []
+    },
+    {
+      "name": "dns.response.code",
+      "link": "dns-response-code-doc",
+      "type": "int",
+      "definition": "Response code of the DNS response according to RFC 1035",
+      "prefixes": [
+        "dns.response"
+      ],
+      "constants": "DNS Responses",
+      "constants_link": "dns-responses",
       "examples": []
     },
     {
@@ -9575,6 +10304,18 @@
       "link": "event-os-doc",
       "type": "string",
       "definition": "Operating system of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.rule.tags",
+      "link": "event-rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
       "prefixes": [
         ""
       ],
@@ -9847,6 +10588,30 @@
       "examples": []
     },
     {
+      "name": "mkdir.syscall.mode",
+      "link": "mkdir-syscall-mode-doc",
+      "type": "int",
+      "definition": "Mode of the new directory",
+      "prefixes": [
+        "mkdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mkdir.syscall.path",
+      "link": "mkdir-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "mkdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mmap.flags",
       "link": "mmap-flags-doc",
       "type": "int",
@@ -9979,63 +10744,27 @@
       "examples": []
     },
     {
-      "name": "network.device.ifindex",
-      "link": "network-device-ifindex-doc",
-      "type": "int",
-      "definition": "Interface ifindex",
-      "prefixes": [
-        "network.device"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "network.device.ifname",
-      "link": "network-device-ifname-doc",
-      "type": "string",
-      "definition": "Interface ifname",
-      "prefixes": [
-        "network.device"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "network.l3_protocol",
-      "link": "network-l3_protocol-doc",
+      "name": "network_flow_monitor.flows.l3_protocol",
+      "link": "network_flow_monitor-flows-l3_protocol-doc",
       "type": "int",
       "definition": "L3 protocol of the network packet",
       "prefixes": [
-        "network"
+        "network_flow_monitor.flows"
       ],
       "constants": "L3 protocols",
       "constants_link": "l3-protocols",
       "examples": []
     },
     {
-      "name": "network.l4_protocol",
-      "link": "network-l4_protocol-doc",
+      "name": "network_flow_monitor.flows.l4_protocol",
+      "link": "network_flow_monitor-flows-l4_protocol-doc",
       "type": "int",
       "definition": "L4 protocol of the network packet",
       "prefixes": [
-        "network"
+        "network_flow_monitor.flows"
       ],
       "constants": "L4 protocols",
       "constants_link": "l4-protocols",
-      "examples": []
-    },
-    {
-      "name": "network.size",
-      "link": "network-size-doc",
-      "type": "int",
-      "definition": "Size in bytes of the network packet",
-      "prefixes": [
-        "network"
-      ],
-      "constants": "",
-      "constants_link": "",
       "examples": []
     },
     {
@@ -10099,6 +10828,30 @@
       "examples": []
     },
     {
+      "name": "packet.filter",
+      "link": "packet-filter-doc",
+      "type": "string",
+      "definition": "pcap filter expression",
+      "prefixes": [
+        "packet"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "packet.tls.version",
+      "link": "packet-tls-version-doc",
+      "type": "int",
+      "definition": "TLS version",
+      "prefixes": [
+        "packet.tls"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "ptrace.request",
       "link": "ptrace-request-doc",
       "type": "int",
@@ -10129,6 +10882,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "rmdir.syscall.path",
+      "link": "rmdir-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "rmdir"
       ],
       "constants": "",
       "constants_link": "",
@@ -10372,6 +11137,102 @@
       ],
       "constants": "Pipe buffer flags",
       "constants_link": "pipe-buffer-flags",
+      "examples": []
+    },
+    {
+      "name": "sysctl.action",
+      "link": "sysctl-action-doc",
+      "type": "int",
+      "definition": "Action performed on the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "SysCtl Actions",
+      "constants_link": "sysctl-actions",
+      "examples": []
+    },
+    {
+      "name": "sysctl.file_position",
+      "link": "sysctl-file_position-doc",
+      "type": "int",
+      "definition": "Position in the sysctl control parameter file at which the action occurred",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.name",
+      "link": "sysctl-name-doc",
+      "type": "string",
+      "definition": "Name of the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.name_truncated",
+      "link": "sysctl-name_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the name field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.old_value",
+      "link": "sysctl-old_value-doc",
+      "type": "string",
+      "definition": "Old value of the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.old_value_truncated",
+      "link": "sysctl-old_value_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the old value field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.value",
+      "link": "sysctl-value-doc",
+      "type": "string",
+      "definition": "New and/or current value for the system control parameter depending on the action type",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.value_truncated",
+      "link": "sysctl-value_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the value field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -11706,6 +12567,85 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "DNS Responses",
+      "link": "dns-responses",
+      "description": "DNS Responses are the supported response codes",
+      "all": [
+        {
+          "name": "NOERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "FORMERR",
+          "architecture": "all"
+        },
+        {
+          "name": "SERVFAIL",
+          "architecture": "all"
+        },
+        {
+          "name": "NXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTIMP",
+          "architecture": "all"
+        },
+        {
+          "name": "REFUSED",
+          "architecture": "all"
+        },
+        {
+          "name": "YXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "YXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTAUTH",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTZONE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADVERS",
+          "architecture": "all"
+        },
+        {
+          "name": "BADSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "BADKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "BADTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADMODE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADALG",
           "architecture": "all"
         }
       ]
@@ -13781,6 +14721,21 @@
       ]
     },
     {
+      "name": "Network directions",
+      "link": "network-directions",
+      "description": "Network directions are the supported directions of network packets.",
+      "all": [
+        {
+          "name": "INGRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "EGRESS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Open flags",
       "link": "open-flags",
       "description": "Open flags are the supported flags for the open syscall.",
@@ -14291,6 +15246,21 @@
         },
         {
           "name": "SIGSYS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SysCtl Actions",
+      "link": "sysctl-actions",
+      "description": "SysCtl Actions are the supported actions for the sysctl event.",
+      "all": [
+        {
+          "name": "SYSCTL_READ",
+          "architecture": "all"
+        },
+        {
+          "name": "SYSCTL_WRITE",
           "architecture": "all"
         }
       ]

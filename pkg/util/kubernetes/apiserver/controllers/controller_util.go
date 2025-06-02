@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
+	"github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -23,7 +23,6 @@ import (
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,9 +35,12 @@ func newAutoscalersController(client kubernetes.Interface,
 	dogCl datadogclient.Component) (*autoscalersController, error) {
 	var err error
 	h := &autoscalersController{
-		clientSet:     client,
-		isLeaderFunc:  isLeaderFunc, // only trigger GC and updateExternalMetrics by the Leader.
-		hpaQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "autoscalers"),
+		clientSet:    client,
+		isLeaderFunc: isLeaderFunc, // only trigger GC and updateExternalMetrics by the Leader.
+		hpaQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedItemBasedRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{Name: "autoscalers"},
+		),
 		eventRecorder: eventRecorder,
 	}
 
@@ -110,7 +112,7 @@ func (h *autoscalersController) gc() {
 		log.Debugf("Garbage collection over %d WPAs", len(wpaListObj))
 		for _, obj := range wpaListObj {
 			tmp := &v1alpha1.WatermarkPodAutoscaler{}
-			if err := apiserver.UnstructuredIntoWPA(obj, tmp); err != nil {
+			if err := UnstructuredIntoWPA(obj, tmp); err != nil {
 				log.Errorf("Unable to cast object from local cache into a WPA: %v", err)
 				continue
 			}
@@ -162,7 +164,7 @@ func (h *autoscalersController) deleteFromLocalStore(toDelete []custommetrics.Ex
 	}
 }
 
-func (h *autoscalersController) handleErr(err error, key interface{}) {
+func (h *autoscalersController) handleErr(err error, key string) {
 	if err == nil {
 		log.Tracef("Faithfully dropping key %v", key)
 		h.hpaQueue.Forget(key)

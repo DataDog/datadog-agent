@@ -14,12 +14,13 @@ import (
 	"sync"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
-
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/network/go/binversion"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // FileRegistry is responsible for tracking open files and executing callbacks
@@ -49,9 +50,15 @@ type FileRegistry struct {
 	byPID    map[uint32]pathIdentifierSet
 
 	// if we can't execute a callback for a given file we don't try more than once
-	blocklistByID *simplelru.LRU[PathIdentifier, string]
+	blocklistByID *simplelru.LRU[PathIdentifier, BlockListEntry]
 
 	telemetry registryTelemetry
+}
+
+// BlockListEntry represents an enty in the block list
+type BlockListEntry struct {
+	Path   string
+	Reason string
 }
 
 // FilePath represents the location of a file from the *root* namespace view
@@ -85,9 +92,13 @@ type Callback func(FilePath) error
 // Meant for testing purposes
 var IgnoreCB = func(FilePath) error { return nil }
 
+// ErrEnvironment indicates that the error is not with the path itself, so the
+// path itself should not be blocked from further attempts at hooking.
+var ErrEnvironment = errors.New("Environment error, path will not be blocked")
+
 // NewFileRegistry creates a new `FileRegistry` instance
-func NewFileRegistry(programName string) *FileRegistry {
-	blocklistByID, err := simplelru.NewLRU[PathIdentifier, string](2000, nil)
+func NewFileRegistry(moduleName, programName string) *FileRegistry {
+	blocklistByID, err := simplelru.NewLRU[PathIdentifier, BlockListEntry](2000, nil)
 	if err != nil {
 		log.Warnf("running without block cache list, creation error: %s", err)
 		blocklistByID = nil
@@ -102,7 +113,7 @@ func NewFileRegistry(programName string) *FileRegistry {
 
 	// Add self to the debugger so we can inspect internal state of this
 	// FileRegistry using our debugging endpoint
-	debugger.AddRegistry(r)
+	debugger.AddRegistry(moduleName, r)
 
 	return r
 }
@@ -118,6 +129,44 @@ var (
 	ErrPathIsAlreadyRegistered = errors.New("path is already registered")
 )
 
+// UnknownAttachmentError is an error that is not one of the expected errors, a
+// shorthand to ensure we don't log expected errors (such as
+// ErrPathIsAlreadyRegistered or errPathIsBlocked, which are expected to happen
+// in normal operation)
+type UnknownAttachmentError struct {
+	Err error
+}
+
+func (e *UnknownAttachmentError) Error() string {
+	return fmt.Sprintf("unexpected error: %v", e.Err)
+}
+
+func (e *UnknownAttachmentError) Unwrap() error {
+	return e.Err
+}
+
+// NewUnknownAttachmentError creates a new `UnknownAttachmentError` instance wrapping
+// the given error.
+func NewUnknownAttachmentError(err error) *UnknownAttachmentError {
+	return &UnknownAttachmentError{Err: err}
+}
+
+// getBlockReason creates a string specifying the reason for the block based on
+// the error received. To reduce memory usage of this debugging feature, for
+// very common errors we store a summary instead of the full error string,
+// leaving the latter for more interesting errors.
+func getBlockReason(error error) string {
+	if errors.Is(error, binversion.ErrNotGoExe) {
+		return "not-go"
+	}
+
+	if errors.Is(error, safeelf.ErrNoSymbols) {
+		return "no-symbols"
+	}
+
+	return error.Error()
+}
+
 // Register inserts or updates a new file registration within to the `FileRegistry`;
 //
 // If no current registration exists for the given `PathIdentifier`, we execute
@@ -125,12 +174,12 @@ var (
 // the existing registration if and only if `pid` is new;
 func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB, deactivationCB, alreadyRegistered Callback) error {
 	if activationCB == nil || deactivationCB == nil {
-		return errCallbackIsMissing
+		return NewUnknownAttachmentError(errCallbackIsMissing)
 	}
 
 	path, err := NewFilePath(r.procRoot, namespacedPath, pid)
 	if err != nil {
-		return err
+		return NewUnknownAttachmentError(fmt.Errorf("error creating file path for PID %d: %w", pid, err))
 	}
 
 	pathID := path.ID
@@ -164,20 +213,38 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	}
 
 	if err := activationCB(path); err != nil {
+		// We need to call `deactivationCB` here as some uprobes could be
+		// already attached. This could be the case even when the checks below
+		// indicate that the process is gone, since the process could disappear
+		// between two uprobe registrations.
+		_ = deactivationCB(FilePath{ID: pathID})
+
+		if errors.Is(err, ErrEnvironment) {
+			return err
+		}
+
 		// short living process would be hard to catch and will failed when we try to open the library
 		// so let's failed silently
 		if errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		// Adding the path to the block list is irreversible, so double-check
+		// that we really didn't fail because the process is gone (the path is
+		// /proc/PID/root/...), since we can't be certain that ErrNotExist is
+		// always correctly propagated from the activation callback.
+		if _, statErr := os.Stat(path.HostPath); errors.Is(statErr, os.ErrNotExist) {
+			return errors.Join(statErr, err)
+		}
 
-		// we are calling `deactivationCB` here as some uprobes could be already attached
-		err = deactivationCB(FilePath{ID: pathID})
 		if r.blocklistByID != nil {
 			// add `pathID` to blocklist so we don't attempt to re-register files
 			// that are problematic for some reason
-			r.blocklistByID.Add(pathID, path.HostPath)
+			r.blocklistByID.Add(pathID, BlockListEntry{Path: path.HostPath, Reason: getBlockReason(err)})
 		}
 		r.telemetry.fileHookFailed.Add(1)
+
+		// Passing the error as is, without wrapping it in a `UnknownAttachmentError`,
+		// that's the responsibility of the callback.
 		return err
 	}
 
@@ -244,7 +311,9 @@ func (r *FileRegistry) GetRegisteredProcesses() map[uint32]struct{} {
 
 // Log state of `FileRegistry`
 func (r *FileRegistry) Log() {
-	log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
+	if log.ShouldLog(log.DebugLvl) {
+		log.Debugf("file_registry summary: program=%s %s", r.telemetry.programName, r.telemetry.metricGroup.Summary())
+	}
 }
 
 // Clear removes all registrations calling their deactivation callbacks

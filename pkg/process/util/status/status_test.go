@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -71,6 +72,7 @@ func TestGetStatus(t *testing.T) {
 			WlmExtractorCacheSize:           36,
 			WlmExtractorStaleDiffs:          1,
 			WlmExtractorDiffsDropped:        2,
+			SubmissionErrorCount:            1,
 		},
 	}
 
@@ -90,7 +92,7 @@ func TestGetStatus(t *testing.T) {
 			Config: ConfigStatus{
 				LogLevel: cfg.GetString("log_level"),
 			},
-			Metadata: *hostMetadataUtils.GetFromCache(context.Background(), cfg),
+			Metadata: *hostMetadataUtils.GetFromCache(context.Background(), cfg, hostnameimpl.NewHostnameService()),
 		},
 		Expvars: expectedExpVars,
 	}
@@ -98,7 +100,7 @@ func TestGetStatus(t *testing.T) {
 	expVarSrv := fakeExpVarServer(t, expectedExpVars)
 	defer expVarSrv.Close()
 
-	stats, err := GetStatus(cfg, expVarSrv.URL)
+	stats, err := GetStatus(cfg, expVarSrv.URL, hostnameimpl.NewHostnameService())
 	require.NoError(t, err)
 
 	OverrideTime(testTime)(stats)

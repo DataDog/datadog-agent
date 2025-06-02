@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The auto-instrumentation webhook no longer mutates the ``istio-proxy`` container.
+    This fixes an issue with Kubernetes-native sidecars and the istio service mesh
+    where a standard sidecar is moved to be the first init container by istio after it
+    was mutated by auto-instrumentation.

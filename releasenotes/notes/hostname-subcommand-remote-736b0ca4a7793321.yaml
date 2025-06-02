@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The hostname subcommand for the Agent now tries to reach out to the running Agent,
+    and falls back to computing the hostname locally if the Agent is not running.
+    You can use the `--local` option to force the local computation.

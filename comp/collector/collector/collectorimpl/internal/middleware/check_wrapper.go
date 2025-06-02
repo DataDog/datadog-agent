@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package middleware contains a check wrapper helper
 package middleware
 
 import (
@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // CheckWrapper cleans up the check sender after a check was
@@ -111,6 +111,11 @@ func (c *CheckWrapper) ConfigSource() string {
 	return c.inner.ConfigSource()
 }
 
+// Loader returns the name of the check loader
+func (c *CheckWrapper) Loader() string {
+	return c.inner.Loader()
+}
+
 // IsTelemetryEnabled implements Check#IsTelemetryEnabled
 func (c *CheckWrapper) IsTelemetryEnabled() bool {
 	return c.inner.IsTelemetryEnabled()
@@ -127,7 +132,7 @@ func (c *CheckWrapper) InstanceConfig() string {
 }
 
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
-func (c *CheckWrapper) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *CheckWrapper) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	// Avoid running concurrently with Run method (for now)
 	c.runM.Lock()
 	defer c.runM.Unlock()
@@ -136,4 +141,9 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 		return nil, nil
 	}
 	return c.inner.GetDiagnoses()
+}
+
+// IsHASupported implements Check#IsHASupported
+func (c *CheckWrapper) IsHASupported() bool {
+	return c.inner.IsHASupported()
 }

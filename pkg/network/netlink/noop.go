@@ -25,11 +25,11 @@ func NewNoOpConntracker() Conntracker {
 // GetType returns a string describing whether the conntracker is "ebpf" or "netlink"
 func (*noOpConntracker) GetType() string { return "" }
 
-func (*noOpConntracker) GetTranslationForConn(_c *network.ConnectionStats) *network.IPTranslation {
+func (*noOpConntracker) GetTranslationForConn(_c *network.ConnectionTuple) *network.IPTranslation {
 	return nil
 }
 
-func (*noOpConntracker) DeleteTranslation(_c *network.ConnectionStats) {
+func (*noOpConntracker) DeleteTranslation(_c *network.ConnectionTuple) {
 
 }
 

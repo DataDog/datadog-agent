@@ -12,62 +12,69 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDefaultEntityID_GetID(t *testing.T) {
-	tests := []struct {
-		name       string
-		entityID   EntityID
-		expectedID string
-	}{
-		{
-			name:       "invalid format, not containing `://`",
-			entityID:   newDefaultEntityID("invalid_entity_id"),
-			expectedID: "",
-		},
-		{
-			name:       "invalid format, multiple `://`",
-			entityID:   newDefaultEntityID("invalid://entity://id"),
-			expectedID: "entity://id",
-		},
-		{
-			name:       "conforming format, single `://`",
-			entityID:   newDefaultEntityID("good://format"),
-			expectedID: "format",
-		},
+func TestNewEntityID(t *testing.T) {
+	goodPrefixes := AllPrefixesSet()
+	badPrefixes := []string{
+		"",
+		"bad_prefix",
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
-			assert.Equal(tt, test.expectedID, test.entityID.GetID())
-		})
+	for good := range goodPrefixes {
+		NewEntityID(good, "12345")
 	}
+
+	for _, bad := range badPrefixes {
+		assert.Panics(t, func() { NewEntityID(EntityIDPrefix(bad), "12345") }, "Expected a panic to happen")
+	}
+
 }
 
-func TestDefaultEntityID_GetPrefix(t *testing.T) {
-	tests := []struct {
+func TestExtractPrefixAndID(t *testing.T) {
+	testCases := []struct {
 		name           string
-		entityID       EntityID
+		input          string
 		expectedPrefix EntityIDPrefix
+		expectedID     string
+		expectError    bool
 	}{
+
 		{
-			name:           "invalid format, not containing `://`",
-			entityID:       newDefaultEntityID("invalid_entity_id"),
+			name:           "proper input",
+			input:          "container_id://123456",
+			expectedPrefix: ContainerID,
+			expectedID:     "123456",
+			expectError:    false,
+		},
+
+		{
+			name:           "malformatted input",
+			input:          "container_id:123456",
 			expectedPrefix: "",
+			expectedID:     "",
+			expectError:    true,
 		},
+
 		{
-			name:           "invalid format, multiple `://`",
-			entityID:       newDefaultEntityID("invalid://entity://id"),
-			expectedPrefix: "invalid",
-		},
-		{
-			name:           "conforming format, single `://`",
-			entityID:       newDefaultEntityID("good://format"),
-			expectedPrefix: "good",
+			name:           "good format, but unsupported prefix",
+			input:          "bad-prefix://123456",
+			expectedPrefix: "",
+			expectedID:     "",
+			expectError:    true,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(tt *testing.T) {
-			assert.Equal(tt, test.expectedPrefix, test.entityID.GetPrefix())
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			prefix, id, err := ExtractPrefixAndID(testCase.input)
+
+			if testCase.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, testCase.expectedPrefix, prefix)
+			assert.Equal(t, testCase.expectedID, id)
 		})
 	}
 }

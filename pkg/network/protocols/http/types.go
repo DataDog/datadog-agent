@@ -17,6 +17,9 @@ import "C"
 type ConnTuple = C.conn_tuple_t
 type SslSock C.ssl_sock_t
 type SslReadArgs C.ssl_read_args_t
+type SslReadExArgs C.ssl_read_ex_args_t
+type SslWriteArgs C.ssl_write_args_t
+type SslWriteExArgs C.ssl_write_ex_args_t
 
 type EbpfEvent C.http_event_t
 type EbpfTx C.http_transaction_t
@@ -31,7 +34,6 @@ const (
 	GnuTLS  ConnTag = C.LIBGNUTLS
 	OpenSSL ConnTag = C.LIBSSL
 	Go      ConnTag = C.GO
-	Java    ConnTag = C.JAVA_TLS
 	TLS     ConnTag = C.CONN_TLS
 	Istio   ConnTag = C.ISTIO
 	NodeJS  ConnTag = C.NODEJS
@@ -42,7 +44,6 @@ var (
 		GnuTLS:  "tls.library:gnutls",
 		OpenSSL: "tls.library:openssl",
 		Go:      "tls.library:go",
-		Java:    "tls.library:java",
 		TLS:     "tls.connection:encrypted",
 		Istio:   "tls.library:istio",
 		NodeJS:  "tls.library:nodejs",

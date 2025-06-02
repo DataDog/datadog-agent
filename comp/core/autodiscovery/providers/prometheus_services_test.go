@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -259,7 +259,8 @@ func TestPrometheusServicesCollect(t *testing.T) {
 		},
 	}
 
-	pkgconfigsetup.Datadog().SetWithoutSource("prometheus_scrape.version", 2)
+	cfg := pkgconfigmock.New(t)
+	cfg.SetWithoutSource("prometheus_scrape.version", 2)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()

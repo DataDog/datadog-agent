@@ -7,11 +7,11 @@ package guiimpl
 
 import (
 	"fmt"
-	"html/template"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
 )
 

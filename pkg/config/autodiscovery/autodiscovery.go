@@ -9,6 +9,8 @@
 package autodiscovery
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -38,6 +40,11 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 	if pkgconfigsetup.Datadog().GetBool("database_monitoring.autodiscovery.aurora.enabled") {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "database-monitoring-aurora"})
 		log.Info("Database monitoring aurora discovery is enabled: Adding the aurora listener")
+	}
+	// Add database-monitoring rds listener if the feature is enabled
+	if pkgconfigsetup.Datadog().GetBool("database_monitoring.autodiscovery.rds.enabled") {
+		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "database-monitoring-rds"})
+		log.Info("Database monitoring rds discovery is enabled: Adding the rds listener")
 	}
 
 	// Auto-add file-based kube service and endpoints config providers based on check config files.
@@ -75,10 +82,11 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 	}
 
 	// Auto-activate autodiscovery without listeners: - snmp
-	configs := []snmplistener.Config{}
-	err := pkgconfigsetup.Datadog().UnmarshalKey("network_devices.autodiscovery.configs", &configs)
+	snmpConfig, err := snmplistener.NewListenerConfig()
 
-	if err == nil && len(configs) > 0 {
+	if err != nil && !errors.Is(err, snmplistener.ErrNoConfigGiven) {
+		log.Errorf("Error unmarshalling snmp listener config. Error: %v", err)
+	} else if len(snmpConfig.Configs) > 0 {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "snmp"})
 		log.Info("Configs for autodiscovery detected: Adding the snmp listener")
 	}
@@ -120,6 +128,12 @@ func DiscoverComponentsFromEnv() ([]pkgconfigsetup.ConfigurationProviders, []pkg
 	if isKubeEnv {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "kubelet"})
 		log.Info("Adding Kubelet listener from environment")
+	}
+
+	isGPUEnv := env.IsFeaturePresent(env.NVML)
+	if isGPUEnv {
+		detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.GPU})
+		log.Info("Adding GPU provider from environment")
 	}
 
 	return detectedProviders, detectedListeners

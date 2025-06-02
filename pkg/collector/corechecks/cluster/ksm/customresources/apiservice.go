@@ -40,11 +40,10 @@ func NewAPIServiceFactory(client *apiserver.APIClient) customresource.RegistryFa
 }
 
 type apiserviceFactory struct {
-	client interface{}
+	client apiregistrationclient.ApiregistrationV1Interface
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *apiserviceFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
+func (f *apiserviceFactory) CreateClient(_ *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
@@ -52,7 +51,7 @@ func (f *apiserviceFactory) Name() string {
 	return "apiservices"
 }
 
-func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
+func (f *apiserviceFactory) MetricFamilyGenerators() []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
 		*generator.NewFamilyGeneratorWithStability(
 			descAPIServiceAnnotationsName,
@@ -61,7 +60,7 @@ func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 			basemetrics.ALPHA,
 			"",
 			wrapAPIServiceFunc(func(a *v1.APIService) *metric.Family {
-				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", a.Annotations, allowAnnotationsList)
+				annotationKeys, annotationValues := kubeMapToPrometheusLabels("annotation", a.Annotations)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -80,7 +79,7 @@ func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 			basemetrics.ALPHA,
 			"",
 			wrapAPIServiceFunc(func(a *v1.APIService) *metric.Family {
-				labelKeys, labelValues := createPrometheusLabelKeysValues("label", a.Labels, allowLabelsList)
+				labelKeys, labelValues := kubeMapToPrometheusLabels("label", a.Labels)
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
@@ -121,18 +120,25 @@ func (f *apiserviceFactory) MetricFamilyGenerators(allowAnnotationsList, allowLa
 }
 
 func (f *apiserviceFactory) ExpectedType() interface{} {
-	return &v1.APIService{}
+	return &v1.APIService{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "APIService",
+			APIVersion: v1.SchemeGroupVersion.String(),
+		},
+	}
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (f *apiserviceFactory) ListWatch(customresourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
+func (f *apiserviceFactory) ListWatch(customresourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
 	client := customresourceClient.(apiregistrationclient.ApiregistrationV1Interface)
+	ctx := context.Background()
 	return &cache.ListWatch{
 		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
-			return client.APIServices().List(context.TODO(), opts)
+			opts.FieldSelector = fieldSelector
+			return client.APIServices().List(ctx, opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
-			return client.APIServices().Watch(context.TODO(), opts)
+			opts.FieldSelector = fieldSelector
+			return client.APIServices().Watch(ctx, opts)
 		},
 	}
 }

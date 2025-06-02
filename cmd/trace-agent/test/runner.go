@@ -48,7 +48,22 @@ func (s *Runner) Start() error {
 		// respect whatever the testing framework says
 		s.Verbose = testing.Verbose()
 	}
-	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose)
+	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose, false)
+	if err != nil {
+		return err
+	}
+	s.agent = agent
+	return s.backend.Start()
+}
+
+// StartAndBuildSecretBackend initializes the runner, creates the secret binary and starts the fake backend.
+func (s *Runner) StartAndBuildSecretBackend() error {
+	s.backend = newFakeBackend(s.ChannelSize)
+	if !s.Verbose {
+		// respect whatever the testing framework says
+		s.Verbose = testing.Verbose()
+	}
+	agent, err := newAgentRunner(s.backend.srv.Addr, s.Verbose, true)
 	if err != nil {
 		return err
 	}
@@ -105,22 +120,35 @@ func (s *Runner) Out() <-chan interface{} {
 	return s.backend.Out()
 }
 
+// BinDir return the binary directory where the binary, configuration and secret backend binary are stored.
+func (s *Runner) BinDir() string {
+	return s.agent.bindir
+}
+
 // PostMsgpack encodes data using msgpack and posts it to the given path. The agent
 // must be started using RunAgent.
 //
 // Example: r.PostMsgpack("/v0.5/stats", pb.ClientStatsPayload{})
 func (s *Runner) PostMsgpack(path string, data msgp.Marshaler) (err error) {
+	var b []byte
+	if b, err = data.MarshalMsg(nil); err != nil {
+		return err
+	}
+	return s.PostBinary(path, b)
+}
+
+// PostBinary takes messagepack encoded data and posts it to the given path. The agent
+// must be started using RunAgent.
+//
+// Example: r.PostBinary("/v0.5/traces", []byte])
+func (s *Runner) PostBinary(path string, data []byte) (err error) {
 	if s.agent == nil {
 		return ErrNotStarted
 	}
 	if s.agent.PID() == 0 {
 		return errors.New("post: trace-agent not running")
 	}
-	var b []byte
-	if b, err = data.MarshalMsg(nil); err != nil {
-		return err
-	}
-	buf := bytes.NewBuffer(b)
+	buf := bytes.NewBuffer(data)
 	addr := fmt.Sprintf("http://%s%s", s.agent.Addr(), path)
 	req, err := http.NewRequest("POST", addr, buf)
 	if err != nil {

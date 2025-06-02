@@ -30,36 +30,6 @@ var (
 )
 
 const hostnameStyleSetting = "azure_hostname_style"
-const aksManagedOrchestratorTag = "aks-managed-orchestrator"
-const kubernetesTagValue = "Kubernetes"
-
-type metadata struct {
-	VMID              string
-	Name              string
-	ResourceGroupName string
-	SubscriptionID    string
-	TagsList          []map[string]string
-	OsProfile         struct {
-		ComputerName string
-	}
-}
-
-func (metadata metadata) GetFromStyle(style string) (string, error) {
-	switch style {
-	case "vmid":
-		return metadata.VMID, nil
-	case "name":
-		return metadata.Name, nil
-	case "name_and_resource_group":
-		return fmt.Sprintf("%s.%s", metadata.Name, metadata.ResourceGroupName), nil
-	case "full":
-		return fmt.Sprintf("%s.%s.%s", metadata.Name, metadata.ResourceGroupName, metadata.SubscriptionID), nil
-	case "os_computer_name":
-		return strings.ToLower(metadata.OsProfile.ComputerName), nil
-	default:
-		return "", fmt.Errorf("invalid azure_hostname_style value: %s", style)
-	}
-}
 
 // IsRunningOn returns true if the agent is running on Azure
 func IsRunningOn(ctx context.Context) bool {
@@ -76,7 +46,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 			metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
 			pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
-			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata VM ID endpoint: %s", err)
+			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 		}
 		return []string{res}, nil
 	},
@@ -84,21 +54,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 
 // GetHostAliases returns the VM ID from the Azure Metadata api
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	aliases := []string{}
-	vm, err := vmIDFetcher.FetchStringSlice(ctx)
-	if err == nil {
-		aliases = append(aliases, vm...)
-	}
-
-	metadata, err := getMetadata(ctx)
-	if err != nil {
-		return aliases, fmt.Errorf("Azure GetHostAliases: unable to query metadata endpoint: %s", err)
-	}
-
-	if isKubernetesTag(metadata.TagsList) {
-		aliases = append(aliases, metadata.OsProfile.ComputerName)
-	}
-	return aliases, err
+	return vmIDFetcher.FetchStringSlice(ctx)
 }
 
 var resourceGroupNameFetcher = cachedfetch.Fetcher{
@@ -167,7 +123,7 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 	Name: "Azure Instance Metadata",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		metadataJSON, err := getResponse(ctx,
-			metadataURL+"/metadata/instance/compute?api-version=2021-02-01")
+			metadataURL+"/metadata/instance/compute?api-version=2017-08-01")
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure instance metadata: %s", err)
 		}
@@ -175,49 +131,40 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 	},
 }
 
-func isKubernetesTag(tagsList []map[string]string) bool {
-	for _, tag := range tagsList {
-		if tag["name"] == aksManagedOrchestratorTag && strings.Contains(tag["value"], kubernetesTagValue) {
-			return true
-		}
-	}
-	return false
-}
-
-func getMetadata(ctx context.Context) (metadata, error) {
-	metadataInfo := metadata{}
-	metadataJSON, err := instanceMetaFetcher.FetchString(ctx)
-	if err != nil {
-		return metadataInfo, err
-	}
-
-	if err := json.Unmarshal([]byte(metadataJSON), &metadataInfo); err != nil {
-		return metadataInfo, fmt.Errorf("failed to parse Azure instance metadata: %s", err)
-	}
-	return metadataInfo, nil
-}
-
 func getHostnameWithConfig(ctx context.Context, config model.Config) (string, error) {
 	style := config.GetString(hostnameStyleSetting)
-	metadata, err := getMetadata(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	isKubernetes := isKubernetesTag(metadata.TagsList)
 
 	if style == "os" {
-		if isKubernetes {
-			// If running in AKS, use the node name as the hostname
-			style = "os_computer_name"
-		} else {
-			return "", fmt.Errorf("azure_hostname_style is set to 'os'")
-		}
+		return "", fmt.Errorf("azure_hostname_style is set to 'os'")
 	}
 
-	name, err := metadata.GetFromStyle(style)
+	metadataJSON, err := instanceMetaFetcher.FetchString(ctx)
 	if err != nil {
 		return "", err
+	}
+
+	var metadata struct {
+		VMID              string
+		Name              string
+		ResourceGroupName string
+		SubscriptionID    string
+	}
+	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
+		return "", fmt.Errorf("failed to parse Azure instance metadata: %s", err)
+	}
+
+	var name string
+	switch style {
+	case "vmid":
+		name = metadata.VMID
+	case "name":
+		name = metadata.Name
+	case "name_and_resource_group":
+		name = fmt.Sprintf("%s.%s", metadata.Name, metadata.ResourceGroupName)
+	case "full":
+		name = fmt.Sprintf("%s.%s.%s", metadata.Name, metadata.ResourceGroupName, metadata.SubscriptionID)
+	default:
+		return "", fmt.Errorf("invalid azure_hostname_style value: %s", style)
 	}
 
 	if err := validate.ValidHostname(name); err != nil {

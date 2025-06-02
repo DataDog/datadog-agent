@@ -9,16 +9,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
+
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -33,7 +35,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 		GenerateOutOfMemoryEnhancedMetrics(reportLogTime, tags, demux)
 	}
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(2, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(2, 0, 125*time.Millisecond)
 	assert.True(t, isOOM)
 	assert.Len(t, generatedMetrics, 2, "two enhanced metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
@@ -44,6 +46,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       ErrorsMetric,
 		Value:      1.0,
@@ -51,6 +54,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogOutOfMemory(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 }
 
@@ -62,7 +66,7 @@ func TestGenerateEnhancedMetricsFromFunctionLogNoMetric(t *testing.T) {
 		GenerateOutOfMemoryEnhancedMetrics(time.Now(), tags, demux)
 	}
 
-	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForSamples(125 * time.Millisecond)
 	assert.False(t, isOOM)
 	assert.Len(t, generatedMetrics, 0, "no metrics should have been generated")
 	assert.Len(t, timedMetrics, 0)
@@ -88,7 +92,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 	}
 	go GenerateEnhancedMetricsFromReportLog(args)
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(7, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(7, 0, 125*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:7], []metrics.MetricSample{{
 		Name:       maxMemoryUsedMetric,
@@ -97,6 +101,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       memorySizeMetric,
 		Value:      1024.0,
@@ -104,6 +109,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       billedDurationMetric,
 		Value:      0.80,
@@ -111,6 +117,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       durationMetric,
 		Value:      1.0,
@@ -118,6 +125,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.ResolveRuntimeArch()),
@@ -125,6 +133,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       postRuntimeDurationMetric,
 		Value:      990.0,
@@ -132,6 +141,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       initDurationMetric,
 		Value:      0.1,
@@ -139,6 +149,7 @@ func TestGenerateEnhancedMetricsFromReportLogColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -163,7 +174,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 	}
 	go GenerateEnhancedMetricsFromReportLog(args)
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(6, 0, 0100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(6, 0, 125*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:6], []metrics.MetricSample{{
 		Name:       maxMemoryUsedMetric,
@@ -172,6 +183,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       memorySizeMetric,
 		Value:      1024.0,
@@ -179,6 +191,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       billedDurationMetric,
 		Value:      0.80,
@@ -186,6 +199,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       durationMetric,
 		Value:      1.0,
@@ -193,6 +207,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       estimatedCostMetric,
 		Value:      calculateEstimatedCost(800.0, 1024.0, serverlessTags.ResolveRuntimeArch()),
@@ -200,6 +215,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       postRuntimeDurationMetric,
 		Value:      990.0,
@@ -207,6 +223,7 @@ func TestGenerateEnhancedMetricsFromReportLogNoColdStart(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(reportLogTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -217,7 +234,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 
 	go SendTimeoutEnhancedMetric(tags, demux)
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       timeoutsMetric,
@@ -227,6 +244,7 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 		SampleRate: 1,
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
+		Source:    metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -237,7 +255,7 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 
 	go SendInvocationEnhancedMetric(tags, demux)
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       invocationsMetric,
@@ -247,6 +265,7 @@ func TestSendInvocationEnhancedMetric(t *testing.T) {
 		SampleRate: 1,
 		// compare the generated timestamp to itself because we can't know its value
 		Timestamp: generatedMetrics[0].Timestamp,
+		Source:    metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -263,7 +282,7 @@ func TestDisableEnhancedMetrics(t *testing.T) {
 		SendInvocationEnhancedMetric(tags, demux)
 	}()
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
@@ -278,7 +297,7 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 	mockTime := time.Now()
 	go SendOutOfMemoryEnhancedMetric(tags, mockTime, demux)
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       OutOfMemoryMetric,
@@ -287,6 +306,7 @@ func TestSendOutOfMemoryEnhancedMetric(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(mockTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -297,7 +317,7 @@ func TestSendErrorsEnhancedMetric(t *testing.T) {
 	mockTime := time.Now()
 	go SendErrorsEnhancedMetric(tags, mockTime, demux)
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 
 	assert.Equal(t, generatedMetrics[:1], []metrics.MetricSample{{
 		Name:       ErrorsMetric,
@@ -306,6 +326,7 @@ func TestSendErrorsEnhancedMetric(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(mockTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -365,7 +386,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 		Demux:            demux,
 	}
 	go GenerateEnhancedMetricsFromRuntimeDoneLog(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 125*time.Millisecond)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       responseLatencyMetric,
 		Value:      19,
@@ -373,6 +394,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       responseDurationMetric,
 		Value:      3,
@@ -380,6 +402,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       producedBytesMetric,
 		Value:      53,
@@ -387,6 +410,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoStartDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -406,7 +430,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 		Demux:            demux,
 	}
 	go GenerateEnhancedMetricsFromRuntimeDoneLog(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 125*time.Millisecond)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       responseLatencyMetric,
 		Value:      19,
@@ -414,6 +438,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       responseDurationMetric,
 		Value:      3,
@@ -421,6 +446,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       producedBytesMetric,
 		Value:      53,
@@ -428,6 +454,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogNoEndDate(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -447,7 +474,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Demux:            demux,
 	}
 	go GenerateEnhancedMetricsFromRuntimeDoneLog(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 125*time.Millisecond)
 	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
 		Name:       runtimeDurationMetric,
 		Value:      153,
@@ -455,6 +482,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       responseLatencyMetric,
 		Value:      19,
@@ -462,6 +490,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       responseDurationMetric,
 		Value:      3,
@@ -469,6 +498,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}, {
 		Name:       producedBytesMetric,
 		Value:      53,
@@ -476,6 +506,7 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, timedMetrics, 0)
 }
@@ -486,7 +517,7 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
 	args := generateCPUEnhancedMetricsArgs{100, 53, 200, tags, demux, now}
 	go generateCPUEnhancedMetrics(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 125*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
 			Name:       cpuSystemTimeMetric,
@@ -495,6 +526,7 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuUserTimeMetric,
@@ -503,6 +535,7 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuTotalTimeMetric,
@@ -511,6 +544,7 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		}},
 		generatedMetrics,
 	)
@@ -529,7 +563,7 @@ func TestDisableCPUEnhancedMetrics(t *testing.T) {
 		SendCPUEnhancedMetrics(&proc.CPUData{}, 0, tags, demux)
 	}()
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
@@ -559,7 +593,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 		Time:             now,
 	}
 	go GenerateCPUUtilizationEnhancedMetrics(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(5, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(5, 0, 125*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
 			Name:       cpuTotalUtilizationPctMetric,
@@ -568,6 +602,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuTotalUtilizationMetric,
@@ -576,6 +611,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       numCoresMetric,
@@ -584,6 +620,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuMaxUtilizationMetric,
@@ -592,6 +629,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       cpuMinUtilizationMetric,
@@ -600,6 +638,7 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		}},
 		generatedMetrics,
 	)
@@ -620,7 +659,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 		Time:          now,
 	}
 	go generateNetworkEnhancedMetrics(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 125*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
 			Name:       rxBytesMetric,
@@ -629,6 +668,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       txBytesMetric,
@@ -637,6 +677,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       totalNetworkMetric,
@@ -645,6 +686,7 @@ func TestGenerateNetworkEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		}},
 		generatedMetrics,
 	)
@@ -663,7 +705,7 @@ func TestNetworkEnhancedMetricsDisabled(t *testing.T) {
 		SendNetworkEnhancedMetrics(&proc.NetworkData{}, tags, demux)
 	}()
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
@@ -684,7 +726,7 @@ func TestSendTmpEnhancedMetrics(t *testing.T) {
 		Time:    now,
 	}
 	go generateTmpEnhancedMetrics(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 125*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
 			Name:       tmpUsedMetric,
@@ -693,6 +735,7 @@ func TestSendTmpEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       tmpMaxMetric,
@@ -701,6 +744,7 @@ func TestSendTmpEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 	},
 		generatedMetrics,
@@ -721,7 +765,7 @@ func TestSendTmpEnhancedMetricsDisabled(t *testing.T) {
 		SendTmpEnhancedMetrics(make(chan bool), tags, &metricAgent)
 	}()
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
@@ -742,7 +786,7 @@ func TestSendFdEnhancedMetrics(t *testing.T) {
 		Time:  now,
 	}
 	go generateFdEnhancedMetrics(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 125*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
 			Name:       fdMaxMetric,
@@ -751,6 +795,7 @@ func TestSendFdEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       fdUseMetric,
@@ -759,6 +804,7 @@ func TestSendFdEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 	},
 		generatedMetrics,
@@ -778,7 +824,7 @@ func TestSendThreadEnhancedMetrics(t *testing.T) {
 		Time:       now,
 	}
 	go generateThreadEnhancedMetrics(args)
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(3, 0, 125*time.Millisecond)
 	assert.Equal(t, []metrics.MetricSample{
 		{
 			Name:       threadsMaxMetric,
@@ -787,6 +833,7 @@ func TestSendThreadEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 		{
 			Name:       threadsUseMetric,
@@ -795,6 +842,7 @@ func TestSendThreadEnhancedMetrics(t *testing.T) {
 			Tags:       tags,
 			SampleRate: 1,
 			Timestamp:  now,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		},
 	},
 		generatedMetrics,
@@ -815,7 +863,7 @@ func TestSendProcessEnhancedMetricsDisabled(t *testing.T) {
 		SendProcessEnhancedMetrics(make(chan bool), tags, &metricAgent)
 	}()
 
-	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 
 	assert.Len(t, generatedMetrics, 0)
 	assert.Len(t, timedMetrics, 0)
@@ -828,10 +876,10 @@ func TestSendFailoverReasonMetric(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"reason:test-reason"}
 	go SendFailoverReasonMetric(tags, demux)
-	generatedMetrics, _ := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+	generatedMetrics, _ := demux.WaitForNumberOfSamples(1, 0, 125*time.Millisecond)
 	assert.Len(t, generatedMetrics, 1)
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), metricscompression.MockModule(), logscompression.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

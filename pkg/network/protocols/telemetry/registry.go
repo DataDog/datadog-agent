@@ -60,18 +60,6 @@ func (r *registry) GetMetrics(params ...string) []metric {
 	return result
 }
 
-// Clear metrics
-// WARNING: Only intended for tests
-func Clear() {
-	globalRegistry.Lock()
-	globalRegistry.metrics = nil
-	globalRegistry.Unlock()
-
-	telemetryDelta.mux.Lock()
-	telemetryDelta.stateByClientID = make(map[string]*clientState)
-	telemetryDelta.mux.Unlock()
-}
-
 func init() {
 	globalRegistry = new(registry)
 }

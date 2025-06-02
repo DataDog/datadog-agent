@@ -12,10 +12,11 @@ import (
 	"context"
 	"regexp"
 	"runtime"
+	"time"
 
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -36,13 +37,16 @@ type Provider struct {
 	filter                *containers.Filter
 	config                *common.KubeletConfig
 	store                 workloadmeta.Component
+	tagger                tagger.Component
 	defaultRateFilterList []*regexp.Regexp
 }
 
 // NewProvider is created by filter, config and workloadmeta
 func NewProvider(filter *containers.Filter,
 	config *common.KubeletConfig,
-	store workloadmeta.Component) *Provider {
+	store workloadmeta.Component,
+	tagger tagger.Component,
+) *Provider {
 	defaultRateFilterList := []*regexp.Regexp{
 		regexp.MustCompile("diskio[.]io_service_bytes[.]stats[.]total"),
 		regexp.MustCompile("network[.].._bytes"),
@@ -53,13 +57,16 @@ func NewProvider(filter *containers.Filter,
 		filter:                filter,
 		config:                config,
 		store:                 store,
+		tagger:                tagger,
 		defaultRateFilterList: defaultRateFilterList,
 	}
 }
 
 // Provide processes metrics and reports
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
-	statsSummary, err := kc.GetLocalStatsSummary(context.TODO())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Timeout)*time.Second)
+	statsSummary, err := kc.GetLocalStatsSummary(ctx)
+	cancel()
 	if err != nil || statsSummary == nil {
 		return err
 	}
@@ -150,7 +157,7 @@ func (p *Provider) processPodStats(sender sender.Sender,
 	}
 
 	entityID := types.NewEntityID(types.KubernetesPodUID, podStats.PodRef.UID)
-	podTags, _ := tagger.Tag(entityID.String(),
+	podTags, _ := p.tagger.Tag(entityID,
 		types.OrchestratorCardinality)
 
 	if len(podTags) == 0 {
@@ -221,7 +228,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			podStats.PodRef.Namespace) {
 			continue
 		}
-		tags, err := tagger.Tag(types.NewEntityID(types.ContainerID, ctr.ID).String(), types.HighCardinality)
+		tags, err := p.tagger.Tag(types.NewEntityID(types.ContainerID, ctr.ID), types.HighCardinality)
 		if err != nil || len(tags) == 0 {
 			log.Debugf("Tags not found for container: %s/%s/%s:%s - no metrics will be sent",
 				podStats.PodRef.Namespace, podStats.PodRef.Name, containerName, ctr.ID)
@@ -233,8 +240,8 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			reportMetric(sender.Rate, "cpu.usage.total", containerStats.CPU.UsageCoreNanoSeconds, tags)
 		}
 		if containerStats.Memory != nil {
-			reportMetric(sender.Rate, "memory.working_set", containerStats.Memory.WorkingSetBytes, tags)
-			reportMetric(sender.Rate, "memory.usage", containerStats.Memory.UsageBytes, tags)
+			reportMetric(sender.Gauge, "memory.working_set", containerStats.Memory.WorkingSetBytes, tags)
+			reportMetric(sender.Gauge, "memory.usage", containerStats.Memory.UsageBytes, tags)
 		}
 		reportFsMetric(sender, containerStats.Rootfs, "", tags)
 	}

@@ -13,11 +13,10 @@ import (
 	"testing"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	eventlog_test "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,7 @@ var debuglogFlag = flag.Bool("debuglog", false, "Enable seelog debug logging")
 func optEnableDebugLogging() {
 	// Enable logger
 	if *debuglogFlag {
-		pkglog.SetupLogger(seelog.Default, "debug")
+		pkglog.SetupLogger(pkglog.Default(), "debug")
 	}
 }
 

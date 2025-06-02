@@ -3,14 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build gce
-
 package gce
 
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -57,6 +53,7 @@ var (
 		"google-compute-enable-pcid:true",
 		"instance-template:projects/111111111111/global/instanceTemplates/gke-test-cluster-default-pool-0012834b",
 	}
+	expectedTagsWithProviderKind = append(expectedFullTags, "provider_kind:test-provider")
 )
 
 func mockMetadataRequest(t *testing.T) *httptest.Server {
@@ -68,7 +65,7 @@ func mockMetadataRequest(t *testing.T) *httptest.Server {
 		assert.Contains(t, r.URL.String(), "/?recursive=true")
 		assert.Equal(t, "Google", r.Header.Get("Metadata-Flavor"))
 		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, string(content))
+		w.Write(content)
 	}))
 	metadataURL = ts.URL
 	return ts
@@ -103,12 +100,12 @@ func TestGetHostTags(t *testing.T) {
 }
 
 func TestGetHostTagsWithProjectID(t *testing.T) {
+	mockConfig := configmock.New(t)
 	ctx := context.Background()
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
-	pkgconfigsetup.Datadog().SetWithoutSource("gce_send_project_id_tag", true)
-	defer pkgconfigsetup.Datadog().SetWithoutSource("gce_send_project_id_tag", false)
+	mockConfig.SetWithoutSource("gce_send_project_id_tag", true)
 	tags, err := GetTags(ctx)
 	require.NoError(t, err)
 	testTags(t, tags, expectedTagsWithProjectID)
@@ -134,7 +131,6 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := configmock.New(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
-	defer mockConfig.SetWithoutSource("exclude_gce_tags", defaultExclude)
 
 	mockConfig.SetWithoutSource("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
 
@@ -145,4 +141,18 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	tags, err := GetTags(ctx)
 	require.NoError(t, err)
 	testTags(t, tags, expectedExcludedTags)
+}
+
+func TestGetHostTagsWithProviderKind(t *testing.T) {
+	ctx := context.Background()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("provider_kind", "test-provider")
+
+	server := mockMetadataRequest(t)
+	defer server.Close()
+	defer cache.Cache.Delete(tagsCacheKey)
+
+	tags, err := GetTags(ctx)
+	require.NoError(t, err)
+	testTags(t, tags, expectedTagsWithProviderKind)
 }

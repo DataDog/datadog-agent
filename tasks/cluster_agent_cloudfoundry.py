@@ -19,7 +19,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False
     Build Cluster Agent for Cloud Foundry
 
      Example invokation:
-        inv cluster-agent-cloudfoundry.build
+        dda inv cluster-agent-cloudfoundry.build
     """
     build_common(
         ctx,
@@ -44,7 +44,7 @@ def refresh_assets(ctx, development=True):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):  # noqa: U100
+def integration_tests(ctx, race=False, remote_docker=False):  # noqa: U100
     """
     Run integration tests for cluster-agent-cloudfoundry
     """

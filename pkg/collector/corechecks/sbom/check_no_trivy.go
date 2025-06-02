@@ -9,9 +9,10 @@ package sbom
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -20,6 +21,6 @@ const (
 )
 
 // Factory returns a new check factory
-func Factory(_ workloadmeta.Component, _ config.Component) optional.Option[func() check.Check] {
-	return optional.NewNoneOption[func() check.Check]()
+func Factory(workloadmeta.Component, config.Component, tagger.Component) option.Option[func() check.Check] {
+	return option.None[func() check.Check]()
 }

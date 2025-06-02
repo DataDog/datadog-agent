@@ -11,8 +11,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 )
 
 const (
@@ -32,6 +33,10 @@ func (l language) defaultLibInfo(registry, ctrName string) libInfo {
 }
 
 func (l language) libImageName(registry, tag string) string {
+	if tag == defaultVersionMagicString {
+		tag = l.defaultLibVersion()
+	}
+
 	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, tag)
 }
 
@@ -101,11 +106,25 @@ var supportedLanguages = []language{
 	python,
 	dotnet,
 	ruby,
+	php, // PHP only works with injection v2, no environment variables are set in any case
+}
+
+func defaultSupportedLanguagesMap() map[language]bool {
+	m := map[language]bool{}
+	for _, l := range supportedLanguages {
+		m[l] = true
+	}
+
+	return m
 }
 
 func (l language) isSupported() bool {
 	return slices.Contains(supportedLanguages, l)
 }
+
+// defaultVersionMagicString is a magic string that indicates that the user
+// wishes to utilize the default version found in languageVersions.
+const defaultVersionMagicString = "default"
 
 // languageVersions defines the major library versions we consider "default" for each
 // supported language. If not set, we will default to "latest", see defaultLibVersion.
@@ -114,10 +133,10 @@ func (l language) isSupported() bool {
 var languageVersions = map[language]string{
 	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
 	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
-	python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
+	python: "v3", // https://datadoghq.atlassian.net/browse/INPLAT-598
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
-	php:    "v2", // https://datadoghq.atlassian.net/browse/APMON-1128
+	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128
 }
 
 func (l language) defaultLibVersion() string {

@@ -1,0 +1,47 @@
+{
+  "Sketches": [
+    {
+      "Name": "double.exponential.delta.histogram",
+      "Tags": [
+        "custom_attribute:custom_value",
+        "deployment.environment:dev"
+      ],
+      "Host": "res-hostname",
+      "OriginID": "",
+      "OriginProduct": 10,
+      "OriginSubProduct": 17,
+      "OriginProductDetail": 0,
+      "Timestamp": 1667560641226420924,
+      "Summary": {
+        "Min": -100000,
+        "Max": 100000,
+        "Sum": 3.141592653589793,
+        "Avg": 0.10471975511965977,
+        "Cnt": 30
+      },
+      "Keys": [
+        -1341,
+        -1340,
+        -1339,
+        0,
+        1340,
+        1341,
+        1342,
+        1343,
+        1344
+      ],
+      "Counts": [
+        6,
+        4,
+        0,
+        10,
+        1,
+        1,
+        2,
+        3,
+        3
+      ]
+    }
+  ],
+  "TimeSeries": null
+}

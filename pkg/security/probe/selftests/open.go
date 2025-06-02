@@ -9,6 +9,7 @@
 package selftests
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 
@@ -31,16 +32,17 @@ func (o *OpenSelfTest) GetRuleDefinition() *rules.RuleDefinition {
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
 		Expression: fmt.Sprintf(`open.file.path == "%s" && open.flags & O_CREAT > 0`, o.filename),
+		Silent:     true,
 	}
 }
 
 // GenerateEvent generate an event
-func (o *OpenSelfTest) GenerateEvent() error {
+func (o *OpenSelfTest) GenerateEvent(ctx context.Context) error {
 	o.isSuccess = false
 
 	// we need to use touch (or any other external program) as our PID is discarded by probes
 	// so the events would not be generated
-	cmd := exec.Command("touch", o.filename)
+	cmd := exec.CommandContext(ctx, "touch", o.filename)
 	if err := cmd.Run(); err != nil {
 		log.Debugf("error running touch: %v", err)
 		return err

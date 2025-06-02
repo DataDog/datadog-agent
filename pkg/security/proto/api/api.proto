@@ -15,6 +15,7 @@ message SecurityEventMessage {
 
 message DumpProcessCacheParams {
     bool WithArgs = 1;
+    string Format = 2;
 }
 
 message SecurityDumpProcessCacheMessage {
@@ -39,15 +40,24 @@ message SecurityConfigMessage {
     bool ActivityDumpEnabled = 3;
 }
 
-message RuleSetReportMessage{
-    repeated EventTypePolicy Policies = 1;
+message FilterReport{
+    repeated ApproverReport Approvers = 1;
 }
 
-message EventTypePolicy{
+
+message RuleSetReportMessage{
+    FilterReport Filters = 1;
+}
+
+message AcceptModeRule{
+    string RuleID = 1;
+}
+
+message ApproverReport{
     string EventType = 1;
     uint32 Mode = 2;
-    // field 3 is deprecated
-    Approvers Approvers = 4;
+    Approvers Approvers = 3;
+    repeated AcceptModeRule AcceptModeRules = 4;
 }
 
 message Approvers {
@@ -63,7 +73,7 @@ message ApproverDetails {
 
 message GetRuleSetReportParams{}
 
-message GetRuleSetReportResultMessage{
+message GetRuleSetReportMessage{
     RuleSetReportMessage RuleSetReportMessage = 1;
     string Error = 2;
 }
@@ -105,10 +115,16 @@ message PolicyStatus {
     repeated RuleStatus Status = 3;
 }
 
+message SECLVariableState {
+    string Name = 1;
+    string Value = 2;
+}
+
 message Status {
     EnvironmentStatus Environment = 1;
     SelfTestsStatus SelfTests = 2;
     repeated PolicyStatus PoliciesStatus = 3;
+    repeated SECLVariableState SECLVariables = 4;
 }
 
 message ConstantFetcherStatus {
@@ -122,6 +138,7 @@ message EnvironmentStatus {
     string KernelLockdown = 3;
     bool UseMmapableMaps = 4;
     bool UseRingBuffer = 5;
+    bool UseFentry = 6;
 }
 
 /*Discarders*/
@@ -146,6 +163,7 @@ message ActivityDumpParams {
     bool DifferentiateArgs = 2;
     StorageRequestParams Storage = 3;
     string ContainerID = 4;
+    string CGroupID = 5;
 }
 
 message MetadataMessage {
@@ -164,6 +182,8 @@ message MetadataMessage {
     string Timeout = 12;
     uint64 Size = 13;
     string Serialization = 14;
+    string CGroupID = 15;
+    string CGroupManager = 16;
 }
 
 message StorageRequestMessage {
@@ -195,6 +215,7 @@ message ActivityDumpListMessage {
 message ActivityDumpStopParams {
     string Name = 1;
     string ContainerID = 2;
+    string CGroupID = 3;
 }
 
 message ActivityDumpStopMessage {
@@ -214,7 +235,8 @@ message TranscodingRequestMessage {
 message ActivityDumpStreamParams {}
 
 message ActivityDumpStreamMessage {
-    ActivityDumpMessage Dump = 1;
+    WorkloadSelectorMessage Selector = 1;
+    bytes Header = 2;
     bytes Data = 3;
 }
 
@@ -240,6 +262,9 @@ message ActivityTreeStatsMessage {
     int64 DNSNodesCount = 3;
     int64 SocketNodesCount = 4;
     int64 ApproximateSize = 5;
+    int64 IMDSNodesCount = 6;
+    int64 SyscallNodesCount = 7;
+    int64 FlowNodesCount = 8;
 }
 
 message event_type_state {
@@ -295,7 +320,7 @@ service SecurityModule {
     rpc GetConfig(GetConfigParams) returns (SecurityConfigMessage) {}
     rpc GetStatus(GetStatusParams) returns (Status) {}
     rpc RunSelfTest(RunSelfTestParams) returns (SecuritySelfTestResultMessage) {}
-    rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportResultMessage) {}
+    rpc GetRuleSetReport(GetRuleSetReportParams) returns (GetRuleSetReportMessage) {}
     rpc ReloadPolicies(ReloadPoliciesParams) returns (ReloadPoliciesResultMessage) {}
     rpc DumpNetworkNamespace(DumpNetworkNamespaceParams) returns (DumpNetworkNamespaceMessage) {}
     rpc DumpDiscarders(DumpDiscardersParams) returns (DumpDiscardersMessage) {}

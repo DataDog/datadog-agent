@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && (functionaltests || stresstests)
+//go:build linux && functionaltests
 
 // Package tests holds tests related files
 package tests
@@ -27,13 +27,12 @@ const (
 )
 
 var (
-	testActivityDumpDuration             = time.Minute * 10
 	testActivityDumpLoadControllerPeriod = time.Second * 10
 )
 
 func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats []string, outputFiles []string,
 	activityDumpValidator func(ad *dump.ActivityDump) bool,
-	securityProfileValidator func(sp *profile.SecurityProfile) bool) {
+	securityProfileValidator func(sp *profile.Profile) bool) {
 	perExtOK := make(map[string]bool)
 	for _, format := range expectedFormats {
 		ext := fmt.Sprintf(".%s", format)

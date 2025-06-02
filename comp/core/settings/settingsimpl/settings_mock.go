@@ -12,7 +12,6 @@ import (
 
 	"go.uber.org/fx"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -29,29 +28,20 @@ func MockModule() fxutil.Module {
 type MockProvides struct {
 	fx.Out
 
-	Comp         settings.Component
-	FullEndpoint api.AgentEndpointProvider
-	ListEndpoint api.AgentEndpointProvider
-	GetEndpoint  api.AgentEndpointProvider
-	SetEndpoint  api.AgentEndpointProvider
+	Comp settings.Component
 }
 
-type mock struct{}
+type mock struct {
+	rtSettings map[string]interface{}
+}
 
 func newMock() MockProvides {
-	m := mock{}
-	return MockProvides{
-		Comp:         m,
-		FullEndpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/config", "GET"),
-		ListEndpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/config/list-runtime", "GET"),
-		GetEndpoint:  api.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "GET"),
-		SetEndpoint:  api.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "POST"),
+	m := mock{
+		rtSettings: map[string]interface{}{},
 	}
-}
-
-// ServeHTTP is a simple mocked http.Handler function
-func (m mock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
+	return MockProvides{
+		Comp: &m,
+	}
 }
 
 // RuntimeSettings returns all runtime configurable settings
@@ -60,12 +50,17 @@ func (m mock) RuntimeSettings() map[string]settings.RuntimeSetting {
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
-func (m mock) GetRuntimeSetting(string) (interface{}, error) {
+func (m mock) GetRuntimeSetting(key string) (interface{}, error) {
+	v, found := m.rtSettings[key]
+	if found {
+		return v, nil
+	}
 	return nil, nil
 }
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
-func (m mock) SetRuntimeSetting(string, interface{}, model.Source) error {
+func (m *mock) SetRuntimeSetting(key string, v interface{}, _ model.Source) error {
+	m.rtSettings[key] = v
 	return nil
 }
 

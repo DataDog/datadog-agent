@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux_bpf
 
 package network
 
@@ -18,12 +18,13 @@ import (
 )
 
 func TestStatsOverflow(t *testing.T) {
-	conn := ConnectionStats{
-		Pid:       123,
-		Type:      TCP,
-		Family:    AFINET,
-		Source:    util.AddressFromString("127.0.0.1"),
-		Dest:      util.AddressFromString("127.0.0.1"),
+	conn := ConnectionStats{ConnectionTuple: ConnectionTuple{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+	},
 		Monotonic: StatCounters{SentPackets: math.MaxUint32 - 1, RecvPackets: math.MaxUint32 - 2},
 		IntraHost: true,
 	}

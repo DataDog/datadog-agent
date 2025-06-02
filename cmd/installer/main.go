@@ -7,13 +7,33 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands"
-	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
+	"github.com/spf13/cobra"
+	"go.uber.org/dig"
+
+	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 )
 
 func main() {
-	os.Exit(runcmd.Run(command.MakeCommand(subcommands.InstallerSubcommands())))
+	os.Exit(runCmd(command.MakeCommand(subcommands.InstallerSubcommands())))
+}
+
+func runCmd(cmd *cobra.Command) int {
+	// always silence errors, since they are handled here
+	cmd.SilenceErrors = true
+
+	err := cmd.Execute()
+	if err != nil {
+		if rootCauseErr := dig.RootCause(err); rootCauseErr != err {
+			fmt.Fprintln(cmd.ErrOrStderr(), installerErrors.ToJSON(rootCauseErr))
+		} else {
+			fmt.Fprintln(cmd.ErrOrStderr(), installerErrors.ToJSON(err))
+		}
+		return -1
+	}
+	return 0
 }

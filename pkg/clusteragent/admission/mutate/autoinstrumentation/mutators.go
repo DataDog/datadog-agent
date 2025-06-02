@@ -8,10 +8,11 @@
 package autoinstrumentation
 
 import (
+	"strconv"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // containerMutator describes something that can mutate a container.
@@ -29,8 +30,8 @@ func (f containerMutatorFunc) mutateContainer(c *corev1.Container) error {
 
 type containerMutators []containerMutator
 
-func (mutators containerMutators) mutateContainer(c *corev1.Container) error {
-	for _, m := range mutators {
+func (ms containerMutators) mutateContainer(c *corev1.Container) error {
+	for _, m := range ms {
 		if err := m.mutateContainer(c); err != nil {
 			return err
 		}
@@ -50,6 +51,26 @@ type podMutatorFunc func(*corev1.Pod) error
 // mutatePod implements podMutator.
 func (f podMutatorFunc) mutatePod(pod *corev1.Pod) error {
 	return f(pod)
+}
+
+// mutatePodContainers applies a containerMutator to all of
+// the containers of a pod (init and not).
+func mutatePodContainers(pod *corev1.Pod, mutator containerMutator) error {
+	for idx, c := range pod.Spec.InitContainers {
+		if err := mutator.mutateContainer(&c); err != nil {
+			return err
+		}
+		pod.Spec.InitContainers[idx] = c
+	}
+
+	for idx, c := range pod.Spec.Containers {
+		if err := mutator.mutateContainer(&c); err != nil {
+			return err
+		}
+		pod.Spec.Containers[idx] = c
+	}
+
+	return nil
 }
 
 // initContainer is a podMutator which adds the container to a pod as an
@@ -139,7 +160,7 @@ func (v volumeMount) mutateContainer(c *corev1.Container) error {
 	return nil
 }
 
-func (v volumeMount) readOnly() volumeMount {
+func (v volumeMount) readOnly() volumeMount { // nolint:unused
 	m := v.VolumeMount
 	m.ReadOnly = true
 	return volumeMount{m, v.Prepend}
@@ -159,18 +180,51 @@ func appendOrPrepend[T any](item T, toList []T, prepend bool) []T {
 	return append(toList, item)
 }
 
-type configKeyEnvVarMutator struct {
-	configKey string
-	envKey    string
-	getVal    func(string) string
+func newConfigEnvVarFromBoolMutator(key string, val *bool) envVar {
+	return envVarMutator(corev1.EnvVar{
+		Name:  key,
+		Value: strconv.FormatBool(valueOrZero(val)),
+	})
 }
 
-func (c configKeyEnvVarMutator) mutatePod(pod *corev1.Pod) error {
-	if pkgconfigsetup.Datadog().IsSet(c.configKey) {
-		_ = common.InjectEnv(pod, corev1.EnvVar{Name: c.envKey, Value: c.getVal(c.configKey)})
-	}
+func newConfigEnvVarFromStringMutator(key string, val *string) envVar {
+	return envVarMutator(corev1.EnvVar{
+		Name:  key,
+		Value: valueOrZero(val),
+	})
+}
 
-	return nil
+// containerFilter is a predicate function that evaluates
+// a container and returns true or false.
+//
+// Used by filteredContainerMutator.
+type containerFilter func(c *corev1.Container) bool
+
+// filteredContainerMutator applies a containerFilter to the given
+// containerMutator, producing a containerMutator.
+func filteredContainerMutator(f containerFilter, m containerMutator) containerMutator {
+	return containerMutatorFunc(func(c *corev1.Container) error {
+		if f != nil && !f(c) {
+			return nil
+		}
+		return m.mutateContainer(c)
+	})
+}
+
+// envVarMutator uses the envVar containerMutator to set the
+// raw EnvVar as given.
+//
+// It will prepend the environment variable and if the variable already
+// is in the container it will not add it.
+//
+// This is for parity for common.InjectEnv.
+func envVarMutator(env corev1.EnvVar) envVar {
+	return envVar{
+		key:           env.Name,
+		rawEnvVar:     &env,
+		prepend:       true,
+		dontOverwrite: true,
+	}
 }
 
 type containerSecurityContext struct {

@@ -68,7 +68,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 
 func getMetadataMap(nodeName string) error {
 	var e error
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 	var urlstr string
 	if nodeName == "" {
 		urlstr = fmt.Sprintf("https://localhost:%v/api/v1/tags/pod", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))

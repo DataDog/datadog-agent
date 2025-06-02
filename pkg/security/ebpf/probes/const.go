@@ -28,10 +28,8 @@ const (
 )
 
 const (
-	// DentryResolverOpenCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an open event
-	DentryResolverOpenCallbackKprobeKey uint32 = iota + 1
 	// DentryResolverSetAttrCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an setattr event
-	DentryResolverSetAttrCallbackKprobeKey
+	DentryResolverSetAttrCallbackKprobeKey = iota + 1
 	// DentryResolverMkdirCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an mkdir event
 	DentryResolverMkdirCallbackKprobeKey
 	// DentryResolverMountStageOneCallbackKprobeKey is the key to the callback program to execute after resolving the root dentry of a new mount
@@ -59,10 +57,8 @@ const (
 )
 
 const (
-	// DentryResolverOpenCallbackTracepointKey is the key to the callback program to execute after resolving the dentry of an open event
-	DentryResolverOpenCallbackTracepointKey uint32 = iota + 1
 	// DentryResolverMkdirCallbackTracepointKey is the key to the callback program to execute after resolving the dentry of an mkdir event
-	DentryResolverMkdirCallbackTracepointKey
+	DentryResolverMkdirCallbackTracepointKey uint32 = iota + 1
 	// DentryResolverMountStageOneCallbackTracepointKey is the key to the callback program to execute after resolving the root dentry of a new mount
 	DentryResolverMountStageOneCallbackTracepointKey
 	// DentryResolverMountStageTwoCallbackTracepointKey is the key to the callback program to execute after resolving the mountpoint dentry a new mount
@@ -78,12 +74,27 @@ const (
 )
 
 const (
+	// RawPacketFilterMaxTailCall defines the maximum of tail calls
+	RawPacketFilterMaxTailCall = 5
+)
+
+const (
 	// TCDNSRequestKey is the key to the DNS request program
 	TCDNSRequestKey uint32 = iota + 1
 	// TCDNSRequestParserKey is the key to the DNS request parser program
 	TCDNSRequestParserKey
 	// TCIMDSRequestParserKey is the key to the IMDS request program
 	TCIMDSRequestParserKey
+	// TCDNSResponseKey is the key to the DNS response program
+	TCDNSResponseKey
+)
+
+const (
+	// TCRawPacketFilterKey  is the key to the raw packet filter program
+	// reserve 5 tail calls for the filtering
+	TCRawPacketFilterKey uint32 = iota
+	// TCRawPacketParserSenderKey is the key to the raw packet sender program
+	TCRawPacketParserSenderKey = TCRawPacketFilterKey + RawPacketFilterMaxTailCall // reserved key for filter tail calls
 )
 
 const (
@@ -93,4 +104,11 @@ const (
 	ExecParseArgsEnvsSplitKey
 	// ExecParseArgsEnvsKey is the key to the program that parses arguments and then environment variables
 	ExecParseArgsEnvsKey
+)
+
+const (
+	// FlushNetworkStatsExitKey is the key to the program that flushes network stats before resuming the normal exit event processing
+	FlushNetworkStatsExitKey uint32 = iota
+	// FlushNetworkStatsExecKey is the key to the program that flushes network stats before resuming the normal exec event processing
+	FlushNetworkStatsExecKey
 )

@@ -3,6 +3,7 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
+require "./lib/project_helpers.rb"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
@@ -25,7 +26,10 @@ if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
 else
   COMPRESSION_THREADS = 1
 end
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+
+# We want an higher compression level on deploy pipelines that are not nightly.
+# Nightly pipelines will be used as main reference for static quality gates and need the same compression level as main.
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -47,7 +51,6 @@ if windows_target?
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
   INSTALL_DIR = 'C:/opt/datadog-agent/'
-  PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
 else
   INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
@@ -56,7 +59,6 @@ end
 install_dir INSTALL_DIR
 
 if windows_target?
-  python_2_embedded PYTHON_2_EMBEDDED_DIR
   python_3_embedded PYTHON_3_EMBEDDED_DIR
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
@@ -87,7 +89,7 @@ else
   end
 
   if debian_target?
-    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
+    runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
   end
 
   if osx_target?
@@ -105,12 +107,14 @@ end
 do_build = false
 do_package = false
 
-if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
-  dependency "package-artifact"
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"] or do_repackage?
   do_package = true
   skip_healthcheck true
 else
   do_build = true
+  if ENV["OMNIBUS_FORCE_PACKAGES"]
+    do_package = true
+  end
 end
 
 # For now we build and package in the same stage for heroku
@@ -182,6 +186,8 @@ end
 package :pkg do
   skip_packager BUILD_OCIRU
   identifier 'com.datadoghq.agent'
+  # This defines where the package will be installed in the target system
+  install_location "/opt/datadog-agent"
   unless ENV['SKIP_SIGN_MAC'] == 'true'
     signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
   end
@@ -210,7 +216,7 @@ package :msi do
 end
 
 package :xz do
-  skip_packager (!do_build && !BUILD_OCIRU)
+  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target?
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end
@@ -223,44 +229,17 @@ if do_build
   # Datadog agent
   dependency 'datadog-agent'
 
-  # System-probe
-  if linux_target? && !heroku_target?
-    dependency 'system-probe'
+  # This depends on the agent and must be added after it
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-security-agent-policies'
   end
 
   if osx_target?
     dependency 'datadog-agent-mac-app'
   end
 
-  if with_python_runtime? "2"
-    dependency 'pylint2'
-    dependency 'datadog-agent-integrations-py2'
-  end
-
-  if with_python_runtime? "3"
-    dependency 'datadog-agent-integrations-py3'
-  end
-
   if linux_target?
     dependency 'datadog-security-agent-policies'
-  end
-
-  # Include traps db file in snmp.d/traps_db/
-  dependency 'snmp-traps'
-
-  # Additional software
-  if windows_target?
-    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-      dependency 'datadog-windows-filter-driver'
-    end
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      dependency 'datadog-windows-apminject'
-    end
-    if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-      dependency 'datadog-windows-procmon-driver'
-      ## this is a duplicate of the above dependency in linux
-      dependency 'datadog-security-agent-policies'
-    end
   end
 
   # this dependency puts few files out of the omnibus install dir and move them
@@ -276,9 +255,23 @@ if do_build
     dependency "init-scripts-agent"
   end
 elsif do_package
-  dependency "package-artifact"
+  if do_repackage?
+    dependency "existing-agent-package"
+    dependency "datadog-agent"
+  else
+    dependency "package-artifact"
+  end
   dependency "init-scripts-agent"
 end
+
+# version manifest is based on the built softwares.
+# When packaging, we only build 2, which causes very incomplete manifests
+# to be generated. However, we build correct ones during the build stage, which
+# gets extracted in the correct location in the "package-artifacts" recipe.
+# By disabling manifest generation during packaging jobs, we ensure the manifest we
+# will package is the correct one
+disable_version_manifest do_package
+
 
 if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
@@ -332,27 +325,52 @@ if windows_target?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end
 
+  raise_if_fips_symbol_not_found = Proc.new { |symbols|
+    count = symbols.scan("github.com/microsoft/go-crypto-winnative").count()
+    if count == 0
+      raise FIPSSymbolsNotFound.new("Expected to find symbol 'github.com/microsoft/go-crypto-winnative' but no symbol was found.")
+    end
+  }
+
   GO_BINARIES.each do |bin|
     # Check the exported symbols from the binary
     inspect_binary(bin, &raise_if_forbidden_symbol_found)
+
+    if fips_mode?
+      # Check that CNG symbols are present
+      inspect_binary(bin, &raise_if_fips_symbol_not_found)
+    end
 
     # strip the binary of debug symbols
     windows_symbol_stripping_file bin
   end
 
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    BINARIES_TO_SIGN = GO_BINARIES + [
+  # We need to strip the debug symbols from the rtloader files
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+
+  if windows_signing_enabled?
+    # Sign additional binaries from here.
+    # We can't request signing from the respective components/software definitions
+    # for now since the binaries may be restored from cache, which would
+    # shortcut the associated build directives, which would not schedule the files
+    # for signing.
+    PYTHON_BINARIES = [
+      "#{python_3_embedded}\\python.exe",
+      "#{python_3_embedded}\\pythonw.exe",
+      "#{python_3_embedded}\\python3.dll",
+      "#{python_3_embedded}\\python312.dll",
+    ]
+    OPENSSL_BINARIES = [
+      "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
+      "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
+      "#{python_3_embedded}\\bin\\openssl.exe",
+      fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
+    ].compact
+
+    BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]
-    if with_python_runtime? "2"
-      BINARIES_TO_SIGN.concat([
-        "#{install_dir}\\bin\\agent\\libdatadog-agent-two.dll",
-        "#{install_dir}\\embedded2\\python.exe",
-        "#{install_dir}\\embedded2\\python27.dll",
-        "#{install_dir}\\embedded2\\pythonw.exe"
-      ])
-    end
 
     BINARIES_TO_SIGN.each do |bin|
       sign_file bin

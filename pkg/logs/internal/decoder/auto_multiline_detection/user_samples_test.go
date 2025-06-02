@@ -80,6 +80,36 @@ logs_config:
 	assert.Equal(t, aggregate, samples.samples[2].label)
 }
 
+func TestUserPatternsJSON(t *testing.T) {
+
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_custom_samples", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
+
+	samples := NewUserSamples(mockConfig)
+	assert.Equal(t, 3, len(samples.samples))
+	assert.Equal(t, startGroup, samples.samples[0].label)
+	assert.Equal(t, "1", samples.samples[0].Sample)
+	assert.Equal(t, noAggregate, samples.samples[1].label)
+	assert.Equal(t, "\\d\\w", samples.samples[1].Regex)
+	assert.Equal(t, "3", samples.samples[2].Sample)
+	assert.Equal(t, 0.1, samples.samples[2].matchThreshold)
+}
+
+func TestUserPatternsJSONEnv(t *testing.T) {
+
+	mockConfig := mock.New(t)
+	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION_CUSTOM_SAMPLES", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
+
+	samples := NewUserSamples(mockConfig)
+	assert.Equal(t, 3, len(samples.samples))
+	assert.Equal(t, startGroup, samples.samples[0].label)
+	assert.Equal(t, "1", samples.samples[0].Sample)
+	assert.Equal(t, noAggregate, samples.samples[1].label)
+	assert.Equal(t, "\\d\\w", samples.samples[1].Regex)
+	assert.Equal(t, "3", samples.samples[2].Sample)
+	assert.Equal(t, 0.1, samples.samples[2].matchThreshold)
+}
+
 func TestUserPatternsMatchThreshold(t *testing.T) {
 
 	datadogYaml := `
@@ -207,6 +237,40 @@ logs_config:
 		{startGroup, false, "bartest123 some other log line"},
 		{startGroup, false, "legacy pattern should match me"},
 		{aggregate, true, "!!![$Not_close_enough%] some other log line"},
+	}
+
+	for _, test := range tests {
+		context := &messageContext{
+			rawMessage: []byte(test.input),
+			label:      aggregate,
+		}
+
+		assert.True(t, tokenizer.ProcessAndContinue(context))
+		assert.Equal(t, test.shouldStop, samples.ProcessAndContinue(context), "Expected stop %v, got %v", test.shouldStop, samples.ProcessAndContinue(context))
+		assert.Equal(t, test.expectedLabel, context.label, "Expected label %v, got %v", test.expectedLabel, context.label)
+	}
+}
+
+func TestOnlyLegacyPatterns(t *testing.T) {
+
+	datadogYaml := `
+logs_config:
+  auto_multi_line_extra_patterns:
+    - "le\\wacy"
+`
+
+	mockConfig := mock.NewFromYAML(t, datadogYaml)
+	samples := NewUserSamples(mockConfig)
+	tokenizer := NewTokenizer(60)
+
+	tests := []struct {
+		expectedLabel Label
+		shouldStop    bool
+		input         string
+	}{
+		{startGroup, false, "legacy pattern should match me"},
+		{startGroup, false, "leAacy pattern should match me"},
+		{startGroup, false, "leVacy pattern should match me"},
 	}
 
 	for _, test := range tests {

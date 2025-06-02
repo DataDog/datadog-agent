@@ -14,7 +14,7 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 func getpid() int {

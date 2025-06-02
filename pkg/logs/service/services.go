@@ -6,6 +6,7 @@
 package service
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -73,7 +74,7 @@ func (s *Services) GetAddedServicesForType(serviceType string) chan *Service {
 	added := make(chan *Service)
 	s.addedPerType[serviceType] = append(s.addedPerType[serviceType], added)
 
-	existingServices := append([]*Service{}, s.services...) // clone for goroutine
+	existingServices := slices.Clone(s.services) // clone for goroutine
 	go func() {
 		for _, svc := range existingServices {
 			if svc.Type == serviceType {
@@ -106,7 +107,7 @@ func (s *Services) GetAllAddedServices() chan *Service {
 	added := make(chan *Service)
 	s.allAdded = append(s.allAdded, added)
 
-	existingServices := append([]*Service{}, s.services...) // clone for goroutine
+	existingServices := slices.Clone(s.services) // clone for goroutine
 	go func() {
 		for _, svc := range existingServices {
 			added <- svc

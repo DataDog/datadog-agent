@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes consistency issue with container image filters.
+    Depending on the Agent configuration, filters were sometimes behaving differently
+    for metrics and logs. For example, an image filter that worked for excluding logs
+    didn't work when used to exclude metrics, and vice versa. 
+    The exclusion logic is now consistent between metrics and logs.
+

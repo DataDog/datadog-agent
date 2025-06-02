@@ -6,14 +6,14 @@
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggercommon "github.com/DataDog/datadog-agent/comp/core/tagger/common"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -36,6 +36,7 @@ type service struct {
 	extraConfig     map[string]string
 	metricsExcluded bool
 	logsExcluded    bool
+	tagger          tagger.Component
 }
 
 var _ Service = &service{}
@@ -73,37 +74,47 @@ func (s *service) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service's AD identifiers.
-func (s *service) GetADIdentifiers(_ context.Context) ([]string, error) {
-	return s.adIdentifiers, nil
+func (s *service) GetADIdentifiers() []string {
+	return s.adIdentifiers
 }
 
 // GetHosts returns the service's IPs for each host.
-func (s *service) GetHosts(_ context.Context) (map[string]string, error) {
+func (s *service) GetHosts() (map[string]string, error) {
 	return s.hosts, nil
 }
 
 // GetPorts returns the ports exposed by the service's containers.
-func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
+func (s *service) GetPorts() ([]ContainerPort, error) {
 	return s.ports, nil
 }
 
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
-	return tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()).String(), tagger.ChecksCardinality())
+	return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), types.ChecksConfigCardinality)
+}
+
+// GetTagsWithCardinality returns the tags with given cardinality.
+func (s *service) GetTagsWithCardinality(cardinality string) ([]string, error) {
+	checkCard, err := types.StringToTagCardinality(cardinality)
+	if err == nil {
+		return s.tagger.Tag(taggercommon.BuildTaggerEntityID(s.entity.GetID()), checkCard)
+	}
+	log.Warnf("error converting cardinality %s to TagCardinality: %v", cardinality, err)
+	return s.GetTags()
 }
 
 // GetPid returns the process ID of the service.
-func (s *service) GetPid(_ context.Context) (int, error) {
+func (s *service) GetPid() (int, error) {
 	return s.pid, nil
 }
 
 // GetHostname returns the service's hostname.
-func (s *service) GetHostname(_ context.Context) (string, error) {
+func (s *service) GetHostname() (string, error) {
 	return s.hostname, nil
 }
 
 // IsReady returns whether the service is ready.
-func (s *service) IsReady(_ context.Context) bool {
+func (s *service) IsReady() bool {
 	return s.ready
 }
 

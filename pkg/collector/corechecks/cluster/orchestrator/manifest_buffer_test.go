@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver && orchestrator && test
 
 package orchestrator
 
@@ -15,53 +15,67 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-
+	"github.com/DataDog/datadog-agent/comp/core"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var manifestToSend []*model.CollectorManifest
 
 func TestOrchestratorManifestBuffer(t *testing.T) {
-	mb := getManifestBuffer()
+	mb := getManifestBuffer(t)
 	mb.Start(getSender(t))
 
-	b := []*model.Manifest{
-		{
-			Type: int32(1),
+	var body model.MessageBody = &model.CollectorManifest{
+		Manifests: []*model.Manifest{
+			{
+				Type: int32(1),
+				Tags: []string{"tag_for:type1"},
+			},
+			{
+				Type: int32(2),
+			},
+			{
+				Type: int32(3),
+			},
+			{
+				Type: int32(4),
+			},
+			{
+				Type: int32(5),
+			},
 		},
-		{
-			Type: int32(2),
-		},
-		{
-			Type: int32(3),
-		},
-		{
-			Type: int32(4),
-		},
-		{
-			Type: int32(5),
-		},
+		Tags:        []string{"dropped:tag"},
+		ClusterName: "dropped-cluster",
 	}
-	for _, m := range b {
-		mb.ManifestChan <- m
-	}
-
+	BufferManifestProcessResult([]model.MessageBody{body}, mb)
 	mb.Stop()
 
 	// Buffer size is 2, as we have 5 manifests, the buffer needs to be flushed 3 times
 	require.Len(t, manifestToSend, 3)
 
+	bufferCluster := "buffer-cluster"
+	expectedTags := []string{"tag:low"}
 	assert.EqualValues(t, []*model.Manifest{
 		{
 			Type: int32(1),
+			Tags: []string{"tag_for:type1"},
 		},
 		{
 			Type: int32(2),
 		},
 	}, manifestToSend[0].Manifests)
+	assert.EqualValues(t, bufferCluster, manifestToSend[0].ClusterName)
+	assert.EqualValues(t, expectedTags, manifestToSend[0].Tags)
 
 	assert.EqualValues(t, []*model.Manifest{
 		{
@@ -71,13 +85,16 @@ func TestOrchestratorManifestBuffer(t *testing.T) {
 			Type: int32(4),
 		},
 	}, manifestToSend[1].Manifests)
+	assert.EqualValues(t, bufferCluster, manifestToSend[1].ClusterName)
+	assert.EqualValues(t, expectedTags, manifestToSend[1].Tags)
 
 	assert.EqualValues(t, []*model.Manifest{
 		{
 			Type: int32(5),
 		},
 	}, manifestToSend[2].Manifests)
-
+	assert.EqualValues(t, bufferCluster, manifestToSend[2].ClusterName)
+	assert.EqualValues(t, expectedTags, manifestToSend[2].Tags)
 }
 
 // getSender returns a mock Sender
@@ -94,11 +111,23 @@ func getSender(t *testing.T) *mocksender.MockSender {
 }
 
 // getManifestBuffer returns a manifest buffer for test with buffer size = 2
-func getManifestBuffer() *ManifestBuffer {
-	orchCheck := newCheck().(*OrchestratorCheck)
+func getManifestBuffer(t *testing.T) *ManifestBuffer {
+	cfg := mockconfig.New(t)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetGlobalTags([]string{"tag:low"}, []string{"tag:orch"}, []string{"tag:high"}, []string{"tag:std"})
+
+	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+	orchCheck.orchestratorConfig.KubeClusterName = "buffer-cluster"
+
 	mb := NewManifestBuffer(orchCheck)
 	mb.Cfg.MaxBufferedManifests = 2
 	mb.Cfg.ManifestBufferFlushInterval = 3 * time.Second
 	mb.Cfg.MsgGroupRef = atomic.NewInt32(0)
+
 	return mb
 }

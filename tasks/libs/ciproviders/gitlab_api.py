@@ -1,3 +1,8 @@
+"""Gitlab API / CI related functions.
+
+Provides functions to interact with the API and also helpers to manipulate and resolve gitlab-ci configurations.
+"""
+
 from __future__ import annotations
 
 import json
@@ -18,8 +23,9 @@ from gitlab.v4.objects import Project, ProjectCommit, ProjectPipeline
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import get_common_ancestor, get_current_branch
+from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function
+from tasks.libs.types.types import JobDependency
 
 BASE_URL = "https://gitlab.ddbuild.io"
 CONFIG_SPECIAL_OBJECTS = {
@@ -32,8 +38,8 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token():
-    if "GITLAB_TOKEN" not in os.environ:
-        print("GITLAB_TOKEN not found in env. Trying keychain...")
+    if "GITLAB_TOKEN" not in os.environ and "DD_GITLAB_TOKEN" not in os.environ:
+        print("GITLAB_TOKEN / DD_GITLAB_TOKEN not found in env. Trying keychain...")
         if platform.system() == "Darwin":
             try:
                 output = subprocess.check_output(
@@ -51,7 +57,8 @@ def get_gitlab_token():
             "or export it from your .bashrc or equivalent."
         )
         raise Exit(code=1)
-    return os.environ["GITLAB_TOKEN"]
+
+    return os.environ.get("GITLAB_TOKEN", os.environ.get("DD_GITLAB_TOKEN"))
 
 
 def get_gitlab_bot_token():
@@ -67,18 +74,18 @@ def get_gitlab_bot_token():
             except subprocess.CalledProcessError:
                 print("GITLAB_BOT_TOKEN not found in keychain...")
                 pass
-        print(
-            "Please make sure that the GITLAB_BOT_TOKEN is set or that " "the GITLAB_BOT_TOKEN keychain entry is set."
-        )
+        print("Please make sure that the GITLAB_BOT_TOKEN is set or that the GITLAB_BOT_TOKEN keychain entry is set.")
         raise Exit(code=1)
     return os.environ["GITLAB_BOT_TOKEN"]
 
 
 def get_gitlab_api(token=None) -> gitlab.Gitlab:
+    """Returns the gitlab api object with the api token.
+
+    Args:
+        The token is the one of get_gitlab_token() by default.
     """
-    Returns the gitlab api object with the api token.
-    The token is the one of get_gitlab_token() by default.
-    """
+
     token = token or get_gitlab_token()
 
     return gitlab.Gitlab(BASE_URL, private_token=token, retry_transient_errors=True)
@@ -92,48 +99,105 @@ def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
 
 
 def get_commit(project_name: str, git_sha: str) -> ProjectCommit:
-    """
-    Retrieves the commit for a given git sha a given project.
-    """
+    """Retrieves the commit for a given git sha a given project."""
+
     repo = get_gitlab_repo(project_name)
     return repo.commits.get(git_sha)
 
 
 def get_pipeline(project_name: str, pipeline_id: str) -> ProjectPipeline:
-    """
-    Retrieves the pipeline for a given pipeline id in a given project.
-    """
+    """Retrieves the pipeline for a given pipeline id in a given project."""
+
     repo = get_gitlab_repo(project_name)
     return repo.pipelines.get(pipeline_id)
 
 
 @retry_function('refresh pipeline #{0.id}')
 def refresh_pipeline(pipeline: ProjectPipeline):
-    """
-    Refresh a pipeline, retries if there is an error
-    """
+    """Refreshes a pipeline, retries if there is an error."""
+
     pipeline.refresh()
 
 
-class GitlabCIDiff:
-    def __init__(self, before: dict, after: dict) -> None:
-        """
-        Used to display job diffs between two gitlab ci configurations
-        """
-        self.before = before
-        self.after = after
-        self.added_contents = {}
-        self.modified_diffs = {}
+@retry_function('cancel pipeline #{0.id}', retry_delay=5)
+def cancel_pipeline(pipeline: ProjectPipeline):
+    """Cancels a pipeline, retries if there is an error."""
 
-        self.make_diff()
+    pipeline.cancel()
+
+
+class GitlabCIDiff:
+    def __init__(
+        self,
+        before: dict | None = None,
+        after: dict | None = None,
+        added: set[str] | None = None,
+        removed: set[str] | None = None,
+        modified: set[str] | None = None,
+        renamed: set[tuple[str, str]] | None = None,
+        modified_diffs: dict[str, list[str]] | None = None,
+        added_contents: dict[str, str] | None = None,
+    ) -> None:
+        """Used to display job diffs between two gitlab ci configurations.
+
+        Attributes:
+            before: The configuration before the change.
+            after: The configuration after the change.
+            added: The jobs that have been added.
+            removed: The jobs that have been removed.
+            modified: The jobs that have been modified.
+            renamed: The jobs that have been renamed.
+            modified_diffs: The diffs of each of the modified jobs.
+            added_contents: The contents of each of the added jobs.
+        """
+
+        self.before = before or {}
+        self.after = after or {}
+        self.added = added or set()
+        self.removed = removed or set()
+        self.modified = modified or set()
+        self.renamed = renamed or set()
+        self.modified_diffs = modified_diffs or {}
+        self.added_contents = added_contents or {}
 
     def __bool__(self) -> bool:
         return bool(self.added or self.removed or self.modified or self.renamed)
 
+    def to_dict(self) -> dict:
+        return {
+            'before': self.before,
+            'after': self.after,
+            'added': self.added,
+            'removed': self.removed,
+            'modified': self.modified,
+            'renamed': list(self.renamed),
+            'modied_diffs': self.modified_diffs,
+            'added_contents': self.added_contents,
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> GitlabCIDiff:
+        return GitlabCIDiff(
+            before=data['before'],
+            after=data['after'],
+            added=set(data['added']),
+            removed=set(data['removed']),
+            modified=set(data['modified']),
+            renamed=data['renamed'],
+            modified_diffs=data['modied_diffs'],
+            added_contents=data['added_contents'],
+        )
+
+    @staticmethod
+    def from_contents(before: dict | None = None, after: dict | None = None) -> GitlabCIDiff:
+        diff = GitlabCIDiff(before, after)
+        diff.make_diff()
+
+        return diff
+
     def make_diff(self):
-        """
-        Compute the diff between the two gitlab ci configurations
-        """
+        """Computes the diff between the two gitlab ci configurations."""
+
         # Find added / removed jobs by names
         unmoved = self.before.keys() & self.after.keys()
         self.removed = self.before.keys() - unmoved
@@ -186,9 +250,7 @@ class GitlabCIDiff:
     def display(
         self, cli: bool = True, max_detailed_jobs=6, job_url=None, only_summary=False, no_footnote=False
     ) -> str:
-        """
-        Display in cli or markdown
-        """
+        """Returns the displayable diff in cli or markdown."""
 
         def str_section(title, wrap=False) -> list[str]:
             if cli:
@@ -336,6 +398,37 @@ class GitlabCIDiff:
 
         return '\n'.join(res)
 
+    def iter_jobs(self, added=False, modified=False, removed=False, only_leaves=True):
+        """Will iterate over all jobs in all files for the given states.
+
+        Args:
+            only_leaves: If True, will return only leaf jobs
+
+        Returns:
+            A tuple of (job_name, contents, state)
+
+        Notes:
+            The contents of the job is the contents after modification if modified or before removal if removed
+        """
+
+        if added:
+            for job in self.added:
+                contents = self.after[job]
+                if not only_leaves or is_leaf_job(job, contents):
+                    yield job, contents, 'added'
+
+        if modified:
+            for job in self.modified:
+                contents = self.after[job]
+                if not only_leaves or is_leaf_job(job, contents):
+                    yield job, contents, 'modified'
+
+        if removed:
+            for job in self.removed:
+                contents = self.before[job]
+                if not only_leaves or is_leaf_job(job, contents):
+                    yield job, contents, 'removed'
+
 
 class MultiGitlabCIDiff:
     @dataclass
@@ -346,25 +439,61 @@ class MultiGitlabCIDiff:
         is_added: bool
         is_removed: bool
 
-    def __init__(self, before: dict[str, dict], after: dict[str, dict]) -> None:
+        def to_dict(self) -> dict:
+            return {
+                'entry_point': self.entry_point,
+                'diff': self.diff.to_dict(),
+                'is_added': self.is_added,
+                'is_removed': self.is_removed,
+            }
+
+        @staticmethod
+        def from_dict(data: dict) -> MultiGitlabCIDiff.MultiDiff:
+            return MultiGitlabCIDiff.MultiDiff(
+                data['entry_point'], GitlabCIDiff.from_dict(data['diff']), data['is_added'], data['is_removed']
+            )
+
+    def __init__(
+        self,
+        before: dict[str, dict] | None = None,
+        after: dict[str, dict] | None = None,
+        diffs: list[MultiGitlabCIDiff.MultiDiff] | None = None,
+    ) -> None:
+        """Used to display job diffs between two full gitlab ci configurations (multiple entry points).
+
+        Attributes:
+            before: The configuration before the change. Dict of [entry point] -> ([job name] -> job content)
+            after: The configuration after the change. Dict of [entry point] -> ([job name] -> job content)
         """
-        Used to display job diffs between two full gitlab ci configurations (multiple entry points)
 
-        - before/after: Dict of [entry point] -> ([job name] -> job content)
-        """
-        self.before = dict(before)
-        self.after = dict(after)
-
-        self.diffs: list[MultiGitlabCIDiff.MultiDiff] = []
-
-        self.make_diff()
+        self.before = before
+        self.after = after
+        self.diffs = diffs or []
 
     def __bool__(self) -> bool:
         return bool(self.diffs)
 
+    def to_dict(self) -> dict:
+        return {'before': self.before, 'after': self.after, 'diffs': [diff.to_dict() for diff in self.diffs]}
+
+    @staticmethod
+    def from_dict(data: dict) -> MultiGitlabCIDiff:
+        return MultiGitlabCIDiff(
+            data['before'], data['after'], [MultiGitlabCIDiff.MultiDiff.from_dict(d) for d in data['diffs']]
+        )
+
+    @staticmethod
+    def from_contents(before: dict[str, dict] | None = None, after: dict[str, dict] | None = None) -> MultiGitlabCIDiff:
+        diff = MultiGitlabCIDiff(before, after)
+        diff.make_diff()
+
+        return diff
+
     def make_diff(self):
+        self.diffs = []
+
         for entry_point in set(list(self.before) + list(self.after)):
-            diff = GitlabCIDiff(self.before.get(entry_point, {}), self.after.get(entry_point, {}))
+            diff = GitlabCIDiff.from_contents(self.before.get(entry_point, {}), self.after.get(entry_point, {}))
 
             # Diff for this entry point, add it to the list
             if diff:
@@ -375,9 +504,8 @@ class MultiGitlabCIDiff:
                 )
 
     def display(self, cli: bool = True, job_url: str = None, **kwargs) -> str:
-        """
-        Display in cli or markdown
-        """
+        """Returns the displayable diff in cli or markdown."""
+
         if not self:
             return ''
 
@@ -428,11 +556,28 @@ class MultiGitlabCIDiff:
 
         return '\n'.join(res)
 
+    def iter_jobs(self, added=False, modified=False, removed=False, only_leaves=True):
+        """Will iterate over all jobs in all files for the given states.
+
+        Args:
+            only_leaves: If True, will return only leaf jobs.
+
+        Returns:
+            A tuple of (entry_point, job_name, contents, state).
+
+        Notes:
+            The contents is the contents after modification or before removal.
+        """
+
+        for diff in self.diffs:
+            for job, contents, state in diff.diff.iter_jobs(
+                added=added, modified=modified, removed=removed, only_leaves=only_leaves
+            ):
+                yield diff.entry_point, job, contents, state
+
 
 class ReferenceTag(yaml.YAMLObject):
-    """
-    Custom yaml tag to handle references in gitlab-ci configuration
-    """
+    """Custom yaml tag to handle references (!reference [...]) in gitlab-ci configuration."""
 
     yaml_tag = '!reference'
 
@@ -465,9 +610,10 @@ yaml.SafeDumper.add_implicit_resolver(
 
 
 def clean_gitlab_ci_configuration(yml):
-    """
-    - Remove `extends` tags
-    - Flatten lists of lists
+    """Cleans the yaml configuration:
+
+    - Removes `extends` tags.
+    - Flattens lists of lists.
     """
 
     def flatten(yml):
@@ -497,17 +643,23 @@ def clean_gitlab_ci_configuration(yml):
     return flatten(yml)
 
 
-def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_special_objects: bool = False) -> dict:
-    """
-    Filters gitlab-ci configuration jobs
+def is_leaf_job(job_name, job_contents):
+    """A 'leaf' job is a job that will be executed by gitlab-ci, that is a job that is not meant to be only extended (usually jobs starting with '.') or special gitlab objects (variables, stages...)."""
 
-    - job: If provided, retrieve only this job
-    - keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.)
+    return not job_name.startswith('.') and ('script' in job_contents or 'trigger' in job_contents)
+
+
+def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_special_objects: bool = False) -> dict:
+    """Filters gitlab-ci configuration jobs
+
+    Args:
+        job: If provided, retrieve only this job.
+        keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.).
     """
 
     def filter_yaml(key, value):
         # Not a job
-        if key.startswith('.') or 'script' not in value and 'trigger' not in value:
+        if not is_leaf_job(key, value):
             # Exception for special objects if this option is enabled
             if not (keep_special_objects and key in CONFIG_SPECIAL_OBJECTS):
                 return None
@@ -524,15 +676,15 @@ def filter_gitlab_ci_configuration(yml: dict, job: str | None = None, keep_speci
 
 
 def _get_combinated_variables(arg: dict[str, (str | list[str])]):
-    """
-    Make combinations from the matrix arguments to obtain the list of variables that have each new job.
+    """Make combinations from the matrix arguments to obtain the list of variables that have each new job.
 
     combinations({'key1': ['val1', 'val2'], 'key2': 'val3'}) -> [
         {'key1': 'val1', 'key2': 'val3'},
         {'key1': 'val2', 'key2': 'val3'}
     ]
 
-    - Returns a tuple of (1) the list of variable values and (2) the list of variable dictionaries
+    Returns:
+        A tuple of (1) the list of variable values and (2) the list of variable dictionaries
     """
 
     job_keys = []
@@ -554,9 +706,8 @@ def _get_combinated_variables(arg: dict[str, (str | list[str])]):
 
 
 def expand_matrix_jobs(yml: dict) -> dict:
-    """
-    Will expand matrix jobs into multiple jobs
-    """
+    """Will expand matrix jobs into multiple jobs."""
+
     new_jobs = {}
     to_remove = set()
     for job in yml:
@@ -592,11 +743,12 @@ def expand_matrix_jobs(yml: dict) -> dict:
 
 
 def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
-    """
-    Prints a gitlab ci as yaml.
+    """Prints a gitlab ci as yaml.
 
-    - sort_jobs: Sort jobs by name (the job keys are always sorted)
+    Args:
+        sort_jobs: Sort jobs by name (the job keys are always sorted).
     """
+
     jobs = yml.items()
     if sort_jobs:
         jobs = sorted(jobs)
@@ -636,14 +788,18 @@ def get_all_gitlab_ci_configurations(
     with_lint: bool = True,
     git_ref: str | None = None,
 ) -> dict[str, dict]:
-    """
-    Returns all gitlab-ci configurations from each configuration file (.gitlab-ci.yml and files called with the `trigger` keyword)
+    """Returns all gitlab-ci configurations from each configuration file (.gitlab-ci.yml and files called with the `trigger` keyword).
 
-    - filter_configs: Whether to apply post process filtering to the configurations (get only jobs...)
-    - clean_configs: Whether to apply post process cleaning to the configurations (remove extends, flatten lists of lists...)
-    - ignore_errors: Ignore gitlab lint errors
-    - git_ref: If provided, use this git reference to fetch the configuration
+    Args:
+        filter_configs: Whether to apply post process filtering to the configurations (get only jobs...).
+        clean_configs: Whether to apply post process cleaning to the configurations (remove extends, flatten lists of lists...).
+        ignore_errors: Ignore gitlab lint errors.
+        git_ref: If provided, use this git reference to fetch the configuration.
+
+    Returns:
+        A dictionary of [entry point] -> configuration
     """
+
     # configurations[input_file] -> parsed config
     configurations: dict[str, dict] = {}
 
@@ -663,9 +819,8 @@ def get_all_gitlab_ci_configurations(
 
 
 def get_ci_configurations(input_file, configurations, ctx, with_lint, git_ref):
-    """
-    DFS to get all distinct configurations from input files
-    """
+    """Produces a DFS to get all distinct configurations from input files."""
+
     if input_file in configurations:
         return
 
@@ -683,9 +838,8 @@ def get_ci_configurations(input_file, configurations, ctx, with_lint, git_ref):
 
 
 def get_trigger_filenames(node):
-    """
-    Get all trigger downstream pipelines defined by the `trigger` key in the gitlab-ci configuration
-    """
+    """Gets all trigger downstream pipelines defined by the `trigger` key in the gitlab-ci configuration."""
+
     if isinstance(node, str):
         return [node]
     elif isinstance(node, dict):
@@ -706,12 +860,14 @@ def resolve_gitlab_ci_configuration(
     git_ref: str | None = None,
     input_config: dict | None = None,
 ) -> str | dict:
-    """
-    Returns the full gitlab-ci configuration by resolving all includes and applying postprocessing (extends / !reference)
-    Uses the /lint endpoint from the gitlab api to apply postprocessing
+    """Returns the full gitlab-ci configuration by resolving all includes and applying postprocessing (extends / !reference).
 
-    - input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`
+    Uses the /lint endpoint from the gitlab api to apply postprocessing.
+
+    Args:
+        input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`.
     """
+
     if not input_config:
         # Read includes
         concat_config = read_includes(ctx, input_file, return_config=True, git_ref=git_ref)
@@ -745,11 +901,11 @@ def get_gitlab_ci_configuration(
     expand_matrix: bool = False,
     git_ref: str | None = None,
 ) -> dict:
-    """
-    Creates, filters and processes the gitlab-ci configuration
+    """Creates, filters and processes the gitlab-ci configuration.
 
-    - keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.)
-    - expand_matrix: Will expand matrix jobs into multiple jobs
+    Args:
+        keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.).
+        expand_matrix: Will expand matrix jobs into multiple jobs.
     """
 
     # Make full configuration
@@ -772,16 +928,17 @@ def get_gitlab_ci_configuration(
 def generate_gitlab_full_configuration(
     ctx, input_file, context=None, compare_to=None, return_dump=True, apply_postprocessing=False, input_config=None
 ):
-    """
-    Generate a full gitlab-ci configuration by resolving all includes
+    """Generates a full gitlab-ci configuration by resolving all includes.
 
-    - input_file: Initial gitlab yaml file (.gitlab-ci.yml)
-    - context: Gitlab variables
-    - compare_to: Override compare_to on change rules
-    - return_dump: Whether to return the string dump or the dict object representing the configuration
-    - apply_postprocessing: Whether or not to solve `extends` and `!reference` tags
-    - input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`
+    Args:
+        input_file: Initial gitlab yaml file (.gitlab-ci.yml).
+        context: Gitlab variables.
+        compare_to: Override compare_to on change rules.
+        return_dump: Whether to return the string dump or the dict object representing the configuration.
+        apply_postprocessing: Whether or not to solve `extends` and `!reference` tags.
+        input_config: If not None, will use this config instead of parsing existing yaml file at `input_file`.
     """
+
     if apply_postprocessing:
         full_configuration = resolve_gitlab_ci_configuration(ctx, input_file, input_config=input_config)
     elif input_config:
@@ -815,10 +972,12 @@ def generate_gitlab_full_configuration(
 
 
 def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_path=False, git_ref: str | None = None):
+    """Recursive method to read all includes from yaml files and store them in a list.
+
+    Args:
+        add_file_path: add the file path to each object of the parsed file.
     """
-    Recursive method to read all includes from yaml files and store them in a list
-    - add_file_path: add the file path to each object of the parsed file
-    """
+
     if includes is None:
         includes = []
 
@@ -850,9 +1009,7 @@ def read_includes(ctx, yaml_files, includes=None, return_config=False, add_file_
 
 
 def read_content(ctx, file_path, git_ref: str | None = None):
-    """
-    Read the content of a file, either from a local file or from an http endpoint
-    """
+    """Reads the content of a file, either from a local file or from an http endpoint."""
 
     # Do not use ctx for cache
     @lru_cache(maxsize=512)
@@ -884,14 +1041,12 @@ def get_preset_contexts(required_tests):
     main_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
-        ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
+        ("CI_PIPELINE_SOURCE", ["push", "api"]),  # ["trigger", "pipeline", "schedule"]
         ("DEPLOY_AGENT", ["true"]),
         ("RUN_ALL_BUILDS", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["on"]),
         ("RUN_UNIT_TESTS", ["on"]),
-        ("TESTING_CLEANUP", ["true"]),
     ]
     release_contexts = [
         ("BUCKET_BRANCH", ["stable"]),
@@ -903,31 +1058,38 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["on"]),
         ("RUN_UNIT_TESTS", ["on"]),
-        ("TESTING_CLEANUP", ["true"]),
     ]
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
         ("CI_COMMIT_BRANCH", ["mq-working-branch-main"]),
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),
+        ("CI_PIPELINE_SOURCE", ["api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("RUN_ALL_BUILDS", ["false"]),
         ("RUN_E2E_TESTS", ["auto"]),
         ("RUN_KMT_TESTS", ["off"]),
         ("RUN_UNIT_TESTS", ["off"]),
-        ("TESTING_CLEANUP", ["false"]),
     ]
     conductor_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
-        ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("DDR_WORKFLOW_ID", ["true"]),
     ]
+    installer_contexts = [
+        ("BUCKET_BRANCH", ["nightly"]),
+        ("CI_COMMIT_BRANCH", ["main"]),
+        ("CI_PIPELINE_SOURCE", ["push", "api"]),
+        ("DEPLOY_AGENT", ["false"]),
+        ("DEPLOY_INSTALLER", ["true"]),
+        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_E2E_TESTS", ["auto"]),
+        ("RUN_KMT_TESTS", ["on"]),
+        ("RUN_UNIT_TESTS", ["on"]),
+    ]
     integrations_core_contexts = [
-        ("RELEASE_VERSION_6", ["nightly"]),
-        ("RELEASE_VERSION_7", ["nightly-a7"]),
         ("BUCKET_BRANCH", ["dev"]),
         ("DEPLOY_AGENT", ["false"]),
+        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("INTEGRATIONS_CORE_VERSION", ["foo/bar"]),
         ("RUN_KITCHEN_TESTS", ["false"]),
         ("RUN_E2E_TESTS", ["off"]),
@@ -942,6 +1104,8 @@ def get_preset_contexts(required_tests):
             generate_contexts(mq_contexts, [], all_contexts)
         if test in ["all", "conductor"]:
             generate_contexts(conductor_contexts, [], all_contexts)
+        if test in ["all", "installer"]:
+            generate_contexts(installer_contexts, [], all_contexts)
         if test in ["all", "integrations"]:
             generate_contexts(integrations_core_contexts, [], all_contexts)
     return all_contexts
@@ -961,9 +1125,8 @@ def generate_contexts(contexts, context, all_contexts):
 
 
 def load_context(context):
-    """
-    Load a context either from a yaml file or from a json string
-    """
+    """Loads a context either from a yaml file or from a json string."""
+
     if os.path.exists(context):
         with open(context) as f:
             y = yaml.safe_load(f)
@@ -1048,3 +1211,158 @@ def gitlab_configuration_is_modified(ctx):
             return True
 
     return False
+
+
+def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
+    """Computes the full configs and the diff between two git references.
+
+    The "after reference" is compared to the Lowest Common Ancestor (LCA) commit of "before reference" and "after reference".
+
+    Args:
+        before: The git reference to compare to (default: default branch).
+        after: The git reference to compare (default: local files).
+    """
+
+    before_name = before or "merge base"
+    after_name = after or "local files"
+
+    # The before commit is the LCA commit between before and after
+    before = before or get_default_branch()
+    before = get_common_ancestor(ctx, before, after or "HEAD")
+
+    print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
+    after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after, clean_configs=True)
+
+    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
+    before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before, clean_configs=True)
+
+    diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
+
+    return before_config, after_config, diff
+
+
+def full_config_get_all_leaf_jobs(full_config: dict) -> set[str]:
+    """Filters all leaf jobs from a full gitlab-ci configuration.
+
+    Returns:
+        A set containing all leaf jobs. A leaf job is a job that will be executed by gitlab-ci, that is a job that is not meant to be only extended (usually jobs starting with '.') or special gitlab objects (variables, stages...).
+    """
+
+    all_jobs = set()
+    for config in full_config.values():
+        all_jobs.update({job for job in config if is_leaf_job(job, config[job])})
+
+    return all_jobs
+
+
+def full_config_get_all_stages(full_config: dict) -> set[str]:
+    """Retrieves all stages from a full gitlab-ci configuration."""
+
+    all_stages = set()
+    for config in full_config.values():
+        all_stages.update(config.get("stages", []))
+
+    return all_stages
+
+
+def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comment=""):
+    """
+    Updates TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
+    """
+    test_infra_def = {}
+    with open(file_path) as test_infra_version_file:
+        try:
+            test_infra_def = yaml.safe_load(test_infra_version_file)
+            test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"] = image_tag
+            if is_dev_image:
+                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = "-dev"
+            else:
+                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = ""
+        except yaml.YAMLError as e:
+            raise Exit(f"Error while loading {file_path}: {e}") from e
+    with open(file_path, "w") as test_infra_version_file:
+        test_infra_version_file.write(prefix_comment + ('\n\n' if prefix_comment else ''))
+        # Add explicit_start=True to keep the document start marker ---
+        # See "Document Start" in https://www.yaml.info/learn/document.html for more details
+        yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)
+
+
+def update_gitlab_config(file_path, tag, images="", test=True, update=True):
+    """
+    Override variables in .gitlab-ci.yml file.
+    """
+    with open(file_path) as gl:
+        file_content = gl.readlines()
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    gitlab_ci = yaml.safe_load("".join(file_content))
+    variables = gitlab_ci['variables']
+    # Select the buildimages prefixed with CI_IMAGE matchins input images list
+    images_to_update = list(find_buildimages(variables, images))
+    if update:
+        output = update_image_tag(file_content, tag, images_to_update, test=test)
+        with open(file_path, "w") as gl:
+            gl.writelines(output)
+    return images_to_update
+
+
+def find_buildimages(variables, images="", prefix="CI_IMAGE_"):
+    """
+    Select the buildimages variables to update.
+    With default values, the former CI_IMAGE_ variables are updated.
+    """
+    suffix = "_SUFFIX"
+    for variable in variables:
+        if (
+            variable.startswith(prefix)
+            and variable.endswith(suffix)
+            and any(image in variable.casefold() for image in images.casefold().split(","))
+        ):
+            yield variable.removesuffix(suffix)
+
+
+def update_image_tag(lines, tag, variables, test=True):
+    """
+    Update the variables in the .gitlab-ci.yml file.
+    We update the file content (instead of the yaml.load) to keep the original order/formatting.
+    """
+    output = []
+    tag_pattern = re.compile(r"v\d+-\w+")
+    for line in lines:
+        if any(variable in line for variable in variables):
+            if "SUFFIX" in line:
+                if test:
+                    output.append(line.replace('""', '"_test_only"'))
+                else:
+                    output.append(line.replace('"_test_only"', '""'))
+            else:
+                is_tag = tag_pattern.search(line)
+                if is_tag:
+                    output.append(line.replace(is_tag.group(), tag))
+                else:
+                    output.append(line)
+        else:
+            output.append(line)
+    return output
+
+
+def get_gitlab_job_dependencies(gitlab_cfg: dict, job_name: str) -> list[JobDependency]:
+    """
+    Get the dependencies of a job from the gitlab configuration.
+    """
+    job_dependencies = []
+    job_data = gitlab_cfg[job_name]
+    if "needs" in job_data:
+        for need in job_data["needs"]:
+            job_name = need["job"]
+            matrix_needs = need.get('parallel', {}).get('matrix', [])
+            tags = []
+            for matrix_need in matrix_needs:
+                need_tags = []
+                for tag_name, tag_values in matrix_need.items():
+                    if isinstance(tag_values, str):
+                        tag_values = [tag_values]
+                    need_tags.append((tag_name, set(tag_values)))
+                tags.append(need_tags)
+
+            job_dependencies.append(JobDependency(job_name, tags))
+    return job_dependencies

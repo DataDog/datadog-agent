@@ -11,15 +11,13 @@ package constantfetch
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
-func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version, _ statsd.ClientInterface) []ConstantFetcher {
+func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)
 
 	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)
@@ -35,7 +33,17 @@ func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version, _ statsd
 	return fetchers
 }
 
-// GetHasUsernamespaceFirstArgWithBtf uses BTF to check if the security_inode_setattr function has a user namespace as its first argument
+// GetHasUsernamespaceFirstArgWithBtf not available
 func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
 	return false, errors.New("unsupported BTF request")
+}
+
+// GetHasVFSRenameStructArgs not available
+func GetHasVFSRenameStructArgs() (bool, error) {
+	return false, errors.New("unsupported BTF request")
+}
+
+// GetBTFFunctionArgCount not available
+func GetBTFFunctionArgCount(_ string) (int, error) {
+	return 0, errors.New("unsupported BTF request")
 }

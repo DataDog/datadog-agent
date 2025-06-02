@@ -17,11 +17,17 @@ var MinGoVersion = goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}
 func GetGoroutineIDOffset(version goversion.GoVersion, goarch string) (uint64, error) {
 	switch goarch {
 	case "amd64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 23, Rev: 0}) {
+			return 0xa0, nil
+		}
 		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
 			return 0x98, nil
 		}
 		return 0, fmt.Errorf("unsupported version go%d.%d.%d (min supported: go%d.%d.%d)", version.Major, version.Minor, version.Rev, 1, 13, 0)
 	case "arm64":
+		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 23, Rev: 0}) {
+			return 0xa0, nil
+		}
 		if version.AfterOrEqual(goversion.GoVersion{Major: 1, Minor: 13, Rev: 0}) {
 			return 0x98, nil
 		}

@@ -5,6 +5,7 @@
 
 //go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/event_copy -scope "(fc *SimpleEventConsumer)" -pkg examples -output ./event_copy.go SimpleEvent .
 
+// Package examples provides an example of how to use the event monitor module using a basic consumer
 package examples
 
 import (
@@ -17,7 +18,9 @@ import (
 
 // SimpleEvent defines a simple event
 type SimpleEvent struct {
-	Type uint32 `copy:"GetEventType;event:*;cast:uint32"`
+	Type         uint32   `copy:"GetEventType;event:*;cast:uint32"`
+	ExecFilePath string   `copy:"GetExecFilePath;event:ExecEventType"`
+	Envp         []string `copy:"GetProcessEnvp;event:ExecEventType"`
 }
 
 // SimpleEventConsumer defines a simple event consumer
@@ -26,13 +29,23 @@ type SimpleEventConsumer struct {
 	exec int
 	fork int
 	exit int
+
+	handlers []func(evt *SimpleEvent)
 }
 
 // NewSimpleEventConsumer returns a new simple event consumer
 func NewSimpleEventConsumer(em *eventmonitor.EventMonitor) *SimpleEventConsumer {
 	fc := &SimpleEventConsumer{}
-	_ = em.AddEventConsumer(fc)
+	_ = em.AddEventConsumerHandler(fc)
 	return fc
+}
+
+// AddHandler adds a handler to this consumer
+func (fc *SimpleEventConsumer) AddHandler(handler func(evt *SimpleEvent)) {
+	fc.Lock()
+	defer fc.Unlock()
+
+	fc.handlers = append(fc.handlers, handler)
 }
 
 // ID returns the ID of this consumer
@@ -86,6 +99,10 @@ func (fc *SimpleEventConsumer) HandleEvent(event any) {
 		fc.fork++
 	case uint32(model.ExitEventType):
 		fc.exit++
+	}
+
+	for _, handler := range fc.handlers {
+		handler(sevent)
 	}
 }
 

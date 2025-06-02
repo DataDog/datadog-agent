@@ -17,13 +17,14 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host/windows"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type apmvmSuite struct {
@@ -59,8 +60,9 @@ type usmTaggingTest struct {
 	clientJSONFile  string
 	clientAppConfig string
 
-	defaultFiles usmTaggingFiles
-	siteFiles    map[string]usmTaggingFiles
+	defaultFiles  usmTaggingFiles
+	siteFiles     map[string]usmTaggingFiles
+	clientEnvVars map[string]string
 
 	appFiles map[string]usmTaggingFiles
 
@@ -106,12 +108,12 @@ func (v *apmvmSuite) SetupSuite() {
 	currDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	reporoot, _ := filepath.Abs(filepath.Join(currDir, "..", "..", "..", ".."))
-	kitchenDir := filepath.Join(reporoot, "test", "kitchen", "site-cookbooks")
-	v.testspath = filepath.Join(kitchenDir, "dd-system-probe-check", "files", "default", "tests")
+	v.testspath = filepath.Join(currDir, "artifacts")
 
 	// this creates the VM.
 	v.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer v.CleanupOnSetupFailure()
 
 	// get the remote host
 	vm := v.Env().RemoteHost
@@ -298,7 +300,7 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 	pipeExe := path.Join("c:", "users", "administrator", "NamedPipeCmd.exe")
 	vm.CopyFile("usmtest/NamedPipeCmd.exe", pipeExe)
 
-	pscommand := "%s -TargetHost localhost -TargetPort %s -TargetPath %s -ExpectedClientTags %s -ExpectedServerTags %s -ConnExe %s"
+	pscommand := "%s %s -TargetHost localhost -TargetPort %s -TargetPath %s -ExpectedClientTags %s -ExpectedServerTags %s -ConnExe %s"
 
 	for _, test := range usmTaggingTests {
 		v.Run(test.name, func() {
@@ -318,7 +320,19 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 			if test.targetPath != "" {
 				targetpath = test.targetPath
 			}
-			localcmd := fmt.Sprintf(pscommand, testScript, targetport, targetpath, strings.Join(test.expectedClientTags, ","), strings.Join(test.expectedServerTags, ","), testExe)
+			var envstring string
+			for k, v := range test.clientEnvVars {
+				envstring += fmt.Sprintf("$Env:%s=\"%s\" ; ", k, v)
+			}
+			localcmd := fmt.Sprintf(pscommand, envstring, testScript, targetport, targetpath, strings.Join(test.expectedClientTags, ","), strings.Join(test.expectedServerTags, ","), testExe)
+
+			if len(test.clientEnvVars) > 0 {
+				var envarg string
+				for k, v := range test.clientEnvVars {
+					envarg += fmt.Sprintf("%s=%s", k, v)
+				}
+			}
+
 			out, err := vm.Execute(localcmd)
 			if err != nil {
 				t.Logf("Error running test: %v", out)

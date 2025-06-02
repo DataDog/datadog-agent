@@ -12,19 +12,24 @@ import manager "github.com/DataDog/ebpf-manager"
 
 func getBindProbes(fentry bool) []*manager.Probe {
 	var bindProbes []*manager.Probe
-	bindProbes = append(bindProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "bind",
-	}, fentry, EntryAndExit)...)
-
+	bindProbes = appendSyscallProbes(bindProbes, fentry, EntryAndExit, false, "bind")
 	bindProbes = append(bindProbes, &manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID:          SecurityAgentUID,
 			EBPFFuncName: "hook_security_socket_bind",
 		},
-	})
+	}, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "hook_io_bind",
+		},
+	}, &manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			UID:          SecurityAgentUID,
+			EBPFFuncName: "rethook_io_bind",
+		},
+	},
+	)
 
 	return bindProbes
 }

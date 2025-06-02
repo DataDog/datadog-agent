@@ -33,7 +33,8 @@
 #define POSTGRES_PING_BODY "-- ping"
 #define NULL_TERMINATOR '\0'
 
-#define POSTGRES_SKIP_STRING_ITERATIONS 8
+#define POSTGRES_SKIP_STRING_ITERATIONS 32
+#define POSTGRES_SKIP_STRING_READ_SIZE 4
 #define SKIP_STRING_FAILED 0
 
 // Regular format of postgres message: | byte tag | int32_t len | string payload |

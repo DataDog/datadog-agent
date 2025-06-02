@@ -181,8 +181,7 @@ int hook_check_helper_call(ctx_t *ctx) {
     return 0;
 }
 
-SEC("tracepoint/handle_sys_bpf_exit")
-int tracepoint_handle_sys_bpf_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_bpf_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_bpf_ret(args, args->ret);
 }
 

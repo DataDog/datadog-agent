@@ -10,19 +10,20 @@ package network
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestWithKey(t *testing.T) {
 	t.Run("without NAT", func(t *testing.T) {
-		c := ConnectionStats{
+		c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 			Source: util.AddressFromString("10.1.1.1"),
 			Dest:   util.AddressFromString("10.2.2.2"),
 			SPort:  60000,
 			DPort:  80,
-		}
+		}}
 
 		shouldGenerateKeys(t, c,
 			types.NewConnectionKey(c.Source, c.Dest, c.SPort, c.DPort),
@@ -31,11 +32,12 @@ func TestWithKey(t *testing.T) {
 	})
 
 	t.Run("with NAT", func(t *testing.T) {
-		c := ConnectionStats{
+		c := ConnectionStats{ConnectionTuple: ConnectionTuple{
 			Source: util.AddressFromString("10.1.1.1"),
 			Dest:   util.AddressFromString("10.2.2.2"),
 			SPort:  60000,
 			DPort:  80,
+		},
 			IPTranslation: &IPTranslation{
 				ReplSrcIP:   util.AddressFromString("3.3.3.3"),
 				ReplDstIP:   util.AddressFromString("4.4.4.4"),

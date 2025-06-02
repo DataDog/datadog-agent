@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var (
@@ -34,9 +34,12 @@ type worker struct {
 	samples metrics.MetricSampleBatch
 
 	packetsTelemetry *packets.TelemetryStore
+
+	BlocklistUpdate chan blocklist
+	blocklist
 }
 
-func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
+func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)
@@ -50,6 +53,7 @@ func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Comp
 		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
+		BlocklistUpdate:  make(chan blocklist),
 	}
 }
 
@@ -61,12 +65,14 @@ func (w *worker) run() {
 		case <-w.server.health.C:
 		case <-w.server.serverlessFlushChan:
 			w.batcher.flush()
+		case blocklist := <-w.BlocklistUpdate:
+			w.blocklist = blocklist
 		case ps := <-w.server.packetsIn:
 			w.packetsTelemetry.TelemetryUntrackPackets(ps)
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples)
+			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.blocklist)
 		}
 
 	}

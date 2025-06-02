@@ -69,6 +69,7 @@ type oracleLockRow struct {
 
 type metricsPayload struct {
 	Host                  string   `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	DatabaseInstance      string   `json:"database_instance,omitempty"`
 	Kind                  string   `json:"kind,omitempty"`
 	Timestamp             float64  `json:"timestamp,omitempty"`
 	MinCollectionInterval float64  `json:"min_collection_interval,omitempty"`
@@ -140,6 +141,7 @@ func (c *Check) locks() error {
 	ts := float64(c.clock.Now().UnixMilli())
 	m := metricsPayload{
 		Host:                  c.dbHostname,
+		DatabaseInstance:      c.dbInstanceIdentifier,
 		Kind:                  "lock_metrics",
 		Timestamp:             ts,
 		MinCollectionInterval: float64(c.config.MinCollectionInterval),

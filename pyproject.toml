@@ -8,13 +8,11 @@ target-version = "py311"
 exclude = [
     ".git",
     ".github",
-    ".circleci",
     "chocolatey",
     "Dockerfiles",
     "docs",
     "google-marketplace",
     "omnibus",
-    "pkg-config",
     "releasenotes",
     "vendor",
     "venv",

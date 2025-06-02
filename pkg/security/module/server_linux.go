@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -36,14 +37,62 @@ func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessC
 		return nil, fmt.Errorf("not supported")
 	}
 
-	filename, err := p.Resolvers.ProcessResolver.ToDot(params.WithArgs)
-	if err != nil {
-		return nil, err
+	var (
+		filename string
+		err      error
+	)
+
+	switch params.Format {
+	case "json":
+		jsonContent, err := p.Resolvers.ProcessResolver.ToJSON(true)
+		if err != nil {
+			return nil, err
+		}
+
+		dump, err := os.CreateTemp("/tmp", "process-cache-dump-*.json")
+		if err != nil {
+			return nil, err
+		}
+
+		defer dump.Close()
+
+		filename = dump.Name()
+		if err := os.Chmod(dump.Name(), 0400); err != nil {
+			return nil, err
+		}
+
+		if _, err := dump.Write(jsonContent); err != nil {
+			return nil, err
+		}
+
+	case "dot", "":
+		filename, err = p.Resolvers.ProcessResolver.ToDot(params.WithArgs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &api.SecurityDumpProcessCacheMessage{
 		Filename: filename,
 	}, nil
+}
+
+// DumpActivity handles an activity dump request
+func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.DumpActivity(params)
+		if err != nil {
+			seclog.Errorf("%s", err.Error())
+		}
+		return msg, nil
+	}
+
+	return nil, fmt.Errorf("monitor not configured")
 }
 
 // ListActivityDumps returns the list of active dumps
@@ -53,8 +102,8 @@ func (a *APIServer) ListActivityDumps(_ context.Context, params *api.ActivityDum
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.ListActivityDumps(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.ListActivityDumps(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -71,8 +120,8 @@ func (a *APIServer) StopActivityDump(_ context.Context, params *api.ActivityDump
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.StopActivityDump(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.StopActivityDump(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -89,8 +138,8 @@ func (a *APIServer) TranscodingRequest(_ context.Context, params *api.Transcodin
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.GenerateTranscoding(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.GenerateTranscoding(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -107,8 +156,8 @@ func (a *APIServer) ListSecurityProfiles(_ context.Context, params *api.Security
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.ListSecurityProfiles(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.ListSecurityProfiles(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -125,8 +174,8 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 		return nil, fmt.Errorf("not supported")
 	}
 
-	if managers := p.GetProfileManagers(); managers != nil {
-		msg, err := managers.SaveSecurityProfile(params)
+	if manager := p.GetProfileManager(); manager != nil {
+		msg, err := manager.SaveSecurityProfile(params)
 		if err != nil {
 			seclog.Errorf("%s", err.Error())
 		}
@@ -142,8 +191,12 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 	if a.selfTester != nil {
 		apiStatus.SelfTests = a.selfTester.GetStatus()
 	}
-
 	apiStatus.PoliciesStatus = a.policiesStatus
+
+	seclVariables := a.GetSECLVariables()
+	for _, seclVariable := range seclVariables {
+		apiStatus.SECLVariables = append(apiStatus.SECLVariables, seclVariable)
+	}
 
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if ok {
@@ -168,7 +221,8 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 			},
 			KernelLockdown:  string(kernel.GetLockdownMode()),
 			UseMmapableMaps: p.GetKernelVersion().HaveMmapableMaps(),
-			UseRingBuffer:   p.UseRingBuffers(),
+			UseRingBuffer:   p.GetUseRingBuffers(),
+			UseFentry:       p.GetUseFentry(),
 		}
 
 		envErrors := p.VerifyEnvironment()
@@ -217,4 +271,16 @@ func (a *APIServer) RunSelfTest(_ context.Context, _ *api.RunSelfTestParams) (*a
 		Ok:    true,
 		Error: "",
 	}, nil
+}
+
+func (a *APIServer) collectOSReleaseData() {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return
+	}
+
+	kv := p.GetKernelVersion()
+
+	a.kernelVersion = kv.Code.String()
+	a.distribution = fmt.Sprintf("%s - %s", kv.OsRelease["ID"], kv.OsRelease["VERSION_ID"])
 }

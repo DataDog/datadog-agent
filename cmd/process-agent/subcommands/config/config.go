@@ -181,7 +181,12 @@ func getConfigValue(deps dependencies, args []string) error {
 }
 
 func getClient(cfg model.Reader) (settings.Client, error) {
-	httpClient := apiutil.GetClient(false)
+	err := util.SetAuthToken(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient := apiutil.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 
 	port := cfg.GetInt("process_config.cmd_port")
@@ -189,7 +194,7 @@ func getClient(cfg model.Reader) (settings.Client, error) {
 		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
 	}
 
-	ipcAddressWithPort := fmt.Sprintf("http://%s:%d/config", ipcAddress, port)
+	ipcAddressWithPort := fmt.Sprintf("https://%s:%d/config", ipcAddress, port)
 	if err != nil {
 		return nil, err
 	}

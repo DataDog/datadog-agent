@@ -90,7 +90,7 @@ workflow:
       paths:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: main
 
 .on_container_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
@@ -98,7 +98,7 @@ workflow:
       paths:
         - comp/core/tagger/**/*
         - comp/core/workloadmeta/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: main
     when: on_success
   - when: manual
     allow_failure: true
@@ -108,7 +108,7 @@ workflow:
   - changes:
       paths:
         - pkg/config/remote/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: main
   - when: manual
     allow_failure: true
 
@@ -138,4 +138,4 @@ workflow:
       paths:
         - omnibus/**/*
         - .gitlab-ci.yml
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: main

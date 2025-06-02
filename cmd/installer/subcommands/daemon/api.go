@@ -7,7 +7,12 @@
 package daemon
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -18,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 type cliParams struct {
@@ -31,9 +34,10 @@ type cliParams struct {
 
 func apiCommands(global *command.GlobalParams) []*cobra.Command {
 	setCatalogCmd := &cobra.Command{
-		Use:   "set-catalog catalog",
-		Short: "Sets the catalog to use",
-		Args:  cobra.ExactArgs(1),
+		Hidden: true,
+		Use:    "set-catalog catalog",
+		Short:  "Internal command to set the catalog to use",
+		Args:   cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			return experimentFxWrapper(catalog, &cliParams{
 				GlobalParams: *global,
@@ -51,6 +55,17 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 				GlobalParams: *global,
 				pkg:          args[0],
 				version:      args[1],
+			})
+		},
+	}
+	removeCmd := &cobra.Command{
+		Use:   "remove package",
+		Short: "Removes a package",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(remove, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
 			})
 		},
 	}
@@ -91,7 +106,65 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 			})
 		},
 	}
-	return []*cobra.Command{setCatalogCmd, startExperimentCmd, stopExperimentCmd, promoteExperimentCmd, installCmd}
+	startConfigExperimentCmd := &cobra.Command{
+		Use:     "start-config-experiment package version",
+		Aliases: []string{"start-config"},
+		Short:   "Starts an experiment",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(startConfig, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+				version:      args[1],
+			})
+		},
+	}
+	stopConfigExperimentCmd := &cobra.Command{
+		Use:     "stop-config-experiment package",
+		Aliases: []string{"stop-config"},
+		Short:   "Stops an experiment",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(stopConfig, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+			})
+		},
+	}
+	promoteConfigExperimentCmd := &cobra.Command{
+		Use:     "promote-config-experiment package",
+		Aliases: []string{"promote-config"},
+		Short:   "Promotes an experiment",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			return experimentFxWrapper(promoteConfig, &cliParams{
+				GlobalParams: *global,
+				pkg:          args[0],
+			})
+		},
+	}
+	remoteConfigStatusCmd := &cobra.Command{
+		Hidden: true,
+		Use:    "rc-status",
+		Short:  "Internal command to print the installer Remote Config status as a JSON",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return experimentFxWrapper(status, &cliParams{
+				GlobalParams: *global,
+			})
+		},
+	}
+	return []*cobra.Command{
+		setCatalogCmd,
+		startExperimentCmd,
+		stopExperimentCmd,
+		promoteExperimentCmd,
+		installCmd,
+		removeCmd,
+		startConfigExperimentCmd,
+		stopConfigExperimentCmd,
+		promoteConfigExperimentCmd,
+		remoteConfigStatusCmd,
+	}
 }
 
 func experimentFxWrapper(f interface{}, params *cliParams) error {
@@ -144,11 +217,60 @@ func promote(params *cliParams, client localapiclient.Component) error {
 	return nil
 }
 
+func startConfig(params *cliParams, client localapiclient.Component) error {
+	err := client.StartConfigExperiment(params.pkg, params.version)
+	if err != nil {
+		fmt.Println("Error starting config experiment:", err)
+		return err
+	}
+	return nil
+}
+
+func stopConfig(params *cliParams, client localapiclient.Component) error {
+	err := client.StopConfigExperiment(params.pkg)
+	if err != nil {
+		fmt.Println("Error stopping config experiment:", err)
+		return err
+	}
+	return nil
+}
+
+func promoteConfig(params *cliParams, client localapiclient.Component) error {
+	err := client.PromoteConfigExperiment(params.pkg)
+	if err != nil {
+		fmt.Println("Error promoting config experiment:", err)
+		return err
+	}
+	return nil
+}
+
 func install(params *cliParams, client localapiclient.Component) error {
 	err := client.Install(params.pkg, params.version)
 	if err != nil {
-		fmt.Println("Error bootstrapping package:", err)
+		fmt.Println("Error installing package:", err)
 		return err
 	}
+	return nil
+}
+
+func remove(params *cliParams, client localapiclient.Component) error {
+	err := client.Remove(params.pkg)
+	if err != nil {
+		fmt.Println("Error removing package:", err)
+		return err
+	}
+	return nil
+}
+func status(_ *cliParams, client localapiclient.Component) error {
+	status, err := client.Status()
+	if err != nil {
+		fmt.Println("Error getting status:", err)
+		return err
+	}
+	bytes, err := json.Marshal(status)
+	if err != nil {
+		fmt.Println("Error marshalling status:", err)
+	}
+	fmt.Fprintf(os.Stdout, "%s", bytes)
 	return nil
 }

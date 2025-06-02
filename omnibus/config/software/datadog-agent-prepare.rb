@@ -16,7 +16,6 @@ build do
     %w{embedded/lib embedded/bin embedded/etc bin}.each do |dir|
       dir_fullpath = File.expand_path(File.join(install_dir, dir))
       FileUtils.mkdir_p(dir_fullpath)
-      FileUtils.touch(File.join(dir_fullpath, ".gitkeep"))
     end
 
     # Add a README for the embedded environment's configuration folder

@@ -7,10 +7,8 @@
 package converterimpl
 
 import (
-	"regexp"
 	"strings"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -39,10 +37,7 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
 
 	// prometheus receiver
-	addPrometheusReceiver(conf, prometheusReceiver)
-
-	// datadog connector
-	changeDefaultConfigsForDatadogConnector(conf)
+	addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
 
 	// add datadog agent sourced config
 	addCoreAgentConfig(conf, c.coreConfig)
@@ -62,7 +57,15 @@ func addComponentToConfig(conf *confmap.Conf, comp component) {
 	if present {
 		componentsMap, ok := components.(map[string]any)
 		if !ok {
-			return
+			if components == nil {
+				// components map is nil. It is defined but section is empty.
+				// need to create map manually
+
+				componentsMap = make(map[string]any)
+				stringMapConf[comp.Type] = componentsMap
+			} else {
+				return
+			}
 		}
 		componentsMap[comp.EnhancedName] = comp.Config
 	} else {
@@ -115,52 +118,27 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-func addCoreAgentConfig(conf *confmap.Conf, coreCfg coreconfig.Component) {
-	stringMapConf := conf.ToStringMap()
-	exporters, ok := stringMapConf["exporters"]
+// findComps finds and returns the matching components and their configs in a string conf map.
+// Component can be receivers, processors, connectors or exporters.
+func findComps(stringMapConf map[string]any, compName string, compType string) map[string]map[string]any {
+	comps, ok := stringMapConf[compType]
 	if !ok {
-		return
+		return nil
 	}
-	exporterMap, ok := exporters.(map[string]any)
+	compsMap, ok := comps.(map[string]any)
 	if !ok {
-		return
+		return nil
 	}
-	datadog, ok := exporterMap["datadog"]
-	if !ok {
-		return
-	}
-	datadogMap, ok := datadog.(map[string]any)
-	if !ok {
-		return
-	}
-	api, ok := datadogMap["api"]
-	if !ok {
-		return
-	}
-	apiMap, ok := api.(map[string]any)
-	if !ok {
-		return
-	}
-
-	apiKey, ok := apiMap["key"]
-	if ok {
-		key, ok := apiKey.(string)
-		if ok && key != "" {
-			match, _ := regexp.MatchString(secretRegex, apiKey.(string))
-			if !match {
-				return
-			}
+	cfgsByRecv := make(map[string]map[string]any)
+	for name, cfg := range compsMap {
+		if componentName(name) != compName {
+			continue
 		}
-	}
-
-	if coreCfg != nil {
-		apiMap["key"] = coreCfg.Get("api_key")
-
-		apiSite, ok := apiMap["site"]
-		if ok && apiSite == "" {
-			apiMap["site"] = coreCfg.Get("site")
+		cfgMap, ok := cfg.(map[string]any)
+		if !ok {
+			cfgMap = nil // some components like debug exporter can leave configs empty and use defaults
 		}
+		cfgsByRecv[name] = cfgMap
 	}
-
-	*conf = *confmap.NewFromStringMap(stringMapConf)
+	return cfgsByRecv
 }

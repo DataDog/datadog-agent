@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
 // NodeDroppedReason is used to list the reasons to drop a node
@@ -155,11 +156,12 @@ func (cs *cookieSelector) fillFromEntry(entry *model.ProcessCacheEntry) {
 type ActivityTree struct {
 	Stats *Stats
 
-	treeType          string
+	treeType  string
+	validator Owner
+
 	differentiateArgs bool
 	DNSMatchMaxDepth  int
 
-	validator    Owner
 	pathsReducer *PathsReducer
 
 	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
@@ -186,6 +188,12 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 		SyscallsMask:        make(map[int]int),
 		DNSNames:            utils.NewStringKeys(nil),
 	}
+}
+
+// SetType changes the type and owner of the ActivityTree
+func (at *ActivityTree) SetType(treeType string, validator Owner) {
+	at.treeType = treeType
+	at.validator = validator
 }
 
 // GetChildren returns the list of root ProcessNodes from the ActivityTree
@@ -401,7 +409,9 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	case model.BindEventType:
 		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:
-		return node.InsertSyscalls(event, at.SyscallsMask), nil
+		return node.InsertSyscalls(event, imageTag, at.SyscallsMask, at.Stats, dryRun), nil
+	case model.NetworkFlowMonitorEventType:
+		return node.InsertNetworkFlowMonitorEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.ExitEventType:
 		// Update the exit time of the process (this is purely informative, do not rely on timestamps to detect
 		// execed children)
@@ -880,38 +890,50 @@ func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
 }
 
 // ExtractPaths returns the exec / fim, exec / parent paths
-func (at *ActivityTree) ExtractPaths() (map[string][]string, map[string][]string) {
+func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[string][]string, map[string][]string) {
 
 	fimPathsperExecPath := make(map[string][]string)
 	execAndParent := make(map[string][]string)
+	modifiedPaths := make(map[string]string)
 
 	at.visit(func(processNode *ProcessNode) {
 		var fimPaths []string
-		for _, file := range processNode.Files {
-			at.visitFileNode(file, func(fileNode *FileNode) {
-				path := fileNode.File.PathnameStr
-				if len(path) > 0 {
-					if strings.Contains(path, "*") {
-						fimPaths = append(fimPaths, `~"`+path+`"`)
-					} else {
-						fimPaths = append(fimPaths, `"`+path+`"`)
+		if fimEnabled {
+			for _, file := range processNode.Files {
+				at.visitFileNode(file, func(fileNode *FileNode) {
+					path, ok := modifiedPaths[fileNode.File.PathnameStr]
+					if !ok {
+						modifiedPaths[fileNode.File.PathnameStr] = pathutils.CheckForPatterns(fileNode.File.PathnameStr)
+						path = modifiedPaths[fileNode.File.PathnameStr]
 					}
-				}
-			})
+					if len(path) > 0 {
+						fimPaths = append(fimPaths, path)
+					}
+				})
+			}
 		}
-		execPath := fmt.Sprintf("\"%s\"", processNode.Process.FileEvent.PathnameStr)
+
+		execPath, ok := modifiedPaths[processNode.Process.FileEvent.PathnameStr]
+		if !ok {
+			modifiedPaths[processNode.Process.FileEvent.PathnameStr] = pathutils.CheckForPatterns(processNode.Process.FileEvent.PathnameStr)
+			execPath = modifiedPaths[processNode.Process.FileEvent.PathnameStr]
+		}
+
 		paths, ok := fimPathsperExecPath[execPath]
 		if ok {
 			fimPathsperExecPath[execPath] = append(paths, fimPaths...)
 		} else {
 			fimPathsperExecPath[execPath] = fimPaths
 		}
-		p, pp := extractExecAndParent(processNode)
-		tmp, ok := execAndParent[p]
-		if ok {
-			execAndParent[p] = append(tmp, pp)
-		} else {
-			execAndParent[p] = []string{pp}
+
+		if lineageEnabled {
+			p, pp := extractExecAndParent(processNode)
+			tmp, ok := execAndParent[p]
+			if ok {
+				execAndParent[p] = append(tmp, pp)
+			} else {
+				execAndParent[p] = []string{pp}
+			}
 		}
 	})
 
@@ -924,7 +946,7 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 
 	at.visit(func(processNode *ProcessNode) {
 		for _, s := range processNode.Syscalls {
-			sycallKey := utils.SyscallKey{Arch: arch, ID: s}
+			sycallKey := utils.SyscallKey{Arch: arch, ID: s.Syscall}
 			syscall, ok := utils.Syscalls[sycallKey]
 			if ok {
 				syscalls = append(syscalls, syscall)

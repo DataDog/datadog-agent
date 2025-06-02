@@ -16,11 +16,10 @@ import (
 	"strings"
 	"time"
 
-	dockerTypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -35,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -66,18 +65,20 @@ type DockerCheck struct {
 	okExitCodes                 map[int]struct{}
 	collectContainerSizeCounter uint64
 	store                       workloadmeta.Component
+	tagger                      tagger.Component
 
 	lastEventTime    time.Time
 	eventTransformer eventTransformer
 }
 
 // Factory returns a new docker corecheck factory
-func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return &DockerCheck{
 			CheckBase: core.NewCheckBase(CheckName),
 			instance:  &DockerConfig{},
 			store:     store,
+			tagger:    tagger,
 		}
 	})
 }
@@ -118,11 +119,12 @@ func (d *DockerCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 				d.dockerHostname,
 				// Don't bundle events that are unbundled already.
 				append(filteredEventTypes, d.instance.CollectedEventTypes...),
+				d.tagger,
 			)
 		}
-		d.eventTransformer = newUnbundledTransformer(d.dockerHostname, d.instance.CollectedEventTypes, bundledTransformer)
+		d.eventTransformer = newUnbundledTransformer(d.dockerHostname, d.instance.CollectedEventTypes, bundledTransformer, d.tagger)
 	} else {
-		d.eventTransformer = newBundledTransformer(d.dockerHostname, filteredEventTypes)
+		d.eventTransformer = newBundledTransformer(d.dockerHostname, filteredEventTypes, d.tagger)
 	}
 
 	d.containerFilter, err = containers.GetSharedMetricFilter()
@@ -130,7 +132,7 @@ func (d *DockerCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
 	}
 
-	d.processor = generic.NewProcessor(metrics.GetProvider(optional.NewOption(d.store)), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store))
+	d.processor = generic.NewProcessor(metrics.GetProvider(option.New(d.store)), generic.NewMetadataContainerAccessor(d.store), metricsAdapter{}, getProcessorFilter(d.containerFilter, d.store), d.tagger)
 	d.processor.RegisterExtension("docker-custom-metrics", &dockerCustomMetricsExtension{})
 	d.configureNetworkProcessor(&d.processor)
 	d.setOkExitCodes()
@@ -197,7 +199,7 @@ type containersPerTags struct {
 	stopped int64
 }
 
-func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, rawContainerList []dockerTypes.Container) error {
+func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, rawContainerList []container.Summary) error {
 	// Container metrics
 	var containersRunning, containersStopped uint64
 	containerGroups := map[string]*containersPerTags{}
@@ -237,10 +239,13 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 			annotations = pod.Annotations
 		}
 
-		isContainerExcluded := d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
+		isContainerExcluded := false
+		if d.containerFilter != nil {
+			isContainerExcluded = d.containerFilter.IsExcluded(annotations, containerName, resolvedImageName, rawContainer.Labels[kubernetes.CriContainerNamespaceLabel])
+		}
 		isContainerRunning := rawContainer.State == string(workloadmeta.ContainerStatusRunning)
-		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID).String()
-		tags, err := getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
+		taggerEntityID := types.NewEntityID(types.ContainerID, rawContainer.ID)
+		tags, err := d.getImageTagsFromContainer(taggerEntityID, resolvedImageName, isContainerExcluded || !isContainerRunning)
 		if err != nil {
 			log.Debugf("Unable to fetch tags for image: %s, err: %v", rawContainer.ImageID, err)
 		} else {
@@ -263,7 +268,7 @@ func (d *DockerCheck) runDockerCustom(sender sender.Sender, du docker.Client, ra
 		}
 
 		// Send container size metrics
-		containerTags, err := tagger.Tag(taggerEntityID, types.HighCardinality)
+		containerTags, err := d.tagger.Tag(taggerEntityID, types.HighCardinality)
 		if err != nil {
 			log.Warnf("Unable to fetch tags for container: %s, err: %v", rawContainer.ID, err)
 		}
@@ -426,4 +431,17 @@ func (d *DockerCheck) setOkExitCodes() {
 	// Set default ok exit codes.
 	// 143 is returned when docker sends a SIGTERM to stop a container.
 	d.okExitCodes = map[int]struct{}{0: {}, 143: {}}
+}
+
+func (d *DockerCheck) getImageTagsFromContainer(taggerEntityID types.EntityID, resolvedImageName string, isContainerExcluded bool) ([]string, error) {
+	if isContainerExcluded {
+		return getImageTags(resolvedImageName)
+	}
+
+	containerTags, err := d.tagger.Tag(taggerEntityID, types.LowCardinality)
+	if err != nil {
+		return nil, err
+	}
+
+	return containerTags, nil
 }

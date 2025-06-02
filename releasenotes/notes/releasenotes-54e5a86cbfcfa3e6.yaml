@@ -1,0 +1,9 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+enhancements:
+  - |
+    Report resource requirements as native sidecars when `restartPolicy=Always` is used.

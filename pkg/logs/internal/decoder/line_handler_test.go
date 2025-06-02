@@ -25,11 +25,15 @@ const whitespace = "\t\n\v\f\r\u0085\u00a0 "
 const contentLenLimit = 100
 
 func getDummyMessage(content string) *message.Message {
-	return message.NewRawMessage([]byte(content), "info", len(content), "2018-06-14T18:27:03.246999277Z")
+	m := message.NewMessage([]byte(content), nil, message.StatusInfo, 0)
+	m.RawDataLen = len(content)
+	return m
 }
 
 func getDummyMessageWithLF(content string) *message.Message {
-	return message.NewRawMessage([]byte(content), "info", len(content)+1, "2018-06-14T18:27:03.246999277Z")
+	m := message.NewMessage([]byte(content), nil, message.StatusInfo, 0)
+	m.RawDataLen = len(content) + 1
+	return m
 }
 
 func lineHandlerChans() (func(*message.Message), chan *message.Message) {
@@ -96,7 +100,7 @@ func TestTrimSingleLine(t *testing.T) {
 func TestMultiLineHandler(t *testing.T) {
 	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 20, false, status.NewInfoRegistry())
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 20, false, status.NewInfoRegistry(), "")
 
 	var output *message.Message
 
@@ -187,7 +191,7 @@ func TestMultiLineHandler(t *testing.T) {
 func TestTrimMultiLine(t *testing.T) {
 	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry())
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
 
 	var output *message.Message
 
@@ -216,7 +220,7 @@ func TestTrimMultiLine(t *testing.T) {
 func TestMultiLineHandlerDropsEmptyMessages(t *testing.T) {
 	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry())
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
 
 	h.process(getDummyMessage(""))
 
@@ -245,7 +249,7 @@ func TestSingleLineHandlerSendsRawInvalidMessages(t *testing.T) {
 func TestMultiLineHandlerSendsRawInvalidMessages(t *testing.T) {
 	re := regexp.MustCompile(`[0-9]+\.`)
 	outputFn, outputChan := lineHandlerChans()
-	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry())
+	h := NewMultiLineHandler(outputFn, re, 250*time.Millisecond, 100, false, status.NewInfoRegistry(), "")
 
 	h.process(getDummyMessage("1.third line"))
 	h.process(getDummyMessage("fourth line"))

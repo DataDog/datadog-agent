@@ -24,7 +24,9 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -98,6 +100,7 @@ type ProviderTestSuite struct {
 	testServer   *httptest.Server
 	mockSender   *mocksender.MockSender
 	kubeUtil     kubelet.KubeUtilInterface
+	tagger       tagger.Component
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
@@ -112,10 +115,12 @@ func (suite *ProviderTestSuite) SetupTest() {
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
-	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
-	defer fakeTagger.ResetTagger()
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
+
 	for entity, tags := range commontesting.CommonTags {
-		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
+		prefix, id, _ := taggertypes.ExtractPrefixAndID(entity)
+		entityID := taggertypes.NewEntityID(prefix, id)
+		fakeTagger.SetTags(entityID, "foo", tags, nil, nil, nil)
 	}
 
 	suite.dummyKubelet = newDummyKubelet()
@@ -135,9 +140,12 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	config := &common.KubeletConfig{
 		OpenmetricsInstance: types.OpenmetricsInstance{
-			Tags: []string{"instance_tag:something"},
+			Tags:    []string{"instance_tag:something"},
+			Timeout: 10,
 		},
 	}
+
+	suite.tagger = fakeTagger
 
 	suite.provider = &Provider{
 		config: config,
@@ -145,7 +153,8 @@ func (suite *ProviderTestSuite) SetupTest() {
 			Enabled:         true,
 			NameExcludeList: []*regexp.Regexp{regexp.MustCompile("agent-excluded")},
 		},
-		podUtils: common.NewPodUtils(),
+		podUtils: common.NewPodUtils(fakeTagger),
+		tagger:   fakeTagger,
 	}
 }
 

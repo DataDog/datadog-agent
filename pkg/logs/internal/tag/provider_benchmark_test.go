@@ -28,7 +28,7 @@ func setupConfig(t testing.TB, tags []string) (model.Config, time.Time) {
 
 type dummyTagAdder struct{}
 
-func (dummyTagAdder) Tag(string, types.TagCardinality) ([]string, error) {
+func (dummyTagAdder) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
@@ -46,7 +46,7 @@ func BenchmarkProviderExpectedTags(b *testing.B) {
 	m.SetWithoutSource("logs_config.expected_tags_duration", "1m")
 	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
-	p := NewProvider("foo", dummyTagAdder{})
+	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 
 	for i := 0; i < b.N; i++ {
 		p.GetTags()
@@ -69,7 +69,7 @@ func BenchmarkProviderExpectedTagsEmptySlice(b *testing.B) {
 	m.SetWithoutSource("logs_config.expected_tags_duration", "1m")
 	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
-	p := NewProvider("foo", dummyTagAdder{})
+	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 
 	for i := 0; i < b.N; i++ {
 		p.GetTags()
@@ -92,7 +92,7 @@ func BenchmarkProviderExpectedTagsNil(b *testing.B) {
 	m.SetWithoutSource("logs_config.expected_tags_duration", "1m")
 	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
-	p := NewProvider("foo", dummyTagAdder{})
+	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 
 	for i := 0; i < b.N; i++ {
 		p.GetTags()
@@ -112,7 +112,7 @@ func BenchmarkProviderNoExpectedTags(b *testing.B) {
 	// Setting a test-friendly value for the deadline (test should not take 1m)
 	m.SetWithoutSource("logs_config.expected_tags_duration", "0")
 
-	p := NewProvider("foo", dummyTagAdder{})
+	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 
 	for i := 0; i < b.N; i++ {
 		p.GetTags()
@@ -132,7 +132,7 @@ func BenchmarkProviderNoExpectedTagsNil(b *testing.B) {
 	// Setting a test-friendly value for the deadline (test should not take 1m)
 	m.SetWithoutSource("logs_config.expected_tags_duration", "0")
 
-	p := NewProvider("foo", dummyTagAdder{})
+	p := NewProvider(types.NewEntityID(types.ContainerID, "foo"), dummyTagAdder{})
 
 	for i := 0; i < b.N; i++ {
 		p.GetTags()

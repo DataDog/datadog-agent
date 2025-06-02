@@ -18,24 +18,23 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
-	"testing"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors"
+	privdetectors "github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors/privileged"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var detectorsWithPrivilege = []languagemodels.Detector{
-	detectors.NewGoDetector(),
-	detectors.NewDotnetDetector(),
+	privdetectors.NewTracerDetector(),
+	privdetectors.NewInjectorDetector(),
+	privdetectors.NewGoDetector(),
+	privdetectors.NewDotnetDetector(),
 }
 
-var (
-	permissionDeniedWarningOnce = sync.Once{}
-)
+var permissionDeniedWarningOnce = sync.Once{}
 
 func handleDetectorError(err error) {
 	if os.IsPermission(err) {
@@ -105,13 +104,6 @@ func (l *LanguageDetector) DetectWithPrivileges(procs []languagemodels.Process) 
 		l.mux.Unlock()
 	}
 	return languages
-}
-
-// MockPrivilegedDetectors is used in tests to inject mock tests. It should be called before `DetectWithPrivileges`
-func MockPrivilegedDetectors(t *testing.T, newDetectors []languagemodels.Detector) {
-	oldDetectors := detectorsWithPrivilege
-	t.Cleanup(func() { detectorsWithPrivilege = oldDetectors })
-	detectorsWithPrivilege = newDetectors
 }
 
 func (l *LanguageDetector) getBinID(process languagemodels.Process) (binaryID, error) {

@@ -54,3 +54,19 @@ func withResourceLimits(container *corev1.Container, resourceLimits corev1.Resou
 	container.Resources = resourceLimits
 	return nil
 }
+
+// withSecurityContextOverrides applies the security context overrides to the container
+func withSecurityContextOverrides(container *corev1.Container, securityContext *corev1.SecurityContext) (bool, error) {
+	if container == nil {
+		return false, fmt.Errorf("can't apply security context overrides to nil container")
+	}
+
+	mutated := false
+
+	if securityContext != nil {
+		container.SecurityContext = securityContext
+		mutated = true
+	}
+
+	return mutated, nil
+}

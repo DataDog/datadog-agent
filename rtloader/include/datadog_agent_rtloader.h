@@ -28,17 +28,7 @@ typedef struct rtloader_s rtloader_t;
 struct rtloader_pyobject_s;
 typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 
-// FACTORIES
-/*! \fn rtloader_t *make2(const char *python_home, const char *python_exe, char **error)
-    \brief Factory function to load the python2 backend DLL and create its relevant RtLoader
-    instance.
-    \param python_home A C-string with the path to the PYTHONHOME for said DLL.
-    \param python_exe A C-string with the path to the python interpreter.
-    \param error A C-string pointer output parameter to return error messages.
-    \return A rtloader_t * pointer to the RtLoader instance.
-    \sa rtloader_t
-*/
-DATADOG_AGENT_RTLOADER_API rtloader_t *make2(const char *python_home, const char *python_exe, char **error);
+// FACTORY
 /*! \fn rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     \brief Factory function to load the python3 backend DLL and create its relevant RtLoader
     instance.
@@ -138,6 +128,19 @@ DATADOG_AGENT_RTLOADER_API int get_class(rtloader_t *rtloader, const char *name,
 */
 DATADOG_AGENT_RTLOADER_API int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class,
                                                const char *attr_name, char **value);
+
+/*! \fn int get_attr_bool(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *attr_name, bool *value)
+    \brief Attempts to get a bool attribute from the supplied python class, by name.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param py_class A rtloader_pyobject_t ** pointer to the class we wish to get the
+    attribute from.
+    \param attr_name A constant C-string with the name of the attribute to get.
+    \param value A bool * pointer C-bool output parameter with the attribute value.
+    \return An integer with the success of the operation. Zero for success, non-zero for failure.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API int get_attr_bool(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *attr_name,
+                                             bool *value);
 
 /*! \fn int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char
    *instance, const char *check_id, const char *check_name, rtloader_pyobject_t **check) \brief Attempts to instantiate
@@ -674,6 +677,17 @@ DATADOG_AGENT_RTLOADER_API void get_pymem_stats(rtloader_t *, pymem_stats_t *);
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_obfuscate_mongodb_string_cb(rtloader_t *, cb_obfuscate_mongodb_string_t);
+
+/*! \fn void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t)
+    \brief Sets a callback to be used by rtloader to allow emitting a metric for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_emit_agent_telemetry_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_emit_agent_telemetry_cb(rtloader_t *, cb_emit_agent_telemetry_t);
 
 #ifdef __cplusplus
 }

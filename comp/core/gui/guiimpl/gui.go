@@ -9,8 +9,8 @@ import (
 	"context"
 	"crypto/rand"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
-	"html/template"
 	"io"
 	"mime"
 	"net"
@@ -21,10 +21,9 @@ import (
 	"strconv"
 	"time"
 
-	"go.uber.org/fx"
-
-	"github.com/dvsekhvalnov/jose2go/base64url"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/gorilla/mux"
+	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -32,12 +31,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	template "github.com/DataDog/datadog-agent/pkg/template/html"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -62,8 +63,8 @@ type gui struct {
 	startTimestamp int64
 }
 
-//go:embed views
-var viewsFS embed.FS
+//go:embed views/templates
+var templatesFS embed.FS
 
 // Payload struct is for the JSON messages received from a client POST request
 type Payload struct {
@@ -82,12 +83,13 @@ type dependencies struct {
 	Collector collector.Component
 	Ac        autodiscovery.Component
 	Lc        fx.Lifecycle
+	Hostname  hostnameinterface.Component
 }
 
 type provides struct {
 	fx.Out
 
-	Comp     optional.Option[guicomp.Component]
+	Comp     option.Option[guicomp.Component]
 	Endpoint api.AgentEndpointProvider
 }
 
@@ -97,7 +99,7 @@ type provides struct {
 func newGui(deps dependencies) provides {
 
 	p := provides{
-		Comp: optional.NewNoneOption[guicomp.Component](),
+		Comp: option.None[guicomp.Component](),
 	}
 	guiPort := deps.Config.GetString("GUI_port")
 
@@ -124,7 +126,7 @@ func newGui(deps dependencies) provides {
 	// Fetch the authentication token (persists across sessions)
 	authToken, e := security.FetchAuthToken(deps.Config)
 	if e != nil {
-		g.logger.Errorf("GUI server initialization failed (unable to get the AuthToken): ", e)
+		g.logger.Error("GUI server initialization failed (unable to get the AuthToken): ", e)
 		return p
 	}
 
@@ -141,7 +143,7 @@ func newGui(deps dependencies) provides {
 	securedRouter := publicRouter.PathPrefix("/").Subrouter()
 	// Set up handlers for the API
 	agentRouter := securedRouter.PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, g.startTimestamp)
+	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
 	checkRouter := securedRouter.PathPrefix("/checks").Subrouter().StrictSlash(true)
 	checkHandler(checkRouter, deps.Collector, deps.Ac)
 
@@ -154,7 +156,7 @@ func newGui(deps dependencies) provides {
 		OnStart: g.start,
 		OnStop:  g.stop})
 
-	p.Comp = optional.NewOption[guicomp.Component](g)
+	p.Comp = option.New[guicomp.Component](g)
 	p.Endpoint = api.NewAgentEndpointProvider(g.getIntentToken, "/gui/intent", "GET")
 
 	return p
@@ -169,7 +171,7 @@ func (g *gui) start(_ context.Context) error {
 
 	g.listener, e = net.Listen("tcp", g.address)
 	if e != nil {
-		g.logger.Errorf("GUI server didn't achieved to start: ", e)
+		g.logger.Error("GUI server didn't achieved to start: ", e)
 		return nil
 	}
 	go http.Serve(g.listener, g.router) //nolint:errcheck
@@ -192,13 +194,13 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, e.Error(), 500)
 	}
 
-	token := base64url.Encode(key)
+	token := base64.RawURLEncoding.EncodeToString(key)
 	g.intentTokens[token] = true
 	w.Write([]byte(token))
 }
 
 func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
-	data, err := viewsFS.ReadFile("views/templates/index.tmpl")
+	data, err := templatesFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -229,8 +231,15 @@ func renderIndexPage(w http.ResponseWriter, _ *http.Request) {
 }
 
 func serveAssets(w http.ResponseWriter, req *http.Request) {
-	path := path.Join("views", "private", req.URL.Path)
-	data, err := viewsFS.ReadFile(path)
+	staticFilePath := path.Join(defaultpaths.GetDistPath(), "views")
+
+	// checking against path traversal
+	path, err := securejoin.SecureJoin(staticFilePath, req.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -270,7 +279,13 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 	accessToken := g.auth.GenerateAccessToken()
 
 	// set the accessToken as a cookie and redirect the user to root page
-	http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/", HttpOnly: true})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "accessToken",
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   31536000, // 1 year
+	})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

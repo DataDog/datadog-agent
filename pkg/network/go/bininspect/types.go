@@ -9,12 +9,13 @@
 package bininspect
 
 import (
-	"debug/elf"
 	"errors"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	delve "github.com/go-delve/delve/pkg/goversion"
+
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 const (
@@ -63,7 +64,7 @@ var StructOffsetLimitListenerConnNetConn = FieldIdentifier{
 }
 
 type elfMetadata struct {
-	file *elf.File
+	file *safeelf.File
 	arch GoArch
 }
 

@@ -1,10 +1,9 @@
 from collections import defaultdict
 
 from invoke import task
+from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.github_api import GithubAPI, get_github_teams
-from tasks.libs.common.utils import guess_from_keywords, guess_from_labels, team_to_label
-from tasks.libs.owners.parsing import most_frequent_agent_team, read_owners, search_owners
+from tasks.libs.owners.parsing import list_owners, read_owners, search_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 
 
@@ -19,23 +18,24 @@ def find_codeowners(_, path, owners_file=".github/CODEOWNERS"):
 
 
 @task
-def guess_responsible(_, issue_id):
-    gh = GithubAPI('DataDog/datadog-agent')
-    issue = gh.repo.get_issue(int(issue_id))
-    owner = guess_from_labels(issue)
-    if owner == 'triage':
-        users = [user for user in issue.assignees if gh.is_organization_member(user)]
-        teams = get_github_teams(users)
-        owner = most_frequent_agent_team(teams)
-    if owner == 'triage':
-        commenters = [c.user for c in issue.get_comments() if gh.is_organization_member(c.user)]
-        teams = get_github_teams(commenters)
-        owner = most_frequent_agent_team(teams)
-    if owner == 'triage':
-        owner = guess_from_keywords(issue)
-    owner = team_to_label(owner)
-    print(owner)
-    return owner
+def list_files(ctx, team, owners_file=".github/CODEOWNERS"):
+    """
+    List all files owned by a particular team.
+    """
+
+    valid_owners = list(list_owners(owners_file))
+
+    if team not in valid_owners:
+        raise Exit(f"unexpected owner '{team}'")
+
+    code_owners = read_owners(owners_file)
+    result = ctx.run('git ls-files', hide=True)
+    files = result.stdout.splitlines()
+
+    for file_name in files:
+        normalized_owners = [owner[1].casefold().replace("@datadog/", "") for owner in code_owners.of(file_name)]
+        if team in normalized_owners:
+            print(file_name)
 
 
 def make_partition(names: list[str], owners_file: str, get_channels: bool = False) -> dict[str, set[str]]:

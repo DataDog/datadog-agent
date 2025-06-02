@@ -11,6 +11,7 @@ import (
 	"errors"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
@@ -20,7 +21,7 @@ type gpuMetricSender struct {
 }
 
 func (gpuMetricSender *gpuMetricSender) Init() error {
-	regex, err := regexp.Compile(`EMC_FREQ\s*(?P<emcPct>\d+)%(?:@(?P<emcFreq>\d+))?\s*GR3D_FREQ\s*(?P<gpuPct>\d+)%(?:@(?P<gpuFreq>\d+))?`)
+	regex, err := regexp.Compile(`EMC_FREQ\s*(?P<emcPct>\d+)%(?:@(?P<emcFreq>\d+))?\s*GR3D_FREQ\s*(?P<gpuPct>\d+)%(?:@(?P<gpuFreq>\d+)|@(?:\[(?P<gpcFreqs>(?:\d+,?)+)]))?`)
 	if err != nil {
 		return err
 	}
@@ -61,6 +62,15 @@ func (gpuMetricSender *gpuMetricSender) SendMetrics(sender sender.Sender, field 
 			return err
 		}
 		sender.Gauge("nvidia.jetson.gpu.freq", gpuFreq, "", nil)
+	} else if len(gpuFields["gpcFreqs"]) > 0 {
+		gpcFreqs := strings.Split(gpuFields["gpcFreqs"], ",")
+		for i, gpcFreq := range gpcFreqs {
+			freq, err := strconv.ParseFloat(gpcFreq, 64)
+			if err != nil {
+				return err
+			}
+			sender.Gauge("nvidia.jetson.gpu.freq", freq, "", []string{"gpc:" + strconv.Itoa(i)})
+		}
 	}
 
 	return nil

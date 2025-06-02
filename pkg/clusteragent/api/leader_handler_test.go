@@ -35,6 +35,11 @@ type fakeLeaderForwarder struct{}
 // SetLeaderIP does nothing
 func (f *fakeLeaderForwarder) SetLeaderIP(_ string) {}
 
+// GetLeaderIP does nothing
+func (f *fakeLeaderForwarder) GetLeaderIP() string {
+	return ""
+}
+
 // Forward returns ok
 func (f *fakeLeaderForwarder) Forward(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)

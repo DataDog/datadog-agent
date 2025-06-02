@@ -15,10 +15,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	taggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -41,10 +43,10 @@ func TestBundleDependencies(t *testing.T) {
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		fx.Supply(tagger.NewFakeTaggerParams()),
 		zstdfx.Module(),
-		taggerimpl.Module(),
+		taggerfx.Module(),
 		fx.Supply(&traceagentimpl.Params{}),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	)
 }
 
@@ -63,6 +65,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
 		coreconfig.MockModule(),
+		fxutil.ProvideNoneOptional[secrets.Component](),
 		telemetryimpl.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
@@ -73,8 +76,8 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(&traceagentimpl.Params{}),
 		fx.Invoke(func(_ traceagent.Component) {}),
 		MockBundle(),
-		taggerimpl.Module(),
-		fx.Supply(tagger.NewTaggerParams()),
+		taggerfx.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 	))
 
 	require.NotNil(t, cfg.Object())

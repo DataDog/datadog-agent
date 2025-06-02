@@ -8,6 +8,7 @@ package image
 
 import (
 	"errors"
+	"os"
 	"strings"
 )
 
@@ -59,4 +60,18 @@ func SplitImageName(image string) (string, string, string, string, error) {
 		registry = long[:firstSlash]
 	}
 	return long, registry, short, tag, nil
+}
+
+// SanitizeHostPath changes the specified path by prepending the mount point of the host's filesystem
+func SanitizeHostPath(path string) string {
+	hostPath := os.Getenv("HOST_ROOT")
+	if hostPath == "" {
+		hostPath = "/host"
+	}
+
+	if index := strings.Index(path, "/var/lib"); index != -1 {
+		return hostPath + path[index:]
+	}
+
+	return hostPath + path
 }

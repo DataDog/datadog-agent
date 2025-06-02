@@ -24,6 +24,7 @@ spec:
         app.kubernetes.io/instance: "datadog"
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/component: cluster-agent
+        admission.datadoghq.com/enabled: "false"
         app: datadog-cluster-agent
       name: datadog-cluster-agent
       annotations: {}
@@ -32,7 +33,7 @@ spec:
       automountServiceAccountToken: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/cluster-agent:7.49.1"
+          image: "gcr.io/datadoghq/cluster-agent:7.59.0"
           imagePullPolicy: IfNotPresent
           command:
             - cp
@@ -45,7 +46,7 @@ spec:
               mountPath: /opt/datadog-agent
       containers:
         - name: cluster-agent
-          image: "gcr.io/datadoghq/cluster-agent:7.49.1"
+          image: "gcr.io/datadoghq/cluster-agent:7.59.0"
           imagePullPolicy: IfNotPresent
           resources: {}
           ports:
@@ -73,6 +74,10 @@ spec:
                   optional: true
             - name: KUBERNETES
               value: "yes"
+            - name: DD_LANGUAGE_DETECTION_ENABLED
+              value: "false"
+            - name: DD_LANGUAGE_DETECTION_REPORTING_ENABLED
+              value: "false"
             - name: DD_ADMISSION_CONTROLLER_ENABLED
               value: "true"
             - name: DD_ADMISSION_CONTROLLER_WEBHOOK_NAME
@@ -89,6 +94,8 @@ spec:
               value: "Ignore"
             - name: DD_ADMISSION_CONTROLLER_PORT
               value: "8000"
+            - name: DD_ADMISSION_CONTROLLER_CONTAINER_REGISTRY
+              value: "gcr.io/datadoghq"
             - name: DD_REMOTE_CONFIGURATION_ENABLED
               value: "false"
             - name: DD_CLUSTER_CHECKS_ENABLED
@@ -109,6 +116,8 @@ spec:
               value: datadogtoken
             - name: DD_COLLECT_KUBERNETES_EVENTS
               value: "true"
+            - name: DD_KUBERNETES_EVENTS_SOURCE_DETECTION_ENABLED
+              value: "false"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME
               value: datadog-cluster-agent
             - name: DD_CLUSTER_AGENT_AUTH_TOKEN
@@ -130,6 +139,23 @@ spec:
               value: "true"
             - name: DD_ORCHESTRATOR_EXPLORER_CONTAINER_SCRUBBING_ENABLED
               value: "true"
+            - name: DD_CLUSTER_AGENT_LANGUAGE_DETECTION_PATCHER_ENABLED
+              value: "false"
+            - name: DD_INSTRUMENTATION_INSTALL_TIME
+              valueFrom:
+                configMapKeyRef:
+                  name: datadog-kpi-telemetry-configmap
+                  key: install_time
+            - name: DD_INSTRUMENTATION_INSTALL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: datadog-kpi-telemetry-configmap
+                  key: install_id
+            - name: DD_INSTRUMENTATION_INSTALL_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  name: datadog-kpi-telemetry-configmap
+                  key: install_type
           livenessProbe:
             failureThreshold: 6
             httpGet:
@@ -144,6 +170,16 @@ spec:
             failureThreshold: 6
             httpGet:
               path: /ready
+              port: 5556
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 5
+          startupProbe:
+            failureThreshold: 6
+            httpGet:
+              path: /startup
               port: 5556
               scheme: HTTP
             initialDelaySeconds: 15
@@ -188,6 +224,8 @@ spec:
             items:
               - key: kubernetes_state_core.yaml.default
                 path: kubernetes_state_core.yaml.default
+              - key: kubernetes_apiserver.yaml
+                path: kubernetes_apiserver.yaml
         - name: config
           emptyDir: {}
       affinity:

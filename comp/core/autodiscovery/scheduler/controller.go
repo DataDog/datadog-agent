@@ -16,11 +16,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const (
-// MaxRetries is the maximum number of retries for a failed task (TODO: implement retries on failure)
-// MaxRetries = 5
-)
-
 // Controller is a scheduler dispatching to all its registered schedulers
 type Controller struct {
 	// m protects all fields in this struct.
@@ -37,30 +32,36 @@ type Controller struct {
 	configStateStore *ConfigStateStore
 
 	// a workqueue to process the config events
-	queue workqueue.DelayingInterface
+	queue workqueue.TypedDelayingInterface[Digest]
 
 	started     bool
 	stopChannel chan struct{}
 }
 
-// NewController inits a scheduler controller
+// NewControllerAndStart inits a scheduler controller without waiting
+func NewControllerAndStart() *Controller {
+	schedulerController := NewController()
+	schedulerController.Start()
+	return schedulerController
+}
+
+// NewController creates a new controller without starting it
 func NewController() *Controller {
-	schedulerController := Controller{
+	return &Controller{
 		scheduledConfigs: make(map[Digest]*integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
 		// No delay for adding items to the queue first time
 		// Add a delay for subsequent retries if check fails
-		queue: workqueue.NewDelayingQueueWithConfig(workqueue.DelayingQueueConfig{
+		queue: workqueue.NewTypedDelayingQueueWithConfig(workqueue.TypedDelayingQueueConfig[Digest]{
 			Name: "ADSchedulerController",
 		}),
 		stopChannel:      make(chan struct{}),
 		configStateStore: NewConfigStateStore(),
 	}
-	schedulerController.start()
-	return &schedulerController
 }
 
-func (ms *Controller) start() {
+// Start processing the queue
+func (ms *Controller) Start() {
 	ms.m.Lock()
 	if ms.started {
 		return
@@ -68,6 +69,7 @@ func (ms *Controller) start() {
 	ms.started = true
 	ms.m.Unlock()
 	go wait.Until(ms.worker, time.Second, ms.stopChannel)
+	log.Infof("Autodiscovery scheduler controller started")
 }
 
 // Register a new scheduler to receive configurations.
@@ -143,15 +145,14 @@ func (ms *Controller) worker() {
 // Scheduled,       Schedule,         None
 // Scheduled,       Unschedule,       Unschedule
 func (ms *Controller) processNextWorkItem() bool {
-	item, quit := ms.queue.Get()
+	configDigest, quit := ms.queue.Get()
 	if quit {
 		return false
 	}
-	configDigest := item.(Digest)
 	desiredConfigState, found := ms.configStateStore.GetConfigState(configDigest)
 	if !found {
 		log.Warnf("config %d not found in configStateStore", configDigest)
-		ms.queue.Done(item)
+		ms.queue.Done(configDigest)
 		return true
 	}
 
@@ -162,7 +163,7 @@ func (ms *Controller) processNextWorkItem() bool {
 		currentState = Scheduled
 	}
 	if desiredState == currentState {
-		ms.queue.Done(item)                       // no action needed
+		ms.queue.Done(configDigest)               // no action needed
 		ms.configStateStore.Cleanup(configDigest) // cleanup the config state if it is unscheduled already
 		return true
 	}
@@ -185,7 +186,7 @@ func (ms *Controller) processNextWorkItem() bool {
 		ms.configStateStore.Cleanup(configDigest)
 	}
 	ms.m.Unlock()
-	ms.queue.Done(item)
+	ms.queue.Done(configDigest)
 	return true
 }
 

@@ -14,8 +14,6 @@ func (t *TLSCounter) Add(tx Transaction) {
 		t.counterGnuTLS.Add(1)
 	case OpenSSL:
 		t.counterOpenSSL.Add(1)
-	case Java:
-		t.counterJavaTLS.Add(1)
 	case Go:
 		t.counterGoTLS.Add(1)
 	case Istio:

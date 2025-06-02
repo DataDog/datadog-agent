@@ -6,157 +6,180 @@
 package sender
 
 import (
-	"strconv"
 	"sync"
-	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"go.uber.org/atomic"
 )
 
-var (
-	tlmPayloadsDropped = telemetry.NewCounterWithOpts("logs_sender", "payloads_dropped", []string{"reliable", "destination"}, "Payloads dropped", telemetry.Options{DefaultMetric: true})
-	tlmMessagesDropped = telemetry.NewCounterWithOpts("logs_sender", "messages_dropped", []string{"reliable", "destination"}, "Messages dropped", telemetry.Options{DefaultMetric: true})
-	tlmSendWaitTime    = telemetry.NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
+const (
+	// DefaultWorkersPerQueue - By default most pipelines will only require a single sender worker, as the single worker itself can
+	// concurrently transmit multiple http requests at once. This value is not intended to be configurable, but legacy
+	// usages of the sender will override this value where necessary. If there is a desire to edit the concurrency of the senders
+	// via config, see the BatchMaxConcurrentSend endpoint setting.
+	DefaultWorkersPerQueue = 1
+
+	// DefaultQueuesCount - By default most pipelines will only require a single queue, as the single queue itself can
+	// concurrently transmit multiple http requests at once. Systems forced in to a legacy mode will override this value.
+	DefaultQueuesCount = 1
 )
 
-// Sender sends logs to different destinations. Destinations can be either
-// reliable or unreliable. The sender ensures that logs are sent to at least
-// one reliable destination and will block the pipeline if they are in an
-// error state. Unreliable destinations will only send logs when at least
-// one reliable destination is also sending logs. However they do not update
-// the auditor or block the pipeline if they fail. There will always be at
-// least 1 reliable destination (the main destination).
-type Sender struct {
-	config         pkgconfigmodel.Reader
-	inputChan      chan *message.Payload
-	outputChan     chan *message.Payload
-	destinations   *client.Destinations
-	done           chan struct{}
-	bufferSize     int
-	senderDoneChan chan *sync.WaitGroup
-	flushWg        *sync.WaitGroup
+// Sink is the component that messages are sent to once the sender has finished processing them.
+type Sink interface {
+	Channel() chan *message.Payload
 }
+
+// NoopSink is a Sink implementation that does nothing
+// This is used when there is no need to hook an auditor to the sender
+type NoopSink struct{}
+
+// Channel returns a nil channel
+func (t *NoopSink) Channel() chan *message.Payload {
+	return nil
+}
+
+// PipelineComponent abstracts a pipeline component
+type PipelineComponent interface {
+	In() chan *message.Payload
+	PipelineMonitor() metrics.PipelineMonitor
+	Start()
+	Stop()
+}
+
+// Sender can distribute payloads on multiple
+// underlying workers
+type Sender struct {
+	workers []*worker
+	queues  []chan *message.Payload
+
+	pipelineMonitor metrics.PipelineMonitor
+	idx             *atomic.Uint32
+}
+
+// ServerlessMeta is a struct that contains essential control structures for serverless mode.
+// Do not access any methods on this interface without checking IsEnabled first.
+type ServerlessMeta interface {
+	Lock()
+	Unlock()
+	WaitGroup() *sync.WaitGroup
+	SenderDoneChan() chan *sync.WaitGroup
+	IsEnabled() bool
+}
+
+// NewServerlessMeta creates a new ServerlessMeta instance.
+func NewServerlessMeta(isEnabled bool) ServerlessMeta {
+	if isEnabled {
+		return &serverlessMetaImpl{sync.Mutex{}, sync.WaitGroup{}, make(chan *sync.WaitGroup), isEnabled}
+	}
+	return &serverlessMetaImpl{}
+}
+
+// serverlessMetaImpl is a struct that contains essential control structures for serverless mode.
+type serverlessMetaImpl struct {
+	sync.Mutex
+	wg             sync.WaitGroup
+	senderDoneChan chan *sync.WaitGroup
+	enabled        bool
+}
+
+// WaitGroup returns the wait group for the serverless mode, used to block the pipeline flush until all payloads are sent.
+func (s *serverlessMetaImpl) WaitGroup() *sync.WaitGroup {
+	return &s.wg
+}
+
+// SenderDoneChan returns the channel is used to transfer wait groups from the sync_destination to the sender.
+func (s *serverlessMetaImpl) SenderDoneChan() chan *sync.WaitGroup {
+	return s.senderDoneChan
+}
+
+// IsEnabled returns true if the serverless mode is enabled.
+// This is used to check if the serverless mode is enabled before accessing any of the methods on this struct.
+func (s *serverlessMetaImpl) IsEnabled() bool {
+	if s == nil {
+		return false
+	}
+	return s.enabled
+}
+
+// DestinationFactory used to generate client destinations on each call.
+type DestinationFactory func() *client.Destinations
 
 // NewSender returns a new sender.
-func NewSender(config pkgconfigmodel.Reader, inputChan chan *message.Payload, outputChan chan *message.Payload, destinations *client.Destinations, bufferSize int, senderDoneChan chan *sync.WaitGroup, flushWg *sync.WaitGroup) *Sender {
+func NewSender(
+	config pkgconfigmodel.Reader,
+	sink Sink,
+	destinationFactory DestinationFactory,
+	bufferSize int,
+	serverlessMeta ServerlessMeta,
+	queueCount int,
+	workersPerQueue int,
+	pipelineMonitor metrics.PipelineMonitor,
+) *Sender {
+	var workers []*worker
+	if queueCount <= 0 {
+		queueCount = DefaultQueuesCount
+	}
+
+	if workersPerQueue <= 0 {
+		workersPerQueue = DefaultWorkersPerQueue
+	}
+
+	queues := make([]chan *message.Payload, queueCount)
+	for idx := range queueCount {
+		// Payloads are large, so the buffer will only hold one per worker
+		queues[idx] = make(chan *message.Payload, workersPerQueue)
+		for range workersPerQueue {
+			worker := newWorker(
+				config,
+				queues[idx],
+				sink,
+				destinationFactory(),
+				bufferSize,
+				serverlessMeta,
+				pipelineMonitor,
+			)
+			workers = append(workers, worker)
+		}
+	}
+
 	return &Sender{
-		config:         config,
-		inputChan:      inputChan,
-		outputChan:     outputChan,
-		destinations:   destinations,
-		done:           make(chan struct{}),
-		bufferSize:     bufferSize,
-		senderDoneChan: senderDoneChan,
-		flushWg:        flushWg,
+		workers:         workers,
+		pipelineMonitor: pipelineMonitor,
+		queues:          queues,
+		idx:             &atomic.Uint32{},
 	}
 }
 
-// Start starts the sender.
+// In is the input channel of a worker set.
+func (s *Sender) In() chan *message.Payload {
+	idx := s.idx.Inc() % uint32(len(s.queues))
+	return s.queues[idx]
+}
+
+// PipelineMonitor returns the pipeline monitor of the sender workers.
+func (s *Sender) PipelineMonitor() metrics.PipelineMonitor {
+	return s.pipelineMonitor
+}
+
+// Start starts all sender workers.
 func (s *Sender) Start() {
-	go s.run()
+	for _, worker := range s.workers {
+		worker.start()
+	}
 }
 
-// Stop stops the sender,
-// this call blocks until inputChan is flushed
+// Stop stops all sender workers
 func (s *Sender) Stop() {
-	close(s.inputChan)
-	<-s.done
-}
-
-func (s *Sender) run() {
-	reliableDestinations := buildDestinationSenders(s.config, s.destinations.Reliable, s.outputChan, s.bufferSize)
-
-	sink := additionalDestinationsSink(s.bufferSize)
-	unreliableDestinations := buildDestinationSenders(s.config, s.destinations.Unreliable, sink, s.bufferSize)
-
-	for payload := range s.inputChan {
-		var startInUse = time.Now()
-		senderDoneWg := &sync.WaitGroup{}
-
-		sent := false
-		for !sent {
-			for _, destSender := range reliableDestinations {
-				if destSender.Send(payload) {
-					sent = true
-					if s.senderDoneChan != nil {
-						senderDoneWg.Add(1)
-						s.senderDoneChan <- senderDoneWg
-					}
-				}
-			}
-
-			if !sent {
-				// Throttle the poll loop while waiting for a send to succeed
-				// This will only happen when all reliable destinations
-				// are blocked so logs have no where to go.
-				time.Sleep(100 * time.Millisecond)
-			}
-		}
-
-		for i, destSender := range reliableDestinations {
-			// If an endpoint is stuck in the previous step, try to buffer the payloads if we have room to mitigate
-			// loss on intermittent failures.
-			if !destSender.lastSendSucceeded {
-				if !destSender.NonBlockingSend(payload) {
-					tlmPayloadsDropped.Inc("true", strconv.Itoa(i))
-					tlmMessagesDropped.Add(float64(len(payload.Messages)), "true", strconv.Itoa(i))
-				}
-			}
-		}
-
-		// Attempt to send to unreliable destinations
-		for i, destSender := range unreliableDestinations {
-			if !destSender.NonBlockingSend(payload) {
-				tlmPayloadsDropped.Inc("false", strconv.Itoa(i))
-				tlmMessagesDropped.Add(float64(len(payload.Messages)), "false", strconv.Itoa(i))
-				if s.senderDoneChan != nil {
-					senderDoneWg.Add(1)
-					s.senderDoneChan <- senderDoneWg
-				}
-			}
-		}
-
-		inUse := float64(time.Since(startInUse) / time.Millisecond)
-		tlmSendWaitTime.Add(inUse)
-
-		if s.senderDoneChan != nil && s.flushWg != nil {
-			// Wait for all destinations to finish sending the payload
-			senderDoneWg.Wait()
-			// Decrement the wait group when this payload has been sent
-			s.flushWg.Done()
-		}
+	log.Debug("sender mux stopping")
+	for _, s := range s.workers {
+		s.stop()
 	}
-
-	// Cleanup the destinations
-	for _, destSender := range reliableDestinations {
-		destSender.Stop()
+	for _, q := range s.queues {
+		close(q)
 	}
-	for _, destSender := range unreliableDestinations {
-		destSender.Stop()
-	}
-	close(sink)
-	s.done <- struct{}{}
-}
-
-// Drains the output channel from destinations that don't update the auditor.
-func additionalDestinationsSink(bufferSize int) chan *message.Payload {
-	sink := make(chan *message.Payload, bufferSize)
-	go func() {
-		// drain channel, stop when channel is closed
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range sink {
-		}
-	}()
-	return sink
-}
-
-func buildDestinationSenders(config pkgconfigmodel.Reader, destinations []client.Destination, output chan *message.Payload, bufferSize int) []*DestinationSender {
-	destinationSenders := []*DestinationSender{}
-	for _, destination := range destinations {
-		destinationSenders = append(destinationSenders, NewDestinationSender(config, destination, output, bufferSize))
-	}
-	return destinationSenders
 }

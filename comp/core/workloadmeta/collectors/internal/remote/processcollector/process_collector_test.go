@@ -12,7 +12,6 @@ package processcollector
 import (
 	"context"
 	"net"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -25,12 +24,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,11 +36,26 @@ import (
 
 const dummySubscriber = "dummy-subscriber"
 
+func newMockServer(ctx context.Context, responses []*pbgo.ProcessStreamResponse, errorResponse bool) *mockServer {
+	ctx, cancelFunc := context.WithCancel(ctx)
+	return &mockServer{
+		ctx:           ctx,
+		cancelFunc:    cancelFunc,
+		responses:     responses,
+		errorResponse: errorResponse,
+	}
+}
+
 type mockServer struct {
 	pbgo.UnimplementedProcessEntityStreamServer
-
+	ctx           context.Context
+	cancelFunc    context.CancelFunc
 	responses     []*pbgo.ProcessStreamResponse
 	errorResponse bool // first response is an error
+}
+
+func (s *mockServer) stop() {
+	s.cancelFunc()
 }
 
 // StreamEntities sends the responses back to the client
@@ -60,18 +73,11 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 		}
 	}
 
+	<-s.ctx.Done()
 	return nil
 }
 
 func TestCollection(t *testing.T) {
-	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog())); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfigsetup.Datadog())
-		defer func() {
-			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfigsetup.Datadog()))
-		}()
-	}
 	creationTime := time.Now().Unix()
 	tests := []struct {
 		name      string
@@ -239,9 +245,12 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Create ipc component for the client
+			ipcmock.New(t)
 
 			overrides := map[string]interface{}{
-				"language_detection.enabled": true,
+				"language_detection.enabled":               true,
+				"process_config.run_in_core_agent.enabled": false,
 			}
 
 			// We do not inject any collectors here; we instantiate
@@ -254,11 +263,12 @@ func TestCollection(t *testing.T) {
 
 			time.Sleep(time.Second)
 
+			ctx := context.Background()
+
 			// remote process collector server (process agent)
-			server := &mockServer{
-				responses:     test.serverResponses,
-				errorResponse: test.errorResponse,
-			}
+			server := newMockServer(ctx, test.serverResponses, test.errorResponse)
+			defer server.stop()
+
 			grpcServer := grpc.NewServer()
 			pbgo.RegisterProcessEntityStreamServer(grpcServer, server)
 
@@ -286,13 +296,12 @@ func TestCollection(t *testing.T) {
 
 			mockStore.Notify(test.preEvents)
 
-			ctx, cancel := context.WithCancel(context.TODO())
-
 			// Subscribe to the mockStore
 			ch := mockStore.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
 
+			collectorCtx, cancelCollectorCtxFunc := context.WithCancel(ctx)
 			// Collect process data
-			err = collector.Start(ctx, mockStore)
+			err = collector.Start(collectorCtx, mockStore)
 			require.NoError(t, err)
 
 			// Number of events expected. Each response can hold multiple events, either Set or Unset
@@ -319,7 +328,7 @@ func TestCollection(t *testing.T) {
 
 			mockStore.Unsubscribe(ch)
 			grpcServer.Stop()
-			cancel()
+			cancelCollectorCtxFunc()
 
 			// Verify final state
 			for i := range test.expectedProcesses {

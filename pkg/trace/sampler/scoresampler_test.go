@@ -17,7 +17,6 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const defaultEnv = "testEnv"
@@ -28,11 +27,11 @@ func getTestErrorsSampler(tps float64) *ErrorsSampler {
 		ExtraSampleRate: 1,
 		ErrorTPS:        tps,
 	}
-	return NewErrorsSampler(conf, &statsd.NoOpClient{})
+	return NewErrorsSampler(conf)
 }
 
-func getTestTrace() (pb.Trace, *pb.Span) {
-	tID := randomTraceID()
+func getTestTrace(rnd rand.Source) (pb.Trace, *pb.Span) {
+	tID := randomTraceID(rnd)
 	trace := pb.Trace{
 		&pb.Span{TraceID: tID, SpanID: 1, ParentID: 0, Start: 42, Duration: 1000000, Service: "mcnulty", Type: "web"},
 		&pb.Span{TraceID: tID, SpanID: 2, ParentID: 1, Start: 100, Duration: 200000, Service: "mcnulty", Type: "sql"},
@@ -44,7 +43,7 @@ func TestExtraSampleRate(t *testing.T) {
 	assert := assert.New(t)
 
 	s := getTestErrorsSampler(10)
-	trace, root := getTestTrace()
+	trace, root := getTestTrace(rand.NewSource(3))
 	signature := testComputeSignature(trace, "")
 
 	testTime := time.Now()
@@ -71,7 +70,7 @@ func TestShrink(t *testing.T) {
 
 	sigs := []Signature{}
 	for i := 1; i < 3*shrinkCardinality; i++ {
-		trace, root := getTestTrace()
+		trace, root := getTestTrace(rand.NewSource(3))
 		sigs = append(sigs, computeSignatureWithRootAndEnv(trace, root, ""))
 
 		trace[1].Service = strconv.FormatInt(int64(i+1000), 10)
@@ -95,7 +94,7 @@ func TestDisable(t *testing.T) {
 	assert := assert.New(t)
 
 	s := getTestErrorsSampler(0)
-	trace, root := getTestTrace()
+	trace, root := getTestTrace(rand.NewSource(3))
 	for i := 0; i < int(1e2); i++ {
 		assert.False(s.Sample(time.Now(), trace, root, defaultEnv))
 	}
@@ -122,7 +121,7 @@ func TestTargetTPS(t *testing.T) {
 	for period := 0; period < initPeriods+periods; period++ {
 		testTime = testTime.Add(bucketDuration)
 		for i := 0; i < int(tracesPerPeriod); i++ {
-			trace, root := getTestTrace()
+			trace, root := getTestTrace(rand.NewSource(int64(i)))
 			sampled := s.Sample(testTime, trace, root, defaultEnv)
 			// Once we got into the "supposed-to-be" stable "regime", count the samples
 			if period > initPeriods && sampled {

@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
@@ -61,6 +62,20 @@ func networkMock() (*network.Info, error) {
 		IPAddress:   "192.168.24.138",
 		IPAddressV6: gohaiutils.NewValue("fe80::20c:29ff:feb6:d232"),
 		MacAddress:  "00:0c:29:b6:d2:32",
+		Interfaces: []network.Interface{
+			{
+				Name:       "bond0",
+				IPv4:       []string{"192.168.24.138"},
+				IPv6:       []string{"fe80::20c:29ff:feb6:d232"},
+				MacAddress: gohaiutils.NewValue("00:0c:29:b6:d2:32"),
+			},
+			{
+				Name:       "bon1",
+				IPv4:       []string{"10.11.12.13"},
+				IPv6:       []string{"2001:0db8:85a3:0370:7334"},
+				MacAddress: gohaiutils.NewValue("00:0c:29:b6:d2:33"),
+			},
+		},
 	}, nil
 }
 
@@ -124,6 +139,7 @@ func getTestInventoryHost(t *testing.T) *invHost {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+			hostnameimpl.MockModule(),
 		),
 	)
 	return p.Comp.(*invHost)
@@ -152,6 +168,7 @@ func TestGetPayload(t *testing.T) {
 		IPAddress:                    "192.168.24.138",
 		IPv6Address:                  "fe80::20c:29ff:feb6:d232",
 		MacAddress:                   "00:0c:29:b6:d2:32",
+		Interfaces:                   "[{\"name\":\"bond0\",\"ipv4-network\":{},\"ipv6-network\":{},\"macaddress\":{},\"ipv4\":[\"192.168.24.138\"],\"ipv6\":[\"fe80::20c:29ff:feb6:d232\"]},{\"name\":\"bon1\",\"ipv4-network\":{},\"ipv6-network\":{},\"macaddress\":{},\"ipv4\":[\"10.11.12.13\"],\"ipv6\":[\"2001:0db8:85a3:0370:7334\"]}]",
 		AgentVersion:                 version.AgentVersion,
 		CloudProvider:                "some_cloud_provider",
 		CloudProviderAccountID:       "some_host_id",

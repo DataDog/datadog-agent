@@ -171,10 +171,10 @@ func TestProcessCollector(t *testing.T) {
 // the remote process collector is enabled.
 func TestEnabled(t *testing.T) {
 	type testCase struct {
-		name                                                    string
-		processCollectionEnabled, remoteProcessCollectorEnabled bool
-		expectEnabled                                           bool
-		flavor                                                  string
+		name                                                                           string
+		processCollectionEnabled, remoteProcessCollectorEnabled, runInCoreAgentEnabled bool
+		expectEnabled                                                                  bool
+		flavor                                                                         string
 	}
 
 	testCases := []testCase{
@@ -182,6 +182,7 @@ func TestEnabled(t *testing.T) {
 			name:                          "process check enabled",
 			processCollectionEnabled:      true,
 			remoteProcessCollectorEnabled: false,
+			runInCoreAgentEnabled:         false,
 			flavor:                        flavor.ProcessAgent,
 			expectEnabled:                 false,
 		},
@@ -189,6 +190,7 @@ func TestEnabled(t *testing.T) {
 			name:                          "remote collector disabled",
 			processCollectionEnabled:      false,
 			remoteProcessCollectorEnabled: false,
+			runInCoreAgentEnabled:         false,
 			flavor:                        flavor.ProcessAgent,
 			expectEnabled:                 false,
 		},
@@ -196,8 +198,17 @@ func TestEnabled(t *testing.T) {
 			name:                          "collector enabled",
 			processCollectionEnabled:      false,
 			remoteProcessCollectorEnabled: true,
+			runInCoreAgentEnabled:         false,
 			flavor:                        flavor.ProcessAgent,
 			expectEnabled:                 true,
+		},
+		{
+			name:                          "collector enabled but in core agent",
+			processCollectionEnabled:      false,
+			remoteProcessCollectorEnabled: true,
+			runInCoreAgentEnabled:         true,
+			flavor:                        flavor.ProcessAgent,
+			expectEnabled:                 false,
 		},
 	}
 
@@ -208,6 +219,7 @@ func TestEnabled(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", tc.processCollectionEnabled)
 			cfg.SetWithoutSource("language_detection.enabled", tc.remoteProcessCollectorEnabled)
+			cfg.SetWithoutSource("process_config.run_in_core_agent.enabled", tc.runInCoreAgentEnabled)
 
 			assert.Equal(t, tc.expectEnabled, Enabled(cfg))
 		})

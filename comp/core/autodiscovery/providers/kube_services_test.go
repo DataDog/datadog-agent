@@ -9,12 +9,12 @@ package providers
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,7 +26,7 @@ import (
 	acTelemetry "github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -241,13 +241,14 @@ func TestParseKubeServiceAnnotations(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			cfg := configmock.New(t)
 			if tc.hybrid {
 				cfg.SetWithoutSource("cluster_checks.support_hybrid_ignore_ad_tags", true)
 			}
 
 			provider := KubeServiceConfigProvider{
 				telemetryStore: telemetryStore,
+				upToDate:       atomic.NewBool(false),
 			}
 			cfgs, _ := provider.parseServiceAnnotations([]*v1.Service{tc.service}, cfg)
 			assert.EqualValues(t, tc.expectedOut, cfgs)
@@ -338,7 +339,7 @@ func TestInvalidateIfChanged(t *testing.T) {
 	} {
 		t.Run("", func(t *testing.T) {
 			ctx := context.Background()
-			provider := &KubeServiceConfigProvider{upToDate: true}
+			provider := &KubeServiceConfigProvider{upToDate: atomic.NewBool(true)}
 			provider.invalidateIfChanged(tc.old, tc.obj)
 
 			upToDate, err := provider.IsUpToDate(ctx)
@@ -476,6 +477,7 @@ func TestGetConfigErrors_KubeServices(t *testing.T) {
 				lister:         lister,
 				configErrors:   test.currentErrors,
 				telemetryStore: telemetryStore,
+				upToDate:       atomic.NewBool(false),
 			}
 
 			configs, err := provider.Collect(context.TODO())

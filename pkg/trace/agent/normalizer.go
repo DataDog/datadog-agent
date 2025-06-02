@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 const (
@@ -30,6 +30,8 @@ const (
 	tagSamplingPriority = "_sampling_priority_v1"
 	// peerServiceKey is the key for the peer.service meta field.
 	peerServiceKey = "peer.service"
+	// baseServiceKey is the key for the _dd.base_service meta field.
+	baseServiceKey = "_dd.base_service"
 )
 
 var (
@@ -48,15 +50,15 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		ts.TracesDropped.SpanIDZero.Inc()
 		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %s", s)
 	}
-	svc, err := traceutil.NormalizeService(s.Service, ts.Lang)
+	svc, err := normalizeutil.NormalizeService(s.Service, ts.Lang)
 	switch err {
-	case traceutil.ErrEmpty:
+	case normalizeutil.ErrEmpty:
 		ts.SpansMalformed.ServiceEmpty.Inc()
 		log.Debugf("Fixing malformed trace. Service is empty (reason:service_empty), setting span.service=%s: %s", s.Service, s)
-	case traceutil.ErrTooLong:
+	case normalizeutil.ErrTooLong:
 		ts.SpansMalformed.ServiceTruncate.Inc()
-		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", traceutil.MaxServiceLen, s)
-	case traceutil.ErrInvalid:
+		log.Debugf("Fixing malformed trace. Service is too long (reason:service_truncate), truncating span.service to length=%d: %s", normalizeutil.MaxServiceLen, s)
+	case normalizeutil.ErrInvalid:
 		ts.SpansMalformed.ServiceInvalid.Inc()
 		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
 	}
@@ -64,12 +66,12 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 
 	pSvc, ok := s.Meta[peerServiceKey]
 	if ok {
-		ps, err := traceutil.NormalizePeerService(pSvc)
+		ps, err := normalizeutil.NormalizePeerService(pSvc)
 		switch err {
-		case traceutil.ErrTooLong:
+		case normalizeutil.ErrTooLong:
 			ts.SpansMalformed.PeerServiceTruncate.Inc()
-			log.Debugf("Fixing malformed trace. peer.service is too long (reason:peer_service_truncate), truncating peer.service to length=%d: %s", traceutil.MaxServiceLen, ps)
-		case traceutil.ErrInvalid:
+			log.Debugf("Fixing malformed trace. peer.service is too long (reason:peer_service_truncate), truncating peer.service to length=%d: %s", normalizeutil.MaxServiceLen, ps)
+		case normalizeutil.ErrInvalid:
 			ts.SpansMalformed.PeerServiceInvalid.Inc()
 			log.Debugf("Fixing malformed trace. peer.service is invalid (reason:peer_service_invalid), replacing invalid peer.service=%s with empty string", pSvc)
 		default:
@@ -78,6 +80,24 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 			}
 		}
 		s.Meta[peerServiceKey] = ps
+	}
+
+	bSvc, ok := s.Meta[baseServiceKey]
+	if ok {
+		bs, err := normalizeutil.NormalizePeerService(bSvc)
+		switch err {
+		case normalizeutil.ErrTooLong:
+			ts.SpansMalformed.BaseServiceTruncate.Inc()
+			log.Debugf("Fixing malformed trace. _dd.base_service is too long (reason:base_service_truncate), truncating _dd.base_service to length=%d: %s", normalizeutil.MaxServiceLen, bs)
+		case normalizeutil.ErrInvalid:
+			ts.SpansMalformed.BaseServiceInvalid.Inc()
+			log.Debugf("Fixing malformed trace. _dd.base_service is invalid (reason:base_service_invalid), replacing invalid _dd.base_service=%s with empty string", bSvc)
+		default:
+			if err != nil {
+				log.Debugf("Unexpected error in _dd.base_service normalization from original value (%s) to new value (%s): %s", bSvc, bs, err)
+			}
+		}
+		s.Meta[baseServiceKey] = bs
 	}
 
 	if a.conf.HasFeature("component2name") {
@@ -91,15 +111,15 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 			s.Name = v
 		}
 	}
-	s.Name, err = traceutil.NormalizeName(s.Name)
+	s.Name, err = normalizeutil.NormalizeName(s.Name)
 	switch err {
-	case traceutil.ErrEmpty:
+	case normalizeutil.ErrEmpty:
 		ts.SpansMalformed.SpanNameEmpty.Inc()
 		log.Debugf("Fixing malformed trace. Name is empty (reason:span_name_empty), setting span.name=%s: %s", s.Name, s)
-	case traceutil.ErrTooLong:
+	case normalizeutil.ErrTooLong:
 		ts.SpansMalformed.SpanNameTruncate.Inc()
-		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", traceutil.MaxServiceLen, s)
-	case traceutil.ErrInvalid:
+		log.Debugf("Fixing malformed trace. Name is too long (reason:span_name_truncate), truncating span.name to length=%d: %s", normalizeutil.MaxServiceLen, s)
+	case normalizeutil.ErrInvalid:
 		ts.SpansMalformed.SpanNameInvalid.Inc()
 		log.Debugf("Fixing malformed trace. Name is invalid (reason:span_name_invalid), setting span.name=%s: %s", s.Name, s)
 	}
@@ -146,10 +166,10 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	if len(s.Type) > MaxTypeLen {
 		ts.SpansMalformed.TypeTruncate.Inc()
 		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
-		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
+		s.Type = normalizeutil.TruncateUTF8(s.Type, MaxTypeLen)
 	}
 	if env, ok := s.Meta["env"]; ok {
-		s.Meta["env"] = traceutil.NormalizeTag(env)
+		s.Meta["env"] = normalizeutil.NormalizeTagValue(env)
 	}
 	if sc, ok := s.Meta["http.status_code"]; ok {
 		if !isValidStatusCode(sc) {
@@ -162,7 +182,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	if len(s.SpanLinks) > 0 {
 		for _, link := range s.SpanLinks {
 			if val, ok := link.Attributes["link.name"]; ok {
-				link.Attributes["link.name"], err = traceutil.NormalizeName(val)
+				link.Attributes["link.name"], err = normalizeutil.NormalizeName(val)
 				if err != nil {
 					log.Debugf("Fixing malformed trace. 'link.name' attribute in span link is invalid (reason=%q), setting link.Attributes[\"link.name\"]=%s", err, link.Attributes["link.name"])
 				}
@@ -251,8 +271,8 @@ func (a *Agent) normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 }
 
 func (a *Agent) normalizeStatsGroup(b *pb.ClientGroupedStats, lang string) {
-	b.Name, _ = traceutil.NormalizeName(b.Name)
-	b.Service, _ = traceutil.NormalizeService(b.Service, lang)
+	b.Name, _ = normalizeutil.NormalizeName(b.Name)
+	b.Service, _ = normalizeutil.NormalizeService(b.Service, lang)
 	if b.Resource == "" {
 		b.Resource = b.Name
 	}

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes the issue of disabled services producing an error message in the event log on start. Now produces an informational message.
+

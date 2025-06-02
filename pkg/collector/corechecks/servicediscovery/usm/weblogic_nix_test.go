@@ -17,6 +17,8 @@ import (
 	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 )
 
 // TestWeblogicFindDeployedApps tests the ability to extract deployed application from a weblogic config.xml
@@ -75,7 +77,7 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 			if len(tt.serverName) > 0 {
 				args = append(args, wlsServerNameSysProp+tt.serverName)
 			}
-			value, ok := weblogicExtractor{ctx: NewDetectionContext(args, nil, tt.fs)}.findDeployedApps(tt.domainHome)
+			value, ok := weblogicExtractor{ctx: NewDetectionContext(args, envs.NewVariables(nil), tt.fs)}.findDeployedApps(tt.domainHome)
 			require.Equal(t, len(value) > 0, ok)
 			require.Equal(t, tt.expected, value)
 		})
@@ -133,7 +135,7 @@ http://xmlns.oracle.com/weblogic/weblogic-web-app/1.4/weblogic-web-app.xsd">inva
 			// now create a zip reader to pass to the tested function
 			reader, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
 			require.NoError(t, err)
-			value, ok := newWeblogicExtractor(NewDetectionContext(nil, nil, nil)).customExtractWarContextRoot(reader)
+			value, ok := newWeblogicExtractor(NewDetectionContext(nil, envs.NewVariables(nil), nil)).customExtractWarContextRoot(reader)
 			require.Equal(t, len(tt.expected) > 0, ok)
 			require.Equal(t, tt.expected, value)
 		})
@@ -146,7 +148,7 @@ func TestWeblogicExtractExplodedWarContextRoot(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	fs := os.DirFS(path.Join(cwd, "../../../../discovery/testdata/root/testdata/b", "test.war"))
-	value, ok := newWeblogicExtractor(NewDetectionContext(nil, nil, nil)).customExtractWarContextRoot(fs)
+	value, ok := newWeblogicExtractor(NewDetectionContext(nil, envs.NewVariables(nil), nil)).customExtractWarContextRoot(fs)
 	require.True(t, ok)
 	require.Equal(t, "my_context", value)
 }

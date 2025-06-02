@@ -37,6 +37,7 @@ type leaderEngine interface {
 
 type leaderForwarder interface {
 	SetLeaderIP(ip string)
+	GetLeaderIP() string
 	Forward(w http.ResponseWriter, r *http.Request)
 }
 
@@ -118,8 +119,10 @@ func (lph *LeaderProxyHandler) rejectOrForwardLeaderQuery(rw http.ResponseWriter
 		http.Error(rw, "leader forwarder is not available", http.StatusServiceUnavailable)
 		return true
 	}
-
-	lph.leaderForwarder.SetLeaderIP(ip)
+	if lph.leaderForwarder.GetLeaderIP() != ip {
+		log.Infof("leader ip changed to %s", ip)
+		lph.leaderForwarder.SetLeaderIP(ip)
+	}
 	forwardedRequest.Inc(lph.handlerName)
 	lph.leaderForwarder.Forward(rw, req)
 	return true

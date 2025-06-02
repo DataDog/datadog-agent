@@ -8,7 +8,6 @@
 package uprobes
 
 import (
-	"debug/elf"
 	"errors"
 	"fmt"
 	"runtime"
@@ -18,19 +17,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // BinaryInspector implementors are responsible for extracting the metadata required to attach from a binary.
 type BinaryInspector interface {
-	// Inspect returns the metadata required to attach to a binary. The first
-	// return is a map of symbol names to their corresponding metadata, the
-	// second return is a boolean indicating whether this binary is compatible
-	// and can be attached or not. It is encouraged to return early if the
-	// binary is not compatible, to avoid unnecessary work. In the future, the
-	// first and second return values should be merged into a single struct, but
-	// for now this allows us to keep the API compatible with the existing
-	// implementation.
-	Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error)
+	// Inspect returns the metadata required to attach to a binary. The return
+	// is a map of symbol names to their corresponding metadata. It is
+	// encouraged to return early if the binary is not compatible, to avoid
+	// unnecessary work.
+	Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, error)
 
 	// Cleanup is called when a certain file path is not needed anymore, the implementation can clean up
 	// any resources associated with the file path.
@@ -56,11 +52,11 @@ type NativeBinaryInspector struct {
 var _ BinaryInspector = &NativeBinaryInspector{}
 
 // Inspect extracts the metadata required to attach to a binary from the ELF file at the given path.
-func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, bool, error) {
+func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolRequest) (map[string]bininspect.FunctionMetadata, error) {
 	path := fpath.HostPath
-	elfFile, err := elf.Open(path)
+	elfFile, err := safeelf.Open(path)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	defer elfFile.Close()
 
@@ -72,7 +68,7 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolR
 	// applications, so there's no harm in rejecting 32-bit applications here.
 	arch, err := bininspect.GetArchitecture(elfFile)
 	if err != nil {
-		return nil, false, fmt.Errorf("cannot get architecture of %s: %w", path, err)
+		return nil, fmt.Errorf("cannot get architecture of %s: %w", path, err)
 	}
 
 	// Ignore foreign architectures.  This can happen when running stuff under
@@ -80,7 +76,7 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolR
 	// since the foreign instructions will be patched with the native break
 	// instruction.
 	if string(arch) != runtime.GOARCH {
-		return nil, false, nil
+		return nil, fmt.Errorf("architecture mismatch: %s != %s", arch, runtime.GOARCH)
 	}
 
 	mandatorySymbols := make(common.StringSet, len(requests))
@@ -94,33 +90,33 @@ func (p *NativeBinaryInspector) Inspect(fpath utils.FilePath, requests []SymbolR
 		}
 
 		if req.IncludeReturnLocations {
-			return nil, false, errors.New("return locations are not supported by the native binary inspector")
+			return nil, errors.New("return locations are not supported by the native binary inspector")
 		}
 	}
 
 	symbolMap, err := bininspect.GetAllSymbolsInSetByName(elfFile, mandatorySymbols)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	/* Best effort to resolve symbols, so we don't care about the error */
 	symbolMapBestEffort, _ := bininspect.GetAllSymbolsInSetByName(elfFile, bestEffortSymbols)
 
 	funcMap := make(map[string]bininspect.FunctionMetadata, len(symbolMap)+len(symbolMapBestEffort))
-	for _, symMap := range []map[string]elf.Symbol{symbolMap, symbolMapBestEffort} {
+	for _, symMap := range []map[string]safeelf.Symbol{symbolMap, symbolMapBestEffort} {
 		for symbolName, symbol := range symMap {
 			m, err := p.symbolToFuncMetadata(elfFile, symbol)
 			if err != nil {
-				return nil, false, fmt.Errorf("failed to convert symbol %s to function metadata: %w", symbolName, err)
+				return nil, fmt.Errorf("failed to convert symbol %s to function metadata: %w", symbolName, err)
 			}
 			funcMap[symbolName] = *m
 		}
 	}
 
-	return funcMap, true, nil
+	return funcMap, nil
 }
 
-func (*NativeBinaryInspector) symbolToFuncMetadata(elfFile *elf.File, sym elf.Symbol) (*bininspect.FunctionMetadata, error) {
-	manager.SanitizeUprobeAddresses(elfFile, []elf.Symbol{sym})
+func (*NativeBinaryInspector) symbolToFuncMetadata(elfFile *safeelf.File, sym safeelf.Symbol) (*bininspect.FunctionMetadata, error) {
+	manager.SanitizeUprobeAddresses(elfFile.File, []safeelf.Symbol{sym})
 	offset, err := bininspect.SymbolToOffset(elfFile, sym)
 	if err != nil {
 		return nil, err

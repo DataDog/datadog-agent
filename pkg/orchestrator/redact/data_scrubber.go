@@ -107,7 +107,10 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmdline []string) ([]string, bool) {
 		}
 	}
 
-	newCmdline := strings.Split(rawCmdline, " ")
+	// Regex tokenizes by capturing non-whitespace terms as tokens EX: "agent --secret" > ["agent", "--secret"]
+	// and non-whitespace terms followed by quotation enclosed subcomponents as tokens EX: "agent --pass="secret house"" > ["agent", "--pass="secret house""]
+	r := regexp.MustCompile(`([^\s"']+("([^"]*)")*('([^']*)')*)`)
+	newCmdline := r.FindAllString(rawCmdline, -1)
 
 	// preprocess, without the preprocessing we would need to strip until whitespaces.
 	// the first index can be skipped because it should be the program name.

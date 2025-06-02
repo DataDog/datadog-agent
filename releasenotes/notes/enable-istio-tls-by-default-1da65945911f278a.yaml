@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    USM now monitors traffic encrypted with Istio mTLS by default.
+    To disable this feature, set the `service_monitoring_config.tls.istio.enabled` configuration option to false. 

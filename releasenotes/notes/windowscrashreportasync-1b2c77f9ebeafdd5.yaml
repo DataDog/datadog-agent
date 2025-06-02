@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    On Windows, the endpoint /windows_crash_detection/check has been modified to report crashes in
+    an asynchronous manner, to allow processing of large crash dumps without blocking or timing out.
+    The first check will return a busy status and continue to do so until the processing is completed.
+

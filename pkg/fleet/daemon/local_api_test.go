@@ -14,12 +14,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 type testDaemon struct {
@@ -41,6 +40,11 @@ func (m *testDaemon) Install(ctx context.Context, url string, installArgs []stri
 	return args.Error(0)
 }
 
+func (m *testDaemon) Remove(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
 func (m *testDaemon) StartExperiment(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)
@@ -56,19 +60,34 @@ func (m *testDaemon) PromoteExperiment(ctx context.Context, pkg string) error {
 	return args.Error(0)
 }
 
+func (m *testDaemon) StartConfigExperiment(ctx context.Context, url string, hash string) error {
+	args := m.Called(ctx, url, hash)
+	return args.Error(0)
+}
+
+func (m *testDaemon) StopConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
+func (m *testDaemon) PromoteConfigExperiment(ctx context.Context, pkg string) error {
+	args := m.Called(ctx, pkg)
+	return args.Error(0)
+}
+
 func (m *testDaemon) GetPackage(pkg string, version string) (Package, error) {
 	args := m.Called(pkg, version)
 	return args.Get(0).(Package), args.Error(1)
 }
 
-func (m *testDaemon) GetState() (map[string]repository.State, error) {
-	args := m.Called()
-	return args.Get(0).(map[string]repository.State), args.Error(1)
+func (m *testDaemon) GetState(ctx context.Context) (map[string]PackageState, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(map[string]PackageState), args.Error(1)
 }
 
-func (m *testDaemon) GetRemoteConfigState() []*pbgo.PackageState {
+func (m *testDaemon) GetRemoteConfigState() *pbgo.ClientUpdater {
 	args := m.Called()
-	return args.Get(0).([]*pbgo.PackageState)
+	return args.Get(0).(*pbgo.ClientUpdater)
 }
 
 func (m *testDaemon) GetAPMInjectionStatus() (APMInjectionStatus, error) {
@@ -111,22 +130,23 @@ func TestAPIStatus(t *testing.T) {
 	api := newTestLocalAPI(t)
 	defer api.Stop()
 
-	installerState := map[string]repository.State{
-		"pkg1": {
-			Stable:     "1.0.0",
-			Experiment: "2.0.0",
+	remoteConfigState := &pbgo.ClientUpdater{
+		Packages: []*pbgo.PackageState{
+			{
+				Package: "test-package",
+				Task: &pbgo.PackageStateTask{
+					State: pbgo.TaskState_DONE,
+				},
+			},
 		},
 	}
-	api.i.On("GetState").Return(installerState, nil)
-	api.i.On("GetRemoteConfigState").Return([]*pbgo.PackageState(nil))
-	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
+	api.i.On("GetRemoteConfigState").Return(remoteConfigState, nil)
 
 	resp, err := api.c.Status()
 
 	assert.NoError(t, err)
 	assert.Nil(t, resp.Error)
-	assert.Equal(t, version.AgentVersion, resp.Version)
-	assert.Equal(t, installerState, resp.Packages)
+	assert.Equal(t, resp.RemoteConfigState, remoteConfigState.Packages)
 }
 
 func TestAPIInstall(t *testing.T) {

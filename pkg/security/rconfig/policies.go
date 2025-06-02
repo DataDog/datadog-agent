@@ -9,15 +9,19 @@ package rconfig
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/skydive-project/go-debouncer"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -42,6 +46,8 @@ type RCPolicyProvider struct {
 	debouncer            *debouncer.Debouncer
 	dumpPolicies         bool
 	setEnforcementCb     func(bool)
+
+	isStarted *atomic.Bool
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
@@ -58,7 +64,9 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
+	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(),
+		func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
+		apiutil.GetTLSClientConfig, // using helper command from pkg/api/util because there is no access to components
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts(state.ProductCWSDD, state.ProductCWSCustom),
 		client.WithPollInterval(securityAgentRCPollInterval),
@@ -72,6 +80,7 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (
 		client:           c,
 		dumpPolicies:     dumpPolicies,
 		setEnforcementCb: setEnforcementCallback,
+		isStarted:        atomic.NewBool(false),
 	}
 	r.debouncer = debouncer.New(debounceDelay, r.onNewPoliciesReady)
 
@@ -88,6 +97,8 @@ func (r *RCPolicyProvider) Start() {
 	r.client.SubscribeAll(state.ProductCWSCustom, client.NewListener(r.rcCustomsUpdateCallback, r.rcStateChanged))
 
 	r.client.Start()
+
+	r.isStarted.Store(true)
 }
 
 func (r *RCPolicyProvider) rcStateChanged(state bool) {
@@ -124,12 +135,13 @@ func (r *RCPolicyProvider) rcCustomsUpdateCallback(configs map[string]state.RawC
 	r.debouncer.Call()
 }
 
-func normalize(policy *rules.Policy) {
+func normalizePolicyName(name string) string {
 	// remove the version
-	_, normalized, found := strings.Cut(policy.Name, ".")
+	_, normalized, found := strings.Cut(name, ".")
 	if found {
-		policy.Name = normalized
+		return normalized
 	}
+	return name
 }
 
 func writePolicy(name string, data []byte) (string, error) {
@@ -151,7 +163,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	r.RLock()
 	defer r.RUnlock()
 
-	load := func(id string, cfg []byte) error {
+	load := func(policyType rules.PolicyType, id string, cfg []byte) error {
 		if r.dumpPolicies {
 			name, err := writePolicy(id, cfg)
 			if err != nil {
@@ -161,15 +173,21 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 			}
 		}
 
+		pInfo := &rules.PolicyInfo{
+			Name:   normalizePolicyName(id),
+			Source: rules.PolicyProviderTypeRC,
+			Type:   policyType,
+		}
 		reader := bytes.NewReader(cfg)
-		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters)
-		normalize(policy)
+		policy, err := rules.LoadPolicy(pInfo, reader, macroFilters, ruleFilters)
 		policies = append(policies, policy)
 		return err
 	}
 
-	for cfgPath, c := range r.lastDefaults {
-		if err := load(c.Metadata.ID, c.Config); err != nil {
+	for _, cfgPath := range slices.Sorted(maps.Keys(r.lastDefaults)) {
+		rawConfig := r.lastDefaults[cfgPath]
+
+		if err := load(rules.DefaultPolicyType, rawConfig.Metadata.ID, rawConfig.Config); err != nil {
 			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {
@@ -177,8 +195,10 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		}
 	}
 
-	for cfgPath, c := range r.lastCustoms {
-		if err := load(c.Metadata.ID, c.Config); err != nil {
+	for _, cfgPath := range slices.Sorted(maps.Keys(r.lastCustoms)) {
+		rawConfig := r.lastCustoms[cfgPath]
+
+		if err := load(rules.CustomPolicyType, rawConfig.Metadata.ID, rawConfig.Config); err != nil {
 			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			errs = multierror.Append(errs, err)
 		} else {
@@ -209,6 +229,10 @@ func (r *RCPolicyProvider) onNewPoliciesReady() {
 
 // Close stops the client
 func (r *RCPolicyProvider) Close() error {
+	if !r.isStarted.Load() {
+		return nil
+	}
+
 	r.debouncer.Stop()
 	r.client.Close()
 	return nil

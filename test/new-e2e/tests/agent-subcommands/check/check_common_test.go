@@ -7,18 +7,26 @@
 package check
 
 import (
+	_ "embed"
 	"fmt"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	checkutils "github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type baseCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
+
+//go:embed fixtures/hello.yaml
+var customCheckYaml []byte
+
+//go:embed fixtures/hello.py
+var customCheckPython []byte
 
 func (v *baseCheckSuite) TestCheckDisk() {
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk"}))
@@ -43,29 +51,27 @@ func (v *baseCheckSuite) TestCustomCheck() {
 
 func (v *baseCheckSuite) TestCheckRate() {
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"hello", "--check-rate", "--json"}))
-	data := parseCheckOutput([]byte(check))
-	require.NotNil(v.T(), data)
+	data := checkutils.ParseJSONOutput(v.T(), []byte(check))
 
 	metrics := data[0].Aggregator.Metrics
 
 	assert.Equal(v.T(), len(metrics), 2)
 	assert.Equal(v.T(), metrics[0].Metric, "hello.world")
-	assert.Equal(v.T(), metrics[0].Points[0][1], 123)
+	assert.EqualValues(v.T(), metrics[0].Points[0][1], 123)
 	assert.Equal(v.T(), metrics[1].Metric, "hello.world")
-	assert.Equal(v.T(), metrics[1].Points[0][1], 133)
+	assert.EqualValues(v.T(), metrics[1].Points[0][1], 133)
 }
 
 func (v *baseCheckSuite) TestCheckTimes() {
 	times := 10
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"hello", "--check-times", fmt.Sprint(times), "--json"}))
 
-	data := parseCheckOutput([]byte(check))
-	require.NotNil(v.T(), data)
+	data := checkutils.ParseJSONOutput(v.T(), []byte(check))
 
 	metrics := data[0].Aggregator.Metrics
 
 	assert.Equal(v.T(), len(metrics), times)
-	for idx := 0; idx < times; idx++ {
-		assert.Equal(v.T(), metrics[idx].Points[0][1], 123+idx*10) // see fixtures/hello.py
+	for idx := range times {
+		assert.EqualValues(v.T(), metrics[idx].Points[0][1], 123+idx*10) // see fixtures/hello.py
 	}
 }

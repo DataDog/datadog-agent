@@ -9,7 +9,6 @@
 
 //go:build windows
 
-//nolint:revive // TODO(WINA) Fix revive linter
 package cpu
 
 import (
@@ -22,15 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
+// CheckName is the name of the check
 const CheckName = "cpu"
 
 // For testing purposes
 var cpuInfoFunc = cpu.CollectInfo
 
+// PdhQueryInterface queries Microsoft PHD API
 type PdhQueryInterface interface {
 	AddCounter(counter pdhutil.PdhCounter)
 	CollectQueryData() error
@@ -184,8 +185,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory() option.Option[func() check.Check] {
+	return option.New(newCheck)
 }
 
 func newCheck() check.Check {

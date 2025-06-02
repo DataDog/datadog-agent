@@ -12,7 +12,7 @@ import (
 
 // GetAndFilterGroup filters 'zero' values from an FX group.
 //
-// A 'zero' value, nil in most cases, can be injected into a group whem a component declares returning a element for
+// A 'zero' value, nil in most cases, can be injected into a group when a component declares returning a element for
 // that group but don't actually creates the element. This is common pattern with component that can be disabled or
 // partially enabled.
 //

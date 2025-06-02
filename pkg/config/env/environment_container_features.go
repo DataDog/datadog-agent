@@ -13,6 +13,8 @@ const (
 	Containerd Feature = "containerd"
 	// Cri is any cri socket present
 	Cri Feature = "cri"
+	// Crio socket present
+	Crio Feature = "crio"
 	// Kubernetes environment
 	Kubernetes Feature = "kubernetes"
 	// ECSEC2 environment
@@ -29,4 +31,8 @@ const (
 	CloudFoundry Feature = "cloudfoundry"
 	// Podman containers storage path accessible
 	Podman Feature = "podman"
+	// PodResources socket present
+	PodResources Feature = "podresources"
+	// NVML library present for GPU detection
+	NVML Feature = "nvml"
 )

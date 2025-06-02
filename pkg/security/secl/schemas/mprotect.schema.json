@@ -1,0 +1,51 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "mprotect.schema.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "mprotect": {
+                    "type": "object",
+                    "required": [
+                        "vm_start",
+                        "vm_end",
+                        "vm_protection",
+                        "req_protection"
+                    ],
+                    "properties": {
+                        "vm_start": {
+                            "type": "string"
+                        },
+                        "vm_end": {
+                            "type": "string"
+                        },
+                        "vm_protection": {
+                            "type": "string"
+                        },
+                        "req_protection": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "mprotect"
+            ]
+        }
+    ]
+}

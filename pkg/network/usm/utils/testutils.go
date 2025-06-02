@@ -7,7 +7,11 @@
 
 package utils
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+)
 
 // CallbackRecorder is meant to assist with *testing* the `FileRegistry` code
 // as well as code interacting with it such as `sharedlibraries.Watcher`.
@@ -55,4 +59,21 @@ func (r *CallbackRecorder) TotalCalls() int {
 		total += count
 	}
 	return total
+}
+
+// NewUSMEmptyConfig creates a new network config, with every USM protocols disabled.
+func NewUSMEmptyConfig() *config.Config {
+	cfg := config.New()
+	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableHTTPMonitoring = false
+	cfg.EnableHTTP2Monitoring = false
+	cfg.EnableKafkaMonitoring = false
+	cfg.EnablePostgresMonitoring = false
+	cfg.EnableRedisMonitoring = false
+	cfg.EnableNativeTLSMonitoring = false
+	cfg.EnableIstioMonitoring = false
+	cfg.EnableNodeJSMonitoring = false
+	cfg.EnableGoTLSSupport = false
+
+	return cfg
 }

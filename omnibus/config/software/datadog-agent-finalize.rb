@@ -39,7 +39,6 @@ build do
             if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty? and not windows_arch_i386?
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", conf_dir_root, :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", conf_dir_root, :force=>true
-              move "#{conf_dir_root}/runtime-security.d/default.policy", "#{conf_dir_root}/runtime-security.d/default.policy.example", :force=>true
             end
             if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
               move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
@@ -64,27 +63,16 @@ build do
         if linux_target? || osx_target?
             # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
             # default to `pip2` if the default Python runtime is Python 2.
-            if with_python_runtime? "2"
-                delete "#{install_dir}/embedded/bin/pip"
-                link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
+            delete "#{install_dir}/embedded/bin/pip"
+            link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
 
-                # Used in https://docs.datadoghq.com/agent/guide/python-3/
-                delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
-            # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
-            # default to `pip3` if the default Python runtime is Python 3 (Agent 7.x).
-            # Caution: we don't want to do this for Agent 6.x
-            elsif with_python_runtime? "3"
-                delete "#{install_dir}/embedded/bin/pip"
-                link "#{install_dir}/embedded/bin/pip3", "#{install_dir}/embedded/bin/pip"
+            delete "#{install_dir}/embedded/bin/python"
+            link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
 
-                delete "#{install_dir}/embedded/bin/python"
-                link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
+            # Used in https://docs.datadoghq.com/agent/guide/python-3/
+            delete "#{install_dir}/embedded/bin/2to3"
+            link "#{install_dir}/embedded/bin/2to3-3.12", "#{install_dir}/embedded/bin/2to3"
 
-                # Used in https://docs.datadoghq.com/agent/guide/python-3/
-                delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-3.12", "#{install_dir}/embedded/bin/2to3"
-            end
             delete "#{install_dir}/embedded/lib/config_guess"
 
             # Delete .pc files which aren't needed after building
@@ -102,20 +90,25 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
             unless heroku_target?
-              move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+              if sysprobe_enabled?
+                move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"
+                # SElinux policies aren't generated when system-probe isn't built
+                # Move SELinux policy
+                if debian_target? || redhat_target?
+                  move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
+                end
+              end
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/compliance.d", "#{output_config_dir}/etc/datadog-agent"
-
-              # Move SELinux policy
-              if debian_target? || redhat_target?
-                move "#{install_dir}/etc/datadog-agent/selinux", "#{output_config_dir}/etc/datadog-agent/selinux"
-              end
             end
 
             if ot_target?
               move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             end
+
+            # Create the installer symlink
+            link "#{install_dir}/bin/agent/agent", "#{install_dir}/embedded/bin/installer"
 
             # Create empty directories so that they're owned by the package
             # (also requires `extra_package_file` directive in project def)
@@ -158,6 +151,12 @@ build do
             delete "#{install_dir}/embedded/man"
             delete "#{install_dir}/embedded/share/man"
 
+            # removing gtk-doc html documentation to reduce package size by ~3MB
+            delete "#{install_dir}/embedded/share/gtk-doc"
+
+            # removing the info folder to reduce package size by ~4MB
+            delete "#{install_dir}/embedded/share/info"
+
             # linux build will be stripped - but psycopg2 affected by bug in the way binutils
             # and patchelf work together:
             #    https://github.com/pypa/manylinux/issues/119
@@ -179,14 +178,12 @@ build do
             # Most postgres binaries are removed in postgres' own software
             # recipe, but we need pg_config to build psycopq.
             delete "#{install_dir}/embedded/bin/pg_config"
-
-            # Edit rpath from a true path to relative path for each binary
-            command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
         end
 
         if osx_target?
             # Remove linux specific configs
             delete "#{install_dir}/etc/conf.d/file_handle.d"
+            delete "#{install_dir}/etc/conf.d/service_discovery.d"
 
             # remove windows specific configs
             delete "#{install_dir}/etc/conf.d/winproc.d"
@@ -195,7 +192,7 @@ build do
             delete "#{install_dir}/etc/conf.d/docker.d"
 
             # Edit rpath from a true path to relative path for each binary
-            command "inv omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
+            command "dda inv -- omnibus.rpath-edit #{install_dir} #{install_dir} --platform=macos", cwd: Dir.pwd
 
             if ENV['HARDENED_RUNTIME_MAC'] == 'true'
                 hardened_runtime = "-o runtime --entitlements #{entitlements_file} "

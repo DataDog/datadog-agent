@@ -19,6 +19,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/transform"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -37,6 +39,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
+	semconv127 "go.opentelemetry.io/collector/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 )
 
@@ -150,8 +153,21 @@ func NewBenchmarkTestConfig(b *testing.B) *config.AgentConfig {
 }
 
 func TestOTLPMetrics(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPMetrics(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPMetrics(true, t)
+	})
+}
+
+func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	assert := assert.New(t)
 	cfg := NewTestConfig(t)
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
 	stats := &teststatsd.Client{}
 
 	out := make(chan *Payload, 1)
@@ -190,8 +206,8 @@ func TestOTLPMetrics(t *testing.T) {
 	}()
 	defer close(stop)
 
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{})
-	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{})
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(0), http.Header{}, nil)
+	rcv.ReceiveResourceSpans(context.Background(), rspans.At(1), http.Header{}, nil)
 
 	calls := stats.CountCalls
 	assert.Equal(4, len(calls))
@@ -202,7 +218,20 @@ func TestOTLPMetrics(t *testing.T) {
 }
 
 func TestOTLPNameRemapping(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPNameRemapping(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPNameRemapping(true, t)
+	})
+}
+
+func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
@@ -215,7 +244,7 @@ func TestOTLPNameRemapping(t *testing.T) {
 				{Name: "asd"},
 			},
 		},
-	}).Traces().ResourceSpans().At(0), http.Header{})
+	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 	timeout := time.After(500 * time.Millisecond)
 	select {
 	case <-timeout:
@@ -225,56 +254,549 @@ func TestOTLPNameRemapping(t *testing.T) {
 	}
 }
 
-func TestCreateChunks(t *testing.T) {
-	cfg := NewTestConfig(t)
-	cfg.OTLPReceiver.ProbabilisticSampling = 50
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
-	const (
-		traceID1 = 123           // sampled by 50% rate
-		traceID2 = 1237892138897 // not sampled by 50% rate
-		traceID3 = 1237892138898 // not sampled by 50% rate
-	)
-	traces := map[uint64]pb.Trace{
-		traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
-		traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
-		traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
-	}
-	priorities := map[uint64]sampler.SamplingPriority{
-		traceID3: sampler.PriorityUserKeep,
-	}
-	chunks := o.createChunks(traces, priorities)
-	var found int
-	for _, c := range chunks {
-		id := c.Spans[0].TraceID
-		require.ElementsMatch(t, c.Spans, traces[id])
-		require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
-		switch id {
-		case traceID1:
-			//nolint:revive // TODO(OTEL) Fix revive linter
-			found += 1
-			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
-			require.Equal(t, int32(1), c.Priority)
-		case traceID2:
-			found += 2
-			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
-			require.Equal(t, int32(0), c.Priority)
-		case traceID3:
-			found += 3
-			require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"])
-			require.Equal(t, int32(2), c.Priority)
-		}
-	}
-	require.Equal(t, 6, found)
+func TestOTLPSpanNameV2(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPSpanNameV2(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPSpanNameV2(true, t)
+	})
 }
 
-func TestOTLPReceiveResourceSpans(t *testing.T) {
+func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
 	out := make(chan *Payload, 1)
 	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	require := require.New(t)
 	for _, tt := range []struct {
 		in []testutil.OTLPResourceSpan
 		fn func(*pb.TracerPayload)
+	}{
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{{
+						Attributes: map[string]interface{}{semconv.AttributeContainerID: "http.method"},
+					}},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind:       ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{semconv.AttributeHTTPMethod: "GET"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("http.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind:       ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{semconv.AttributeHTTPMethod: "GET"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("http.client.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind:       ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{semconv.AttributeDBSystem: "mysql"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("mysql.query", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{semconv.AttributeDBSystem: "mysql"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{semconv.AttributeMessagingSystem: "kafka"},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{
+								semconv.AttributeMessagingSystem:    "kafka",
+								semconv.AttributeMessagingOperation: "send",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeMessagingSystem:    "kafka",
+								semconv.AttributeMessagingOperation: "send",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("kafka.send", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "aws-api",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("aws-api.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "aws-api",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("aws.client.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "aws-api",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("aws.client.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem:  "aws-api",
+								semconv.AttributeRPCService: "s3",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("aws.s3.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "grpc",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("grpc.client.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{
+								semconv.AttributeRPCSystem: "grpc",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("grpc.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindClient,
+							Attributes: map[string]interface{}{
+								semconv.AttributeFaaSInvokedProvider: "gcp",
+								semconv.AttributeFaaSInvokedName:     "foo",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("gcp.foo.invoke", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{
+								semconv.AttributeFaaSInvokedProvider: "gcp",
+								semconv.AttributeFaaSInvokedName:     "foo",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{
+								semconv.AttributeFaaSTrigger: "timer",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("timer.invoke", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{
+								semconv.AttributeFaaSTrigger: "timer",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("Internal", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Attributes: map[string]interface{}{
+								"graphql.operation.type": "query",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("graphql.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind: ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{
+								"network.protocol.name": "tcp",
+							},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("tcp.server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans: []*testutil.OTLPSpan{
+						{
+							Kind:       ptrace.SpanKindServer,
+							Attributes: map[string]interface{}{},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Equal("server.request", out.Chunks[0].Spans[0].Name)
+			},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+			timeout := time.After(500 * time.Millisecond)
+			select {
+			case <-timeout:
+				t.Fatal("timed out")
+			case p := <-out:
+				tt.fn(p.TracerPayload)
+			}
+		})
+	}
+}
+
+func TestCreateChunks(t *testing.T) {
+	tests := []struct {
+		enableReceiveResourceSpansV2 bool
+		probabilisticSamplerEnabled  bool
+	}{
+		{
+			enableReceiveResourceSpansV2: false,
+			probabilisticSamplerEnabled:  false,
+		},
+		{
+			enableReceiveResourceSpansV2: true,
+			probabilisticSamplerEnabled:  false,
+		},
+		{
+			enableReceiveResourceSpansV2: false,
+			probabilisticSamplerEnabled:  true,
+		},
+		{
+			enableReceiveResourceSpansV2: true,
+			probabilisticSamplerEnabled:  true,
+		},
+	}
+	for _, tt := range tests {
+		var names []string
+		if tt.enableReceiveResourceSpansV2 {
+			names = append(names, "ReceiveResourceSpansV2")
+		} else {
+			names = append(names, "ReceiveResourceSpansV1")
+		}
+		if tt.probabilisticSamplerEnabled {
+			names = append(names, "ProbabilisticSamplerEnabled")
+		} else {
+			names = append(names, "ProbabilisticSamplerDisabled")
+		}
+		t.Run(strings.Join(names, " "), func(t *testing.T) {
+			cfg := NewTestConfig(t)
+			if !tt.enableReceiveResourceSpansV2 {
+				cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+			}
+			cfg.OTLPReceiver.ProbabilisticSampling = 50
+			cfg.ProbabilisticSamplerEnabled = tt.probabilisticSamplerEnabled
+			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			const (
+				traceID1 = 123           // sampled by 50% rate
+				traceID2 = 1237892138897 // not sampled by 50% rate
+				traceID3 = 1237892138898 // not sampled by 50% rate
+			)
+			traces := map[uint64]pb.Trace{
+				traceID1: {{TraceID: traceID1, SpanID: 1}, {TraceID: traceID1, SpanID: 2}},
+				traceID2: {{TraceID: traceID2, SpanID: 1}, {TraceID: traceID2, SpanID: 2}},
+				traceID3: {{TraceID: traceID3, SpanID: 1}, {TraceID: traceID3, SpanID: 2}},
+			}
+			priorities := map[uint64]sampler.SamplingPriority{
+				traceID3: sampler.PriorityUserKeep,
+			}
+			chunks := o.createChunks(traces, priorities)
+			require.Len(t, chunks, len(traces))
+			for _, c := range chunks {
+				if tt.probabilisticSamplerEnabled {
+					require.Emptyf(t, c.Spans[0].Meta["_dd.p.dm"], "decision maker must be empty")
+					require.Equalf(t, int32(sampler.PriorityNone), c.Priority, "priority must be none")
+				} else {
+					id := c.Spans[0].TraceID
+					require.ElementsMatch(t, c.Spans, traces[id])
+					require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
+					switch id {
+					case traceID1:
+						require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"], "traceID1: dm must be -9")
+						require.Equal(t, int32(1), c.Priority, "traceID1: priority must be 1")
+					case traceID2:
+						require.Empty(t, c.Spans[0].Meta["_dd.p.dm"], "traceID2: dm must be empty")
+						require.Equal(t, int32(0), c.Priority, "traceID2: priority must be 0")
+					case traceID3:
+						require.Equal(t, "-4", c.Spans[0].Meta["_dd.p.dm"], "traceID3: dm must be -4")
+						require.Equal(t, int32(2), c.Priority, "traceID3: priority must be 2")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestOTLPReceiveResourceSpans(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPReceiveResourceSpans(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPReceiveResourceSpans(true, t)
+	})
+}
+
+func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	cfg := NewTestConfig(t)
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
+	out := make(chan *Payload, 1)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	require := require.New(t)
+	for _, tt := range []struct {
+		enableReceiveResourceSpansV2 bool
+		in                           []testutil.OTLPResourceSpan
+		fn                           func(*pb.TracerPayload)
 	}{
 		{
 			in: []testutil.OTLPResourceSpan{
@@ -312,7 +834,9 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("spanenv", out.Env)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("spanenv", out.Env)
+				}
 			},
 		},
 		{
@@ -327,7 +851,9 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("spanenv2", out.Env)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("spanenv2", out.Env)
+				}
 			},
 		},
 		{
@@ -339,7 +865,9 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("dd.host", out.Hostname)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("dd.host", out.Hostname)
+				}
 			},
 		},
 		{
@@ -405,7 +933,9 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("123cid", out.ContainerID)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("123cid", out.ContainerID)
+				}
 			},
 		},
 		{
@@ -420,7 +950,9 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				},
 			},
 			fn: func(out *pb.TracerPayload) {
-				require.Equal("23cid", out.ContainerID)
+				if !enableReceiveResourceSpansV2 {
+					require.Equal("23cid", out.ContainerID)
+				}
 			},
 		},
 		{
@@ -507,10 +1039,27 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 				}
 			},
 		},
+		{
+			in: []testutil.OTLPResourceSpan{
+				{
+					Spans: []*testutil.OTLPSpan{
+						{
+							TraceID:    [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+							Name:       "first",
+							Attributes: map[string]interface{}{"sampling.priority": -1},
+						},
+					},
+				},
+			},
+			fn: func(out *pb.TracerPayload) {
+				require.Len(out.Chunks, 1)
+				require.Equal(int32(-1), out.Chunks[0].Priority)
+			},
+		},
 	} {
 		t.Run("", func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(tt.in).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
+			rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -526,7 +1075,7 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 	testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
 		return func(t *testing.T) {
 			rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
-			rcv.ReceiveResourceSpans(context.Background(), rspans, header)
+			rcv.ReceiveResourceSpans(context.Background(), rspans, header, nil)
 			timeout := time.After(500 * time.Millisecond)
 			select {
 			case <-timeout:
@@ -587,15 +1136,15 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 			require.False(p.ClientComputedTopLevel)
 		}))
 
-		t.Run("header", testAndExpect(testSpans, http.Header{
-			header.ComputedTopLevel: []string{"true"},
-		}, func(p *Payload) {
-			require.True(p.ClientComputedTopLevel)
-		}))
-
 		cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 
 		t.Run("withFeatureFlag", testAndExpect(testSpans, http.Header{}, func(p *Payload) {
+			require.True(p.ClientComputedTopLevel)
+		}))
+
+		t.Run("header", testAndExpect(testSpans, http.Header{
+			header.ComputedTopLevel: []string{"true"},
+		}, func(p *Payload) {
 			require.True(p.ClientComputedTopLevel)
 		}))
 
@@ -608,38 +1157,38 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 }
 
 func TestOTLPSetAttributes(t *testing.T) {
-	t.Run("setMetaOTLP", func(t *testing.T) {
+	t.Run("SetMetaOTLP", func(t *testing.T) {
 		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
 
-		setMetaOTLP(s, "a", "b")
+		transform.SetMetaOTLP(s, "a", "b")
 		require.Equal(t, "b", s.Meta["a"])
 
-		setMetaOTLP(s, "operation.name", "on")
+		transform.SetMetaOTLP(s, "operation.name", "on")
 		require.Equal(t, "on", s.Name)
 
-		setMetaOTLP(s, "service.name", "sn")
+		transform.SetMetaOTLP(s, "service.name", "sn")
 		require.Equal(t, "sn", s.Service)
 
-		setMetaOTLP(s, "span.type", "st")
+		transform.SetMetaOTLP(s, "span.type", "st")
 		require.Equal(t, "st", s.Type)
 
-		setMetaOTLP(s, "analytics.event", "true")
+		transform.SetMetaOTLP(s, "analytics.event", "true")
 		require.Equal(t, float64(1), s.Metrics[sampler.KeySamplingRateEventExtraction])
 
-		setMetaOTLP(s, "analytics.event", "false")
+		transform.SetMetaOTLP(s, "analytics.event", "false")
 		require.Equal(t, float64(0), s.Metrics[sampler.KeySamplingRateEventExtraction])
 	})
 
-	t.Run("setMetricOTLP", func(t *testing.T) {
+	t.Run("SetMetricOTLP", func(t *testing.T) {
 		s := &pb.Span{Meta: make(map[string]string), Metrics: make(map[string]float64)}
 
-		setMetricOTLP(s, "a", 1)
+		transform.SetMetricOTLP(s, "a", 1)
 		require.Equal(t, float64(1), s.Metrics["a"])
 
-		setMetricOTLP(s, "sampling.priority", 2)
+		transform.SetMetricOTLP(s, "sampling.priority", 2)
 		require.Equal(t, float64(2), s.Metrics["_sampling_priority_v1"])
 
-		setMetricOTLP(s, "_sampling_priority_v1", 3)
+		transform.SetMetricOTLP(s, "_sampling_priority_v1", 3)
 		require.Equal(t, float64(3), s.Metrics["_sampling_priority_v1"])
 	})
 }
@@ -697,7 +1246,17 @@ func TestUnflatten(t *testing.T) {
 }
 
 func TestOTLPHostname(t *testing.T) {
-	for _, tt := range []struct {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPHostname(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPHostname(true, t)
+	})
+}
+
+func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
+	testcases := []struct {
 		config, resource, span string
 		out                    string
 	}{
@@ -711,13 +1270,23 @@ func TestOTLPHostname(t *testing.T) {
 			config: "config-hostname",
 			out:    "config-hostname",
 		},
-		{
+	}
+
+	if !enableReceiveResourceSpansV2 {
+		testcases = append(testcases, struct {
+			config, resource, span string
+			out                    string
+		}{
 			config: "config-hostname",
 			span:   "span-hostname",
 			out:    "span-hostname",
-		},
-	} {
+		})
+	}
+	for _, tt := range testcases {
 		cfg := NewTestConfig(t)
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+		}
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
 		rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
@@ -736,7 +1305,7 @@ func TestOTLPHostname(t *testing.T) {
 				Attributes: rattr,
 				Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
 			},
-		}).Traces().ResourceSpans().At(0), http.Header{})
+		}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 		assert.Equal(t, src.Kind, source.HostnameKind)
 		assert.Equal(t, src.Identifier, tt.out)
 		timeout := time.After(500 * time.Millisecond)
@@ -749,14 +1318,66 @@ func TestOTLPHostname(t *testing.T) {
 	}
 }
 
+func TestResourceRelatedSpanAttributesAreIgnored_ReceiveResourceSpansV2(t *testing.T) {
+	cfg := NewTestConfig(t)
+	out := make(chan *Payload, 1)
+	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rattr := map[string]interface{}{}
+	sattr := map[string]interface{}{
+		"datadog.host.name":           "do-not-use",
+		"container.id":                "do-not-use",
+		"k8s.pod.id":                  "do-not-use",
+		"deployment.environment.name": "do-not-use",
+		"service.name":                "do-not-use",
+		"service.version":             "do-not-use",
+	}
+	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		{
+			LibName:    "a",
+			LibVersion: "1.2",
+			Attributes: rattr,
+			Spans:      []*testutil.OTLPSpan{{Attributes: sattr}},
+		},
+	}).Traces().ResourceSpans().At(0), http.Header{}, nil)
+	timeout := time.After(500 * time.Millisecond)
+	select {
+	case <-timeout:
+		t.Fatal("timed out")
+	case p := <-out:
+		span := p.Chunk(0).Spans[0]
+		assert.Empty(t, p.TracerPayload.Hostname)
+		assert.Empty(t, p.TracerPayload.ContainerID)
+		assert.Empty(t, p.TracerPayload.Env)
+		assert.Equal(t, "otlpresourcenoservicename", span.Service)
+		assert.Empty(t, span.Meta["version"])
+	}
+}
+
 func TestOTLPReceiver(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testOTLPReceiver(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testOTLPReceiver(true, t)
+	})
+}
+
+func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	t.Run("New", func(t *testing.T) {
 		cfg := NewTestConfig(t)
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+		}
 		assert.NotNil(t, NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
-		o := NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		cfg := NewTestConfig(t)
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+		}
+		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -765,6 +1386,9 @@ func TestOTLPReceiver(t *testing.T) {
 	t.Run("Start/grpc", func(t *testing.T) {
 		port := testutil.FreeTCPPort(t)
 		cfg := NewTestConfig(t)
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+		}
 		cfg.OTLPReceiver = &config.OTLP{
 			BindHost: "localhost",
 			GRPCPort: port,
@@ -782,7 +1406,11 @@ func TestOTLPReceiver(t *testing.T) {
 
 	t.Run("processRequest", func(t *testing.T) {
 		out := make(chan *Payload, 5)
-		o := NewOTLPReceiver(out, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		cfg := NewTestConfig(t)
+		if !enableReceiveResourceSpansV2 {
+			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+		}
+		o := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.processRequest(context.Background(), http.Header(map[string][]string{
 			header.Lang:        {"go"},
 			header.ContainerID: {"containerdID"},
@@ -792,7 +1420,9 @@ func TestOTLPReceiver(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			select {
 			case p := <-out:
-				assert.Equal(t, "go", p.Source.Lang)
+				if !enableReceiveResourceSpansV2 {
+					assert.Equal(t, "go", p.Source.Lang)
+				}
 				assert.Equal(t, "opentelemetry_grpc_v1", p.Source.EndpointVersion)
 				assert.Len(t, p.TracerPayload.Chunks, 1)
 				ps[i] = p
@@ -837,7 +1467,7 @@ func TestOTLPHelpers(t *testing.T) {
 		}{
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("exception", map[string]string{
+				events: makeEventsSlice("exception", map[string]any{
 					"exception.message":    "Out of memory",
 					"exception.type":       "mem",
 					"exception.stacktrace": "1/2/3",
@@ -853,7 +1483,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("exception", map[string]string{
+				events: makeEventsSlice("exception", map[string]any{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{
@@ -863,7 +1493,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("EXCEPTION", map[string]string{
+				events: makeEventsSlice("EXCEPTION", map[string]any{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{
@@ -873,7 +1503,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeError,
-				events: makeEventsSlice("OTher", map[string]string{
+				events: makeEventsSlice("OTher", map[string]any{
 					"exception.message": "Out of memory",
 				}, 0, 0),
 				out: pb.Span{Error: 1},
@@ -896,7 +1526,7 @@ func TestOTLPHelpers(t *testing.T) {
 			},
 			{
 				status: ptrace.StatusCodeOk,
-				events: makeEventsSlice("exception", map[string]string{
+				events: makeEventsSlice("exception", map[string]any{
 					"exception.message":    "Out of memory",
 					"exception.type":       "mem",
 					"exception.stacktrace": "1/2/3",
@@ -909,8 +1539,8 @@ func TestOTLPHelpers(t *testing.T) {
 			status := ptrace.NewStatus()
 			status.SetCode(tt.status)
 			status.SetMessage(tt.msg)
-			status2Error(status, tt.events, &span)
-			assert.Equal(tt.out.Error, span.Error)
+			got := transform.Status2Error(status, tt.events, span.Meta)
+			assert.Equal(tt.out.Error, got)
 			for _, prop := range []string{"error.msg", "error.type", "error.stack"} {
 				if v, ok := tt.out.Meta[prop]; ok {
 					assert.Equal(v, span.Meta[prop])
@@ -967,60 +1597,24 @@ func TestOTLPHelpers(t *testing.T) {
 				meta: map[string]string{semconv.AttributeRPCMethod: "M"},
 				out:  "M",
 			},
+			{
+				meta: map[string]string{"graphql.operation.name": "myQuery"},
+				out:  "",
+			},
+			{
+				meta: map[string]string{"graphql.operation.type": "query"},
+				out:  "query",
+			},
+			{
+				meta: map[string]string{"graphql.operation.type": "query", "graphql.operation.name": "myQuery"},
+				out:  "query myQuery",
+			},
 		} {
 			assert.Equal(t, tt.out, resourceFromTags(tt.meta))
 		}
 	})
 
-	t.Run("spanKind2Type", func(t *testing.T) {
-		for _, tt := range []struct {
-			kind ptrace.SpanKind
-			meta map[string]string
-			out  string
-		}{
-			{
-				kind: ptrace.SpanKindServer,
-				out:  "web",
-			},
-			{
-				kind: ptrace.SpanKindClient,
-				out:  "http",
-			},
-			{
-				kind: ptrace.SpanKindClient,
-				meta: map[string]string{"db.system": "redis"},
-				out:  "cache",
-			},
-			{
-				kind: ptrace.SpanKindClient,
-				meta: map[string]string{"db.system": "memcached"},
-				out:  "cache",
-			},
-			{
-				kind: ptrace.SpanKindClient,
-				meta: map[string]string{"db.system": "other"},
-				out:  "db",
-			},
-			{
-				kind: ptrace.SpanKindProducer,
-				out:  "custom",
-			},
-			{
-				kind: ptrace.SpanKindConsumer,
-				out:  "custom",
-			},
-			{
-				kind: ptrace.SpanKindInternal,
-				out:  "custom",
-			},
-			{
-				kind: ptrace.SpanKindUnspecified,
-				out:  "custom",
-			},
-		} {
-			assert.Equal(t, tt.out, spanKind2Type(tt.kind, &pb.Span{Meta: tt.meta}))
-		}
-	})
+	// test spanKind2Type moved to pkg/trace/traceutil/otel_util_test.go
 
 	t.Run("tagsFromHeaders", func(t *testing.T) {
 		out := tagsFromHeaders(http.Header(map[string][]string{
@@ -1034,17 +1628,45 @@ func TestOTLPHelpers(t *testing.T) {
 }
 
 func TestOTLPConvertSpan(t *testing.T) {
-	now := uint64(otlpTestSpan.StartTimestamp())
+	t.Run("OperationAndResourceNameV1", func(t *testing.T) {
+		testOTLPConvertSpan(false, t)
+	})
+
+	t.Run("OperationAndResourceNameV2", func(t *testing.T) {
+		testOTLPConvertSpan(true, t)
+	})
+}
+
+func TestOTelSpanToDDSpan(t *testing.T) {
+	t.Run("OperationAndResourceNameV1", func(t *testing.T) {
+		testOTelSpanToDDSpan(false, t)
+	})
+
+	t.Run("OperationAndResourceNameV2", func(t *testing.T) {
+		testOTelSpanToDDSpan(true, t)
+	})
+}
+
+func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	cfg := NewTestConfig(t)
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	now := uint64(otlpTestSpan.StartTimestamp())
+	if !enableOperationAndResourceNameV2 {
+		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+	}
 	for i, tt := range []struct {
-		rattr              map[string]string
-		libname            string
-		libver             string
-		in                 ptrace.Span
-		out                *pb.Span
-		outTags            map[string]string
-		topLevelOutMetrics map[string]float64
+		rattr                      map[string]string
+		libname                    string
+		libver                     string
+		sattr                      map[string]string
+		in                         ptrace.Span
+		operationNameV1            string
+		operationNameV2            string
+		resourceNameV1             string
+		resourceNameV2             string
+		out                        *pb.Span
+		outTags                    map[string]string
+		topLevelOutMetrics         map[string]float64
+		ignoreMissingDatadogFields bool
 	}{
 		{
 			rattr: map[string]string{
@@ -1052,13 +1674,15 @@ func TestOTLPConvertSpan(t *testing.T) {
 				"service.version": "v1.2.3",
 				"env":             "staging",
 			},
-			libname: "ddtracer",
-			libver:  "v2",
-			in:      otlpTestSpan,
+			libname:         "ddtracer",
+			libver:          "v2",
+			in:              otlpTestSpan,
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "pylons",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1066,22 +1690,23 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Duration: 200000000,
 				Error:    1,
 				Meta: map[string]string{
-					"name":                    "john",
-					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"env":                     "staging",
-					"otel.status_code":        "Error",
-					"otel.status_description": "Error",
-					"otel.library.name":       "ddtracer",
-					"otel.library.version":    "v2",
-					"service.version":         "v1.2.3",
-					"w3c.tracestate":          "state",
-					"version":                 "v1.2.3",
-					"events":                  `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":"2.4"},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
-					"_dd.span_links":          `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128", "attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
-					"error.msg":               "Out of memory",
-					"error.type":              "mem",
-					"error.stack":             "1/2/3",
-					"span.kind":               "server",
+					"name":                          "john",
+					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
+					"env":                           "staging",
+					"otel.status_code":              "Error",
+					"otel.status_description":       "Error",
+					"otel.library.name":             "ddtracer",
+					"otel.library.version":          "v2",
+					"service.version":               "v1.2.3",
+					"w3c.tracestate":                "state",
+					"version":                       "v1.2.3",
+					"events":                        `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
+					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128", "attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"error.msg":                     "Out of memory",
+					"error.type":                    "mem",
+					"error.stack":                   "1/2/3",
+					"span.kind":                     "server",
+					"_dd.span_events.has_exception": "true",
 				},
 				Metrics: map[string]float64{
 					"approx": 1.2,
@@ -1180,10 +1805,12 @@ func TestOTLPConvertSpan(t *testing.T) {
 				StatusMsg:  "Error",
 				StatusCode: ptrace.StatusCodeError,
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "http.server.request",
+			resourceNameV1:  "GET /path",
+			resourceNameV2:  "GET /path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "GET /path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1191,26 +1818,970 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Duration: 200000000,
 				Error:    1,
 				Meta: map[string]string{
-					"name":                    "john",
-					"env":                     "prod",
-					"deployment.environment":  "prod",
-					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"otel.status_code":        "Error",
-					"otel.status_description": "Error",
-					"otel.library.name":       "ddtracer",
-					"otel.library.version":    "v2",
-					"service.version":         "v1.2.3",
-					"w3c.tracestate":          "state",
-					"version":                 "v1.2.3",
-					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.4\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
-					"_dd.span_links":          `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
-					"error.msg":               "Out of memory",
-					"error.type":              "mem",
-					"error.stack":             "1/2/3",
-					"http.method":             "GET",
-					"http.route":              "/path",
-					"peer.service":            "userbase",
-					"span.kind":               "server",
+					"name":                          "john",
+					"deployment.environment":        "prod",
+					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":              "Error",
+					"otel.status_description":       "Error",
+					"otel.library.name":             "ddtracer",
+					"otel.library.version":          "v2",
+					"service.version":               "v1.2.3",
+					"w3c.tracestate":                "state",
+					"version":                       "v1.2.3",
+					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"error.msg":                     "Out of memory",
+					"error.type":                    "mem",
+					"error.stack":                   "1/2/3",
+					"http.method":                   "GET",
+					"http.route":                    "/path",
+					"peer.service":                  "userbase",
+					"span.kind":                     "server",
+					"_dd.span_events.has_exception": "true",
+				},
+				Metrics: map[string]float64{
+					"approx": 1.2,
+					"count":  2,
+				},
+				Type: "web",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+				"approx":     1.2,
+				"count":      2,
+			},
+		}, {
+			rattr: map[string]string{
+				"service.name":                             "myservice",
+				"service.version":                          "v1.2.3",
+				"env":                                      "staging",
+				semconv127.AttributeClientAddress:          "sample_client_address",
+				semconv127.AttributeHTTPResponseBodySize:   "sample_content_length",
+				semconv127.AttributeHTTPResponseStatusCode: "sample_status_code",
+				semconv127.AttributeHTTPRequestBodySize:    "sample_content_length",
+				"http.request.header.referrer":             "sample_referrer",
+				semconv127.AttributeNetworkProtocolVersion: "sample_version",
+				semconv127.AttributeServerAddress:          "sample_server_name",
+				semconv127.AttributeURLFull:                "sample_url",
+				semconv127.AttributeUserAgentOriginal:      "sample_useragent",
+				"http.request.header.example":              "test",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
+				TraceState: "state",
+				Name:       "/path",
+				Kind:       ptrace.SpanKindServer,
+				Start:      now,
+				End:        now + 200000000,
+				Attributes: map[string]interface{}{
+					"name":            "john",
+					"http.method":     "GET",
+					"http.route":      "/path",
+					"approx":          1.2,
+					"count":           2,
+					"analytics.event": "false",
+					"service.name":    "pylons",
+				},
+				Events: []testutil.OTLPSpanEvent{
+					{
+						Timestamp: 123,
+						Name:      "boom",
+						Attributes: map[string]interface{}{
+							"message":  "Out of memory",
+							"accuracy": 2.4,
+						},
+						Dropped: 2,
+					},
+					{
+						Timestamp: 456,
+						Name:      "exception",
+						Attributes: map[string]interface{}{
+							"exception.message":    "Out of memory",
+							"exception.type":       "mem",
+							"exception.stacktrace": "1/2/3",
+						},
+						Dropped: 2,
+					},
+				},
+				Links: []testutil.OTLPSpanLink{
+					{
+						TraceID:    "fedcba98765432100123456789abcdef",
+						SpanID:     "abcdef0123456789",
+						TraceState: "dd=asdf256,ee=jkl;128",
+						Attributes: map[string]interface{}{
+							"a1": "v1",
+							"a2": "v2",
+						},
+						Dropped: 24,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{
+							"a3": "v2",
+							"a4": "v4",
+						},
+						Dropped: 0,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{},
+						Dropped:    2,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{},
+						Dropped:    0,
+					},
+				},
+				StatusMsg:  "Error",
+				StatusCode: ptrace.StatusCodeError,
+			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "http.server.request",
+			resourceNameV1:  "GET /path",
+			resourceNameV2:  "GET /path",
+			out: &pb.Span{
+				Service:  "myservice",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"name":                          "john",
+					"env":                           "staging",
+					"otel.status_code":              "Error",
+					"otel.status_description":       "Error",
+					"otel.library.name":             "ddtracer",
+					"otel.library.version":          "v2",
+					"service.version":               "v1.2.3",
+					"w3c.tracestate":                "state",
+					"version":                       "v1.2.3",
+					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
+					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"error.msg":                     "Out of memory",
+					"error.type":                    "mem",
+					"error.stack":                   "1/2/3",
+					"http.method":                   "GET",
+					"http.route":                    "/path",
+					"span.kind":                     "server",
+					"_dd.span_events.has_exception": "true",
+					"http.client_ip":                "sample_client_address",
+					"http.response.content_length":  "sample_content_length",
+					"http.status_code":              "sample_status_code",
+					"http.request.content_length":   "sample_content_length",
+					"http.referrer":                 "sample_referrer",
+					"http.version":                  "sample_version",
+					"http.server_name":              "sample_server_name",
+					"http.url":                      "sample_url",
+					"http.useragent":                "sample_useragent",
+					"http.request.headers.example":  "test",
+				},
+				Metrics: map[string]float64{
+					"approx":                               1.2,
+					"count":                                2,
+					sampler.KeySamplingRateEventExtraction: 0,
+				},
+				Type: "web",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 0,
+			},
+		}, {
+			rattr: map[string]string{
+				"env":          "staging",
+				"service.name": "mongo",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:  "/path",
+				Start: now,
+				End:   now + 200000000,
+				Attributes: map[string]interface{}{
+					"operation.name":                  "READ",
+					"resource.name":                   "/path",
+					"span.type":                       "db",
+					"name":                            "john",
+					semconv.AttributeContainerID:      "cid",
+					semconv.AttributeK8SContainerName: "k8s-container",
+					"http.method":                     "GET",
+					"http.route":                      "/path",
+					"approx":                          1.2,
+					"count":                           2,
+					"analytics.event":                 true,
+				},
+			}),
+			operationNameV1: "READ",
+			operationNameV2: "read",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "mongo",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                             "staging",
+					semconv.AttributeContainerID:      "cid",
+					semconv.AttributeK8SContainerName: "k8s-container",
+					"http.method":                     "GET",
+					"http.route":                      "/path",
+					"otel.status_code":                "Unset",
+					"otel.library.name":               "ddtracer",
+					"otel.library.version":            "v2",
+					"name":                            "john",
+					"otel.trace_id":                   "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":                       "unspecified",
+				},
+				Metrics: map[string]float64{
+					"approx":                               1.2,
+					"count":                                2,
+					sampler.KeySamplingRateEventExtraction: 1,
+				},
+				Type: "db",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 1,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"env":          "staging",
+				"service.name": "document-uploader",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			// Modified version of:
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:       "POST /uploads/:document_id",
+				Start:      now,
+				End:        now + 200000000,
+				StatusCode: ptrace.StatusCodeError,
+				Attributes: map[string]interface{}{
+					"operation.name":            "ddtracer.server",
+					"http.request.method":       "POST",
+					"url.path":                  "/uploads/4",
+					"url.scheme":                "https",
+					"http.route":                "/uploads/:document_id",
+					"http.response.status_code": "201",
+					"error.type":                "WebSocketDisconnect",
+				},
+			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "ddtracer.server",
+			resourceNameV1:  "POST /uploads/:document_id",
+			resourceNameV2:  "POST",
+			out: &pb.Span{
+				Service:  "document-uploader",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                  "staging",
+					"otel.library.name":    "ddtracer",
+					"otel.library.version": "v2",
+					"otel.status_code":     "Error",
+					"error.msg":            "201",
+					"http.method":          "POST",
+					"url.path":             "/uploads/4",
+					"url.scheme":           "https",
+					"http.route":           "/uploads/:document_id",
+					"http.status_code":     "201",
+					"error.type":           "WebSocketDisconnect",
+					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":            "unspecified",
+				},
+				Type: "custom",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"env":          "staging",
+				"service.name": "document-uploader",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			// Modified version of:
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
+			// Using old semantic conventions.
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:       "POST /uploads/:document_id",
+				Start:      now,
+				End:        now + 200000000,
+				StatusCode: ptrace.StatusCodeError,
+				Attributes: map[string]interface{}{
+					"operation.name":   "ddtracer.server",
+					"http.method":      "POST",
+					"url.path":         "/uploads/4",
+					"url.scheme":       "https",
+					"http.route":       "/uploads/:document_id",
+					"http.status_code": "201",
+					"error.type":       "WebSocketDisconnect",
+				},
+			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "ddtracer.server",
+			resourceNameV1:  "POST /uploads/:document_id",
+			resourceNameV2:  "POST",
+			out: &pb.Span{
+				Service:  "document-uploader",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                  "staging",
+					"otel.library.name":    "ddtracer",
+					"otel.library.version": "v2",
+					"otel.status_code":     "Error",
+					"error.msg":            "201",
+					"http.method":          "POST",
+					"url.path":             "/uploads/4",
+					"url.scheme":           "https",
+					"http.route":           "/uploads/:document_id",
+					"http.status_code":     "201",
+					"error.type":           "WebSocketDisconnect",
+					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":            "unspecified",
+				},
+				Type: "custom",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+			},
+		},
+		{
+			rattr:   map[string]string{},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				Name:       "POST /uploads/:document_id",
+				Start:      now,
+				End:        now + 200000000,
+				StatusCode: ptrace.StatusCodeError,
+				Attributes: map[string]interface{}{
+					"datadog.host.name":           "do-not-use",
+					"deployment.environment.name": "do-not-use",
+					"service.name":                "do-not-use",
+					"container.id":                "do-not-use",
+					"k8s.pod.uid":                 "do-not-use",
+				},
+			}),
+			operationNameV1: "ddtracer.unspecified",
+			operationNameV2: "Internal",
+			resourceNameV1:  "POST /uploads/:document_id",
+			resourceNameV2:  "POST /uploads/:document_id",
+			out: &pb.Span{
+				Service:  "otlpresourcenoservicename",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"deployment.environment.name": "do-not-use",
+					"container.id":                "do-not-use",
+					"k8s.pod.uid":                 "do-not-use",
+					"otel.library.name":           "ddtracer",
+					"otel.library.version":        "v2",
+					"otel.status_code":            "Error",
+					"otel.trace_id":               "72df520af2bde7a5240031ead750e5f3",
+					"span.kind":                   "unspecified",
+				},
+				Type: "custom",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+			},
+		},
+		{
+			rattr:   map[string]string{},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
+				TraceState: "state",
+				Name:       "/path",
+				Kind:       ptrace.SpanKindServer,
+				Start:      now,
+				End:        now + 200000000,
+				Attributes: map[string]interface{}{
+					transform.KeyDatadogService:        "test-service",
+					transform.KeyDatadogName:           "test-name",
+					transform.KeyDatadogResource:       "test-resource",
+					transform.KeyDatadogType:           "test-type",
+					transform.KeyDatadogError:          1,
+					transform.KeyDatadogEnvironment:    "test-env",
+					transform.KeyDatadogVersion:        "test-version",
+					transform.KeyDatadogSpanKind:       "test-kind",
+					transform.KeyDatadogErrorMsg:       "Out of memory",
+					transform.KeyDatadogErrorType:      "mem",
+					transform.KeyDatadogErrorStack:     "1/2/3",
+					transform.KeyDatadogHTTPStatusCode: 404,
+					"http.status_code":                 200,
+				},
+			}),
+			operationNameV1: "test-name",
+			operationNameV2: "test-name",
+			resourceNameV1:  "test-resource",
+			resourceNameV2:  "test-resource",
+			out: &pb.Span{
+				Service:  "test-service",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"env":                  "test-env",
+					"version":              "test-version",
+					"span.kind":            "test-kind",
+					"otel.trace_id":        "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":     "Unset",
+					"otel.library.name":    "ddtracer",
+					"otel.library.version": "v2",
+					"w3c.tracestate":       "state",
+					"error.msg":            "Out of memory",
+					"error.type":           "mem",
+					"error.stack":          "1/2/3",
+					"http.status_code":     "404",
+				},
+				Metrics: map[string]float64{
+					"http.status_code": 404,
+				},
+				Type: "test-type",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":       1,
+				"http.status_code": 404,
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.name":                             "myservice",
+				"service.version":                          "v1.2.3",
+				"env":                                      "staging",
+				semconv127.AttributeClientAddress:          "sample_client_address",
+				semconv127.AttributeHTTPResponseBodySize:   "sample_content_length",
+				semconv127.AttributeHTTPResponseStatusCode: "sample_status_code",
+				semconv127.AttributeHTTPRequestBodySize:    "sample_content_length",
+				"http.request.header.referrer":             "sample_referrer",
+				semconv127.AttributeNetworkProtocolVersion: "sample_version",
+				semconv127.AttributeServerAddress:          "sample_server_name",
+				semconv127.AttributeURLFull:                "sample_url",
+				semconv127.AttributeUserAgentOriginal:      "sample_useragent",
+				"http.request.header.example":              "test",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
+				TraceState: "state",
+				Name:       "/path",
+				Kind:       ptrace.SpanKindServer,
+				Start:      now,
+				End:        now + 200000000,
+				Attributes: map[string]interface{}{
+					"name":            "john",
+					"http.method":     "GET",
+					"http.route":      "/path",
+					"approx":          1.2,
+					"count":           2,
+					"analytics.event": "false",
+					"service.name":    "pylons",
+				},
+				Events: []testutil.OTLPSpanEvent{
+					{
+						Timestamp: 123,
+						Name:      "boom",
+						Attributes: map[string]interface{}{
+							"message":  "Out of memory",
+							"accuracy": 2.4,
+						},
+						Dropped: 2,
+					},
+					{
+						Timestamp: 456,
+						Name:      "exception",
+						Attributes: map[string]interface{}{
+							"exception.message":    "Out of memory",
+							"exception.type":       "mem",
+							"exception.stacktrace": "1/2/3",
+						},
+						Dropped: 2,
+					},
+				},
+				Links: []testutil.OTLPSpanLink{
+					{
+						TraceID:    "fedcba98765432100123456789abcdef",
+						SpanID:     "abcdef0123456789",
+						TraceState: "dd=asdf256,ee=jkl;128",
+						Attributes: map[string]interface{}{
+							"a1": "v1",
+							"a2": "v2",
+						},
+						Dropped: 24,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{
+							"a3": "v2",
+							"a4": "v4",
+						},
+						Dropped: 0,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{},
+						Dropped:    2,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{},
+						Dropped:    0,
+					},
+				},
+				StatusMsg:  "Error",
+				StatusCode: ptrace.StatusCodeError,
+			}),
+			operationNameV1: "",
+			operationNameV2: "",
+			resourceNameV1:  "",
+			resourceNameV2:  "",
+			out: &pb.Span{
+				Service:  "",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"name":                          "john",
+					"otel.status_code":              "Error",
+					"otel.status_description":       "Error",
+					"otel.library.name":             "ddtracer",
+					"otel.library.version":          "v2",
+					"service.version":               "v1.2.3",
+					"version":                       "v1.2.3",
+					"w3c.tracestate":                "state",
+					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
+					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"http.route":                    "/path",
+					"_dd.span_events.has_exception": "true",
+					"http.method":                   "GET",
+					"http.client_ip":                "sample_client_address",
+					"http.response.content_length":  "sample_content_length",
+					"http.request.content_length":   "sample_content_length",
+					"http.referrer":                 "sample_referrer",
+					"http.version":                  "sample_version",
+					"http.server_name":              "sample_server_name",
+					"http.url":                      "sample_url",
+					"http.useragent":                "sample_useragent",
+					"http.request.headers.example":  "test",
+				},
+				Metrics: map[string]float64{
+					"approx":                               1.2,
+					"count":                                2,
+					sampler.KeySamplingRateEventExtraction: 0,
+				},
+				Type: "",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":                           1,
+				"approx":                               1.2,
+				"count":                                2,
+				sampler.KeySamplingRateEventExtraction: 0,
+			},
+			ignoreMissingDatadogFields: true,
+		},
+		{
+			rattr: map[string]string{
+				"service.instance.id": "02aa8742-d8a2-46b3-87d1-1ccaeb48e0ab",
+				"service.name":        "otelcol",
+				"service.version":     "0.123.0",
+			},
+			libname: "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+			libver:  "0.60.0",
+			sattr: map[string]string{
+				"otelcol.component.id":   "otlp",
+				"otelcol.component.kind": "Receiver",
+			},
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "opentelemetry.proto.collector.trace.v1.TraceService/Export",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 2000000,
+				Attributes: map[string]any{
+					"net.sock.peer.addr":   "127.0.0.1",
+					"net.sock.peer.port":   63333,
+					"rpc.grpc.status_code": 0,
+					"rpc.method":           "Export",
+					"rpc.service":          "opentelemetry.proto.collector.trace.v1.TraceService",
+					"rpc.system":           "grpc",
+				},
+			}),
+			out: &pb.Span{
+				Service:  "otelcol",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				Start:    int64(now),
+				Duration: 2000000,
+				Meta: map[string]string{
+					"service.instance.id": "02aa8742-d8a2-46b3-87d1-1ccaeb48e0ab",
+					"service.version":     "0.123.0",
+					"version":             "0.123.0",
+
+					"otel.library.name":      "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc",
+					"otel.library.version":   "0.60.0",
+					"otelcol.component.id":   "otlp",
+					"otelcol.component.kind": "Receiver",
+
+					"net.sock.peer.addr": "127.0.0.1",
+					"rpc.method":         "Export",
+					"rpc.service":        "opentelemetry.proto.collector.trace.v1.TraceService",
+					"rpc.system":         "grpc",
+
+					"span.kind":        "server",
+					"otel.status_code": "Unset",
+					"otel.trace_id":    "72df520af2bde7a5240031ead750e5f3",
+				},
+				Metrics: map[string]float64{
+					"net.sock.peer.port":   63333,
+					"rpc.grpc.status_code": 0,
+				},
+				Type: "web",
+			},
+			operationNameV1: "go.opentelemetry.io_contrib_instrumentation_google.golang.org_grpc_otelgrpc.server",
+			resourceNameV1:  "Export opentelemetry.proto.collector.trace.v1.TraceService",
+			operationNameV2: "grpc.server.request",
+			resourceNameV2:  "Export opentelemetry.proto.collector.trace.v1.TraceService",
+			topLevelOutMetrics: map[string]float64{
+				"_top_level":           1,
+				"net.sock.peer.port":   63333,
+				"rpc.grpc.status_code": 0,
+			},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			cfg.OTLPReceiver.IgnoreMissingDatadogFields = tt.ignoreMissingDatadogFields
+			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName(tt.libname)
+			lib.SetVersion(tt.libver)
+			for k, v := range tt.sattr {
+				lib.Attributes().PutStr(k, v)
+			}
+			assert := assert.New(t)
+			want := tt.out
+			res := pcommon.NewResource()
+			for k, v := range tt.rattr {
+				res.Attributes().PutStr(k, v)
+			}
+			got := transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf)
+			if len(want.Meta) != len(got.Meta) {
+				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
+			}
+			for k, v := range want.Meta {
+				switch k {
+				case "events":
+					// events contain maps with no guaranteed order of
+					// traversal; best to unpack to compare
+					var gote, wante []testutil.OTLPSpanEvent
+					if err := json.Unmarshal([]byte(v), &wante); err != nil {
+						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
+					}
+					if err := json.Unmarshal([]byte(got.Meta[k]), &gote); err != nil {
+						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
+					}
+					assert.Equal(wante, gote)
+				case "_dd.span_links":
+					// links contain maps with no guaranteed order of
+					// traversal; best to unpack to compare
+					var gotl, wantl []testutil.OTLPSpanLink
+					if err := json.Unmarshal([]byte(v), &wantl); err != nil {
+						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
+					}
+					if err := json.Unmarshal([]byte(got.Meta[k]), &gotl); err != nil {
+						t.Fatalf("(%d) Error unmarshalling: %v", i, err)
+					}
+					assert.Equal(wantl, gotl)
+				default:
+					assert.Equal(v, got.Meta[k], fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
+				}
+			}
+			for k, v := range got.Meta {
+				if k != "events" && k != "_dd.span_links" {
+					assert.Equal(want.Meta[k], v, fmt.Sprintf("(%d) Meta %v:%v", i, k, v))
+				}
+			}
+			if len(want.Metrics) != len(got.Metrics) {
+				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, want.Metrics, got.Metrics)
+			}
+			for k, v := range want.Metrics {
+				assert.Equal(v, got.Metrics[k], fmt.Sprintf("(%d) Metric %v:%v", i, k, v))
+			}
+			want.Meta = nil
+			want.Metrics = nil
+			got.Meta = nil
+			got.Metrics = nil
+			if enableOperationAndResourceNameV2 {
+				want.Name = tt.operationNameV2
+				want.Resource = tt.resourceNameV2
+			} else {
+				want.Name = tt.operationNameV1
+				want.Resource = tt.resourceNameV1
+			}
+			assert.Equal(want, got, i)
+
+			// test new top-level identification feature flag
+			o.conf.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+			got = transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf)
+			wantMetrics := tt.topLevelOutMetrics
+			if len(wantMetrics) != len(got.Metrics) {
+				t.Fatalf("(%d) Metrics count mismatch:\n\n%v\n\n%v", i, wantMetrics, got.Metrics)
+			}
+			for k, v := range wantMetrics {
+				assert.Equal(v, got.Metrics[k], fmt.Sprintf("(%d) Metric %v:%v", i, k, v))
+			}
+			delete(o.conf.Features, "enable_otlp_compute_top_level_by_span_kind")
+		})
+	}
+}
+
+func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
+	cfg := NewTestConfig(t)
+	now := uint64(otlpTestSpan.StartTimestamp())
+	if !enableOperationAndResourceNameV2 {
+		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+	}
+	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	for i, tt := range []struct {
+		rattr              map[string]string
+		libname            string
+		libver             string
+		in                 ptrace.Span
+		operationNameV1    string
+		operationNameV2    string
+		resourceNameV1     string
+		resourceNameV2     string
+		out                *pb.Span
+		outTags            map[string]string
+		topLevelOutMetrics map[string]float64
+	}{
+		{
+			rattr: map[string]string{
+				"service.name":    "pylons",
+				"service.version": "v1.2.3",
+				"env":             "staging",
+			},
+			libname:         "ddtracer",
+			libver:          "v2",
+			in:              otlpTestSpan,
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "pylons",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"name":                          "john",
+					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
+					"env":                           "staging",
+					"otel.status_code":              "Error",
+					"otel.status_description":       "Error",
+					"otel.library.name":             "ddtracer",
+					"otel.library.version":          "v2",
+					"service.version":               "v1.2.3",
+					"w3c.tracestate":                "state",
+					"version":                       "v1.2.3",
+					"events":                        `[{"time_unix_nano":123,"name":"boom","attributes":{"key":"Out of memory","accuracy":2.4},"dropped_attributes_count":2},{"time_unix_nano":456,"name":"exception","attributes":{"exception.message":"Out of memory","exception.type":"mem","exception.stacktrace":"1/2/3"},"dropped_attributes_count":2}]`,
+					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128", "attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"error.msg":                     "Out of memory",
+					"error.type":                    "mem",
+					"error.stack":                   "1/2/3",
+					"span.kind":                     "server",
+					"_dd.span_events.has_exception": "true",
+				},
+				Metrics: map[string]float64{
+					"approx": 1.2,
+					"count":  2,
+				},
+				Type: "web",
+			},
+			topLevelOutMetrics: map[string]float64{
+				"_top_level": 1,
+				"approx":     1.2,
+				"count":      2,
+			},
+		}, {
+			rattr: map[string]string{
+				"service.version": "v1.2.3",
+				"service.name":    "myservice",
+				"peer.service":    "mypeerservice",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID:    otlpTestTraceID,
+				SpanID:     otlpTestSpanID,
+				TraceState: "state",
+				Name:       "/path",
+				Kind:       ptrace.SpanKindServer,
+				Start:      now,
+				End:        now + 200000000,
+				Attributes: map[string]interface{}{
+					"name":                   "john",
+					"peer.service":           "userbase",
+					"deployment.environment": "prod",
+					"http.method":            "GET",
+					"http.route":             "/path",
+					"approx":                 1.2,
+					"count":                  2,
+					"span.kind":              "server",
+				},
+				Events: []testutil.OTLPSpanEvent{
+					{
+						Timestamp: 123,
+						Name:      "boom",
+						Attributes: map[string]interface{}{
+							"message":  "Out of memory",
+							"accuracy": 2.4,
+						},
+						Dropped: 2,
+					},
+					{
+						Timestamp: 456,
+						Name:      "exception",
+						Attributes: map[string]interface{}{
+							"exception.message":    "Out of memory",
+							"exception.type":       "mem",
+							"exception.stacktrace": "1/2/3",
+						},
+						Dropped: 2,
+					},
+				},
+				Links: []testutil.OTLPSpanLink{
+					{
+						TraceID:    "fedcba98765432100123456789abcdef",
+						SpanID:     "abcdef0123456789",
+						TraceState: "dd=asdf256,ee=jkl;128",
+						Attributes: map[string]interface{}{
+							"a1": "v1",
+							"a2": "v2",
+						},
+						Dropped: 24,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{
+							"a3": "v2",
+							"a4": "v4",
+						},
+						Dropped: 0,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{},
+						Dropped:    2,
+					},
+					{
+						TraceID:    "abcdef0123456789abcdef0123456789",
+						SpanID:     "fedcba9876543210",
+						TraceState: "",
+						Attributes: map[string]interface{}{},
+						Dropped:    0,
+					},
+				},
+				StatusMsg:  "Error",
+				StatusCode: ptrace.StatusCodeError,
+			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "http.server.request",
+			resourceNameV1:  "GET /path",
+			resourceNameV2:  "GET /path",
+			out: &pb.Span{
+				Service:  "myservice",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Error:    1,
+				Meta: map[string]string{
+					"name":                          "john",
+					"env":                           "prod",
+					"deployment.environment":        "prod",
+					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":              "Error",
+					"otel.status_description":       "Error",
+					"otel.library.name":             "ddtracer",
+					"otel.library.version":          "v2",
+					"service.version":               "v1.2.3",
+					"w3c.tracestate":                "state",
+					"version":                       "v1.2.3",
+					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"error.msg":                     "Out of memory",
+					"error.type":                    "mem",
+					"error.stack":                   "1/2/3",
+					"http.method":                   "GET",
+					"http.route":                    "/path",
+					"peer.service":                  "userbase",
+					"span.kind":                     "server",
+					"_dd.span_events.has_exception": "true",
 				},
 				Metrics: map[string]float64{
 					"approx": 1.2,
@@ -1308,10 +2879,12 @@ func TestOTLPConvertSpan(t *testing.T) {
 				StatusMsg:  "Error",
 				StatusCode: ptrace.StatusCodeError,
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "http.server.request",
+			resourceNameV1:  "GET /path",
+			resourceNameV2:  "GET /path",
 			out: &pb.Span{
 				Service:  "pylons",
-				Name:     "ddtracer.server",
-				Resource: "GET /path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1319,24 +2892,25 @@ func TestOTLPConvertSpan(t *testing.T) {
 				Duration: 200000000,
 				Error:    1,
 				Meta: map[string]string{
-					"name":                    "john",
-					"env":                     "staging",
-					"otel.status_code":        "Error",
-					"otel.status_description": "Error",
-					"otel.library.name":       "ddtracer",
-					"otel.library.version":    "v2",
-					"service.version":         "v1.2.3",
-					"w3c.tracestate":          "state",
-					"version":                 "v1.2.3",
-					"otel.trace_id":           "72df520af2bde7a5240031ead750e5f3",
-					"events":                  "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":\"2.4\"},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
-					"_dd.span_links":          `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","trace_state":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
-					"error.msg":               "Out of memory",
-					"error.type":              "mem",
-					"error.stack":             "1/2/3",
-					"http.method":             "GET",
-					"http.route":              "/path",
-					"span.kind":               "server",
+					"name":                          "john",
+					"env":                           "staging",
+					"otel.status_code":              "Error",
+					"otel.status_description":       "Error",
+					"otel.library.name":             "ddtracer",
+					"otel.library.version":          "v2",
+					"service.version":               "v1.2.3",
+					"w3c.tracestate":                "state",
+					"version":                       "v1.2.3",
+					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
+					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
+					"_dd.span_links":                `[{"trace_id":"fedcba98765432100123456789abcdef","span_id":"abcdef0123456789","tracestate":"dd=asdf256,ee=jkl;128","attributes":{"a1":"v1","a2":"v2"},"dropped_attributes_count":24},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","attributes":{"a3":"v2","a4":"v4"}},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210","dropped_attributes_count":2},{"trace_id":"abcdef0123456789abcdef0123456789","span_id":"fedcba9876543210"}]`,
+					"error.msg":                     "Out of memory",
+					"error.type":                    "mem",
+					"error.stack":                   "1/2/3",
+					"http.method":                   "GET",
+					"http.route":                    "/path",
+					"span.kind":                     "server",
+					"_dd.span_events.has_exception": "true",
 				},
 				Metrics: map[string]float64{
 					"approx":                               1.2,
@@ -1376,10 +2950,12 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"analytics.event":                 true,
 				},
 			}),
+			operationNameV1: "READ",
+			operationNameV2: "read",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "mongo",
-				Name:     "READ",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1436,70 +3012,12 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"error.type":                "WebSocketDisconnect",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "ddtracer.server",
+			resourceNameV1:  "POST /uploads/:document_id",
+			resourceNameV2:  "POST",
 			out: &pb.Span{
 				Service:  "document-uploader",
-				Name:     "ddtracer.server",
-				Resource: "POST /uploads/:document_id",
-				TraceID:  2594128270069917171,
-				SpanID:   2594128270069917171,
-				ParentID: 0,
-				Start:    int64(now),
-				Duration: 200000000,
-				Error:    1,
-				Meta: map[string]string{
-					"env":                       "staging",
-					"otel.library.name":         "ddtracer",
-					"otel.library.version":      "v2",
-					"otel.status_code":          "Error",
-					"error.msg":                 "201",
-					"http.request.method":       "POST",
-					"http.method":               "POST",
-					"url.path":                  "/uploads/4",
-					"url.scheme":                "https",
-					"http.route":                "/uploads/:document_id",
-					"http.response.status_code": "201",
-					"http.status_code":          "201",
-					"error.type":                "WebSocketDisconnect",
-					"otel.trace_id":             "72df520af2bde7a5240031ead750e5f3",
-					"span.kind":                 "unspecified",
-				},
-				Type: "custom",
-			},
-			topLevelOutMetrics: map[string]float64{
-				"_top_level": 1,
-			},
-		},
-		{
-			rattr: map[string]string{
-				"env":          "staging",
-				"service.name": "document-uploader",
-			},
-			libname: "ddtracer",
-			libver:  "v2",
-			// Modified version of:
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#http-server-call-connection-dropped-before-response-body-was-sent
-			// Using both old and new semantic conventions.
-			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
-				Name:       "POST /uploads/:document_id",
-				Start:      now,
-				End:        now + 200000000,
-				StatusCode: ptrace.StatusCodeError,
-				Attributes: map[string]interface{}{
-					"operation.name":            "ddtracer.server",
-					"http.request.method":       "POST",
-					"http.method":               "SHOULD NOT BE USED FOR RESOURCE NAME",
-					"url.path":                  "/uploads/4",
-					"url.scheme":                "https",
-					"http.route":                "/uploads/:document_id",
-					"http.response.status_code": "201",
-					"http.status_code":          "SHOULD NOT BE USED FOR ERROR.MSG",
-					"error.type":                "WebSocketDisconnect",
-				},
-			}),
-			out: &pb.Span{
-				Service:  "document-uploader",
-				Name:     "ddtracer.server",
-				Resource: "POST /uploads/:document_id",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1554,10 +3072,12 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"error.type":       "WebSocketDisconnect",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "ddtracer.server",
+			resourceNameV1:  "POST /uploads/:document_id",
+			resourceNameV2:  "POST",
 			out: &pb.Span{
 				Service:  "document-uploader",
-				Name:     "ddtracer.server",
-				Resource: "POST /uploads/:document_id",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1592,6 +3112,10 @@ func TestOTLPConvertSpan(t *testing.T) {
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
 			want := tt.out
+			res := pcommon.NewResource()
+			for k, v := range tt.rattr {
+				res.Attributes().PutStr(k, v)
+			}
 			got := o.convertSpan(tt.rattr, lib, tt.in)
 			if len(want.Meta) != len(got.Meta) {
 				t.Fatalf("(%d) Meta count mismatch:\n%#v", i, got.Meta)
@@ -1634,6 +3158,13 @@ func TestOTLPConvertSpan(t *testing.T) {
 			want.Metrics = nil
 			got.Meta = nil
 			got.Metrics = nil
+			if enableOperationAndResourceNameV2 {
+				want.Name = tt.operationNameV2
+				want.Resource = tt.resourceNameV2
+			} else {
+				want.Name = tt.operationNameV1
+				want.Resource = tt.resourceNameV1
+			}
 			assert.Equal(want, got, i)
 
 			// test new top-level identification feature flag
@@ -1673,15 +3204,41 @@ func TestAppendTags(t *testing.T) {
 }
 
 func TestOTLPConvertSpanSetPeerService(t *testing.T) {
+	t.Run("OperationAndResourceNameV1", func(t *testing.T) {
+		testOTLPConvertSpanSetPeerService(false, t)
+	})
+
+	t.Run("OperationAndResourceNameV2", func(t *testing.T) {
+		testOTLPConvertSpanSetPeerService(true, t)
+	})
+}
+
+func TestOTelSpanToDDSpanSetPeerService(t *testing.T) {
+	t.Run("OperationAndResourceNameV1", func(t *testing.T) {
+		testOTelSpanToDDSpanSetPeerService(false, t)
+	})
+
+	t.Run("OperationAndResourceNameV2", func(t *testing.T) {
+		testOTelSpanToDDSpanSetPeerService(true, t)
+	})
+}
+func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	now := uint64(otlpTestSpan.StartTimestamp())
 	cfg := NewTestConfig(t)
+	if !enableOperationAndResourceNameV2 {
+		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+	}
 	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
-		rattr   map[string]string
-		libname string
-		libver  string
-		in      ptrace.Span
-		out     *pb.Span
+		rattr           map[string]string
+		libname         string
+		libver          string
+		in              ptrace.Span
+		out             *pb.Span
+		operationNameV1 string
+		operationNameV2 string
+		resourceNameV1  string
+		resourceNameV2  string
 	}{
 		{
 			rattr: map[string]string{
@@ -1702,10 +3259,12 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1747,10 +3306,12 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1793,10 +3354,12 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.client",
+			operationNameV2: "postgres.query",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.client",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1839,10 +3402,12 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.client",
+			operationNameV2: "client.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.client",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1884,10 +3449,12 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"deployment.environment": "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1928,10 +3495,12 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"deployment.environment":   "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -1972,10 +3541,12 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"deployment.environment":   "prod",
 				},
 			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
 			out: &pb.Span{
 				Service:  "myservice",
-				Name:     "ddtracer.server",
-				Resource: "/path",
 				TraceID:  2594128270069917171,
 				SpanID:   2594128270069917171,
 				ParentID: 0,
@@ -2003,7 +3574,390 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
 			assert := assert.New(t)
-			assert.Equal(tt.out, o.convertSpan(tt.rattr, lib, tt.in), i)
+			res := pcommon.NewResource()
+			for k, v := range tt.rattr {
+				res.Attributes().PutStr(k, v)
+			}
+			got := o.convertSpan(tt.rattr, lib, tt.in)
+			want := tt.out
+			if enableOperationAndResourceNameV2 {
+				want.Name = tt.operationNameV2
+				want.Resource = tt.resourceNameV2
+			} else {
+				want.Name = tt.operationNameV1
+				want.Resource = tt.resourceNameV1
+			}
+			assert.Equal(want, got, i)
+		})
+	}
+}
+
+func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t *testing.T) {
+	now := uint64(otlpTestSpan.StartTimestamp())
+	cfg := NewTestConfig(t)
+	if !enableOperationAndResourceNameV2 {
+		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
+	}
+	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	for i, tt := range []struct {
+		rattr           map[string]string
+		libname         string
+		libver          string
+		in              ptrace.Span
+		out             *pb.Span
+		operationNameV1 string
+		operationNameV2 string
+		resourceNameV1  string
+		resourceNameV2  string
+	}{
+		{
+			rattr: map[string]string{
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"peer.service": "userbase",
+				},
+			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "myservice",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"peer.service":           "userbase",
+					"span.kind":              "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"db.instance":  "postgres",
+					"peer.service": "userbase",
+				},
+			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "myservice",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"db.instance":            "postgres",
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"peer.service":           "userbase",
+					"span.kind":              "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindClient,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"db.system":     "postgres",
+					"net.peer.name": "remotehost",
+				},
+			}),
+			operationNameV1: "ddtracer.client",
+			operationNameV2: "postgres.query",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "myservice",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"db.system":              "postgres",
+					"net.peer.name":          "remotehost",
+					"span.kind":              "client",
+				},
+				Type:    "db",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindClient,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"rpc.service":   "GetInstance",
+					"net.peer.name": "remotehost",
+				},
+			}),
+			operationNameV1: "ddtracer.client",
+			operationNameV2: "client.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "myservice",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"rpc.service":            "GetInstance",
+					"net.peer.name":          "remotehost",
+					"span.kind":              "client",
+				},
+				Type:    "http",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"net.peer.name": "remotehost",
+				},
+			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "myservice",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                    "prod",
+					"deployment.environment": "prod",
+					"otel.trace_id":          "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":       "Unset",
+					"otel.library.name":      "ddtracer",
+					"otel.library.version":   "v2",
+					"service.version":        "v1.2.3",
+					"version":                "v1.2.3",
+					"net.peer.name":          "remotehost",
+					"span.kind":              "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"aws.dynamodb.table_names": "my-table",
+				},
+			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "myservice",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                      "prod",
+					"deployment.environment":   "prod",
+					"otel.trace_id":            "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":         "Unset",
+					"otel.library.name":        "ddtracer",
+					"otel.library.version":     "v2",
+					"service.version":          "v1.2.3",
+					"version":                  "v1.2.3",
+					"aws.dynamodb.table_names": "my-table",
+					"span.kind":                "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+		{
+			rattr: map[string]string{
+				"service.version":        "v1.2.3",
+				"service.name":           "myservice",
+				"deployment.environment": "prod",
+			},
+			libname: "ddtracer",
+			libver:  "v2",
+			in: testutil.NewOTLPSpan(&testutil.OTLPSpan{
+				TraceID: otlpTestTraceID,
+				SpanID:  otlpTestSpanID,
+				Name:    "/path",
+				Kind:    ptrace.SpanKindServer,
+				Start:   now,
+				End:     now + 200000000,
+				Attributes: map[string]interface{}{
+					"faas.document.collection": "my-s3-bucket",
+				},
+			}),
+			operationNameV1: "ddtracer.server",
+			operationNameV2: "server.request",
+			resourceNameV1:  "/path",
+			resourceNameV2:  "/path",
+			out: &pb.Span{
+				Service:  "myservice",
+				TraceID:  2594128270069917171,
+				SpanID:   2594128270069917171,
+				ParentID: 0,
+				Start:    int64(now),
+				Duration: 200000000,
+				Meta: map[string]string{
+					"env":                      "prod",
+					"deployment.environment":   "prod",
+					"otel.trace_id":            "72df520af2bde7a5240031ead750e5f3",
+					"otel.status_code":         "Unset",
+					"otel.library.name":        "ddtracer",
+					"otel.library.version":     "v2",
+					"service.version":          "v1.2.3",
+					"version":                  "v1.2.3",
+					"faas.document.collection": "my-s3-bucket",
+					"span.kind":                "server",
+				},
+				Type:    "web",
+				Metrics: map[string]float64{},
+			},
+		},
+	} {
+		t.Run("", func(t *testing.T) {
+			lib := pcommon.NewInstrumentationScope()
+			lib.SetName(tt.libname)
+			lib.SetVersion(tt.libver)
+			assert := assert.New(t)
+			res := pcommon.NewResource()
+			for k, v := range tt.rattr {
+				res.Attributes().PutStr(k, v)
+			}
+			got := transform.OtelSpanToDDSpan(tt.in, res, lib, o.conf)
+			want := tt.out
+			if enableOperationAndResourceNameV2 {
+				want.Name = tt.operationNameV2
+				want.Resource = tt.resourceNameV2
+			} else {
+				want.Name = tt.operationNameV1
+				want.Resource = tt.resourceNameV1
+			}
+			assert.Equal(want, got, i)
 		})
 	}
 }
@@ -2011,15 +3965,29 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 // TestResourceAttributesMap is a regression test ensuring that the resource attributes map
 // passed to convertSpan is not modified by it.
 func TestResourceAttributesMap(t *testing.T) {
+	t.Run("ReceiveResourceSpansV1", func(t *testing.T) {
+		testResourceAttributesMap(false, t)
+	})
+
+	t.Run("ReceiveResourceSpansV2", func(t *testing.T) {
+		testResourceAttributesMap(true, t)
+	})
+}
+
+func testResourceAttributesMap(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	rattr := map[string]string{"key": "val"}
 	lib := pcommon.NewInstrumentationScope()
 	span := testutil.NewOTLPSpan(&testutil.OTLPSpan{})
-	NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{}).convertSpan(rattr, lib, span)
+	cfg := NewTestConfig(t)
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
+	NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).convertSpan(rattr, lib, span)
 	assert.Len(t, rattr, 1) // ensure "rattr" has no new entries
 	assert.Equal(t, "val", rattr["key"])
 }
 
-func makeEventsSlice(name string, attrs map[string]string, timestamp int, dropped uint32) ptrace.SpanEventSlice {
+func makeEventsSlice(name string, attrs map[string]any, timestamp int, dropped uint32) ptrace.SpanEventSlice {
 	s := ptrace.NewSpanEventSlice()
 	e := s.AppendEmpty()
 	e.SetName(name)
@@ -2031,7 +3999,17 @@ func makeEventsSlice(name string, attrs map[string]string, timestamp int, droppe
 	for _, k := range keys {
 		_, ok := e.Attributes().Get(k)
 		if !ok {
-			e.Attributes().PutStr(k, attrs[k])
+			switch attrs[k].(type) {
+			case []any:
+				s := e.Attributes().PutEmptySlice(k)
+				if v, ok := attrs[k].([]any); ok {
+					s.FromRaw(v)
+				}
+			default:
+				if v, ok := attrs[k].(string); ok {
+					e.Attributes().PutStr(k, v)
+				}
+			}
 		}
 	}
 	e.SetTimestamp(pcommon.Timestamp(timestamp))
@@ -2045,7 +4023,7 @@ func TestMarshalEvents(t *testing.T) {
 		out string
 	}{
 		{
-			in: makeEventsSlice("", map[string]string{
+			in: makeEventsSlice("", map[string]any{
 				"message": "OOM",
 			}, 0, 3),
 			out: `[{
@@ -2056,7 +4034,7 @@ func TestMarshalEvents(t *testing.T) {
 			in:  makeEventsSlice("boom", nil, 0, 0),
 			out: `[{"name":"boom"}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message": "OOM",
 			}, 0, 3),
 			out: `[{
@@ -2065,7 +4043,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":3
 				}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message": "OOM",
 			}, 123, 2),
 			out: `[{
@@ -2078,7 +4056,7 @@ func TestMarshalEvents(t *testing.T) {
 			in:  makeEventsSlice("", nil, 0, 2),
 			out: `[{"dropped_attributes_count":2}]`,
 		}, {
-			in: makeEventsSlice("", map[string]string{
+			in: makeEventsSlice("", map[string]any{
 				"message":  "OOM",
 				"accuracy": "2.40",
 			}, 123, 2),
@@ -2091,7 +4069,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message":  "OOM",
 				"accuracy": "2.40",
 			}, 123, 0),
@@ -2111,7 +4089,7 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: makeEventsSlice("boom", map[string]string{
+			in: makeEventsSlice("boom", map[string]any{
 				"message":  "OOM",
 				"accuracy": "2.4",
 			}, 123, 2),
@@ -2126,11 +4104,11 @@ func TestMarshalEvents(t *testing.T) {
 				}]`,
 		}, {
 			in: (func() ptrace.SpanEventSlice {
-				e1 := makeEventsSlice("boom", map[string]string{
+				e1 := makeEventsSlice("boom", map[string]any{
 					"message":  "OOM",
 					"accuracy": "2.4",
 				}, 123, 2)
-				e2 := makeEventsSlice("exception", map[string]string{
+				e2 := makeEventsSlice("exception", map[string]any{
 					"exception.message":    "OOM",
 					"exception.stacktrace": "1/2/3",
 					"exception.type":       "mem",
@@ -2158,8 +4136,39 @@ func TestMarshalEvents(t *testing.T) {
 				}]`,
 		},
 	} {
-		assert.Equal(t, trimSpaces(tt.out), marshalEvents(tt.in))
+		assert.Equal(t, trimSpaces(tt.out), transform.MarshalEvents(tt.in))
 	}
+}
+
+func TestMarshalJSONUnsafeEvents(t *testing.T) {
+	name := `something:"nested"`
+	key := `abc\def\`
+	val := []any{`test\"1\`, `/test2\\`}
+
+	events := makeEventsSlice(name, map[string]any{
+		key: val,
+	}, 0, 3)
+
+	jsonName, err := json.Marshal(name)
+	if err != nil {
+		t.Fatal("Failure parsing name")
+	}
+	jsonKey, err := json.Marshal(key)
+	if err != nil {
+		t.Fatal("Failure parsing key")
+	}
+	jsonVal, err := json.Marshal(val)
+	if err != nil {
+		t.Fatal("Failure parsing val")
+	}
+
+	out := fmt.Sprintf(`[{
+				"name": %v,
+				"attributes": {%v: %v},
+				"dropped_attributes_count":3
+			}]`, string(jsonName), string(jsonKey), string(jsonVal))
+
+	assert.Equal(t, trimSpaces(out), transform.MarshalEvents(events))
 }
 
 func trimSpaces(str string) string {
@@ -2239,14 +4248,14 @@ func TestMarshalSpanLinks(t *testing.T) {
 			out: `[{
 					"trace_id":    "fedcba98765432100123456789abcdef",
 					"span_id":     "abcdef0123456789",
-					"trace_state": "dd=asdf256"
+					"tracestate": "dd=asdf256"
 				}]`,
 		}, {
 			in: makeSpanLinkSlice(t, "fedcba98765432100123456789abcdef", "abcdef0123456789", "dd=asdf256", map[string]string{"k1": "v1"}, 0),
 			out: `[{
 					"trace_id":    "fedcba98765432100123456789abcdef",
 					"span_id":     "abcdef0123456789",
-					"trace_state": "dd=asdf256",
+					"tracestate": "dd=asdf256",
 					"attributes":  {"k1": "v1"}
 				}]`,
 		}, {
@@ -2254,7 +4263,7 @@ func TestMarshalSpanLinks(t *testing.T) {
 			out: `[{
 					"trace_id":                 "fedcba98765432100123456789abcdef",
 					"span_id":                  "abcdef0123456789",
-					"trace_state":              "dd=asdf256",
+					"tracestate":              "dd=asdf256",
 					"dropped_attributes_count": 42
 				}]`,
 		}, {
@@ -2262,7 +4271,7 @@ func TestMarshalSpanLinks(t *testing.T) {
 			out: `[{
 					"trace_id":                 "fedcba98765432100123456789abcdef",
 					"span_id":                  "abcdef0123456789",
-					"trace_state":              "dd=asdf256",
+					"tracestate":              "dd=asdf256",
 					"attributes":               {"k1": "v1"},
 					"dropped_attributes_count": 42
 				}]`,
@@ -2296,7 +4305,7 @@ func TestMarshalSpanLinks(t *testing.T) {
 			out: `[{
 					"trace_id":                 "fedcba98765432100123456789abcdef",
 					"span_id":                  "abcdef0123456789",
-					"trace_state":              "dd=asdf256,ee=jkl;128",
+					"tracestate":              "dd=asdf256,ee=jkl;128",
 					"attributes":               {"k1": "v1", "k2": "v2"},
 					"dropped_attributes_count": 57
 				}]`,
@@ -2311,7 +4320,7 @@ func TestMarshalSpanLinks(t *testing.T) {
 			out: `[{
 					"trace_id":                 "fedcba98765432100123456789abcdef",
 					"span_id":                  "0123456789abcdef",
-					"trace_state":              "dd=asdf256,ee=jkl;128",
+					"tracestate":              "dd=asdf256,ee=jkl;128",
 					"attributes":               {"k1": "v1"},
 					"dropped_attributes_count": 611187
 			       }, {
@@ -2321,7 +4330,7 @@ func TestMarshalSpanLinks(t *testing.T) {
 			       }]`,
 		},
 	} {
-		assert.Equal(t, trimSpaces(tt.out), marshalLinks(tt.in))
+		assert.Equal(t, trimSpaces(tt.out), transform.MarshalLinks(tt.in))
 	}
 }
 
@@ -2419,7 +4428,15 @@ func generateTraceRequest(traceCount int, spanCount int, attrCount int, attrLeng
 	return testutil.NewOTLPTracesRequest(traces)
 }
 
-func BenchmarkProcessRequest(b *testing.B) {
+func BenchmarkProcessRequestV1(b *testing.B) {
+	benchmarkProcessRequest(false, b)
+}
+
+func BenchmarkProcessRequestV2(b *testing.B) {
+	benchmarkProcessRequest(true, b)
+}
+
+func benchmarkProcessRequest(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	largeTraces := generateTraceRequest(10, 100, 100, 100)
 	metadata := http.Header(map[string][]string{
 		header.Lang:        {"go"},
@@ -2440,6 +4457,9 @@ func BenchmarkProcessRequest(b *testing.B) {
 	}()
 
 	cfg := NewBenchmarkTestConfig(b)
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -2451,7 +4471,15 @@ func BenchmarkProcessRequest(b *testing.B) {
 	<-end
 }
 
-func BenchmarkProcessRequestTopLevel(b *testing.B) {
+func BenchmarkProcessRequestTopLevelV1(b *testing.B) {
+	benchmarkProcessRequestTopLevel(false, b)
+}
+
+func BenchmarkProcessRequestTopLevelV2(b *testing.B) {
+	benchmarkProcessRequestTopLevel(true, b)
+}
+
+func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	largeTraces := generateTraceRequest(10, 100, 100, 100)
 	metadata := http.Header(map[string][]string{
 		header.Lang:        {"go"},
@@ -2472,6 +4500,9 @@ func BenchmarkProcessRequestTopLevel(b *testing.B) {
 	}()
 
 	cfg := NewBenchmarkTestConfig(b)
+	if !enableReceiveResourceSpansV2 {
+		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
+	}
 	cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
 	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 

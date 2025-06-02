@@ -3,12 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// ---------------------------------------------------
-//
-// This is experimental code and is subject to change.
-//
-// ---------------------------------------------------
-
 package agenttelemetryimpl
 
 import (
@@ -28,11 +22,14 @@ const (
 
 // Config is the top-level config for agent telemetry
 type Config struct {
-	Enabled  bool      `yaml:"enabled"`
-	Profiles []Profile `yaml:"profiles"`
+	Enabled  bool       `yaml:"enabled"`
+	Profiles []*Profile `yaml:"profiles"`
 
-	// compiled
+	// config-wide and "compiled" fields
 	schedule map[Schedule][]*Profile
+	events   map[string]*Event
+
+	StartupTraceSampling float64 `yaml:"startup_trace_sampling"`
 }
 
 // Profile is a single agent telemetry profile
@@ -40,14 +37,13 @@ type Profile struct {
 	// parsed
 	Name     string             `yaml:"name"`
 	Metric   *AgentMetricConfig `yaml:"metric,omitempty"`
-	Status   *AgentStatusConfig `yaml:"status"`
-	Schedule *Schedule          `yaml:"schedule"`
+	Schedule *Schedule          `yaml:"schedule,omitempty"`
+	Events   []*Event           `yaml:"events"`
 
 	// compiled
-	statusExtraBuilder []jBuilder
-	metricsMap         map[string]*MetricConfig
-	excludeZeroMetric  bool
-	excludeTagsMap     map[string]any
+	metricsMap        map[string]*MetricConfig
+	excludeZeroMetric bool
+	excludeTagsMap    map[string]any
 }
 
 // AgentMetricConfig specifies agent telemetry metrics payloads to be generated and emitted
@@ -73,18 +69,20 @@ type MetricConfig struct {
 	aggregateTagsMap    map[string]any
 }
 
-// AgentStatusConfig is a single agent telemetry status payload
-type AgentStatusConfig struct {
-	Template string            `yaml:"template"`
-	Extra    map[string]string `yaml:"extra,omitempty"`
-}
-
 // Schedule is a schedule for agent telemetry payloads to be generated and emitted
 type Schedule struct {
 	// parsed
 	StartAfter uint `yaml:"start_after"`
 	Iterations uint `yaml:"iterations"`
 	Period     uint `yaml:"period"`
+}
+
+// Event is a payload sent by Agent Telemetry component client
+type Event struct {
+	Name        string `yaml:"name"`         // required
+	RequestType string `yaml:"request_type"` // required
+	PayloadKey  string `yaml:"payload_key"`  // required
+	Message     string `yaml:"message"`      // required
 }
 
 // profiles[].metric.metrics (optional)
@@ -109,8 +107,10 @@ type Schedule struct {
 //
 // profiles[].metric.metrics[].name (required)
 // -------------------------------------------
-// Metric's full name typically in the form of "<metric group>.<metric name>".
-// It is required parameter to avoid emitting all available metrics unintentionally.
+// The full metric name is formatted as "<metric group>.<metric name>". In telemetry.NewGauge()
+// and similar APIs, "metric group" corresponds to the "subsystem" parameter, and "metric name"
+// corresponds to the "name" parameter. Do not use the "Options.NoDoubleUnderscoreSep" option
+// in these APIs, as it is not supported in agent telemetry.
 //
 // profiles[].metric.metrics[].aggregate_tags (optional)
 // -----------------------------------------------------
@@ -135,70 +135,13 @@ type Schedule struct {
 // reserved tag"). If not specified, specified, default value of `false` will be used.
 // It is useful only if "aggregate_tags" is also specified and will be ignored otherwise.
 //
-// profiles[].status (optional)
-// --------------------------------
-// When included, agent telemetry status payloads will be generated and emitted.
-//
-// profiles[].status.template (optional)
-// --------------------------------------
-// Name of agent status JSON rendering template which generates agent telemetry status
-// payload. Used as a suffix to
-//   "pkg\status\render\templates\agent-telemetry-<template name>.tmpl" file path. Currently
-// two templates ("basic" and "none") are supported. When "none" template is used for a
-// profile, agent telemetry status payload will not be generated for that profile (unless
-// "extra" configuration is specified).
-//
-// profiles[].status.extra (optional)
-// ----------------------------------
-// Map of extra telemetry JSON objects/attributes selected or calculated from the main Agent
-// Status JSON object. Each map entry specifies a single JSON object and its single
-// attribute to be added to the agent status telemetry payload.
-//
-//    key - "." separated elements specifying "target" JSON path to the additional JSON object
-//      to be added to the agent status telemetry payload. The rightmost component is the
-//      object's attribute name.
-//
-//    value - JQ expression to be applied to the full agent status JSON to compute a value for
-//      for the specified in the key agent telemetry status JSON attribute. For privacy and
-//      security reasons, claculated value can  only be int, float or bool. Strings will be
-//      allowed as exceptions provided they had been approved.
-//
-//       Example. If agent status JSON is ...
-//           {
-//             "runnerStats": {
-//               "Workers": {
-//                 "Count": 2,
-//                 "Instances": {
-//                   "worker_1": {
-//                     "Utilization": 0.05
-//                   },
-//                   "worker_2": {
-//                     "Utilization": 0.17
-//                   }
-//                 }
-//               }
-//             }
-//           }
-//
-//       ... with "extra" like this ...
-//           ...
-//           extra:
-//             workers.count: '.runnerStats.Workers.Count'
-//             workers.utilization: '[.runnerStats.Workers | .. | objects | .Utilization] | add'
-//
-//       ... the following JSON object will be added to the agent telemetry statys payload ...
-//           "workers": {
-//             "count": 2,
-//             "utilization": 0.22
-//           }
-//
 // profiles[].schedule (optional)
 // --------------------------------
 // Specified when agent telemetry payloads to be generated and emitted. If not specified,
 // configured payloads willbe generated and emitted on the following schedule (the details
 // are described in the comments below.
 //
-//    (legend - 300s=5m, 900s=15m, 1800s=30m, 3600s=1h, 86400s=1d)
+//    (legend - 300s=5m, 900s=15m, 1800s=30m, 3600s=1h, 14400s=4h, 86400s=1d)
 //
 //        schedule:
 //          start_after: 30
@@ -219,6 +162,26 @@ type Schedule struct {
 // -------------------------------------
 // Number of seconds to wait between telemetry collection iteration for the profile. If not
 // specified, default values are specified above.
+//
+// profiles[].events (optional)
+// -------------------------------------
+// List of registered events an agent telemetry client can send
+//
+// profiles[].events[].name (required)
+// -------------------------------------
+// The name of the event to find corresponding request_type, payload_key and message values
+//
+// profiles[].events[].request_type (required)
+// -------------------------------------
+// The value is required and used in the corresponding payload to identify the event
+//
+// profiles[].events[].payload_key (required)
+// -------------------------------------
+// The value is required and used in the corresponding payload as a root of the event payload
+//
+// profiles[].events[].message (required)
+// -------------------------------------
+// The value is required and used in the corresponding payload
 
 // ----------------------------------------------------------------------------------
 //
@@ -226,67 +189,106 @@ type Schedule struct {
 // Note: If "aggregate_tags" are not specified, metric will be aggregated without any tags.
 var defaultProfiles = `
   profiles:
-  - name: core-metrics
+  - name: checks
     metric:
-      exclude:
-        zero_metric: true
-        tags:
-          - check_name:cpu
-          - check_name:memory
-          - check_name:uptime
-          - check_name:network
-          - check_name:io
-          - check_name:file_handle
       metrics:
-        - name: checks.runs
-          aggregate_tags:
-            - check_name
-            - state
         - name: checks.execution_time
           aggregate_tags:
             - check_name
-        - name: checks.warnings
-          aggregate_tags:
-            - check_name
-        - name: logs.decoded
-        - name: logs.processed
-        - name: logs.sent
-        - name: logs.network_errors
-        - name: logs.dropped
-        - name: logs.sender_latency
-        - name: logs.destination_http_resp
-          aggregate_tags:
-            - status_code
-        - name: oracle.activity_samples_count
-        - name: oracle.activity_latency
-        - name: oracle.statement_metrics
-        - name: oracle.statement_plan_errors
-        - name: transactions.input_count
-        - name: transactions.requeued
-        - name: transactions.retries
-        - name: dogstatsd.udp_packets
-          aggregate_tags:
-            - state
-        - name: dogstatsd.uds_packets
-          aggregate_tags:
-            - transport
-            - state
-        - name: dogstatsd.uds_origin_detection_error
-          aggregate_tags:
-            - transport
-        - name: dogstatsd.uds_connections
-          aggregate_tags:
-            - transport
+            - check_loader
+        - name: pymem.inuse
     schedule:
       start_after: 30
       iterations: 0
       period: 900
-  - name: core-status
-    status:
-      template: basic
-      extra:
-        runner.workers.count: '.runnerStats.Workers.Count'
-        runner.workers.utilization: '[.runnerStats.Workers | .. | objects | .Utilization] | add'
+  - name: logs-and-metrics
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: dogstatsd.udp_packets_bytes
+        - name: dogstatsd.uds_packets_bytes
+        - name: logs.bytes_missed
+        - name: logs.bytes_sent
+        - name: logs.decoded
+        - name: logs.dropped
+        - name: logs.encoded_bytes_sent
+          aggregate_tags:
+            - compression_kind
+        - name: logs.sender_latency
+        - name: logs.auto_multi_line_aggregator_flush
+          aggregate_tags:
+            - truncated
+            - line_type
+        - name: logs_destination.destination_workers
+        - name: point.sent
+        - name: point.dropped
+        - name: transactions.input_count
+        - name: transactions.requeued
+        - name: transactions.retries
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: database
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: oracle.activity_samples_count
+        - name: oracle.activity_latency
+        - name: oracle.statement_metrics
+        - name: oracle.statement_plan_errors
+        - name: postgres.collect_activity_snapshot_ms
+        - name: postgres.collect_relations_autodiscovery_ms
+        - name: postgres.collect_statement_samples_ms
+        - name: postgres.collect_statement_samples_count
+        - name: postgres.collect_stat_autodiscovery_ms
+        - name: postgres.get_active_connections_ms
+        - name: postgres.get_active_connections_count
+        - name: postgres.get_new_pg_stat_activity_count
+        - name: postgres.get_new_pg_stat_activity_ms
+        - name: postgres.schema_tables_elapsed_ms
+        - name: postgres.schema_tables_count
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
+  - name: api
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: api_server.request_duration_seconds
+          aggregate_tags:
+            - servername
+            - status_code
+            - method
+            - path
+            - auth
+    schedule:
+      start_after: 600
+      iterations: 0
+      period: 14400
+  - name: ondemand
+    events:
+      - name: agentbsod
+        request_type: agent-bsod
+        payload_key: agent_bsod
+        message: 'Agent BSOD'
+  - name: status
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: status.dce_render_errors
+          aggregate_tags:
+            - kind
+            - template_name
+  - name: service-discovery
+    metric:
+      metrics:
+        - name: service_discovery.discovered_services
     schedule:
       start_after: 30
       iterations: 0
@@ -348,7 +350,9 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 		return fmt.Errorf("profile '%s' 'metrics[].name' '(%s)' attribute should have two elements separated by '.'", p.Name, m.Name)
 	}
 
-	// Convert Datadog metric name to Prometheus metric name (used for quick(er) matching)
+	// Converts a Datadog metric name to a Prometheus metric name for quicker matching. Prometheus metrics
+	// (from the "telemetry" package) must be declared without setting Options.NoDoubleUnderscoreSep to true,
+	// ensuring the full metric name includes double underscores ("__"); otherwise, matching will fail.
 	promName := fmt.Sprintf("%s__%s", names[0], names[1])
 	p.metricsMap[promName] = m
 
@@ -366,65 +370,35 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	return nil
 }
 
-// Compile metric section
-func compileMetrics(p *Profile) error {
-	// No metric section - nothing to do
-	if p.Metric == nil || len(p.Metric.Metrics) == 0 {
-		return nil
-	}
-
-	if err := compileMetricsExclude(p); err != nil {
-		return err
-	}
-
-	// Compile metrics themselves
-	p.metricsMap = make(map[string]*MetricConfig)
-	for i := 0; i < len(p.Metric.Metrics); i++ {
-		if err := compileMetric(p, &p.Metric.Metrics[i]); err != nil {
-			return err
+// Validate profiles
+func validateProfiles(cfg *Config) error {
+	for i, p := range cfg.Profiles {
+		if len(p.Name) == 0 {
+			return fmt.Errorf("profile requires 'name' attribute to be specified. Profile index: %d", i)
 		}
 	}
 
 	return nil
 }
 
-// Compile status section
-func compileStatus(p *Profile) error {
-	// No status section - nothing to do
-	if p.Status == nil {
-		return nil
-	}
+func compileMetrics(cfg *Config) error {
+	for _, p := range cfg.Profiles {
+		// No metric section - nothing to do
+		if p.Metric == nil || len(p.Metric.Metrics) == 0 {
+			continue
+		}
 
-	// Validate template (optional with default "basic". "none" is also supported)
-	if len(p.Status.Template) == 0 {
-		p.Status.Template = "basic"
-	} else if p.Status.Template != "basic" && p.Status.Template != "none" {
-		return fmt.Errorf("profile '%s' template attribute can have 'basic' or 'none' value but %s is provided", p.Name, p.Status.Template)
-	}
+		if err := compileMetricsExclude(p); err != nil {
+			return err
+		}
 
-	// Compile status extra
-	var err error
-	p.statusExtraBuilder, err = compileJBuilders(p.Status.Extra)
-	if err != nil {
-		return fmt.Errorf("failed to compile 'extra' attribute for profile '%s'. Error: %w", p.Name, err)
-	}
-
-	return nil
-}
-
-// Compile profile
-func compileProfile(p *Profile) error {
-	// Profile requires name
-	if len(p.Name) == 0 {
-		return fmt.Errorf("profile requires 'name' attribute to be specified")
-	}
-
-	if err := compileMetrics(p); err != nil {
-		return err
-	}
-
-	if err := compileStatus(p); err != nil {
-		return err
+		// Compile metrics themselves
+		p.metricsMap = make(map[string]*MetricConfig)
+		for i := 0; i < len(p.Metric.Metrics); i++ {
+			if err := compileMetric(p, &p.Metric.Metrics[i]); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -435,7 +409,12 @@ func compileSchedules(cfg *Config) error {
 	cfg.schedule = make(map[Schedule][]*Profile)
 
 	for i := 0; i < len(cfg.Profiles); i++ {
-		p := &cfg.Profiles[i]
+		p := cfg.Profiles[i]
+
+		// No metric section - schedule is not needed
+		if p.Metric == nil || len(p.Metric.Metrics) == 0 {
+			continue
+		}
 
 		// Setup default schedule if it is not specified partially or at all
 		if p.Schedule == nil {
@@ -469,16 +448,34 @@ func compileSchedules(cfg *Config) error {
 	return nil
 }
 
-// Compile agent telemetry config
-func compileConfig(cfg *Config) error {
-	for i := 0; i < len(cfg.Profiles); i++ {
-		err := compileProfile(&cfg.Profiles[i])
-		if err != nil {
-			return err
+func compileEvents(cfg *Config) error {
+	cfg.events = make(map[string]*Event)
+	for _, p := range cfg.Profiles {
+		if p.Events != nil {
+			for _, e := range p.Events {
+				cfg.events[e.Name] = e
+			}
 		}
 	}
 
+	return nil
+}
+
+// Compile agent telemetry config
+func compileConfig(cfg *Config) error {
+	if err := validateProfiles(cfg); err != nil {
+		return err
+	}
+
+	if err := compileMetrics(cfg); err != nil {
+		return err
+	}
+
 	if err := compileSchedules(cfg); err != nil {
+		return err
+	}
+
+	if err := compileEvents(cfg); err != nil {
 		return err
 	}
 

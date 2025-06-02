@@ -64,6 +64,8 @@ int __attribute__((always_inline)) sys_chown_ret(void *ctx, int retval) {
         return 0;
     }
 
+    set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
+
     struct chown_event_t event = {
         .syscall.retval = retval,
         .syscall_ctx.id = syscall->ctx_id,
@@ -118,8 +120,7 @@ HOOK_SYSCALL_EXIT(fchownat) {
     return sys_chown_ret(ctx, retval);
 }
 
-SEC("tracepoint/handle_sys_chown_exit")
-int tracepoint_handle_sys_chown_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_chown_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_chown_ret(args, args->ret);
 }
 

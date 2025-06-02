@@ -49,7 +49,7 @@ func TestPullWithTaskCollectionEnabledWithV4Parser(t *testing.T) {
 		require.Equal(t, workloadmeta.SourceRuntime, event.Source)
 		switch entity := event.Entity.(type) {
 		case *workloadmeta.ECSTask:
-			require.Equal(t, 123457279990, entity.AWSAccountID)
+			require.Equal(t, "123457279990", entity.AWSAccountID)
 			require.Equal(t, "us-east-1", entity.Region)
 			require.Equal(t, "ecs-cluster", entity.ClusterName)
 			require.Equal(t, "RUNNING", entity.DesiredStatus)
@@ -60,6 +60,7 @@ func TestPullWithTaskCollectionEnabledWithV4Parser(t *testing.T) {
 		case *workloadmeta.Container:
 			require.Equal(t, "RUNNING", entity.KnownStatus)
 			require.Equal(t, "awslogs", entity.LogDriver)
+			require.Equal(t, 42, entity.RestartCount)
 			require.Len(t, entity.Networks, 1)
 			require.Equal(t, "awsvpc", entity.Networks[0].NetworkMode)
 			if entity.Image.Name == "public.ecr.aws/datadog/agent" {

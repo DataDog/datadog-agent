@@ -12,23 +12,12 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
@@ -38,44 +27,24 @@ func Module() fxutil.Module {
 }
 
 type apiServer struct {
-	dogstatsdServer   dogstatsdServer.Component
-	capture           replay.Component
-	pidMap            pidmap.Component
-	secretResolver    secrets.Component
-	rcService         optional.Option[rcservice.Component]
-	rcServiceMRF      optional.Option[rcservicemrf.Component]
-	authToken         authtoken.Component
-	taggerComp        tagger.Component
-	autoConfig        autodiscovery.Component
-	logsAgentComp     optional.Option[logsAgent.Component]
-	wmeta             workloadmeta.Component
-	collector         optional.Option[collector.Component]
-	senderManager     diagnosesendermanager.Component
+	cfg               config.Component
+	ipc               ipc.Component
 	cmdListener       net.Listener
 	ipcListener       net.Listener
 	telemetry         telemetry.Component
 	endpointProviders []api.EndpointProvider
+	grpcComponent     grpc.Component
 }
 
 type dependencies struct {
 	fx.In
 
-	Lc                    fx.Lifecycle
-	DogstatsdServer       dogstatsdServer.Component
-	Capture               replay.Component
-	PidMap                pidmap.Component
-	SecretResolver        secrets.Component
-	RcService             optional.Option[rcservice.Component]
-	RcServiceMRF          optional.Option[rcservicemrf.Component]
-	AuthToken             authtoken.Component
-	Tagger                tagger.Component
-	AutoConfig            autodiscovery.Component
-	LogsAgentComp         optional.Option[logsAgent.Component]
-	WorkloadMeta          workloadmeta.Component
-	Collector             optional.Option[collector.Component]
-	DiagnoseSenderManager diagnosesendermanager.Component
-	Telemetry             telemetry.Component
-	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
+	Lc                fx.Lifecycle
+	IPC               ipc.Component
+	Cfg               config.Component
+	Telemetry         telemetry.Component
+	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
+	GrpcComponent     grpc.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -83,21 +52,11 @@ var _ api.Component = (*apiServer)(nil)
 func newAPIServer(deps dependencies) api.Component {
 
 	server := apiServer{
-		dogstatsdServer:   deps.DogstatsdServer,
-		capture:           deps.Capture,
-		pidMap:            deps.PidMap,
-		secretResolver:    deps.SecretResolver,
-		rcService:         deps.RcService,
-		rcServiceMRF:      deps.RcServiceMRF,
-		authToken:         deps.AuthToken,
-		taggerComp:        deps.Tagger,
-		autoConfig:        deps.AutoConfig,
-		logsAgentComp:     deps.LogsAgentComp,
-		wmeta:             deps.WorkloadMeta,
-		collector:         deps.Collector,
-		senderManager:     deps.DiagnoseSenderManager,
+		ipc:               deps.IPC,
+		cfg:               deps.Cfg,
 		telemetry:         deps.Telemetry,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
+		grpcComponent:     deps.GrpcComponent,
 	}
 
 	deps.Lc.Append(fx.Hook{

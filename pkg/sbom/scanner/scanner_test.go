@@ -11,7 +11,6 @@ package scanner
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -21,11 +20,12 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	"github.com/stretchr/testify/assert"
@@ -105,6 +105,8 @@ func TestRetryLogic_Error(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+
 			// Create a mock collector
 			collName := "mock"
 			mockCollector := collectors.NewMockCollector()
@@ -120,13 +122,12 @@ func TestRetryLogic_Error(t *testing.T) {
 			mockCollector.On("Type").Return(tt.st)
 
 			// Set up the configuration as the default one is too slow
-			cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 			cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 			// Create a scanner and start it
-			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
+			scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 			ctx, cancel := context.WithCancel(context.Background())
 			scanner.Start(ctx)
 
@@ -155,6 +156,8 @@ func TestRetryLogic_Error(t *testing.T) {
 }
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {
+	cfg := configmock.New(t)
+
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -185,13 +188,12 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 
 	// Set up the configuration as the default one is too slow
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 	// Create a scanner and start it
-	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
+	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 	ctx, cancel := context.WithCancel(context.Background())
 	scanner.Start(ctx)
 
@@ -221,6 +223,7 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 
 // Test retry handling in case of an error when sending the result to a full channel
 func TestRetryChannelFull(t *testing.T) {
+	cfg := configmock.New(t)
 	// Create a workload meta global store
 	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -250,13 +253,12 @@ func TestRetryChannelFull(t *testing.T) {
 	mockCollector.On("Type").Return(collectors.ContainerImageScanType)
 
 	// Set up the configuration
-	cfg := model.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	cfg.Set("sbom.scan_queue.base_backoff", "200ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.scan_queue.max_backoff", "600ms", model.SourceAgentRuntime)
 	cfg.Set("sbom.cache.clean_interval", "10s", model.SourceAgentRuntime) // Required for the ticker
 
 	// Create a scanner and start it
-	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, optional.NewOption[workloadmeta.Component](workloadmetaStore))
+	scanner := NewScanner(cfg, map[string]collectors.Collector{collName: mockCollector}, option.New[workloadmeta.Component](workloadmetaStore))
 	ctx, cancel := context.WithCancel(context.Background())
 	scanner.Start(ctx)
 

@@ -7,4 +7,4 @@
 
 package listeners
 
-var NewKubeletListener noopServiceListenerFactory
+var NewKubeletListener func(ServiceListernerDeps) (ServiceListener, error)

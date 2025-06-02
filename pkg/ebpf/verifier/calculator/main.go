@@ -18,6 +18,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
+	"slices"
 	"strings"
 
 	"github.com/cilium/ebpf/rlimit"
@@ -41,21 +43,27 @@ func main() {
 	var filterFiles filters
 	var filterPrograms filters
 
-	debug := flag.Bool("debug", false, "Calculate statistics of debug builds")
+	debugMode := flag.Bool("debug", false, "Calculate statistics of debug builds")
 	lineComplexity := flag.Bool("line-complexity", false, "Calculate line complexity, extracting data from the verifier logs")
 	verifierLogsDir := flag.String("verifier-logs", "", "Directory containing verifier logs. If not set, no logs will be saved.")
 	summaryOutput := flag.String("summary-output", "ebpf-calculator/summary.json", "File where JSON with the summary will be written")
 	complexityDataDir := flag.String("complexity-data-dir", "ebpf-calculator/complexity-data", "Directory where the complexity data will be written")
 	flag.Var(&filterFiles, "filter-file", "Files to load ebpf programs from")
 	flag.Var(&filterPrograms, "filter-prog", "Only return statistics for programs matching one of these regex pattern")
+	memoryLimitMb := flag.Int("memory-limit-mb", 0, "Limit the memory usage of the calculator to the given number of megabytes. Set 0 to have no limit.")
 	flag.Parse()
 
 	skipDebugBuilds := func(path string) bool {
 		debugBuild := strings.Contains(path, "-debug")
-		if *debug {
+		if *debugMode {
 			return !debugBuild
 		}
 		return debugBuild
+	}
+
+	if *memoryLimitMb > 0 {
+		log.Printf("Setting memory limit to %d MB", *memoryLimitMb)
+		debug.SetMemoryLimit(int64(*memoryLimitMb * 1024 * 1024))
 	}
 
 	if err := rlimit.RemoveMemlock(); err != nil {
@@ -67,6 +75,17 @@ func main() {
 	if directory == "" {
 		log.Fatalf("DD_SYSTEM_PROBE_BPF_DIR env var not set")
 	}
+	hasAbsPaths := false
+	for _, f := range filterFiles {
+		if filepath.IsAbs(f) {
+			objectFiles[filepath.Base(f)] = f
+			hasAbsPaths = true
+		}
+	}
+	filterFiles = slices.DeleteFunc(filterFiles, func(s string) bool {
+		return filepath.IsAbs(s)
+	})
+
 	if err := filepath.WalkDir(directory, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -79,7 +98,7 @@ func main() {
 			return nil
 		}
 
-		if len(filterFiles) > 0 {
+		if len(filterFiles) > 0 || hasAbsPaths {
 			found := false
 			for _, f := range filterFiles {
 				if d.Name() == f {

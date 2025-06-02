@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package datadog.autodiscovery;
+
+option go_package = "pkg/proto/pbgo/core"; // golang\
+
+enum ConfigEventType {
+  SCHEDULE = 0;
+  UNSCHEDULE = 1;
+}
+
+message KubeNamespacedName {
+  string name = 1;
+  string namespace = 2;
+}
+
+message AdvancedADIdentifier {
+	KubeNamespacedName kubeService   = 1;
+	KubeNamespacedName kubeEndpoints = 2;
+}
+
+message Config {
+  string name = 1;
+  repeated bytes instances = 2;
+  bytes initConfig = 3;
+  bytes metricConfig = 4;
+  bytes logsConfig = 5;
+  repeated string adIdentifiers = 6;
+  repeated AdvancedADIdentifier advancedAdIdentifiers = 7;
+  string provider = 8;
+  string serviceId = 9;
+  string taggerEntity = 10;
+  bool clusterCheck = 11;
+  string nodeName = 12;
+  string source = 13;
+  bool ignoreAutodiscoveryTags = 14;
+  bool metricsExcluded = 15;
+  bool logsExcluded = 16;
+  ConfigEventType eventType = 17;
+}
+
+message AutodiscoveryStreamResponse {
+  repeated Config configs = 1;
+}

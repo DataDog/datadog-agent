@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -43,19 +44,19 @@ func TestValidArgumentAndReturnValue(t *testing.T) {
 
 func TestInvalidArgumentOrReturnValue(t *testing.T) {
 	errOpt := ProvideComponentConstructor(1)
-	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
+	assertErrorWithSourceInfo(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 
 	errOpt = ProvideComponentConstructor(func() {})
-	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
+	assertErrorWithSourceInfo(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 
 	errOpt = ProvideComponentConstructor(func(FirstComp) SecondComp { return &secondImpl{} })
-	assertIsSingleError(t, errOpt, `constructor must either take 0 arguments, or 1 "requires" struct`)
+	assertErrorWithSourceInfo(t, errOpt, `must either take 0 arguments, or 1 "requires" struct`)
 
 	errOpt = ProvideComponentConstructor(func() (FirstComp, SecondComp) { return &firstImpl{}, &secondImpl{} })
-	assertIsSingleError(t, errOpt, "second return value must be error, got fxutil.SecondComp")
+	assertErrorWithSourceInfo(t, errOpt, "second return value must be error, got fxutil.SecondComp")
 
 	errOpt = ProvideComponentConstructor(func(requires1, requires2) FirstComp { return &firstImpl{} })
-	assertIsSingleError(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
+	assertErrorWithSourceInfo(t, errOpt, "argument must be a function with 0 or 1 arguments, and 1 or 2 return values")
 }
 
 func TestGetConstructorTypes(t *testing.T) {
@@ -66,10 +67,10 @@ func TestGetConstructorTypes(t *testing.T) {
 	expect := `struct {}`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In }`
+	expect = `struct { dig.In }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; FirstComp fxutil.FirstComp }`
+	expect = `struct { dig.Out; FirstComp fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 
 	// constructor needs a `requires` struct and returns 1 component interface
@@ -79,10 +80,10 @@ func TestGetConstructorTypes(t *testing.T) {
 	expect = `struct { FirstComp fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In; FirstComp fxutil.FirstComp }`
+	expect = `struct { dig.In; FirstComp fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; SecondComp fxutil.SecondComp }`
+	expect = `struct { dig.Out; SecondComp fxutil.SecondComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 
 	// constructor returns a struct that has 3 total components
@@ -92,10 +93,10 @@ func TestGetConstructorTypes(t *testing.T) {
 	expect = `struct {}`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In }`
+	expect = `struct { dig.In }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; A fxutil.Apple; B fxutil.Banana; C struct { Out dig.Out; E fxutil.Egg } }`
+	expect = `struct { dig.Out; A fxutil.Apple; B fxutil.Banana; C struct { dig.Out; E fxutil.Egg } }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 
 	// constructor needs a `requiresLc` struct and returns 1 component interface
@@ -105,10 +106,10 @@ func TestGetConstructorTypes(t *testing.T) {
 	expect = `fxutil.requiresLc`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In; Lc compdef.Lifecycle }`
+	expect = `struct { dig.In; Lc compdef.Lifecycle }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; SecondComp fxutil.SecondComp }`
+	expect = `struct { dig.Out; SecondComp fxutil.SecondComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 }
 
@@ -122,10 +123,10 @@ func TestConstructCompdefIn(t *testing.T) {
 	}))
 	require.NoError(t, err)
 
-	expect := `struct { In dig.In; Second fxutil.SecondComp }`
+	expect := `struct { dig.In; Second fxutil.SecondComp }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; First fxutil.FirstComp }`
+	expect = `struct { dig.Out; First fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 }
 
@@ -142,10 +143,10 @@ func TestConstructCompdefOut(t *testing.T) {
 	expect := `struct {}`
 	require.Equal(t, expect, ctorTypes.inPlain.String())
 
-	expect = `struct { In dig.In }`
+	expect = `struct { dig.In }`
 	require.Equal(t, expect, ctorTypes.inFx.String())
 
-	expect = `struct { Out dig.Out; First fxutil.FirstComp }`
+	expect = `struct { dig.Out; First fxutil.FirstComp }`
 	require.Equal(t, expect, ctorTypes.outFx.String())
 }
 
@@ -553,14 +554,20 @@ func assertNoCtorError(t *testing.T, arg fx.Option) {
 	}
 }
 
-func assertIsSingleError(t *testing.T, arg fx.Option, errMsg string) {
+func assertErrorWithSourceInfo(t *testing.T, arg fx.Option, errMsgContained string) {
 	t.Helper()
 	app := fx.New(arg)
 	err := app.Err()
 	if err == nil {
 		t.Fatalf("expected an error, instead got %v of type %T", arg, arg)
-	} else if err.Error() != errMsg {
-		t.Fatalf("errror mismatch, expected %v, got %v", errMsg, err.Error())
+	} else if !strings.Contains(err.Error(), errMsgContained) {
+		t.Fatalf(`error mismatch, expected to contain "%v", got "%v"`, errMsgContained, err.Error())
+	}
+	// Assert that the callsite shows up in the error, with source file and line number
+	re := regexp.MustCompile(`pkg/util/fxutil/provide_comp_test.go:\d+:`)
+	match := re.FindString(err.Error())
+	if match == "" {
+		t.Fatalf(`error expected to contain source file and line number, got "%v"`, err.Error())
 	}
 }
 

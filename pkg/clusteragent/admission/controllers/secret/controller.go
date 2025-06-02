@@ -34,19 +34,19 @@ import (
 // Controller is responsible for creating and refreshing the Secret object
 // that contains the certificate of the Admission Webhook.
 type Controller struct {
-	clientSet      kubernetes.Interface
-	secretsLister  corelisters.SecretLister
-	secretsSynced  cache.InformerSynced
-	config         Config
-	dnsNames       []string
-	dnsNamesDigest uint64
-	queue          workqueue.RateLimitingInterface
-	isLeaderFunc   func() bool
-	isLeaderNotif  <-chan struct{}
+	clientSet            kubernetes.Interface
+	secretsLister        corelisters.SecretLister
+	secretsSynced        cache.InformerSynced
+	config               Config
+	dnsNames             []string
+	dnsNamesDigest       uint64
+	queue                workqueue.TypedRateLimitingInterface[string]
+	isLeaderFunc         func() bool
+	leadershipStateNotif <-chan struct{}
 }
 
 // NewController returns a new Secret Controller.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config) *Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config) *Controller {
 	dnsNames := generateDNSNames(config.GetNs(), config.GetSvc())
 	controller := &Controller{
 		clientSet:      client,
@@ -55,9 +55,12 @@ func NewController(client kubernetes.Interface, secretInformer coreinformers.Sec
 		secretsSynced:  secretInformer.Informer().HasSynced,
 		dnsNames:       dnsNames,
 		dnsNamesDigest: digestDNSNames(dnsNames),
-		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "secrets"),
-		isLeaderFunc:   isLeaderFunc,
-		isLeaderNotif:  isLeaderNotif,
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{Name: "secrets"},
+		),
+		isLeaderFunc:         isLeaderFunc,
+		leadershipStateNotif: leadershipStateNotif,
 	}
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.handleObject,
@@ -98,9 +101,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 func (c *Controller) enqueueOnLeaderNotif(stop <-chan struct{}) {
 	for {
 		select {
-		case <-c.isLeaderNotif:
-			log.Infof("Got a leader notification, enqueuing a reconciliation for %s/%s", c.config.GetNs(), c.config.GetName())
-			c.triggerReconciliation()
+		case <-c.leadershipStateNotif:
+			if c.isLeaderFunc() {
+				log.Infof("Got a leader notification, enqueuing a reconciliation for %s/%s", c.config.GetNs(), c.config.GetName())
+				c.triggerReconciliation()
+			}
 		case <-stop:
 			return
 		}
@@ -139,7 +144,7 @@ func (c *Controller) enqueue(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
 		log.Debugf("Couldn't get key for object %v: %v, adding it to the queue with an unnamed key", obj, err)
-		c.queue.Add(struct{}{})
+		c.queue.Add("")
 		return
 	}
 	log.Debugf("Adding object with key %s to the queue", key)
@@ -148,7 +153,7 @@ func (c *Controller) enqueue(obj interface{}) {
 
 // requeue adds an object's key to the work queue for
 // a retry if the rate limiter allows it.
-func (c *Controller) requeue(key interface{}) {
+func (c *Controller) requeue(key string) {
 	c.queue.AddRateLimited(key)
 }
 

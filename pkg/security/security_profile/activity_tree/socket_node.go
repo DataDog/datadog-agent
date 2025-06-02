@@ -9,8 +9,9 @@
 package activitytree
 
 import (
+	"slices"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/exp/slices"
 )
 
 // BindNode is used to store a bind node
@@ -21,6 +22,7 @@ type BindNode struct {
 	GenerationType NodeGenerationType
 	Port           uint16
 	IP             string
+	Protocol       uint16
 }
 
 // SocketNode is used to store a Socket node and associated events
@@ -32,10 +34,10 @@ type SocketNode struct {
 
 // Matches returns true if BindNodes matches
 func (bn *BindNode) Matches(toMatch *BindNode) bool {
-	return bn.Port == toMatch.Port && bn.IP == toMatch.IP
+	return bn.Port == toMatch.Port && bn.IP == toMatch.IP && bn.Protocol == toMatch.Protocol
 }
 
-// Matches returns true if BindNodes matches
+// Matches returns true if SocketNodes matches
 func (sn *SocketNode) Matches(toMatch *SocketNode) bool {
 	return sn.Family == toMatch.Family
 }
@@ -81,7 +83,7 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 	evtIP := evt.Addr.IPNet.IP.String()
 
 	for _, n := range sn.Bind {
-		if evt.Addr.Port == n.Port && evtIP == n.IP {
+		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
 			}
@@ -100,6 +102,7 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 			GenerationType: generationType,
 			Port:           evt.Addr.Port,
 			IP:             evtIP,
+			Protocol:       evt.Protocol,
 		}
 		if imageTag != "" {
 			node.ImageTags = []string{imageTag}

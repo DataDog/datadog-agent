@@ -16,22 +16,25 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 )
 
 // Provider provides the functionality to populate the status output
 type Provider struct {
-	config config.Component
+	config   config.Component
+	hostname hostnameinterface.Component
 }
 
 //go:embed status_templates
 var templatesFS embed.FS
 
 // NewProvider returns a Provider struct
-func NewProvider(conf config.Component) Provider {
+func NewProvider(conf config.Component, hostname hostnameinterface.Component) Provider {
 	return Provider{
-		config: conf,
+		config:   conf,
+		hostname: hostname,
 	}
 }
 
@@ -47,7 +50,7 @@ func (Provider) Index() int {
 
 // JSON populates the status map
 func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(stats, p.config)
+	populateStatus(stats, p.config, p.hostname)
 
 	return nil
 }
@@ -65,18 +68,18 @@ func (Provider) HTML(_ bool, _ io.Writer) error {
 func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	populateStatus(stats, p.config)
+	populateStatus(stats, p.config, p.hostname)
 
 	return stats
 }
 
-func populateStatus(stats map[string]interface{}, config config.Component) {
+func populateStatus(stats map[string]interface{}, config config.Component, hostname hostnameinterface.Component) {
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
 	stats["hostnameStats"] = hostnameStats
 
-	hostMetadata := hostMetadataUtils.GetFromCache(context.TODO(), config)
+	hostMetadata := hostMetadataUtils.GetFromCache(context.TODO(), config, hostname)
 	metadataStats := make(map[string]interface{})
 	hostMetadataBytes, _ := json.Marshal(hostMetadata)
 	json.Unmarshal(hostMetadataBytes, &metadataStats) //nolint:errcheck

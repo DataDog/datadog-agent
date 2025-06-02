@@ -32,7 +32,7 @@ The port is the location in which the otel-agent will expose the data required t
 
 The flare will collect both the provided collector config and the enhanced config (enhanced via [converter](../converter/README.md)). 
 
-The provided collector configs can be found in `otel/otel-flare/customer.cfg` and the enhanced config can be found in `otel/otel-flare/customer.cfg`.
+The provided collector configs can be found in `otel/otel-flare/customer.cfg` and the enhanced config can be found in `otel/otel-flare/runtime.cfg`.
 
 ### Environment variables
 

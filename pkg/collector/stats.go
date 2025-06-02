@@ -6,6 +6,7 @@
 package collector
 
 import (
+	"maps"
 	"sync"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -50,9 +51,7 @@ func (ce *collectorErrors) getLoaderErrors() map[string]map[string]string {
 
 	for check, loaderErrors := range ce.loader {
 		errorsCopy[check] = make(map[string]string)
-		for loader, loaderError := range loaderErrors {
-			errorsCopy[check][loader] = loaderError
-		}
+		maps.Copy(errorsCopy[check], loaderErrors)
 	}
 
 	return errorsCopy
@@ -70,9 +69,7 @@ func (ce *collectorErrors) getRunErrors() map[checkid.ID]string {
 	defer ce.m.RUnlock()
 
 	runCopy := make(map[checkid.ID]string)
-	for k, v := range ce.run {
-		runCopy[k] = v
-	}
+	maps.Copy(runCopy, ce.run)
 
 	return runCopy
 }

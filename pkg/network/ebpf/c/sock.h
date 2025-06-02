@@ -8,6 +8,7 @@
 #include "ip.h"
 #include "ipv6.h"
 #include "netns.h"
+#include "pid_tgid.h"
 
 #ifdef COMPILE_CORE
 
@@ -178,7 +179,7 @@ static __always_inline u16 _sk_family(struct sock *skp) {
  */
 static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     int err = 0;
-    t->pid = pid_tgid >> 32;
+    t->pid = GET_USER_MODE_PID(pid_tgid);
     t->metadata = type;
 
     // Retrieve network namespace id first since addresses and ports may not be available for unconnected UDP

@@ -43,6 +43,10 @@ func easyjsonB97b45a3DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 			out.Signal = string(in.String())
 		case "scope":
 			out.Scope = string(in.String())
+		case "status":
+			out.Status = string(in.String())
+		case "disarmer_type":
+			out.DisarmerType = string(in.String())
 		case "created_at":
 			if data := in.Raw(); in.Ok() {
 				in.AddError((out.CreatedAt).UnmarshalJSON(data))
@@ -52,8 +56,16 @@ func easyjsonB97b45a3DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 				in.AddError((out.DetectedAt).UnmarshalJSON(data))
 			}
 		case "killed_at":
-			if data := in.Raw(); in.Ok() {
-				in.AddError((out.KilledAt).UnmarshalJSON(data))
+			if in.IsNull() {
+				in.Skip()
+				out.KilledAt = nil
+			} else {
+				if out.KilledAt == nil {
+					out.KilledAt = new(utils.EasyjsonTime)
+				}
+				if data := in.Raw(); in.Ok() {
+					in.AddError((*out.KilledAt).UnmarshalJSON(data))
+				}
 			}
 		case "exited_at":
 			if in.IsNull() {
@@ -99,6 +111,16 @@ func easyjsonB97b45a3EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		out.String(string(in.Scope))
 	}
 	{
+		const prefix string = ",\"status\":"
+		out.RawString(prefix)
+		out.String(string(in.Status))
+	}
+	if in.DisarmerType != "" {
+		const prefix string = ",\"disarmer_type\":"
+		out.RawString(prefix)
+		out.String(string(in.DisarmerType))
+	}
+	{
 		const prefix string = ",\"created_at\":"
 		out.RawString(prefix)
 		(in.CreatedAt).MarshalEasyJSON(out)
@@ -108,10 +130,10 @@ func easyjsonB97b45a3EncodeGithubComDataDogDatadogAgentPkgSecurityProbe(out *jwr
 		out.RawString(prefix)
 		(in.DetectedAt).MarshalEasyJSON(out)
 	}
-	{
+	if in.KilledAt != nil {
 		const prefix string = ",\"killed_at\":"
 		out.RawString(prefix)
-		(in.KilledAt).MarshalEasyJSON(out)
+		(*in.KilledAt).MarshalEasyJSON(out)
 	}
 	if in.ExitedAt != nil {
 		const prefix string = ",\"exited_at\":"

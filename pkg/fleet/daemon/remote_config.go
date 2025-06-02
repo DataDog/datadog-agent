@@ -24,8 +24,8 @@ type remoteConfigClient interface {
 	Start()
 	Close()
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
-	GetInstallerState() []*pbgo.PackageState
-	SetInstallerState(packages []*pbgo.PackageState)
+	GetInstallerState() *pbgo.ClientUpdater
+	SetInstallerState(state *pbgo.ClientUpdater)
 }
 
 type remoteConfig struct {
@@ -36,7 +36,7 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 	client, err := client.NewClient(
 		rcFetcher,
 		client.WithUpdater(),
-		client.WithProducts(state.ProductUpdaterCatalogDD, state.ProductUpdaterTask),
+		client.WithProducts(state.ProductUpdaterCatalogDD),
 		client.WithoutTufVerification(),
 	)
 	if err != nil {
@@ -46,7 +46,7 @@ func newRemoteConfig(rcFetcher client.ConfigFetcher) (*remoteConfig, error) {
 }
 
 // Start starts the remote config client.
-func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
+func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCatalogUpdate handleCatalogUpdate, handleRemoteAPIRequest handleRemoteAPIRequest) {
 	if rc.client == nil {
 		return
 	}
@@ -55,6 +55,7 @@ func (rc *remoteConfig) Start(handleCatalogUpdate handleCatalogUpdate, handleRem
 		// subscribe in a goroutine to avoid deadlocking the client
 		go rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
 	}
+	rc.client.Subscribe(state.ProductInstallerConfig, handleInstallerConfigUpdate(handleConfigsUpdate))
 	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask))
 	rc.client.Start()
 }
@@ -65,13 +66,79 @@ func (rc *remoteConfig) Close() {
 }
 
 // GetState gets the state of the remote config client.
-func (rc *remoteConfig) GetState() []*pbgo.PackageState {
+func (rc *remoteConfig) GetState() *pbgo.ClientUpdater {
 	return rc.client.GetInstallerState()
 }
 
 // SetState sets the state of the remote config client.
-func (rc *remoteConfig) SetState(packages []*pbgo.PackageState) {
-	rc.client.SetInstallerState(packages)
+func (rc *remoteConfig) SetState(state *pbgo.ClientUpdater) {
+	rc.client.SetInstallerState(state)
+}
+
+type installerConfigFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}
+
+type installerConfig struct {
+	ID    string                `json:"id"`
+	Files []installerConfigFile `json:"files"`
+}
+
+type handleConfigsUpdate func(configs map[string]installerConfig) error
+
+func handleInstallerConfigUpdate(h handleConfigsUpdate) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
+	return func(configs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+		installerConfigs := map[string]installerConfig{}
+		for id, config := range configs {
+			var installerConfig installerConfig
+			err := json.Unmarshal(config.Config, &installerConfig)
+			if err != nil {
+				log.Errorf("could not unmarshal installer config: %s", err)
+				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+				return
+			}
+			// Backward compatibility with legacy installer configs.
+			var legacyConfigs struct {
+				Configs struct {
+					DatadogYAML       json.RawMessage `json:"datadog.yaml,omitempty"`
+					SecurityAgentYAML json.RawMessage `json:"security-agent.yaml,omitempty"`
+					SystemProbeYAML   json.RawMessage `json:"system-probe.yaml,omitempty"`
+					APMLibrariesYAML  json.RawMessage `json:"application_monitoring.yaml,omitempty"`
+				} `json:"configs"`
+			}
+			err = json.Unmarshal(config.Config, &legacyConfigs)
+			if err != nil {
+				log.Errorf("could not unmarshal legacy installer config: %s", err)
+				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+				return
+			}
+			if len(legacyConfigs.Configs.DatadogYAML) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/datadog.yaml", Contents: legacyConfigs.Configs.DatadogYAML})
+			}
+			if len(legacyConfigs.Configs.SecurityAgentYAML) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/security-agent.yaml", Contents: legacyConfigs.Configs.SecurityAgentYAML})
+			}
+			if len(legacyConfigs.Configs.SystemProbeYAML) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/system-probe.yaml", Contents: legacyConfigs.Configs.SystemProbeYAML})
+			}
+			if len(legacyConfigs.Configs.APMLibrariesYAML) > 0 {
+				installerConfig.Files = append(installerConfig.Files, installerConfigFile{Path: "/application_monitoring.yaml", Contents: legacyConfigs.Configs.APMLibrariesYAML})
+			}
+			installerConfigs[installerConfig.ID] = installerConfig
+		}
+		err := h(installerConfigs)
+		if err != nil {
+			log.Errorf("could not update installer configs: %s", err)
+			for id := range configs {
+				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			}
+			return
+		}
+		for id := range configs {
+			applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		}
+	}
 }
 
 // Package represents a downloadable package.
@@ -164,9 +231,16 @@ func validatePackage(pkg Package) error {
 }
 
 const (
+	methodInstallPackage   = "install_package"
+	methodUninstallPackage = "uninstall_package"
+
 	methodStartExperiment   = "start_experiment"
 	methodStopExperiment    = "stop_experiment"
 	methodPromoteExperiment = "promote_experiment"
+
+	methodStartConfigExperiment   = "start_experiment_config"
+	methodStopConfigExperiment    = "stop_experiment_config"
+	methodPromoteConfigExperiment = "promote_experiment_config"
 )
 
 type remoteAPIRequest struct {
@@ -187,9 +261,14 @@ type expectedState struct {
 	ExperimentConfig string `json:"experiment_config"`
 }
 
-type taskWithVersionParams struct {
+type experimentTaskParams struct {
 	Version     string   `json:"version"`
 	InstallArgs []string `json:"install_args"`
+}
+
+type installPackageTaskParams struct {
+	Version            string `json:"version"`
+	ApmInstrumentation string `json:"apm_instrumentation"`
 }
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error

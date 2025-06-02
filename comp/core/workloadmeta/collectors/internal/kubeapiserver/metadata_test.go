@@ -20,6 +20,7 @@ import (
 )
 
 func Test_MetadataFakeClient(t *testing.T) {
+	t.Parallel()
 	ns := "default"
 	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 	objectMeta := metav1.ObjectMeta{

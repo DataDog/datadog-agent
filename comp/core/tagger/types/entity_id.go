@@ -9,106 +9,55 @@ package types
 import (
 	"fmt"
 	"strings"
-
-	taggerutils "github.com/DataDog/datadog-agent/pkg/util/tagger"
 )
 
 const separator = "://"
+const separatorLength = len(separator)
+
+var globalEntityID = NewEntityID(InternalID, "global-entity-id")
+
+// GetSeparatorLengh returns the length of the entityID separator
+func GetSeparatorLengh() int {
+	return separatorLength
+}
 
 // EntityID represents a tagger entityID
-// An EntityID should be identified by a prefix and an id, and is represented as {prefix}://{id}
-type EntityID interface {
-	// GetID returns a prefix-specific id (i.e. an ID unique given prefix)
-	GetID() string
-	// GetPrefix returns the prefix of the EntityID
-	GetPrefix() EntityIDPrefix
-	// String returns a string representation of EntityID under the format {prefix}://{id}
-	String() string
+type EntityID struct {
+	prefix EntityIDPrefix
+	id     string
 }
 
-// defaultEntityID implements EntityID as a plain string id
-type defaultEntityID string
-
-// GetID implements EntityID#GetID
-func (de defaultEntityID) GetID() string {
-	separatorIndex := strings.Index(string(de), separator)
-
-	if separatorIndex == -1 {
-		return ""
-	}
-
-	return string(de[separatorIndex+len(separator):])
+// Empty returns true if either the prefix or id empty strings
+func (eid EntityID) Empty() bool {
+	return eid.prefix == "" || eid.id == ""
 }
 
-// GetPrefix implements EntityID#GetPrefix
-func (de defaultEntityID) GetPrefix() EntityIDPrefix {
-	separatorIndex := strings.Index(string(de), separator)
-
-	if separatorIndex == -1 {
-		return ""
-	}
-
-	return EntityIDPrefix(de[:separatorIndex])
+// GetPrefix returns the entityID prefix
+func (eid EntityID) GetPrefix() EntityIDPrefix {
+	return eid.prefix
 }
 
-// String implements EntityID#String
-func (de defaultEntityID) String() string {
-	return string(de)
+// GetID returns the id excluding the prefix
+func (eid EntityID) GetID() string {
+	return eid.id
 }
 
-func newDefaultEntityID(id string) defaultEntityID {
-	return defaultEntityID(id)
+// String returns the entityID in the format `{prefix}://{id}`
+// Returns an empty string if `id` is empty
+func (eid EntityID) String() string {
+	return eid.prefix.ToUID(eid.id)
 }
 
-// compositeEntityID implements EntityID as a struct of prefix and id
-type compositeEntityID struct {
-	Prefix EntityIDPrefix
-	ID     string
-}
+var supportedPrefixes = AllPrefixesSet()
 
-// GetPrefix implements EntityID#GetPrefix
-func (eid compositeEntityID) GetPrefix() EntityIDPrefix {
-	return eid.Prefix
-}
-
-// GetID implements EntityID#GetID
-func (eid compositeEntityID) GetID() string {
-	return eid.ID
-}
-
-// String implements EntityID#String
-func (eid compositeEntityID) String() string {
-	return eid.Prefix.ToUID(eid.ID)
-}
-
-// newcompositeEntityID returns a new EntityID based on a prefix and an id
-func newCompositeEntityID(prefix EntityIDPrefix, id string) EntityID {
-	return compositeEntityID{
-		Prefix: prefix,
-		ID:     id,
-	}
-}
-
-// NewEntityID builds and returns an EntityID object based on plain string uid
-// Currently, it defaults to the default implementation of EntityID as a plain string
+// NewEntityID builds and returns an EntityID object
+// A panic will occur if an unsupported prefix is used
 func NewEntityID(prefix EntityIDPrefix, id string) EntityID {
-	// TODO: use composite entity id always or use component framework for config component
-	if taggerutils.ShouldUseCompositeStore() {
-		return newCompositeEntityID(prefix, id)
+	if _, found := supportedPrefixes[prefix]; !found {
+		// prefix is expected to be set based on the prefix enum defined below
+		panic(fmt.Sprintf("unsupported tagger entity prefix: %q", prefix))
 	}
-	return newDefaultEntityID(fmt.Sprintf("%s://%s", prefix, id))
-}
-
-// NewEntityIDFromString constructs EntityID from a plain string id
-func NewEntityIDFromString(plainStringID string) (EntityID, error) {
-	if taggerutils.ShouldUseCompositeStore() {
-		if !strings.Contains(plainStringID, separator) {
-			return nil, fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", plainStringID)
-		}
-		parts := strings.Split(plainStringID, separator)
-		return newCompositeEntityID(EntityIDPrefix(parts[0]), parts[1]), nil
-	}
-	return newDefaultEntityID(plainStringID), nil
+	return EntityID{prefix, id}
 }
 
 const (
@@ -128,6 +77,10 @@ const (
 	KubernetesPodUID EntityIDPrefix = "kubernetes_pod_uid"
 	// Process is the prefix `process`
 	Process EntityIDPrefix = "process"
+	// InternalID is the prefix `internal`
+	InternalID EntityIDPrefix = "internal"
+	// GPU is the prefix `gpu`
+	GPU EntityIDPrefix = "gpu"
 )
 
 // AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
@@ -141,5 +94,26 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 		KubernetesMetadata:     {},
 		KubernetesPodUID:       {},
 		Process:                {},
+		InternalID:             {},
+		GPU:                    {},
 	}
+}
+
+// GetGlobalEntityID returns the entity ID that holds global tags
+func GetGlobalEntityID() EntityID {
+	return globalEntityID
+}
+
+// ExtractPrefixAndID extracts prefix and id from tagger entity id and returns an error if the received entityID is not valid
+func ExtractPrefixAndID(entityID string) (prefix EntityIDPrefix, id string, err error) {
+	extractedPrefix, extractedID, found := strings.Cut(entityID, "://")
+	if !found {
+		return "", "", fmt.Errorf("unsupported tagger entity id format %q, correct format is `{prefix}://{id}`", entityID)
+	}
+	if _, found := supportedPrefixes[EntityIDPrefix(extractedPrefix)]; !found {
+		// prefix is expected to be set based on the prefix enum.
+		return "", "", fmt.Errorf("unsupported tagger entity prefix: %q", extractedPrefix)
+	}
+
+	return EntityIDPrefix(extractedPrefix), extractedID, nil
 }

@@ -16,6 +16,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"net/netip"
+	neturl "net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -23,27 +24,32 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
-	redis2 "github.com/go-redis/redis/v9"
+	"github.com/cilium/ebpf"
 	gorilla "github.com/gorilla/mux"
+	redis2 "github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
+	grpchelpers "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlink "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
@@ -58,10 +64,11 @@ import (
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
+	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -84,11 +91,7 @@ const (
 	fetchAPIKey   = 1
 	produceAPIKey = 0
 
-	produceMaxSupportedVersion = 8
-	produceMinSupportedVersion = 1
-
-	fetchMaxSupportedVersion = 12
-	fetchMinSupportedVersion = 0
+	redisProtocolVersion = 3
 )
 
 func httpSupported() bool {
@@ -118,7 +121,7 @@ func skipIfUsingNAT(t *testing.T, ctx testContext) {
 
 // skipIfGoTLSNotSupported skips the test if GoTLS is not supported.
 func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
-	if !gotlstestutil.GoTLSSupported(t, config.New()) {
+	if !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
 		t.Skip("GoTLS is not supported")
 	}
 }
@@ -137,7 +140,7 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }
@@ -185,7 +188,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
 	cfg.BypassEnabled = true
-	tr, err := tracer.NewTracer(cfg, nil)
+	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -246,7 +249,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *tracer.Tracer, c
 
 		lis, err := net.Listen("tcp", serverHost)
 		require.NoError(t, err)
-		srv := grpc2.NewMuxedGRPCServer(serverHost, nil, grpcHandler.GetGRPCServer(), mux)
+		srv := grpchelpers.NewMuxedGRPCServer(serverHost, nil, grpcHandler.GetGRPCServer(), mux, time.Duration(0)*time.Second)
 		srv.Addr = lis.Addr().String()
 
 		go srv.Serve(lis)
@@ -298,6 +301,7 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 	t := s.T()
 	cfg := tracertestutil.Config()
 	cfg.ServiceMonitoringEnabled = true
+	cfg.EnableGoTLSSupport = false
 	// USM cannot be enabled without a protocol.
 	cfg.EnableHTTPMonitoring = true
 	cfg.ProtocolClassificationEnabled = true
@@ -424,15 +428,16 @@ func (s *USMSuite) TestIgnoreTLSClassificationIfApplicationProtocolWasDetected()
 
 			// Perform the TLS handshake
 			require.NoError(t, tlsConn.Handshake())
-
-			require.Eventually(t, func() bool {
-				payload := getConnections(t, tr)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				payload, cleanup := getConnections(collect, tr)
+				defer cleanup()
 				for _, c := range payload.Conns {
 					if c.DPort == srvPortU16 || c.SPort == srvPortU16 {
-						return c.ProtocolStack.Contains(protocols.TLS) == tt.shouldBeTLS
+						require.Equal(collect, c.ProtocolStack.Contains(protocols.TLS), tt.shouldBeTLS)
+						return
 					}
 				}
-				return false
+				require.Fail(collect, "")
 			}, 10*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -497,14 +502,15 @@ func (s *USMSuite) TestTLSClassification() {
 			},
 			validation: func(t *testing.T, tr *tracer.Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventuallyf(t, func() bool {
-					payload := getConnections(t, tr)
+				require.EventuallyWithTf(t, func(collect *assert.CollectT) {
+					payload, cleanup := getConnections(collect, tr)
+					defer cleanup()
 					for _, c := range payload.Conns {
 						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
-							return true
+							return
 						}
 					}
-					return false
+					require.Fail(collect, "")
 				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
 			},
 		})
@@ -569,8 +575,9 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 
 	// Iterate through active connections until we find connection created above
 	var foundIncoming, foundOutgoing bool
-	require.Eventuallyf(t, func() bool {
-		payload := getConnections(t, tr)
+	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
+		payload, cleanup := getConnections(collect, tr)
+		defer cleanup()
 
 		for _, c := range payload.Conns {
 			if !foundIncoming && c.DPort == uint16(portAsValue) && c.ProtocolStack.Contains(protocols.TLS) {
@@ -581,7 +588,8 @@ func (s *USMSuite) TestTLSClassificationAlreadyRunning() {
 				foundOutgoing = true
 			}
 		}
-		return foundIncoming && foundOutgoing
+		require.True(collect, foundIncoming)
+		require.True(collect, foundOutgoing)
 	}, 4*time.Second, 100*time.Millisecond, "couldn't find matching TLS connection")
 }
 
@@ -683,296 +691,113 @@ func testHTTPSClassification(t *testing.T, tr *tracer.Tracer, clientHost, target
 }
 
 func TestFullMonitorWithTracer(t *testing.T) {
-	cfg := config.New()
+	if !httpSupported() {
+		t.Skip("USM is not supported")
+	}
+
+	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
+	cfg.EnablePostgresMonitoring = true
+	cfg.EnableRedisMonitoring = true
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
+	cfg.EnableNodeJSMonitoring = true
 
-	tr, err := tracer.NewTracer(cfg, nil)
+	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
 	require.NoError(t, tr.RegisterClient(clientID))
+
+	usmStats := tr.USMMonitor().GetUSMStats()
+	startupError, exists := usmStats["error"]
+	require.Falsef(t, exists, "error: %v", startupError)
 }
 
-func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
-	const topicName = "franz-kafka"
-	testIndex := 0
-	// Kafka does not allow us to delete topic, but to mark them for deletion, so we have to generate a unique topic
-	// per a test.
-	getTopicName := func() string {
-		testIndex++
-		return fmt.Sprintf("%s-%d", topicName, testIndex)
-	}
-
-	skipFunc := composeSkips(skipIfUsingNAT)
-	skipFunc(t, testContext{
-		serverAddress: serverHost,
-		serverPort:    kafkaPort,
-		targetAddress: targetHost,
-	})
-
+func testUnclassifiedProtocol(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
 		},
 	}
 
-	kafkaTeardown := func(_ *testing.T, ctx testContext) {
-		for key, val := range ctx.extras {
-			if strings.HasSuffix(key, "client") {
-				client := val.(*kafka.Client)
-				client.Client.Close()
-			}
-		}
-	}
+	serverAddress := net.JoinHostPort(serverHost, rawTrafficPort)
+	targetAddress := net.JoinHostPort(targetHost, rawTrafficPort)
 
-	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
-	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
-	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
+	server := tracertestutil.NewTCPServerOnAddress(serverAddress, func(c net.Conn) {
+		_, _ = io.Copy(c, c)
+	})
+	require.NoError(t, server.Run())
+	t.Cleanup(server.Shutdown)
 
 	tests := []protocolClassificationAttributes{
 		{
-			name: "connect",
+			name: "unsupported TCP protocol",
 			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
+				serverPort:    rawTrafficPort,
 				serverAddress: serverAddress,
+				targetAddress: targetAddress,
 				extras:        make(map[string]interface{}),
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
-				})
+				c, err := defaultDialer.Dial("tcp", ctx.targetAddress)
 				require.NoError(t, err)
-				ctx.extras["client"] = client
-			},
-			validation: validateProtocolConnection(&protocols.Stack{}),
-			teardown:   kafkaTeardown,
-		},
-		{
-			name: "create topic",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
-				},
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{kgo.MaxVersions(kversion.V0_10_1())},
-				})
+				ctx.extras["client"] = c
+
+				const inputText = "Hello, World!"
+				_, err = c.Write([]byte(inputText))
 				require.NoError(t, err)
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*kafka.Client)
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
-			},
-			validation: validateProtocolConnection(&protocols.Stack{}),
-			teardown:   kafkaTeardown,
-		},
-		{
-			name: "produce - empty string client id",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
-				},
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
-				})
+				n, err := c.Read(make([]byte, len(inputText)))
 				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				require.Equal(t, len(inputText), n)
+
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*kafka.Client)
-				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Kafka}),
-			teardown:   kafkaTeardown,
-		},
-		{
-			name: "produce - multiple topics",
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name1": getTopicName(),
-					"topic_name2": getTopicName(),
-				},
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{kgo.ClientID(""), kgo.MaxVersions(kversion.V0_10_1())},
-				})
+			validation: func(t *testing.T, ctx testContext, tr *tracer.Tracer) {
+				m, err := tr.GetMap(probes.ConnectionProtocolMap)
 				require.NoError(t, err)
-				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name1"].(string)))
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name2"].(string)))
+
+				client := ctx.extras["client"].(net.Conn)
+				defer client.Close()
+				localAddrString, _, err := net.SplitHostPort(client.LocalAddr().(*net.TCPAddr).String())
+				require.NoError(t, err)
+				localAddr, err := netip.ParseAddr(localAddrString)
+				require.NoError(t, err)
+				remoteAddrString, _, err := net.SplitHostPort(client.RemoteAddr().(*net.TCPAddr).String())
+				require.NoError(t, err)
+				remoteAddr, err := netip.ParseAddr(remoteAddrString)
+				require.NoError(t, err)
+
+				ll, lh := util.ToLowHighIP(localAddr)
+				rl, rh := util.ToLowHighIP(remoteAddr)
+				key := netebpf.ConnTuple{
+					Saddr_h:  lh,
+					Saddr_l:  ll,
+					Daddr_h:  rh,
+					Daddr_l:  rl,
+					Sport:    uint16(client.LocalAddr().(*net.TCPAddr).Port),
+					Dport:    uint16(client.RemoteAddr().(*net.TCPAddr).Port),
+					Metadata: uint32(netebpf.TCP),
+				}
+				inverseKey := netebpf.ConnTuple{
+					Saddr_h:  key.Daddr_h,
+					Saddr_l:  key.Daddr_l,
+					Daddr_h:  key.Saddr_h,
+					Daddr_l:  key.Saddr_l,
+					Sport:    key.Dport,
+					Dport:    key.Sport,
+					Metadata: key.Metadata,
+				}
+				value := netebpf.ProtocolStackWrapper{}
+				keyExistence := m.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&value))
+				require.ErrorIs(t, keyExistence, ebpf.ErrKeyNotExist)
+				keyExistence = m.Lookup(unsafe.Pointer(&inverseKey), unsafe.Pointer(&value))
+				require.ErrorIs(t, keyExistence, ebpf.ErrKeyNotExist)
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*kafka.Client)
-				record1 := &kgo.Record{Topic: ctx.extras["topic_name1"].(string), Value: []byte("Hello Kafka!")}
-				record2 := &kgo.Record{Topic: ctx.extras["topic_name2"].(string), Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				defer cancel()
-				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record2).FirstErr(), "record had a produce error while synchronously producing")
-			},
-			validation: validateProtocolConnection(&protocols.Stack{
-				Application: protocols.Kafka,
-			}),
-			teardown: kafkaTeardown,
 		},
 	}
-
-	versions := []struct {
-		produceVersion int16
-		fetchVersion   int16
-	}{
-		{
-			produceVersion: 0,
-			fetchVersion:   0,
-		},
-		{
-			produceVersion: 1,
-			fetchVersion:   1,
-		},
-		{
-			produceVersion: 2,
-			fetchVersion:   2,
-		},
-		{
-			produceVersion: 3,
-			fetchVersion:   3,
-		},
-		{
-			produceVersion: 4,
-			fetchVersion:   4,
-		},
-		{
-			produceVersion: 5,
-			fetchVersion:   5,
-		},
-		{
-			produceVersion: 6,
-			fetchVersion:   6,
-		},
-		{
-			produceVersion: 7,
-			fetchVersion:   7,
-		},
-		{
-			produceVersion: 8,
-			fetchVersion:   8,
-		},
-		{
-			produceVersion: 9,
-			fetchVersion:   9,
-		},
-		{
-			produceVersion: 9,
-			fetchVersion:   10,
-		},
-		{
-			produceVersion: 9,
-			fetchVersion:   11,
-		},
-		{
-			produceVersion: 9,
-			fetchVersion:   12,
-		},
-		{
-			produceVersion: 9,
-			fetchVersion:   13,
-		},
-	}
-	for _, pair := range versions {
-		produceExpectedStack := &protocols.Stack{Application: protocols.Kafka}
-		fetchExpectedStack := &protocols.Stack{Application: protocols.Kafka}
-
-		if pair.produceVersion < produceMinSupportedVersion || pair.produceVersion > produceMaxSupportedVersion {
-			produceExpectedStack.Application = protocols.Unknown
-		}
-		if pair.fetchVersion < fetchMinSupportedVersion || pair.fetchVersion > fetchMaxSupportedVersion {
-			fetchExpectedStack.Application = protocols.Unknown
-		}
-
-		version := kversion.V3_4_0()
-		version.SetMaxKeyVersion(produceAPIKey, pair.produceVersion)
-		version.SetMaxKeyVersion(fetchAPIKey, pair.fetchVersion)
-
-		tests = append(tests, protocolClassificationAttributes{
-			name: fmt.Sprintf("fetch (v%d); produce (v%d)", pair.fetchVersion, pair.produceVersion),
-			context: testContext{
-				serverPort:    kafkaPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras: map[string]interface{}{
-					"topic_name": getTopicName(),
-				},
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				produceClient, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
-				})
-				require.NoError(t, err)
-				fetchClient, err := kafka.NewClient(kafka.Options{
-					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
-					CustomOptions: []kgo.Opt{kgo.MaxVersions(version), kgo.ConsumeTopics(ctx.extras["topic_name"].(string))},
-				})
-				require.NoError(t, err)
-				ctx.extras["produce_client"] = produceClient
-				ctx.extras["fetch_client"] = fetchClient
-				require.NoError(t, produceClient.CreateTopic(ctx.extras["topic_name"].(string)))
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				produceClient := ctx.extras["produce_client"].(*kafka.Client)
-				record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
-				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
-				require.NoError(t, produceClient.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
-				cancel()
-
-				validateProtocolConnection(produceExpectedStack)
-				tr.RemoveClient(clientID)
-				require.NoError(t, tr.RegisterClient(clientID))
-				fetchClient := ctx.extras["fetch_client"].(*kafka.Client)
-				fetches := fetchClient.Client.PollFetches(context.Background())
-				require.Empty(t, fetches.Errors())
-				records := fetches.Records()
-				require.Len(t, records, 1)
-				require.Equal(t, ctx.extras["topic_name"].(string), records[0].Topic)
-			},
-			validation: validateProtocolConnection(fetchExpectedStack),
-			teardown:   kafkaTeardown,
-		})
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testProtocolClassificationInner(t, tt, tr)
@@ -1332,7 +1157,7 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.MySQL)
 		})
 	}
 }
@@ -1578,7 +1403,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *tracer.Tracer, clientH
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
 			}
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.Postgres)
 		})
 	}
 }
@@ -1719,9 +1544,17 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				defer cancel()
 				res := collection.FindOne(timedContext, bson.M{"test": "test"})
 				require.NoError(t, res.Err())
-				var output map[string]string
-				require.NoError(t, res.Decode(&output))
-				delete(output, "_id")
+				var outputTmp map[string]interface{}
+				require.NoError(t, res.Decode(&outputTmp))
+				delete(outputTmp, "_id")
+
+				output := make(map[string]string)
+				for key, value := range outputTmp {
+					if str, ok := value.(string); ok {
+						output[key] = str
+					}
+				}
+
 				require.EqualValues(t, output, ctx.extras["input"])
 			},
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Mongo}),
@@ -1730,7 +1563,7 @@ func testMongoProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.Mongo)
 		})
 	}
 }
@@ -1781,7 +1614,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 	}
 
 	redisTeardown := func(_ *testing.T, ctx testContext) {
-		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS)
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
 			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
@@ -1804,7 +1636,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1828,7 +1661,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Set(timedContext, "key", "value", time.Minute)
@@ -1855,7 +1689,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1898,7 +1733,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1917,7 +1753,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.Redis)
 		})
 	}
 }
@@ -2091,7 +1927,7 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, client
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.AMQP)
 		})
 	}
 }
@@ -2359,7 +2195,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
+			testProtocolClassificationInnerWithProtocolCleanup(t, tt, tr, protocols.HTTP2, protocols.GRPC)
 		})
 	}
 }
@@ -2369,6 +2205,10 @@ func testProtocolClassificationLinux(t *testing.T, tr *tracer.Tracer, clientHost
 		name     string
 		testFunc func(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string)
 	}{
+		{
+			name:     "unclassified",
+			testFunc: testUnclassifiedProtocol,
+		},
 		{
 			name:     "kafka",
 			testFunc: testKafkaProtocolClassification,
@@ -2409,11 +2249,11 @@ func testProtocolClassificationLinux(t *testing.T, tr *tracer.Tracer, clientHost
 // Wraps the call to the Go-TLS attach function and waits for the program to be traced.
 func goTLSAttachPID(t *testing.T, pid int) {
 	t.Helper()
-	if utils.IsProgramTraced("go-tls", pid) {
+	if utils.IsProgramTraced(consts.USMModuleName, usm.GoTLSAttacherName, pid) {
 		return
 	}
 	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
-	utils.WaitForProgramsToBeTraced(t, "go-tls", pid, utils.ManualTracingFallbackEnabled)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, usm.GoTLSAttacherName, pid, utils.ManualTracingFallbackEnabled)
 }
 
 // goTLSDetachPID detaches the Go-TLS monitoring from the given PID.
@@ -2422,13 +2262,430 @@ func goTLSDetachPID(t *testing.T, pid int) {
 	t.Helper()
 
 	// The program is not traced; nothing to do.
-	if !utils.IsProgramTraced("go-tls", pid) {
+	if !utils.IsProgramTraced(consts.USMModuleName, usm.GoTLSAttacherName, pid) {
 		return
 	}
 
 	require.NoError(t, usm.GoTLSDetachPID(uint32(pid)))
 
 	require.Eventually(t, func() bool {
-		return !utils.IsProgramTraced("go-tls", pid)
+		return !utils.IsProgramTraced(consts.USMModuleName, usm.GoTLSAttacherName, pid)
 	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
+}
+
+func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Client, url string, isHTTP2 bool) {
+	parsedURL, err := neturl.Parse(url)
+	require.NoError(t, err)
+
+	getReq, err := nethttp.NewRequest("GET", url, nil)
+	require.NoError(t, err)
+
+	getResp, err := client.Do(getReq)
+	require.NoError(t, err)
+	defer getResp.Body.Close()
+
+	postReq1, err := nethttp.NewRequest("POST", url, nil)
+	require.NoError(t, err)
+
+	postResp1, err := client.Do(postReq1)
+	require.NoError(t, err)
+	defer postResp1.Body.Close()
+
+	postReq2, err := nethttp.NewRequest("POST", url, nil)
+	require.NoError(t, err)
+
+	postResp2, err := client.Do(postReq2)
+	require.NoError(t, err)
+	defer postResp2.Body.Close()
+
+	var getRequestStats, postRequestsStats *http.RequestStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		requests := conns.USMData.HTTP
+		if isHTTP2 {
+			requests = conns.USMData.HTTP2
+		}
+		if getRequestStats == nil || postRequestsStats == nil {
+			require.True(ct, len(requests) > 0, "no requests")
+		}
+
+		for key, stats := range requests {
+			if key.Path.Content.Get() != parsedURL.Path {
+				continue
+			}
+			if key.Method.String() == "GET" {
+				if getRequestStats == nil {
+					getRequestStats = stats
+				} else {
+					getRequestStats.CombineWith(stats)
+				}
+				continue
+			}
+			if key.Method.String() == "POST" {
+				if postRequestsStats == nil {
+					postRequestsStats = stats
+				} else {
+					postRequestsStats.CombineWith(stats)
+				}
+				continue
+			}
+		}
+
+		require.NotNil(ct, getRequestStats)
+		require.Len(ct, getRequestStats.Data, 1)
+		require.NotNil(ct, getRequestStats.Data[nethttp.StatusOK])
+		require.Equal(ct, 1, getRequestStats.Data[nethttp.StatusOK].Count)
+		require.Nil(ct, getRequestStats.Data[nethttp.StatusOK].Latencies)
+		require.NotZero(ct, getRequestStats.Data[nethttp.StatusOK].FirstLatencySample)
+
+		require.NotNil(ct, postRequestsStats)
+		require.Len(ct, postRequestsStats.Data, 1)
+		require.NotNil(ct, postRequestsStats.Data[nethttp.StatusOK])
+		require.Equal(ct, 2, postRequestsStats.Data[nethttp.StatusOK].Count)
+		require.NotNil(ct, postRequestsStats.Data[nethttp.StatusOK].Latencies)
+		require.NotZero(ct, postRequestsStats.Data[nethttp.StatusOK].FirstLatencySample)
+		require.Equal(ct, float64(2), postRequestsStats.Data[nethttp.StatusOK].Latencies.GetCount())
+	}, 10*time.Second, 1*time.Second)
+}
+
+const (
+	httpServerAddr = "127.0.0.1:8080"
+)
+
+var (
+	httpURL = "http://" + httpServerAddr + "/200/request-0"
+)
+
+func skipIfKernelIsNotSupported(t *testing.T, minimalKernelVersion kernel.Version) {
+	if kv < minimalKernelVersion {
+		t.Skipf("skipping test, kernel version %s is not supported", kv)
+	}
+}
+
+func testHTTPSketches(t *testing.T, tr *tracer.Tracer) {
+	srvDoneFn := testutil.HTTPServer(t, httpServerAddr, testutil.Options{
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
+
+	client := new(nethttp.Client)
+	transport := nethttp.DefaultTransport.(*nethttp.Transport).Clone()
+	transport.ForceAttemptHTTP2 = false
+	transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) nethttp.RoundTripper)
+
+	client.Transport = transport
+
+	testHTTPLikeSketches(t, tr, client, httpURL, false)
+}
+
+func testHTTP2Sketches(t *testing.T, tr *tracer.Tracer) {
+	skipIfKernelIsNotSupported(t, usmhttp2.MinimumKernelVersion)
+	srvDoneFn := usmhttp2.StartH2CServer(t, httpServerAddr, false)
+	t.Cleanup(srvDoneFn)
+
+	client := &nethttp.Client{
+		Transport: &http2.Transport{
+			AllowHTTP: true,
+			DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+				return net.Dial(network, addr)
+			},
+		},
+	}
+
+	testHTTPLikeSketches(t, tr, client, httpURL, true)
+}
+
+const (
+	localhost = "127.0.0.1"
+)
+
+func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
+	serverAddress := net.JoinHostPort(localhost, kafkaPort)
+	require.NoError(t, kafka.RunServer(t, localhost, kafkaPort))
+
+	topicName1 := fmt.Sprintf("test-topic-1-%d", time.Now().UnixNano())
+	topicName2 := fmt.Sprintf("test-topic-2-%d", time.Now().UnixNano())
+
+	version := kversion.V3_4_0()
+	version.SetMaxKeyVersion(produceAPIKey, 10)
+	version.SetMaxKeyVersion(fetchAPIKey, 10)
+	client, err := kafka.NewClient(kafka.Options{
+		ServerAddress: serverAddress,
+		CustomOptions: []kgo.Opt{kgo.MaxVersions(version)},
+	})
+	require.NoError(t, err)
+
+	defer client.Client.Close()
+
+	require.NoError(t, client.CreateTopic(topicName1))
+	require.NoError(t, client.CreateTopic(topicName2))
+
+	record1 := &kgo.Record{Topic: topicName1, Value: []byte("Hello Kafka!")}
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1, record1).FirstErr(), "record had a produce error while synchronously producing")
+
+	record2 := &kgo.Record{Topic: topicName2, Value: []byte("Hello Kafka!")}
+	ctxTimeout, cancel = context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	require.NoError(t, client.Client.ProduceSync(ctxTimeout, record2).FirstErr(), "record had a produce error while synchronously producing")
+
+	client.Client.AddConsumeTopics(topicName2)
+	fetches := client.Client.PollFetches(context.Background())
+	require.Empty(t, fetches.Errors())
+	require.Len(t, fetches.Records(), 1)
+
+	localhostAddress := util.AddressFromString(localhost)
+	var fetchRequestStats, produceTopic1RequestsStats, produceTopic2RequestsStats *kafka.RequestStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		requests := conns.USMData.Kafka
+		if fetchRequestStats == nil || produceTopic1RequestsStats == nil || produceTopic2RequestsStats == nil {
+			require.Truef(ct, len(requests) > 0, "no requests; fetch: is nil? %v; produce t1: is nil? %v; produce t2: is nil? %v", fetchRequestStats == nil, produceTopic1RequestsStats == nil, produceTopic2RequestsStats == nil)
+		}
+
+		for key, stats := range requests {
+			srcAddr := util.FromLowHigh(key.SrcIPLow, key.SrcIPHigh)
+			if srcAddr != localhostAddress {
+				continue
+			}
+
+			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.FetchAPIKey {
+				if fetchRequestStats == nil {
+					fetchRequestStats = stats
+				} else {
+					fetchRequestStats.CombineWith(stats)
+				}
+				continue
+			}
+			if key.TopicName.Get() == topicName1 && key.RequestAPIKey == kafka.ProduceAPIKey {
+				if produceTopic1RequestsStats == nil {
+					produceTopic1RequestsStats = stats
+				} else {
+					produceTopic1RequestsStats.CombineWith(stats)
+				}
+				continue
+			}
+
+			if key.TopicName.Get() == topicName2 && key.RequestAPIKey == kafka.ProduceAPIKey {
+				if produceTopic2RequestsStats == nil {
+					produceTopic2RequestsStats = stats
+				} else {
+					produceTopic2RequestsStats.CombineWith(stats)
+				}
+				continue
+			}
+		}
+
+		require.NotNil(ct, fetchRequestStats)
+		require.Len(ct, fetchRequestStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, fetchRequestStats.ErrorCodeToStat[0])
+		require.Equal(ct, 1, fetchRequestStats.ErrorCodeToStat[0].Count)
+		require.Nil(ct, fetchRequestStats.ErrorCodeToStat[0].Latencies)
+		require.NotZero(ct, fetchRequestStats.ErrorCodeToStat[0].FirstLatencySample)
+
+		require.NotNil(ct, produceTopic1RequestsStats)
+		require.Len(ct, produceTopic1RequestsStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, produceTopic1RequestsStats.ErrorCodeToStat[0])
+		require.Equal(ct, 2, produceTopic1RequestsStats.ErrorCodeToStat[0].Count)
+		require.NotNil(ct, produceTopic1RequestsStats.ErrorCodeToStat[0].Latencies)
+		require.Zero(ct, produceTopic1RequestsStats.ErrorCodeToStat[0].FirstLatencySample) // Since we reported 2 records in the same event, we don't have FirstLatencySample.
+		require.Equal(ct, float64(2), produceTopic1RequestsStats.ErrorCodeToStat[0].Latencies.GetCount())
+
+		require.NotNil(ct, produceTopic2RequestsStats)
+		require.Len(ct, produceTopic2RequestsStats.ErrorCodeToStat, 1)
+		require.NotNil(ct, produceTopic2RequestsStats.ErrorCodeToStat[0])
+		require.Equal(ct, 1, produceTopic2RequestsStats.ErrorCodeToStat[0].Count)
+		require.Nil(ct, produceTopic2RequestsStats.ErrorCodeToStat[0].Latencies)
+		require.NotZero(ct, produceTopic2RequestsStats.ErrorCodeToStat[0].FirstLatencySample) // Since we reported 2 records in the same event, we don't have FirstLatencySample.
+	}, 10*time.Second, 1*time.Second)
+}
+
+func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
+	serverAddress := net.JoinHostPort(localhost, postgresPort)
+	require.NoError(t, pgutils.RunServer(t, localhost, postgresPort, false))
+	// Verifies that the postgres server is up and running.
+	// It tries to connect to the server until it succeeds or the timeout is reached.
+	// We need that function (and cannot relay on the RunServer method) as the target regex is being logged a couple os
+	// milliseconds before the server is actually ready to accept connections.
+	waitForPostgresServer(t, serverAddress, false)
+
+	pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+		ServerAddress: serverAddress,
+	})
+	require.NoError(t, pg.RunCreateQuery())
+	require.NoError(t, pg.RunInsertQuery(1))
+	require.NoError(t, pg.RunInsertQuery(2))
+	require.NoError(t, pg.RunSelectQuery())
+
+	var insertRequestStats, selectRequestsStats *pgutils.RequestStat
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		requests := conns.USMData.Postgres
+		if insertRequestStats == nil || selectRequestsStats == nil {
+			require.True(ct, len(requests) > 0, "no requests")
+		}
+
+		for key, stats := range requests {
+			if selectRequestsStats != nil && insertRequestStats != nil {
+				break
+			}
+
+			if key.Parameters == "dummy" && key.Operation == pgutils.SelectOP {
+				selectRequestsStats = stats
+				continue
+			}
+			if key.Parameters == "dummy" && key.Operation == pgutils.InsertOP {
+				insertRequestStats = stats
+				continue
+			}
+		}
+
+		require.NotNil(ct, selectRequestsStats)
+		require.Equal(ct, 1, selectRequestsStats.Count)
+		require.Nil(ct, selectRequestsStats.Latencies)
+		require.NotZero(ct, selectRequestsStats.FirstLatencySample)
+
+		require.NotNil(ct, insertRequestStats)
+		require.Equal(ct, 2, insertRequestStats.Count)
+		require.NotNil(ct, insertRequestStats.Latencies)
+		require.NotZero(ct, insertRequestStats.FirstLatencySample)
+		require.Equal(ct, float64(2), insertRequestStats.Latencies.GetCount())
+	}, 10*time.Second, 1*time.Second)
+}
+
+func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
+	serverAddress := net.JoinHostPort(localhost, redisPort)
+	require.NoError(t, redis.RunServer(t, localhost, redisPort, false))
+
+	client, err := redis.NewClient(serverAddress, &net.Dialer{}, false, redisProtocolVersion)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+		require.NoError(t, client.FlushDB(timedContext).Err())
+		require.NoError(t, client.Close())
+	})
+
+	timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	keyName := "key"
+	require.NoError(t, client.Set(timedContext, keyName, "value", time.Minute).Err())
+
+	timedContext2, cancel2 := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel2()
+	for i := 0; i < 2; i++ {
+		res := client.Get(timedContext2, keyName)
+		val, err := res.Result()
+		require.NoError(t, err)
+		require.Equal(t, "value", val)
+	}
+
+	var getRequestStats, setRequestStats *redis.RequestStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		requests := conns.USMData.Redis
+		if len(requests) == 0 {
+			require.True(ct, len(requests) > 0, "no requests")
+		}
+
+		for key, stats := range requests {
+			if getRequestStats != nil && setRequestStats != nil {
+				break
+			}
+
+			if key.KeyName.Get() == keyName && key.Command == redis.GetCommand {
+				getRequestStats = stats
+				continue
+			}
+			if key.KeyName.Get() == keyName && key.Command == redis.SetCommand {
+				setRequestStats = stats
+				continue
+			}
+		}
+
+		require.NotNil(ct, getRequestStats)
+		require.Len(ct, getRequestStats.ErrorToStats, 1)
+		require.Contains(ct, getRequestStats.ErrorToStats, false)
+		require.NotContains(ct, getRequestStats.ErrorToStats, true)
+		require.Equal(ct, 2, getRequestStats.ErrorToStats[false].Count)
+		require.NotNil(ct, getRequestStats.ErrorToStats[false].Latencies)
+		require.NotZero(ct, getRequestStats.ErrorToStats[false].FirstLatencySample)
+
+		require.NotNil(ct, setRequestStats)
+		require.Len(ct, setRequestStats.ErrorToStats, 1)
+		require.Contains(ct, setRequestStats.ErrorToStats, false)
+		require.NotContains(ct, setRequestStats.ErrorToStats, true)
+		require.Equal(ct, 1, setRequestStats.ErrorToStats[false].Count)
+		require.Nil(ct, setRequestStats.ErrorToStats[false].Latencies)
+		require.NotZero(ct, setRequestStats.ErrorToStats[false].FirstLatencySample)
+	}, 10*time.Second, 1*time.Second)
+}
+
+func (s *USMSuite) TestVerifySketches() {
+	t := s.T()
+	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
+
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
+	cfg.EnableKafkaMonitoring = true
+	cfg.EnablePostgresMonitoring = true
+	cfg.EnableRedisMonitoring = true
+
+	tr, err := tracer.NewTracer(cfg, nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(tr.Stop)
+	require.NoError(t, tr.RegisterClient(clientID))
+
+	tests := []struct {
+		name     string
+		testFunc func(t *testing.T, tr *tracer.Tracer)
+	}{
+		{
+			name:     "http",
+			testFunc: testHTTPSketches,
+		},
+		{
+			name:     "http2",
+			testFunc: testHTTP2Sketches,
+		},
+		{
+			name:     "kafka",
+			testFunc: testKafkaSketches,
+		},
+		{
+			name:     "postgres",
+			testFunc: testPostgresSketches,
+		},
+		{
+			name:     "redis",
+			testFunc: testRedisSketches,
+		},
+	}
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			tt.testFunc(s.T(), tr)
+		})
+	}
+}
+
+func testProtocolClassificationInnerWithProtocolCleanup(t *testing.T, tt protocolClassificationAttributes, tr *tracer.Tracer, protos ...protocols.ProtocolType) {
+	originalPostTracer := tt.postTracerSetup
+	wrapperPostTracer := func(t *testing.T, ctx testContext) {
+		for _, proto := range protos {
+			cleanProtocolMapByProtocol(t, tr, proto)
+		}
+		originalPostTracer(t, ctx)
+	}
+	tt.postTracerSetup = wrapperPostTracer
+	testProtocolClassificationInner(t, tt, tr)
 }

@@ -21,6 +21,8 @@ type TaskType string
 const (
 	// TaskFlare is the task sent to request a flare from the agent
 	TaskFlare TaskType = "flare"
+	// TaskDeviceScan is the task sent to request a device scan for NDM device onboarding.
+	TaskDeviceScan TaskType = "ndm-device-scan"
 )
 
 // AgentTaskConfig is a deserialized agent task configuration file

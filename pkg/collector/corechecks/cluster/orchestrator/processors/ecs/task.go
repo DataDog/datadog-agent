@@ -9,17 +9,31 @@
 package ecs
 
 import (
+	"strconv"
+
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
+
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	transformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TaskHandlers implements the Handlers interface for ECS Tasks.
 type TaskHandlers struct {
 	common.BaseHandlers
+	tagger tagger.Component
+}
+
+// NewTaskHandlers returns a new TaskHandlers.
+func NewTaskHandlers(tagger tagger.Component) *TaskHandlers {
+	return &TaskHandlers{
+		tagger: tagger,
+	}
 }
 
 // BuildMessageBody is a handler called to build a message body out of a list of extracted resources.
@@ -31,8 +45,13 @@ func (t *TaskHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		models = append(models, m.(*model.ECSTask))
 	}
 
+	awsAccountID, err := strconv.ParseInt(pctx.AWSAccountID, 10, 64)
+	if err != nil {
+		log.Errorf("failed to parse AWS account ID %s: %v", pctx.AWSAccountID, err)
+	}
+
 	return &model.CollectorECSTask{
-		AwsAccountID: int64(pctx.AWSAccountID),
+		AwsAccountID: awsAccountID,
 		ClusterName:  pctx.ClusterName,
 		ClusterId:    pctx.ClusterID,
 		Region:       pctx.Region,
@@ -41,7 +60,7 @@ func (t *TaskHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		Tasks:        models,
 		Info:         pctx.SystemInfo,
 		HostName:     pctx.Hostname,
-		Tags:         pctx.Cfg.ExtraTags,
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 	}
 }
 
@@ -50,7 +69,7 @@ func (t *TaskHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (t *TaskHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(transformers.TaskWithContainers)
-	return transformers.ExtractECSTask(r)
+	return transformers.ExtractECSTask(r, t.tagger)
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

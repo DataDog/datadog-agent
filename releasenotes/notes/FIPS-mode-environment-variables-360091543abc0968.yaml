@@ -1,0 +1,10 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - "The ``OPENSSL_CONF`` and ``OPENSSL_MODULES`` environment variables are now\nset when running the `datadog-fips-agent` in FIPS mode. This allows applications to use the \nOpenSSL configuration and modules configured with the Agent installation.\n"

@@ -21,8 +21,8 @@ var (
 )
 
 var (
-	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
-	defaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
+	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
+	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
 	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
 	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
 	// DefaultDDAgentBin the process agent's binary
@@ -45,6 +45,8 @@ const (
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
+	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
 )
 
 // called by init in config.go, to ensure any os-specific config is done

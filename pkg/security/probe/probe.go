@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -36,45 +37,31 @@ const (
 
 // PlatformProbe defines a platform dependant probe
 type PlatformProbe interface {
-	Setup() error
 	Init() error
 	Start() error
 	Stop()
 	SendStats() error
 	Snapshot() error
+	Walk(_ func(_ *model.ProcessCacheEntry))
 	Close() error
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
-	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
+	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error)
+	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
 	NewEvent() *model.Event
 	GetFieldHandlers() model.FieldHandlers
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
-	GetEventTags(_ string) []string
-	GetProfileManager() interface{}
+	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
-}
-
-// EventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
-type EventHandler interface {
-	HandleEvent(event *model.Event)
-}
-
-// EventConsumerInterface represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
-type EventConsumerInterface interface {
-	ID() string
-	ChanSize() int
-	HandleEvent(_ any)
-	Copy(_ *model.Event) any
-	EventTypes() []model.EventType
 }
 
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
-	consumer     EventConsumerInterface
+	consumer     EventConsumerHandler
 	eventCh      chan any
 	eventDropped *atomic.Int64
 }
@@ -96,11 +83,6 @@ func (p *EventConsumer) Start(ctx context.Context, wg *sync.WaitGroup) {
 	}()
 }
 
-// CustomEventHandler represents an handler for the custom events sent by the probe
-type CustomEventHandler interface {
-	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
-}
-
 // DiscarderPushedCallback describe the callback used to retrieve pushed discarders information
 type DiscarderPushedCallback func(eventType string, event *model.Event, field string)
 
@@ -112,7 +94,8 @@ type actionStatsTags struct {
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
-	PlatformProbe PlatformProbe
+	PlatformProbe         PlatformProbe
+	agentContainerContext *events.AgentContainerContext
 
 	// Constants and configuration
 	Opts         Opts
@@ -151,11 +134,6 @@ func newProbe(config *config.Config, opts Opts) *Probe {
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
 	return p.PlatformProbe.Init()
-}
-
-// Setup the runtime security probe
-func (p *Probe) Setup() error {
-	return p.PlatformProbe.Setup()
 }
 
 // Start plays the snapshot data and then start the event stream
@@ -227,17 +205,27 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
+	return p.PlatformProbe.ApplyRuleSet(rs)
+}
+
+// OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded
+func (p *Probe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.ruleActionStatsLock.Lock()
 	clear(p.ruleActionStats)
 	p.ruleActionStatsLock.Unlock()
-	return p.PlatformProbe.ApplyRuleSet(rs)
+	p.PlatformProbe.OnNewRuleSetLoaded(rs)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
 	return p.PlatformProbe.Snapshot()
+}
+
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *Probe) Walk(cb func(entry *model.ProcessCacheEntry)) {
+	p.PlatformProbe.Walk(cb)
 }
 
 // OnNewDiscarder is called when a new discarder is found
@@ -273,7 +261,7 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 }
 
 // AddEventConsumer sets a probe event consumer
-func (p *Probe) AddEventConsumer(consumer EventConsumerInterface) error {
+func (p *Probe) AddEventConsumer(consumer EventConsumerHandler) error {
 	chanSize := consumer.ChanSize()
 	if chanSize <= 0 {
 		chanSize = defaultConsumerChanSize
@@ -334,18 +322,12 @@ func (p *Probe) sendEventToConsumers(event *model.Event) {
 	}
 }
 
-func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
+func logTraceEvent(eventType model.EventType, event interface{}) {
 	if !seclog.DefaultLogger.IsTracing() {
 		return
 	}
 
-	eventJSON, eventType, err := marshaller()
-	if err != nil {
-		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
-		return
-	}
-
-	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
+	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event})
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -355,10 +337,7 @@ func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalCustomEvent(event)
-		return eventJSON, event.GetEventType(), err
-	})
+	logTraceEvent(event.GetEventType(), event)
 
 	// send wildcard first
 	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
@@ -379,7 +358,7 @@ func (p *Probe) StatsPollingInterval() time.Duration {
 }
 
 // GetEventTags returns the event tags
-func (p *Probe) GetEventTags(containerID string) []string {
+func (p *Probe) GetEventTags(containerID containerutils.ContainerID) []string {
 	return p.PlatformProbe.GetEventTags(containerID)
 }
 
@@ -430,6 +409,21 @@ func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
 }
 
+// IsNetworkRawPacketEnabled returns whether network raw packet is enabled
+func (p *Probe) IsNetworkRawPacketEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkRawPacketEnabled
+}
+
+// IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
+func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
+	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
+}
+
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (p *Probe) IsSysctlEventEnabled() bool {
+	return p.Config.RuntimeSecurity.SysCtlEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
@@ -448,4 +442,9 @@ func (p *Probe) IsSecurityProfileEnabled() bool {
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(state bool) {
 	p.PlatformProbe.EnableEnforcement(state)
+}
+
+// GetAgentContainerContext returns the agent container context
+func (p *Probe) GetAgentContainerContext() *events.AgentContainerContext {
+	return p.agentContainerContext
 }

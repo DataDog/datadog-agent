@@ -64,6 +64,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 
+func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
+
 // NewAgent creates a new unstarted traceagent using the given context. Call Start to start the traceagent.
 // The out channel will receive outoing stats payloads resulting from spans ingested using the Ingest method.
 func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
@@ -114,10 +116,8 @@ func (p *TraceAgent) Start() {
 		// we don't need the samplers' nor the processor's functionalities;
 		// but they are used by the agent nevertheless, so they need to be
 		// active and functioning.
-		p.PrioritySampler,
-		p.ErrorsSampler,
-		p.NoPrioritySampler,
 		p.EventProcessor,
+		p.SamplerMetrics,
 	} {
 		starter.Start()
 	}
@@ -129,10 +129,8 @@ func (p *TraceAgent) Stop() {
 	for _, stopper := range []interface{ Stop() }{
 		p.Concentrator,
 		p.ClientStatsAggregator,
-		p.PrioritySampler,
-		p.ErrorsSampler,
-		p.NoPrioritySampler,
 		p.EventProcessor,
+		p.SamplerMetrics,
 	} {
 		stopper.Stop()
 	}
@@ -146,7 +144,7 @@ func (p *TraceAgent) Ingest(ctx context.Context, traces ptrace.Traces) {
 	rspanss := traces.ResourceSpans()
 	for i := 0; i < rspanss.Len(); i++ {
 		rspans := rspanss.At(i)
-		p.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, http.Header{})
+		p.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, http.Header{}, nil)
 		// ...the call transforms the OTLP Spans into a Datadog payload and sends the result
 		// down the p.pchan channel
 

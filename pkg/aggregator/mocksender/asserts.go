@@ -9,6 +9,7 @@
 package mocksender
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -75,6 +76,11 @@ func (m *MockSender) AssertMetricNotTaggedWith(t *testing.T, method string, metr
 // Additional tags over the ones specified don't make it fail
 func (m *MockSender) AssertMetricWithTimestamp(t *testing.T, method string, metric string, value float64, hostname string, tags []string, ts float64) bool {
 	return m.Mock.AssertCalled(t, method, metric, value, hostname, MatchTagsContains(tags), ts)
+}
+
+// AssertMetricMissing assert the expected metric  was never emitted
+func (m *MockSender) AssertMetricMissing(t *testing.T, method string, metric string) bool {
+	return m.Mock.AssertNotCalled(t, method, metric, mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 }
 
 // AssertEvent assert the expectedEvent was emitted with the following values:
@@ -157,11 +163,8 @@ func eventLike(expectedEvent, actualEvent event.Event) bool {
 func expectedInActual(expected, actual []string) bool {
 	expectedCount := 0
 	for _, e := range expected {
-		for _, a := range actual {
-			if e == a {
-				expectedCount++
-				break
-			}
+		if slices.Contains(actual, e) {
+			expectedCount++
 		}
 	}
 	return len(expected) == expectedCount

@@ -22,16 +22,19 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,27 +46,21 @@ import (
 const (
 	// apiEndpointPrefix is the URL prefix prepended to the default site value from YamlAgentConfig.
 	apiEndpointPrefix = "https://trace.agent."
-	// rcClientName is the default name for remote configuration clients in the trace agent
-	rcClientName = "trace-agent"
-)
-
-const (
-	// rcClientPollInterval is the default poll interval for remote configuration clients. 1 second ensures that
-	// clients remain up to date without paying too much of a performance cost (polls that contain no updates are cheap)
-	rcClientPollInterval = time.Second * 1
+	// mrfPrefix is the MRF site prefix.
+	mrfPrefix = "mrf."
 )
 
 func setupConfigCommon(deps Dependencies, _ string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
-	return LoadConfigFile(confFilePath, deps.Config)
+	return LoadConfigFile(confFilePath, deps.Config, deps.Tagger, deps.IPC)
 }
 
 // LoadConfigFile returns a new configuration based on the given path. The path must not necessarily exist
 // and a valid configuration can be returned based on defaults and environment variables. If a
 // valid configuration can not be obtained, an error is returned.
-func LoadConfigFile(path string, c corecompcfg.Component) (*config.AgentConfig, error) {
-	cfg, err := prepareConfig(c)
+func LoadConfigFile(path string, c corecompcfg.Component, tagger tagger.Component, ipc ipc.Component) (*config.AgentConfig, error) {
+	cfg, err := prepareConfig(c, tagger, ipc)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -80,7 +77,7 @@ func LoadConfigFile(path string, c corecompcfg.Component) (*config.AgentConfig, 
 	return cfg, validate(cfg, c)
 }
 
-func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
+func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Component) (*config.AgentConfig, error) {
 	cfg := config.New()
 	cfg.DDAgentBin = defaultDDAgentBin
 	cfg.AgentVersion = version.AgentVersion
@@ -110,20 +107,34 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if pkgconfigsetup.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote(c, ipcAddress)
+		client, err := remote(c, ipcAddress, ipc)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
 			cfg.RemoteConfigClient = client
 		}
 	}
-	cfg.ContainerTags = containerTagsFunc
+	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
+		mrfClient, err := mrfRemoteClient(ipcAddress, ipc)
+		if err != nil {
+			log.Errorf("Error when subscribing to MRF remote config management %v", err)
+		} else {
+			cfg.MRFRemoteConfigClient = mrfClient
+		}
+	}
+	cfg.ContainerTags = func(cid string) ([]string, error) {
+		return tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality)
+	}
+	cfg.ContainerIDFromOriginInfo = func(originInfo origindetection.OriginInfo) (string, error) {
+		return tagger.GenerateContainerIDFromOriginInfo(originInfo)
+	}
 	cfg.ContainerProcRoot = coreConfigObject.GetString("container_proc_root")
-	return cfg, nil
-}
+	cfg.GetAgentAuthToken = apiutil.GetAuthToken
+	cfg.HTTPTransportFunc = func() *http.Transport {
+		return httputils.CreateHTTPTransport(coreConfigObject)
+	}
 
-func containerTagsFunc(cid string) ([]string, error) {
-	return tagger.Tag(types.NewEntityID(types.ContainerID, cid).String(), types.HighCardinality)
+	return cfg, nil
 }
 
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
@@ -169,6 +180,23 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	} else {
 		c.Endpoints[0].Host = utils.GetMainEndpoint(pkgconfigsetup.Datadog(), apiEndpointPrefix, "apm_config.apm_dd_url")
 	}
+
+	// Add MRF endpoint, if enabled
+	if core.GetBool("multi_region_failover.enabled") {
+		prefix := apiEndpointPrefix + mrfPrefix
+		mrfURL, err := utils.GetMRFEndpoint(core, prefix, "multi_region_failover.dd_url")
+		if err != nil {
+			return fmt.Errorf("cannot construct MRF endpoint: %s", err)
+		}
+		c.MRFFailoverAPMDefault = core.GetBool("multi_region_failover.failover_apm")
+
+		c.Endpoints = append(c.Endpoints, &config.Endpoint{
+			Host:   mrfURL,
+			APIKey: utils.SanitizeAPIKey(core.GetString("multi_region_failover.api_key")),
+			IsMRF:  true,
+		})
+	}
+
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
 	if core.IsSet("proxy.no_proxy") {
@@ -196,7 +224,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.SkipSSLValidation = core.GetBool("skip_ssl_validation")
 	}
 	if core.IsSet("apm_config.enabled") {
-		c.Enabled = core.GetBool("apm_config.enabled")
+		c.Enabled = utils.IsAPMEnabled(core)
 	}
 	if pkgconfigsetup.Datadog().IsSet("apm_config.log_file") {
 		c.LogFilePath = pkgconfigsetup.Datadog().GetString("apm_config.log_file")
@@ -207,7 +235,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	prevEnv := c.DefaultEnv
-	c.DefaultEnv = traceutil.NormalizeTag(c.DefaultEnv)
+	c.DefaultEnv = normalize.NormalizeTagValue(c.DefaultEnv)
 	if c.DefaultEnv != prevEnv {
 		log.Debugf("Normalized DefaultEnv from %q to %q", prevEnv, c.DefaultEnv)
 	}
@@ -223,14 +251,23 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
-
-	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
-	c.PeerTagsAggregation = core.GetBool("apm_config.peer_service_aggregation")
-	if c.PeerTagsAggregation {
-		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
+	if core.IsSet("apm_config.sql_obfuscation_mode") {
+		c.SQLObfuscationMode = core.GetString("apm_config.sql_obfuscation_mode")
 	}
-	c.PeerTagsAggregation = c.PeerTagsAggregation || core.GetBool("apm_config.peer_tags_aggregation")
+
+	/**
+	 * NOTE: PeerTagsAggregation is on by default as of Q4 2024. To get the default experience,
+	 * customers DO NOT NEED to set "apm_config.peer_service_aggregation" (deprecated) or "apm_config.peer_tags_aggregation" (previously defaulted to false, now true).
+	 * However, customers may opt out by explicitly setting "apm_config.peer_tags_aggregation" to "false".
+	 */
+	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
+
+	if !c.PeerTagsAggregation {
+		log.Info("peer tags aggregation is explicitly disabled. To enable it, remove `apm_config.peer_tags_aggregation: false` from your configuration")
+	}
+
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
+
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
 	}
@@ -272,6 +309,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.probabilistic_sampler.hash_seed") {
 		c.ProbabilisticSamplerHashSeed = uint32(core.GetInt("apm_config.probabilistic_sampler.hash_seed"))
+	}
+
+	if core.IsSet("apm_config.error_tracking_standalone.enabled") {
+		c.ErrorTrackingStandalone = core.GetBool("apm_config.error_tracking_standalone.enabled")
 	}
 
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
@@ -347,7 +388,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.GUIPort = core.GetString("GUI_port")
 
 	var grpcPort int
-	if otlp.IsEnabled(pkgconfigsetup.Datadog()) {
+	if configcheck.IsEnabled(pkgconfigsetup.Datadog()) {
 		grpcPort = core.GetInt(pkgconfigsetup.OTLPTracePort)
 	}
 
@@ -359,13 +400,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 
 	c.OTLPReceiver = &config.OTLP{
-		BindHost:               c.ReceiverHost,
-		GRPCPort:               grpcPort,
-		MaxRequestBytes:        c.MaxRequestBytes,
-		SpanNameRemappings:     pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
-		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
-		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
-		AttributesTranslator:   attributesTranslator,
+		BindHost:                   c.ReceiverHost,
+		GRPCPort:                   grpcPort,
+		MaxRequestBytes:            c.MaxRequestBytes,
+		SpanNameRemappings:         pkgconfigsetup.Datadog().GetStringMapString("otlp_config.traces.span_name_remappings"),
+		SpanNameAsResourceName:     core.GetBool("otlp_config.traces.span_name_as_resource_name"),
+		IgnoreMissingDatadogFields: core.GetBool("otlp_config.traces.ignore_missing_datadog_fields"),
+		ProbabilisticSampling:      core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
+		AttributesTranslator:       attributesTranslator,
+		GrpcMaxRecvMsgSizeMib:      core.GetInt("otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib"),
 	}
 
 	if core.IsSet("apm_config.install_id") {
@@ -391,105 +434,43 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
 	}
 	c.Obfuscation = new(config.ObfuscationConfig)
-	if core.IsSet("apm_config.obfuscation") {
-		var o config.ObfuscationConfig
-		err := pkgconfigsetup.Datadog().UnmarshalKey("apm_config.obfuscation", &o)
-		if err == nil {
-			c.Obfuscation = &o
-			if o.RemoveStackTraces {
-				if err = addReplaceRule(c, "error.stack", `(?s).*`, "?"); err != nil {
-					return err
-				}
-			}
+	c.Obfuscation.ES.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled")
+	c.Obfuscation.ES.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+	c.Obfuscation.ES.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+	c.Obfuscation.OpenSearch.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.opensearch.enabled")
+	c.Obfuscation.OpenSearch.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.keep_values")
+	c.Obfuscation.OpenSearch.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values")
+	c.Obfuscation.Mongo.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.mongodb.enabled")
+	c.Obfuscation.Mongo.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
+	c.Obfuscation.Mongo.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+	c.Obfuscation.SQLExecPlan.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan.enabled")
+	c.Obfuscation.SQLExecPlan.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
+	c.Obfuscation.SQLExecPlan.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+	c.Obfuscation.SQLExecPlanNormalize.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
+	c.Obfuscation.SQLExecPlanNormalize.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+	c.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
+	c.Obfuscation.HTTP.RemoveQueryString = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_query_string")
+	c.Obfuscation.HTTP.RemovePathDigits = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_paths_with_digits")
+	c.Obfuscation.RemoveStackTraces = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.remove_stack_traces")
+	if c.Obfuscation.RemoveStackTraces {
+		if err = addReplaceRule(c, "error.stack", `(?s).*`, "?"); err != nil {
+			return err
+		}
+		if err = addReplaceRule(c, "exception.stacktrace", `(?s).*`, "?"); err != nil {
+			return err
 		}
 	}
-	{
-		// Obfuscation of database statements will be ON by default. Any new obfuscators should likely be
-		// enabled by default as well. This can be explicitly disabled with the agent config. Any changes
-		// to obfuscation options or defaults must be reflected in the public docs.
-		c.Obfuscation.ES.Enabled = true
-		c.Obfuscation.OpenSearch.Enabled = true
-		c.Obfuscation.Mongo.Enabled = true
-		c.Obfuscation.Memcached.Enabled = true
-		c.Obfuscation.Redis.Enabled = true
-		c.Obfuscation.CreditCards.Enabled = true
-
-		// TODO(x): There is an issue with pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation"), probably coming from Viper,
-		// where it returns false even is "apm_config.obfuscation.credit_cards.enabled" is set via an environment
-		// variable, so we need a temporary workaround by specifically setting env. var. accessible fields.
-		if core.IsSet("apm_config.obfuscation.credit_cards.enabled") {
-			c.Obfuscation.CreditCards.Enabled = core.GetBool("apm_config.obfuscation.credit_cards.enabled")
-		}
-		if core.IsSet("apm_config.obfuscation.credit_cards.luhn") {
-			c.Obfuscation.CreditCards.Luhn = core.GetBool("apm_config.obfuscation.credit_cards.luhn")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.elasticsearch.enabled") {
-			c.Obfuscation.ES.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.elasticsearch.keep_values") {
-			c.Obfuscation.ES.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.elasticsearch.obfuscate_sql_values") {
-			c.Obfuscation.ES.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.opensearch.enabled") {
-			c.Obfuscation.OpenSearch.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.opensearch.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.opensearch.keep_values") {
-			c.Obfuscation.OpenSearch.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.opensearch.obfuscate_sql_values") {
-			c.Obfuscation.OpenSearch.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.http.remove_query_string") {
-			c.Obfuscation.HTTP.RemoveQueryString = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_query_string")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.http.remove_paths_with_digits") {
-			c.Obfuscation.HTTP.RemovePathDigits = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.http.remove_paths_with_digits")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.memcached.enabled") {
-			c.Obfuscation.Memcached.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.memcached.keep_command") {
-			c.Obfuscation.Memcached.KeepCommand = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.mongodb.enabled") {
-			c.Obfuscation.Mongo.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.mongodb.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.mongodb.keep_values") {
-			c.Obfuscation.Mongo.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.mongodb.obfuscate_sql_values") {
-			c.Obfuscation.Mongo.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.redis.enabled") {
-			c.Obfuscation.Redis.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.redis.remove_all_args") {
-			c.Obfuscation.Redis.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.remove_stack_traces") {
-			c.Obfuscation.RemoveStackTraces = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.remove_stack_traces")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan.enabled") {
-			c.Obfuscation.SQLExecPlan.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan.keep_values") {
-			c.Obfuscation.SQLExecPlan.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values") {
-			c.Obfuscation.SQLExecPlan.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan_normalize.enabled") {
-			c.Obfuscation.SQLExecPlanNormalize.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan_normalize.keep_values") {
-			c.Obfuscation.SQLExecPlanNormalize.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
-		}
-		if pkgconfigsetup.Datadog().IsSet("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values") {
-			c.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
-		}
-	}
+	c.Obfuscation.Memcached.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.enabled")
+	c.Obfuscation.Memcached.KeepCommand = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command")
+	c.Obfuscation.Redis.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.enabled")
+	c.Obfuscation.Redis.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args")
+	c.Obfuscation.Valkey.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.enabled")
+	c.Obfuscation.Valkey.RemoveAllArgs = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.valkey.remove_all_args")
+	c.Obfuscation.CreditCards.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.enabled")
+	c.Obfuscation.CreditCards.Luhn = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.credit_cards.luhn")
+	c.Obfuscation.CreditCards.KeepValues = pkgconfigsetup.Datadog().GetStringSlice("apm_config.obfuscation.credit_cards.keep_values")
+	c.Obfuscation.Cache.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.cache.enabled")
+	c.Obfuscation.Cache.MaxSize = pkgconfigsetup.Datadog().GetInt64("apm_config.obfuscation.cache.max_size")
 
 	if core.IsSet("apm_config.filter_tags.require") {
 		tags := core.GetStringSlice("apm_config.filter_tags.require")
@@ -532,7 +513,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		"apm_config.trace_writer": c.TraceWriter,
 		"apm_config.stats_writer": c.StatsWriter,
 	} {
-		if err := pkgconfigsetup.Datadog().UnmarshalKey(key, cfg); err != nil {
+		ddcfg := pkgconfigsetup.Datadog()
+		if err := structure.UnmarshalKey(ddcfg, key, cfg); err != nil {
 			log.Errorf("Error reading writer config %q: %v", key, err)
 		}
 	}
@@ -552,7 +534,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	// undocumented deprecated
 	if core.IsSet("apm_config.analyzed_rate_by_service") {
 		rateByService := make(map[string]float64)
-		if err := pkgconfigsetup.Datadog().UnmarshalKey("apm_config.analyzed_rate_by_service", &rateByService); err != nil {
+		cfg := pkgconfigsetup.Datadog()
+		if err := structure.UnmarshalKey(cfg, "apm_config.analyzed_rate_by_service", &rateByService); err != nil {
 			return err
 		}
 		c.AnalyzedRateByServiceLegacy = rateByService
@@ -654,6 +637,21 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "evp_proxy_config.receiver_timeout"; core.IsSet(k) {
 		c.EVPProxy.ReceiverTimeout = core.GetInt(k)
 	}
+	if k := "ol_proxy_config.enabled"; core.IsSet(k) {
+		c.OpenLineageProxy.Enabled = core.GetBool(k)
+	}
+	if k := "ol_proxy_config.dd_url"; core.IsSet(k) {
+		c.OpenLineageProxy.DDURL = core.GetString(k)
+	}
+	if k := "ol_proxy_config.api_key"; core.IsSet(k) {
+		c.OpenLineageProxy.APIKey = core.GetString(k)
+	}
+	if k := "ol_proxy_config.additional_endpoints"; core.IsSet(k) {
+		c.OpenLineageProxy.AdditionalEndpoints = core.GetStringMapStringSlice(k)
+	}
+	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
+		c.OpenLineageProxy.APIVersion = core.GetInt(k)
+	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	return nil
 }
@@ -664,6 +662,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 func loadDeprecatedValues(c *config.AgentConfig) error {
 	cfg := pkgconfigsetup.Datadog()
 	if cfg.IsSet("apm_config.api_key") {
+		log.Warn("apm_config.api_key is deprecated. Use core api_key instead")
 		c.Endpoints[0].APIKey = utils.SanitizeAPIKey(cfg.GetString("apm_config.api_key"))
 	}
 	if cfg.IsSet("apm_config.bucket_size_seconds") {

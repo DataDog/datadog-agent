@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	//nolint:depguard // disable logs from DataDog/gopsutil
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

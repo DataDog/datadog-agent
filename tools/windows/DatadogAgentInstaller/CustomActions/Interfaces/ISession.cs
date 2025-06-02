@@ -1,5 +1,7 @@
-using System.Runtime.CompilerServices;
 using Microsoft.Deployment.WindowsInstaller;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Datadog.CustomActions.Interfaces
 {
@@ -38,5 +40,15 @@ namespace Datadog.CustomActions.Interfaces
         /// see <see cref="Session.CustomActionData"/>
         /// </summary>
         CustomActionData CustomActionData { get; }
+
+        /// <summary>
+        /// see <see cref="SessionWrapper.RunCommand"/>
+        /// </summary>
+        Process RunCommand(string filename, string arguments);
+
+        /// <summary>
+        /// see <see cref="SessionWrapper.RunCommand"/>
+        /// </summary>
+        Process RunCommand(string filename, string arguments, IDictionary<string, string> environment);
     }
 }

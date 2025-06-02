@@ -7,6 +7,7 @@
 package errors
 
 import (
+	"encoding/json"
 	"errors"
 )
 
@@ -14,19 +15,15 @@ import (
 type InstallerErrorCode uint64
 
 const (
-	errUnknown InstallerErrorCode = iota // This error code is purposefully not exported
-	// ErrInstallFailed is the code for an install failure.
-	ErrInstallFailed
+	errUnknown InstallerErrorCode = 0 // This error code is purposefully not exported
 	// ErrDownloadFailed is the code for a download failure.
-	ErrDownloadFailed
-	// ErrInvalidHash is the code for an invalid hash.
-	ErrInvalidHash
-	// ErrInvalidState is the code for an invalid state.
-	ErrInvalidState
+	ErrDownloadFailed InstallerErrorCode = 1
+	// ErrNotEnoughDiskSpace is the code for not enough disk space.
+	ErrNotEnoughDiskSpace InstallerErrorCode = 2
 	// ErrPackageNotFound is the code for a package not found.
-	ErrPackageNotFound
-	// ErrUpdateExperimentFailed is the code for an update experiment failure.
-	ErrUpdateExperimentFailed
+	ErrPackageNotFound InstallerErrorCode = 3
+	// ErrFilesystemIssue is the code for a filesystem issue (e.g. permission issue).
+	ErrFilesystemIssue InstallerErrorCode = 4
 )
 
 // InstallerError is an error type used by the installer.
@@ -35,25 +32,20 @@ type InstallerError struct {
 	code InstallerErrorCode
 }
 
+type installerErrorJSON struct {
+	Error string `json:"error"`
+	Code  int    `json:"code"`
+}
+
 // Error returns the error message.
 func (e InstallerError) Error() string {
 	return e.err.Error()
-}
-
-// Unwrap returns the wrapped error.
-func (e InstallerError) Unwrap() error {
-	return e.err
 }
 
 // Is implements the Is method of the errors.Is interface.
 func (e InstallerError) Is(target error) bool {
 	_, ok := target.(*InstallerError)
 	return ok
-}
-
-// Code returns the error code of the installer error.
-func (e InstallerError) Code() InstallerErrorCode {
-	return e.code
 }
 
 // Wrap wraps the given error with an installer error.
@@ -69,18 +61,41 @@ func Wrap(errCode InstallerErrorCode, err error) error {
 	}
 }
 
-// From returns a new InstallerError from the given error.
-func From(err error) *InstallerError {
-	if err == nil {
-		return nil
+// GetCode returns the installer error code of the given error.
+func GetCode(err error) InstallerErrorCode {
+	code := errUnknown
+	e := &InstallerError{}
+	if ok := errors.As(err, &e); ok {
+		code = e.code
 	}
+	return code
+}
 
-	e, ok := err.(*InstallerError)
-	if !ok {
+// ToJSON returns the error as a JSON string.
+func ToJSON(err error) string {
+	tmp := installerErrorJSON{
+		Error: err.Error(),
+		Code:  int(GetCode(err)),
+	}
+	jsonErr, err := json.Marshal(tmp)
+	if err != nil {
+		return err.Error()
+	}
+	return string(jsonErr)
+}
+
+// FromJSON returns an InstallerError from a JSON string.
+func FromJSON(errStr string) *InstallerError {
+	var jsonError installerErrorJSON
+	err := json.Unmarshal([]byte(errStr), &jsonError)
+	if err != nil {
 		return &InstallerError{
-			err:  err,
+			err:  errors.New(errStr),
 			code: errUnknown,
 		}
 	}
-	return e
+	return &InstallerError{
+		err:  errors.New(jsonError.Error),
+		code: InstallerErrorCode(jsonError.Code),
+	}
 }

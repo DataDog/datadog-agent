@@ -42,3 +42,10 @@ func TestVerifyKernelFuncs(t *testing.T) {
 	_, err = fc.verifyKernelFuncs(requiredKernelFuncs)
 	assert.NotEmpty(t, err)
 }
+
+func BenchmarkVerifyKernelFuncs(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		fc := newExistCache("./testdata/kallsyms.supported")
+		fc.verifyKernelFuncs(requiredKernelFuncs)
+	}
+}

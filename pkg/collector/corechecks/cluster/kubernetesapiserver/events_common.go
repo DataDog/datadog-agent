@@ -10,6 +10,7 @@ package kubernetesapiserver
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 
 	"github.com/patrickmn/go-cache"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -260,30 +261,27 @@ func getInvolvedObjectTags(involvedObject v1.ObjectReference, taggerInstance tag
 			fmt.Sprintf("namespace:%s", involvedObject.Namespace),
 		)
 
-		namespaceEntityID := types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace))).String()
+		namespaceEntityID := types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", involvedObject.Namespace)))
 		namespaceEntity, err := taggerInstance.GetEntity(namespaceEntityID)
 		if err == nil {
 			tagList = append(tagList, namespaceEntity.GetTags(types.HighCardinality)...)
 		}
 	}
 
-	var entityID string
+	var entityID types.EntityID
 
 	switch involvedObject.Kind {
 	case podKind:
-		entityID = types.NewEntityID(types.KubernetesPodUID, string(involvedObject.UID)).String()
+		entityID = types.NewEntityID(types.KubernetesPodUID, string(involvedObject.UID))
 	case deploymentKind:
-		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name)).String()
+		entityID = types.NewEntityID(types.KubernetesDeployment, fmt.Sprintf("%s/%s", involvedObject.Namespace, involvedObject.Name))
 	default:
-		var apiGroup string
-		apiVersionParts := strings.Split(involvedObject.APIVersion, "/")
-		if len(apiVersionParts) == 2 {
-			apiGroup = apiVersionParts[0]
-		} else {
-			apiGroup = ""
+		apiGroup := apiserver.GetAPIGroup(involvedObject.APIVersion)
+		resourceType, err := apiserver.GetResourceType(involvedObject.Kind, apiGroup)
+		if err != nil {
+			log.Debugf("error getting resource type for kind '%s' and group '%s', tags may be missing: %v", involvedObject.Kind, apiGroup, err)
 		}
-		resourceType := strings.ToLower(involvedObject.Kind) + "s"
-		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name))).String()
+		entityID = types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID(apiGroup, resourceType, involvedObject.Namespace, involvedObject.Name)))
 	}
 
 	entity, err := taggerInstance.GetEntity(entityID)
@@ -449,10 +447,8 @@ func shouldCollect(ev *v1.Event, collectedTypes []collectedEventType) bool {
 			return true
 		}
 
-		for _, r := range f.Reasons {
-			if ev.Reason == r {
-				return true
-			}
+		if slices.Contains(f.Reasons, ev.Reason) {
+			return true
 		}
 	}
 

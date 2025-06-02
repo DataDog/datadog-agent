@@ -1,7 +1,7 @@
 import unittest
-from unittest.mock import MagicMock
 
-from tasks.libs.common.utils import clean_nested_paths, guess_from_keywords, guess_from_labels
+from tasks.libs.common.utils import clean_nested_paths
+from tasks.libs.package.utils import get_package_name
 
 
 class TestUtils(unittest.TestCase):
@@ -35,33 +35,30 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(clean_nested_paths(paths), expected_paths)
 
 
-# We must define this class as we cannot override the name attribute in MagicMock
-class Label:
-    def __init__(self, name):
-        self.name = name
+class TestGetPackageName(unittest.TestCase):
+    def test_get_package_name_no_flavor(self):
+        """Test get_package_name with no flavor (empty string)"""
+        binary = "agent"
+        flavor = ""
 
+        result = get_package_name(binary, flavor)
 
-class TestGuessFromLabels(unittest.TestCase):
-    def test_with_team(self):
-        issue = MagicMock(labels=[Label(name="team/triage"), Label(name="team/core")])
+        self.assertEqual(result, "datadog-agent")
 
-        self.assertEqual(guess_from_labels(issue), "core")
+    def test_get_package_name_with_flavor(self):
+        """Test get_package_name with a flavor specified"""
+        binary = "agent"
+        flavor = "iot"
 
-    def test_without_team(self):
-        issue = MagicMock(labels=[Label(name="team/triage"), Label(name="team:burton")])
+        result = get_package_name(binary, flavor)
 
-        self.assertEqual(guess_from_labels(issue), "triage")
+        self.assertEqual(result, "datadog-iot-agent")
 
+    def test_get_package_name_different_binary(self):
+        """Test get_package_name with a different binary name"""
+        binary = "dogstatsd"
+        flavor = ""
 
-class TestGuessFromKeywords(unittest.TestCase):
-    def test_from_simple_match(self):
-        issue = MagicMock(title="I have an issue", body="I can't get any logs from the agent.")
-        self.assertEqual(guess_from_keywords(issue), "agent-metrics-logs")
+        result = get_package_name(binary, flavor)
 
-    def test_with_a_file(self):
-        issue = MagicMock(title="fix bug", body="It comes from the file pkg/agent/build.py")
-        self.assertEqual(guess_from_keywords(issue), "agent-shared-components")
-
-    def test_no_match(self):
-        issue = MagicMock(title="fix bug", body="It comes from the file... hm I don't know.")
-        self.assertEqual(guess_from_keywords(issue), "triage")
+        self.assertEqual(result, "datadog-dogstatsd")

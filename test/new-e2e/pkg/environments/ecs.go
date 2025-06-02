@@ -6,33 +6,12 @@
 package environments
 
 import (
-	"github.com/zorkian/go-datadog-api"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
 // ECS is an environment that contains a ECS deployed in a cluster, FakeIntake and Agent configured to talk to each other.
 type ECS struct {
 	// Components
-	FakeIntake    *components.FakeIntake
-	DatadogClient *datadog.Client
-}
-
-var _ e2e.Initializable = &ECS{}
-
-// Init initializes the environment
-func (e *ECS) Init(_ e2e.Context) error {
-	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	if err != nil {
-		return err
-	}
-	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
-	if err != nil {
-		return err
-	}
-	e.DatadogClient = datadog.NewClient(apiKey, appKey)
-	return nil
+	ECSCluster *components.ECSCluster
+	FakeIntake *components.FakeIntake
 }

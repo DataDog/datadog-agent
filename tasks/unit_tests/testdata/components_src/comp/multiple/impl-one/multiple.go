@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package multipleimpl
+package oneimpl
 
 import (
 	multiple "github.com/DataDog/datadog-agent/comp/multiple/def"

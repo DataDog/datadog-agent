@@ -6,93 +6,98 @@
 package snmp
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestBuildSNMPParams(t *testing.T) {
-	config := Config{
-		Network: "192.168.0.0/24",
-	}
-	_, err := config.BuildSNMPParams("192.168.0.1")
+	authentication := Authentication{}
+	_, err := authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "No authentication mechanism specified", err.Error())
 
-	config = Config{
-		Network: "192.168.0.0/24",
+	authentication = Authentication{
 		User:    "admin",
 		Version: "4",
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "SNMP version not supported: 4", err.Error())
 
-	config = Config{
-		Network:   "192.168.0.0/24",
+	authentication = Authentication{
 		Community: "public",
 	}
-	params, _ := config.BuildSNMPParams("192.168.0.1")
+	params, _ := authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, gosnmp.Version2c, params.Version)
 	assert.Equal(t, "192.168.0.1", params.Target)
 
-	config = Config{
-		Network: "192.168.0.0/24",
-		User:    "admin",
+	authentication = Authentication{
+		User: "admin",
 	}
-	params, _ = config.BuildSNMPParams("192.168.0.2")
+	params, _ = authentication.BuildSNMPParams("192.168.0.2", 0)
 	assert.Equal(t, gosnmp.Version3, params.Version)
 	assert.Equal(t, gosnmp.NoAuthNoPriv, params.MsgFlags)
 	assert.Equal(t, "192.168.0.2", params.Target)
 
 	for _, authProto := range []string{"", "md5", "sha", "sha224", "sha256", "sha384", "sha512"} {
-		config = Config{
-			Network:      "192.168.0.0/24",
+		authentication = Authentication{
 			User:         "admin",
 			AuthProtocol: authProto,
 		}
-		_, err = config.BuildSNMPParams("192.168.0.1")
+		_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 		assert.NoError(t, err)
-		assert.Equal(t, authProto, config.AuthProtocol)
+		assert.Equal(t, authProto, authentication.AuthProtocol)
 	}
 
 	for _, privProto := range []string{"", "des", "aes", "aes192", "aes192c", "aes256", "aes256c"} {
-		config = Config{
-			Network:      "192.168.0.0/24",
+		authentication = Authentication{
 			User:         "admin",
 			PrivProtocol: privProto,
 		}
-		_, err = config.BuildSNMPParams("192.168.0.1")
+		_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 		assert.NoError(t, err)
-		assert.Equal(t, privProto, config.PrivProtocol)
+		assert.Equal(t, privProto, authentication.PrivProtocol)
 	}
 
-	config = Config{
-		Network:      "192.168.0.0/24",
+	authentication = Authentication{
 		User:         "admin",
 		AuthProtocol: "foo",
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported authentication protocol: foo", err.Error())
 
-	config = Config{
-		Network:      "192.168.0.0/24",
+	authentication = Authentication{
 		User:         "admin",
 		PrivProtocol: "bar",
 	}
-	_, err = config.BuildSNMPParams("192.168.0.1")
+	_, err = authentication.BuildSNMPParams("192.168.0.1", 0)
 	assert.Equal(t, "unsupported privacy protocol: bar", err.Error())
+
+	authentications := []Authentication{
+		{
+			Community: "myCommunityString1",
+		},
+		{
+			Community: "myCommunityString2",
+		},
+		{
+			Community: "myCommunityString3",
+		},
+	}
+	for _, authentication = range authentications {
+		params, _ = authentication.BuildSNMPParams("192.168.0.1", 0)
+		assert.Equal(t, authentication.Community, params.Community)
+		assert.Equal(t, gosnmp.Version2c, params.Version)
+		assert.Equal(t, "192.168.0.1", params.Target)
+	}
 }
 
 func TestNewListenerConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-
-	// default collect_device_metadata should be true
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 snmp_listener:
   configs:
    - network: 127.0.0.1/30
@@ -100,8 +105,7 @@ snmp_listener:
      collect_device_metadata: true
    - network: 127.0.0.3/30
      collect_device_metadata: false
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -114,7 +118,7 @@ snmp_listener:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 
 	// collect_device_metadata: false
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 snmp_listener:
   collect_device_metadata: false
   configs:
@@ -123,8 +127,7 @@ snmp_listener:
      collect_device_metadata: true
    - network: 127.0.0.3/30
      collect_device_metadata: false
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
@@ -137,7 +140,7 @@ snmp_listener:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 
 	// collect_device_metadata: true
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 snmp_listener:
   collect_device_metadata: true
   configs:
@@ -146,8 +149,7 @@ snmp_listener:
      collect_device_metadata: true
    - network: 127.0.0.3/30
      collect_device_metadata: false
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
@@ -161,10 +163,10 @@ snmp_listener:
 }
 
 func TestNewNetworkDevicesListenerConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	configmock.SetDefaultConfigType(t, "yaml")
 
 	// default collect_device_metadata should be true
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     configs:
@@ -173,8 +175,7 @@ network_devices:
        collect_device_metadata: true
      - network: 127.0.0.3/30
        collect_device_metadata: false
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -187,7 +188,7 @@ network_devices:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 
 	// collect_device_metadata: false
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     collect_device_metadata: false
@@ -197,8 +198,7 @@ network_devices:
        collect_device_metadata: true
      - network: 127.0.0.3/30
        collect_device_metadata: false
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
@@ -211,7 +211,7 @@ network_devices:
 	assert.Equal(t, false, conf.Configs[2].CollectDeviceMetadata)
 
 	// collect_device_metadata: true
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     collect_device_metadata: true
@@ -221,8 +221,7 @@ network_devices:
        collect_device_metadata: true
      - network: 127.0.0.3/30
        collect_device_metadata: false
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
@@ -236,10 +235,10 @@ network_devices:
 }
 
 func TestBothListenersConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	configmock.SetDefaultConfigType(t, "yaml")
 
 	// check that network_devices config override the snmp_listener config
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 snmp_listener:
   collect_device_metadata: true
   configs:
@@ -257,8 +256,7 @@ network_devices:
        collect_device_metadata: false
      - network: 127.0.0.6/30
        collect_device_metadata: true
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -272,7 +270,7 @@ network_devices:
 	assert.Equal(t, true, conf.Configs[2].CollectDeviceMetadata)
 
 	// incorrect snmp_listener config and correct network_devices config
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 snmp_listener:
   configs:
    - foo: bar
@@ -285,8 +283,7 @@ network_devices:
        collect_device_metadata: false
      - network: 127.0.0.6/30
        collect_device_metadata: true
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
@@ -299,7 +296,7 @@ network_devices:
 	assert.Equal(t, true, conf.Configs[2].CollectDeviceMetadata)
 
 	// incorrect snmp_listener config and correct network_devices config
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 snmp_listener:
   configs:
   - network: 127.0.0.4/30
@@ -310,16 +307,88 @@ snmp_listener:
 network_devices:
   autodiscovery:
     - foo: bar
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err = NewListenerConfig()
 	assert.Error(t, err)
 }
 
+func Test_AuthenticationsConfig(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network_address: 127.1.0.0/30
+       authentications:
+        - community_string: someCommunityString1
+        - user: someUser
+          authProtocol: someAuthProtocol
+          authKey: someAuthKey
+          privProtocol: somePrivProtocol
+          privKey: somePrivKey
+        - community_string: someCommunityString2
+          snmp_version: someSnmpVersion
+`)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	networkConf := conf.Configs[0]
+	assert.Equal(t, "someCommunityString1", networkConf.Authentications[0].Community)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[0].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[0].Retries)
+	assert.Equal(t, "someUser", networkConf.Authentications[1].User)
+	assert.Equal(t, "someAuthProtocol", networkConf.Authentications[1].AuthProtocol)
+	assert.Equal(t, "someAuthKey", networkConf.Authentications[1].AuthKey)
+	assert.Equal(t, "somePrivProtocol", networkConf.Authentications[1].PrivProtocol)
+	assert.Equal(t, "somePrivKey", networkConf.Authentications[1].PrivKey)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[1].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[1].Retries)
+	assert.Equal(t, "someCommunityString2", networkConf.Authentications[2].Community)
+	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[2].Version)
+	assert.Equal(t, defaultTimeout, networkConf.Authentications[2].Timeout)
+	assert.Equal(t, defaultRetries, networkConf.Authentications[2].Retries)
+
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network_address: 127.1.0.0/30
+       user: someUser1
+       authProtocol: someAuthProtocol1
+       authKey: someAuthKey1
+       privProtocol: somePrivProtocol1
+       privKey: somePrivKey1
+       snmp_version: someSnmpVersion
+       authentications:
+        - community_string: someCommunityString
+        - user: someUser2
+          authProtocol: someAuthProtocol2
+          authKey: someAuthKey2
+          privProtocol: somePrivProtocol2
+          privKey: somePrivKey2
+`)
+
+	conf, err = NewListenerConfig()
+	assert.NoError(t, err)
+
+	networkConf = conf.Configs[0]
+	assert.Equal(t, "someUser1", networkConf.Authentications[0].User)
+	assert.Equal(t, "someAuthProtocol1", networkConf.Authentications[0].AuthProtocol)
+	assert.Equal(t, "someAuthKey1", networkConf.Authentications[0].AuthKey)
+	assert.Equal(t, "somePrivProtocol1", networkConf.Authentications[0].PrivProtocol)
+	assert.Equal(t, "somePrivKey1", networkConf.Authentications[0].PrivKey)
+	assert.Equal(t, "someSnmpVersion", networkConf.Authentications[0].Version)
+	assert.Equal(t, "someCommunityString", networkConf.Authentications[1].Community)
+	assert.Equal(t, "someUser2", networkConf.Authentications[2].User)
+	assert.Equal(t, "someAuthProtocol2", networkConf.Authentications[2].AuthProtocol)
+	assert.Equal(t, "someAuthKey2", networkConf.Authentications[2].AuthKey)
+	assert.Equal(t, "somePrivProtocol2", networkConf.Authentications[2].PrivProtocol)
+	assert.Equal(t, "somePrivKey2", networkConf.Authentications[2].PrivKey)
+}
+
 func Test_LoaderConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     configs:
@@ -328,8 +397,7 @@ network_devices:
        loader: core
      - network: 127.3.0.0/30
        loader: python
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -338,7 +406,7 @@ network_devices:
 	assert.Equal(t, "core", conf.Configs[1].Loader)
 	assert.Equal(t, "python", conf.Configs[2].Loader)
 
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     loader: core
@@ -348,8 +416,7 @@ network_devices:
        loader: core
      - network: 127.3.0.0/30
        loader: python
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
@@ -361,8 +428,7 @@ network_devices:
 }
 
 func Test_MinCollectionInterval(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     min_collection_interval: 60
@@ -370,8 +436,7 @@ network_devices:
      - network: 127.1.0.0/30
        min_collection_interval: 30
      - network: 127.2.0.0/30
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -381,8 +446,7 @@ network_devices:
 }
 
 func Test_Configs(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     workers: 10
@@ -404,8 +468,7 @@ network_devices:
              match_value: "eth0"
              in_speed: 50
              out_speed: 25
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -438,7 +501,7 @@ network_devices:
 	/////////////////
 	// legacy configs
 	/////////////////
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     allowed_failures: 15
@@ -450,8 +513,7 @@ network_devices:
        community: legacyCommunityString
        version: legacySnmpVersion
        network: 127.2.0.0/30
-`))
-	assert.NoError(t, err)
+`)
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
 	legacyConfig := conf.Configs[0]
@@ -468,39 +530,34 @@ network_devices:
 
 func Test_NamespaceConfig(t *testing.T) {
 	// Default Namespace
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     configs:
      - community_string: someCommunityString
        network_address: 127.1.0.0/30
-`))
-	assert.NoError(t, err)
+`)
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
 	networkConf := conf.Configs[0]
 	assert.Equal(t, "default", networkConf.Namespace)
 
 	// Custom Namespace in network_devices
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   namespace: ponyo
   autodiscovery:
     configs:
     - community_string: someCommunityString
       network_address: 127.1.0.0/30
-`))
-	assert.NoError(t, err)
+`)
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
 	networkConf = conf.Configs[0]
 	assert.Equal(t, "ponyo", networkConf.Namespace)
 
 	// Custom Namespace in snmp_listener
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err = pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     namespace: totoro
@@ -510,8 +567,7 @@ network_devices:
     - community_string: someCommunityString
       network_address: 127.2.0.0/30
       namespace: mononoke
-`))
-	assert.NoError(t, err)
+`)
 	conf, err = NewListenerConfig()
 	assert.NoError(t, err)
 	assert.Equal(t, "totoro", conf.Configs[0].Namespace)
@@ -528,8 +584,7 @@ func TestFirstNonEmpty(t *testing.T) {
 }
 
 func Test_UseDeviceIDAsHostname(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     use_device_id_as_hostname: true
@@ -537,8 +592,7 @@ network_devices:
      - network: 127.1.0.0/30
        use_device_id_as_hostname: false
      - network: 127.2.0.0/30
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -548,8 +602,7 @@ network_devices:
 }
 
 func Test_CollectTopology_withRootCollectTopologyFalse(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     collect_topology: false
@@ -559,8 +612,7 @@ network_devices:
      - network: 127.2.0.0/30
        collect_topology: false
      - network: 127.3.0.0/30
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -571,8 +623,7 @@ network_devices:
 }
 
 func Test_CollectTopology_withRootCollectTopologyTrue(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     collect_topology: true
@@ -582,8 +633,7 @@ network_devices:
      - network: 127.2.0.0/30
        collect_topology: false
      - network: 127.3.0.0/30
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -594,8 +644,7 @@ network_devices:
 }
 
 func Test_CollectTopology_withRootCollectTopologyUnset(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
-	err := pkgconfigsetup.Datadog().ReadConfig(strings.NewReader(`
+	configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
     configs:
@@ -604,8 +653,7 @@ network_devices:
      - network: 127.2.0.0/30
        collect_topology: false
      - network: 127.3.0.0/30
-`))
-	assert.NoError(t, err)
+`)
 
 	conf, err := NewListenerConfig()
 	assert.NoError(t, err)
@@ -745,4 +793,18 @@ func TestConfig_Digest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_UseDeduplicationConfig(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+`)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.False(t, conf.Deduplicate)
 }

@@ -20,6 +20,10 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Version is an incrementing integer to identify this "version" of obfuscation logic. This is used to avoid obfuscation
+// conflicts and ensure that clients of the obfuscator can decide where obfuscation should occur.
+const Version = 1
+
 // Obfuscator quantizes and obfuscates spans. The obfuscator is not safe for
 // concurrent use.
 type Obfuscator struct {
@@ -70,32 +74,35 @@ type Config struct {
 	SQL SQLConfig
 
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
-	ES JSONConfig
+	ES JSONConfig `mapstructure:"elasticsearch"`
 
 	// OpenSearch holds the obfuscation configuration for OpenSearch bodies.
-	OpenSearch JSONConfig
+	OpenSearch JSONConfig `mapstructure:"opensearch"`
 
 	// Mongo holds the obfuscation configuration for MongoDB queries.
-	Mongo JSONConfig
+	Mongo JSONConfig `mapstructure:"mongodb"`
 
 	// SQLExecPlan holds the obfuscation configuration for SQL Exec Plans. This is strictly for safety related obfuscation,
 	// not normalization. Normalization of exec plans is configured in SQLExecPlanNormalize.
-	SQLExecPlan JSONConfig
+	SQLExecPlan JSONConfig `mapstructure:"sql_exec_plan"`
 
 	// SQLExecPlanNormalize holds the normalization configuration for SQL Exec Plans.
-	SQLExecPlanNormalize JSONConfig
+	SQLExecPlanNormalize JSONConfig `mapstructure:"sql_exec_plan_normalize"`
 
 	// HTTP holds the obfuscation settings for HTTP URLs.
-	HTTP HTTPConfig
+	HTTP HTTPConfig `mapstructure:"http"`
 
 	// Redis holds the obfuscation settings for Redis commands.
-	Redis RedisConfig
+	Redis RedisConfig `mapstructure:"redis"`
+
+	// Valkey holds the obfuscation settings for Valkey commands.
+	Valkey ValkeyConfig `mapstructure:"valkey"`
 
 	// Memcached holds the obfuscation settings for Memcached commands.
-	Memcached MemcachedConfig
+	Memcached MemcachedConfig `mapstructure:"memcached"`
 
 	// Memcached holds the obfuscation settings for obfuscation of CC numbers in meta.
-	CreditCard CreditCardsConfig
+	CreditCard CreditCardsConfig `mapstructure:"credit_cards"`
 
 	// Statsd specifies the statsd client to use for reporting metrics.
 	Statsd StatsClient
@@ -103,6 +110,9 @@ type Config struct {
 	// Logger specifies the logger to use when outputting messages.
 	// If unset, no logs will be outputted.
 	Logger Logger
+
+	// Cache enables the query cache for obfuscation for SQL and MongoDB queries.
+	Cache CacheConfig `mapstructure:"cache"`
 }
 
 // StatsClient implementations are able to emit stats.
@@ -185,8 +195,13 @@ type SQLConfig struct {
 	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
 	KeepIdentifierQuotation bool `json:"keep_identifier_quotation" yaml:"keep_identifier_quotation"`
 
-	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
-	Cache bool
+	// KeepJSONPath specifies whether to keep JSON paths following JSON operators in SQL statements in obfuscation.
+	// By default, JSON paths are treated as literals and are obfuscated to ?, e.g. "data::jsonb -> 'name'" -> "data::jsonb -> ?".
+	// This option is only valid when ObfuscationMode is "normalize_only" or "obfuscate_and_normalize".
+	KeepJSONPath bool `json:"keep_json_path" yaml:"keep_json_path"`
+
+	// Cache is deprecated. Please use `apm_config.obfuscation.cache` instead.
+	Cache bool `json:"cache" yaml:"cache"`
 }
 
 // SQLMetadata holds metadata collected throughout the obfuscation of an SQL statement. It is only
@@ -220,6 +235,16 @@ type RedisConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 
 	// RemoveAllArgs specifies whether all arguments to a given Redis
+	// command should be obfuscated.
+	RemoveAllArgs bool `mapstructure:"remove_all_args"`
+}
+
+// ValkeyConfig holds the configuration settings for Valkey obfuscation
+type ValkeyConfig struct {
+	// Enabled specifies whether this feature should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// RemoveAllArgs specifies whether all arguments to a given Valkey
 	// command should be obfuscated.
 	RemoveAllArgs bool `mapstructure:"remove_all_args"`
 }
@@ -259,6 +284,19 @@ type CreditCardsConfig struct {
 	// https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
 	// It reduces false positives, but increases the CPU time X3.
 	Luhn bool `mapstructure:"luhn"`
+
+	// KeepValues specifies tag keys that are known to not ever contain credit cards
+	// and therefore their values can be kept.
+	KeepValues []string `mapstructure:"keep_values"`
+}
+
+// CacheConfig holds the configuration for caching obfuscated queries.
+type CacheConfig struct {
+	// Enabled specifies whether caching should be enabled.
+	Enabled bool `mapstructure:"enabled"`
+
+	// MaxSize is the maximum size of the cache in bytes.
+	MaxSize int64 `mapstructure:"max_size"`
 }
 
 // NewObfuscator creates a new obfuscator
@@ -268,7 +306,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 	}
 	o := Obfuscator{
 		opts:              &cfg,
-		queryCache:        newMeasuredCache(cacheOptions{On: cfg.SQL.Cache, Statsd: cfg.Statsd}),
+		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
 	}
@@ -298,7 +336,9 @@ func NewObfuscator(cfg Config) *Obfuscator {
 
 // Stop cleans up after a finished Obfuscator.
 func (o *Obfuscator) Stop() {
-	o.queryCache.Close()
+	if o.queryCache != nil {
+		o.queryCache.Close()
+	}
 }
 
 // compactWhitespaces compacts all whitespaces in t.

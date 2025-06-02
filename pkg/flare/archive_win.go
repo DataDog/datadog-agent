@@ -31,7 +31,7 @@ var (
 
 	eventLogChannelsToExport = map[string]string{
 		"System":      "Event/System/Provider[@Name=\"Service Control Manager\"]",
-		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\" or @Name=\"DatadogAgent\"]",
+		"Application": "Event/System/Provider[@Name=\"datadog-trace-agent\" or @Name=\"DatadogAgent\" or @Name=\".NET Runtime\" or @Name=\"Application Error\"]",
 		"Microsoft-Windows-WMI-Activity/Operational": "*",
 	}
 	execTimeout = 30 * time.Second
@@ -279,7 +279,7 @@ func getEventLogConfig(fb flaretypes.FlareBuilder) error {
 
 }
 
-func getWindowsData(fb flaretypes.FlareBuilder) {
+func getWindowsData(fb flaretypes.FlareBuilder) error {
 	getTypeperfData(fb)     //nolint:errcheck
 	getLodctrOutput(fb)     //nolint:errcheck
 	getCounterStrings(fb)   //nolint:errcheck
@@ -287,4 +287,5 @@ func getWindowsData(fb flaretypes.FlareBuilder) {
 	getServiceStatus(fb)    //nolint:errcheck
 	getDatadogRegistry(fb)  //nolint:errcheck
 	getEventLogConfig(fb)   //nolint:errcheck
+	return nil
 }

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -51,7 +52,7 @@ func readState(procRoot string, paths []string, status int64) (map[PortMapping]u
 	seen := make(map[uint32]struct{})
 	allports := make(map[PortMapping]uint32)
 	err := kernel.WithAllProcs(procRoot, func(pid int) error {
-		ns, err := kernel.GetNetNsInoFromPid(procRoot, pid)
+		ns, err := netns.GetNetNsInoFromPid(procRoot, pid)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				log.Errorf("error getting net ns for pid %d: %s", pid, err)

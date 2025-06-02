@@ -10,16 +10,20 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
 	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
+
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -36,7 +40,7 @@ type ecsVMSuite struct {
 	e2e.BaseSuite[ecsHttpbinEnv]
 }
 
-func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
+func ecsHttpbinEnvProvisioner() provisioners.PulumiEnvRunFunc[ecsHttpbinEnv] {
 	return func(ctx *pulumi.Context, env *ecsHttpbinEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -67,7 +71,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 
 		params := envecs.GetProvisionerParams(
 			envecs.WithAwsEnv(&awsEnv),
-			envecs.WithECSLinuxECSOptimizedNodeGroup(),
+			envecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()),
 			envecs.WithAgentOptions(ecsagentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", "true")),
 			envecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
 				testURL := "http://" + env.HTTPBinHost.Address + "/"
@@ -83,7 +87,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 func TestECSVMSuite(t *testing.T) {
 	t.Parallel()
 	s := &ecsVMSuite{}
-	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("ecsHttpbin", ecsHttpbinEnvProvisioner(), nil))}
+	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(provisioners.NewTypedPulumiProvisioner("ecsHttpbin", ecsHttpbinEnvProvisioner(), nil))}
 
 	e2e.Run(t, s, e2eParams...)
 }

@@ -56,7 +56,7 @@ func (s *scheduler) reset() {
 }
 
 func TestController(t *testing.T) {
-	ms := NewController()
+	ms := NewControllerAndStart()
 
 	// schedule some configs before registering
 	c1 := makeConfig("one")

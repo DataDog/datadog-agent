@@ -13,9 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	sds "github.com/DataDog/dd-sensitive-data-scanner/sds-go/go"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 func TestCreateScanner(t *testing.T) {
@@ -68,7 +69,7 @@ func TestCreateScanner(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner(0)
+	s := CreateScanner("")
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 
@@ -245,7 +246,7 @@ func TestEmptyConfiguration(t *testing.T) {
         ]}
     `)
 
-	s := CreateScanner(0)
+	s := CreateScanner("")
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 
@@ -350,7 +351,7 @@ func TestIsReady(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner(0)
+	s := CreateScanner("")
 
 	require.NotNil(s, "the scanner should not be nil after a creation")
 	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no definitions received")
@@ -420,7 +421,7 @@ func TestScan(t *testing.T) {
 	// scanner creation
 	// -----
 
-	s := CreateScanner(0)
+	s := CreateScanner("")
 	require.NotNil(s, "the returned scanner should not be nil")
 
 	isActive, _ := s.Reconfigure(ReconfigureOrder{
@@ -509,7 +510,7 @@ func TestCloseCycleScan(t *testing.T) {
 	// -----
 
 	for i := 0; i < 10; i++ {
-		s := CreateScanner(0)
+		s := CreateScanner("")
 		require.NotNil(s, "the returned scanner should not be nil")
 
 		_, _ = s.Reconfigure(ReconfigureOrder{

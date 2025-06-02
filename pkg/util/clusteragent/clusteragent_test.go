@@ -6,6 +6,7 @@
 package clusteragent
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -279,11 +280,8 @@ type clusterAgentSuite struct {
 }
 
 const (
-	clusterAgentServiceName = "DATADOG_CLUSTER_AGENT"
-	clusterAgentServiceHost = clusterAgentServiceName + "_SERVICE_HOST"
-	clusterAgentServicePort = clusterAgentServiceName + "_SERVICE_PORT"
-	clusterAgentTokenValue  = "01234567890123456789012345678901"
-	clcRunnerIP             = "10.92.1.39"
+	clusterAgentTokenValue = "01234567890123456789012345678901"
+	clcRunnerIP            = "10.92.1.39"
 )
 
 func (suite *clusterAgentSuite) SetupTest() {
@@ -292,22 +290,12 @@ func (suite *clusterAgentSuite) SetupTest() {
 	suite.config.SetWithoutSource("cluster_agent.url", "")
 	suite.config.SetWithoutSource("cluster_agent.kubernetes_service_name", "")
 	suite.config.SetWithoutSource("clc_runner_host", clcRunnerIP)
-	os.Unsetenv(clusterAgentServiceHost)
-	os.Unsetenv(clusterAgentServicePort)
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointEmpty() {
-	suite.config.SetWithoutSource("cluster_agent.url", "")
-	suite.config.SetWithoutSource("cluster_agent.kubernetes_service_name", "")
-
-	_, err := GetClusterAgentEndpoint()
-	require.NotNil(suite.T(), err)
 }
 
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmpty() {
 	suite.config.SetWithoutSource("cluster_agent.auth_token", "")
 
-	_, err := security.CreateOrGetClusterAgentAuthToken(suite.config)
+	_, err := security.CreateOrGetClusterAgentAuthToken(context.Background(), suite.config)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
@@ -358,64 +346,6 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenTooShort() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	_, err = security.GetClusterAgentAuthToken(suite.config)
-	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromUrl() {
-	suite.config.SetWithoutSource("cluster_agent.url", "https://127.0.0.1:8080")
-	suite.config.SetWithoutSource("cluster_agent.kubernetes_service_name", "")
-	_, err := GetClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-
-	suite.config.SetWithoutSource("cluster_agent.url", "https://127.0.0.1")
-	_, err = GetClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-
-	suite.config.SetWithoutSource("cluster_agent.url", "127.0.0.1")
-	endpoint, err := GetClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), "https://127.0.0.1", endpoint)
-
-	suite.config.SetWithoutSource("cluster_agent.url", "127.0.0.1:1234")
-	endpoint, err = GetClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), "https://127.0.0.1:1234", endpoint)
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromUrlInvalid() {
-	suite.config.SetWithoutSource("cluster_agent.url", "http://127.0.0.1:8080")
-	suite.config.SetWithoutSource("cluster_agent.kubernetes_service_name", "")
-	_, err := GetClusterAgentEndpoint()
-	require.NotNil(suite.T(), err)
-
-	suite.config.SetWithoutSource("cluster_agent.url", "tcp://127.0.0.1:8080")
-	_, err = GetClusterAgentEndpoint()
-	require.NotNil(suite.T(), err)
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvc() {
-	suite.config.SetWithoutSource("cluster_agent.url", "")
-	suite.config.SetWithoutSource("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
-	suite.T().Setenv(clusterAgentServiceHost, "127.0.0.1")
-	suite.T().Setenv(clusterAgentServicePort, "443")
-
-	endpoint, err := GetClusterAgentEndpoint()
-	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	assert.Equal(suite.T(), "https://127.0.0.1:443", endpoint)
-}
-
-func (suite *clusterAgentSuite) TestGetClusterAgentEndpointFromKubernetesSvcEmpty() {
-	suite.config.SetWithoutSource("cluster_agent.url", "")
-	suite.config.SetWithoutSource("cluster_agent.kubernetes_service_name", "datadog-cluster-agent")
-	suite.T().Setenv(clusterAgentServiceHost, "127.0.0.1")
-	suite.T().Setenv(clusterAgentServicePort, "")
-
-	_, err := GetClusterAgentEndpoint()
-	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
-
-	suite.T().Setenv(clusterAgentServiceHost, "")
-	suite.T().Setenv(clusterAgentServicePort, "443")
-	_, err = GetClusterAgentEndpoint()
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
@@ -736,4 +666,57 @@ func TestClusterAgentSuite(t *testing.T) {
 	defer os.Remove(s.authTokenPath)
 
 	suite.Run(t, s)
+}
+
+func TestBuildFilterQuery(t *testing.T) {
+	tests := []struct {
+		name     string
+		base     string
+		key      string
+		list     []string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "no parameters appended",
+			base:     "/api/v1/query",
+			key:      "param",
+			expected: "/api/v1/query",
+		},
+		{
+			name:     "one parameter appened",
+			base:     "/api/v1/query",
+			key:      "param",
+			list:     []string{"param1"},
+			expected: "/api/v1/query?param=param1",
+		},
+		{
+			name:     "multiple parameters appended",
+			base:     "/api/v1/query",
+			key:      "param",
+			list:     []string{"param1", "param2"},
+			expected: "/api/v1/query?param=param1&param=param2",
+		},
+		{
+			name:     "parameter key is encoded",
+			base:     "/api/v1/query",
+			key:      "param/name",
+			list:     []string{"param1"},
+			expected: "/api/v1/query?param%2Fname=param1",
+		},
+		{
+			name:     "parameter value is encoded",
+			base:     "/api/v1/query",
+			key:      "param",
+			list:     []string{"cluster.k8s.io/machine"},
+			expected: "/api/v1/query?param=cluster.k8s.io%2Fmachine",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, _ := buildQueryList(tt.base, tt.key, tt.list)
+			require.Equal(t, tt.expected, actual)
+		})
+	}
 }

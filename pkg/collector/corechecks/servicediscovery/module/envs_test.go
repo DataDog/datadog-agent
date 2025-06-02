@@ -8,98 +8,103 @@
 package module
 
 import (
-	"fmt"
+	"context"
 	"os"
-	"strings"
+	"os/exec"
 	"testing"
+	"time"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
 )
 
-func TestInjectedEnvBasic(t *testing.T) {
-	curPid := os.Getpid()
-	proc, err := process.NewProcess(int32(curPid))
+// TestTargetEnvs it checks reading of target environment variables only from /proc/<pid>/environ.
+func TestTargetEnvs(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	expectedEnvs := envs.GetExpectedEnvs()
+	cmd.Env = append(cmd.Env, expectedEnvs...)
+	err := cmd.Start()
 	require.NoError(t, err)
-	injectionMeta, ok := getInjectionMeta(proc)
-	require.Nil(t, injectionMeta)
+
+	var proc *process.Process
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		proc, err = process.NewProcess(int32(cmd.Process.Pid))
+		require.NoError(collect, err)
+
+		// Check that envs are visible using the gopsutil library before we
+		// attempt to read them using our own function under test to prevent
+		// spurious failures, since the environ file can be empty if the process
+		// is not fully execve(2)'d yet. See environ_read() in fs/proc/base.c in
+		// the kernel.
+		procEnv, err := proc.Environ()
+		require.NoError(collect, err)
+		// NotEmpty doesn't work because proc.Environ() returns a slice with one
+		// empty string as the first element if environ is empty.
+		assert.Greater(collect, len(procEnv), 1)
+	}, 5*time.Second, 10*time.Millisecond)
+
+	vars, err := getTargetEnvs(proc)
+	require.NoError(t, err)
+
+	expectedMap := envs.GetExpectedMap()
+	for k, v := range expectedMap {
+		val, ok := vars.Get(k)
+		require.True(t, ok)
+		require.Equal(t, val, v)
+	}
+
+	// check unexpected env variables
+	val, ok := vars.Get("HOME")
+	require.Empty(t, val)
+	require.False(t, ok)
+	val, ok = vars.Get("PATH")
+	require.Empty(t, val)
+	require.False(t, ok)
+	val, ok = vars.Get("SHELL")
+	require.Empty(t, val)
 	require.False(t, ok)
 
-	// Provide an injected replacement for some already-present env variable
-	first := os.Environ()[0]
-	parts := strings.Split(first, "=")
-	key := parts[0]
-
-	expected := []string{"key1=val1", "key2=val2", "key3=val3", fmt.Sprint(key, "=", "new")}
-	createEnvsMemfd(t, expected)
-
-	envMap, err := getEnvs(proc)
-	require.NoError(t, err)
-	require.Subset(t, envMap, map[string]string{
-		"key1": "val1",
-		"key2": "val2",
-		"key3": "val3",
-		key:    "new",
+	// check that non-target variables return an empty map.
+	vars = envs.NewVariables(map[string]string{
+		"NON_TARGET1": "some",
+		"NON_TARGET2": "some",
 	})
-}
-
-func TestInjectedEnvLimit(t *testing.T) {
-	env := "A=" + strings.Repeat("A", memFdMaxSize*2)
-	full := []string{env}
-	createEnvsMemfd(t, full)
-
-	proc, err := process.NewProcess(int32(os.Getpid()))
-	require.NoError(t, err)
-	_, ok := getInjectionMeta(proc)
+	val, ok = vars.Get("NON_TARGET1")
+	require.Empty(t, val)
+	require.False(t, ok)
+	val, ok = vars.Get("NON_TARGET2")
+	require.Empty(t, val)
 	require.False(t, ok)
 }
 
-// createEnvsMemfd creates an memfd in the current process with the specified
-// environment variables in the same way as Datadog/auto_inject.
-func createEnvsMemfd(t *testing.T, envs []string) {
-	t.Helper()
+// BenchmarkGetEnvs benchmarks reading of all environment variables from /proc/<pid>/environ.
+func BenchmarkGetEnvs(b *testing.B) {
+	proc := &process.Process{Pid: int32(os.Getpid())}
 
-	var injectionMeta InjectedProcess
-	for _, env := range envs {
-		injectionMeta.InjectedEnv = append(injectionMeta.InjectedEnv, []byte(env))
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if _, err := getEnvs(proc); err != nil {
+			return
+		}
 	}
-	encodedInjectionMeta, err := injectionMeta.MarshalMsg(nil)
-	require.NoError(t, err)
-
-	memfd, err := memfile(injectorMemFdName, encodedInjectionMeta)
-	require.NoError(t, err)
-	t.Cleanup(func() { unix.Close(memfd) })
 }
 
-// memfile takes a file name used, and the byte slice containing data the file
-// should contain.
-//
-// name does not need to be unique, as it's used only for debugging purposes.
-//
-// It is up to the caller to close the returned descriptor.
-func memfile(name string, b []byte) (int, error) {
-	fd, err := unix.MemfdCreate(name, 0)
-	if err != nil {
-		return 0, fmt.Errorf("MemfdCreate: %v", err)
+// BenchmarkGetEnvsTarget benchmarks reading of target environment variables only from /proc/<pid>/environ.
+func BenchmarkGetEnvsTarget(b *testing.B) {
+	proc := &process.Process{Pid: int32(os.Getpid())}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if _, err := getTargetEnvs(proc); err != nil {
+			return
+		}
 	}
-
-	err = unix.Ftruncate(fd, int64(len(b)))
-	if err != nil {
-		return 0, fmt.Errorf("Ftruncate: %v", err)
-	}
-
-	data, err := unix.Mmap(fd, 0, len(b), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
-	if err != nil {
-		return 0, fmt.Errorf("Mmap: %v", err)
-	}
-
-	copy(data, b)
-
-	err = unix.Munmap(data)
-	if err != nil {
-		return 0, fmt.Errorf("Munmap: %v", err)
-	}
-
-	return fd, nil
 }

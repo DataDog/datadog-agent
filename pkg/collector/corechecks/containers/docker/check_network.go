@@ -14,8 +14,9 @@ import (
 	"strings"
 	"time"
 
-	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -106,7 +107,7 @@ func (dn *dockerNetworkExtension) Process(tags []string, container *workloadmeta
 }
 
 // PostProcess is called once during each check run, after all calls to `Process`
-func (dn *dockerNetworkExtension) PostProcess() {
+func (dn *dockerNetworkExtension) PostProcess(tagger.Component) {
 	// Nothing to do here
 }
 
@@ -115,7 +116,7 @@ func (dn *dockerNetworkExtension) preRun() {
 	// Nothing to do here
 }
 
-func (dn *dockerNetworkExtension) processContainer(rawContainer dockerTypes.Container) {
+func (dn *dockerNetworkExtension) processContainer(rawContainer container.Summary) {
 	// If containerNetworkEntries is nil, it means the generic check was not able to run properly.
 	// It's then useless to run.
 	if dn.containerNetworkEntries == nil {
@@ -188,7 +189,7 @@ var (
 	getRoutesFunc = system.ParseProcessRoutes
 )
 
-func findDockerNetworks(procPath string, entry *containerNetworkEntry, container dockerTypes.Container) {
+func findDockerNetworks(procPath string, entry *containerNetworkEntry, container container.Summary) {
 	netMode := container.HostConfig.NetworkMode
 	// Check the known network modes that require specific handling.
 	// Other network modes will look at the docker NetworkSettings.

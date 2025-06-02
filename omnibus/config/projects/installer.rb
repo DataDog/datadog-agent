@@ -26,7 +26,10 @@ if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
 else
   COMPRESSION_THREADS = 1
 end
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true"
+
+# We want an higher compression level on deploy pipelines that are not nightly.
+# Nightly pipelines will be used as main reference for static quality gates and need the same compression level as main.
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
@@ -60,7 +63,7 @@ else
 end
 
 if debian_target?
-  runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
+  runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
 end
 
 # build_version is computed by an invoke command/function.
@@ -85,8 +88,6 @@ else
 
   dependency 'installer'
 
-  # version manifest file
-  dependency 'version-manifest'
   generate_distro_package = false
 end
 

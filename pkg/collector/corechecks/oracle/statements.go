@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -153,6 +154,7 @@ type OracleRow struct {
 //nolint:revive // TODO(DBM) Fix revive linter
 type MetricsPayload struct {
 	Host                  string   `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	DatabaseInstance      string   `json:"database_instance"`
 	Timestamp             float64  `json:"timestamp,omitempty"`
 	MinCollectionInterval float64  `json:"min_collection_interval,omitempty"`
 	Tags                  []string `json:"tags,omitempty"`
@@ -184,14 +186,15 @@ type FQTDBOracle struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type FQTPayload struct {
-	Timestamp    float64     `json:"timestamp,omitempty"`
-	Host         string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
-	AgentVersion string      `json:"ddagentversion,omitempty"`
-	Source       string      `json:"ddsource"`
-	Tags         string      `json:"ddtags,omitempty"`
-	DBMType      string      `json:"dbm_type"`
-	FQTDB        FQTDB       `json:"db"`
-	FQTDBOracle  FQTDBOracle `json:"oracle"`
+	Timestamp        float64     `json:"timestamp,omitempty"`
+	Host             string      `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	DatabaseInstance string      `json:"database_instance"`
+	AgentVersion     string      `json:"ddagentversion,omitempty"`
+	Source           string      `json:"ddsource"`
+	Tags             string      `json:"ddtags,omitempty"`
+	DBMType          string      `json:"dbm_type"`
+	FQTDB            FQTDB       `json:"db"`
+	FQTDBOracle      FQTDBOracle `json:"oracle"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -226,7 +229,7 @@ type PlanDefinition struct {
 	PlanStepId       int64   `json:"id"`
 	ParentId         int64   `json:"parent_id"`
 	Depth            int64   `json:"depth"`
-	Position         int64   `json:"position"`
+	Position         uint64  `json:"position"`
 	SearchColumns    int64   `json:"search_columns,omitempty"`
 	Cost             float64 `json:"cost"`
 	Cardinality      float64 `json:"cardinality,omitempty"`
@@ -267,14 +270,15 @@ type PlanDB struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type PlanPayload struct {
-	Timestamp    float64    `json:"timestamp,omitempty"`
-	Host         string     `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
-	AgentVersion string     `json:"ddagentversion,omitempty"`
-	Source       string     `json:"ddsource"`
-	Tags         string     `json:"ddtags,omitempty"`
-	DBMType      string     `json:"dbm_type"`
-	PlanDB       PlanDB     `json:"db"`
-	OraclePlan   OraclePlan `json:"oracle"`
+	Timestamp        float64    `json:"timestamp,omitempty"`
+	Host             string     `json:"host,omitempty"` // Host is the database hostname, not the agent hostname
+	DatabaseInstance string     `json:"database_instance"`
+	AgentVersion     string     `json:"ddagentversion,omitempty"`
+	Source           string     `json:"ddsource"`
+	Tags             string     `json:"ddtags,omitempty"`
+	DBMType          string     `json:"dbm_type"`
+	PlanDB           PlanDB     `json:"db"`
+	OraclePlan       OraclePlan `json:"oracle"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -299,7 +303,7 @@ type PlanStepRows struct {
 	PlanStepId       sql.NullInt64   `db:"ID"`
 	ParentId         sql.NullInt64   `db:"PARENT_ID"`
 	Depth            sql.NullInt64   `db:"DEPTH"`
-	Position         sql.NullInt64   `db:"POSITION"`
+	Position         *uint64         `db:"POSITION"`
 	SearchColumns    sql.NullInt64   `db:"SEARCH_COLUMNS"`
 	Cost             sql.NullFloat64 `db:"COST"`
 	Cardinality      sql.NullFloat64 `db:"CARDINALITY"`
@@ -331,9 +335,7 @@ type PlanRows struct {
 
 func (c *Check) copyToPreviousMap(newMap map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB) {
 	c.statementMetricsMonotonicCountsPrevious = make(map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB)
-	for k, v := range newMap {
-		c.statementMetricsMonotonicCountsPrevious[k] = v
-	}
+	maps.Copy(c.statementMetricsMonotonicCountsPrevious, newMap)
 }
 
 func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue *string, statement StatementMetricsDB, c *Check, o *obfuscate.Obfuscator) {
@@ -423,8 +425,7 @@ func (c *Check) StatementMetrics() (int, error) {
 			return 0, nil
 		}
 
-		o := obfuscate.NewObfuscator(obfuscate.Config{SQL: c.config.ObfuscatorOptions})
-		defer o.Stop()
+		o := c.LazyInitObfuscator()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
 		sendPlan := true
@@ -616,14 +617,15 @@ func (c *Check) StatementMetrics() (int, error) {
 					CDBName: c.cdbName,
 				}
 				FQTPayload := FQTPayload{
-					Timestamp:    float64(time.Now().UnixMilli()),
-					Host:         c.dbHostname,
-					AgentVersion: c.agentVersion,
-					Source:       common.IntegrationName,
-					Tags:         c.tagsString,
-					DBMType:      "fqt",
-					FQTDB:        FQTDB,
-					FQTDBOracle:  FQTDBOracle,
+					Timestamp:        float64(time.Now().UnixMilli()),
+					Host:             c.dbHostname,
+					DatabaseInstance: c.dbInstanceIdentifier,
+					AgentVersion:     c.agentVersion,
+					Source:           common.IntegrationName,
+					Tags:             c.tagsString,
+					DBMType:          "fqt",
+					FQTDB:            FQTDB,
+					FQTDBOracle:      FQTDBOracle,
 				}
 				FQTPayloadBytes, err := json.Marshal(FQTPayload)
 				if err != nil {
@@ -701,8 +703,8 @@ func (c *Check) StatementMetrics() (int, error) {
 								if stepRow.Depth.Valid {
 									stepPayload.Depth = stepRow.Depth.Int64
 								}
-								if stepRow.Position.Valid {
-									stepPayload.Position = stepRow.Position.Int64
+								if stepRow.Position != nil {
+									stepPayload.Position = *stepRow.Position
 								}
 								if stepRow.SearchColumns.Valid {
 									stepPayload.SearchColumns = stepRow.SearchColumns.Int64
@@ -800,14 +802,15 @@ func (c *Check) StatementMetrics() (int, error) {
 							tags := strings.Join(append(c.tags, fmt.Sprintf("pdb:%s", statementMetricRow.PDBName)), ",")
 
 							planPayload := PlanPayload{
-								Timestamp:    float64(time.Now().UnixMilli()),
-								Host:         c.dbHostname,
-								AgentVersion: c.agentVersion,
-								Source:       common.IntegrationName,
-								Tags:         tags,
-								DBMType:      "plan",
-								PlanDB:       planDB,
-								OraclePlan:   oraclePlan,
+								Timestamp:        float64(time.Now().UnixMilli()),
+								Host:             c.dbHostname,
+								DatabaseInstance: c.dbInstanceIdentifier,
+								AgentVersion:     c.agentVersion,
+								Source:           common.IntegrationName,
+								Tags:             tags,
+								DBMType:          "plan",
+								PlanDB:           planDB,
+								OraclePlan:       oraclePlan,
 							}
 							planPayloadBytes, err := json.Marshal(planPayload)
 							if err != nil {
@@ -849,6 +852,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 	payload := MetricsPayload{
 		Host:                  c.dbHostname,
+		DatabaseInstance:      c.dbInstanceIdentifier,
 		Timestamp:             float64(time.Now().UnixMilli()),
 		MinCollectionInterval: c.checkInterval,
 		Tags:                  c.tags,
@@ -871,7 +875,7 @@ func (c *Check) StatementMetrics() (int, error) {
 	TlmOracleStatementMetricsLatency.Observe(float64(time.Since(start).Milliseconds()))
 	if c.config.ExecutionPlans.Enabled {
 		sendMetricWithDefaultTags(c, gauge, "dd.oracle.plan_errors.count", float64(planErrors))
-		TlmOracleStatementMetricsErrorCount.Add(float64(planErrors))
+		TlmOracleStatementMetricsErrorCount.Set(float64(planErrors))
 	}
 	sender.Commit()
 

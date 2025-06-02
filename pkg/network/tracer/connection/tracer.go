@@ -16,17 +16,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 )
 
 // TracerType is the type of the underlying tracer
 type TracerType int
 
 const (
+	// TracerTypeKProbePrebuilt is the TracerType for prebuilt kprobe tracer
 	TracerTypeKProbePrebuilt TracerType = iota
+	// TracerTypeKProbeRuntimeCompiled is the TracerType for the runtime compiled kprobe tracer
 	TracerTypeKProbeRuntimeCompiled
+	// TracerTypeKProbeCORE is the TracerType for the CORE kprobe tracer
 	TracerTypeKProbeCORE
+	// TracerTypeFentry is the TracerType for the fentry tracer
 	TracerTypeFentry
+	// TracerTypeEbpfless is the TracerType for the EBPF-less tracer
 	TracerTypeEbpfless
 )
 
@@ -47,14 +51,12 @@ type Tracer interface {
 	GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error
 	// FlushPending forces any closed connections waiting for batching to be processed immediately.
 	FlushPending()
-	// GetFailedConnections returns the underlying map used to store failed connections
-	GetFailedConnections() *failure.FailedConns
 	// Remove deletes the connection from tracking state.
 	// It does not prevent the connection from re-appearing later, if additional traffic occurs.
 	Remove(conn *network.ConnectionStats) error
 	// GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 	// An individual tracer implementation may choose which maps to expose via this function.
-	GetMap(string) *ebpf.Map
+	GetMap(string) (*ebpf.Map, error)
 	// DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
 	DumpMaps(w io.Writer, maps ...string) error
 	// Type returns the type of the underlying ebpf tracer that is currently loaded

@@ -12,7 +12,8 @@ import (
 	"net/http"
 	"testing"
 
-	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

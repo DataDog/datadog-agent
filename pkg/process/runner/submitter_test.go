@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +27,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	processStatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -73,7 +73,7 @@ func TestNewCollectorQueueSize(t *testing.T) {
 				mockConfig.SetWithoutSource("process_config.queue_size", tc.queueSize)
 			}
 			deps := newSubmitterDepsWithConfig(t, mockConfig)
-			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
+			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.processResults.MaxSize())
 		})
@@ -120,7 +120,7 @@ func TestNewCollectorRTQueueSize(t *testing.T) {
 				mockConfig.SetWithoutSource("process_config.rt_queue_size", tc.queueSize)
 			}
 			deps := newSubmitterDepsWithConfig(t, mockConfig)
-			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
+			c, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedQueueSize, c.rtProcessResults.MaxSize())
 		})
@@ -167,7 +167,7 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 				mockConfig.SetWithoutSource("process_config.process_queue_bytes", tc.queueBytes)
 			}
 			deps := newSubmitterDepsWithConfig(t, mockConfig)
-			s, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, testHostName)
+			s, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
 			assert.NoError(t, err)
 			assert.Equal(t, int64(tc.expectedQueueSize), s.processResults.MaxWeight())
 			assert.Equal(t, int64(tc.expectedQueueSize), s.rtProcessResults.MaxWeight())
@@ -182,7 +182,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 	flavor.SetFlavor(flavor.ProcessAgent)
 
 	deps := newSubmitterDeps(t)
-	submitter, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
+	submitter, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
 	assert.NoError(t, err)
 
 	now := time.Now()
@@ -313,7 +313,7 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 
 func Test_getRequestID(t *testing.T) {
 	deps := newSubmitterDeps(t)
-	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName)
 	assert.NoError(t, err)
 
 	fixedDate1 := time.Date(2022, 9, 1, 0, 0, 1, 0, time.Local)
@@ -349,10 +349,9 @@ func TestSubmitterHeartbeatProcess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	statsdClient := mockStatsd.NewMockClientInterface(ctrl)
 	statsdClient.EXPECT().Gauge("datadog.process.agent", float64(1), gomock.Any(), float64(1)).MinTimes(1)
-	processStatsd.Client = statsdClient
 
 	deps := newSubmitterDeps(t)
-	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName)
 	assert.NoError(t, err)
 	mockedClock := clock.NewMock()
 	s.clock = mockedClock
@@ -369,10 +368,9 @@ func TestSubmitterHeartbeatCore(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	statsdClient := mockStatsd.NewMockClientInterface(ctrl)
 	statsdClient.EXPECT().Gauge("datadog.process.agent", float64(1), gomock.Any(), float64(1)).Times(0)
-	processStatsd.Client = statsdClient
 
 	deps := newSubmitterDeps(t)
-	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName)
 	assert.NoError(t, err)
 	mockedClock := clock.NewMock()
 	s.clock = mockedClock
@@ -386,6 +384,7 @@ type submitterDeps struct {
 	Config     config.Component
 	Log        log.Component
 	Forwarders forwarders.Component
+	Statsd     statsd.ClientInterface
 }
 
 func newSubmitterDeps(t *testing.T) submitterDeps {
@@ -398,5 +397,15 @@ func newSubmitterDepsWithConfig(t *testing.T, config pkgconfigmodel.Config) subm
 }
 
 func getForwardersMockModules(t *testing.T, configOverrides map[string]interface{}) fx.Option {
-	return fx.Options(config.MockModule(), fx.Replace(config.MockParams{Overrides: configOverrides}), forwardersimpl.MockModule(), fx.Provide(func() log.Component { return logmock.New(t) }))
+	return fx.Options(
+		config.MockModule(),
+		fx.Replace(config.MockParams{Overrides: configOverrides}),
+		forwardersimpl.MockModule(),
+		fx.Provide(func() log.Component {
+			return logmock.New(t)
+		}),
+		fx.Provide(func() statsd.ClientInterface {
+			return &statsd.NoOpClient{}
+		}),
+	)
 }

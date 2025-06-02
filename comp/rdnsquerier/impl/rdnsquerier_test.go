@@ -3,16 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 package rdnsquerierimpl
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	rdnsquerierdef "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Test that the rdnsQuerier starts and stops as expected.
@@ -20,7 +27,7 @@ func TestStartStop(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-	ts := testSetup(t, overrides, false, nil)
+	ts := testSetup(t, overrides, false, nil, 0)
 
 	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
 	assert.NotNil(t, internalRDNSQuerier)
@@ -38,10 +45,10 @@ func TestNotStarted(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-	ts := testSetup(t, overrides, false, nil)
+	ts := testSetup(t, overrides, false, nil, 0)
 
 	// IP address in private range
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called when rdnsquerier is not started")
@@ -66,12 +73,12 @@ func TestNormalOperationsDefaultConfig(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
 	// Invalid IP address
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{1, 2, 3},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called for invalid IP address")
@@ -83,7 +90,7 @@ func TestNormalOperationsDefaultConfig(t *testing.T) {
 	assert.ErrorContains(t, err, "invalid IP address")
 
 	// IP address not in private range
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{8, 8, 8, 8},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called for IP address not in private range")
@@ -96,7 +103,7 @@ func TestNormalOperationsDefaultConfig(t *testing.T) {
 
 	// IP address in private range - async callback should be called the first time an IP address is queried
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -112,7 +119,7 @@ func TestNormalOperationsDefaultConfig(t *testing.T) {
 
 	// IP address in private range - cache hit should result in sync callback being called the second time an IP address is queried
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -143,12 +150,12 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.cache.enabled":                   false,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
 	// Invalid IP address
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{1, 2, 3},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called for invalid IP address")
@@ -160,7 +167,7 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 	assert.ErrorContains(t, err, "invalid IP address")
 
 	// IP address not in private range
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{8, 8, 8, 8},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called for IP address not in private range")
@@ -173,7 +180,7 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 
 	// IP address in private range - with cache disabled the async callback should be called every time
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -188,7 +195,7 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 	wg.Wait()
 
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -221,11 +228,11 @@ func TestRateLimiter(t *testing.T) {
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	// IP addresses in private range
 	for i := range 20 {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -279,6 +286,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 				&net.DNSError{Err: "test timeout error", IsTimeout: true},
 			}},
 		},
+		0,
 	)
 
 	var wg sync.WaitGroup
@@ -287,7 +295,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	wg.Add(20)
 	start := time.Now()
 	for i := range 20 {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -317,7 +325,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	// These queries will get errors, exceeding throttle_error_threshold, which will cause the rate limiter to throttle down
 	wg.Add(2)
 	for i := 30; i < 32; i++ {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -349,7 +357,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	wg.Add(20)
 	start = time.Now()
 	for i := range 20 {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
@@ -382,7 +390,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	wg.Add(6)
 	start = time.Now()
 	for i := 40; i < 46; i++ {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -416,7 +424,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 	wg.Add(10)
 	start = time.Now()
 	for i := 50; i < 60; i++ {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -457,7 +465,7 @@ func TestChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 		"reverse_dns_enrichment.rate_limiter.enabled":            true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -466,7 +474,7 @@ func TestChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 	wg.Add(1) // only wait for one callback, most or all of the other requests will be dropped
 	var once sync.Once
 	for i := range 20 {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(_ string) {
 				assert.FailNow(t, "Sync callback should not be called")
@@ -509,13 +517,13 @@ func TestCacheHitInProgress(t *testing.T) {
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
 	for range 10 {
 		wg.Add(1)
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, 100},
 			func(hostname string) {
 				assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -530,7 +538,7 @@ func TestCacheHitInProgress(t *testing.T) {
 		assert.NoError(t, err)
 
 		wg.Add(1)
-		err = ts.rdnsQuerier.GetHostname(
+		err = ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, 101},
 			func(hostname string) {
 				assert.Equal(t, "fakehostname-192.168.1.101", hostname)
@@ -581,12 +589,13 @@ func TestRetries(t *testing.T) {
 				fmt.Errorf("test error")},
 			},
 		},
+		0,
 	)
 
 	var wg sync.WaitGroup
 
 	wg.Add(2)
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -599,7 +608,7 @@ func TestRetries(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 101},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -615,7 +624,7 @@ func TestRetries(t *testing.T) {
 
 	// both were within retry limits so should be cached
 	wg.Add(2)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -626,7 +635,7 @@ func TestRetries(t *testing.T) {
 		},
 	)
 	assert.NoError(t, err)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 101},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.101", hostname)
@@ -668,12 +677,13 @@ func TestRetriesExceeded(t *testing.T) {
 				fmt.Errorf("test error3")},
 			},
 		},
+		0,
 	)
 
 	var wg sync.WaitGroup
 
 	wg.Add(1)
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -688,7 +698,7 @@ func TestRetriesExceeded(t *testing.T) {
 
 	// Because an error was returned for all available retries this IP address should now have hostname "" cached
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "", hostname)
@@ -725,12 +735,13 @@ func TestIsNotFound(t *testing.T) {
 				&net.DNSError{Err: "no such host", IsNotFound: true}},
 			},
 		},
+		0,
 	)
 
 	var wg sync.WaitGroup
 
 	wg.Add(1)
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -745,7 +756,7 @@ func TestIsNotFound(t *testing.T) {
 	wg.Wait()
 
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "", hostname)
@@ -775,7 +786,7 @@ func TestCacheMaxSize(t *testing.T) {
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.cache.max_size":                  5,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -783,7 +794,7 @@ func TestCacheMaxSize(t *testing.T) {
 	num := 20
 	wg.Add(num)
 	for i := range num {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
@@ -823,7 +834,7 @@ func TestCacheExpiration(t *testing.T) {
 		"reverse_dns_enrichment.cache.entry_ttl":                 time.Duration(100) * time.Millisecond,
 		"reverse_dns_enrichment.cache.clean_interval":            time.Duration(1) * time.Second,
 	}
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
@@ -831,7 +842,7 @@ func TestCacheExpiration(t *testing.T) {
 	num := 100
 	wg.Add(num)
 	for i := range num {
-		err := ts.rdnsQuerier.GetHostname(
+		err := ts.rdnsQuerier.GetHostnameAsync(
 			[]byte{192, 168, 1, byte(i)},
 			func(hostname string) {
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
@@ -874,13 +885,13 @@ func TestCachePersist(t *testing.T) {
 		"run_path": t.TempDir(),
 	}
 
-	ts := testSetup(t, overrides, true, nil)
+	ts := testSetup(t, overrides, true, nil, 0)
 
 	var wg sync.WaitGroup
 
 	// async callback should be called the first time an IP address is queried
 	wg.Add(1)
-	err := ts.rdnsQuerier.GetHostname(
+	err := ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -896,7 +907,7 @@ func TestCachePersist(t *testing.T) {
 
 	// cache hit should result in sync callback being called the second time an IP address is queried
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -923,13 +934,13 @@ func TestCachePersist(t *testing.T) {
 	assert.NoError(t, ts.lc.Stop(ts.ctx))
 
 	// create new testsetup, validate that the IP address previously queried and cached is still cached
-	ts = testSetup(t, overrides, true, nil)
+	ts = testSetup(t, overrides, true, nil, 0)
 	ts.validateExpectedGauge(t, "cache_size", 1.0)
 
 	// cache hit should result in sync callback being called the first time the IP address is queried after
 	// restart because persistent cache should have been loaded
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(hostname string) {
 			assert.Equal(t, "fakehostname-192.168.1.100", hostname)
@@ -955,14 +966,14 @@ func TestCachePersist(t *testing.T) {
 	// create new testsetup with shorter entryTTL, validate that the IP address previously
 	// cached has new shorter expiration time
 	overrides["reverse_dns_enrichment.cache.entry_ttl"] = time.Duration(100) * time.Millisecond
-	ts = testSetup(t, overrides, true, nil)
+	ts = testSetup(t, overrides, true, nil, 0)
 	ts.validateExpectedGauge(t, "cache_size", 1.0)
 
 	time.Sleep(200 * time.Millisecond)
 
 	// cache_hit_expired should result in async callback being called
 	wg.Add(1)
-	err = ts.rdnsQuerier.GetHostname(
+	err = ts.rdnsQuerier.GetHostnameAsync(
 		[]byte{192, 168, 1, 100},
 		func(_ string) {
 			assert.FailNow(t, "Sync callback should not be called")
@@ -985,4 +996,215 @@ func TestCachePersist(t *testing.T) {
 		"cache_miss":        1.0,
 	})
 	ts.validateExpected(t, expectedTelemetry)
+}
+
+func TestGetHostname(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+
+	ts := testSetup(t, overrides, true, nil, 0)
+	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
+
+	tts := map[string]struct {
+		ip       string
+		timeout  time.Duration
+		expected string
+		errMsg   string
+	}{
+		"invalid_ip should error": {
+			ip:       "invalid_ip",
+			timeout:  1 * time.Second,
+			expected: "",
+			errMsg:   "invalid IP address",
+		},
+		"public IPv4 should return empty no error": {
+			ip:       "8.8.8.8",
+			timeout:  1 * time.Second,
+			expected: "",
+			errMsg:   "",
+		},
+		"private IPv4 not in cache should return hostname": {
+			ip:       "192.168.1.100",
+			timeout:  1 * time.Second,
+			expected: "fakehostname-192.168.1.100",
+			errMsg:   "",
+		},
+		"private IPv4 in cache should return hostname": {
+			ip:       "192.168.1.100",
+			timeout:  1 * time.Second,
+			expected: "fakehostname-192.168.1.100",
+			errMsg:   "",
+		},
+		"public IPv6 should return empty no error": {
+			ip:       "2001:4860:4860::8888",
+			timeout:  1 * time.Second,
+			expected: "",
+			errMsg:   "",
+		},
+		"private IPv6 not in cache should return hostname": {
+			ip:       "fd00::1",
+			timeout:  1 * time.Second,
+			expected: "fakehostname-fd00::1",
+			errMsg:   "",
+		},
+		"private IPv6 in cache should return hostname": {
+			ip:       "fd00::1",
+			timeout:  1 * time.Second,
+			expected: "fakehostname-fd00::1",
+			errMsg:   "",
+		},
+	}
+
+	for name, tt := range tts {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(ts.ctx, tt.timeout)
+			defer cancel()
+			hostname, err := internalRDNSQuerier.GetHostname(ctx, tt.ip)
+			if tt.errMsg != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.expected, hostname)
+		})
+	}
+}
+
+func TestGetHostnameTimeout(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+	// Set up with a delay to simulate timeout
+	ts := testSetup(t, overrides, true, nil, 3*time.Second)
+	internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
+	ctx, cancel := context.WithTimeout(ts.ctx, 1*time.Millisecond)
+
+	// Test with a timeout exceeding the specified timeout limit
+	hostname, err := internalRDNSQuerier.GetHostname(ctx, "192.168.1.100")
+	assert.Equal(t, "", hostname)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "timeout reached while resolving hostname for IP address 192.168.1.100")
+
+	cancel()
+}
+
+// Test that when the rate limit is exceeded and the channel fills requests are dropped.
+func TestGetHostnameChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+		"reverse_dns_enrichment.workers":                         1,
+		"reverse_dns_enrichment.chan_size":                       1,
+		"reverse_dns_enrichment.rate_limiter.enabled":            true,
+		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
+	}
+	ts := testSetup(t, overrides, true, nil, 1*time.Second)
+
+	// IP addresses in private range
+	var errCount atomic.Int32
+	var wg sync.WaitGroup
+	for i := range 20 {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			hostname, err := ts.rdnsQuerier.GetHostname(ts.ctx, fmt.Sprintf("192.168.1.%d", i))
+			if err != nil {
+				assert.ErrorContains(t, err, "channel is full, dropping query for IP address")
+				errCount.Add(1)
+			} else {
+				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	assert.GreaterOrEqual(t, errCount.Load(), int32(1))
+	expectedTelemetry := ts.makeExpectedTelemetry(map[string]float64{
+		"total":             20.0,
+		"private":           20.0,
+		"chan_added":        float64(20 - errCount.Load()),
+		"dropped_chan_full": float64(errCount.Load()),
+		"cache_miss":        20.0,
+	})
+	delete(expectedTelemetry, "successful")
+	ts.validateExpected(t, expectedTelemetry)
+
+	minimumTelemetry := map[string]float64{
+		"successful": 1.0,
+	}
+	ts.validateMinimum(t, minimumTelemetry)
+}
+
+func TestGetHostnames(t *testing.T) {
+	overrides := map[string]interface{}{
+		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
+	}
+
+	defaultTs := testSetup(t, overrides, true, nil, 100*time.Millisecond)
+
+	tests := []struct {
+		name     string
+		ts       *testState
+		ipAddrs  []string
+		timeout  time.Duration
+		expected map[string]rdnsquerierdef.ReverseDNSResult
+	}{
+		{
+			name:    "valid IPs",
+			ts:      defaultTs,
+			ipAddrs: []string{"192.168.1.100", "192.168.1.101"},
+			timeout: 1 * time.Second,
+			expected: map[string]rdnsquerierdef.ReverseDNSResult{
+				"192.168.1.100": {IP: "192.168.1.100", Hostname: "fakehostname-192.168.1.100"},
+				"192.168.1.101": {IP: "192.168.1.101", Hostname: "fakehostname-192.168.1.101"},
+			},
+		},
+		{
+			name:    "invalid IP, private IPs, and public IP",
+			ts:      defaultTs,
+			ipAddrs: []string{"invalid_ip", "192.168.1.102", "8.8.8.8", "192.168.1.100"},
+			timeout: 1 * time.Second,
+			expected: map[string]rdnsquerierdef.ReverseDNSResult{
+				"invalid_ip":    {IP: "invalid_ip", Err: fmt.Errorf("invalid IP address invalid_ip")},
+				"192.168.1.102": {IP: "192.168.1.102", Hostname: "fakehostname-192.168.1.102"},
+				"8.8.8.8":       {IP: "8.8.8.8"},
+				"192.168.1.100": {IP: "192.168.1.100", Hostname: "fakehostname-192.168.1.100"},
+			},
+		},
+		{
+			name:    "invalid IP, timeout for private and public IPs",
+			ts:      testSetup(t, overrides, true, nil, 10*time.Second),
+			ipAddrs: []string{"192.168.1.105", "invalid", "8.8.8.8"},
+			timeout: 1 * time.Second,
+			expected: map[string]rdnsquerierdef.ReverseDNSResult{
+				"192.168.1.105": {IP: "192.168.1.105", Err: fmt.Errorf("timeout reached while resolving hostname for IP address 192.168.1.105")},
+				"invalid":       {IP: "invalid", Err: fmt.Errorf("invalid IP address invalid")},
+				"8.8.8.8":       {IP: "8.8.8.8"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(tt.ts.ctx, tt.timeout)
+			defer cancel()
+
+			internalRDNSQuerier := tt.ts.rdnsQuerier.(*rdnsQuerierImpl)
+			results := internalRDNSQuerier.GetHostnames(ctx, tt.ipAddrs)
+
+			for ip, expectedResult := range tt.expected {
+				result, ok := results[ip]
+				require.True(t, ok, "result for IP %s not found", ip)
+				assert.Equal(t, expectedResult.IP, result.IP)
+				assert.Equal(t, expectedResult.Hostname, result.Hostname)
+				if expectedResult.Err != nil {
+					require.Error(t, result.Err)
+					assert.Contains(t, result.Err.Error(), expectedResult.Err.Error())
+				} else {
+					assert.NoError(t, result.Err)
+				}
+			}
+		})
+	}
 }

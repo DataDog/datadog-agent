@@ -1,1 +1,0 @@
-../../common/rspec_datadog/windows_npm_spec_helper.rb

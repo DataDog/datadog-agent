@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix an issue where ``ingestion_reason:probabilistic`` is set
+    even when an OTLP span was sampled by the Error Sampler.
+    To enable the Error Sampler for OTLP spans, you need to set
+    ``DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE``
+    to 99 or lower, or enable ``DD_APM_PROBABILISTIC_SAMPLER_ENABLED``
+    and set ``DD_APM_PROBABILISTIC_SAMPLER_PERCENTAGE`` to 99 or lower.

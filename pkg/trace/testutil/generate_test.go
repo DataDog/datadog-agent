@@ -15,12 +15,12 @@ import (
 
 func TestGenerateSpan(t *testing.T) {
 	for i, sc := range []SpanConfig{
-		{1, 2},
-		{0, 1},
+		{1, 2, 0},
+		{0, 1, 0},
 		{},
-		{5, 30},
-		{0, 5},
-		{5, 0},
+		{5, 30, 0},
+		{0, 5, 0},
+		{5, 0, 0},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			assert := assert.New(t)

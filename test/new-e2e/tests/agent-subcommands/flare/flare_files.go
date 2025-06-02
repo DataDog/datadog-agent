@@ -34,9 +34,9 @@ var nonLocalMetadataFlareFiles = []string{
 }
 
 var nonLocalFlareFiles = []string{
-	"process-agent_tagger-list.json",
 	"tagger-list.json",
 	"workload-list.log",
+	"agent_open_files.txt",
 }
 
 // defaultLogFiles contains all the log files that are created with a default installation
@@ -85,9 +85,7 @@ var windowsFiles = []string{
 }
 
 // linuxFiles contains files that are specific to Linux
-var linuxFiles = []string{
-	"agent_open_files.txt",
-}
+var linuxFiles = []string{}
 
 var profilingFiles = []string{
 	"profiles/core-1st-heap.pprof",
@@ -95,16 +93,19 @@ var profilingFiles = []string{
 	"profiles/core-block.pprof",
 	"profiles/core-cpu.pprof",
 	"profiles/core-mutex.pprof",
-	"profiles/process-1st-heap.pprof",
-	"profiles/process-2nd-heap.pprof",
-	"profiles/process-block.pprof",
-	"profiles/process-cpu.pprof",
-	"profiles/process-mutex.pprof",
 	"profiles/trace-1st-heap.pprof",
 	"profiles/trace-2nd-heap.pprof",
 	"profiles/trace-block.pprof",
 	"profiles/trace-cpu.pprof",
 	"profiles/trace-mutex.pprof",
+}
+
+var profilingNonLinuxFiles = []string{
+	"profiles/process-1st-heap.pprof",
+	"profiles/process-2nd-heap.pprof",
+	"profiles/process-block.pprof",
+	"profiles/process-cpu.pprof",
+	"profiles/process-mutex.pprof",
 }
 
 // untestedFiles contains some untested files that needs specific scenario which should be added later.

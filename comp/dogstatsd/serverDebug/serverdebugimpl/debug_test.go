@@ -7,8 +7,14 @@ package serverdebugimpl
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/benbjohnson/clock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -17,10 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/benbjohnson/clock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 )
 
 func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Component {
@@ -165,4 +167,56 @@ func TestDebugStats(t *testing.T) {
 	require.Equal(t, metric5.Tags, "c b")
 	require.Equal(t, hash4, hash5)
 
+}
+
+func TestFormatDebugStats(t *testing.T) {
+	// Create test data
+	stats := map[uint64]metricStat{
+		123: {
+			Name:     "test.metric1",
+			Count:    10,
+			LastSeen: time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC),
+			Tags:     "env:prod service:api",
+		},
+		456: {
+			Name:     "test.metric2",
+			Count:    15,
+			LastSeen: time.Date(2025, 1, 1, 11, 0, 0, 0, time.UTC),
+			Tags:     "env:dev",
+		},
+	}
+
+	// Convert test data to JSON (expected input format)
+	statsJSON, err := json.Marshal(stats)
+	require.NoError(t, err)
+
+	// Call FormatDebugStats
+	result, err := FormatDebugStats(statsJSON)
+	require.NoError(t, err)
+
+	// Expected formatted table
+	expectedResult := `Metric                                   | Tags                 | Count      | Last Seen           
+-----------------------------------------|----------------------|------------|---------------------
+test.metric2                             | env:dev              | 15         | 2025-01-01 11:00:00 +0000 UTC
+test.metric1                             | env:prod service:api | 10         | 2025-01-01 12:00:00 +0000 UTC
+`
+
+	// Verify the entire formatted result
+	assert.Equal(t, expectedResult, result)
+
+	// Verify sorting (metrics should be sorted by count in descending order)
+	assert.True(t, strings.Index(result, "test.metric2") < strings.Index(result, "test.metric1"))
+
+	// Test empty stats
+	emptyStats := map[uint64]metricStat{}
+	emptyStatsJSON, err := json.Marshal(emptyStats)
+	require.NoError(t, err)
+
+	emptyResult, err := FormatDebugStats(emptyStatsJSON)
+	require.NoError(t, err)
+	assert.Contains(t, emptyResult, "No metrics processed yet.")
+
+	// Test invalid JSON
+	_, err = FormatDebugStats([]byte("invalid json"))
+	assert.Error(t, err)
 }

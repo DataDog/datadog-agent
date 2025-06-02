@@ -18,8 +18,6 @@ const (
 	ConnTagOpenSSL = http.OpenSSL
 	// ConnTagGo is the tag for GO TLS connections
 	ConnTagGo = http.Go
-	// ConnTagJava is the tag for Java TLS connections
-	ConnTagJava = http.Java
 	// ConnTagTLS is the tag for TLS connections in general
 	ConnTagTLS = http.TLS
 	// ConnTagIstio is the tag for Istio TLS connections
@@ -40,5 +38,5 @@ func GetStaticTags(staticTags uint64) (tags []string) {
 
 // IsTLSTag return if the tag is a TLS tag
 func IsTLSTag(staticTags uint64) bool {
-	return staticTags&(ConnTagGnuTLS|ConnTagOpenSSL|ConnTagGo|ConnTagJava|ConnTagTLS|ConnTagIstio|ConnTagNodeJS) > 0
+	return staticTags&(ConnTagGnuTLS|ConnTagOpenSSL|ConnTagGo|ConnTagTLS|ConnTagIstio|ConnTagNodeJS) > 0
 }

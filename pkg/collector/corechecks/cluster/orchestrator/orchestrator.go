@@ -14,7 +14,20 @@ import (
 	"math/rand"
 	"time"
 
+	"go.uber.org/atomic"
+	"gopkg.in/yaml.v2"
+	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -26,16 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
-	"go.uber.org/atomic"
-	"gopkg.in/yaml.v2"
-	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	vpai "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/informers/externalversions"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/informers"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -74,6 +78,9 @@ type OrchestratorCheck struct {
 	orchestratorConfig          *orchcfg.OrchestratorConfig
 	instance                    *OrchestratorInstance
 	collectorBundle             *CollectorBundle
+	wlmStore                    workloadmeta.Component
+	cfg                         configcomp.Component
+	tagger                      tagger.Component
 	stopCh                      chan struct{}
 	clusterID                   string
 	groupID                     *atomic.Int32
@@ -82,11 +89,19 @@ type OrchestratorCheck struct {
 	orchestratorInformerFactory *collectors.OrchestratorInformerFactory
 }
 
-func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *OrchestratorCheck {
+func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, cfg configcomp.Component, wlmStore workloadmeta.Component, tagger tagger.Component) *OrchestratorCheck {
+	extraTags, err := tagger.GlobalTags(types.LowCardinality)
+	if err != nil {
+		log.Debugf("Failed to get global tags: %s", err)
+	}
+
 	return &OrchestratorCheck{
 		CheckBase:          base,
-		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(),
+		orchestratorConfig: orchcfg.NewDefaultOrchestratorConfig(extraTags),
 		instance:           instance,
+		wlmStore:           wlmStore,
+		tagger:             tagger,
+		cfg:                cfg,
 		stopCh:             make(chan struct{}),
 		groupID:            atomic.NewInt32(rand.Int31()),
 		isCLCRunner:        pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
@@ -94,14 +109,17 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory(wlm workloadmeta.Component, cfg configcomp.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check { return newCheck(cfg, wlm, tagger) })
 }
 
-func newCheck() check.Check {
+func newCheck(cfg configcomp.Component, wlm workloadmeta.Component, tagger tagger.Component) check.Check {
 	return newOrchestratorCheck(
 		core.NewCheckBase(CheckName),
 		&OrchestratorInstance{},
+		cfg,
+		wlm,
+		tagger,
 	)
 }
 
@@ -160,12 +178,14 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	// Create a new bundle for the check.
 	o.collectorBundle = NewCollectorBundle(o)
 
-	// Initialize collectors.
-	return o.collectorBundle.Initialize()
+	return nil
 }
 
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
+	// Initialize collectors
+	o.collectorBundle.Initialize()
+
 	// access serializer
 	sender, err := o.GetSender()
 	if err != nil {
@@ -204,11 +224,23 @@ func (o *OrchestratorCheck) Run() error {
 func (o *OrchestratorCheck) Cancel() {
 	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
 	close(o.stopCh)
+	// send all terminated resources
+	if o.collectorBundle != nil {
+		o.collectorBundle.GetTerminatedResourceBundle().Stop()
+	}
 }
 
 func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.OrchestratorInformerFactory {
-	tweakListOptions := func(options *metav1.ListOptions) {
+	unassignedPodsTweakListOptions := func(options *metav1.ListOptions) {
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
+	}
+
+	// Only collect pods that are in a terminated state: Succeeded, Failed, or Pending.
+	terminatedPodsTweakListOptions := func(options *metav1.ListOptions) {
+		options.FieldSelector = fields.AndSelectors(
+			fields.OneTermNotEqualSelector("status.phase", "Running"),
+			fields.OneTermNotEqualSelector("status.phase", "Unknown"),
+		).String()
 	}
 
 	of := &collectors.OrchestratorInformerFactory{
@@ -216,7 +248,8 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		CRDInformerFactory:           externalversions.NewSharedInformerFactory(apiClient.CRDInformerClient, defaultResyncInterval),
 		DynamicInformerFactory:       dynamicinformer.NewDynamicSharedInformerFactory(apiClient.DynamicInformerCl, defaultResyncInterval),
 		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
-		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(tweakListOptions)),
+		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(unassignedPodsTweakListOptions)),
+		TerminatedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(terminatedPodsTweakListOptions)),
 	}
 
 	return of

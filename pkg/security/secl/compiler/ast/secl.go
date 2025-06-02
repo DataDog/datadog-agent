@@ -19,12 +19,15 @@ import (
 
 // ParsingContext defines a parsing context
 type ParsingContext struct {
-	ruleParser  *participle.Parser
-	macroParser *participle.Parser
+	ruleParser       *participle.Parser
+	macroParser      *participle.Parser
+	expressionParser *participle.Parser
+
+	ruleCache map[string]*Rule
 }
 
 // NewParsingContext returns a new parsing context
-func NewParsingContext() *ParsingContext {
+func NewParsingContext(withRuleCache bool) *ParsingContext {
 	seclLexer := lexer.Must(ebnf.New(`
 Comment = ("#" | "//") { "\u0000"…"\uffff"-"\n" } .
 CIDR = IP "/" digit { digit } .
@@ -46,9 +49,16 @@ digit = "0"…"9" .
 any = "\u0000"…"\uffff" .
 `))
 
+	var ruleCache map[string]*Rule
+	if withRuleCache {
+		ruleCache = make(map[string]*Rule)
+	}
+
 	return &ParsingContext{
-		ruleParser:  buildParser(&Rule{}, seclLexer),
-		macroParser: buildParser(&Macro{}, seclLexer),
+		ruleParser:       buildParser(&Rule{}, seclLexer),
+		macroParser:      buildParser(&Macro{}, seclLexer),
+		expressionParser: buildParser(&Expression{}, seclLexer),
+		ruleCache:        ruleCache,
 	}
 }
 
@@ -93,12 +103,22 @@ func parseDuration(t lexer.Token) (lexer.Token, error) {
 
 // ParseRule parses a SECL rule.
 func (pc *ParsingContext) ParseRule(expr string) (*Rule, error) {
+	if pc.ruleCache != nil {
+		if ast, ok := pc.ruleCache[expr]; ok {
+			return ast, nil
+		}
+	}
+
 	rule := &Rule{}
 	err := pc.ruleParser.Parse(bytes.NewBufferString(expr), rule)
 	if err != nil {
 		return nil, err
 	}
 	rule.Expr = expr
+
+	if pc.ruleCache != nil {
+		pc.ruleCache[expr] = rule
+	}
 
 	return rule, nil
 }
@@ -120,6 +140,17 @@ func (pc *ParsingContext) ParseMacro(expr string) (*Macro, error) {
 	}
 
 	return macro, nil
+}
+
+// ParseExpression parses a SECL expression
+func (pc *ParsingContext) ParseExpression(expr string) (*Expression, error) {
+	expression := &Expression{}
+	err := pc.expressionParser.Parse(bytes.NewBufferString(expr), expression)
+	if err != nil {
+		return nil, err
+	}
+
+	return expression, nil
 }
 
 // Macro describes a SECL macro

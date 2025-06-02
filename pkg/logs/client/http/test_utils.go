@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+
+	"golang.org/x/net/http2"
 )
 
 // StatusCodeContainer is a lock around the status code to return
@@ -36,11 +39,11 @@ type TestServer struct {
 
 // NewTestServer creates a new test server
 func NewTestServer(statusCode int, cfg pkgconfigmodel.Reader) *TestServer {
-	return NewTestServerWithOptions(statusCode, 0, true, nil, cfg)
+	return NewTestServerWithOptions(statusCode, 1, true, nil, cfg)
 }
 
 // NewTestServerWithOptions creates a new test server with concurrency and response control
-func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool, respondChan chan int, cfg pkgconfigmodel.Reader) *TestServer {
+func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestination bool, respondChan chan int, cfg pkgconfigmodel.Reader) *TestServer {
 	statusCodeContainer := &StatusCodeContainer{statusCode: statusCode}
 	var request http.Request
 	var mu = sync.Mutex{}
@@ -73,13 +76,13 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 	destCtx := client.NewDestinationsContext()
 	destCtx.Start()
 
-	endpoint := config.NewEndpoint("test", strings.Replace(url[1], "/", "", -1), port, false)
+	endpoint := config.NewEndpoint("test", "", strings.ReplaceAll(url[1], "/", ""), port, false)
 	endpoint.BackoffFactor = 1
-	endpoint.BackoffBase = 1
+	endpoint.BackoffBase = 0.01
 	endpoint.BackoffMax = 10
 	endpoint.RecoveryInterval = 1
 
-	dest := NewDestination(endpoint, JSONContentType, destCtx, senders, retryDestination, "test", cfg)
+	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""))
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,
@@ -89,6 +92,28 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 		statusCodeContainer: statusCodeContainer,
 		stopChan:            stopChan,
 	}
+}
+
+// NewTestHTTPSServer creates a new test server that can support HTTP/2
+func NewTestHTTPSServer(forceHTTP1 bool) *httptest.Server {
+	// Create an HTTP/2 test server
+	testServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("protocol", r.Proto)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Configure the server to support HTTP/2
+	if !forceHTTP1 {
+		err := http2.ConfigureServer(testServer.Config, &http2.Server{})
+		if err != nil {
+			panic(err)
+		}
+		testServer.TLS = testServer.Config.TLSConfig
+	}
+	// Start the server with TLS
+	testServer.StartTLS()
+
+	return testServer
 }
 
 // Stop stops the server

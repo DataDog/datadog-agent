@@ -11,12 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -24,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -58,6 +60,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endInvocationTime.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 }
 
@@ -191,6 +194,146 @@ func TestLegacyLambdaStartExecutionSpanStepFunctionEvent(t *testing.T) {
 	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionInfo().SamplingPriority)
 	upper64 := testProcessor.GetExecutionInfo().TraceIDUpper64Hex
 	assert.Equal(t, "1914fe7789eb32be", upper64)
+	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
+}
+
+func TestStartExecutionSpanNestedStepFunctionEvent(t *testing.T) {
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := createDemultiplexer(t)
+	mockProcessTrace := func(*api.Payload) {}
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	eventPayload := `{"_datadog":{"Execution":{"Id":"arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01","Input":{},"StartTime":"2024-08-29T21:48:55.187Z","Name":"c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01","RoleArn":"arn:aws:iam::425362996713:role/new-extension-test-java-dev-InvokeJavaLambdaRole-LtJmnJReIOTS","RedriveCount":0},"StateMachine":{"Id":"arn:aws:states:sa-east-1:425362996713:stateMachine:invokeJavaLambda","Name":"invokeJavaLambda"},"State":{"Name":"invoker","EnteredTime":"2024-08-29T21:48:55.275Z","RetryCount":0}, "RootExecutionId":"arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:4875aba4-ae31-4a4c-bf8a-63e9eee31dad","serverless-version":"v1"}}`
+	startInvocationTime := time.Now()
+	startDetails := InvocationStartDetails{
+		StartTime:             startInvocationTime,
+		InvokeEventRawPayload: []byte(eventPayload),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:           extraTags,
+		ProcessTrace:        mockProcessTrace,
+		DetectLambdaLibrary: mockDetectLambdaLibrary,
+		Demux:               demux,
+	}
+
+	testProcessor.OnInvokeStart(&startDetails)
+
+	assert.NotNil(t, testProcessor.GetExecutionInfo())
+
+	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().SpanID)
+	assert.Equal(t, uint64(1322229001489018110), testProcessor.GetExecutionInfo().TraceID)
+	assert.Equal(t, uint64(5727675921946924302), testProcessor.GetExecutionInfo().parentID)
+	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionInfo().SamplingPriority)
+	assert.Equal(t, "579d19b3ee216ee9", testProcessor.GetExecutionInfo().TraceIDUpper64Hex)
+	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
+}
+
+func TestLegacyLambdaStartExecutionSpanNestedStepFunctionEvent(t *testing.T) {
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := createDemultiplexer(t)
+	mockProcessTrace := func(*api.Payload) {}
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	eventPayload := `{"Payload":{"_datadog":{"Execution":{"Id":"arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01","Input":{},"StartTime":"2024-08-29T21:48:55.187Z","Name":"c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01","RoleArn":"arn:aws:iam::425362996713:role/new-extension-test-java-dev-InvokeJavaLambdaRole-LtJmnJReIOTS","RedriveCount":0},"StateMachine":{"Id":"arn:aws:states:sa-east-1:425362996713:stateMachine:invokeJavaLambda","Name":"invokeJavaLambda"},"State":{"Name":"invoker","EnteredTime":"2024-08-29T21:48:55.275Z","RetryCount":0}, "RootExecutionId":"arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:4875aba4-ae31-4a4c-bf8a-63e9eee31dad","serverless-version":"v1"}}}`
+	startInvocationTime := time.Now()
+	startDetails := InvocationStartDetails{
+		StartTime:             startInvocationTime,
+		InvokeEventRawPayload: []byte(eventPayload),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:           extraTags,
+		ProcessTrace:        mockProcessTrace,
+		DetectLambdaLibrary: mockDetectLambdaLibrary,
+		Demux:               demux,
+	}
+
+	testProcessor.OnInvokeStart(&startDetails)
+
+	assert.NotNil(t, testProcessor.GetExecutionInfo())
+
+	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().SpanID)
+	assert.Equal(t, uint64(1322229001489018110), testProcessor.GetExecutionInfo().TraceID)
+	assert.Equal(t, uint64(5727675921946924302), testProcessor.GetExecutionInfo().parentID)
+	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionInfo().SamplingPriority)
+	assert.Equal(t, "579d19b3ee216ee9", testProcessor.GetExecutionInfo().TraceIDUpper64Hex)
+	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
+}
+
+func TestStartExecutionSpanLambdaRootStepFunctionEvent(t *testing.T) {
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := createDemultiplexer(t)
+	mockProcessTrace := func(*api.Payload) {}
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	eventPayload := `{"_datadog":{"Execution":{"Id":"arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01","Input":{},"StartTime":"2024-08-29T21:48:55.187Z","Name":"c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01","RoleArn":"arn:aws:iam::425362996713:role/new-extension-test-java-dev-InvokeJavaLambdaRole-LtJmnJReIOTS","RedriveCount":0},"StateMachine":{"Id":"arn:aws:states:sa-east-1:425362996713:stateMachine:invokeJavaLambda","Name":"invokeJavaLambda"},"State":{"Name":"invoker","EnteredTime":"2024-08-29T21:48:55.275Z","RetryCount":0},"x-datadog-trace-id":"5821803790426892636","x-datadog-tags":"_dd.p.dm=-0,_dd.p.tid=672a7cb100000000","serverless-version":"v1"}}`
+	startInvocationTime := time.Now()
+	startDetails := InvocationStartDetails{
+		StartTime:             startInvocationTime,
+		InvokeEventRawPayload: []byte(eventPayload),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:           extraTags,
+		ProcessTrace:        mockProcessTrace,
+		DetectLambdaLibrary: mockDetectLambdaLibrary,
+		Demux:               demux,
+	}
+
+	testProcessor.OnInvokeStart(&startDetails)
+
+	assert.NotNil(t, testProcessor.GetExecutionInfo())
+
+	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().SpanID)
+	assert.Equal(t, uint64(5821803790426892636), testProcessor.GetExecutionInfo().TraceID)
+	assert.Equal(t, uint64(5727675921946924302), testProcessor.GetExecutionInfo().parentID)
+	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionInfo().SamplingPriority)
+	assert.Equal(t, "672a7cb100000000", testProcessor.GetExecutionInfo().TraceIDUpper64Hex)
+	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
+}
+
+func TestLegacyLambdaStartExecutionSpanLambdaRootStepFunctionEvent(t *testing.T) {
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	demux := createDemultiplexer(t)
+	mockProcessTrace := func(*api.Payload) {}
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	eventPayload := `{"Payload":{"_datadog":{"Execution":{"Id":"arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01","Input":{},"StartTime":"2024-08-29T21:48:55.187Z","Name":"c0ca8d0f-a3af-4c42-bfd4-b3b100e77f01","RoleArn":"arn:aws:iam::425362996713:role/new-extension-test-java-dev-InvokeJavaLambdaRole-LtJmnJReIOTS","RedriveCount":0},"StateMachine":{"Id":"arn:aws:states:sa-east-1:425362996713:stateMachine:invokeJavaLambda","Name":"invokeJavaLambda"},"State":{"Name":"invoker","EnteredTime":"2024-08-29T21:48:55.275Z","RetryCount":0},"x-datadog-trace-id":"5821803790426892636","x-datadog-tags":"_dd.p.dm=-0,_dd.p.tid=672a7cb100000000","serverless-version":"v1"}}}`
+	startInvocationTime := time.Now()
+	startDetails := InvocationStartDetails{
+		StartTime:             startInvocationTime,
+		InvokeEventRawPayload: []byte(eventPayload),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:           extraTags,
+		ProcessTrace:        mockProcessTrace,
+		DetectLambdaLibrary: mockDetectLambdaLibrary,
+		Demux:               demux,
+	}
+
+	testProcessor.OnInvokeStart(&startDetails)
+
+	assert.NotNil(t, testProcessor.GetExecutionInfo())
+
+	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().SpanID)
+	assert.Equal(t, uint64(5821803790426892636), testProcessor.GetExecutionInfo().TraceID)
+	assert.Equal(t, uint64(5727675921946924302), testProcessor.GetExecutionInfo().parentID)
+	assert.Equal(t, sampler.SamplingPriority(1), testProcessor.GetExecutionInfo().SamplingPriority)
+	assert.Equal(t, "672a7cb100000000", testProcessor.GetExecutionInfo().TraceIDUpper64Hex)
 	assert.Equal(t, startInvocationTime, testProcessor.GetExecutionInfo().startTime)
 }
 
@@ -647,6 +790,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, lateMetrics, 0)
 
@@ -740,6 +884,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, lateMetrics, 0)
 
@@ -823,6 +968,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, lateMetrics, 0)
 
@@ -910,6 +1056,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 		Tags:       extraTags.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(endTime.Unix()),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	}})
 	assert.Len(t, lateMetrics, 0)
 
@@ -1168,6 +1315,58 @@ func TestTriggerTypesLifecycleEventForSNSSQSNoDdContext(t *testing.T) {
 	assert.Equal(t, snsSpan.SpanID, sqsSpan.ParentID)
 }
 
+func TestTriggerTypesLifecycleEventForSNSSQSThenApiGateway(t *testing.T) {
+	// SNS-SQS creates two inferred spans. Ensure that then invoking the
+	// function with an event that should have just one inferred span (API
+	// Gateway) creates just one inferred span.
+	var tracePayload *api.Payload
+	testProcessor := &LifecycleProcessor{
+		DetectLambdaLibrary:  func() bool { return false },
+		ProcessTrace:         func(payload *api.Payload) { tracePayload = payload },
+		InferredSpansEnabled: true,
+	}
+
+	// SNS-SQS invocation
+	startInvocationTime := time.Now()
+	endInvocationTime := startInvocationTime.Add(time.Second)
+
+	startDetails := &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("snssqs.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+	endDetails := &InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(endDetails)
+
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+
+	// API Gateway invocation
+	startInvocationTime = endInvocationTime
+	endInvocationTime = startInvocationTime.Add(time.Second)
+
+	startDetails = &InvocationStartDetails{
+		InvokeEventRawPayload: getEventFromFile("api-gateway.json"),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		StartTime:             startInvocationTime,
+	}
+	endDetails = &InvocationEndDetails{
+		RequestID: "test-request-id",
+		EndTime:   endInvocationTime,
+	}
+
+	testProcessor.OnInvokeStart(startDetails)
+	testProcessor.OnInvokeEnd(endDetails)
+
+	spans = tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 2, len(spans))
+}
+
 func TestTriggerTypesLifecycleEventForSQSNoDdContext(t *testing.T) {
 
 	startInvocationTime := time.Now()
@@ -1330,5 +1529,5 @@ func getEventFromFile(filename string) []byte {
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), logscompression.MockModule(), metricscompression.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

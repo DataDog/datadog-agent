@@ -1,0 +1,29 @@
+[Unit]
+{{- if .Stable}}
+Description=Datadog Installer
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent.service
+Conflicts=datadog-agent-installer-exp.service
+ConditionPathExists=!/etc/systemd/system/datadog-installer.service
+ConditionPathExists=!/etc/systemd/system/datadog-installer-exp.service
+{{- else}}
+Description=Datadog Installer Experiment
+After=network.target datadog-agent.service datadog-agent-exp.service
+BindsTo=datadog-agent-exp.service
+Conflicts=datadog-agent-installer.service
+ConditionPathExists=!/etc/systemd/system/datadog-installer.service
+ConditionPathExists=!/etc/systemd/system/datadog-installer-exp.service
+{{- end}}
+
+[Service]
+Type=simple
+PIDFile={{.InstallDir}}/run/installer.pid
+Restart=on-failure
+EnvironmentFile=-{{.EtcDir}}/environment
+Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
+ExecStart={{.InstallDir}}/embedded/bin/installer run -p {{.InstallDir}}/run/installer.pid
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -52,7 +51,7 @@ func run(params *params) error {
 		color.CyanString(av.GetNumberAndPre()),
 		meta,
 		color.GreenString(version.Commit),
-		color.YellowString(serializer.AgentPayloadVersion),
+		color.YellowString(version.AgentPayloadVersion),
 		color.RedString(runtime.Version()),
 	)
 

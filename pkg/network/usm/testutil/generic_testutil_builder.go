@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 // Package testutil provides utilities for testing USM.
 package testutil
 
@@ -30,7 +32,7 @@ func buildGoBinary(srcDir, outPath, buildFlags string) (string, error) {
 		return cachedServerBinaryPath, nil
 	}
 
-	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-tags=test,netgo", buildFlags, "-o", cachedServerBinaryPath, serverSrcDir)
+	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-tags=test,netgo,linux_bpf", buildFlags, "-o", cachedServerBinaryPath, serverSrcDir)
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("could not build unix transparent proxy server test binary: %s\noutput: %s", err, string(out))

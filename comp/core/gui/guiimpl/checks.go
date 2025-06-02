@@ -21,7 +21,6 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -29,21 +28,32 @@ import (
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	configPaths = []string{
-		pkgconfigsetup.Datadog().GetString("confd_path"), // Custom checks
-		filepath.Join(path.GetDistPath(), "conf.d"),      // Default check configs
+		pkgconfigsetup.Datadog().GetString("confd_path"),    // Custom checks
+		filepath.Join(defaultpaths.GetDistPath(), "conf.d"), // Default check configs
 	}
 
 	checkPaths = []string{
-		filepath.Join(path.GetDistPath(), "checks.d"),            // Custom checks
+		filepath.Join(defaultpaths.GetDistPath(), "checks.d"),    // Custom checks
 		pkgconfigsetup.Datadog().GetString("additional_checksd"), // Custom checks
-		path.PyChecksPath, // Integrations-core checks
+		defaultpaths.PyChecksPath,                                // Integrations-core checks
+		getFleetPoliciesPath(),                                   // Fleet Policies
 	}
 )
+
+// getFleetPoliciesPath returns the path to the fleet policies directory if it is set in the configuration
+// otherwise it returns an empty string
+func getFleetPoliciesPath() string {
+	if len(pkgconfigsetup.Datadog().GetString("fleet_policies_dir")) > 0 {
+		return filepath.Join(pkgconfigsetup.Datadog().GetString("fleet_policies_dir"), "conf.d")
+	}
+	return ""
+}
 
 // Adds the specific handlers for /checks/ endpoints
 func checkHandler(r *mux.Router, collector collector.Component, ac autodiscovery.Component) {
@@ -124,7 +134,7 @@ func runCheckOnce(w http.ResponseWriter, r *http.Request, ac autodiscovery.Compo
 		err := ch.Run()
 		warnings := ch.GetWarnings()
 		sStats, _ := ch.GetSenderStats()
-		s.Add(time.Since(t0), err, warnings, sStats)
+		s.Add(time.Since(t0), err, warnings, sStats, nil)
 
 		// Without a small delay some of the metrics will not show up
 		time.Sleep(100 * time.Millisecond)
@@ -208,6 +218,9 @@ func getCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 	var file []byte
 	var e error
 	for _, path := range configPaths {
+		if len(path) == 0 {
+			continue
+		}
 		filePath, err := securejoin.SecureJoin(path, fileName)
 		if err != nil {
 			log.Errorf("Error: Unable to join config path with the file name: %s", fileName)
@@ -253,7 +266,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 			log.Errorf("Error: Unable to join provided \"confd_path\" setting path with checkFolder: %s", err.Error())
 			return
 		}
-		defaultCheckConfFolderPath, err = securejoin.SecureJoin(filepath.Join(path.GetDistPath(), "conf.d"), checkFolder)
+		defaultCheckConfFolderPath, err = securejoin.SecureJoin(filepath.Join(defaultpaths.GetDistPath(), "conf.d"), checkFolder)
 		if err != nil {
 			http.Error(w, "invalid checkFolder path", http.StatusBadRequest)
 			log.Errorf("Error: Unable to join conf folder path with checkFolder: %s", err.Error())
@@ -261,7 +274,7 @@ func setCheckConfigFile(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		checkConfFolderPath = pkgconfigsetup.Datadog().GetString("confd_path")
-		defaultCheckConfFolderPath = filepath.Join(path.GetDistPath(), "conf.d")
+		defaultCheckConfFolderPath = filepath.Join(defaultpaths.GetDistPath(), "conf.d")
 	}
 
 	if r.Method == "POST" {
@@ -443,7 +456,9 @@ func getConfigsInPath(path string) ([]string, error) {
 func listConfigs(w http.ResponseWriter, _ *http.Request) {
 	filenames := []string{}
 	for _, path := range configPaths {
-
+		if len(path) == 0 {
+			continue
+		}
 		configs, e := getConfigsInPath(path)
 		if e != nil {
 			log.Errorf("Unable to list configurations from %s: %v", path, e)

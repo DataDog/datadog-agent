@@ -10,12 +10,14 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -29,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -70,6 +71,18 @@ func (s *Stats) add(stat int64) {
 	s.LastFlush = stat
 }
 
+func (s *Stats) copy() *Stats {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	return &Stats{
+		Flushes:    s.Flushes,
+		FlushIndex: s.FlushIndex,
+		LastFlush:  s.LastFlush,
+		Name:       s.Name,
+	}
+}
+
 func newFlushTimeStats(name string) {
 	flushTimeStats[name] = &Stats{Name: name, FlushIndex: -1}
 }
@@ -88,7 +101,11 @@ func addFlushCount(name string, value int64) {
 
 func expStatsMap(statsMap map[string]*Stats) func() interface{} {
 	return func() interface{} {
-		return statsMap
+		res := make(map[string]*Stats, len(statsMap))
+		for k, v := range statsMap {
+			res[k] = v.copy()
+		}
+		return res
 	}
 }
 
@@ -143,13 +160,13 @@ var (
 	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 	tlmDogstatsdContextsBytesByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
-		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
+		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
 	tlmChecksContexts = telemetry.NewGauge("aggregator", "checks_contexts",
 		[]string{"shard"}, "Count the number of checks contexts in the check aggregator")
 	tlmChecksContextsByMtype = telemetry.NewGauge("aggregator", "checks_contexts_by_mtype",
 		[]string{"shard", "metric_type"}, "Count the number of checks contexts in the check aggregator, by metric type")
 	tlmChecksContextsBytesByMtype = telemetry.NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
-		[]string{"shard", "metric_type", util.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
+		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -236,6 +253,8 @@ type BufferedAggregator struct {
 	flushMutex             sync.Mutex // to start multiple flushes in parallel
 	serializer             serializer.MetricSerializer
 	eventPlatformForwarder eventplatform.Component
+	haAgent                haagent.Component
+	configID               string
 	hostname               string
 	hostnameUpdate         chan string
 	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
@@ -245,10 +264,10 @@ type BufferedAggregator struct {
 	health    *health.Handle
 	agentName string // Name of the agent for telemetry metrics
 
-	tlmContainerTagsEnabled bool                                         // Whether we should call the tagger to tag agent telemetry metrics
-	agentTags               func(types.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
-	globalTags              func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
-
+	tlmContainerTagsEnabled     bool                                         // Whether we should call the tagger to tag agent telemetry metrics
+	agentTags                   func(types.TagCardinality) ([]string, error) // This function gets the agent tags from the tagger (defined as a struct field to ease testing)
+	globalTags                  func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
+	tagger                      tagger.Component
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 }
 
@@ -267,7 +286,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -290,6 +309,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		})
 	}
 
+	// configID can only change on agent restart, and will only change if the configuration applied by Fleet Automation changes
+	configID := pkgconfigsetup.Datadog().GetString("config_id")
+
 	tagsStore := tags.NewStore(pkgconfigsetup.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
@@ -310,6 +332,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
+		haAgent:                     haAgent,
+		configID:                    configID,
 		hostname:                    hostname,
 		hostnameUpdate:              make(chan string),
 		hostnameUpdateDone:          make(chan struct{}),
@@ -320,6 +344,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tlmContainerTagsEnabled:     pkgconfigsetup.Datadog().GetBool("basic_telemetry_add_container_tags"),
 		agentTags:                   tagger.AgentTags,
 		globalTags:                  tagger.GlobalTags,
+		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 	}
 
@@ -459,7 +484,7 @@ func (agg *BufferedAggregator) addServiceCheck(sc servicecheck.ServiceCheck) {
 		sc.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(sc.Tags)
-	tagger.EnrichTags(tb, sc.OriginInfo)
+	agg.tagger.EnrichTags(tb, sc.OriginInfo)
 
 	tb.SortUniq()
 	sc.Tags = tb.Get()
@@ -473,7 +498,7 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 		e.Ts = time.Now().Unix()
 	}
 	tb := tagset.NewHashlessTagsAccumulatorFromSlice(e.Tags)
-	tagger.EnrichTags(tb, e.OriginInfo)
+	agg.tagger.EnrichTags(tb, e.OriginInfo)
 
 	tb.SortUniq()
 	e.Tags = tb.Get()
@@ -584,11 +609,29 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 	series.Append(&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", agg.agentName),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice(agg.tags(true)),
+		Tags:           tagset.CompositeTagsFromSlice(slices.Concat(agg.tags(true), agg.configIDTags())),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
+
+	if agg.haAgent.Enabled() {
+		haAgentTags := slices.Concat(agg.tags(false),
+			agg.configIDTags(),
+			[]string{"ha_agent_state:" + string(agg.haAgent.GetState())},
+		)
+		// Send along a metric to show if HA Agent is running with ha_agent_state tag.
+		// datadog.agent.ha_agent.running is currently used in dashboard to monitor HA Agent state (active/standby)
+		// This metric is not intended to be used as replacement for datadog.agent.running
+		series.Append(&metrics.Serie{
+			Name:           fmt.Sprintf("datadog.%s.ha_agent.running", agg.agentName),
+			Points:         []metrics.Point{{Value: float64(1), Ts: float64(start.Unix())}},
+			Tags:           tagset.CompositeTagsFromSlice(haAgentTags),
+			Host:           agg.hostname,
+			MType:          metrics.APIGaugeType,
+			SourceTypeName: "System",
+		})
+	}
 
 	// Send along a metric that counts the number of times we dropped some payloads because we couldn't split them.
 	series.Append(&metrics.Serie{
@@ -821,13 +864,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(tagger.ChecksCardinality())
+	tags, err = agg.globalTags(types.ChecksConfigCardinality)
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(tagger.ChecksCardinality())
+		agentTags, err := agg.agentTags(types.ChecksConfigCardinality)
 		if err == nil {
 			if tags == nil {
 				tags = agentTags
@@ -850,6 +893,16 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 		tags = []string{}
 	}
 	return tags
+}
+
+// configIDTags returns the config_id tag for agent telemetry metrics.
+// the result is returned as list of string to ease processing.
+func (agg *BufferedAggregator) configIDTags() []string {
+	var tag []string
+	if agg.configID != "" {
+		tag = append(tag, "config_id:"+agg.configID)
+	}
+	return tag
 }
 
 func (agg *BufferedAggregator) updateChecksTelemetry() {
@@ -939,5 +992,6 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		pkgconfigsetup.Datadog().GetDuration("check_sampler_stateful_metric_expiration_time"),
 		agg.tagsStore,
 		id,
+		agg.tagger,
 	)
 }

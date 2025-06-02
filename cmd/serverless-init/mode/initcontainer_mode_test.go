@@ -90,7 +90,7 @@ func TestNodeTracerIsAutoInstrumented(t *testing.T) {
 	autoInstrumentTracer(fs)
 
 	assert.Equal(t, "--require dd-trace/init", os.Getenv("NODE_OPTIONS"))
-	assert.Equal(t, "/dd_tracer/node/", os.Getenv("NODE_PATH"))
+	assert.Equal(t, "/dd_tracer/node/:/dd_tracer/node/node_modules", os.Getenv("NODE_PATH"))
 }
 
 func TestDotNetTracerIsAutoInstrumented(t *testing.T) {

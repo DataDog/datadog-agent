@@ -8,6 +8,7 @@
 package controllers
 
 import (
+	"maps"
 	"sync"
 	"time"
 
@@ -58,8 +59,8 @@ type autoscalersController struct {
 	wpaListerSynced         cache.InformerSynced
 
 	// Autoscalers that need to be added to the cache.
-	hpaQueue workqueue.RateLimitingInterface
-	wpaQueue workqueue.RateLimitingInterface
+	hpaQueue workqueue.TypedRateLimitingInterface[string]
+	wpaQueue workqueue.TypedRateLimitingInterface[string]
 
 	eventRecorder record.EventRecorder
 
@@ -171,10 +172,7 @@ func (h *autoscalersController) syncHPA(key interface{}) error {
 		}
 		newMetrics := h.hpaProc.ProcessEMList(emList)
 		h.toStore.m.Lock()
-		for metric, value := range newMetrics {
-			// We should only insert placeholders in the local cache.
-			h.toStore.data[metric] = value
-		}
+		maps.Copy(h.toStore.data, newMetrics)
 		h.toStore.m.Unlock()
 		log.Tracef("Local batch cache of Ref is %v", h.toStore.data)
 	}

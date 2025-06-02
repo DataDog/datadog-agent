@@ -60,28 +60,24 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     set_file_inode(dentry, &syscall->setattr.file, 0);
 
-    u64 event_type = 0;
     switch (syscall->type) {
     case EVENT_UTIME:
         if (approve_syscall(syscall, utime_approvers) == DISCARDED) {
             pop_syscall(EVENT_UTIME);
             return 0;
         }
-        event_type = EVENT_UTIME;
         break;
     case EVENT_CHMOD:
         if (approve_syscall(syscall, chmod_approvers) == DISCARDED) {
             pop_syscall(EVENT_CHMOD);
             return 0;
         }
-        event_type = EVENT_CHMOD;
         break;
     case EVENT_CHOWN:
         if (approve_syscall(syscall, chown_approvers) == DISCARDED) {
             pop_syscall(EVENT_CHOWN);
             return 0;
         }
-        event_type = EVENT_CHOWN;
         break;
     }
 
@@ -92,7 +88,7 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall_with(security_inode_predicate);
@@ -100,8 +96,7 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_setattr_callback")
-int tail_call_target_dr_setattr_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_setattr_callback, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(security_inode_predicate);
     if (!syscall) {
         return 0;

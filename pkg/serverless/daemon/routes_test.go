@@ -7,6 +7,7 @@ package daemon
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,9 +18,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -104,7 +105,7 @@ func TestEndInvocation(t *testing.T) {
 	assert.Equal(m.lastEndDetails.Runtime, d.ExecutionContext.GetCurrentState().Runtime)
 }
 
-func TestEndInvocationWithError(t *testing.T) {
+func TestEndInvocationWithErrorEncodedHeaders(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
 	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
@@ -114,10 +115,17 @@ func TestEndInvocationWithError(t *testing.T) {
 	m := &mockLifecycleProcessor{}
 	d.InvocationProcessor = m
 
+	errorMessage := "Error message"
+	errorType := "System.Exception"
+	errorStack := "System.Exception: Error message \n at TestFunction.Handle(ILambdaContext context)"
+
 	client := &http.Client{}
 	body := bytes.NewBuffer([]byte(`{}`))
 	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port), body)
 	request.Header.Set("x-datadog-invocation-error", "true")
+	request.Header.Set(invocationlifecycle.InvocationErrorMsgHeader, base64.StdEncoding.EncodeToString([]byte(errorMessage)))
+	request.Header.Set(invocationlifecycle.InvocationErrorTypeHeader, base64.StdEncoding.EncodeToString([]byte(errorType)))
+	request.Header.Set(invocationlifecycle.InvocationErrorStackHeader, base64.StdEncoding.EncodeToString([]byte(errorStack)))
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
@@ -127,6 +135,44 @@ func TestEndInvocationWithError(t *testing.T) {
 	}
 	assert.True(m.OnInvokeEndCalled)
 	assert.True(m.isError)
+	assert.Equal(m.lastEndDetails.ErrorMsg, errorMessage)
+	assert.Equal(m.lastEndDetails.ErrorType, errorType)
+	assert.Equal(m.lastEndDetails.ErrorStack, errorStack)
+}
+
+func TestEndInvocationWithErrorNonEncodedHeaders(t *testing.T) {
+	assert := assert.New(t)
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+
+	m := &mockLifecycleProcessor{}
+	d.InvocationProcessor = m
+
+	errorMessage := "Error message"
+	errorType := "System.Exception"
+	errorStack := "System.Exception: Error message at TestFunction.Handle(ILambdaContext context)"
+
+	client := &http.Client{}
+	body := bytes.NewBuffer([]byte(`{}`))
+	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port), body)
+	request.Header.Set("x-datadog-invocation-error", "true")
+	request.Header.Set(invocationlifecycle.InvocationErrorMsgHeader, errorMessage)
+	request.Header.Set(invocationlifecycle.InvocationErrorTypeHeader, errorType)
+	request.Header.Set(invocationlifecycle.InvocationErrorStackHeader, errorStack)
+	assert.Nil(err)
+	res, err := client.Do(request)
+	assert.Nil(err)
+	if res != nil {
+		res.Body.Close()
+		assert.Equal(res.StatusCode, 200)
+	}
+	assert.True(m.OnInvokeEndCalled)
+	assert.True(m.isError)
+	assert.Equal(m.lastEndDetails.ErrorMsg, errorMessage)
+	assert.Equal(m.lastEndDetails.ErrorType, errorType)
+	assert.Equal(m.lastEndDetails.ErrorStack, errorStack)
 }
 
 func TestTraceContext(t *testing.T) {
@@ -398,7 +444,7 @@ func getEventFromFile(filename string) string {
 func BenchmarkStartEndInvocation(b *testing.B) {
 	// Set the logger up, so that it does not buffer all entries forever (some of these are BIG as they include the
 	// JSON payload). We're not interested in any output here, so we send it all to `io.Discard`.
-	l, err := seelog.LoggerFromWriterWithMinLevel(io.Discard, seelog.ErrorLvl)
+	l, err := log.LoggerFromWriterWithMinLevel(io.Discard, log.ErrorLvl)
 	assert.Nil(b, err)
 	log.SetupLogger(l, "error")
 
@@ -440,11 +486,16 @@ func BenchmarkStartEndInvocation(b *testing.B) {
 func startAgents() *Daemon {
 	d := StartDaemon(fmt.Sprint("127.0.0.1:", testutil.FreeTCPPort(nil)))
 
-	ta := trace.StartServerlessTraceAgent(true, &trace.LoadConfig{Path: "/some/path/datadog.yml"}, nil, 123)
+	ta := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
+		Enabled:         true,
+		LoadConfig:      &trace.LoadConfig{Path: "/some/path/datadog.yml"},
+		ColdStartSpanID: 123,
+	})
 	d.SetTraceAgent(ta)
 
 	ma := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
+		Tagger:               nooptagger.NewComponent(),
 	}
 	ma.Start(FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	d.SetStatsdServer(ma)

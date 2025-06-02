@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	utilscommon "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	agentClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	agentClientParams "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
@@ -51,7 +51,7 @@ type Tester struct {
 type TesterOption func(*Tester)
 
 // NewTester creates a new Tester
-func NewTester(context e2e.Context, host *components.RemoteHost, opts ...TesterOption) (*Tester, error) {
+func NewTester(context utilscommon.Context, host *components.RemoteHost, opts ...TesterOption) (*Tester, error) {
 	t := &Tester{}
 	tt := context.T()
 
@@ -164,17 +164,11 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 		common.CheckIntegrationInstall(tt, t.InstallTestClient)
 
 		tt.Run("default python version", func(tt *testing.T) {
-			pythonVersion, err := t.InstallTestClient.GetPythonVersion()
-			if !assert.NoError(tt, err, "should get python version") {
-				return
-			}
-			majorPythonVersion := strings.Split(pythonVersion, ".")[0]
-
+			expected := common.ExpectedPythonVersion3
 			if t.ExpectPython2Installed() {
-				assert.Equal(tt, "2", majorPythonVersion, "Agent 6 should install Python 2")
-			} else {
-				assert.Equal(tt, "3", majorPythonVersion, "Agent should install Python 3")
+				expected = common.ExpectedPythonVersion2
 			}
+			common.CheckAgentPython(tt, t.InstallTestClient, expected)
 		})
 
 		if t.ExpectPython2Installed() {
@@ -305,6 +299,19 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 			binPath = filepath.Join(t.expectedInstallPath, binPath)
 			_, err := t.host.Lstat(binPath)
 			assert.NoError(tt, err, "install should create %s bin file", binPath)
+		}
+	})
+
+	tt.Run("removes embedded extraction artifacts", func(tt *testing.T) {
+		paths := []string{
+			filepath.Join(t.expectedInstallPath, "embedded3.COMPRESSED"),
+			filepath.Join(t.expectedInstallPath, "bin", "7zr.exe"),
+		}
+		for _, path := range paths {
+			exists, err := t.host.FileExists(path)
+			if assert.NoError(tt, err) {
+				assert.False(tt, exists, "install should remove %s", path)
+			}
 		}
 	})
 
@@ -459,6 +466,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 		path             string
 		expectedSecurity func(t *testing.T) windows.ObjectSecurity
 	}{
+		//ConfigRoot is only owned by SYSTEM and Administrators
 		{
 			name: "ConfigRoot",
 			path: t.expectedConfigRoot,
@@ -471,10 +479,26 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 				expected.Access = append(expected.Access,
 					windows.NewExplicitAccessRuleWithFlags(
 						ddAgentUserIdentity,
-						windows.FileFullControl,
+						windows.FileReadAndExecute|windows.SYNCHRONIZE,
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
 						windows.PropagationFlagsNone,
+					),
+					windows.NewExplicitAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileWrite|windows.SYNCHRONIZE,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsNone,
+						windows.PropagationFlagsNone,
+					),
+					// add creator owner permissions
+					windows.NewExplicitAccessRuleWithFlags(
+						windows.GetIdentityForSID("S-1-3-0"),
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						// yes this flag is wrong, but go has the wrong value for it
+						windows.PropagationFlagsInherit,
 					),
 				)
 				return expected
@@ -490,9 +514,15 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 					return expected
 				}
 				expected.Access = append(expected.Access,
-					windows.NewInheritedAccessRule(
+					windows.NewExplicitAccessRule(
 						ddAgentUserIdentity,
 						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+					),
+					// extra inherited rule for ddagentuser
+					windows.NewInheritedAccessRule(
+						ddAgentUserIdentity,
+						windows.FileReadAndExecute|windows.SYNCHRONIZE,
 						windows.AccessControlTypeAllow,
 					),
 				)
@@ -508,15 +538,53 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
 					return expected
 				}
-				expected.Access = append(expected.Access,
+				expected.Access = []windows.AccessRule{
 					windows.NewInheritedAccessRuleWithFlags(
+						windows.GetIdentityForSID(windows.LocalSystemSID),
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsInherit,
+					),
+					windows.NewInheritedAccessRuleWithFlags(
+						windows.GetIdentityForSID(windows.AdministratorsSID),
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+					windows.NewExplicitAccessRuleWithFlags(
 						ddAgentUserIdentity,
 						windows.FileFullControl,
 						windows.AccessControlTypeAllow,
 						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
 						windows.PropagationFlagsNone,
 					),
-				)
+					// extra inherited rule for ddagentuser
+					windows.NewInheritedAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileReadAndExecute|windows.SYNCHRONIZE,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+					// add creator owner permissions
+					windows.NewInheritedAccessRuleWithFlags(
+						windows.GetIdentityForSID("S-1-3-0"),
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsInherit,
+					),
+					// create owner inherited permissions
+					windows.NewInheritedAccessRuleWithFlags(
+						windows.GetIdentityForSID(windows.LocalSystemSID),
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.PropagationFlagsNone,
+						windows.InheritanceFlagsNone,
+					),
+				}
 				return expected
 			},
 		},
@@ -527,31 +595,6 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 			require.NoError(tt, err)
 			windows.AssertEqualAccessSecurity(tt, tc.path, tc.expectedSecurity(tt), out)
 		})
-	}
-
-	// expect to have standard inherited permissions, plus an explciit ACE for ddagentuser
-	embeddedPaths := []string{
-		filepath.Join(t.expectedInstallPath, "embedded3"),
-	}
-	if t.ExpectPython2Installed() {
-		embeddedPaths = append(embeddedPaths,
-			filepath.Join(t.expectedInstallPath, "embedded2"),
-		)
-	}
-	agentUserFullAccessDirRule := windows.NewExplicitAccessRuleWithFlags(
-		ddAgentUserIdentity,
-		windows.FileFullControl,
-		windows.AccessControlTypeAllow,
-		windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
-		windows.PropagationFlagsNone,
-	)
-	for _, path := range embeddedPaths {
-		out, err := windows.GetSecurityInfoForPath(t.host, path)
-		require.NoError(tt, err)
-		if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
-			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddAgentUserIdentity)
-		}
-		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
 	}
 
 	// ensure the agent user does not have an ACE on the install dir

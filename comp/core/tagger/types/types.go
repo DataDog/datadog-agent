@@ -78,6 +78,9 @@ const (
 	LowCardinality TagCardinality = iota
 	OrchestratorCardinality
 	HighCardinality
+	NoneCardinality
+	// ChecksConfigCardinality is an internal cardinality that represents the checks_tag_cardinality setting.
+	ChecksConfigCardinality
 )
 
 // Entity is an entity ID + tags.
@@ -92,6 +95,10 @@ type Entity struct {
 // GetTags flattens all tags from all cardinalities into a single slice of tag
 // strings.
 func (e Entity) GetTags(cardinality TagCardinality) []string {
+	if cardinality == NoneCardinality {
+		return []string{}
+	}
+
 	tagArrays := make([][]string, 0, 3)
 	tagArrays = append(tagArrays, e.LowCardinalityTags)
 
@@ -117,6 +124,11 @@ func (e Entity) Copy(cardinality TagCardinality) Entity {
 	case LowCardinality:
 		newEntity.HighCardinalityTags = nil
 		newEntity.OrchestratorCardinalityTags = nil
+	case NoneCardinality:
+		newEntity.HighCardinalityTags = nil
+		newEntity.OrchestratorCardinalityTags = nil
+		newEntity.LowCardinalityTags = nil
+		newEntity.StandardTags = nil
 	}
 
 	return newEntity
@@ -131,6 +143,8 @@ const (
 	ShortOrchestratorCardinalityString = "orch"
 	// HighCardinalityString is the string representation of the high cardinality
 	HighCardinalityString = "high"
+	// NoneCardinalityString is the string representation of the none cardinality
+	NoneCardinalityString = "none"
 	// UnknownCardinalityString represents an unknown level of cardinality
 	UnknownCardinalityString = "unknown"
 )
@@ -145,6 +159,8 @@ func StringToTagCardinality(c string) (TagCardinality, error) {
 		return OrchestratorCardinality, nil
 	case LowCardinalityString:
 		return LowCardinality, nil
+	case NoneCardinalityString:
+		return NoneCardinality, nil
 	default:
 		return LowCardinality, fmt.Errorf("unsupported value %s received for tag cardinality", c)
 	}
@@ -160,6 +176,8 @@ func TagCardinalityToString(c TagCardinality) string {
 		return OrchestratorCardinalityString
 	case LowCardinality:
 		return LowCardinalityString
+	case NoneCardinality:
+		return NoneCardinalityString
 	default:
 		return UnknownCardinalityString
 	}
@@ -196,4 +214,23 @@ func (e EntityIDPrefix) ToUID(id string) string {
 		return ""
 	}
 	return fmt.Sprintf("%s://%s", e, id)
+}
+
+// Subscription can be used by external subscribing components to interact with tagger events
+type Subscription interface {
+	// EventsChan returns a channel on which the subscriber can receive tagger events
+	EventsChan() chan []EntityEvent
+	// ID returns the id of the subscription
+	ID() string
+	// Unsubscribe is used cancel subscription to the tagger
+	Unsubscribe()
+}
+
+// TaggerClient provides client for tagger interface,
+// see comp/core/tagger for tagger functions; client for tagger interface
+type TaggerClient interface {
+	// Tag is an interface function that queries taggerclient singleton
+	Tag(entity EntityID, cardinality TagCardinality) ([]string, error)
+	// GlobalTags is an interface function that queries taggerclient singleton
+	GlobalTags(cardinality TagCardinality) ([]string, error)
 }

@@ -11,8 +11,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -39,6 +41,14 @@ var (
 		"4XX status code. This might be related to the proxy settings. " +
 			"Please make sure the agent can reach Remote Configuration with the proxy setup",
 	)
+	// ErrGatewayTimeout is the error that will be logged if there is a gateway timeout
+	ErrGatewayTimeout = fmt.Errorf(
+		"non-200 response code: 504",
+	)
+	// ErrServiceUnavailable is the error that will be logged if there is the service is unavailable
+	ErrServiceUnavailable = fmt.Errorf(
+		"non-200 response code: 503",
+	)
 )
 
 // API is the interface to implement for a configuration fetcher
@@ -46,11 +56,14 @@ type API interface {
 	Fetch(context.Context, *pbgo.LatestConfigsRequest) (*pbgo.LatestConfigsResponse, error)
 	FetchOrgData(context.Context) (*pbgo.OrgDataResponse, error)
 	FetchOrgStatus(context.Context) (*pbgo.OrgStatusResponse, error)
+	UpdatePARJWT(string)
+	UpdateAPIKey(string)
 }
 
 // Auth defines the possible Authentication data to access the RC backend
 type Auth struct {
 	APIKey    string
+	PARJWT    string
 	AppKey    string
 	UseAppKey bool
 }
@@ -59,18 +72,26 @@ type Auth struct {
 type HTTPClient struct {
 	baseURL string
 	client  *http.Client
-	header  http.Header
+
+	headerLock sync.RWMutex
+	header     http.Header
 }
 
 // NewHTTPClient returns a new HTTP configuration client
 func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL) (*HTTPClient, error) {
 	header := http.Header{
 		"Content-Type": []string{"application/x-protobuf"},
-		"DD-Api-Key":   []string{auth.APIKey},
+	}
+	if auth.PARJWT != "" {
+		header["DD-PAR-JWT"] = []string{auth.PARJWT}
+	}
+	if auth.APIKey != "" {
+		header["DD-Api-Key"] = []string{auth.APIKey}
 	}
 	if auth.UseAppKey {
 		header["DD-Application-Key"] = []string{auth.AppKey}
 	}
+
 	transport := httputils.CreateHTTPTransport(cfg)
 	// Set the keep-alive timeout to 30s instead of the default 90s, so the http RC client is not closed by the backend
 	transport.IdleConnTimeout = 30 * time.Second
@@ -104,7 +125,8 @@ func (c *HTTPClient) Fetch(ctx context.Context, request *pbgo.LatestConfigsReque
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
-	req.Header = c.header
+
+	c.addHeaders(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -150,7 +172,8 @@ func (c *HTTPClient) FetchOrgData(ctx context.Context) (*pbgo.OrgDataResponse, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
-	req.Header = c.header
+
+	c.addHeaders(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -187,7 +210,8 @@ func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusRespons
 	if err != nil {
 		return nil, fmt.Errorf("failed to create org data request: %w", err)
 	}
-	req.Header = c.header
+
+	c.addHeaders(req)
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -214,6 +238,28 @@ func (c *HTTPClient) FetchOrgStatus(ctx context.Context) (*pbgo.OrgStatusRespons
 	}
 
 	return response, err
+}
+
+// UpdatePARJWT allows for dynamic setting of a Private Action Runners JWT
+// Token for authentication to the RC backend.
+func (c *HTTPClient) UpdatePARJWT(jwt string) {
+	c.headerLock.Lock()
+	c.header["DD-PAR-JWT"] = []string{jwt}
+	c.headerLock.Unlock()
+}
+
+// UpdateAPIKey allows for dynamic setting of a Private Action Runners JWT
+// Token for authentication to the RC backend.
+func (c *HTTPClient) UpdateAPIKey(apiKey string) {
+	c.headerLock.Lock()
+	c.header["DD-Api-Key"] = []string{apiKey}
+	c.headerLock.Unlock()
+}
+
+func (c *HTTPClient) addHeaders(req *http.Request) {
+	c.headerLock.RLock()
+	maps.Copy(req.Header, c.header)
+	c.headerLock.RUnlock()
 }
 
 func checkStatusCode(resp *http.Response) error {

@@ -20,47 +20,41 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
-
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
+	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type cliParams struct {
@@ -107,7 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		if cliParams.saveFlare {
 			// Windows cannot accept ":" in file names
 			filenameSafeTimeStamp := strings.ReplaceAll(time.Now().UTC().Format(time.RFC3339), ":", "-")
-			cliParams.logFile = filepath.Join(path.DefaultJMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
+			cliParams.logFile = filepath.Join(defaultpaths.JMXFlareDirectory, "jmx_"+cliParams.command+"_"+filenameSafeTimeStamp+".log")
 			cliParams.jmxLogLevel = "debug"
 		}
 
@@ -118,7 +112,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		params := core.BundleParams{
 			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 			SecretParams: secrets.NewEnabledParams(),
-			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
+			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false),
+		}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
 		}
@@ -127,7 +122,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(params),
 			core.Bundle(),
-			compressionimpl.Module(),
 			diagnosesendermanagerimpl.Module(),
 			fx.Supply(func(diagnoseSenderManager diagnosesendermanager.Component) (sender.SenderManager, error) {
 				return diagnoseSenderManager.LazyGetSenderManager()
@@ -136,29 +130,23 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			wmcatalog.GetCatalog(),
 			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
-			authtokenimpl.Module(),
-			// The jmx command do not have settings that change are runtime
-			// still, we need to pass it to ensure the API server is proprely initialized
-			settingsimpl.Module(),
-			fx.Supply(settings.Params{}),
-
-			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
-			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
-			// in others commands such as run.
-			fx.Supply(optional.NewNoneOption[rcservice.Component]()),
-			fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-			fx.Supply(optional.NewNoneOption[collector.Component]()),
-			fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
-			fx.Supply(optional.NewNoneOption[integrations.Component]()),
-			fx.Provide(func() dogstatsdServer.Component { return nil }),
-			fx.Provide(func() pidmap.Component { return nil }),
-			fx.Provide(func() replay.Component { return nil }),
-			fx.Provide(func() status.Component { return nil }),
-
-			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-			taggerimpl.Module(),
+			grpcNonefx.Module(),
+			fx.Supply(option.None[collector.Component]()),
+			fx.Supply(option.None[integrations.Component]()),
+			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
+			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
+			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
+			// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
+			// we can include the tagger as part of the workloadmeta component.
+			fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
+				proccontainers.InitSharedContainerProvider(wmeta, tagger)
+			}),
+			haagentfx.Module(),
+			logscompression.Module(),
+			metricscompression.Module(),
+			ipcfx.ModuleReadWrite(),
 		)
 	}
 
@@ -282,7 +270,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // Ideally, the server wouldn't start up at all, but this workaround has been
 // in place for some times.
 func disableCmdPort() {
-	os.Setenv("DD_CMD_PORT", "0") // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_CMD_PORT", "0")       // 0 indicates the OS should pick an unused port
+	os.Setenv("DD_AGENT_IPC_PORT", "0") // force disable the IPC server
 }
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
@@ -294,9 +283,10 @@ func runJmxCommandConsole(config config.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
-	collector optional.Option[collector.Component],
+	collector option.Option[collector.Component],
 	jmxLogger jmxlogger.Component,
-	logReceiver optional.Option[integrations.Component]) error {
+	logReceiver option.Option[integrations.Component],
+	tagger tagger.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
@@ -313,7 +303,7 @@ func runJmxCommandConsole(config config.Component,
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver)
+	pkgcollector.InitCheckScheduler(collector, senderManager, logReceiver, tagger)
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;
 	// otherwise, we fetch only the matching cehck configs.

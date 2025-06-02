@@ -12,8 +12,8 @@ import (
 	json "encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 // EventSerializer serializes an event to JSON
@@ -25,8 +25,8 @@ func (e *EventSerializer) ToJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, opts *eval.Opts) ([]byte, error) {
-	s := NewEventSerializer(event, opts)
+func MarshalEvent(event *model.Event) ([]byte, error) {
+	s := NewEventSerializer(event, nil)
 	return json.Marshal(s)
 }
 
@@ -36,6 +36,6 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(_ *model.Event, _ *eval.Opts) *EventSerializer {
+func NewEventSerializer(_ *model.Event, _ *rules.Rule) *EventSerializer {
 	return nil
 }

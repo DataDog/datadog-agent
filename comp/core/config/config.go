@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Reader is a subset of Config that only allows reading of configuration
@@ -43,7 +43,7 @@ type dependencies struct {
 	fx.In
 
 	Params Params
-	Secret optional.Option[secrets.Component]
+	Secret option.Option[secrets.Component]
 }
 
 func (d dependencies) getParams() *Params {
@@ -94,7 +94,7 @@ func newConfig(deps dependencies) (*cfg, error) {
 			if warnings == nil {
 				warnings = &pkgconfigmodel.Warnings{}
 			}
-			warnings.Err = e
+			warnings.Errors = []error{e}
 			e = nil
 		}
 		return &cfg{Config: config, warnings: warnings}, e

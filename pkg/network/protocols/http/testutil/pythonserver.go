@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 // Package testutil provides utilities for testing the HTTP protocol.
 package testutil
 
@@ -45,11 +47,9 @@ server_address = ('%s', %s)
 httpd = http.server.HTTPServer(server_address, RequestHandler)
 
 if len(sys.argv) >= 2 and sys.argv[1].lower() in YES:
-    httpd.socket = ssl.wrap_socket(httpd.socket,
-                                   server_side=True,
-                                   certfile='%s',
-                                   keyfile='%s',
-                                   ssl_version=ssl.PROTOCOL_TLS)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile='%s', keyfile='%s')
+    httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
 try:
     httpd.serve_forever()
 finally:

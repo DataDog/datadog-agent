@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -20,7 +21,7 @@ var TimeNow = time.Now
 // SendMetadata send Cisco SD-WAN device, interface and IP Address metadata
 func (ms *SDWanSender) SendMetadata(devices []devicemetadata.DeviceMetadata, interfaces []devicemetadata.InterfaceMetadata, ipAddresses []devicemetadata.IPAddressMetadata) {
 	collectionTime := TimeNow()
-	metadataPayloads := devicemetadata.BatchPayloads(ms.namespace, "", collectionTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, nil, nil, nil)
+	metadataPayloads := devicemetadata.BatchPayloads(integrations.CiscoSDWAN, ms.namespace, "", collectionTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, nil, nil, nil)
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {

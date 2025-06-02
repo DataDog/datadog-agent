@@ -7544,7 +7544,7 @@
 		<testcase classname="github.com/DataDog/datadog-agent/pkg/flare" name="TestEnvvarFiltering/case_6:_env_vars_corresponding_to_nested_configs" time="0.000000" />
 		<testcase classname="github.com/DataDog/datadog-agent/pkg/flare" name="TestEnvvarFiltering" time="0.010000" />
 	</testsuite>
-	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/fleet/bootstraper" timestamp="2024-05-10T17:03:43Z">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/fleet/bootstrapper" timestamp="2024-05-10T17:03:43Z">
 		<properties>
 			<property name="go.version" value="go1.21.9 linux/amd64" />
 		</properties>

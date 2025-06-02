@@ -6,6 +6,8 @@
 package settings
 
 import (
+	"net/http"
+
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/spf13/cobra"
 )
@@ -18,6 +20,7 @@ type Client interface {
 	List() (map[string]settings.RuntimeSettingResponse, error)
 	FullConfig() (string, error)
 	FullConfigBySource() (string, error)
+	HTTPClient() *http.Client
 }
 
 // ClientBuilder represents a function returning a runtime settings API client

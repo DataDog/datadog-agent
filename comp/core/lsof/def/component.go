@@ -6,7 +6,7 @@
 // Package lsof provides a flare file with data about files opened by the agent process
 package lsof
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {

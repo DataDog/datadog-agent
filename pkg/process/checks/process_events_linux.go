@@ -15,18 +15,19 @@ import (
 	"time"
 
 	payload "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/events"
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewProcessEventsCheck returns an instance of the ProcessEventsCheck.
-func NewProcessEventsCheck(config pkgconfigmodel.Reader) *ProcessEventsCheck {
+func NewProcessEventsCheck(config pkgconfigmodel.Reader, statsd statsd.ClientInterface) *ProcessEventsCheck {
 	return &ProcessEventsCheck{
 		config: config,
+		statsd: statsd,
 	}
 }
 
@@ -41,6 +42,8 @@ type ProcessEventsCheck struct {
 	hostInfo *HostInfo
 
 	maxBatchSize int
+
+	statsd statsd.ClientInterface
 }
 
 // Init initializes the ProcessEventsCheck.
@@ -56,7 +59,7 @@ func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) err
 	e.hostInfo = info
 	e.maxBatchSize = getMaxBatchSize(e.config)
 
-	store, err := events.NewRingStore(e.config, statsd.Client)
+	store, err := events.NewRingStore(e.config, e.statsd)
 	if err != nil {
 		log.Errorf("RingStore can't be created: %v", err)
 		return err

@@ -39,7 +39,8 @@ func getKnownErrors() []knownError {
 		},
 		{
 			// https://datadoghq.atlassian.net/browse/ADXT-558
-			errorMessage: `Process exited with status 2: running " sudo cloud-init status --wait"`,
+			// https://datadoghq.atlassian.net/browse/ADXT-713
+			errorMessage: `Process exited with status \d+: running " sudo cloud-init status --wait"`,
 			retryType:    ReCreate,
 		},
 		{
@@ -48,6 +49,21 @@ func getKnownErrors() []knownError {
 		},
 		{
 			errorMessage: `error while waiting for fakeintake`,
+			retryType:    ReCreate,
+		},
+		{
+			errorMessage: `ssh: handshake failed: ssh: unable to authenticate`,
+			retryType:    ReCreate,
+		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-798
+			// https://datadoghq.atlassian.net/browse/ADXT-813
+			errorMessage: `error: awsx:ecs:FargateTaskDefinition resource '.+fakeintake.+' has a problem: grpc: the client connection is closing`,
+			retryType:    ReCreate,
+		},
+		{
+			// https://datadoghq.atlassian.net/browse/ADXT-726
+			errorMessage: `error: .*ssh: rejected: connect failed (No route to host)`,
 			retryType:    ReCreate,
 		},
 	}

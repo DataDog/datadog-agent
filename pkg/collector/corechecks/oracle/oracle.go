@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/benbjohnson/clock"
 
@@ -42,9 +42,6 @@ var MAX_OPEN_CONNECTIONS = 10
 
 //nolint:revive // TODO(DBM) Fix revive linter
 var DEFAULT_SQL_TRACED_RUNS = 10
-
-//nolint:revive // TODO(DBM) Fix revive linter
-var DB_TIMEOUT = "20000"
 
 const (
 	// MaxSQLFullTextVSQL is SQL_FULLTEXT size in V$SQL
@@ -93,6 +90,8 @@ type Check struct {
 	cdbName                                 string
 	statementMetricsMonotonicCountsPrevious map[StatementMetricsKeyDB]StatementMetricsMonotonicCountDB
 	dbHostname                              string
+	dbResolvedHostname                      string
+	dbInstanceIdentifier                    string
 	dbVersion                               string
 	driver                                  string
 	metricLastRun                           time.Time
@@ -116,7 +115,8 @@ type Check struct {
 	openMode                                string
 	legacyIntegrationCompatibilityMode      bool
 	clock                                   clock.Clock
-	lastSampleId                            uint64
+	lastSampleID                            uint64
+	obfuscator                              *obfuscate.Obfuscator
 }
 
 type vDatabase struct {
@@ -140,7 +140,7 @@ func handleServiceCheck(c *Check, err error) {
 		status = servicecheck.ServiceCheckCritical
 		log.Errorf("%s failed to connect: %s", c.logPrompt, err)
 	}
-	sender.ServiceCheck("oracle.can_connect", status, "", c.tags, message)
+	sendServiceCheck(c, "oracle.can_connect", status, message)
 	sender.Commit()
 }
 
@@ -151,6 +151,11 @@ func checkIntervalExpired(lastRun *time.Time, collectionInterval int64) bool {
 		return true
 	}
 	return false
+}
+
+// IsHASupported returns true if the check supports HA
+func (c *Check) IsHASupported() bool {
+	return true
 }
 
 // Run executes the check.
@@ -426,8 +431,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory() option.Option[func() check.Check] {
+	return option.New(newCheck)
 }
 
 func newCheck() check.Check {

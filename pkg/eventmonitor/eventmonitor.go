@@ -11,7 +11,6 @@ package eventmonitor
 import (
 	"context"
 	"fmt"
-	"net"
 	"slices"
 	"sync"
 	"time"
@@ -19,14 +18,12 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
-	procstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,8 +51,7 @@ type EventMonitor struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	sendStatsChan  chan chan bool
-	eventConsumers []EventConsumerInterface
-	netListener    net.Listener
+	eventConsumers []EventConsumer
 	wg             sync.WaitGroup
 }
 
@@ -70,8 +66,8 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// AddEventConsumer registers an event handler
-func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
+// AddEventConsumerHandler registers an event handler
+func (m *EventMonitor) AddEventConsumerHandler(consumer EventConsumerHandler) error {
 	for _, eventType := range consumer.EventTypes() {
 		if !slices.Contains(allowedEventTypes, eventType) {
 			return fmt.Errorf("event type (%s) not allowed", eventType)
@@ -82,7 +78,7 @@ func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
 }
 
 // RegisterEventConsumer registers an event consumer
-func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumerInterface) {
+func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
 }
 
@@ -108,8 +104,6 @@ func (m *EventMonitor) Start() error {
 		return fmt.Errorf("unable to register event monitoring module: %w", err)
 	}
 
-	m.netListener = ln
-
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
@@ -118,11 +112,6 @@ func (m *EventMonitor) Start() error {
 			seclog.Errorf("error launching the grpc server: %v", err)
 		}
 	}()
-
-	// setup the manager and its probes / perf maps
-	if err := m.Probe.Setup(); err != nil {
-		return fmt.Errorf("failed to setup probe: %w", err)
-	}
 
 	// fetch the current state of the system (example: mount points, running processes, ...) so that our user space
 	// context is ready when we start the probes
@@ -169,17 +158,17 @@ func (m *EventMonitor) Close() {
 		m.GRPCServer.Stop()
 	}
 
-	if m.netListener != nil {
-		m.netListener.Close()
+	if err := m.cleanup(); err != nil {
+		seclog.Errorf("failed to cleanup event monitor: %v", err)
 	}
-
-	m.cleanup()
 
 	m.cancelFnc()
 	m.wg.Wait()
 
 	// all the go routines should be stopped now we can safely call close the probe and remove the eBPF programs
-	m.Probe.Close()
+	if err := m.Probe.Close(); err != nil {
+		seclog.Errorf("failed to close event monitor probe: %v", err)
+	}
 }
 
 // SendStats send stats
@@ -228,16 +217,16 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewEventMonitor instantiates an event monitoring system-probe module
-func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts, telemetry telemetry.Component) (*EventMonitor, error) {
+func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
-		opts.StatsdClient = procstatsd.Client
+		opts.StatsdClient = &statsd.NoOpClient{}
 	}
 
 	if opts.ProbeOpts.StatsdClient == nil {
 		opts.ProbeOpts.StatsdClient = opts.StatsdClient
 	}
 
-	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts, telemetry)
+	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts)
 	if err != nil {
 		return nil, err
 	}

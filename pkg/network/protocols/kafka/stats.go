@@ -6,10 +6,14 @@
 package kafka
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"errors"
+
 	"github.com/DataDog/sketches-go/ddsketch"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -18,29 +22,14 @@ const (
 
 	// FetchAPIKey is the API key for fetch requests
 	FetchAPIKey = 1
-
-	// RelativeAccuracy defines the acceptable error in quantile values calculated by DDSketch.
-	// For example, if the actual value at p50 is 100, with a relative accuracy of 0.01 the value calculated
-	// will be between 99 and 101
-	RelativeAccuracy = 0.01
 )
 
 // Key is an identifier for a group of Kafka transactions
 type Key struct {
 	RequestAPIKey  uint16
 	RequestVersion uint16
-	TopicName      string
+	TopicName      *intern.StringValue
 	types.ConnectionKey
-}
-
-// NewKey generates a new Key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, topicName string, requestAPIKey, requestAPIVersion uint16) Key {
-	return Key{
-		ConnectionKey:  types.NewConnectionKey(saddr, daddr, sport, dport),
-		TopicName:      topicName,
-		RequestAPIKey:  requestAPIKey,
-		RequestVersion: requestAPIVersion,
-	}
 }
 
 // RequestStats stores Kafka request statistics per Kafka error code
@@ -75,12 +64,20 @@ type RequestStat struct {
 	StaticTags         uint64
 }
 
-func (r *RequestStat) initSketch() (err error) {
-	r.Latencies, err = ddsketch.NewDefaultDDSketch(RelativeAccuracy)
-	if err != nil {
-		log.Debugf("error recording kafka transaction latency: could not create new ddsketch: %v", err)
+func (r *RequestStat) initSketch() error {
+	latencies := protocols.SketchesPool.Get()
+	if latencies == nil {
+		return errors.New("error recording kafka transaction latency: could not create new ddsketch")
 	}
-	return
+	r.Latencies = latencies
+	return nil
+}
+
+func (r *RequestStat) close() {
+	if r.Latencies != nil {
+		r.Latencies.Clear()
+		protocols.SketchesPool.Put(r.Latencies)
+	}
 }
 
 // CombineWith merges the data in 2 RequestStats objects
@@ -139,19 +136,25 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 	stats.Count += count
 	stats.StaticTags |= staticTags
 
-	if stats.FirstLatencySample == 0 {
+	if stats.Count == 1 {
 		stats.FirstLatencySample = latency
 		return
 	}
 
 	if stats.Latencies == nil {
 		if err := stats.initSketch(); err != nil {
+			log.Warnf("could not add request latency to ddsketch: %v", err)
 			return
 		}
 
-		// Add the deferred latency sample
-		if err := stats.Latencies.AddWithCount(stats.FirstLatencySample, float64(originalCount)); err != nil {
-			log.Debugf("could not add request latency to ddsketch: %v", err)
+		// The kafka kernel decoder can capture multiple requests in a single packet, so
+		// in case of a new event with multiple requests, we might not have a FirstLatencySample
+		// In such a case, we need to skip adding the latency sample to the sketch
+		if originalCount == 1 {
+			// Add the deferred latency sample
+			if err := stats.Latencies.Add(stats.FirstLatencySample); err != nil {
+				log.Debugf("could not add request latency to ddsketch: %v", err)
+			}
 		}
 	}
 	if err := stats.Latencies.AddWithCount(latency, float64(count)); err != nil {
@@ -161,4 +164,13 @@ func (r *RequestStats) AddRequest(errorCode int32, count int, staticTags uint64,
 
 func isValidKafkaErrorCode(errorCode int32) bool {
 	return errorCode >= -1 && errorCode <= 119
+}
+
+// Close releases internal stats resources.
+func (r *RequestStats) Close() {
+	for _, stats := range r.ErrorCodeToStat {
+		if stats != nil {
+			stats.close()
+		}
+	}
 }

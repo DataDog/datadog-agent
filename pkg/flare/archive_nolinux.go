@@ -12,27 +12,3 @@ import (
 )
 
 func addSystemProbePlatformSpecificEntries(_ flaretypes.FlareBuilder) {}
-
-func getLinuxKernelSymbols(_ flaretypes.FlareBuilder) error {
-	return nil
-}
-
-func getLinuxKprobeEvents(_ flaretypes.FlareBuilder) error {
-	return nil
-}
-
-func getLinuxDmesg(_ flaretypes.FlareBuilder) error {
-	return nil
-}
-
-func getLinuxPid1MountInfo(_ flaretypes.FlareBuilder) error {
-	return nil
-}
-
-func getLinuxTracingAvailableEvents(_ flaretypes.FlareBuilder) error {
-	return nil
-}
-
-func getLinuxTracingAvailableFilterFunctions(_ flaretypes.FlareBuilder) error {
-	return nil
-}

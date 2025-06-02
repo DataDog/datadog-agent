@@ -7,7 +7,7 @@ processors:
 exporters:
     datadog:
       api:
-        key: 12345
+        key: abcde12345
 
 connectors:
     nop/connector:

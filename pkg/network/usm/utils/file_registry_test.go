@@ -8,10 +8,12 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -206,11 +208,18 @@ func TestRepeatedRegistrationsFromSamePID(t *testing.T) {
 	assert.NotContains(t, r.GetRegisteredProcesses(), pid)
 }
 
+const (
+	testModuleName = "test"
+)
+
 func TestFailedRegistration(t *testing.T) {
 	// Create a callback recorder that returns an error on purpose
 	registerRecorder := new(CallbackRecorder)
 	registerRecorder.ReturnError = fmt.Errorf("failed registration")
 	registerCallback := registerRecorder.Callback()
+
+	unregisterRecorder := new(CallbackRecorder)
+	unregisterCallback := unregisterRecorder.Callback()
 
 	r := newFileRegistry()
 	path, pathID := createTempTestFile(t, "foobar")
@@ -218,12 +227,16 @@ func TestFailedRegistration(t *testing.T) {
 	require.NoError(t, err)
 	pid := uint32(cmd.Process.Pid)
 
-	require.NoError(t, r.Register(path, pid, registerCallback, IgnoreCB, IgnoreCB))
+	err = r.Register(path, pid, registerCallback, unregisterCallback, IgnoreCB)
+	require.ErrorIs(t, err, registerRecorder.ReturnError)
 
 	// First let's assert that the callback was executed once, but there are no
 	// registered processes because the registration should have failed
 	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
 	assert.Empty(t, r.GetRegisteredProcesses())
+
+	// The unregister callback should have been called to clean up the failed registration.
+	assert.Equal(t, 1, unregisterRecorder.CallsForPathID(pathID))
 
 	// Now let's try to register the same process again
 	require.Equal(t, errPathIsBlocked, r.Register(path, pid, registerCallback, IgnoreCB, IgnoreCB))
@@ -231,6 +244,96 @@ func TestFailedRegistration(t *testing.T) {
 	// Assert that the number of callback executions hasn't changed for this pathID
 	// This is because we have block-listed this file
 	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
+
+	assert.Contains(t, debugger.GetBlockedPathIDs(testModuleName, ""), pathID)
+	info := debugger.GetBlockedPathIDsWithSamplePath(testModuleName, "")
+	require.Len(t, info, 1)
+	assert.Equal(t, registerRecorder.ReturnError.Error(), info[0].Reason)
+	debugger.ClearBlocked(testModuleName)
+	assert.Empty(t, debugger.GetBlockedPathIDs(testModuleName, ""))
+}
+
+func TestShortLivedProcess(t *testing.T) {
+	// Create a callback recorder that returns an error on purpose
+	registerRecorder := new(CallbackRecorder)
+	registerRecorder.ReturnError = fmt.Errorf("failed registration")
+	recorderCallback := registerRecorder.Callback()
+
+	unregisterRecorder := new(CallbackRecorder)
+	unregisterCallback := unregisterRecorder.Callback()
+
+	r := newFileRegistry()
+	path, pathID := createTempTestFile(t, "foobar")
+	cmd, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
+	pid := uint32(cmd.Process.Pid)
+
+	registerCallback := func(fp FilePath) error {
+		// Simulate a short-lived process by killing it during the registration.
+		cmd.Process.Kill()
+		cmd.Process.Wait()
+		return recorderCallback(fp)
+	}
+
+	err = r.Register(path, pid, registerCallback, unregisterCallback, IgnoreCB)
+	require.ErrorIs(t, err, registerRecorder.ReturnError)
+
+	// First let's assert that the callback was executed once, but there are no
+	// registered processes because the registration should have failed
+	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
+	assert.Empty(t, r.GetRegisteredProcesses())
+
+	// The unregister callback should have been called to clean up the failed registration.
+	assert.Equal(t, 1, unregisterRecorder.CallsForPathID(pathID))
+
+	cmd, err = testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
+	pid = uint32(cmd.Process.Pid)
+
+	registerRecorder.ReturnError = nil
+
+	// Now let's try to register the same path again
+	require.Nil(t, r.Register(path, pid, recorderCallback, IgnoreCB, IgnoreCB))
+
+	// Assert that the path is successfully registered since it shouldn't have been blocked.
+	assert.Equal(t, 2, registerRecorder.CallsForPathID(pathID))
+	assert.Contains(t, r.GetRegisteredProcesses(), pid)
+}
+
+func TestNoBlockErrEnvironment(t *testing.T) {
+	registerRecorder := new(CallbackRecorder)
+	registerRecorder.ReturnError = fmt.Errorf("%w: failed registration", ErrEnvironment)
+	registerCallback := registerRecorder.Callback()
+
+	unregisterRecorder := new(CallbackRecorder)
+	unregisterCallback := unregisterRecorder.Callback()
+
+	r := newFileRegistry()
+	path, pathID := createTempTestFile(t, "foobar")
+	cmd, err := testutil.OpenFromAnotherProcess(t, path)
+	require.NoError(t, err)
+	pid := uint32(cmd.Process.Pid)
+
+	err = r.Register(path, pid, registerCallback, unregisterCallback, IgnoreCB)
+	require.ErrorIs(t, err, registerRecorder.ReturnError)
+
+	// First let's assert that the callback was executed once, but there are no
+	// registered processes because the registration should have failed
+	assert.Equal(t, 1, registerRecorder.CallsForPathID(pathID))
+	assert.Empty(t, r.GetRegisteredProcesses())
+
+	// The unregister callback should have been called to clean up the failed registration.
+	assert.Equal(t, 1, unregisterRecorder.CallsForPathID(pathID))
+
+	registerRecorder.ReturnError = nil
+
+	// Now let's try to register the same path again
+	require.Nil(t, r.Register(path, pid, registerCallback, IgnoreCB, IgnoreCB))
+
+	// Assert that the path is successfully registered since it shouldn't have
+	// been blocked since we retruned an error wrapping ErrEnvironment.
+	assert.Equal(t, 2, registerRecorder.CallsForPathID(pathID))
+	assert.Contains(t, r.GetRegisteredProcesses(), pid)
 }
 
 func TestFilePathInCallbackArgument(t *testing.T) {
@@ -287,6 +390,142 @@ func TestRelativeFilePathInCallbackArgument(t *testing.T) {
 	assert.Equal(t, expectedPath, capturedPath)
 }
 
+func TestSameInodeRegression(t *testing.T) {
+	var capturedPath string
+	callback := func(f FilePath) error {
+		capturedPath = f.HostPath
+		return nil
+	}
+
+	fooPath1, fooPathID1 := createTempTestFile(t, "a-foo-libssl.so")
+	fooPath2 := filepath.Join(t.TempDir(), "b-foo-libssl.so")
+
+	require.NoError(t, os.Link(fooPath1, fooPath2))
+
+	fooPathID2, err := NewPathIdentifier(fooPath2)
+	require.NoError(t, err)
+	require.Equal(t, fooPathID1, fooPathID2)
+
+	cmd, err := testutil.OpenFromAnotherProcess(t, fooPath1, fooPath2)
+	require.NoError(t, err)
+	pid := cmd.Process.Pid
+
+	// Ensure that we only get the first path in the callback
+	r := newFileRegistry()
+	require.NoError(t, r.Register(fooPath1, uint32(pid), callback, callback, IgnoreCB))
+	require.True(t, strings.HasSuffix(capturedPath, fooPath1))
+	require.ErrorIs(t, r.Register(fooPath2, uint32(pid), callback, callback, IgnoreCB), ErrPathIsAlreadyRegistered)
+	require.True(t, strings.HasSuffix(capturedPath, fooPath1))
+
+	// Check that closing the file descriptor unregisters the path
+	require.NoError(t, r.Unregister(uint32(pid)))
+	require.Empty(t, r.GetRegisteredProcesses())
+}
+
+func TestNoLeaks(t *testing.T) {
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
+	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
+
+	cmd1, err := testutil.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
+	pid1 := uint32(cmd1.Process.Pid)
+
+	cmd2, err := testutil.OpenFromAnotherProcess(t, fooPath2)
+	require.NoError(t, err)
+	pid2 := uint32(cmd2.Process.Pid)
+
+	registerRecorder := new(CallbackRecorder)
+	unregisterRecorder := &CallbackRecorder{
+		ReturnError: errors.New("fake unregisterCB error"),
+	}
+
+	registerCB := registerRecorder.Callback()
+	unregisterCB := unregisterRecorder.Callback()
+
+	registry := newFileRegistry()
+
+	// Simulate a process that opens two files
+	require.NoError(t, registry.Register(fooPath1, pid1, registerCB, unregisterCB, IgnoreCB))
+	require.NoError(t, registry.Register(fooPath2, pid1, registerCB, unregisterCB, IgnoreCB))
+
+	// Checking register callback was executed once for each library
+	// and that we're tracking the two command PIDs
+	require.Equal(t, 1, registerRecorder.CallsForPathID(fooPathID1))
+	require.Equal(t, 1, registerRecorder.CallsForPathID(fooPathID2))
+	require.Contains(t, registry.GetRegisteredProcesses(), pid1)
+
+	// Now open the first file from another process
+	require.ErrorIs(t, registry.Register(fooPath1, pid2, registerCB, unregisterCB, IgnoreCB), ErrPathIsAlreadyRegistered)
+
+	// Check that no more callbacks were executed, but we're tracking two PIDs now
+	require.Equal(t, 1, registerRecorder.CallsForPathID(fooPathID1))
+	require.Equal(t, 1, registerRecorder.CallsForPathID(fooPathID2))
+	require.Contains(t, registry.GetRegisteredProcesses(), pid1)
+	require.Contains(t, registry.GetRegisteredProcesses(), pid2)
+
+	// Now close the first process
+	require.NoError(t, registry.Unregister(pid1))
+
+	// Checking that the unregisteredCB was executed only for pathID2
+	require.Equal(t, 0, unregisterRecorder.CallsForPathID(fooPathID1))
+	require.Equal(t, 1, unregisterRecorder.CallsForPathID(fooPathID2))
+
+	// Close the second process
+	require.NoError(t, registry.Unregister(pid2))
+
+	// Checking that the unregisteredCB was executed for both pathIDs
+	require.Equal(t, 1, unregisterRecorder.CallsForPathID(fooPathID1))
+	require.Equal(t, 1, unregisterRecorder.CallsForPathID(fooPathID2))
+
+	// Check there are no more processes registered
+	require.Empty(t, registry.GetRegisteredProcesses())
+}
+
+func TestAlreadyHoldingReferences(t *testing.T) {
+	fooPath1, fooPathID1 := createTempTestFile(t, "foo-libssl.so")
+	fooPath2, fooPathID2 := createTempTestFile(t, "foo2-gnutls.so")
+
+	cmd1, err := testutil.OpenFromAnotherProcess(t, fooPath1)
+	require.NoError(t, err)
+	pid1 := uint32(cmd1.Process.Pid)
+
+	cmd2, err := testutil.OpenFromAnotherProcess(t, fooPath2)
+	require.NoError(t, err)
+	pid2 := uint32(cmd2.Process.Pid)
+
+	registerRecorder := new(CallbackRecorder)
+	unregisterRecorder := new(CallbackRecorder)
+	registerCB := registerRecorder.Callback()
+	unregisterCB := unregisterRecorder.Callback()
+
+	registry := newFileRegistry()
+	require.NoError(t, registry.Register(fooPath1, pid1, registerCB, unregisterCB, IgnoreCB))
+	require.NoError(t, registry.Register(fooPath2, pid1, registerCB, unregisterCB, IgnoreCB))
+	require.ErrorIs(t, registry.Register(fooPath1, pid2, registerCB, unregisterCB, IgnoreCB), ErrPathIsAlreadyRegistered)
+
+	// Checking register callback was executed once for each library
+	// and that we're tracking the two command PIDs
+	require.Equal(t, 1, registerRecorder.CallsForPathID(fooPathID1))
+	require.Equal(t, 1, registerRecorder.CallsForPathID(fooPathID2))
+	require.Contains(t, registry.GetRegisteredProcesses(), pid1)
+	require.Contains(t, registry.GetRegisteredProcesses(), pid2)
+
+	require.NoError(t, registry.Unregister(pid1))
+	require.Equal(t, 0, unregisterRecorder.CallsForPathID(fooPathID1))
+	require.Equal(t, 1, unregisterRecorder.CallsForPathID(fooPathID2))
+	require.NotContains(t, registry.GetRegisteredProcesses(), pid1)
+	require.Contains(t, registry.GetRegisteredProcesses(), pid2)
+
+	require.NoError(t, registry.Unregister(pid2))
+	require.Equal(t, 1, unregisterRecorder.CallsForPathID(fooPathID1))
+	require.Equal(t, 1, unregisterRecorder.CallsForPathID(fooPathID2))
+	require.NotContains(t, registry.GetRegisteredProcesses(), pid1)
+	require.NotContains(t, registry.GetRegisteredProcesses(), pid2)
+
+	// Check there are no more processes registered
+	require.Empty(t, registry.GetRegisteredProcesses())
+}
+
 func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 	path := filepath.Join(t.TempDir(), name)
 
@@ -308,5 +547,6 @@ func createSymlink(t *testing.T, old, new string) {
 func newFileRegistry() *FileRegistry {
 	// Ensure that tests relying on telemetry data will always have a clean slate
 	telemetry.Clear()
-	return NewFileRegistry("")
+	ResetDebugger()
+	return NewFileRegistry(testModuleName, "")
 }

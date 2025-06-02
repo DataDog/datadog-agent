@@ -27,6 +27,12 @@ func TestDump(t *testing.T) {
 		Image: wmdef.ContainerImage{
 			Name: "ctr-image",
 		},
+		Resources: wmdef.ContainerResources{
+			GPUVendorList: []string{"nvidia"},
+		},
+		ResolvedAllocatedResources: []wmdef.ContainerAllocatedResource{
+			{Name: "nvidia.com/gpu", ID: "GPU-1234"},
+		},
 		Runtime:       wmdef.ContainerRuntimeDocker,
 		RuntimeFlavor: wmdef.ContainerRuntimeFlavorKata,
 		EnvVars: map[string]string{
@@ -83,6 +89,9 @@ Runtime: docker
 RuntimeFlavor: kata
 Running: false
 ----------- Resources -----------
+GPUVendor: [nvidia]
+----------- Allocated Resources -----------
+Name: nvidia.com/gpu, ID: GPU-1234
 `,
 				},
 			},
@@ -120,6 +129,9 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+GPUVendor: [nvidia]
+----------- Allocated Resources -----------
+Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 
 Network IPs: 
 PID: 0
@@ -149,6 +161,7 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+----------- Allocated Resources -----------
 Hostname: 
 Network IPs: 
 PID: 1
@@ -178,6 +191,9 @@ Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
 ----------- Resources -----------
+GPUVendor: [nvidia]
+----------- Allocated Resources -----------
+Name: nvidia.com/gpu, ID: GPU-1234
 Hostname: 
 Network IPs: 
 PID: 1

@@ -3,6 +3,7 @@
 # runtime compilation asset integrity files
 conntrack.go
 dynamicinstrumentation.go
+dyninst_event.go
 http.go
 logdebug-test.go
 offsetguess-test.go
@@ -12,3 +13,5 @@ shared-libraries.go
 tcp-queue-length.go
 tracer.go
 usm.go
+gpu.go
+discovery-net.go

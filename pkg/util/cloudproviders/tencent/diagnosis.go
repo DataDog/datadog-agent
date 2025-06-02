@@ -9,11 +9,11 @@ package tencent
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnoseComp "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 func init() {
-	diagnosis.RegisterMetadataAvail("Tencent Metadata availability", diagnose)
+	diagnoseComp.RegisterMetadataAvail("Tencent Metadata availability", diagnose)
 }
 
 // diagnose the tencent cloud metadata API availability

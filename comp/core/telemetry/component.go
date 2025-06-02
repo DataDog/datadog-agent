@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface {
@@ -22,8 +22,6 @@ type Component interface {
 	RegisterCollector(c Collector)
 	// UnregisterCollector unregisters a Collector with the prometheus registry
 	UnregisterCollector(c Collector) bool
-	// Meter returns a new OTEL meter
-	Meter(name string, opts ...MeterOption) Meter
 	// NewCounter creates a Counter with default options for telemetry purpose.
 	NewCounter(subsystem, name string, tags []string, help string) Counter
 	// NewCounterWithOpts creates a Counter with the given options for telemetry purpose.

@@ -1,0 +1,16 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true
+    targets:
+      - name: "Python Apps"
+        podSelector:
+          matchLabels:
+            language: "python"
+        ddTraceVersions:
+          python: "v3"
+        ddTraceConfigs:
+          - name: "DD_PROFILING_ENABLED"
+            value: "true"
+          - name: "DD_DATA_JOBS_ENABLED"
+            value: "true"

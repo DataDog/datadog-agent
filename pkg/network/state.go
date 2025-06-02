@@ -6,22 +6,16 @@
 package network
 
 import (
-	"bytes"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/cihub/seelog"
 	"go4.org/intern"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -123,12 +117,8 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Conns    []ConnectionStats
-	HTTP     map[http.Key]*http.RequestStats
-	HTTP2    map[http.Key]*http.RequestStats
-	Kafka    map[kafka.Key]*kafka.RequestStats
-	Postgres map[postgres.Key]*postgres.RequestStat
-	Redis    map[redis.Key]*redis.RequestStat
+	Conns   []ConnectionStats
+	USMData USMProtocolsData
 }
 
 type lastStateTelemetry struct {
@@ -239,13 +229,9 @@ type client struct {
 	closed    *closedConnections
 	stats     map[StatCookie]StatCounters
 	// maps by dns key the domain (string) to stats structure
-	dnsStats           dns.StatsByKeyByNameByType
-	httpStatsDelta     map[http.Key]*http.RequestStats
-	http2StatsDelta    map[http.Key]*http.RequestStats
-	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStats
-	postgresStatsDelta map[postgres.Key]*postgres.RequestStat
-	redisStatsDelta    map[redis.Key]*redis.RequestStat
-	lastTelemetries    map[ConnTelemetryType]int64
+	dnsStats        dns.StatsByKeyByNameByType
+	usmDelta        USMProtocolsData
+	lastTelemetries map[ConnTelemetryType]int64
 }
 
 func (c *client) Reset() {
@@ -257,11 +243,7 @@ func (c *client) Reset() {
 	c.closed.conns = c.closed.conns[:0]
 	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
-	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
-	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
-	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
-	c.postgresStatsDelta = make(map[postgres.Key]*postgres.RequestStat)
-	c.redisStatsDelta = make(map[redis.Key]*redis.RequestStat)
+	c.usmDelta.Reset()
 }
 
 type networkState struct {
@@ -285,28 +267,22 @@ type networkState struct {
 	enableConnectionRollup      bool
 	processEventConsumerEnabled bool
 
-	mergeStatsBuffers [2][]byte
-
 	localResolver LocalResolver
 }
 
 // NewState creates a new network state
 func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
 	ns := &networkState{
-		clients:                map[string]*client{},
-		clientExpiry:           clientExpiry,
-		maxClosedConns:         maxClosedConns,
-		maxClientStats:         maxClientStats,
-		maxDNSStats:            maxDNSStats,
-		maxHTTPStats:           maxHTTPStats,
-		maxKafkaStats:          maxKafkaStats,
-		maxPostgresStats:       maxPostgresStats,
-		maxRedisStats:          maxRedisStats,
-		enableConnectionRollup: enableConnectionRollup,
-		mergeStatsBuffers: [2][]byte{
-			make([]byte, ConnectionByteKeyMaxLen),
-			make([]byte, ConnectionByteKeyMaxLen),
-		},
+		clients:                     map[string]*client{},
+		clientExpiry:                clientExpiry,
+		maxClosedConns:              maxClosedConns,
+		maxClientStats:              maxClientStats,
+		maxDNSStats:                 maxDNSStats,
+		maxHTTPStats:                maxHTTPStats,
+		maxKafkaStats:               maxKafkaStats,
+		maxPostgresStats:            maxPostgresStats,
+		maxRedisStats:               maxRedisStats,
+		enableConnectionRollup:      enableConnectionRollup,
 		localResolver:               NewLocalResolver(processEventConsumerEnabled),
 		processEventConsumerEnabled: processEventConsumerEnabled,
 	}
@@ -407,33 +383,11 @@ func (ns *networkState) GetDelta(
 
 	aggr.finalize()
 
-	for protocolType, protocolStats := range usmStats {
-		switch protocolType {
-		case protocols.HTTP:
-			stats := protocolStats.(map[http.Key]*http.RequestStats)
-			ns.storeHTTPStats(stats)
-		case protocols.Kafka:
-			stats := protocolStats.(map[kafka.Key]*kafka.RequestStats)
-			ns.storeKafkaStats(stats)
-		case protocols.HTTP2:
-			stats := protocolStats.(map[http.Key]*http.RequestStats)
-			ns.storeHTTP2Stats(stats)
-		case protocols.Postgres:
-			stats := protocolStats.(map[postgres.Key]*postgres.RequestStat)
-			ns.storePostgresStats(stats)
-		case protocols.Redis:
-			stats := protocolStats.(map[redis.Key]*redis.RequestStat)
-			ns.storeRedisStats(stats)
-		}
-	}
+	ns.processUSMDelta(usmStats)
 
 	return Delta{
-		Conns:    append(active, closed...),
-		HTTP:     client.httpStatsDelta,
-		HTTP2:    client.http2StatsDelta,
-		Kafka:    client.kafkaStatsDelta,
-		Postgres: client.postgresStatsDelta,
-		Redis:    client.redisStatsDelta,
+		Conns:   append(active, closed...),
+		USMData: client.usmDelta,
 	}
 }
 
@@ -572,7 +526,7 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 			return true
 		}
 
-		if log.ShouldLog(seelog.TraceLvl) {
+		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("duplicate connection in collection: cookie: %d, c1: %+v, c2: %+v", c.Cookie, *ck, *c)
 		}
 
@@ -688,177 +642,18 @@ func (ns *networkState) storeDNSStats(stats dns.StatsByKeyByNameByType) {
 	}
 }
 
-// storeHTTPStats stores the latest HTTP stats for all clients
-func (ns *networkState) storeHTTPStats(allStats map[http.Key]*http.RequestStats) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.httpStatsDelta) == 0 && len(allStats) <= ns.maxHTTPStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.httpStatsDelta = allStats
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.httpStatsDelta[key]
-			if !ok && len(client.httpStatsDelta) >= ns.maxHTTPStats {
-				stateTelemetry.httpStatsDropped.Inc()
-				continue
-			}
-
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.httpStatsDelta[key] = prevStats
-			} else {
-				client.httpStatsDelta[key] = stats
-			}
-		}
-	}
-}
-
-func (ns *networkState) storeHTTP2Stats(allStats map[http.Key]*http.RequestStats) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.http2StatsDelta) == 0 && len(allStats) <= ns.maxHTTPStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.http2StatsDelta = allStats
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.http2StatsDelta[key]
-			// Currently, we are using maxHTTPStats for HTTP2.
-			if !ok && len(client.http2StatsDelta) >= ns.maxHTTPStats {
-				stateTelemetry.http2StatsDropped.Inc()
-				continue
-			}
-
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.http2StatsDelta[key] = prevStats
-			} else {
-				client.http2StatsDelta[key] = stats
-			}
-		}
-	}
-}
-
-// storeKafkaStats stores the latest Kafka stats for all clients
-func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestStats) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.kafkaStatsDelta) == 0 && len(allStats) <= ns.maxKafkaStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.kafkaStatsDelta = allStats
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.kafkaStatsDelta[key]
-			if !ok && len(client.kafkaStatsDelta) >= ns.maxKafkaStats {
-				stateTelemetry.kafkaStatsDropped.Inc()
-				continue
-			}
-
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.kafkaStatsDelta[key] = prevStats
-			} else {
-				client.kafkaStatsDelta[key] = stats
-			}
-		}
-	}
-}
-
-// storePostgresStats stores the latest Postgres stats for all clients
-func (ns *networkState) storePostgresStats(allStats map[postgres.Key]*postgres.RequestStat) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.postgresStatsDelta) == 0 && len(allStats) <= ns.maxPostgresStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.postgresStatsDelta = allStats
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.postgresStatsDelta[key]
-			if !ok && len(client.postgresStatsDelta) >= ns.maxPostgresStats {
-				stateTelemetry.postgresStatsDropped.Inc()
-				continue
-			}
-
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.postgresStatsDelta[key] = prevStats
-			} else {
-				client.postgresStatsDelta[key] = stats
-			}
-		}
-	}
-}
-
-// storeRedisStats stores the latest Redis stats for all clients
-func (ns *networkState) storeRedisStats(allStats map[redis.Key]*redis.RequestStat) {
-	if len(ns.clients) == 1 {
-		for _, client := range ns.clients {
-			if len(client.redisStatsDelta) == 0 && len(allStats) <= ns.maxRedisStats {
-				// optimization for the common case:
-				// if there is only one client and no previous state, no memory allocation is needed
-				client.redisStatsDelta = allStats
-				return
-			}
-		}
-	}
-
-	for key, stats := range allStats {
-		for _, client := range ns.clients {
-			prevStats, ok := client.redisStatsDelta[key]
-			if !ok && len(client.redisStatsDelta) >= ns.maxRedisStats {
-				stateTelemetry.redisStatsDropped.Inc()
-				continue
-			}
-
-			if prevStats != nil {
-				prevStats.CombineWith(stats)
-				client.redisStatsDelta[key] = prevStats
-			} else {
-				client.redisStatsDelta[key] = stats
-			}
-		}
-	}
-}
-
 func (ns *networkState) getClient(clientID string) *client {
 	if c, ok := ns.clients[clientID]; ok {
 		return c
 	}
 	closedConnections := &closedConnections{conns: make([]ConnectionStats, 0, minClosedCapacity), byCookie: make(map[StatCookie]int)}
 	c := &client{
-		lastFetch:          time.Now(),
-		stats:              make(map[StatCookie]StatCounters),
-		closed:             closedConnections,
-		dnsStats:           dns.StatsByKeyByNameByType{},
-		httpStatsDelta:     map[http.Key]*http.RequestStats{},
-		http2StatsDelta:    map[http.Key]*http.RequestStats{},
-		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStats{},
-		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
-		redisStatsDelta:    map[redis.Key]*redis.RequestStat{},
-		lastTelemetries:    make(map[ConnTelemetryType]int64),
+		lastFetch:       time.Now(),
+		stats:           make(map[StatCookie]StatCounters),
+		closed:          closedConnections,
+		dnsStats:        dns.StatsByKeyByNameByType{},
+		usmDelta:        NewUSMProtocolsData(),
+		lastTelemetries: make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c
 	return c
@@ -1222,8 +1017,7 @@ type aggregateConnection struct {
 }
 
 type aggregationKey struct {
-	// connKey is the key returned by ConnectionStats.ByteKey()
-	connKey    string
+	connKey    ConnectionTuple
 	direction  ConnectionDirection
 	containers struct {
 		source, dest *intern.Value
@@ -1232,7 +1026,6 @@ type aggregationKey struct {
 
 type connectionAggregator struct {
 	conns                       map[aggregationKey][]*aggregateConnection
-	buf                         []byte
 	dnsStats                    dns.StatsByKeyByNameByType
 	enablePortRollups           bool
 	processEventConsumerEnabled bool
@@ -1241,7 +1034,6 @@ type connectionAggregator struct {
 func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEnabled bool, dnsStats dns.StatsByKeyByNameByType) *connectionAggregator {
 	return &connectionAggregator{
 		conns:                       make(map[aggregationKey][]*aggregateConnection, size),
-		buf:                         make([]byte, ConnectionByteKeyMaxLen),
 		dnsStats:                    dnsStats,
 		enablePortRollups:           enablePortRollups,
 		processEventConsumerEnabled: processEventConsumerEnabled,
@@ -1249,7 +1041,7 @@ func newConnectionAggregator(size int, enablePortRollups, processEventConsumerEn
 }
 
 func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, sportRolledUp, dportRolledUp bool) {
-	key.connKey = string(c.ByteKey(a.buf))
+	key.connKey = c.ConnectionTuple
 	key.direction = c.Direction
 	if a.processEventConsumerEnabled {
 		key.containers.source = c.ContainerID.Source
@@ -1297,7 +1089,7 @@ func (a *connectionAggregator) key(c *ConnectionStats) (key aggregationKey, spor
 		}()
 	}
 
-	key.connKey = string(c.ByteKey(a.buf))
+	key.connKey = c.ConnectionTuple
 	return key, sportRolledUp, dportRolledUp
 }
 
@@ -1431,6 +1223,7 @@ func (ac *aggregateConnection) merge(c *ConnectionStats) {
 	}
 
 	ac.ProtocolStack.MergeWith(c.ProtocolStack)
+	ac.TLSTags.MergeWith(c.TLSTags)
 
 	if ac.DNSStats == nil {
 		ac.DNSStats = c.DNSStats
@@ -1477,7 +1270,7 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 		return false
 	}
 
-	if !bytes.Equal(a.ByteKey(ns.mergeStatsBuffers[0]), b.ByteKey(ns.mergeStatsBuffers[1])) {
+	if a.ConnectionTuple != b.ConnectionTuple {
 		log.Debugf("cookie collision for connections %+v and %+v", a, b)
 		// cookie collision
 		return true
@@ -1494,6 +1287,7 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 	}
 
 	a.ProtocolStack.MergeWith(b.ProtocolStack)
+	a.TLSTags.MergeWith(b.TLSTags)
 
 	return false
 }

@@ -43,23 +43,20 @@ func TestHash(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		if err := os.WriteFile(testFile, []byte("#!/bin/sh\necho malware\nsleep 3"), 0755); err != nil {
+			t.Fatal(err)
+		}
 		defer os.Remove(testFile)
 
 		test.WaitSignal(t, func() error {
-			file, err := os.Create(testFile)
-			if err != nil {
-				return err
-			}
-			file.WriteString("#!/bin/sh\necho malware\nsleep 3")
-			_ = file.Close()
-
-			if err = os.Chmod(testFile, 0755); err != nil {
-				return err
-			}
-
 			cmd := exec.Command(testFile)
-			return cmd.Run()
-		}, func(event *model.Event, r *rules.Rule) {
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Logf("cmd.Run() failed with output: %s", string(out))
+				return err
+			}
+			return nil
+		}, func(_ *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_hash_exec")
 		})
 	})
@@ -83,7 +80,7 @@ func TestHash(t *testing.T) {
 			syscall.Close(fd)
 
 			return nil
-		}, func(event *model.Event, r *rules.Rule) {
+		}, func(_ *model.Event, r *rules.Rule) {
 			assertTriggeredRule(t, r, "test_rule_hash_fifo")
 		})
 	})

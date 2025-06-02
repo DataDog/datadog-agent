@@ -16,14 +16,13 @@ import (
 	"testing"
 	"time"
 
-	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
-
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	activitydump "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -80,7 +79,7 @@ func TestActivityDumps(t *testing.T) {
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
 
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -94,13 +93,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(goSyscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(goSyscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -108,10 +107,10 @@ func TestActivityDumps(t *testing.T) {
 			var requestFound, responseFound bool
 			for _, node := range nodes {
 				for evt := range node.IMDSEvents {
-					if evt.Type == "request" && evt.URL == imdsutils.IMDSSecurityCredentialsURL {
+					if evt.Type == "request" && evt.URL == testutils.IMDSSecurityCredentialsURL {
 						requestFound = true
 					}
-					if evt.Type == "response" && evt.AWS.SecurityCredentials.AccessKeyID == imdsutils.AWSSecurityCredentialsAccessKeyIDTestValue {
+					if evt.Type == "response" && evt.AWS.SecurityCredentials.AccessKeyID == testutils.AWSSecurityCredentialsAccessKeyIDTestValue {
 						responseFound = true
 					}
 				}
@@ -121,7 +120,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-process", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -135,13 +134,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatalf("Node not found in activity dump: %+v", nodes)
 			}
@@ -198,7 +197,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-bind", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -212,13 +211,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatalf("Node not found in activity dump: %+v", nodes)
 			}
@@ -243,33 +242,33 @@ func TestActivityDumps(t *testing.T) {
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
 		})
 
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer dockerInstance.stop()
 
 		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("nslookup")
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("nslookup")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
 			for _, node := range nodes {
 				for name := range node.DNSNames {
-					if name == "foo.bar" {
+					if name == "one.one.one.one" {
 						return true
 					}
 				}
@@ -279,7 +278,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-file", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -296,14 +295,14 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		tempPathParts := strings.Split(temp.Name(), "/")
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes("touch")
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("touch")
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -325,7 +324,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-syscalls", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -339,23 +338,23 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
 			var exitOK, bindOK bool
 			for _, node := range nodes {
 				for _, s := range node.Syscalls {
-					if s == int(model.SysExit) || s == int(model.SysExitGroup) {
+					if s.Syscall == int(model.SysExit) || s.Syscall == int(model.SysExitGroup) {
 						exitOK = true
 					}
-					if s == int(model.SysBind) {
+					if s.Syscall == int(model.SysBind) {
 						bindOK = true
 					}
 				}
@@ -371,7 +370,7 @@ func TestActivityDumps(t *testing.T) {
 	})
 
 	t.Run("activity-dump-cgroup-rate-limiter", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -395,13 +394,13 @@ func TestActivityDumps(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name, "")
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}
@@ -534,7 +533,7 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 		},
 		{
 			ID:         "test_autosuppression_dns",
-			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
+			Expression: `dns.question.type == A && dns.question.name == "one.one.one.one"`,
 			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 	}
@@ -569,9 +568,9 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
@@ -585,12 +584,12 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_dns")
@@ -631,7 +630,7 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 		},
 		{
 			ID:         "test_autosuppression_dns",
-			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
+			Expression: `dns.question.type == A && dns.question.name == "one.one.one.one"`,
 			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 	}
@@ -678,9 +677,9 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 			cmd := dockerInstance2.Command("getconf", []string{"-a"}, []string{})
 			_, err := cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_exec")
@@ -694,12 +693,12 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 	t.Run("auto-suppression-dns-suppression", func(t *testing.T) {
 		// check we autosuppress signals during the activity dump duration
 		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance2.Command("nslookup", []string{"foo.bar"}, []string{})
+			cmd := dockerInstance2.Command("nslookup", []string{"one.one.one.one"}, []string{})
 			_, err = cmd.CombinedOutput()
 			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
+		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.ContainerID == containerutils.ContainerID(dockerInstance2.containerID) {
-				t.Fatal("Got a signal that should have been suppressed")
+				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
 		}, time.Second*3, "test_autosuppression_dns")

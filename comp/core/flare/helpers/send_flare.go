@@ -34,8 +34,9 @@ var (
 
 // any modification to this struct should also be applied to datadog-agent/test/fakeintake/server/body.go
 type flareResponse struct {
-	CaseID int    `json:"case_id,omitempty"`
-	Error  string `json:"error,omitempty"`
+	CaseID      int    `json:"case_id,omitempty"`
+	Error       string `json:"error,omitempty"`
+	RequestUUID string `json:"request_uuid,omitempty"`
 }
 
 // FlareSource has metadata about why the flare was sent
@@ -184,7 +185,11 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 	}
 
 	if res.Error != "" {
-		response := fmt.Sprintf("An error occurred while uploading the flare: %s. Please contact support by email.", res.Error)
+		var uuidReport string
+		if res.RequestUUID != "" {
+			uuidReport = fmt.Sprintf(" and facilitate the request uuid: `%s`", res.RequestUUID)
+		}
+		response := fmt.Sprintf("An error occurred while uploading the flare: %s. Please contact support by email%s.", res.Error, uuidReport)
 		return response, errors.New(res.Error)
 	}
 
@@ -262,5 +267,11 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 func GetFlareEndpoint(cfg config.Reader) string {
 	// Create flare endpoint to the shape of "https://<version>-flare.agent.datadoghq.com/support/flare"
 	flareRoute, _ := configUtils.AddAgentVersionToDomain(configUtils.GetInfraEndpoint(cfg), "flare")
-	return flareRoute + "/support/flare"
+	return flareRoute + datadogSupportURL
+}
+
+// SendFlare sends a flare and returns the message returned by the backend. This entry point is deprecated in favor of
+// the 'Send' method of the flare component.
+func SendFlare(cfg pkgconfigmodel.Reader, archivePath string, caseID string, email string, source FlareSource) (string, error) {
+	return SendTo(cfg, archivePath, caseID, email, cfg.GetString("api_key"), configUtils.GetInfraEndpoint(cfg), source)
 }

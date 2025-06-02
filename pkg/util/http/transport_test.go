@@ -9,13 +9,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -26,7 +26,7 @@ func TestEmptyProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	proxies := &pkgconfigmodel.Proxy{}
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(r)
@@ -43,7 +43,7 @@ func TestHTTPProxy(t *testing.T) {
 	proxies := &pkgconfigmodel.Proxy{
 		HTTP: "https://user:pass@proxy.com:3128",
 	}
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(rHTTP)
@@ -68,7 +68,7 @@ func TestNoProxy(t *testing.T) {
 		HTTPS:   "https://user:pass@proxy_https.com:3128",
 		NoProxy: []string{"test_no_proxy.com", "test.org"},
 	}
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
@@ -100,7 +100,7 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 	r5, _ := http.NewRequest("GET", "http://no_proxy2.com/api/v1?arg=21", nil)
 	r6, _ := http.NewRequest("GET", "http://sub.no_proxy2.com/api/v1?arg=21", nil)
 
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	c.SetWithoutSource("no_proxy_nonexact_match", true)
 
 	// Testing some nonexact matching cases as documented here: https://github.com/golang/net/blob/master/http/httpproxy/proxy.go#L38
@@ -144,7 +144,7 @@ func TestErrorParse(t *testing.T) {
 	proxies := &pkgconfigmodel.Proxy{
 		HTTP: "21://test.com",
 	}
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(r1)
@@ -160,7 +160,7 @@ func TestBadScheme(t *testing.T) {
 	proxies := &pkgconfigmodel.Proxy{
 		HTTP: "http://test.com",
 	}
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(r1)
@@ -169,7 +169,7 @@ func TestBadScheme(t *testing.T) {
 }
 
 func TestCreateHTTPTransport(t *testing.T) {
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 
 	c.SetWithoutSource("skip_ssl_validation", false)
 	transport := CreateHTTPTransport(c)
@@ -193,6 +193,28 @@ func TestCreateHTTPTransport(t *testing.T) {
 	assert.Equal(t, transport.TLSHandshakeTimeout, time.Second)
 }
 
+func TestCreateHTTP1Transport(t *testing.T) {
+	c := configmock.New(t)
+
+	transport := CreateHTTPTransport(c)
+	require.NotNil(t, transport)
+
+	assert.Nil(t, transport.TLSNextProto)
+}
+
+func TestCreateHTTP2Transport(t *testing.T) {
+	c := configmock.New(t)
+
+	transport := CreateHTTPTransport(c, WithHTTP2())
+	require.NotNil(t, transport)
+
+	assert.NotNil(t, transport.TLSNextProto)
+	assert.Contains(t, transport.TLSNextProto, "h2", "TLSNextProto should indicate HTTP/2 support")
+
+	assert.Contains(t, transport.TLSClientConfig.NextProtos, "h2", "NextProtos should prefer HTTP/2")
+	assert.Contains(t, transport.TLSClientConfig.NextProtos, "http/1.1", "NextProtos should allow fallback to HTTP/1.1")
+}
+
 func TestNoProxyWarningMap(t *testing.T) {
 	setupTest(t)
 
@@ -203,7 +225,7 @@ func TestNoProxyWarningMap(t *testing.T) {
 		HTTPS:   "https://user:pass@proxy_https.com:3128",
 		NoProxy: []string{"test_http.com"},
 	}
-	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	c := configmock.New(t)
 	proxyFunc := GetProxyTransportFunc(proxies, c)
 
 	proxyURL, err := proxyFunc(r1)
@@ -241,7 +263,7 @@ func TestMinTLSVersionFromConfig(t *testing.T) {
 		t.Run(
 			fmt.Sprintf("min_tls_version=%s", test.minTLSVersion),
 			func(t *testing.T) {
-				cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+				cfg := configmock.New(t)
 				if test.minTLSVersion != "" {
 					cfg.SetWithoutSource("min_tls_version", test.minTLSVersion)
 				}

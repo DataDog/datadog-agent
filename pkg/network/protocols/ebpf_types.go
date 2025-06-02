@@ -9,12 +9,18 @@ package protocols
 
 // #cgo CFLAGS: -I ../../ebpf/c  -I ../ebpf/c
 // #include "../ebpf/c/protocols/classification/defs.h"
+// #include "../ebpf/c/protocols/postgres/types.h"
 import "C"
 
 const (
 	layerAPIBit         = C.LAYER_API_BIT
 	layerApplicationBit = C.LAYER_APPLICATION_BIT
 	layerEncryptionBit  = C.LAYER_ENCRYPTION_BIT
+)
+
+const (
+	// PostgresMaxTotalMessages is the maximum number of Postgres messages processed by the eBPF program.
+	PostgresMaxTotalMessages = C.POSTGRES_MAX_TOTAL_MESSAGES
 )
 
 // DispatcherProgramType is a C type to represent the eBPF programs used for tail calls.
@@ -63,6 +69,8 @@ const (
 	ProgramKafkaTermination ProgramType = C.PROG_KAFKA_TERMINATION
 	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum
 	ProgramPostgres ProgramType = C.PROG_POSTGRES
+	// ProgramPostgresHandleResponse is the Golang representation of the C.PROG_POSTGRES_HANDLE_RESPONSE enum
+	ProgramPostgresHandleResponse ProgramType = C.PROG_POSTGRES_HANDLE_RESPONSE
 	// ProgramPostgresParseMessage is the Golang representation of the C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE enum
 	ProgramPostgresParseMessage ProgramType = C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE
 	// ProgramPostgresTermination is tail call to process Postgres termination.

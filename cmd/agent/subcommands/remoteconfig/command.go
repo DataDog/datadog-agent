@@ -20,7 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -46,8 +48,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(state,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))}),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					LogParams:    log.ForOneShot(command.LoggerName, "OFF", false),
+				}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 		Hidden: true,
@@ -56,17 +61,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{remoteConfigCmd}
 }
 
-func state(_ *cliParams, config config.Component) error {
+func state(_ *cliParams, config config.Component, ipc ipc.Component) error {
 	if !pkgconfigsetup.IsRemoteConfigEnabled(config) {
 		return errors.New("remote configuration is not enabled")
 	}
 	fmt.Println("Fetching the configuration and director repos state..")
 	// Call GRPC endpoint returning state tree
 
-	token, err := security.FetchAuthToken(config)
-	if err != nil {
-		return fmt.Errorf("couldn't get auth token: %w", err)
-	}
+	token := ipc.GetAuthToken()
 
 	ctx, closeFn := context.WithCancel(context.Background())
 	defer closeFn()
@@ -80,7 +82,7 @@ func state(_ *cliParams, config config.Component) error {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetTLSClientConfig)
 	if err != nil {
 		return err
 	}

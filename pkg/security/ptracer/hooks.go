@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"golang.org/x/sys/unix"
 )
 
@@ -169,13 +169,13 @@ func (ctx *CWSPtracerCtx) handleExit(process *Process, waitStatus *syscall.WaitS
 	if process.Pid == process.Tgid && waitStatus != nil {
 		exitCtx := &ebpfless.ExitSyscallMsg{}
 		if waitStatus.Exited() {
-			exitCtx.Cause = model.ExitExited
+			exitCtx.Cause = sharedconsts.ExitExited
 			exitCtx.Code = uint32(waitStatus.ExitStatus())
 		} else if waitStatus.CoreDump() {
-			exitCtx.Cause = model.ExitCoreDumped
+			exitCtx.Cause = sharedconsts.ExitCoreDumped
 			exitCtx.Code = uint32(waitStatus.Signal())
 		} else if waitStatus.Signaled() {
-			exitCtx.Cause = model.ExitSignaled
+			exitCtx.Cause = sharedconsts.ExitSignaled
 			exitCtx.Code = uint32(waitStatus.Signal())
 		} else {
 			exitCtx.Code = uint32(waitStatus.Signal())

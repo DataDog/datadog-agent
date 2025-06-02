@@ -6,9 +6,7 @@
 package host
 
 import (
-	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
@@ -18,34 +16,11 @@ import (
 // hashable to be pushed in the work queue for processing.
 type scanRequest struct {
 	Path string
-	FS   fs.FS
-}
-
-type relFS struct {
-	root string
-	fs   fs.FS
-}
-
-func newFS(root string) fs.FS {
-	fs := os.DirFS(root)
-	return &relFS{root: "/", fs: fs}
-}
-
-func (f *relFS) Open(name string) (fs.File, error) {
-	if filepath.IsAbs(name) {
-		var err error
-		name, err = filepath.Rel(f.root, name)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return f.fs.Open(name)
 }
 
 // NewScanRequest creates a new scan request
-func NewScanRequest(path string, fs fs.FS) types.ScanRequest {
-	return scanRequest{Path: path, FS: fs}
+func NewScanRequest(path string) types.ScanRequest {
+	return scanRequest{Path: path}
 }
 
 // NewHostScanRequest creates a new scan request for the root filesystem
@@ -54,7 +29,7 @@ func NewHostScanRequest() types.ScanRequest {
 	if hostRoot := os.Getenv("HOST_ROOT"); env.IsContainerized() && hostRoot != "" {
 		scanPath = hostRoot
 	}
-	return NewScanRequest(scanPath, newFS("/"))
+	return NewScanRequest(scanPath)
 }
 
 // Collector returns the collector name

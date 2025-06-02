@@ -4,7 +4,7 @@
 #include "ktypes.h"
 
 #define LIB_SO_SUFFIX_SIZE 9
-#define LIB_PATH_MAX_SIZE 120
+#define LIB_PATH_MAX_SIZE 220
 
 typedef struct {
     __u32 pid;
@@ -38,6 +38,12 @@ typedef struct {
 } enter_sys_openat_ctx;
 
 typedef struct {
+    __u64 flags;
+    __u64 mode;
+    __u64 resolve;
+} openat2_open_how;
+
+typedef struct {
     unsigned short common_type;
     unsigned char common_flags;
     unsigned char common_preempt_count;
@@ -46,7 +52,7 @@ typedef struct {
 
     int dfd;
     const char* filename;
-    void *how;
+    openat2_open_how *how;
     size_t usize;
 } enter_sys_openat2_ctx;
 

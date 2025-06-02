@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,8 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/zstd"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 var generateFixture = flag.Bool("generate", false, "generate fixture")
@@ -142,17 +144,17 @@ func (agg *Aggregator[P]) getNamesUnsorted() []string {
 	return names
 }
 
-func enflate(payload []byte, encoding string) (enflated []byte, err error) {
+func inflate(payload []byte, encoding string) (inflated []byte, err error) {
 	rc, err := getReadCloserForEncoding(payload, encoding)
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
-	enflated, err = io.ReadAll(rc)
+	inflated, err = io.ReadAll(rc)
 	if err != nil {
 		return nil, err
 	}
-	return enflated, nil
+	return inflated, nil
 }
 
 func getReadCloserForEncoding(payload []byte, encoding string) (rc io.ReadCloser, err error) {
@@ -192,9 +194,7 @@ func (agg *Aggregator[P]) replace(payloadsByName map[string][]P) {
 	agg.mutex.Lock()
 	defer agg.mutex.Unlock()
 	agg.unsafeReset()
-	for name, payloads := range payloadsByName {
-		agg.payloadsByName[name] = payloads
-	}
+	maps.Copy(agg.payloadsByName, payloadsByName)
 }
 
 // FilterByTags return the payloads that match all the tags

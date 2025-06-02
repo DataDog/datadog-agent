@@ -8,7 +8,7 @@
 package uuid
 
 import (
-	gopsutilhost "github.com/shirou/gopsutil/v3/host"
+	gopsutilhost "github.com/shirou/gopsutil/v4/host"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

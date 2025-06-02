@@ -12,15 +12,27 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
-// team: opentelemetry
+// team: opentelemetry-agent
 
 // Module for OTel Agent
-func Module() fxutil.Module {
+func Module(params collectorimpl.Params) fxutil.Module {
 	return fxutil.Component(
+		fx.Supply(params),
 		fxutil.ProvideComponentConstructor(
 			collectorimpl.NewComponent,
+		),
+		fxutil.ProvideOptional[collector.Component](),
+	)
+}
+
+// ModuleNoAgent for OTel Agent with no Agent functionalities
+func ModuleNoAgent() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			collectorimpl.NewComponentNoAgent,
 		),
 		fxutil.ProvideOptional[collector.Component](),
 	)

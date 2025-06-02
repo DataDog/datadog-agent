@@ -74,7 +74,7 @@ func TestRegisterNonNat(t *testing.T) {
 
 	rt.register(c)
 	translation := rt.GetTranslationForConn(
-		&network.ConnectionStats{
+		&network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.0"),
 			SPort:  8080,
 			Dest:   util.AddressFromString("50.30.40.10"),
@@ -91,7 +91,7 @@ func TestRegisterNat(t *testing.T) {
 
 	rt.register(c)
 	translation := rt.GetTranslationForConn(
-		&network.ConnectionStats{
+		&network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.0"),
 			SPort:  12345,
 			Dest:   util.AddressFromString("50.30.40.10"),
@@ -108,7 +108,7 @@ func TestRegisterNat(t *testing.T) {
 	}, translation)
 
 	udpTranslation := rt.GetTranslationForConn(
-		&network.ConnectionStats{
+		&network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.0"),
 			SPort:  12345,
 			Dest:   util.AddressFromString("50.30.40.10"),
@@ -126,7 +126,7 @@ func TestRegisterNatUDP(t *testing.T) {
 
 	rt.register(c)
 	translation := rt.GetTranslationForConn(
-		&network.ConnectionStats{
+		&network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.0"),
 			SPort:  12345,
 			Dest:   util.AddressFromString("50.30.40.10"),
@@ -143,7 +143,7 @@ func TestRegisterNatUDP(t *testing.T) {
 	}, translation)
 
 	translation = rt.GetTranslationForConn(
-		&network.ConnectionStats{
+		&network.ConnectionTuple{
 			Source: util.AddressFromString("10.0.0.0"),
 			SPort:  12345,
 			Dest:   util.AddressFromString("50.30.40.10"),
@@ -158,7 +158,7 @@ func TestTooManyEntries(t *testing.T) {
 	rt := newConntracker(2)
 
 	rt.register(makeTranslatedConn(netip.MustParseAddr("10.0.0.0"), netip.MustParseAddr("20.0.0.0"), netip.MustParseAddr("50.30.40.10"), 6, 12345, 80, 80))
-	tr := rt.GetTranslationForConn(&network.ConnectionStats{
+	tr := rt.GetTranslationForConn(&network.ConnectionTuple{
 		Source: util.AddressFromString("10.0.0.0"),
 		SPort:  12345,
 		Dest:   util.AddressFromString("50.30.40.10"),
@@ -171,7 +171,7 @@ func TestTooManyEntries(t *testing.T) {
 
 	rt.register(makeTranslatedConn(netip.MustParseAddr("10.0.0.1"), netip.MustParseAddr("20.0.0.1"), netip.MustParseAddr("50.30.40.20"), 6, 12345, 80, 80))
 	// old entry should be gone
-	tr = rt.GetTranslationForConn(&network.ConnectionStats{
+	tr = rt.GetTranslationForConn(&network.ConnectionTuple{
 		Source: util.AddressFromString("10.0.0.0"),
 		SPort:  12345,
 		Dest:   util.AddressFromString("50.30.40.10"),
@@ -181,7 +181,7 @@ func TestTooManyEntries(t *testing.T) {
 	require.Nil(t, tr)
 
 	// check new entry
-	tr = rt.GetTranslationForConn(&network.ConnectionStats{
+	tr = rt.GetTranslationForConn(&network.ConnectionTuple{
 		Source: util.AddressFromString("10.0.0.1"),
 		SPort:  12345,
 		Dest:   util.AddressFromString("50.30.40.20"),

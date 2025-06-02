@@ -1,0 +1,12 @@
+{
+    "filters": {
+        "*": {
+            "exclude": false
+        }
+    },
+    "testcontainer": "ghcr.io/datadog/apps-cws-centos7:main",
+    "additional_test_args": [
+        "--env",
+        "docker"
+    ]
+}

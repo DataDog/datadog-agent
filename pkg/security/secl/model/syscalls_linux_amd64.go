@@ -348,6 +348,7 @@ const (
 	SysStatx                 Syscall = 332
 	SysIoPgetevents          Syscall = 333
 	SysRseq                  Syscall = 334
+	SysUretprobe             Syscall = 335
 	SysPidfdSendSignal       Syscall = 424
 	SysIoUringSetup          Syscall = 425
 	SysIoUringEnter          Syscall = 426
@@ -386,4 +387,9 @@ const (
 	SysLsmGetSelfAttr        Syscall = 459
 	SysLsmSetSelfAttr        Syscall = 460
 	SysLsmListModules        Syscall = 461
+	SysMseal                 Syscall = 462
+	SysSetxattrat            Syscall = 463
+	SysGetxattrat            Syscall = 464
+	SysListxattrat           Syscall = 465
+	SysRemovexattrat         Syscall = 466
 )

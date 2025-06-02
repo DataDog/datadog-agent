@@ -60,6 +60,20 @@ func TestInjectContextWithContext(t *testing.T) {
 	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.SamplingPriority)
 }
 
+func TestInjectContextWith128BitTraceID(t *testing.T) {
+	currentExecutionInfo := newExecutionContextWithTime()
+	httpHeaders := http.Header{}
+	httpHeaders.Set("x-datadog-trace-id", "1234")
+	httpHeaders.Set("x-datadog-parent-id", "5678")
+	httpHeaders.Set("x-datadog-sampling-priority", "2")
+	httpHeaders.Set(TraceTagsHeader, Upper64BitsTag+"=1234567890abcdef")
+	InjectContext(currentExecutionInfo, httpHeaders)
+	assert.Equal(t, uint64(1234), currentExecutionInfo.TraceID)
+	assert.Equal(t, uint64(5678), currentExecutionInfo.parentID)
+	assert.Equal(t, sampler.PriorityUserKeep, currentExecutionInfo.SamplingPriority)
+	assert.Equal(t, "1234567890abcdef", currentExecutionInfo.TraceIDUpper64Hex)
+}
+
 func TestInjectSpanIDNoContext(t *testing.T) {
 	currentExecutionInfo := newExecutionContextWithTime()
 	InjectSpanID(currentExecutionInfo, nil)
@@ -103,17 +117,68 @@ func TestStartExecutionSpan(t *testing.T) {
 
 	stepFunctionEvent := events.StepFunctionPayload{
 		Execution: struct {
-			ID string
+			ID           string
+			RedriveCount uint16
 		}{
-			ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			RedriveCount: 0,
 		},
 		State: struct {
 			Name        string
 			EnteredTime string
+			RetryCount  uint16
 		}{
 			Name:        "agocsTest1",
 			EnteredTime: "2024-07-30T20:46:20.824Z",
+			RetryCount:  0,
 		},
+	}
+
+	nestedStepFunctionEvent := events.NestedStepFunctionPayload{
+		Payload: events.StepFunctionPayload{
+			Execution: struct {
+				ID           string
+				RedriveCount uint16
+			}{
+				ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+				RedriveCount: 0,
+			},
+			State: struct {
+				Name        string
+				EnteredTime string
+				RetryCount  uint16
+			}{
+				Name:        "agocsTest1",
+				EnteredTime: "2024-07-30T20:46:20.824Z",
+				RetryCount:  0,
+			},
+		},
+		RootExecutionID:   "arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:4875aba4-ae31-4a4c-bf8a-63e9eee31dad",
+		ServerlessVersion: "v1",
+	}
+
+	lambdaRootStepFunctionEvent := events.LambdaRootStepFunctionPayload{
+		Payload: events.StepFunctionPayload{
+			Execution: struct {
+				ID           string
+				RedriveCount uint16
+			}{
+				ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+				RedriveCount: 0,
+			},
+			State: struct {
+				Name        string
+				EnteredTime string
+				RetryCount  uint16
+			}{
+				Name:        "agocsTest1",
+				EnteredTime: "2024-07-30T20:46:20.824Z",
+				RetryCount:  0,
+			},
+		},
+		TraceID:           "5821803790426892636",
+		TraceTags:         "_dd.p.dm=-0,_dd.p.tid=672a7cb100000000",
+		ServerlessVersion: "v1",
 	}
 
 	testcases := []struct {
@@ -344,6 +409,34 @@ func TestStartExecutionSpan(t *testing.T) {
 				SamplingPriority:  1,
 			},
 		},
+		{
+			name:           "nested step function event",
+			event:          nestedStepFunctionEvent,
+			payload:        payloadWithoutCtx,
+			reqHeaders:     reqHeadersWithoutCtx,
+			infSpanEnabled: false,
+			propStyle:      "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:           1322229001489018110,
+				TraceIDUpper64Hex: "579d19b3ee216ee9",
+				parentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+		},
+		{
+			name:           "lambda root step function event",
+			event:          lambdaRootStepFunctionEvent,
+			payload:        payloadWithoutCtx,
+			reqHeaders:     reqHeadersWithoutCtx,
+			infSpanEnabled: false,
+			propStyle:      "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:           5821803790426892636,
+				TraceIDUpper64Hex: "672a7cb100000000",
+				parentID:          8947638978974359093,
+				SamplingPriority:  1,
+			},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -510,6 +603,8 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		InvokeEventHeaders: http.Header{},
 	}
 	lp.startExecutionSpan(nil, []byte(testString), startDetails)
+	execInfo := lp.GetExecutionInfo()
+	execInfo.TraceIDUpper64Hex = "1234567890abcdef"
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -530,8 +625,9 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		"cold_start":                "true",
 		"function.request.resource": "/users/create",
 		"function.request.path":     "/users/create",
-		"function.request.headers.x-datadog-parent-id":         "1480558859903409531",
-		"function.request.headers.x-datadog-trace-id":          "5736943178450432258",
+		"function.request.headers.x-datadog-parent-id": "1480558859903409531",
+		"function.request.headers.x-datadog-trace-id":  "5736943178450432258",
+		"_dd.p.tid": "1234567890abcdef",
 		"function.request.headers.x-datadog-sampling-priority": "1",
 		"function.request.httpMethod":                          "GET",
 		"function.request.headers.Accept":                      "*/*",
@@ -539,7 +635,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		"function.response.response":                           "test response payload",
 		"language":                                             "dotnet",
 	}
-	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
+	assert.Equal(t, expectingResultMetaMap, executionSpan.Meta)
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
 	assert.Equal(t, "TestFunction", executionSpan.Resource)
@@ -746,17 +842,21 @@ func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
 	}
 
 	stepFunctionEvent := events.StepFunctionPayload{
-		Execution: struct{ ID string }(struct {
-			ID string `json:"id"`
+		Execution: struct {
+			ID           string
+			RedriveCount uint16
 		}{
-			ID: "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
-		}),
+			ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+			RedriveCount: 0,
+		},
 		State: struct {
 			Name        string
 			EnteredTime string
+			RetryCount  uint16
 		}{
 			Name:        "agocsTest1",
 			EnteredTime: "2024-07-30T20:46:20.824Z",
+			RetryCount:  0,
 		},
 	}
 
@@ -789,6 +889,153 @@ func TestEndExecutionSpanWithStepFunctions(t *testing.T) {
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
 	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
 	assert.Equal(t, "6fb5c3a05c73dbfe", executionSpan.Meta["_dd.p.tid"])
+
+}
+
+func TestEndExecutionSpanWithNestedStepFunctions(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+	}
+
+	lp.requestHandler.triggerTags["_dd.p.tid"] = "579d19b3ee216ee9"
+
+	startTime := time.Now()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: http.Header{},
+	}
+
+	nestedStepFunctionEvent := events.NestedStepFunctionPayload{
+		Payload: events.StepFunctionPayload{
+			Execution: struct {
+				ID           string
+				RedriveCount uint16
+			}{
+				ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+				RedriveCount: 0,
+			},
+			State: struct {
+				Name        string
+				EnteredTime string
+				RetryCount  uint16
+			}{
+				Name:        "agocsTest1",
+				EnteredTime: "2024-07-30T20:46:20.824Z",
+				RetryCount:  0,
+			},
+		},
+		RootExecutionID:   "arn:aws:states:sa-east-1:425362996713:execution:invokeJavaLambda:4875aba4-ae31-4a4c-bf8a-63e9eee31dad",
+		ServerlessVersion: "v1",
+	}
+
+	lp.startExecutionSpan(nestedStepFunctionEvent, []byte("[]"), startDetails)
+
+	assert.Equal(t, uint64(1322229001489018110), currentExecutionInfo.TraceID)
+	assert.Equal(t, uint64(8947638978974359093), currentExecutionInfo.parentID)
+	assert.Equal(t, "579d19b3ee216ee9", lp.requestHandler.triggerTags["_dd.p.tid"])
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+	executionSpan := lp.endExecutionSpan(endDetails)
+
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+	assert.Equal(t, "579d19b3ee216ee9", executionSpan.Meta["_dd.p.tid"])
+
+}
+
+func TestEndExecutionSpanWithLambdaRootStepFunctions(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+	}
+
+	lp.requestHandler.triggerTags["_dd.p.tid"] = "672a7cb100000000"
+
+	startTime := time.Now()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: http.Header{},
+	}
+
+	lambdaRootStepFunctionEvent := events.LambdaRootStepFunctionPayload{
+		Payload: events.StepFunctionPayload{
+			Execution: struct {
+				ID           string
+				RedriveCount uint16
+			}{
+				ID:           "arn:aws:states:us-east-1:425362996713:execution:agocsTestSF:aa6c9316-713a-41d4-9c30-61131716744f",
+				RedriveCount: 0,
+			},
+			State: struct {
+				Name        string
+				EnteredTime string
+				RetryCount  uint16
+			}{
+				Name:        "agocsTest1",
+				EnteredTime: "2024-07-30T20:46:20.824Z",
+				RetryCount:  0,
+			},
+		},
+		TraceID:           "5821803790426892636",
+		TraceTags:         "_dd.p.dm=-0,_dd.p.tid=672a7cb100000000",
+		ServerlessVersion: "v1",
+	}
+
+	lp.startExecutionSpan(lambdaRootStepFunctionEvent, []byte("[]"), startDetails)
+
+	assert.Equal(t, uint64(5821803790426892636), currentExecutionInfo.TraceID)
+	assert.Equal(t, uint64(8947638978974359093), currentExecutionInfo.parentID)
+	assert.Equal(t, "672a7cb100000000", lp.requestHandler.triggerTags["_dd.p.tid"])
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+	executionSpan := lp.endExecutionSpan(endDetails)
+
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+	assert.Equal(t, "672a7cb100000000", executionSpan.Meta["_dd.p.tid"])
 
 }
 
@@ -1058,4 +1305,44 @@ func TestCompleteInferredSpanWithAsync(t *testing.T) {
 	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
 	assert.Equal(t, duration.Nanoseconds(), span.Duration)
 	assert.Equal(t, int32(0), inferredSpan.Span.Error)
+}
+
+func Test_getUpper64Hex(t *testing.T) {
+	tests := []struct {
+		name string
+		tags string
+		want string
+	}{
+		{
+			name: "just a trace tag",
+			tags: "_dd.p.tid=1234567890abcdef",
+			want: "1234567890abcdef",
+		},
+		{
+			name: "nothing",
+			tags: "",
+			want: "",
+		},
+		{
+			name: "multiple tags 1",
+			tags: "some=tag,_dd.p.tid=1234567890abcdef",
+			want: "1234567890abcdef",
+		},
+		{
+			name: "multiple tags 2",
+			tags: "_dd.p.tid=1234567890abcdef,some=tag",
+			want: "1234567890abcdef",
+		},
+		{
+			name: "multiple tags 3",
+			tags: "some=tag,_dd.p.tid=1234567890abcdef,another=tag",
+			want: "1234567890abcdef",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equalf(t, tt.want, getUpper64Hex(tt.tags), "getUpper64Hex(%v)", tt.tags)
+
+		})
+	}
 }

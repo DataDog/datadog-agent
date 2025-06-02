@@ -22,14 +22,20 @@ import (
 
 // APMTags holds the APM tags
 type APMTags struct {
-	DDService string
-	DDEnv     string
-	DDVersion string
+	DDService string `json:"DD_SERVICE"`
+	DDEnv     string `json:"DD_ENV"`
+	DDVersion string `json:"DD_VERSION"`
 }
+
+// keep a count of errors to avoid flooding the log
+var (
+	jsonLogCount          = 0
+	dotnetConfigLogCount  = 0
+	logErrorCountInterval = 500
+)
 
 // ReadDatadogJSON reads a datadog.json file and returns the APM tags
 func ReadDatadogJSON(datadogJSONPath string) (APMTags, error) {
-	var datadogJSON map[string]string
 	var apmtags APMTags
 
 	file, err := os.Open(datadogJSONPath)
@@ -39,13 +45,14 @@ func ReadDatadogJSON(datadogJSONPath string) (APMTags, error) {
 	defer file.Close()
 
 	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&datadogJSON)
+	err = decoder.Decode(&apmtags)
 	if err != nil {
+		if jsonLogCount%logErrorCountInterval == 0 {
+			log.Warnf("Error reading datadog.json file %s: %v", datadogJSONPath, err)
+			jsonLogCount++
+		}
 		return apmtags, err
 	}
-	apmtags.DDService = datadogJSON["DD_SERVICE"]
-	apmtags.DDEnv = datadogJSON["DD_ENV"]
-	apmtags.DDVersion = datadogJSON["DD_VERSION"]
 	return apmtags, nil
 }
 
@@ -78,6 +85,10 @@ func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 	}
 	err = xml.Unmarshal(f, &newcfg)
 	if err != nil {
+		if dotnetConfigLogCount%logErrorCountInterval == 0 {
+			log.Warnf("Error reading datadog.json file %s: %v", cfgpath, err)
+			jsonLogCount++
+		}
 		return apmtags, err
 	}
 	for _, setting := range newcfg.AppSettings.Adds {
@@ -105,8 +116,8 @@ func ReadDotNetConfig(cfgpath string) (APMTags, error) { //(APMTags, error) {
 				apmtags.DDVersion = ddjson.DDVersion
 			}
 		} else {
-			// only log every 1000 occurrences because if this is misconfigured, it could flood the log
-			if errorlogcount%1000 == 0 {
+			// only log every logErrorCountInterval occurrences because if this is misconfigured, it could flood the log
+			if errorlogcount%logErrorCountInterval == 0 {
 				log.Warnf("Error reading configured datadog.json file %s: %v", chasedatadogJSON, err)
 			}
 			errorlogcount++

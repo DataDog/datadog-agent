@@ -8,6 +8,7 @@
 package http
 
 import (
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -19,14 +20,13 @@ import (
 
 // StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
-	mux                         sync.Mutex
-	stats                       map[Key]*RequestStats
-	incomplete                  IncompleteBuffer
-	maxEntries                  int
-	quantizer                   *URLQuantizer
-	telemetry                   *Telemetry
-	connectionAggregator        *utils.ConnectionAggregator
-	enableStatusCodeAggregation bool
+	mux                  sync.Mutex
+	stats                map[Key]*RequestStats
+	incomplete           IncompleteBuffer
+	maxEntries           int
+	quantizer            *URLQuantizer
+	telemetry            *Telemetry
+	connectionAggregator *utils.ConnectionAggregator
 
 	// replace rules for HTTP path
 	replaceRules []*config.ReplaceRule
@@ -50,17 +50,32 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 		connectionAggregator = utils.NewConnectionAggregator()
 	}
 
+	if len(c.HTTPReplaceRules) > 0 {
+		// Sort rules, and place drop rules first
+		slices.SortStableFunc(c.HTTPReplaceRules, func(a, b *config.ReplaceRule) int {
+			if a.Repl == "" && b.Repl == "" {
+				return 0
+			}
+			if a.Repl == "" {
+				return -1
+			}
+			if b.Repl == "" {
+				return 1
+			}
+			return 0
+		})
+	}
+
 	return &StatKeeper{
-		stats:                       make(map[Key]*RequestStats),
-		incomplete:                  incompleteBuffer,
-		maxEntries:                  c.MaxHTTPStatsBuffered,
-		quantizer:                   quantizer,
-		replaceRules:                c.HTTPReplaceRules,
-		enableStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
-		connectionAggregator:        connectionAggregator,
-		buffer:                      make([]byte, getPathBufferSize(c)),
-		telemetry:                   telemetry,
-		oversizedLogLimit:           log.NewLogLimit(10, time.Minute*10),
+		stats:                make(map[Key]*RequestStats),
+		incomplete:           incompleteBuffer,
+		maxEntries:           c.MaxHTTPStatsBuffered,
+		quantizer:            quantizer,
+		replaceRules:         c.HTTPReplaceRules,
+		connectionAggregator: connectionAggregator,
+		buffer:               make([]byte, getPathBufferSize(c)),
+		telemetry:            telemetry,
+		oversizedLogLimit:    log.NewLogLimit(10, time.Minute*10),
 	}
 }
 
@@ -108,7 +123,6 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 
 // Close closes the stat keeper.
 func (h *StatKeeper) Close() {
-	h.oversizedLogLimit.Close()
 }
 
 func (h *StatKeeper) add(tx Transaction) {
@@ -158,7 +172,7 @@ func (h *StatKeeper) add(tx Transaction) {
 			return
 		}
 		h.telemetry.aggregations.Add(1)
-		stats = NewRequestStats(h.enableStatusCodeAggregation)
+		stats = NewRequestStats()
 		h.stats[key] = stats
 	}
 

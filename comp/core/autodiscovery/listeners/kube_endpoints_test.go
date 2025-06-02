@@ -8,20 +8,18 @@
 package listeners
 
 import (
-	"context"
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 func TestProcessEndpoints(t *testing.T) {
-	ctx := context.Background()
-
 	kep := &v1.Endpoints{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
@@ -61,15 +59,14 @@ func TestProcessEndpoints(t *testing.T) {
 
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.1", eps[0].GetServiceID())
 
-	adID, err := eps[0].GetADIdentifiers(ctx)
-	assert.NoError(t, err)
+	adID := eps[0].GetADIdentifiers()
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.1"}, adID)
 
-	hosts, err := eps[0].GetHosts(ctx)
+	hosts, err := eps[0].GetHosts()
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"endpoint": "10.0.0.1"}, hosts)
 
-	ports, err := eps[0].GetPorts(ctx)
+	ports, err := eps[0].GetPorts()
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 
@@ -79,15 +76,15 @@ func TestProcessEndpoints(t *testing.T) {
 
 	assert.Equal(t, "kube_endpoint_uid://default/myservice/10.0.0.2", eps[1].GetServiceID())
 
-	adID, err = eps[1].GetADIdentifiers(ctx)
+	adID = eps[1].GetADIdentifiers()
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"kube_endpoint_uid://default/myservice/10.0.0.2"}, adID)
 
-	hosts, err = eps[1].GetHosts(ctx)
+	hosts, err = eps[1].GetHosts()
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"endpoint": "10.0.0.2"}, hosts)
 
-	ports, err = eps[1].GetPorts(ctx)
+	ports, err = eps[1].GetPorts()
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "port123"}, {126, "port126"}}, ports)
 

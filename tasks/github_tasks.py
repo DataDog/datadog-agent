@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
@@ -17,13 +18,18 @@ from tasks.libs.ciproviders.github_actions_tools import (
     print_failed_jobs_logs,
     print_workflow_conclusion,
     trigger_macos_workflow,
+    trigger_windows_bump_workflow,
 )
-from tasks.libs.common.constants import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH
-from tasks.libs.common.datadog_api import create_gauge, send_metrics
-from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
+from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.constants import DEFAULT_INTEGRATIONS_CORE_BRANCH
+from tasks.libs.common.datadog_api import create_gauge, send_event, send_metrics
+from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.utils import get_git_pretty_ref
+from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
+from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES, current_version
+from tasks.libs.types.types import PermissionCheck
 from tasks.release import _get_release_json_value
 
 ALL_TEAMS = '@datadog/agent-all'
@@ -34,14 +40,14 @@ def concurrency_key():
     current_ref = get_git_pretty_ref()
 
     # We want workflows to run to completion on the default branch and release branches
-    if re.search(rf'^({DEFAULT_BRANCH}|\d+\.\d+\.x)$', current_ref):
+    if re.search(rf'^({get_default_branch()}|\d+\.\d+\.x)$', current_ref):
         return None
 
     return current_ref
 
 
-def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
-    github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
+def _trigger_macos_workflow(destination=None, retry_download=0, retry_interval=0, **kwargs):
+    github_action_ref = _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::MACOS_BUILD_VERSION')
 
     run = trigger_macos_workflow(
         github_action_ref=github_action_ref,
@@ -66,32 +72,29 @@ def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_i
 def trigger_macos(
     _,
     workflow_type="build",
-    datadog_agent_ref=DEFAULT_BRANCH,
-    release_version="nightly-a7",
+    datadog_agent_ref=None,
     major_version="7",
-    python_runtimes="3",
     destination=".",
     version_cache=None,
     retry_download=3,
     retry_interval=10,
-    fast_tests=None,
-    test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
+    """
+    Args:
+        datadog_agent_ref: If None, will be the default branch.
+    """
+
+    datadog_agent_ref = datadog_agent_ref or get_default_branch()
+
     if workflow_type == "build":
         conclusion = _trigger_macos_workflow(
-            # Provide the release version to be able to fetch the associated
-            # macos-build branch from release.json for all workflows...
-            release_version,
             destination,
             retry_download,
             retry_interval,
             workflow_name="macos.yaml",
             datadog_agent_ref=datadog_agent_ref,
-            # ... And provide the release version as a workflow input when needed
-            release_version=release_version,
             major_version=major_version,
-            python_runtimes=python_runtimes,
             # Send pipeline id and bucket branch so that the package version
             # can be constructed properly for nightlies.
             gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
@@ -99,75 +102,102 @@ def trigger_macos(
             version_cache_file_content=version_cache,
             integrations_core_ref=integrations_core_ref,
         )
-    elif workflow_type == "test":
-        conclusion = _trigger_macos_workflow(
-            release_version,
-            destination,
-            retry_download,
-            retry_interval,
-            workflow_name="test.yaml",
-            datadog_agent_ref=datadog_agent_ref,
-            python_runtimes=python_runtimes,
-            version_cache_file_content=version_cache,
-            fast_tests=fast_tests,
-            test_washer=test_washer,
-        )
-        repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
-    elif workflow_type == "lint":
-        conclusion = _trigger_macos_workflow(
-            release_version,
-            workflow_name="lint.yaml",
-            datadog_agent_ref=datadog_agent_ref,
-            python_runtimes=python_runtimes,
-            version_cache_file_content=version_cache,
-        )
+    else:
+        raise Exit(f"Unsupported workflow type: {workflow_type}", code=1)
     if conclusion != "success":
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
 
+def _update_windows_runner_version(new_version=None, repo="buildenv"):
+    if new_version is None:
+        raise Exit(message="workflow needs the 'new_version' field value to be not None")
+    args_per_repo = {
+        "buildenv": {
+            "workflow_name": "runner-bump.yml",
+            "github_action_ref": "master",
+        },
+        "ci-platform-machine-images": {
+            "workflow_name": "windows-runner-agent-bump.yml",
+            "github_action_ref": "main",
+        },
+    }
+
+    run = trigger_windows_bump_workflow(
+        repo=repo,
+        workflow_name=args_per_repo[repo]["workflow_name"],
+        github_action_ref=args_per_repo[repo]["github_action_ref"],
+        new_version=new_version,
+    )
+    # We are only waiting 0.5min between each status check because buildenv
+    # or ci-platform-machine-images are much faster than macOS builds
+    full_repo = f"DataDog/{repo}"
+    workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
+
+    if workflow_conclusion != "success":
+        if workflow_conclusion == "failure":
+            print_failed_jobs_logs(run)
+        return workflow_conclusion
+
+    print_workflow_conclusion(workflow_conclusion, workflow_url)
+
+    download_with_retry(download_artifacts, run, ".", 3, 5, full_repo)
+
+    with open("PR_URL_ARTIFACT") as f:
+        PR_URL = f.read().strip()
+
+    if not PR_URL:
+        raise Exit(message="Failed to fetch artifact from the workflow. (Empty artifact)")
+
+    message = f":robobits: A new windows-runner bump PR to {new_version} has been generated. Please take a look :frog-review:\n:pr: {PR_URL} :ty:"
+
+    from slack_sdk import WebClient
+
+    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
+    client.chat_postMessage(channel="ci-infra-support", text=message)
+    return workflow_conclusion
+
+
 @task
-def lint_codeowner(_):
+def update_windows_runner_version(
+    ctx,
+    new_version=None,
+):
     """
-    Check every package in `pkg` has an owner
+    Trigger a workflow on the buildenv and ci-platform-machine-images repositories to bump windows gitlab runner
+    """
+    if new_version is None:
+        new_version = str(current_version(ctx, "7"))
+
+    for repo in ["buildenv", "ci-platform-machine-images"]:
+        conclusion = _update_windows_runner_version(new_version, repo)
+        if conclusion != "success":
+            raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
+
+
+@task
+def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
+    """
+    Run multiple checks on the provided CODEOWNERS file
     """
 
     base = os.path.dirname(os.path.abspath(__file__))
     root_folder = os.path.join(base, "..")
     os.chdir(root_folder)
 
-    owners = _get_code_owners(root_folder)
+    exit_code = 0
 
-    # make sure each root package has an owner
-    pkgs_without_owner = _find_packages_without_owner(owners, "pkg")
-    if len(pkgs_without_owner) > 0:
-        raise Exit(
-            f'The following packages  in `pkg` directory don\'t have an owner in CODEOWNERS: {pkgs_without_owner}',
-            code=1,
-        )
+    # Getting GitHub CODEOWNER file content
+    owners = read_owners(owners_file)
 
+    # Define linters
+    linters = [directory_has_packages_without_owner, codeowner_has_orphans]
 
-def _find_packages_without_owner(owners, folder):
-    pkg_without_owners = []
-    for x in os.listdir(folder):
-        path = os.path.join("/" + folder, x)
-        if path not in owners:
-            pkg_without_owners.append(path)
-    return pkg_without_owners
+    # Execute linters
+    for linter in linters:
+        if linter(owners):
+            exit_code = 1
 
-
-def _get_code_owners(root_folder):
-    code_owner_path = os.path.join(root_folder, ".github", "CODEOWNERS")
-    owners = {}
-    with open(code_owner_path) as f:
-        for line in f:
-            line = line.strip()
-            line = line.split("#")[0]  # remove comment
-            if len(line) > 0:
-                parts = line.split()
-                path = os.path.normpath(parts[0])
-                # example /tools/retry_file_dump ['@DataDog/agent-metrics-logs']
-                owners[path] = parts[1:]
-    return owners
+    raise Exit(code=exit_code)
 
 
 @task
@@ -325,7 +355,7 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
 
     # Post message
-    client = WebClient(os.environ['SLACK_API_TOKEN'])
+    client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
     for channel in channels:
         client.chat_postMessage(channel=channel, text=message)
 
@@ -368,6 +398,7 @@ def pr_commenter(
     delete: bool = False,
     force_delete: bool = False,
     echo: bool = False,
+    fail_on_pr_missing: bool = False,
 ):
     """
     Will comment or update current comment posted on the PR with the new data.
@@ -377,6 +408,7 @@ def pr_commenter(
     - delete: If True and the body is empty, will delete the comment.
     - force_delete: Won't throw error if the comment to delete is not found.
     - echo: Print comment content to stdout.
+    - fail_on_pr_missing: If True, will raise an error if the PR is not found. Only a warning is printed otherwise.
 
     Inspired by the pr-commenter binary from <https://github.com/DataDog/devtools>
     """
@@ -393,6 +425,9 @@ def pr_commenter(
     if pr_id is None:
         branch = os.environ["CI_COMMIT_BRANCH"]
         prs = list(github.get_pr_for_branch(branch))
+        if len(prs) == 0 and not fail_on_pr_missing:
+            print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
+            return
         assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
         pr = prs[0]
     else:
@@ -431,3 +466,293 @@ def pr_commenter(
 
     if verbose:
         print(f"{action} comment on PR #{pr.number} - {pr.title}")
+
+
+@task
+def pr_merge_dd_event_sender(
+    _,
+    pr_id: int | None = None,
+    dry_run: bool = False,
+):
+    """
+    Sends a PR merged event to Datadog with the following tags:
+    - repo:datadog-agent
+    - pr:<pr_number>
+    - author:<pr_author>
+    - qa_label:missing if the PR doesn't have the qa/done or qa/no-code-change label
+    - qa_description:missing if the PR doesn't have a test/QA description section
+
+    - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR
+    """
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    github = GithubAPI()
+
+    if pr_id is None:
+        branch = os.environ["CI_COMMIT_BRANCH"]
+        prs = list(github.get_pr_for_branch(branch))
+        assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
+        pr = prs[0]
+    else:
+        pr = github.get_pr(int(pr_id))
+
+    if not pr.merged:
+        raise Exit(f"PR #{pr.number} is not merged yet", code=1)
+
+    tags = [f'repo:{pr.base.repo.full_name}', f'pr_id:{pr.number}', f'author:{pr.user.login}']
+    labels = set(github.get_pr_labels(pr.number))
+    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
+    qa_labels = all_qa_labels.intersection(labels)
+    if len(qa_labels) == 0:
+        tags.append('qa_label:missing')
+    else:
+        tags.extend([f"qa_label:{label}" for label in qa_labels])
+
+    qa_description = extract_test_qa_description(pr.body)
+    if qa_description == '':
+        tags.append('qa_description:missing')
+
+    tags.extend([f"team:{label.removeprefix('team/')}" for label in labels if label.startswith('team/')])
+    title = "PR merged"
+    text = f"PR #{pr.number} merged to {pr.base.ref} at {pr.base.repo.full_name} by {pr.user.login} with QA description [{qa_description}]"
+
+    if dry_run:
+        print(f'''I would send the following event to Datadog:
+
+title: {title}
+text: {text}
+tags: {tags}''')
+        return
+
+    send_event(
+        title=title,
+        text=text,
+        tags=tags,
+    )
+
+    print(f"Event sent to Datadog for PR #{pr.number}")
+
+
+def extract_test_qa_description(pr_body: str) -> str:
+    """
+    Extract the test/QA description section from the PR body
+    """
+    # Extract the test/QA description section from the PR body
+    # Based on PULL_REQUEST_TEMPLATE.md
+    pr_body_lines = pr_body.splitlines()
+    index_of_test_qa_section = -1
+    for i, line in enumerate(pr_body_lines):
+        if line.startswith('### Describe how you validated your changes'):
+            index_of_test_qa_section = i
+            break
+    if index_of_test_qa_section == -1:
+        return ''
+    index_of_next_section = len(pr_body_lines)
+    for i in range(index_of_test_qa_section + 1, len(pr_body_lines)):
+        if pr_body_lines[i].startswith('### '):
+            index_of_next_section = i
+            break
+    if index_of_next_section == -1:
+        return ''
+    return '\n'.join(pr_body_lines[index_of_test_qa_section + 1 : index_of_next_section]).strip()
+
+
+@task
+def assign_codereview_label(_, pr_id=-1):
+    """
+    Assigns a code review complexity label based on PR attributes (files changed, additions, deletions, comments)
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    complexity = gh.get_codereview_complexity(pr_id)
+    gh.update_review_complexity_labels(pr_id, complexity)
+
+
+@task
+def agenttelemetry_list_change_ack_check(_, pr_id=-1):
+    """
+    Change to `comp/core/agenttelemetry/impl/config.go` file requires to acknowledge
+    potential changes to Agent Telemetry metrics. If Agent Telemetry metric list has been changed,
+    the PR should be labeled with `need-change/agenttelemetry-governance` and follow
+    `Agent Telemetry Governance` instructions to potentially perform additional changes. See
+    https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance
+    for details.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI('DataDog/datadog-agent')
+
+    labels = gh.get_pr_labels(pr_id)
+    files = gh.get_pr_files(pr_id)
+    if "comp/core/agenttelemetry/impl/config.go" in files:
+        if "need-change/agenttelemetry-governance" not in labels:
+            message = f"{color_message('Error', 'red')}: If you change the `comp/core/agenttelemetry/impl/config.go` file, you need to add `need-change/agenttelemetry-governance` label. If you have access, pleas follow the instructions specified in https://datadoghq.atlassian.net/wiki/spaces/ASUP/pages/4340679635/Agent+Telemetry+Governance"
+            raise Exit(message, code=1)
+        else:
+            print(
+                "'need-change/agenttelemetry-governance' label found on the PR: potential change to Agent Telemetry metrics is acknowledged and the governance instructions are followed."
+            )
+
+
+@task
+def get_required_checks(_, branch: str = "main"):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (read).
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI()
+    required_checks = gh.get_branch_required_checks(branch)
+    print(required_checks)
+
+
+@task(iterable=['check'])
+def add_required_checks(_, branch: str, check: str, force: bool = False):
+    """
+    For this task to work:
+        - A Personal Access Token (PAT) needs the "repo" permissions.
+        - A fine-grained token needs the "Administration" repository permissions (write).
+
+    Use it like this:
+    dda inv github.add-required-checks --branch=main --check="dd-gitlab/lint_codeowners" --check="dd-gitlab/lint_components"
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    if not check:
+        raise Exit(color_message("No check name provided, exiting", Color.RED), code=1)
+
+    gh = GithubAPI()
+    gh.add_branch_required_check(branch, check, force)
+
+
+@task
+def check_qa_labels(_, labels: str):
+    """
+    Check if the PR has one of qa/[done|no-code-change|rc-required] label
+    """
+    labels = set(labels.split(" "))
+    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
+    qa_labels = all_qa_labels.intersection(labels)
+    docs = "\n".join(
+        [
+            "You must set one of:",
+            "- 'qa/no-code-change' if your PR does not contain changes to the agent code or has no impact to the agent functionalities",
+            "  Examples: code owner changes, e2e test framework changes, documentation changes",
+            "- 'qa/done' if your PR contains changes impacting the Agent binary code that are validated through automated tests, double checked through manual validation if needed.",
+            "  If you want additional validation by a second person, you can ask reviewers to do it. Describe how to set up an environment for manual tests in the PR description. Manual validation is expected to happen on every commit before merge.",
+            "  Any manual validation step should then map to an automated test. Manual validation should not substitute automation, minus exceptions not supported by test tooling yet.",
+            "- 'qa/rc-required' if your PR changes require validation on the Release Candidate. Examples are changes that need workloads that we cannot emulate, or changes that require validation on prod during RC deployment",
+            "",
+            "See https://datadoghq.atlassian.net/wiki/spaces/agent/pages/3341649081/QA+Best+Practices for more details.",
+        ]
+    )
+    if len(qa_labels) == 0:
+        raise Exit(f"No QA label set.\n{docs}", code=1)
+    if len(qa_labels) > 1:
+        raise Exit(f"More than one QA label set.\n{docs}", code=1)
+    print("QA label set correctly")
+
+
+@task
+def print_pr_state(_, id):
+    """Print the PR merge state if the PR is stuck within the merge queue."""
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    query = """
+query {
+  repository (owner: "DataDog", name: "datadog-agent") {
+    pullRequest(number: ID) {
+      reviewDecision
+      state
+      statusCheckRollup {
+        state
+      }
+      mergeable
+      mergeStateStatus
+      locked
+    }
+  }
+}
+""".replace("ID", id)  # Use replace to avoid formatting issues with curly braces
+
+    gh = GithubAPI()
+    res = gh.graphql(query)
+
+    print(json.dumps(res, indent=2))
+
+
+@task
+def check_permissions(_, name: str, check: PermissionCheck = PermissionCheck.REPO, channel: str = "agent-devx-ops"):
+    """
+    Check the permissions on a given repository or team.
+      - list contributing teams on the repository or subteams
+      - list teams with not any contributors
+      - list members without any contribution in the last period
+
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.common.slack import format_teams, header_block, markdown_block
+    from tasks.libs.notify.permissions import list_permissions
+
+    if check == PermissionCheck.TEAM:
+        gh = GithubAPI()
+        root = gh.get_team(name)
+        depth = None
+        admins = root.get_members(role='maintainer')
+    else:
+        gh = GithubAPI(f"datadog/{name}")
+        root = gh._repository
+        depth = 1
+        admins = [
+            c for c in root.get_collaborators(affiliation='direct') if root.get_collaborator_permission(c) == 'admin'
+        ]
+
+    all_teams = gh.find_teams(
+        root,
+        depth=depth,
+    )
+
+    # List information of teams in <name>
+    blocks = [header_block(f":github: {name} permissions check\n")]
+    blocks.extend(format_teams(name, check, all_teams))
+
+    # Add admins
+    if len(admins) > 0:
+        admins = [f" - <{admin.html_url}|{admin.login}>\n" for admin in admins]
+        block = f"Admins:\n{''.join(admins)}"
+        blocks.append(markdown_block(block))
+
+    if check == PermissionCheck.TEAM:
+        # For agent-all, list non contributors (team or members) to remove or look at.
+        contributors = 'agent-contributors'
+        non_contributing_teams, contributors_to_remove, membership = list_permissions(gh, name, all_teams, contributors)
+
+        if len(non_contributing_teams) > 0:
+            teams = [f" - {team}\n" for team in non_contributing_teams]
+            block = f"Non contributing teams:\n{''.join(teams)}"
+            blocks.append(markdown_block(block))
+
+        if len(contributors_to_remove) > 0:
+            block = f"Non contributors to remove from <https://github.com/orgs/DataDog/teams/{contributors}|{contributors}> team:\n{','.join(contributors_to_remove)}"
+            blocks.append(markdown_block(block))
+
+        if len(membership) > 0:
+            block = "Non contributors to assess:\n"
+            blocks.append(markdown_block(block))
+            for member, teams in membership.items():
+                block = f" - {member}: [{', '.join(teams)}]\n"
+                blocks.append(markdown_block(block))
+    # Send message to slack
+    from slack_sdk import WebClient
+
+    client = WebClient(token=os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
+    message = ''.join(b['text']['text'] for b in blocks)
+    print(message)
+    MAX_BLOCKS = 50
+    for idx in range(0, len(blocks), MAX_BLOCKS):
+        client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)

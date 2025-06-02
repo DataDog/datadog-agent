@@ -8,21 +8,22 @@
 package usm
 
 import (
-	"errors"
-	"os"
-	"path/filepath"
-	"strconv"
+	"fmt"
+	"io"
 	"strings"
-	"sync"
-	"time"
+
+	"github.com/cilium/ebpf"
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -32,6 +33,8 @@ const (
 	nodejsSslReadExRetprobe  = "nodejs_uretprobe__SSL_read_ex"
 	nodejsSslWriteRetprobe   = "nodejs_uretprobe__SSL_write"
 	nodejsSslWriteExRetprobe = "nodejs_uretprobe__SSL_write_ex"
+
+	nodeJsAttacherName = "nodejs"
 )
 
 var (
@@ -108,89 +111,140 @@ var (
 	}
 )
 
+var nodejsSpec = &protocols.ProtocolSpec{
+	Factory: newNodeJSMonitor,
+	Maps:    sharedLibrariesMaps,
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "kprobe__tcp_sendmsg",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslDoHandshakeProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslDoHandshakeRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslSetBioProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslSetFDProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: bioNewSocketProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: bioNewSocketRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslReadProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: nodejsSslReadRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: nodejsSslReadExRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslWriteProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: nodejsSslWriteRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: nodejsSslWriteExRetprobe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: sslShutdownProbe,
+			},
+		},
+	},
+}
+
 // nodeJSMonitor essentially scans for Node processes and attaches SSL uprobes
 // to them.
 type nodeJSMonitor struct {
-	registry *utils.FileRegistry
-	procRoot string
-
-	// `utils.FileRegistry` callbacks
-	registerCB   func(utils.FilePath) error
-	unregisterCB func(utils.FilePath) error
-
-	// Termination
-	wg   sync.WaitGroup
-	done chan struct{}
+	cfg            *config.Config
+	attacher       *uprobes.UprobeAttacher
+	processMonitor *monitor.ProcessMonitor
 }
 
-// Validate that nodeJSMonitor implements the Attacher interface.
-var _ utils.Attacher = &nodeJSMonitor{}
+// Ensuring nodeJSMonitor implements the protocols.Protocol interface.
+var _ protocols.Protocol = (*nodeJSMonitor)(nil)
 
-func newNodeJSMonitor(c *config.Config, mgr *manager.Manager) *nodeJSMonitor {
-	if !c.EnableNodeJSMonitoring {
-		return nil
+func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error) {
+	if !c.EnableNodeJSMonitoring || !usmconfig.TLSSupported(c) {
+		return nil, nil
 	}
 
-	procRoot := kernel.ProcFSRoot()
+	attachCfg := uprobes.AttacherConfig{
+		ProcRoot: kernel.ProcFSRoot(),
+		Rules: []*uprobes.AttachRule{{
+			Targets:          uprobes.AttachToExecutable,
+			ProbesSelector:   nodeJSProbes,
+			ExecutableFilter: isNodeJSBinary,
+		}},
+		EbpfConfig:                     &c.Config,
+		ExcludeTargets:                 uprobes.ExcludeSelf | uprobes.ExcludeInternal | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
+		EnablePeriodicScanNewProcesses: true,
+	}
+
+	procMon := monitor.GetProcessMonitor()
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, procMon)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
+	}
+
 	return &nodeJSMonitor{
-		registry: utils.NewFileRegistry("nodejs"),
-		procRoot: procRoot,
-		done:     make(chan struct{}),
-
-		// Callbacks
-		registerCB:   addHooks(mgr, procRoot, nodeJSProbes),
-		unregisterCB: removeHooks(mgr, nodeJSProbes),
-	}
+		cfg:            c,
+		attacher:       attacher,
+		processMonitor: procMon,
+	}, nil
 }
 
-// Start the nodeJSMonitor
-func (m *nodeJSMonitor) Start() {
-	if m == nil {
-		return
+// ConfigureOptions changes map attributes to the given options.
+func (m *nodeJSMonitor) ConfigureOptions(options *manager.Options) {
+	sharedLibrariesConfigureOptions(options, m.cfg)
+}
+
+// PreStart is called before the start of the provided eBPF manager.
+func (m *nodeJSMonitor) PreStart() error {
+	if err := m.attacher.Start(); err != nil {
+		return fmt.Errorf("cannot start nodeJS attacher: %w", err)
 	}
+	return nil
+}
 
-	processMonitor := monitor.GetProcessMonitor()
-
-	// Subscribe to process events
-	doneExec := processMonitor.SubscribeExec(m.handleProcessExec)
-	doneExit := processMonitor.SubscribeExit(m.handleProcessExit)
-
-	// Attach to existing processes
-	m.sync()
-
-	m.wg.Add(1)
-	go func() {
-		// This ticker is responsible for controlling the rate at which
-		// we scrape the whole procFS again in order to ensure that we
-		// terminate any dangling uprobes and register new processes
-		// missed by the process monitor stream
-		processSync := time.NewTicker(scanTerminatedProcessesInterval)
-
-		defer func() {
-			processSync.Stop()
-			// Execute process monitor callback termination functions
-			doneExec()
-			doneExit()
-			// Stopping the process monitor (if we're the last instance)
-			processMonitor.Stop()
-			// Cleaning up all active hooks
-			m.registry.Clear()
-			// marking we're finished.
-			m.wg.Done()
-		}()
-
-		for {
-			select {
-			case <-m.done:
-				return
-			case <-processSync.C:
-				m.sync()
-				m.registry.Log()
-			}
-		}
-	}()
-	utils.AddAttacher("nodejs-tls", m)
-	log.Info("Node JS TLS monitoring enabled")
+// PostStart is called after the start of the provided eBPF manager.
+func (*nodeJSMonitor) PostStart() error {
+	return nil
 }
 
 // Stop the nodeJSMonitor.
@@ -199,101 +253,33 @@ func (m *nodeJSMonitor) Stop() {
 		return
 	}
 
-	close(m.done)
-	m.wg.Wait()
+	m.processMonitor.Stop()
+	m.attacher.Stop()
 }
 
-// DetachPID detaches a given pid from the eBPF program
-func (m *nodeJSMonitor) DetachPID(pid uint32) error {
-	// We avoid filtering PIDs here because it's cheaper to simply do a registry lookup
-	// instead of fetching a process name in order to determine whether it is an
-	// envoy process or not (which at the very minimum involves syscalls)
-	return m.registry.Unregister(pid)
-}
-
-var (
-	// ErrNoNodeJSPath is returned when no nodejs path is found for a given PID
-	ErrNoNodeJSPath = errors.New("no nodejs path found for PID")
-)
-
-// AttachPID attaches a given pid to the eBPF program
-func (m *nodeJSMonitor) AttachPID(pid uint32) error {
-	path := m.getNodeJSPath(pid)
-	if path == "" {
-		return ErrNoNodeJSPath
-	}
-
-	return m.registry.Register(
-		path,
-		pid,
-		m.registerCB,
-		m.unregisterCB,
-		utils.IgnoreCB,
-	)
-}
-
-// sync state of nodeJSMonitor with the current state of procFS
-// the purpose of this method is two-fold:
-// 1) register processes for which we missed exec events (targeted mostly at startup)
-// 2) unregister processes for which we missed exit events
-func (m *nodeJSMonitor) sync() {
-	deletionCandidates := m.registry.GetRegisteredProcesses()
-
-	_ = kernel.WithAllProcs(m.procRoot, func(pid int) error {
-		if _, ok := deletionCandidates[uint32(pid)]; ok {
-			// We have previously hooked into this process and it remains active,
-			// so we remove it from the deletionCandidates list, and move on to the next PID
-			delete(deletionCandidates, uint32(pid))
-			return nil
-		}
-
-		// This is a new PID so we attempt to attach SSL probes to it
-		m.handleProcessExec(uint32(pid))
-		return nil
-	})
-
-	// At this point all entries from deletionCandidates are no longer alive, so
-	// we should detach our SSL probes from them
-	for pid := range deletionCandidates {
-		m.handleProcessExit(pid)
-	}
-}
-
-func (m *nodeJSMonitor) handleProcessExit(pid uint32) {
-	_ = m.DetachPID(pid)
-}
-
-func (m *nodeJSMonitor) handleProcessExec(pid uint32) {
-	_ = m.AttachPID(pid)
-}
-
-// getNodeJSPath returns the executable path of the nodejs binary for a given PID.
-// In case the PID doesn't represent a nodejs process, an empty string is returned.
-func (m *nodeJSMonitor) getNodeJSPath(pid uint32) string {
-	pidAsStr := strconv.FormatUint(uint64(pid), 10)
-	exePath := filepath.Join(m.procRoot, pidAsStr, "exe")
-
-	binPath, err := os.Readlink(exePath)
+// isNodeJSBinary returns true if the process is a NodeJS binary.
+func isNodeJSBinary(_ string, procInfo *uprobes.ProcInfo) bool {
+	exe, err := procInfo.Exe()
 	if err != nil {
-		// We receive the Exec event, /proc could be slow to update
-		end := time.Now().Add(10 * time.Millisecond)
-		for end.After(time.Now()) {
-			binPath, err = os.Readlink(exePath)
-			if err == nil {
-				break
-			}
-			time.Sleep(time.Millisecond)
-		}
+		return false
 	}
-	if err != nil {
-		// we can't access to the binary path here (pid probably ended already)
-		// there are not much we can do, and we don't want to flood the logs
-		return ""
-	}
+	return strings.Contains(exe, nodeJSPath)
+}
 
-	if strings.Contains(binPath, nodeJSPath) {
-		return binPath
-	}
+// DumpMaps is a no-op.
+func (*nodeJSMonitor) DumpMaps(io.Writer, string, *ebpf.Map) {}
 
-	return ""
+// Name return the program's name.
+func (*nodeJSMonitor) Name() string {
+	return nodeJsAttacherName
+}
+
+// GetStats is a no-op.
+func (*nodeJSMonitor) GetStats() (*protocols.ProtocolStats, func()) {
+	return nil, nil
+}
+
+// IsBuildModeSupported returns always true, as tls module is supported by all modes.
+func (*nodeJSMonitor) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

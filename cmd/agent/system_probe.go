@@ -9,13 +9,16 @@
 package main
 
 import (
+	"github.com/spf13/cobra"
+
 	sysprobecommand "github.com/DataDog/datadog-agent/cmd/system-probe/command"
 	sysprobesubcommands "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands"
-	"github.com/spf13/cobra"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func init() {
 	registerAgent([]string{"system-probe"}, func() *cobra.Command {
+		flavor.SetFlavor(flavor.SystemProbe)
 		rootCmd := sysprobecommand.MakeCommand(sysprobesubcommands.SysprobeSubcommands())
 		sysprobecommand.SetDefaultCommandIfNonePresent(rootCmd)
 		return rootCmd

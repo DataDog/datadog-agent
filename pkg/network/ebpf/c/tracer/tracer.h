@@ -14,6 +14,8 @@
 #define TCP_CONN_FAILED_RESET 104
 #define TCP_CONN_FAILED_TIMEOUT 110
 #define TCP_CONN_FAILED_REFUSED 111
+#define TCP_CONN_FAILED_EHOSTUNREACH 113
+#define TCP_CONN_FAILED_ENETUNREACH 101
 
 typedef enum {
     CONN_DIRECTION_UNKNOWN = 0b00,
@@ -28,6 +30,17 @@ typedef enum {
 } packet_count_increment_t;
 
 #define CONN_DIRECTION_MASK 0b11
+
+typedef struct {
+    __u16 chosen_version;
+    __u16 cipher_suite;
+    __u8  offered_versions;
+} tls_info_t;
+
+typedef struct {
+    __u64 updated;
+    tls_info_t info;
+} tls_info_wrapper_t;
 
 typedef struct {
     __u64 sent_bytes;
@@ -54,6 +67,7 @@ typedef struct {
     protocol_stack_t protocol_stack;
     __u8 flags;
     __u8 direction;
+    tls_info_t tls_tags;
 } conn_stats_ts_t;
 
 // Connection flags
@@ -66,23 +80,20 @@ typedef enum {
 typedef struct {
     __u32 rtt;
     __u32 rtt_var;
+    __u32 retransmits;
 
     // Bit mask containing all TCP state transitions tracked by our tracer
     __u16 state_transitions;
+    __u16 failure_reason;
 } tcp_stats_t;
 
 // Full data for a tcp connection
 typedef struct {
     conn_tuple_t tup;
-    conn_stats_ts_t conn_stats;
+    // move tcp_stats here to align conn_stats on a cacheline boundary
     tcp_stats_t tcp_stats;
-    __u32 tcp_retransmits;
+    conn_stats_ts_t conn_stats;
 } conn_t;
-
-typedef struct {
-    conn_tuple_t tup;
-    __u32 failure_reason;
-} conn_failed_t;
 
 // Must match the number of conn_t objects embedded in the batch_t struct
 #ifndef CONN_CLOSED_BATCH_SIZE
@@ -104,21 +115,20 @@ typedef struct {
 
 // Telemetry names
 typedef struct {
-    __u64 tcp_failed_connect;
     __u64 tcp_sent_miscounts;
     __u64 unbatched_tcp_close;
     __u64 unbatched_udp_close;
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;
-    __u64 double_flush_attempts_close;
-    __u64 double_flush_attempts_done;
-    __u64 unsupported_tcp_failures;
     __u64 tcp_done_missing_pid;
     __u64 tcp_connect_failed_tuple;
     __u64 tcp_done_failed_tuple;
     __u64 tcp_finish_connect_failed_tuple;
     __u64 tcp_close_target_failures;
+    __u64 tcp_done_connection_flush;
+    __u64 tcp_close_connection_flush;
+    __u64 tcp_syn_retransmit;
 } telemetry_t;
 
 typedef struct {

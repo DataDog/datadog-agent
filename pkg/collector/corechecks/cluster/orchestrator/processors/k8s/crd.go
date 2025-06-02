@@ -12,9 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 
 	"k8s.io/apimachinery/pkg/types"
@@ -31,7 +30,8 @@ func (crd *CRDHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext
 	cm := common.ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCRD{
 		Manifest: cm,
-		Tags:     append(pctx.Cfg.ExtraTags, pctx.ApiGroupVersionTag),
+		// CRDs are manifests, CollectorTags should be added to the inner Manifests, not the outer (embedded) CollectorManifests
+		Tags: pctx.Cfg.ExtraTags,
 	}
 }
 
@@ -39,6 +39,16 @@ func (crd *CRDHandlers) BuildManifestMessageBody(ctx processors.ProcessorContext
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (crd *CRDHandlers) AfterMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
+	return
+}
+
+// BeforeMarshalling is a handler called before resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *CRDHandlers) BeforeMarshalling(ctx processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
+	r := resource.(*v1.CustomResourceDefinition)
+	r.Kind = ctx.GetKind()
+	r.APIVersion = ctx.GetAPIVersion()
 	return
 }
 
@@ -66,7 +76,7 @@ func (crd *CRDHandlers) ResourceList(ctx processors.ProcessorContext, list inter
 	resources = make([]interface{}, 0, len(resourceList))
 
 	for _, resource := range resourceList {
-		resources = append(resources, resource)
+		resources = append(resources, resource.DeepCopyObject())
 	}
 
 	return resources
@@ -84,6 +94,13 @@ func (crd *CRDHandlers) ResourceUID(ctx processors.ProcessorContext, resource in
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (crd *CRDHandlers) ResourceVersion(ctx processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*v1.CustomResourceDefinition).ResourceVersion
+}
+
+// GetMetadataTags returns the tags in the metadata model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (crd *CRDHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceMetadataModel interface{}) []string {
+	return nil
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before

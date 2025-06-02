@@ -46,7 +46,6 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 		input[i] = i + 1
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	rand.Shuffle(len(input), func(i, j int) { input[i], input[j] = input[j], input[i] })
 
 	var max int32

@@ -56,6 +56,7 @@ func (s *StatKeeper) Process(tx *EventWrapper) {
 	}
 	if requestStats.Latencies == nil {
 		if err := requestStats.initSketch(); err != nil {
+			log.Warnf("could not add request latency to ddsketch: %v", err)
 			return
 		}
 		if err := requestStats.Latencies.Add(requestStats.FirstLatencySample); err != nil {

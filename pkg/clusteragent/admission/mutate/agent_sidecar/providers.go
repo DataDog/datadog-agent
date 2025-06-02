@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -55,8 +54,7 @@ func providerIsSupported(provider string) bool {
 
 // applyProviderOverrides applies the necessary overrides for the provider
 // configured. It returns a boolean that indicates if the pod was mutated.
-func applyProviderOverrides(pod *corev1.Pod) (bool, error) {
-	provider := pkgconfigsetup.Datadog().GetString("admission_controller.agent_sidecar.provider")
+func applyProviderOverrides(pod *corev1.Pod, provider string) (bool, error) {
 
 	if !providerIsSupported(provider) {
 		return false, fmt.Errorf("unsupported provider: %v", provider)
@@ -95,12 +93,12 @@ func applyFargateOverrides(pod *corev1.Pod) (bool, error) {
 	mutated := deleteConfigWebhookVolumesAndMounts(pod)
 
 	volume, volumeMount := socketsVolume()
-	injected := common.InjectVolume(pod, volume, volumeMount)
-	if injected {
+	injectedVol, injectedMount := common.InjectVolume(pod, volume, volumeMount)
+	if injectedVol {
 		common.MarkVolumeAsSafeToEvictForAutoscaler(pod, volume.Name)
 	}
 
-	mutated = mutated || injected
+	mutated = mutated || injectedVol || injectedMount
 
 	// ShareProcessNamespace is required for the process collection feature
 	if pod.Spec.ShareProcessNamespace == nil || !*pod.Spec.ShareProcessNamespace {

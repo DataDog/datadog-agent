@@ -37,12 +37,13 @@ func (suite *StoreTestSuite) TestAppendPayload() {
 	data := []byte(`{"key":"value"}`)
 	parserMap["testRoute"] = jsonParser
 	defer delete(parserMap, "testRoute")
-	err := store.AppendPayload("testRoute", data, "json", "", time.Now())
+	err := store.AppendPayload("testRoute", "1234", data, "json", "", time.Now())
 	assert.NoError(suite.T(), err)
 
 	rawPayloads := store.GetRawPayloads("testRoute")
 	assert.Len(suite.T(), rawPayloads, 1)
 	assert.Equal(suite.T(), data, rawPayloads[0].Data)
+	assert.Equal(suite.T(), "1234", rawPayloads[0].APIKey)
 
 	jsonPayloads, err := GetJSONPayloads(store, "testRoute")
 	require.NoError(suite.T(), err)
@@ -59,10 +60,10 @@ func (suite *StoreTestSuite) TestCleanUpPayloadsOlderThan() {
 	parserMap["testRoute"] = jsonParser
 	defer delete(parserMap, "testRoute")
 	// Add an old payload expected to be cleaned up first
-	err := store.AppendPayload("testRoute", []byte("{}"), "json", "", now.Add(-48*time.Hour))
+	err := store.AppendPayload("testRoute", "1234", []byte("{}"), "json", "", now.Add(-48*time.Hour))
 	require.NoError(suite.T(), err)
 
-	err = store.AppendPayload("testRoute", []byte("{}"), "json", "", now)
+	err = store.AppendPayload("testRoute", "1234", []byte("{}"), "json", "", now)
 	require.NoError(suite.T(), err)
 
 	rawPayloads := store.GetRawPayloads("testRoute")
@@ -82,10 +83,10 @@ func (suite *StoreTestSuite) TestGetRouteStats() {
 	store := suite.StoreConstructor()
 	defer store.Close()
 
-	err := store.AppendPayload("routeA", []byte("{}"), "json", "", time.Now())
+	err := store.AppendPayload("routeA", "1234", []byte("{}"), "json", "", time.Now())
 	require.NoError(suite.T(), err)
 
-	err = store.AppendPayload("routeB", []byte("{}"), "json", "", time.Now())
+	err = store.AppendPayload("routeB", "1234", []byte("{}"), "json", "", time.Now())
 	require.NoError(suite.T(), err)
 
 	stats := store.GetRouteStats()
@@ -100,7 +101,7 @@ func (suite *StoreTestSuite) TestFlush() {
 
 	parserMap["testRoute"] = jsonParser
 	defer delete(parserMap, "testRoute")
-	err := store.AppendPayload("testRoute", []byte("{}"), "json", "", time.Now())
+	err := store.AppendPayload("testRoute", "1234", []byte("{}"), "json", "", time.Now())
 	require.NoError(suite.T(), err)
 
 	store.Flush()

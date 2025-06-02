@@ -7,6 +7,6 @@ It loads the eBPF probes to watch for connections on the current host
 ## Build
 
 ```bash
-inv -e system-probe.object-files
+dda inv -e system-probe.object-files
 go build -tags linux_bpf,linux ./pkg/network/nettop
 ```

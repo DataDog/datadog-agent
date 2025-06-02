@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // team: remote-config
@@ -20,8 +20,6 @@ import (
 type Component interface {
 	// SubscribeAgentTask subscribe the remote-config client to AGENT_TASK
 	SubscribeAgentTask()
-	// SubscribeApmTracing subscribes the remote-config client to APM_TRACING
-	SubscribeApmTracing()
 	// Subscribe is the generic way to start listening to a specific product update
 	// Component can also automatically subscribe to updates by returning a `ListenerProvider` struct
 	Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
@@ -29,8 +27,9 @@ type Component interface {
 
 // Params is the input parameter struct for the RC client Component.
 type Params struct {
-	AgentName    string
-	AgentVersion string
+	AgentName     string
+	AgentVersion  string
+	IsSystemProbe bool
 }
 
 // NoneModule return a None optional type for rcclient.Component.
@@ -38,7 +37,7 @@ type Params struct {
 // This helper allows code that needs a disabled Optional type for rcclient to get it. The helper is split from
 // the implementation to avoid linking with the dependencies from rcclient.
 func NoneModule() fxutil.Module {
-	return fxutil.Component(fx.Provide(func() optional.Option[Component] {
-		return optional.NewNoneOption[Component]()
+	return fxutil.Component(fx.Provide(func() option.Option[Component] {
+		return option.None[Component]()
 	}))
 }

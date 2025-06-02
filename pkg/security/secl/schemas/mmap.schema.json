@@ -1,0 +1,47 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "mmap.schema.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "event.schema.json"
+        },
+        {
+            "$ref": "usr.schema.json"
+        },
+        {
+            "$ref": "process_context.schema.json"
+        },
+        {
+            "date": {
+                "$ref": "datetime.schema.json"
+            }
+        },
+        {
+            "properties": {
+                "mmap": {
+                    "type": "object",
+                    "required": [
+                        "address",
+                        "length",
+                        "protection"
+                    ],
+                    "properties": {
+                        "address": {
+                            "type": "string"
+                        },
+                        "length": {
+                            "type": "integer"
+                        },
+                        "protection": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "required": [
+                "mmap"
+            ]
+        }
+    ]
+}

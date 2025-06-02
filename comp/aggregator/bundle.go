@@ -11,10 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metrics-logs
+// team: agent-metric-pipelines
 
 // Bundle defines the fx options for this bundle.
-func Bundle() fxutil.BundleOptions {
+func Bundle(params demultiplexerimpl.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
-		demultiplexerimpl.Module())
+		demultiplexerimpl.Module(params))
 }

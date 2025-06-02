@@ -23,9 +23,11 @@ import (
 	"testing"
 	"time"
 
-	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+
+	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -42,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 
 	"github.com/stretchr/testify/assert"
 
@@ -51,13 +54,17 @@ import (
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent())
 	a.Concentrator = &mockConcentrator{}
-	a.TraceWriter = &mockTraceWriter{}
+	a.TraceWriter = &mockTraceWriter{
+		apiKey: conf.Endpoints[0].APIKey,
+	}
 	return a
 }
 
 type mockTraceWriter struct {
 	mu       sync.Mutex
 	payloads []*writer.SampledChunks
+
+	apiKey string
 }
 
 func (m *mockTraceWriter) Stop() {}
@@ -70,6 +77,10 @@ func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
 
 func (m *mockTraceWriter) FlushSync() error {
 	panic("not implemented")
+}
+
+func (m *mockTraceWriter) UpdateAPIKey(_, newKey string) {
+	m.apiKey = newKey
 }
 
 type mockConcentrator struct {
@@ -635,42 +646,6 @@ func TestConcentratorInput(t *testing.T) {
 			},
 		},
 		{
-			name: "containerID no orchestrator",
-			in: &api.Payload{
-				TracerPayload: &pb.TracerPayload{
-					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
-					ContainerID: "no-orch",
-				},
-			},
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:       rootSpan,
-						TraceChunk: spansToChunk(rootSpan),
-					},
-				},
-			},
-		},
-		{
-			name: "containerID feature disabled",
-			in: &api.Payload{
-				TracerPayload: &pb.TracerPayload{
-					Chunks:      []*pb.TraceChunk{spansToChunk(rootSpan)},
-					ContainerID: "feature_disabled",
-				},
-			},
-			withFargate: true,
-			features:    "disable_cid_stats",
-			expected: stats.Input{
-				Traces: []traceutil.ProcessedTrace{
-					{
-						Root:       rootSpan,
-						TraceChunk: spansToChunk(rootSpan),
-					},
-				},
-			},
-		},
-		{
 			name: "client computed stats",
 			in: &api.Payload{
 				TracerPayload: &pb.TracerPayload{
@@ -1049,7 +1024,7 @@ func TestSampling(t *testing.T) {
 		probabilisticSamplerSamplingPercentage                                      float32
 	}
 	// configureAgent creates a new agent using the provided configuration.
-	configureAgent := func(ac agentConfig) *Agent {
+	configureAgent := func(ac agentConfig, statsd statsd.ClientInterface) *Agent {
 		cfg := &config.AgentConfig{
 			RareSamplerEnabled:                     !ac.rareSamplerDisabled,
 			RareSamplerCardinality:                 200,
@@ -1065,20 +1040,21 @@ func TestSampling(t *testing.T) {
 			RareSamplerEnabled: !ac.rareSamplerDisabled,
 		}
 
-		statsd := &statsd.NoOpClient{}
 		a := &Agent{
-			NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg, statsd),
-			ErrorsSampler:        sampler.NewErrorsSampler(cfg, statsd),
-			PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
-			RareSampler:          sampler.NewRareSampler(cfg, statsd),
-			ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg, statsd),
+			NoPrioritySampler:    sampler.NewNoPrioritySampler(cfg),
+			ErrorsSampler:        sampler.NewErrorsSampler(cfg),
+			PrioritySampler:      sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+			RareSampler:          sampler.NewRareSampler(cfg),
+			ProbabilisticSampler: sampler.NewProbabilisticSampler(cfg),
+			SamplerMetrics:       sampler.NewMetrics(statsd),
 			conf:                 cfg,
 		}
+		a.SamplerMetrics.Add(a.NoPrioritySampler, a.ErrorsSampler, a.PrioritySampler, a.RareSampler)
 		if ac.errorsSampled {
-			a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg, statsd)
+			a.ErrorsSampler = sampler.NewErrorsSampler(sampledCfg)
 		}
 		if ac.noPrioritySampled {
-			a.NoPrioritySampler = sampler.NewNoPrioritySampler(sampledCfg, statsd)
+			a.NoPrioritySampler = sampler.NewNoPrioritySampler(sampledCfg)
 		}
 		return a
 	}
@@ -1095,11 +1071,13 @@ func TestSampling(t *testing.T) {
 		}
 		pt := traceutil.ProcessedTrace{TraceChunk: testutil.TraceChunkWithSpan(root), Root: root}
 		pt.TraceChunk.Priority = int32(p)
+		pt.TracerEnv = "test-env"
 		return pt
 	}
 	type samplingTestCase struct {
-		trace       traceutil.ProcessedTrace
-		wantSampled bool
+		trace        traceutil.ProcessedTrace
+		wantSampled  bool
+		expectStatsd func(statsdClient *mockStatsd.MockClientInterface)
 	}
 
 	for name, tt := range map[string]struct {
@@ -1109,80 +1087,262 @@ func TestSampling(t *testing.T) {
 		"nopriority-unsampled": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: false},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityNone, false),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:no_priority", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"nopriority-sampled": {
 			agentConfig: agentConfig{noPrioritySampled: true},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityNone, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"prio-unsampled": {
 			agentConfig: agentConfig{rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, false),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:auto_drop", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"prio-sampled": {
 			agentConfig: agentConfig{},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoKeep, false), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoKeep, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"error-unsampled": {
 			agentConfig: agentConfig{errorsSampled: false, rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityNone, true), wantSampled: false},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityNone, true),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:error", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"error-sampled": {
 			agentConfig: agentConfig{errorsSampled: true},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityNone, true), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityNone, true),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"error-sampled-prio-unsampled": {
 			agentConfig: agentConfig{errorsSampled: true},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"error-sampled-prio-sampled": {
 			agentConfig: agentConfig{errorsSampled: false},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoKeep, true), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoKeep, true),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"error-prio-sampled": {
 			agentConfig: agentConfig{errorsSampled: true},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoKeep, true), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoKeep, true),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"error-prio-unsampled": {
 			agentConfig: agentConfig{errorsSampled: false, rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: false},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:error", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"rare-sampler-catch-unsampled": {
 			agentConfig: agentConfig{},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"rare-sampler-catch-sampled": {
 			agentConfig: agentConfig{},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoKeep, false), wantSampled: true},
-				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoKeep, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, false),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:auto_drop", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"rare-sampler-disabled": {
 			agentConfig: agentConfig{rareSamplerDisabled: true},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, false), wantSampled: false},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, false),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:auto_drop", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		// These tests use 0% and 100% to ensure traces are sampled or not by the sampler. They are
@@ -1191,81 +1351,230 @@ func TestSampling(t *testing.T) {
 		"probabilistic-no-prio-100": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityNone, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-no-prio-0": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: false},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityNone, false),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-prio-drop-100": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityUserDrop, false), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityUserDrop, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-prio-drop-0": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityUserDrop, false), wantSampled: false},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityUserDrop, false),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-prio-keep-100": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityUserKeep, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-prio-keep-0": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: false},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityUserKeep, false),
+					wantSampled: false,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-rare-100": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityNone, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-rare-0": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityNone, false), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityNone, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-rare-prio-0": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: false, probabilisticSampler: true, probabilisticSamplerSamplingPercentage: 0},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityUserKeep, false), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityUserKeep, false),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:rare", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(1), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-error-100": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, errorsSampled: true, probabilisticSamplerSamplingPercentage: 100},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 		"probabilistic-error-0": {
 			agentConfig: agentConfig{noPrioritySampled: false, rareSamplerDisabled: true, probabilisticSampler: true, errorsSampled: true, probabilisticSamplerSamplingPercentage: 0},
 			testCases: []samplingTestCase{
-				{trace: generateProcessedTrace(sampler.PriorityAutoDrop, true), wantSampled: true},
+				{
+					trace:       generateProcessedTrace(sampler.PriorityAutoDrop, true),
+					wantSampled: true,
+					expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+						statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:error", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:error", "target_service:serv1", "target_env:test-env"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+						statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+					},
+				},
 			},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			a := configureAgent(tt.agentConfig)
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			statsdClient := mockStatsd.NewMockClientInterface(ctrl)
+			a := configureAgent(tt.agentConfig, statsdClient)
 			for _, tc := range tt.testCases {
 				sampled, _ := a.traceSampling(time.Now(), &info.TagStats{}, &tc.trace)
 				assert.EqualValues(t, tc.wantSampled, sampled)
+				require.NotNil(t, tc.expectStatsd)
+				tc.expectStatsd(statsdClient)
+				a.SamplerMetrics.Report()
 			}
 		})
 	}
 }
 
-func TestSample(t *testing.T) {
+func TestSampleTrace(t *testing.T) {
 	now := time.Now()
 	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
 	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32) traceutil.ProcessedTrace {
@@ -1280,6 +1589,271 @@ func TestSample(t *testing.T) {
 		chunk := testutil.TraceChunkWithSpan(root)
 		if decisionMaker != "" {
 			chunk.Tags["_dd.p.dm"] = decisionMaker
+			chunk.GetSpans()[0].Meta["_dd.p.dm"] = decisionMaker
+		}
+		pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
+		pt.TraceChunk.Priority = int32(priority)
+		return pt
+	}
+	tests := map[string]struct {
+		trace                   traceutil.ProcessedTrace
+		keep                    bool
+		keepWithFeature         bool
+		expectStatsd            func(statsdClient *mockStatsd.MockClientInterface)
+		expectStatsdWithFeature func(statsdClient *mockStatsd.MockClientInterface)
+	}{
+		"userdrop-error-no-dm-sampled": {
+			trace:           genSpan("", sampler.PriorityUserDrop, 1),
+			keep:            false,
+			keepWithFeature: true,
+			expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:manual_drop", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+		},
+		"userdrop-error-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1),
+			keep:            false,
+			keepWithFeature: false,
+			expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:manual_drop", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:manual_drop", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+		},
+		"userdrop-error-agent-dm-sampled": {
+			trace:           genSpan("-1", sampler.PriorityUserDrop, 1),
+			keep:            false,
+			keepWithFeature: true,
+			expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:manual_drop", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+		},
+		"userkeep-error-no-dm-sampled": {
+			trace:           genSpan("", sampler.PriorityUserKeep, 1),
+			keep:            true,
+			keepWithFeature: true,
+			expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+		},
+		"userkeep-error-agent-dm-sampled": {
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1),
+			keep:            true,
+			keepWithFeature: true,
+			expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:manual_keep", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+		},
+		"autodrop-error-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
+			keep:            true,
+			keepWithFeature: true,
+			expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:error", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+		},
+		"autodrop-not-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0),
+			keep:            false,
+			keepWithFeature: false,
+			expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:auto_drop", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:priority", "sampling_priority:auto_drop", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+		},
+		"autokeep-dm-sampled": {
+			trace:           genSpan("-9", sampler.PriorityAutoKeep, 0),
+			keep:            true,
+			keepWithFeature: true,
+			expectStatsd: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+			expectStatsdWithFeature: func(statsdClient *mockStatsd.MockClientInterface) {
+				statsdClient.EXPECT().Count(sampler.MetricSamplerKept, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricSamplerSeen, int64(1), []string{"sampler:probabilistic", "target_service:serv1"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:no_priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(0), []string{"sampler:error"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricSamplerSize, float64(1), []string{"sampler:priority"}, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareHits, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Count(sampler.MetricsRareMisses, int64(0), nil, gomock.Any()).Times(1)
+				statsdClient.EXPECT().Gauge(sampler.MetricsRareShrinks, float64(0), nil, gomock.Any()).Times(1)
+			},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			statsd := mockStatsd.NewMockClientInterface(ctrl)
+			metrics := sampler.NewMetrics(statsd)
+			a := &Agent{
+				NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+				ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+				PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+				RareSampler:       sampler.NewRareSampler(config.New()),
+				EventProcessor:    newEventProcessor(cfg, statsd),
+				SamplerMetrics:    metrics,
+				conf:              cfg,
+			}
+			a.SamplerMetrics.Add(a.NoPrioritySampler, a.ErrorsSampler, a.PrioritySampler, a.RareSampler)
+			tt.expectStatsd(statsd)
+			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			metrics.Report()
+			assert.Equal(t, tt.keep, keep)
+			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
+			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
+			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
+			tt.expectStatsdWithFeature(statsd)
+			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			metrics.Report()
+			assert.Equal(t, tt.keepWithFeature, keep)
+			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
+		})
+	}
+}
+
+func TestSample(t *testing.T) {
+	now := time.Now()
+	cfg := &config.AgentConfig{TargetTPS: 5, ErrorTPS: 1000, Features: make(map[string]struct{})}
+	genSpan := func(decisionMaker string, priority sampler.SamplingPriority, err int32, exceptionInSpanEvent bool) traceutil.ProcessedTrace {
+		root := &pb.Span{
+			Service:  "serv1",
+			Start:    now.UnixNano(),
+			Duration: (100 * time.Millisecond).Nanoseconds(),
+			Metrics:  map[string]float64{"_top_level": 1},
+			Error:    err, // If 1, the Error Sampler will keep the trace, if 0, it will not be sampled
+			Meta:     map[string]string{},
+		}
+		if exceptionInSpanEvent {
+			root.Meta["_dd.span_events.has_exception"] = "true" // the Error Sampler will keep the trace
+		}
+		chunk := testutil.TraceChunkWithSpan(root)
+		if decisionMaker != "" {
+			chunk.Tags["_dd.p.dm"] = decisionMaker
+			chunk.GetSpans()[0].Meta["_dd.p.dm"] = decisionMaker
 		}
 		pt := traceutil.ProcessedTrace{TraceChunk: chunk, Root: root}
 		pt.TraceChunk.Priority = int32(priority)
@@ -1288,61 +1862,102 @@ func TestSample(t *testing.T) {
 	statsd := &statsd.NoOpClient{}
 	tests := map[string]struct {
 		trace           traceutil.ProcessedTrace
+		etsEnabled      bool
 		keep            bool
 		keepWithFeature bool
 	}{
-		"userdrop-error-no-dm-sampled": {
-			trace:           genSpan("", sampler.PriorityUserDrop, 1),
-			keep:            false,
-			keepWithFeature: true,
-		},
 		"userdrop-error-manual-dm-unsampled": {
-			trace:           genSpan("-4", sampler.PriorityUserDrop, 1),
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
 			keep:            false,
 			keepWithFeature: false,
 		},
-		"userdrop-error-agent-dm-sampled": {
-			trace:           genSpan("-1", sampler.PriorityUserDrop, 1),
-			keep:            false,
-			keepWithFeature: true,
-		},
 		"userkeep-error-no-dm-sampled": {
-			trace:           genSpan("", sampler.PriorityUserKeep, 1),
+			trace:           genSpan("", sampler.PriorityUserKeep, 1, false),
 			keep:            true,
 			keepWithFeature: true,
 		},
 		"userkeep-error-agent-dm-sampled": {
-			trace:           genSpan("-1", sampler.PriorityUserKeep, 1),
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1, false),
 			keep:            true,
 			keepWithFeature: true,
 		},
 		"autodrop-error-sampled": {
-			trace:           genSpan("", sampler.PriorityAutoDrop, 1),
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1, false),
 			keep:            true,
 			keepWithFeature: true,
 		},
 		"autodrop-not-sampled": {
-			trace:           genSpan("", sampler.PriorityAutoDrop, 0),
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, false),
+			keep:            false,
+			keepWithFeature: false,
+		},
+		"ets-userdrop-error-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-userdrop-errorspanevent-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-userdrop-manual-dm-unsampled": {
+			trace:           genSpan("-4", sampler.PriorityUserDrop, 0, false),
+			etsEnabled:      true,
+			keep:            false,
+			keepWithFeature: false,
+		},
+		"ets-userkeep-error-no-dm-sampled": {
+			trace:           genSpan("", sampler.PriorityUserKeep, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-userkeep-error-agent-dm-sampled": {
+			trace:           genSpan("-1", sampler.PriorityUserKeep, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-autodrop-error-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 1, false),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-autodrop-errorspanevent-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, true),
+			etsEnabled:      true,
+			keep:            true,
+			keepWithFeature: true,
+		},
+		"ets-autodrop-not-sampled": {
+			trace:           genSpan("", sampler.PriorityAutoDrop, 0, false),
+			etsEnabled:      true,
 			keep:            false,
 			keepWithFeature: false,
 		},
 	}
 	for name, tt := range tests {
+		cfg.ErrorTrackingStandalone = tt.etsEnabled
 		a := &Agent{
-			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
-			ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
-			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
-			RareSampler:       sampler.NewRareSampler(config.New(), statsd),
+			NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+			ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+			PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+			RareSampler:       sampler.NewRareSampler(config.New()),
 			EventProcessor:    newEventProcessor(cfg, statsd),
+			SamplerMetrics:    sampler.NewMetrics(statsd),
 			conf:              cfg,
 		}
 		t.Run(name, func(t *testing.T) {
-			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
 		})
@@ -1366,11 +1981,12 @@ func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
 	pt.TraceChunk.Priority = -1
 	statsd := &statsd.NoOpClient{}
 	a := &Agent{
-		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
-		ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
-		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
-		RareSampler:       sampler.NewRareSampler(config.New(), statsd),
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
+		RareSampler:       sampler.NewRareSampler(config.New()),
 		EventProcessor:    newEventProcessor(cfg, statsd),
+		SamplerMetrics:    sampler.NewMetrics(statsd),
 		conf:              cfg,
 	}
 	keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
@@ -1387,11 +2003,12 @@ func TestPartialSamplingFree(t *testing.T) {
 		Concentrator:      &mockConcentrator{},
 		Blacklister:       filters.NewBlacklister(cfg.Ignore["resource"]),
 		Replacer:          filters.NewReplacer(cfg.ReplaceTags),
-		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
-		ErrorsSampler:     sampler.NewErrorsSampler(cfg, statsd),
-		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
+		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg),
+		ErrorsSampler:     sampler.NewErrorsSampler(cfg),
+		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}),
 		EventProcessor:    newEventProcessor(cfg, statsd),
-		RareSampler:       sampler.NewRareSampler(config.New(), statsd),
+		RareSampler:       sampler.NewRareSampler(config.New()),
+		SamplerMetrics:    sampler.NewMetrics(statsd),
 		TraceWriter:       &mockTraceWriter{},
 		conf:              cfg,
 		Timing:            &timing.NoopReporter{},
@@ -1665,7 +2282,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 // Mimics behaviour of agent Process function
 func formatTrace(t pb.Trace) pb.Trace {
 	for _, span := range t {
-		a := &Agent{obfuscator: obfuscate.NewObfuscator(obfuscate.Config{}), conf: config.New()}
+		a := &Agent{obfuscatorConf: &obfuscate.Config{}, conf: config.New()}
 		a.obfuscateSpan(span)
 		a.Truncate(span)
 	}
@@ -1704,6 +2321,8 @@ func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {
 }
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
+
+func (n *noopTraceWriter) UpdateAPIKey(_, _ string) {}
 
 func benchThroughput(file string) func(*testing.B) {
 	return func(b *testing.B) {
@@ -1817,12 +2436,144 @@ func tracesFromFile(file string) (raw []byte, count int, err error) {
 
 func TestConvertStats(t *testing.T) {
 	testCases := []struct {
+		name          string
+		features      string
+		withFargate   bool
 		in            *pb.ClientStatsPayload
 		lang          string
 		tracerVersion string
+		containerID   string
+		obfVersion    string
 		out           *pb.ClientStatsPayload
 	}{
 		{
+			name:     "containerID feature enabled, no fargate",
+			features: "enable_cid_stats",
+			in: &pb.ClientStatsPayload{
+				Hostname:        "tracer_hots",
+				Env:             "tracer_env",
+				Version:         "code_version",
+				ProcessTags:     "binary_name:bin",
+				ProcessTagsHash: 123456789,
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name------",
+								Resource:       "resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "blocked_resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			containerID:   "abc123",
+			out: &pb.ClientStatsPayload{
+				Hostname:        "tracer_hots",
+				Env:             "tracer_env",
+				Version:         "code_version",
+				Lang:            "java",
+				TracerVersion:   "v1",
+				ContainerID:     "abc123",
+				ProcessTags:     "binary_name:bin",
+				ProcessTagsHash: 123456789,
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "resource",
+								HTTPStatusCode: 200,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:       "pre-obfuscated",
+			obfVersion: strconv.Itoa(obfuscate.Version + 1),
+			in: &pb.ClientStatsPayload{
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			containerID:   "abc123",
+			out: &pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				ContainerID:   "abc123",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:     "containerID feature disabled, no fargate",
+			features: "disable_cid_stats",
 			in: &pb.ClientStatsPayload{
 				Hostname: "tracer_hots",
 				Env:      "tracer_env",
@@ -1859,12 +2610,86 @@ func TestConvertStats(t *testing.T) {
 			},
 			lang:          "java",
 			tracerVersion: "v1",
+			containerID:   "abc123",
 			out: &pb.ClientStatsPayload{
 				Hostname:      "tracer_hots",
 				Env:           "tracer_env",
 				Version:       "code_version",
 				Lang:          "java",
 				TracerVersion: "v1",
+				ContainerID:   "",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "resource",
+								HTTPStatusCode: 200,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name_2",
+								Resource:       "SET",
+								HTTPStatusCode: 200,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:        "containerID feature not configured, with fargate",
+			features:    "",
+			withFargate: true,
+			in: &pb.ClientStatsPayload{
+				Hostname: "tracer_hots",
+				Env:      "tracer_env",
+				Version:  "code_version",
+				Stats: []*pb.ClientStatsBucket{
+					{
+						Start:    1,
+						Duration: 2,
+						Stats: []*pb.ClientGroupedStats{
+							{
+								Service:        "service",
+								Name:           "name------",
+								Resource:       "resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "service",
+								Name:           "name",
+								Resource:       "blocked_resource",
+								HTTPStatusCode: 400,
+								Type:           "web",
+							},
+							{
+								Service:        "redis_service",
+								Name:           "name-2",
+								Resource:       "SET k v",
+								HTTPStatusCode: 400,
+								Type:           "redis",
+							},
+						},
+					},
+				},
+			},
+			lang:          "java",
+			tracerVersion: "v1",
+			containerID:   "abc123",
+			out: &pb.ClientStatsPayload{
+				Hostname:      "tracer_hots",
+				Env:           "tracer_env",
+				Version:       "code_version",
+				Lang:          "java",
+				TracerVersion: "v1",
+				ContainerID:   "abc123",
 				Stats: []*pb.ClientStatsBucket{
 					{
 						Start:    1,
@@ -1890,15 +2715,27 @@ func TestConvertStats(t *testing.T) {
 			},
 		},
 	}
-	a := Agent{
-		Blacklister: filters.NewBlacklister([]string{"blocked_resource"}),
-		obfuscator:  obfuscate.NewObfuscator(obfuscate.Config{}),
-		Replacer:    filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
-		conf:        &config.AgentConfig{DefaultEnv: "agent_env", Hostname: "agent_hostname", MaxResourceLen: 5000},
-	}
 	for _, testCase := range testCases {
-		out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion)
-		assert.Equal(t, testCase.out, out)
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := config.New()
+			cfg.DefaultEnv = "agent_env"
+			cfg.Hostname = "agent_hostname"
+			cfg.MaxResourceLen = 5000
+			cfg.Features[testCase.features] = struct{}{}
+			if testCase.withFargate {
+				cfg.FargateOrchestrator = config.OrchestratorECS
+			}
+
+			a := Agent{
+				Blacklister:    filters.NewBlacklister([]string{"blocked_resource"}),
+				obfuscatorConf: &obfuscate.Config{},
+				Replacer:       filters.NewReplacer([]*config.ReplaceRule{{Name: "http.status_code", Pattern: "400", Re: regexp.MustCompile("400"), Repl: "200"}}),
+				conf:           cfg,
+			}
+
+			out := a.processStats(testCase.in, testCase.lang, testCase.tracerVersion, testCase.containerID, testCase.obfVersion)
+			assert.Equal(t, testCase.out, out)
+		})
 	}
 }
 
@@ -2471,13 +3308,6 @@ func TestProcessedTrace(t *testing.T) {
 			Meta:     map[string]string{"env": "test", "version": "v1.0.1"},
 		}
 		chunk := testutil.TraceChunkWithSpan(root)
-		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
-			if cid == "1" {
-				return []string{"image_tag:abc", "git.commit.sha:abc123"}, nil
-			}
-			return nil, nil
-		}
 		// Only fill out the relevant fields for processedTrace().
 		apiPayload := &api.Payload{
 			TracerPayload: &pb.TracerPayload{
@@ -2489,7 +3319,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		pt := processedTrace(apiPayload, chunk, root, "abc", "abc123")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -2514,13 +3344,6 @@ func TestProcessedTrace(t *testing.T) {
 			Meta:     map[string]string{"env": "test", "version": "v1.0.1", "_dd.git.commit.sha": "abc123"},
 		}
 		chunk := testutil.TraceChunkWithSpan(root)
-		cfg := config.New()
-		cfg.ContainerTags = func(cid string) ([]string, error) {
-			if cid == "1" {
-				return []string{"image_tag:abc", "git.commit.sha:def456"}, nil
-			}
-			return nil, nil
-		}
 		// Only fill out the relevant fields for processedTrace().
 		apiPayload := &api.Payload{
 			TracerPayload: &pb.TracerPayload{
@@ -2532,7 +3355,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		pt := processedTrace(apiPayload, chunk, root, "abc", "def456")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -2572,7 +3395,7 @@ func TestProcessedTrace(t *testing.T) {
 			},
 			ClientDroppedP0s: 1,
 		}
-		pt := processedTrace(apiPayload, chunk, root, "1", cfg)
+		pt := processedTrace(apiPayload, chunk, root, "", "")
 		expectedPt := &traceutil.ProcessedTrace{
 			TraceChunk:             chunk,
 			Root:                   root,
@@ -2585,4 +3408,16 @@ func TestProcessedTrace(t *testing.T) {
 		}
 		assert.Equal(t, expectedPt, pt)
 	})
+}
+
+func TestUpdateAPIKey(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	agnt.UpdateAPIKey("test", "foo")
+	tw := agnt.TraceWriter.(*mockTraceWriter)
+	assert.Equal(t, "foo", tw.apiKey)
 }

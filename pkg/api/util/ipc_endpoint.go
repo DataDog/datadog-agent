@@ -6,7 +6,6 @@
 package util
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,7 +53,7 @@ func (end *IPCEndpoint) DoGet(options ...GetOption) ([]byte, error) {
 	res, err := DoGet(end.client, target.String(), conn)
 	if err != nil {
 		var errMap = make(map[string]string)
-		_ = json.Unmarshal(res, &errMap) //nolint:errcheck
+		_ = json.Unmarshal(res, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if errStr, found := errMap["error"]; found {
 			return nil, errors.New(errStr)
@@ -123,10 +122,8 @@ func NewIPCEndpoint(config config.Component, endpointPath string, options ...End
 	if err != nil {
 		return nil, fmt.Errorf("%s: %s", cmdHostKey, err)
 	}
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
+
+	client := GetClient()
 
 	ipcPort := config.GetInt("cmd_port")
 	targetURL := url.URL{

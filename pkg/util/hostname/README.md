@@ -16,6 +16,7 @@ Agent V5 and the previous versions of the hostname detection. We need to be back
 detected by the Agent might create a new host in the backend and break dashboards, monitors, ...
 
 Each `provider` in `providerCatalog` has:
+
 - `name`: unique name to identify it
 - `cb`: a call back to fetch the hostname. The callback will take the hostname previously detected by other providers in
   the `providerCatalog` list. Provider like `aws` act differently based on the result from other providers.
@@ -23,10 +24,11 @@ Each `provider` in `providerCatalog` has:
 - `expvarName`: the provider name to use in expvar. This is then used by the status page.
 
 When calling a provider we always:
+
 - If successful and `stopIfSuccessful` is set to true:
-    1. Update cache
-    2. Set hostname provider in `goexpvar` and `inventories`
-    4. Return
+  1. Update cache
+  2. Set hostname provider in `goexpvar` and `inventories`
+  3. Return
 - If unsuccessful: we export the error return to expvar to be displayed by the status page
 
 ### The current logic
@@ -52,58 +54,122 @@ This means that we don't stop when a provider found a hostname but continue down
 provider is pass to the next one unless it returned an error.
 
 The notion of `isOSHostnameUsable` means:
+
 - If we're not running in a containerized environment -> True
 - Else if we can fetch the container UTS mode and it's not `host` or 'unknown' -> False
 - Else if we're on k8s and running inside a container without `hostNetwork` set to true -> False
 - Else -> True
 
 6. **FQDN**
-    1. If `isOSHostnameUsable` is false we return an error
-    2. If `hostname_fqdn` config setting is set to true we fetch the FQDN:
-        1. On Linux we use `/bin/hostname -f`
-        2. On Windows we use `golang.org/x/sys/windows:GetHostByName`
-    3. Else we return an error
+   1. If `isOSHostnameUsable` is false we return an error
+   2. If `hostname_fqdn` config setting is set to true we fetch the FQDN:
+      1. On Linux we use `/bin/hostname -f`
+      2. On Windows we use `golang.org/x/sys/windows:GetHostByName`
+   3. Else we return an error
 7. **CONTAINER**
-    1. If we're running in a containerized environment we try to get the hostname from, in order: `kube_apiserver`,
-       `docker` and `kubelet`.
+   1. If we're running in a containerized environment we try to get the hostname from, in order: `kube_apiserver`,
+      `docker` and `kubelet`.
 8. **OS**
-    1. If `isOSHostnameUsable` is true and previous providers didn't detect a hostname we use `os.Hostname()`
+   1. If `isOSHostnameUsable` is true and previous providers didn't detect a hostname we use `os.Hostname()`
 9. **EC2**
-    1. If we're running on a ECS instance or `ec2_prioritize_instance_id_as_hostname` config setting is set to true or
-       the previously detected hostname is a default EC2 hostname: we try to fetch the EC2 instance ID.
-    2. Else
-        1. If the previously detected hostname is a Windows default hostname for EC2:
-            1. We fetch the instance ID and log a message about using `ec2_use_windows_prefix_detection` if it's
-               different than the previously detected hostname.
+   1. We try to fetch the EC2 instance ID if one of the following condition is met:
+      - we're running on a ECS instance.
+      - `ec2_prioritize_instance_id_as_hostname` config setting is set to `true`.
+      - the previously detected hostname is a default EC2 hostname.
+      - `ec2_prefer_imdsv2` is set to `true`.
+      - `ec2_imdsv2_transition_payload_enabled` is set to `true`.
+   2. Else
+      1. If the previously detected hostname is a Windows default hostname for EC2:
+         1. We fetch the instance ID and log a message about using `ec2_use_windows_prefix_detection` if it's
+            different than the previously detected hostname.
 
 # Hostnames and Aliases on EC2
 
-Determining hostname and aliases on EC2 is particularly complicated.
-EC2 offers two versions of its metadata service, v1 and v2.
-The v1 interface can be disabled via the EC2 API.
-However, the v2 interface verifies the IP hop count in requests, and by default will not respond to TCP connections from more than one hop away.
-This causes a problem when the Agent tries to access IMDSv2 within a container that does not use the host's network, which introduces a second hop.
-Finally, the `ec2_prefer_imdsv2` config flag affects the agent's behavior.
+Determining the hostname and aliases on EC2 is particularly complex due to the interplay between
+AWS's Instance Metadata Service (IMDS) versions and Agent configuration.
 
-The results are as follows:
+EC2 supports two versions of IMDS: v1 and v2. IMDSv1 can be disabled via the EC2 API, while IMDSv2
+enforces a hop limit for requests. By default, IMDSv2 will not respond to requests that originate
+more than one network hop away. This becomes problematic when the Agent runs inside a container
+without host networking, introducing an extra hop and potentially blocking access to IMDSv2.
 
-| *IMDS*    | *ec2_prefer_imdsv2*   | *hops*    | _hostname_    | _aliases_     |
-|--------   |---------------------  |--------   |-------------  |------------   |
-| none      | false                 | 1         | os            | none          |
-| none      | true                  | 1         | os            | none          |
-| v2 only   | false                 | 1         | os            | none          |
-| v2 only   | true                  | 1         | aws (i-..)    | aws (i-..)    |
-| v1+v2     | false                 | 1         | aws (i-..)    | aws (i-..)    |
-| v1+v2     | true                  | 1         | aws (i-..)    | aws (i-..)    |
-| none      | false                 | 2+        | os            | none          |
-| none      | true                  | 2+        | os            | none          |
-| v2 only   | false                 | 2+        | os            | none          |
-| v2 only   | true                  | 2+        | os            | none          |
-| v1+v2     | false                 | 2+        | os            | aws (i-..)    |
-| v1+v2     | true                  | 2+        | os            | aws (i-..)    |
+The Agent’s behavior is also influenced by two configuration flags: `ec2_prefer_imdsv2` and
+`ec2_imdsv2_transition_payload_enabled`. Depending on the combination of these flags and the IMDS
+availability, the Agent may take different paths to resolve the instance ID and determine the
+appropriate hostname and aliases.
 
- * The first column describes the EC2 IMDS configuration: "none" means IMDS is entirely disabled; "v2 only" means that IMDSv1 is disabled, and "v1+v2" is the default setting with both versions available
- * The second column is the `ec2_prefer_imdsv2` configuration value.
- * The third column contains the number of IP hops between the Agent and the IMDS, assuming the default limit of 1.
- * The fourth column describes the selected hostname source
- * The fifth column gives the discovered host aliased, if any (determined in pkg/util/ec2).
+IMDS configuration options are:
+
+- "none" means IMDS is entirely disabled;
+- "v2 only" means that IMDSv1 is disabled,
+- "v1+v2" is the default setting, with both versions available
+
+## Hostname Resolution Matrix
+
+### Hops Needed = 1
+
+#### IMDS = none
+
+| `ec2_prefer_imdsv2` | `ec2_imdsv2_transition_payload_enabled` | Hostname | Aliases |
+| ------------------- | --------------------------------------- | -------- | ------- |
+| false               | true                                    | os       | none    |
+| true                | true                                    | os       | none    |
+| false               | false                                   | os       | none    |
+| true                | false                                   | os       | none    |
+
+#### IMDS = v2 only
+
+| `ec2_prefer_imdsv2` | `ec2_imdsv2_transition_payload_enabled` | Hostname   | Aliases    |
+| ------------------- | --------------------------------------- | ---------- | ---------- |
+| false               | true                                    | aws (i-..) | aws (i-..) |
+| true                | true                                    | aws (i-..) | aws (i-..) |
+| false               | false                                   | os         | aws (i-..) |
+| true                | false                                   | aws (i-..) | aws (i-..) |
+
+#### IMDS = v1+v2
+
+| `ec2_prefer_imdsv2` | `ec2_imdsv2_transition_payload_enabled` | Hostname   | Aliases    |
+| ------------------- | --------------------------------------- | ---------- | ---------- |
+| false               | true                                    | aws (i-..) | aws (i-..) |
+| true                | true                                    | aws (i-..) | aws (i-..) |
+| false               | false                                   | aws (i-..) | aws (i-..) |
+| true                | false                                   | aws (i-..) | aws (i-..) |
+
+---
+
+### Hops Needed = 2
+
+#### IMDS = none
+
+| `ec2_prefer_imdsv2` | `ec2_imdsv2_transition_payload_enabled` | Hostname | Aliases |
+| ------------------- | --------------------------------------- | -------- | ------- |
+| false               | true                                    | os       | none    |
+| true                | true                                    | os       | none    |
+| false               | false                                   | os       | none    |
+| true                | false                                   | os       | none    |
+
+#### IMDS = v2 only
+
+| `ec2_prefer_imdsv2` | `ec2_imdsv2_transition_payload_enabled` | Hostname | Aliases |
+| ------------------- | --------------------------------------- | -------- | ------- |
+| false               | true                                    | os       | none    |
+| true                | true                                    | os       | none    |
+| false               | false                                   | os       | none    |
+| true                | false                                   | os       | none    |
+
+#### IMDS = v1+v2
+
+| `ec2_prefer_imdsv2` | `ec2_imdsv2_transition_payload_enabled` | Hostname   | Aliases    |
+| ------------------- | --------------------------------------- | ---------- | ---------- |
+| false               | true                                    | os         | aws (i-..) |
+| true                | true                                    | os         | aws (i-..) |
+| false               | false                                   | aws (i-..) | aws (i-..) |
+| true                | false                                   | os         | aws (i-..) |
+
+---
+
+### Notes
+
+- **aws (i-..)**: AWS-assigned hostname format including the EC2 instance ID.
+- **os**: The machine’s operating system-provided hostname.
+- **Aliases none**: No alternative hostname aliases available.

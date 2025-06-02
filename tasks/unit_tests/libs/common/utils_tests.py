@@ -4,7 +4,6 @@ from unittest import mock
 
 from tasks.libs.common.utils import (
     running_in_ci,
-    running_in_circleci,
     running_in_github_actions,
     running_in_gitlab_ci,
     running_in_pre_commit,
@@ -19,16 +18,12 @@ class TestRunningIn(unittest.TestCase):
             ("PRE_COMMIT", "", False, running_in_pre_commit),
             ("PYAPP", "1", True, running_in_pyapp),
             ("PYAPP", "", False, running_in_pyapp),
-            ("CIRCLECI", "true", True, running_in_circleci),
-            ("CIRCLECI", "", False, running_in_circleci),
             ("GITLAB_CI", "true", True, running_in_gitlab_ci),
             ("GITLAB_CI", "", False, running_in_gitlab_ci),
             ("GITHUB_ACTIONS", "true", True, running_in_github_actions),
             ("GITHUB_ACTIONS", "", False, running_in_github_actions),
             ("GITHUB_ACTIONS", "true", True, running_in_ci),
             ("GITLAB_CI", "true", True, running_in_ci),
-            ("CIRCLECI", "true", True, running_in_ci),
-            ("CIRCLECI", "false", False, running_in_ci),
             ("GITHUB_ACTIONS", "false", False, running_in_ci),
             ("GITLAB_CI", "false", False, running_in_ci),
         ]

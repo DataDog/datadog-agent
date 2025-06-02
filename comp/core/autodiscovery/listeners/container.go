@@ -9,13 +9,13 @@ package listeners
 
 import (
 	"errors"
+	"maps"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -23,37 +23,39 @@ import (
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
-	newIdentifierLabel    = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
+	newIdentifierLabel        = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel     = "com.datadoghq.sd.check.id"
+	tolerateUnreadyAnnotation = "ad.datadoghq.com/tolerate-unready"
 )
 
 // ContainerListener listens to container creation through a subscription to the
 // workloadmeta store.
 type ContainerListener struct {
 	workloadmetaListener
+	tagger tagger.Component
 }
 
 // NewContainerListener returns a new ContainerListener.
-func NewContainerListener(_ Config, wmeta optional.Option[workloadmeta.Component], telemetryStore *telemetry.Store) (ServiceListener, error) {
+func NewContainerListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
 		AddKind(workloadmeta.KindContainer).Build()
 
-	wmetaInstance, ok := wmeta.Get()
+	wmetaInstance, ok := options.Wmeta.Get()
 	if !ok {
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance, telemetryStore)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance, options.Telemetry)
 	if err != nil {
 		return nil, err
 	}
+	l.tagger = options.Tagger
 
 	return l, nil
 }
@@ -114,7 +116,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	svc := &service{
 		entity:   container,
-		tagsHash: tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID).String(), tagger.ChecksCardinality()),
+		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), types.ChecksConfigCardinality),
 		adIdentifiers: computeContainerServiceIDs(
 			containers.BuildEntityName(string(container.Runtime), container.ID),
 			containerImg.RawName,
@@ -123,11 +125,12 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		ports:    ports,
 		pid:      container.PID,
 		hostname: container.Hostname,
+		tagger:   l.tagger,
 	}
 
 	if pod != nil {
 		svc.hosts = map[string]string{"pod": pod.IP}
-		svc.ready = pod.Ready
+		svc.ready = pod.Ready || shouldSkipPodReadiness(pod)
 
 		svc.metricsExcluded = l.IsExcluded(
 			containers.MetricsFilter,
@@ -150,9 +153,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 		}
 
 		hosts := make(map[string]string)
-		for host, ip := range container.NetworkIPs {
-			hosts[host] = ip
-		}
+		maps.Copy(hosts, container.NetworkIPs)
 
 		if rancherIP, ok := docker.FindRancherIPInLabels(container.Labels); ok {
 			hosts["rancher"] = rancherIP
@@ -227,4 +228,12 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 		ids = append(ids, short)
 	}
 	return ids
+}
+
+func shouldSkipPodReadiness(pod *workloadmeta.KubernetesPod) bool {
+	tolerate, ok := pod.Annotations[tolerateUnreadyAnnotation]
+	if !ok {
+		return false
+	}
+	return tolerate == "true"
 }

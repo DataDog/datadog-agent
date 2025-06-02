@@ -5,7 +5,11 @@
 
 package tagset
 
-import "github.com/twmb/murmur3"
+import (
+	"slices"
+
+	"github.com/twmb/murmur3"
+)
 
 // hashedTags is the base type for HashingTagsAccumulator and HashedTags
 type hashedTags struct {
@@ -44,7 +48,7 @@ func (h hashedTags) Len() int {
 // dup returns a full copy of hashedTags
 func (h hashedTags) dup() hashedTags {
 	return hashedTags{
-		data: append([]string{}, h.data...),
-		hash: append([]uint64{}, h.hash...),
+		data: slices.Clone(h.data),
+		hash: slices.Clone(h.hash),
 	}
 }

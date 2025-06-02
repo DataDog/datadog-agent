@@ -144,7 +144,7 @@ HOOK_SYSCALL_EXIT(unshare) {
     return 0;
 }
 
-void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_cache_t *syscall, int dr_type) {
+void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
     // populate the root dentry key
     struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
@@ -172,16 +172,16 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     syscall->resolver.key = syscall->mount.root_key;
     syscall->resolver.dentry = root_dentry;
     syscall->resolver.discarder_event_type = 0;
-    syscall->resolver.callback = select_dr_key(dr_type, DR_MOUNT_STAGE_ONE_CALLBACK_KPROBE_KEY, DR_MOUNT_STAGE_ONE_CALLBACK_TRACEPOINT_KEY);
+    syscall->resolver.callback = select_dr_key(prog_type, DR_MOUNT_STAGE_ONE_CALLBACK_KPROBE_KEY, DR_MOUNT_STAGE_ONE_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, dr_type);
+    resolve_dentry(ctx, prog_type);
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(syscall->type);
 }
 
-int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, int dr_type) {
+int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
@@ -190,25 +190,23 @@ int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, int dr
     syscall->resolver.key = syscall->mount.mountpoint_key;
     syscall->resolver.dentry = syscall->mount.mountpoint_dentry;
     syscall->resolver.discarder_event_type = 0;
-    syscall->resolver.callback = select_dr_key(dr_type, DR_MOUNT_STAGE_TWO_CALLBACK_KPROBE_KEY, DR_MOUNT_STAGE_TWO_CALLBACK_TRACEPOINT_KEY);
+    syscall->resolver.callback = select_dr_key(prog_type, DR_MOUNT_STAGE_TWO_CALLBACK_KPROBE_KEY, DR_MOUNT_STAGE_TWO_CALLBACK_TRACEPOINT_KEY);
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, dr_type);
+    resolve_dentry(ctx, prog_type);
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(syscall->type);
 
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_mount_stage_one_callback")
-int tail_call_target_dr_mount_stage_one_callback(ctx_t *ctx) {
-    return dr_mount_stage_one_callback(ctx, DR_KPROBE_OR_FENTRY);
+TAIL_CALL_FNC(dr_mount_stage_one_callback, ctx_t *ctx) {
+    return dr_mount_stage_one_callback(ctx, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/dr_mount_stage_one_callback")
-int tracepoint_dr_mount_stage_one_callback(struct tracepoint_syscalls_sys_exit_t *args) {
-    return dr_mount_stage_one_callback(args, DR_TRACEPOINT);
+TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_one_callback, struct tracepoint_syscalls_sys_exit_t *args) {
+    return dr_mount_stage_one_callback(args, TRACEPOINT_TYPE);
 }
 
 void __attribute__((always_inline)) fill_mount_fields(struct syscall_cache_t *syscall, struct mount_fields_t *mfields) {
@@ -249,13 +247,11 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_mount_stage_two_callback")
-int tail_call_target_dr_mount_stage_two_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_mount_stage_two_callback, ctx_t *ctx) {
     return dr_mount_stage_two_callback(ctx);
 }
 
-SEC("tracepoint/dr_mount_stage_two_callback")
-int tracepoint_dr_mount_stage_two_callback(struct tracepoint_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_two_callback, struct tracepoint_syscalls_sys_exit_t *args) {
     return dr_mount_stage_two_callback(args);
 }
 
@@ -277,7 +273,7 @@ int hook_attach_mnt(ctx_t *ctx) {
     struct mountpoint *mp = (struct mountpoint *)CTX_PARM3(ctx);
     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
-    handle_new_mount(ctx, syscall, DR_KPROBE_OR_FENTRY);
+    handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE);
 
     return 0;
 }
@@ -299,7 +295,7 @@ int hook___attach_mnt(ctx_t *ctx) {
     syscall->mount.parent = (struct mount *)CTX_PARM2(ctx);
     syscall->mount.mountpoint_dentry = get_mount_mountpoint_dentry(newmnt);
 
-    handle_new_mount(ctx, syscall, DR_KPROBE_OR_FENTRY);
+    handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE);
 
     return 0;
 }
@@ -322,7 +318,7 @@ int hook_mnt_set_mountpoint(ctx_t *ctx) {
     struct mountpoint *mp = (struct mountpoint *)CTX_PARM2(ctx);
     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
-    handle_new_mount(ctx, syscall, DR_KPROBE_OR_FENTRY);
+    handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE);
 
     return 0;
 }
@@ -386,7 +382,7 @@ int hook_propagate_mnt(ctx_t *ctx) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_type) {
+int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (retval) {
         pop_syscall(EVENT_MOUNT);
         return 0;
@@ -397,19 +393,18 @@ int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, int dr_t
         return 0;
     }
 
-    handle_new_mount(ctx, syscall, dr_type);
+    handle_new_mount(ctx, syscall, prog_type);
 
     return 0;
 }
 
 HOOK_SYSCALL_COMPAT_EXIT(mount) {
     int retval = SYSCALL_PARMRET(ctx);
-    return sys_mount_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+    return sys_mount_ret(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
-SEC("tracepoint/handle_sys_mount_exit")
-int tracepoint_handle_sys_mount_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_mount_ret(args, args->ret, DR_TRACEPOINT);
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_mount_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
+    return sys_mount_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

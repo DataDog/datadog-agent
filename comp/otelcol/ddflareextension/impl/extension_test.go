@@ -11,13 +11,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
@@ -42,6 +40,7 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/nopreceiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+
 	"go.uber.org/zap"
 )
 
@@ -63,10 +62,10 @@ func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	return NewExtension(c, cfg, telemetry, info)
+	return NewExtension(c, cfg, telemetry, info, true, false)
 }
 
-func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.ResponseRecorder {
+func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride string) *httptest.ResponseRecorder {
 
 	// Create a request
 	req, err := http.NewRequest("GET", "/", nil)
@@ -74,7 +73,7 @@ func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.R
 		t.Fatal(err)
 	}
 
-	token := apiutil.GetAuthToken()
+	token := ipc.GetAuthToken()
 	if tokenOverride != "" {
 		token = tokenOverride
 	}
@@ -99,7 +98,7 @@ func getResponseToHandlerRequest(t *testing.T, tokenOverride string) *httptest.R
 
 	ddExt.Start(context.TODO(), host)
 
-	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("config.yaml"), false))
+	conf := confmapFromResolverSettings(t, newResolverSettings(uriFromFile("config.yaml"), true))
 	ddExt.NotifyConfig(context.TODO(), conf)
 	assert.NoError(t, err)
 
@@ -121,19 +120,9 @@ func TestNewExtension(t *testing.T) {
 }
 
 func TestExtensionHTTPHandler(t *testing.T) {
-	oldConfig := pkgconfigsetup.Datadog()
-	defer func() {
-		pkgconfigsetup.SetDatadog(oldConfig)
-	}()
+	ipc := ipcmock.New(t)
 
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.SetDatadog(conf)
-	err := apiutil.CreateAndSetAuthToken(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rr := getResponseToHandlerRequest(t, "")
+	rr := getResponseToHandlerRequest(t, ipc, "")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusOK, rr.Code,
@@ -162,19 +151,9 @@ func TestExtensionHTTPHandler(t *testing.T) {
 }
 
 func TestExtensionHTTPHandlerBadToken(t *testing.T) {
-	oldConfig := pkgconfigsetup.Datadog()
-	defer func() {
-		pkgconfigsetup.SetDatadog(oldConfig)
-	}()
+	ipc := ipcmock.New(t)
 
-	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.SetDatadog(conf)
-	err := apiutil.CreateAndSetAuthToken(conf)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rr := getResponseToHandlerRequest(t, "badtoken")
+	rr := getResponseToHandlerRequest(t, ipc, "badtoken")
 
 	// Check the response status code
 	assert.Equalf(t, http.StatusForbidden, rr.Code,
@@ -202,7 +181,7 @@ func components() (otelcol.Factories, error) {
 	var err error
 	factories := otelcol.Factories{}
 
-	factories.Extensions, err = extension.MakeFactoryMap(
+	factories.Extensions, err = otelcol.MakeFactoryMap[extension.Factory](
 		healthcheckextension.NewFactory(),
 		pprofextension.NewFactory(),
 		zpagesextension.NewFactory(),
@@ -211,7 +190,7 @@ func components() (otelcol.Factories, error) {
 		return otelcol.Factories{}, err
 	}
 
-	factories.Receivers, err = receiver.MakeFactoryMap(
+	factories.Receivers, err = otelcol.MakeFactoryMap[receiver.Factory](
 		nopreceiver.NewFactory(),
 		otlpreceiver.NewFactory(),
 		prometheusreceiver.NewFactory(),
@@ -220,7 +199,7 @@ func components() (otelcol.Factories, error) {
 		return otelcol.Factories{}, err
 	}
 
-	factories.Exporters, err = exporter.MakeFactoryMap(
+	factories.Exporters, err = otelcol.MakeFactoryMap[exporter.Factory](
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
 	)
@@ -228,7 +207,7 @@ func components() (otelcol.Factories, error) {
 		return otelcol.Factories{}, err
 	}
 
-	factories.Processors, err = processor.MakeFactoryMap(
+	factories.Processors, err = otelcol.MakeFactoryMap[processor.Factory](
 		batchprocessor.NewFactory(),
 		transformprocessor.NewFactory(),
 	)
@@ -236,7 +215,7 @@ func components() (otelcol.Factories, error) {
 		return otelcol.Factories{}, err
 	}
 
-	factories.Connectors, err = connector.MakeFactoryMap(
+	factories.Connectors, err = otelcol.MakeFactoryMap[connector.Factory](
 		spanmetricsconnector.NewFactory(),
 	)
 	if err != nil {

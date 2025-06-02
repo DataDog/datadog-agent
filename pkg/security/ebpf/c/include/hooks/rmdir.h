@@ -7,27 +7,30 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_rmdir(u8 async, int flags) {
+int __attribute__((always_inline)) trace__sys_rmdir(u8 async, const char *filename) {
     struct syscall_cache_t syscall = {
         .type = EVENT_RMDIR,
         .policy = fetch_policy(EVENT_RMDIR),
         .async = async,
     };
 
+    if (!async) {
+        collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)filename, NULL, NULL);
+    }
     cache_syscall(&syscall);
 
     return 0;
 }
 
-HOOK_SYSCALL_ENTRY0(rmdir) {
-    return trace__sys_rmdir(SYNC_SYSCALL, 0);
+HOOK_SYSCALL_ENTRY1(rmdir, const char *, filename) {
+    return trace__sys_rmdir(SYNC_SYSCALL, filename);
 }
 
 HOOK_ENTRY("do_rmdir")
 int hook_do_rmdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
-        return trace__sys_rmdir(ASYNC_SYSCALL, 0);
+        return trace__sys_rmdir(ASYNC_SYSCALL, NULL);
     }
     return 0;
 }
@@ -102,7 +105,7 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
 
-        resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+        resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
         // if the tail call fails, we need to pop the syscall cache entry
         pop_syscall_with(rmdir_predicate);
@@ -110,8 +113,7 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_security_inode_rmdir_callback")
-int tail_call_target_dr_security_inode_rmdir_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_security_inode_rmdir_callback, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;
@@ -138,6 +140,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
     if (syscall->state != DISCARDED && is_event_enabled(EVENT_RMDIR)) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
+            .syscall_ctx.id = syscall->ctx_id,
             .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
             .file = syscall->rmdir.file,
         };
@@ -158,7 +161,7 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
 
 HOOK_EXIT("do_rmdir")
 int rethook_do_rmdir(ctx_t *ctx) {
-    int retval = CTX_PARMRET(ctx, 2);
+    int retval = CTX_PARMRET(ctx);
     return sys_rmdir_ret(ctx, retval);
 }
 
@@ -167,8 +170,7 @@ HOOK_SYSCALL_EXIT(rmdir) {
     return sys_rmdir_ret(ctx, retval);
 }
 
-SEC("tracepoint/handle_sys_rmdir_exit")
-int tracepoint_handle_sys_rmdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_rmdir_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_rmdir_ret(args, args->ret);
 }
 

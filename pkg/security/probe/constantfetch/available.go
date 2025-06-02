@@ -10,8 +10,8 @@ package constantfetch
 
 import (
 	"errors"
+	"fmt"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cilium/ebpf/btf"
 
 	pkgebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -21,16 +21,11 @@ import (
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
-func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient statsd.ClientInterface) []ConstantFetcher {
+func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)
 
 	if coreFetcher, err := NewBTFConstantFetcherFromCurrentKernel(); err == nil {
 		fetchers = append(fetchers, coreFetcher)
-	}
-
-	if config.RuntimeCompiledConstantsEnabled {
-		rcConstantFetcher := NewRuntimeCompilationConstantFetcher(&config.Config, statsdClient)
-		fetchers = append(fetchers, rcConstantFetcher)
 	}
 
 	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)
@@ -49,21 +44,30 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, sta
 	return fetchers
 }
 
-// GetHasUsernamespaceFirstArgWithBtf uses BTF to check if the security_inode_setattr function has a user namespace as its first argument
-func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
+func getBTFFuncProto(funcName string) (*btf.FuncProto, error) {
 	spec, err := pkgebpf.GetKernelSpec()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	var function *btf.Func
-	if err := spec.TypeByName("security_inode_setattr", &function); err != nil {
-		return false, err
+	if err := spec.TypeByName(funcName, &function); err != nil {
+		return nil, err
 	}
 
 	proto, ok := function.Type.(*btf.FuncProto)
 	if !ok {
-		return false, errors.New("security_inode_setattr has no prototype")
+		return nil, fmt.Errorf("%s has no prototype", funcName)
+	}
+
+	return proto, nil
+}
+
+// GetHasUsernamespaceFirstArgWithBtf uses BTF to check if the security_inode_setattr function has a user namespace as its first argument
+func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
+	proto, err := getBTFFuncProto("security_inode_setattr")
+	if err != nil {
+		return false, err
 	}
 
 	if len(proto.Params) == 0 {
@@ -71,4 +75,32 @@ func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
 	}
 
 	return proto.Params[0].Name != "dentry", nil
+}
+
+// GetHasVFSRenameStructArgs uses BTF to check if the vfs_rename function has a struct renamedata as its only argument
+func GetHasVFSRenameStructArgs() (bool, error) {
+	proto, err := getBTFFuncProto("vfs_rename")
+	if err != nil {
+		return false, err
+	}
+
+	if len(proto.Params) == 0 {
+		return false, errors.New("vfs_rename has no parameters")
+	}
+
+	if len(proto.Params) == 1 && proto.Params[0].Name == "rd" {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// GetBTFFunctionArgCount returns the number of arguments of a BTF function
+func GetBTFFunctionArgCount(funcName string) (int, error) {
+	proto, err := getBTFFuncProto(funcName)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(proto.Params), nil
 }

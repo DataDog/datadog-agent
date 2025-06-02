@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
@@ -33,7 +34,7 @@ func ebpfCOREConntrackerSupportedOnKernelT(t *testing.T) bool {
 }
 
 func skipPrebuiltEbpfConntrackerTestOnUnsupportedKernel(t *testing.T) {
-	if !ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
+	if !ebpfPrebuiltConntrackerSupportedOnKernelT(t) || prebuilt.IsDeprecated() {
 		t.Skip("Skipping prebuilt ebpf conntracker related test on unsupported kernel")
 	}
 }
@@ -82,7 +83,7 @@ func TestCOREEbpfConntrackerSkipsLoadOnOlderKernels(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableRuntimeCompiler = false
 	cfg.EnableCORE = true
-	cfg.AllowPrecompiledFallback = false
+	cfg.AllowPrebuiltFallback = false
 	conntracker, err := NewEBPFConntracker(cfg, nil)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, errCOREConntrackerUnsupported)
@@ -114,7 +115,7 @@ func TestEbpfConntrackerEnsureMapType(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableRuntimeCompiler = true
 		cfg.EnableCORE = false
-		cfg.AllowPrecompiledFallback = false
+		cfg.AllowPrebuiltFallback = false
 		checkMap(t, cfg)
 	})
 
@@ -129,7 +130,7 @@ func TestEbpfConntrackerEnsureMapType(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableRuntimeCompiler = false
 		cfg.EnableCORE = true
-		cfg.AllowPrecompiledFallback = false
+		cfg.AllowPrebuiltFallback = false
 		checkMap(t, cfg)
 	})
 }

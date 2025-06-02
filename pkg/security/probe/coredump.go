@@ -50,7 +50,7 @@ func (cd *CoreDump) ToJSON() ([]byte, error) {
 	}
 
 	if cd.definition.Process {
-		data, _ := cd.resolvers.ProcessResolver.ToJSON()
+		data, _ := cd.resolvers.ProcessResolver.ToJSON(false)
 		content.Process = data
 	}
 

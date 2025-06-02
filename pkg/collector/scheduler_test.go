@@ -20,8 +20,8 @@ import (
 
 type MockCheck struct {
 	core.CheckBase
-	Name   string
-	Loader string
+	Name       string
+	LoaderName string
 }
 
 func (m MockCheck) Run() error {
@@ -29,8 +29,12 @@ func (m MockCheck) Run() error {
 	panic("implement me")
 }
 
+func (m MockCheck) Loader() string {
+	return m.LoaderName
+}
+
 func (m MockCheck) String() string {
-	return fmt.Sprintf("Loader: %s, Check: %s", m.Loader, m.Name)
+	return fmt.Sprintf("Loader: %s, Check: %s", m.LoaderName, m.Name)
 }
 
 type MockCoreLoader struct{}
@@ -39,9 +43,9 @@ func (l *MockCoreLoader) Name() string {
 	return "core"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Load loads a check
 func (l *MockCoreLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
-	mockCheck := MockCheck{Name: config.Name, Loader: l.Name()}
+	mockCheck := MockCheck{Name: config.Name, LoaderName: l.Name()}
 	return &mockCheck, nil
 }
 
@@ -51,25 +55,25 @@ func (l *MockPythonLoader) Name() string {
 	return "python"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Load loads a check
 func (l *MockPythonLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
-	mockCheck := MockCheck{Name: config.Name, Loader: l.Name()}
+	mockCheck := MockCheck{Name: config.Name, LoaderName: l.Name()}
 	return &mockCheck, nil
 }
 
 func TestAddLoader(t *testing.T) {
 	s := CheckScheduler{}
 	assert.Len(t, s.loaders, 0)
-	s.AddLoader(&MockCoreLoader{})
-	s.AddLoader(&MockCoreLoader{}) // noop
+	s.addLoader(&MockCoreLoader{})
+	s.addLoader(&MockCoreLoader{}) // noop
 	assert.Len(t, s.loaders, 1)
 }
 
 func TestGetChecksFromConfigs(t *testing.T) {
 	s := CheckScheduler{}
 	assert.Len(t, s.loaders, 0)
-	s.AddLoader(&MockCoreLoader{})
-	s.AddLoader(&MockPythonLoader{})
+	s.addLoader(&MockCoreLoader{})
+	s.addLoader(&MockPythonLoader{})
 
 	// test instance level loader selection
 	conf1 := integration.Config{
@@ -117,5 +121,62 @@ func TestGetChecksFromConfigs(t *testing.T) {
 		"Loader: core, Check: check_a",
 		"Loader: python, Check: check_b",
 		"Loader: core, Check: check_c",
+	}, actualChecks)
+}
+
+func TestLoaderPriorityForSNMP(t *testing.T) {
+	s := CheckScheduler{}
+	assert.Len(t, s.loaders, 0)
+
+	s.addLoader(&MockPythonLoader{})
+	s.addLoader(&MockCoreLoader{})
+
+	// test that loader is core for loader: core
+	conf1 := integration.Config{
+		Name: "snmp",
+		Instances: []integration.Data{
+			integration.Data("{\"loader\": \"core\"}"),
+			integration.Data("{}"),
+		},
+		InitConfig: integration.Data("{\"loader\": \"core\"}"),
+	}
+	// test that loader is python for loader: python
+	conf2 := integration.Config{
+		Name: "snmp",
+		Instances: []integration.Data{
+			integration.Data("{\"loader\": \"python\"}"),
+			integration.Data("{}"),
+		},
+		InitConfig: integration.Data("{\"loader\": \"python\"}"),
+	}
+	// test that loader is core when loader is not specified for SNMP
+	conf3 := integration.Config{
+		Name:       "snmp",
+		Instances:  []integration.Data{integration.Data("{}")},
+		InitConfig: integration.Data("{}"),
+	}
+	// test that loader is python when loader is not specified for others
+	conf4 := integration.Config{
+		Name:       "other",
+		Instances:  []integration.Data{integration.Data("{}")},
+		InitConfig: integration.Data("{}"),
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{conf1, conf2, conf3, conf4}, false)
+
+	assert.Len(t, s.loaders, 2)
+
+	var actualChecks []string
+
+	for _, c := range checks {
+		actualChecks = append(actualChecks, c.String())
+	}
+	assert.Equal(t, []string{
+		"Loader: core, Check: snmp",
+		"Loader: core, Check: snmp",
+		"Loader: python, Check: snmp",
+		"Loader: python, Check: snmp",
+		"Loader: core, Check: snmp",
+		"Loader: python, Check: other",
 	}, actualChecks)
 }

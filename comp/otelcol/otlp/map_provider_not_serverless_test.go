@@ -17,7 +17,8 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -81,10 +82,9 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                2000,
-					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"instrumentation_scope_metadata_as_tags":   true,
+					"delta_ttl":                              2000,
+					"resource_attributes_as_tags":            true,
+					"instrumentation_scope_metadata_as_tags": true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -122,10 +122,9 @@ func TestNewMap(t *testing.T) {
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                2000,
-							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"instrumentation_scope_metadata_as_tags":   true,
+							"delta_ttl":                              2000,
+							"resource_attributes_as_tags":            true,
+							"instrumentation_scope_metadata_as_tags": true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -157,10 +156,9 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                2000,
-					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"instrumentation_scope_metadata_as_tags":   true,
+					"delta_ttl":                              2000,
+					"resource_attributes_as_tags":            true,
+					"instrumentation_scope_metadata_as_tags": true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -198,10 +196,9 @@ func TestNewMap(t *testing.T) {
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                2000,
-							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"instrumentation_scope_metadata_as_tags":   true,
+							"delta_ttl":                              2000,
+							"resource_attributes_as_tags":            true,
+							"instrumentation_scope_metadata_as_tags": true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -278,10 +275,9 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                1500,
-					"resource_attributes_as_tags":              false,
-					"instrumentation_library_metadata_as_tags": false,
-					"instrumentation_scope_metadata_as_tags":   false,
+					"delta_ttl":                              1500,
+					"resource_attributes_as_tags":            false,
+					"instrumentation_scope_metadata_as_tags": false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
@@ -309,10 +305,9 @@ func TestNewMap(t *testing.T) {
 				"exporters": map[string]interface{}{
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                1500,
-							"resource_attributes_as_tags":              false,
-							"instrumentation_library_metadata_as_tags": false,
-							"instrumentation_scope_metadata_as_tags":   false,
+							"delta_ttl":                              1500,
+							"resource_attributes_as_tags":            false,
+							"instrumentation_scope_metadata_as_tags": false,
 							"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
@@ -385,9 +380,8 @@ func TestNewMap(t *testing.T) {
 				TracePort:          5003,
 				MetricsEnabled:     true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                1500,
-					"resource_attributes_as_tags":              false,
-					"instrumentation_library_metadata_as_tags": false,
+					"delta_ttl":                   1500,
+					"resource_attributes_as_tags": false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
@@ -415,9 +409,8 @@ func TestNewMap(t *testing.T) {
 				"exporters": map[string]interface{}{
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                1500,
-							"resource_attributes_as_tags":              false,
-							"instrumentation_library_metadata_as_tags": false,
+							"delta_ttl":                   1500,
+							"resource_attributes_as_tags": false,
 							"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
@@ -448,9 +441,8 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:      true,
 				MetricsEnabled:     true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                2000,
-					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
+					"delta_ttl":                   2000,
+					"resource_attributes_as_tags": true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -488,9 +480,8 @@ func TestNewMap(t *testing.T) {
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                2000,
-							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
+							"delta_ttl":                   2000,
+							"resource_attributes_as_tags": true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -582,10 +573,9 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                2000,
-					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"instrumentation_scope_metadata_as_tags":   true,
+					"delta_ttl":                              2000,
+					"resource_attributes_as_tags":            true,
+					"instrumentation_scope_metadata_as_tags": true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -624,10 +614,9 @@ func TestNewMap(t *testing.T) {
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                2000,
-							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"instrumentation_scope_metadata_as_tags":   true,
+							"delta_ttl":                              2000,
+							"resource_attributes_as_tags":            true,
+							"instrumentation_scope_metadata_as_tags": true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -666,10 +655,9 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                2000,
-					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
-					"instrumentation_scope_metadata_as_tags":   true,
+					"delta_ttl":                              2000,
+					"resource_attributes_as_tags":            true,
+					"instrumentation_scope_metadata_as_tags": true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -708,10 +696,9 @@ func TestNewMap(t *testing.T) {
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                2000,
-							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
-							"instrumentation_scope_metadata_as_tags":   true,
+							"delta_ttl":                              2000,
+							"resource_attributes_as_tags":            true,
+							"instrumentation_scope_metadata_as_tags": true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -808,10 +795,9 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                1500,
-					"resource_attributes_as_tags":              false,
-					"instrumentation_library_metadata_as_tags": false,
-					"instrumentation_scope_metadata_as_tags":   false,
+					"delta_ttl":                              1500,
+					"resource_attributes_as_tags":            false,
+					"instrumentation_scope_metadata_as_tags": false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
@@ -840,10 +826,9 @@ func TestNewMap(t *testing.T) {
 				"exporters": map[string]interface{}{
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                1500,
-							"resource_attributes_as_tags":              false,
-							"instrumentation_library_metadata_as_tags": false,
-							"instrumentation_scope_metadata_as_tags":   false,
+							"delta_ttl":                              1500,
+							"resource_attributes_as_tags":            false,
+							"instrumentation_scope_metadata_as_tags": false,
 							"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
@@ -936,9 +921,8 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                1500,
-					"resource_attributes_as_tags":              false,
-					"instrumentation_library_metadata_as_tags": false,
+					"delta_ttl":                   1500,
+					"resource_attributes_as_tags": false,
 					"histograms": map[string]interface{}{
 						"mode":                   "nobuckets",
 						"send_count_sum_metrics": true,
@@ -967,9 +951,8 @@ func TestNewMap(t *testing.T) {
 				"exporters": map[string]interface{}{
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                1500,
-							"resource_attributes_as_tags":              false,
-							"instrumentation_library_metadata_as_tags": false,
+							"delta_ttl":                   1500,
+							"resource_attributes_as_tags": false,
 							"histograms": map[string]interface{}{
 								"mode":                   "nobuckets",
 								"send_count_sum_metrics": true,
@@ -1007,9 +990,8 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:     true,
 				LogsEnabled:        true,
 				Metrics: map[string]interface{}{
-					"delta_ttl":                                2000,
-					"resource_attributes_as_tags":              true,
-					"instrumentation_library_metadata_as_tags": true,
+					"delta_ttl":                   2000,
+					"resource_attributes_as_tags": true,
 					"histograms": map[string]interface{}{
 						"mode":                   "counters",
 						"send_count_sum_metrics": true,
@@ -1048,9 +1030,8 @@ func TestNewMap(t *testing.T) {
 					},
 					"serializer": map[string]interface{}{
 						"metrics": map[string]interface{}{
-							"delta_ttl":                                2000,
-							"resource_attributes_as_tags":              true,
-							"instrumentation_library_metadata_as_tags": true,
+							"delta_ttl":                   2000,
+							"resource_attributes_as_tags": true,
 							"histograms": map[string]interface{}{
 								"mode":                   "counters",
 								"send_count_sum_metrics": true,
@@ -1103,10 +1084,9 @@ func TestUnmarshal(t *testing.T) {
 		TracesEnabled:      true,
 		LogsEnabled:        true,
 		Metrics: map[string]interface{}{
-			"delta_ttl":                                2000,
-			"resource_attributes_as_tags":              true,
-			"instrumentation_library_metadata_as_tags": true,
-			"instrumentation_scope_metadata_as_tags":   true,
+			"delta_ttl":                              2000,
+			"resource_attributes_as_tags":            true,
+			"instrumentation_scope_metadata_as_tags": true,
 			"histograms": map[string]interface{}{
 				"mode":                   "counters",
 				"send_count_sum_metrics": true,
@@ -1127,9 +1107,9 @@ func TestUnmarshal(t *testing.T) {
 
 	provider, err := otelcol.NewConfigProvider(mapSettings)
 	require.NoError(t, err)
-	fakeTagger := taggerimpl.SetupFakeTagger(t)
-	defer fakeTagger.ResetTagger()
-	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	components, err := getComponents(serializermock.NewMetricSerializer(t), make(chan *message.Message), fakeTagger, hostnameimpl.NewHostnameService())
 	require.NoError(t, err)
 
 	_, err = provider.Get(context.Background(), components)

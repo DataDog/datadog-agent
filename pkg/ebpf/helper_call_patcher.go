@@ -12,18 +12,16 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/asm"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/names"
 )
 
-// noopIns is used in place of the eBPF helpers we wish to remove from
+// replaceIns is used in place of the eBPF helpers we wish to remove from
 // the bytecode.
 //
-// note we're using here the same noop instruction used internally by the
-// verifier:
-// https://elixir.bootlin.com/linux/v6.7/source/kernel/bpf/verifier.c#L18582
-var noopIns = asm.Instruction{
-	OpCode:   asm.Ja.Op(asm.ImmSource),
-	Constant: 0,
-}
+// Helper calls clobber r1-r5 and the return value is expected in r0.
+// We are replacing with `r0 = 0` so code which checks the return value works as expected.
+var replaceIns = asm.Mov.Imm(asm.R0, 0)
 
 // NewHelperCallRemover provides a `Modifier` that patches eBPF bytecode
 // such that calls to the functions given by `helpers` are replaced by
@@ -42,7 +40,7 @@ var noopIns = asm.Instruction{
 // conditionally select eBPF helpers. This should be regarded as a last resort
 // when the aforementioned options don't apply (prebuilt artifacts, for
 // example).
-func NewHelperCallRemover(helpers ...asm.BuiltinFunc) Modifier {
+func NewHelperCallRemover(helpers ...asm.BuiltinFunc) ModifierBeforeInit {
 	return &helperCallRemover{
 		helpers: helpers,
 	}
@@ -52,7 +50,7 @@ type helperCallRemover struct {
 	helpers []asm.BuiltinFunc
 }
 
-func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) error {
+func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ names.ModuleName, _ *manager.Options) error {
 	m.InstructionPatchers = append(m.InstructionPatchers, func(m *manager.Manager) error {
 		progs, err := m.GetProgramSpecs()
 		if err != nil {
@@ -70,7 +68,7 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) e
 
 				for _, fn := range h.helpers {
 					if ins.Constant == int64(fn) {
-						*ins = noopIns.WithMetadata(ins.Metadata)
+						*ins = replaceIns.WithMetadata(ins.Metadata)
 						break
 					}
 				}
@@ -80,10 +78,6 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ *manager.Options) e
 		return nil
 	})
 
-	return nil
-}
-
-func (h *helperCallRemover) AfterInit(*manager.Manager, *manager.Options) error {
 	return nil
 }
 

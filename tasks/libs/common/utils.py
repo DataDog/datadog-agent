@@ -7,13 +7,15 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shutil
 import sys
 import tempfile
 import time
 import traceback
-from collections import Counter
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime
 from functools import wraps
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
@@ -24,9 +26,8 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, DEFAULT_BRANCH, REPO_PATH
-from tasks.libs.common.git import get_commit_sha
-from tasks.libs.owners.parsing import search_owners
+from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
+from tasks.libs.common.git import get_commit_sha, get_default_branch, set_git_config
 from tasks.libs.releasing.version import get_version
 from tasks.libs.types.arch import Arch
 
@@ -64,6 +65,10 @@ class TimedOperationResult:
             return True
 
 
+class TestsNotSupportedError(Exception):
+    pass
+
+
 def get_all_allowed_repo_branches():
     return ALLOWED_REPO_ALL_BRANCHES
 
@@ -80,12 +85,8 @@ def running_in_gitlab_ci():
     return os.environ.get("GITLAB_CI") == "true"
 
 
-def running_in_circleci():
-    return os.environ.get("CIRCLECI") == "true"
-
-
 def running_in_ci():
-    return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
+    return running_in_github_actions() or running_in_gitlab_ci()
 
 
 def running_in_pyapp():
@@ -162,17 +163,6 @@ def get_rtloader_paths(embedded_path=None, rtloader_root=None):
     return rtloader_lib, rtloader_headers, rtloader_common_headers
 
 
-def has_both_python(python_runtimes):
-    python_runtimes = python_runtimes.split(',')
-    return '2' in python_runtimes and '3' in python_runtimes
-
-
-def get_win_py_runtime_var(python_runtimes):
-    python_runtimes = python_runtimes.split(',')
-
-    return "PY2_RUNTIME" if '2' in python_runtimes else "PY3_RUNTIME"
-
-
 def get_embedded_path(ctx):
     base = os.path.dirname(os.path.abspath(__file__))
     task_repo_root = os.path.abspath(os.path.join(base, "..", ".."))
@@ -185,6 +175,15 @@ def get_embedded_path(ctx):
             return test_embedded_path
 
     return None
+
+
+def get_repo_root():
+    """
+    Get the root of the repository, where the .git directory is.
+    """
+    import tasks
+
+    return Path(tasks.__file__).parent.parent
 
 
 def get_xcode_version(ctx):
@@ -214,10 +213,8 @@ def get_build_flags(
     run_path=None,
     embedded_path=None,
     rtloader_root=None,
-    python_home_2=None,
     python_home_3=None,
     major_version='7',
-    python_runtimes='3',
     headless_mode=False,
     arch: Arch | None = None,
 ):
@@ -227,6 +224,9 @@ def get_build_flags(
     We need to invoke external processes here so this function need the
     Context object.
     """
+    if arch is None:
+        arch = Arch.local()
+
     gcflags = ""
     ldflags = get_version_ldflags(ctx, major_version=major_version, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
@@ -255,16 +255,11 @@ def get_build_flags(
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
 
     # setting python homes in the code
-    if python_home_2:
-        ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome2={python_home_2} "
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
 
-    # If we're not building with both Python, we want to force the use of DefaultPython
-    if not has_both_python(python_runtimes):
-        ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
-
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython={get_default_python(python_runtimes)} "
+    ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
+    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython=3 "
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -285,6 +280,10 @@ def get_build_flags(
     if rtloader_common_headers:
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
+
+    if sys.platform == 'linux' and os.getenv('GOOS') == "windows":
+        # fake the minimum windows version
+        env['CGO_CFLAGS'] = env['CGO_CFLAGS'] + " -D_WIN32_WINNT=0x0A00"
 
     # if `static` was passed ignore setting rpath, even if `embedded_path` was passed as well
     if static:
@@ -327,11 +326,17 @@ def get_build_flags(
                 file=sys.stderr,
             )
 
-    if arch and arch.is_cross_compiling():
+    if os.getenv("DD_CC"):
+        env["CC"] = os.getenv("DD_CC")
+    if os.getenv("DD_CXX"):
+        env["CXX"] = os.getenv("DD_CXX")
+
+    if arch.is_cross_compiling():
         # For cross-compilation we need to be explicit about certain Go settings
         env["GOARCH"] = arch.go_arch
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
-        env["CC"] = arch.gcc_compiler()
+        env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
+        env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -379,6 +384,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     Compute the version from the git tags, and set the appropriate compiler
     flags
     """
+
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
 
@@ -386,27 +392,25 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     ldflags += (
         f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
     )
-    ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
-        package_version = os.path.basename(install_path)
-        if package_version != "datadog-agent":
-            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
         if sys.platform == 'win32':
             # On Windows we don't have a version in the install_path
             # so, set the package_version tag in order for Fleet Automation to detect
             # upgrade in the health check.
             # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
-            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={get_version(ctx, include_git=True, major_version=major_version)}-1 "
+            package_version = get_version(
+                ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
+            )
+            # append suffix
+            # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
+            #       it's also hardcoded in Generate-OCIPackage.ps1
+            package_version = f"{package_version}-1"
+        else:
+            package_version = os.path.basename(install_path)
+        if package_version != "datadog-agent":
+            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
     return ldflags
-
-
-def get_default_python(python_runtimes):
-    """
-    Get the default python for the current build:
-    - default to 2 if python_runtimes includes 2 (so that builds with 2 and 3 default to 2)
-    - default to 3 otherwise.
-    """
-    return "2" if '2' in python_runtimes.split(',') else "3"
 
 
 def get_go_version():
@@ -441,10 +445,6 @@ def get_git_pretty_ref():
     # https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
     if running_in_github_actions():
         return os.environ.get("GITHUB_HEAD_REF") or os.environ["GITHUB_REF"].split("/")[-1]
-
-    # https://circleci.com/docs/variables/#built-in-environment-variables
-    if running_in_circleci():
-        return os.environ.get("CIRCLE_TAG") or os.environ["CIRCLE_BRANCH"]
 
     current_branch = get_git_branch_name()
     if current_branch != "HEAD":
@@ -509,8 +509,8 @@ def environ(env):
 
 
 def is_pr_context(branch, pr_id, test_name):
-    if branch == DEFAULT_BRANCH:
-        print(f"Running on {DEFAULT_BRANCH}, skipping check for {test_name}.")
+    if branch == get_default_branch():
+        print(f"Running on {get_default_branch()}, skipping check for {test_name}.")
         return False
     if not pr_id:
         print(f"PR not found, skipping check for {test_name}.")
@@ -518,23 +518,35 @@ def is_pr_context(branch, pr_id, test_name):
     return True
 
 
+def set_gitconfig_in_ci(ctx):
+    """
+    Set username and email when runing git "write" commands in CI
+    """
+    if running_in_ci():
+        set_git_config(ctx, 'user.name', 'github-actions[bot]')
+        set_git_config(ctx, 'user.email', 'github-actions[bot]@users.noreply.github.com')
+
+
 @contextmanager
 def gitlab_section(section_name, collapsed=False, echo=False):
     """
     - echo: If True, will echo the gitlab section in bold in CLI mode instead of not showing anything
     """
-    section_id = section_name.replace(" ", "_").replace("/", "_")
+    section_id = str(uuid.uuid4())
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
-            print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
+            print(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
+                flush=True,
+            )
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
-            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
@@ -599,106 +611,6 @@ def parse_kernel_version(version: str) -> tuple[int, int, int, int]:
     return (int(match.group(1)), int(match.group(2)), int(match.group(4) or "0"), int(match.group(6) or "0"))
 
 
-def guess_from_labels(issue):
-    for label in issue.labels:
-        if label.name.startswith("team/") and "triage" not in label.name:
-            return label.name.split("/")[-1]
-    return 'triage'
-
-
-def guess_from_keywords(issue):
-    text = f"{issue.title} {issue.body}".casefold().split()
-    c = Counter(text)
-    for word in c.most_common():
-        team = simple_match(word[0])
-        if team:
-            return team
-        team = file_match(word[0])
-        if team:
-            return team
-    return "triage"
-
-
-def simple_match(word):
-    pattern_matching = {
-        "agent-apm": ['apm', 'java', 'dotnet', 'ruby', 'trace'],
-        "containers": [
-            'container',
-            'pod',
-            'kubernetes',
-            'orchestrator',
-            'docker',
-            'k8s',
-            'kube',
-            'cluster',
-            'kubelet',
-            'helm',
-        ],
-        "agent-metrics-logs": ['logs', 'metric', 'log-ag', 'statsd', 'tags', 'hostnam'],
-        "agent-delivery": ['omnibus', 'packaging', 'script'],
-        "remote-config": ['installer', 'oci'],
-        "agent-cspm": ['cspm'],
-        "ebpf-platform": ['ebpf', 'system-prob', 'sys-prob'],
-        "agent-security": ['security', 'vuln', 'security-agent'],
-        "agent-shared-components": ['fips', 'inventory', 'payload', 'jmx', 'intak', 'gohai'],
-        "fleet": ['fleet', 'fleet-automation'],
-        "opentelemetry": ['otel', 'opentelemetry'],
-        "windows-agent": ['windows', 'sys32', 'powershell'],
-        "networks": ['tcp', 'udp', 'socket', 'network'],
-        "serverless": ['serverless'],
-        "integrations": ['integration', 'python', 'checks'],
-    }
-    for team, words in pattern_matching.items():
-        if any(w in word for w in words):
-            return team
-    return None
-
-
-def file_match(word):
-    dd_folders = [
-        'chocolatey',
-        'cmd',
-        'comp',
-        'dev',
-        'devenv',
-        'docs',
-        'internal',
-        'omnibus',
-        'pkg',
-        'pkg-config',
-        'rtloader',
-        'tasks',
-        'test',
-        'tools',
-    ]
-    p = Path(word)
-    if len(p.parts) > 1 and p.suffix:
-        path_folder = next((f for f in dd_folders if f in p.parts), None)
-        if path_folder:
-            file = '/'.join(p.parts[p.parts.index(path_folder) :])
-            return (
-                search_owners(file, ".github/CODEOWNERS")[0].casefold().replace("@datadog/", "")
-            )  # only return the first owner
-    return None
-
-
-def team_to_label(team):
-    dico = {
-        'apm-core-reliability-and-performance': "agent-apm",
-        'universal-service-monitoring': "usm",
-        'software-integrity-and-trust': "agent-security",
-        'agent-all': "triage",
-        'telemetry-and-analytics': "agent-apm",
-        'fleet': "fleet-automation",
-        'debugger': "dynamic-intrumentation",
-        'container-integrations': "containers",
-        'agent-e2e-testing': "agent-e2e-test",
-        'agent-integrations': "integrations",
-        'asm-go': "agent-security",
-    }
-    return dico.get(team, team)
-
-
 @contextmanager
 def download_to_tempfile(url, checksum=None):
     """
@@ -745,3 +657,51 @@ def experimental(message):
         return wrapper
 
     return decorator
+
+
+def get_metric_origin(origin_product, origin_sub_product, origin_product_detail, origin_field=False):
+    """
+    Returns a dictionary representing metric origin metadata.
+
+    When origin_field is True, wraps the origin data in an "origin" field,
+    for dictionary-based(unstructured) calls where the API expects the "origin" wrapper.
+    When origin_field is False, returns the origin data directly, suitable
+    for class-based(structured) calls that handle the wrapper internally.
+    """
+    metric_origin = {
+        "origin_product": origin_product,
+        "origin_sub_product": origin_sub_product,
+        "origin_product_detail": origin_product_detail,
+    }
+    if origin_field:
+        return {"origin": metric_origin}
+    return metric_origin
+
+
+def agent_working_directory():
+    """Returns the working directory for the current context (agent 6 / 7)."""
+
+    from tasks.libs.common.worktree import LOCAL_DIRECTORY, WORKTREE_DIRECTORY, is_worktree
+
+    return WORKTREE_DIRECTORY if is_worktree() else LOCAL_DIRECTORY
+
+
+def is_macos():
+    return sys.platform == 'darwin'
+
+
+def is_linux():
+    return sys.platform.startswith('linux')
+
+
+def is_windows():
+    return sys.platform == 'win32'
+
+
+def is_installed(binary) -> bool:
+    return shutil.which(binary) is not None
+
+
+def is_conductor_scheduled_pipeline() -> bool:
+    pipeline_start = datetime.fromisoformat(os.environ['CI_PIPELINE_CREATED_AT'])
+    return pipeline_start.hour in [5, 6] and pipeline_start.minute < 30

@@ -9,11 +9,10 @@ package cgroups
 
 import (
 	"fmt"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"strings"
-
-	"github.com/karrick/godirwalk"
 )
 
 const (
@@ -45,30 +44,25 @@ func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter, pidMapperID s
 func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 	res := make(map[string]Cgroup)
 
-	err := godirwalk.Walk(r.cgroupRoot, &godirwalk.Options{
-		AllowNonDirectory: true,
-		Unsorted:          true,
-		Callback: func(fullPath string, de *godirwalk.Dirent) error {
-			if de.IsDir() {
-				id, err := r.filter(fullPath, de.Name())
-				if id != "" {
-					relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
-					if err != nil {
-						return err
-					}
-					res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
-					if err != nil {
-						return err
-					}
-				}
+	err := filepath.WalkDir(r.cgroupRoot, func(fullPath string, de fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !de.IsDir() {
+			return nil
+		}
 
+		id, err := r.filter(fullPath, de.Name())
+		if id != "" {
+			relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
+			if err != nil {
 				return err
 			}
+			res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
+		}
 
-			return nil
-		},
+		return err
 	})
-
 	return res, err
 }
 

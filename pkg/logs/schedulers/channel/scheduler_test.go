@@ -39,5 +39,5 @@ func TestScheduler(t *testing.T) {
 
 	require.Equal(t, len(spy.Events), 1) // no change
 	assert.Nil(t, source.Config.Tags)
-	assert.Equal(t, []string{"foo"}, source.Config.ChannelTags)
+	assert.Equal(t, []string{"foo"}, []string(source.Config.ChannelTags))
 }

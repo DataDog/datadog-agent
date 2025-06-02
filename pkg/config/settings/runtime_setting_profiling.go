@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // ProfilingRuntimeSetting wraps operations to change profiling at runtime
@@ -85,10 +84,9 @@ func (l *ProfilingRuntimeSetting) Set(config config.Component, v interface{}, so
 
 		// Note that we must derive a new profiling.Settings on every
 		// invocation, as many of these settings may have changed at runtime.
-		v, _ := version.Agent()
 
 		tags := config.GetStringSlice(l.ConfigPrefix + "internal_profiling.extra_tags")
-		tags = append(tags, fmt.Sprintf("version:%v", v))
+		tags = profiling.GetBaseProfilingTags(tags)
 
 		settings := profiling.Settings{
 			ProfilingURL:         site,

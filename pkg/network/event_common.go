@@ -18,11 +18,9 @@ import (
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	networkpayload "github.com/DataDog/datadog-agent/pkg/network/payload"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -79,6 +77,9 @@ type ConnectionFamily uint8
 type ConnectionDirection uint8
 
 const (
+	// UNKNOWN represents connections where the direction is not known (yet)
+	UNKNOWN ConnectionDirection = 0
+
 	// INCOMING represents connections inbound to the host
 	INCOMING ConnectionDirection = 1 // incoming
 
@@ -121,11 +122,7 @@ type Connections struct {
 	KernelHeaderFetchResult     int32
 	CORETelemetryByAsset        map[string]int32
 	PrebuiltAssets              []string
-	HTTP                        map[http.Key]*http.RequestStats
-	HTTP2                       map[http.Key]*http.RequestStats
-	Kafka                       map[kafka.Key]*kafka.RequestStats
-	Postgres                    map[postgres.Key]*postgres.RequestStat
-	Redis                       map[redis.Key]*redis.RequestStat
+	USMData                     USMProtocolsData
 }
 
 // NewConnections create a new Connections object
@@ -159,9 +156,6 @@ const (
 	ConnsBpfMapSize                 ConnTelemetryType = "conns_bpf_map_size"
 	ConntrackSamplingPercent        ConnTelemetryType = "conntrack_sampling_percent"
 	NPMDriverFlowsMissedMaxExceeded ConnTelemetryType = "driver_flows_missed_max_exceeded"
-
-	// USM Payload Telemetry
-	USMHTTPHits ConnTelemetryType = "usm.http.total_hits"
 )
 
 //revive:enable
@@ -191,11 +185,6 @@ var (
 		MonotonicUDPSendsMissed,
 		MonotonicDNSPacketsDropped,
 	}
-
-	// USMPayloadTelemetry lists all USM metrics that are sent as payload telemetry
-	USMPayloadTelemetry = []ConnTelemetryType{
-		USMHTTPHits,
-	}
 )
 
 // RuntimeCompilationTelemetry stores telemetry related to the runtime compilation of various assets
@@ -218,8 +207,8 @@ type StatCounters struct {
 	// * Value 1 represents a connection that was established after system-probe started;
 	// * Values greater than 1 should be rare, but can occur when multiple connections
 	//   are established with the same tuple between two agent checks;
-	TCPEstablished uint32
-	TCPClosed      uint32
+	TCPEstablished uint16
+	TCPClosed      uint16
 }
 
 // IsZero returns whether all the stat counter values are zeroes
@@ -232,64 +221,72 @@ func (s StatCounters) IsZero() bool {
 // reduce collisions; see PR #17197 for more info.
 type StatCookie = uint64
 
+// ConnectionTuple represents the unique network key for a connection
+type ConnectionTuple struct {
+	Source    util.Address
+	Dest      util.Address
+	Pid       uint32
+	NetNS     uint32
+	SPort     uint16
+	DPort     uint16
+	Type      ConnectionType
+	Family    ConnectionFamily
+	Direction ConnectionDirection
+}
+
+func (c ConnectionTuple) String() string {
+	return fmt.Sprintf(
+		"[%s%s] [PID: %d] [ns: %d] [%s:%d ⇄ %s:%d] ",
+		c.Type,
+		c.Family,
+		c.Pid,
+		c.NetNS,
+		c.Source,
+		c.SPort,
+		c.Dest,
+		c.DPort,
+	)
+}
+
 // ConnectionStats stores statistics for a single connection.  Field order in the struct should be 8-byte aligned
 type ConnectionStats struct {
-	Source util.Address
-	Dest   util.Address
-
+	// move pointer fields first to reduce number of bytes GC has to scan
 	IPTranslation *IPTranslation
 	Via           *Via
-
-	Monotonic StatCounters
-
-	Last StatCounters
-
-	Cookie StatCookie
-
-	// Last time the stats for this connection were updated
-	LastUpdateEpoch uint64
-	Duration        time.Duration
-
-	RTT    uint32 // Stored in µs
-	RTTVar uint32
-
-	Pid   uint32
-	NetNS uint32
-
-	SPort            uint16
-	DPort            uint16
-	Type             ConnectionType
-	Family           ConnectionFamily
-	Direction        ConnectionDirection
-	SPortIsEphemeral EphemeralPortType
-	StaticTags       uint64
-	Tags             []*intern.Value
-
-	IntraHost bool
-	IsAssured bool
-	IsClosed  bool
-
-	ContainerID struct {
+	Tags          []*intern.Value
+	ContainerID   struct {
 		Source, Dest *intern.Value
 	}
-
-	ProtocolStack protocols.Stack
-
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
-
 	// TCPFailures stores the number of failures for a POSIX error code
-	TCPFailures map[uint32]uint32
+	TCPFailures map[uint16]uint32
+
+	ConnectionTuple
+
+	Monotonic StatCounters
+	Last      StatCounters
+	Cookie    StatCookie
+	// LastUpdateEpoch is the last time the stats for this connection were updated
+	LastUpdateEpoch uint64
+	Duration        time.Duration
+	RTT             uint32 // Stored in µs
+	RTTVar          uint32
+	StaticTags      uint64
+	ProtocolStack   protocols.Stack
+	TLSTags         tls.Tags
+
+	// keep these fields last because they are 1 byte each and otherwise inflate the struct size due to alignment
+	SPortIsEphemeral EphemeralPortType
+	IntraHost        bool
+	IsAssured        bool
+	IsClosed         bool
 }
 
 // Via has info about the routing decision for a flow
-type Via struct {
-	Subnet Subnet `json:"subnet,omitempty"`
-}
+type Via = networkpayload.Via
 
 // Subnet stores info about a subnet
-type Subnet struct {
-	Alias string `json:"alias,omitempty"`
-}
+type Subnet = networkpayload.Subnet
 
 // IPTranslation can be associated with a connection to show the connection is NAT'd
 type IPTranslation struct {

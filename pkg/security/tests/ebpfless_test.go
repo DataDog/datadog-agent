@@ -59,7 +59,7 @@ func TestEBPFLessAttach(t *testing.T) {
 		go func() {
 			testFile, _, err := test.Path("test-ebpfless-attach")
 			if err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			defer os.Remove(testFile)
 
@@ -90,14 +90,14 @@ func TestEBPFLessAttach(t *testing.T) {
 			}
 
 			// syscall tester to be reading to be tested
-			_ = <-sigCh
+			<-sigCh
 			if err = ptracer.Attach([]int{pid}, constants.DefaultEBPFLessProbeAddr, opts); err != nil {
 				fmt.Printf("unable to attach: %v", err)
 			}
 			doneCh <- true
 		}()
 		return nil
-	}, func(event *model.Event, rule *rules.Rule) {
+	}, func(_ *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_ebpfless_attach")
 	})
 

@@ -5,7 +5,9 @@
 
 package e2e
 
-import "testing"
+import (
+	"testing"
+)
 
 type testLogger struct {
 	t *testing.T

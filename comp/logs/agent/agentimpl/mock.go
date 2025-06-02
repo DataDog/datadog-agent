@@ -11,14 +11,15 @@ import (
 	"context"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MockModule defines the fx options for the mock component.
@@ -36,7 +37,7 @@ type mockLogsAgent struct {
 	logSources      *sources.LogSources
 }
 
-func newMock(deps dependencies) optional.Option[agent.Mock] {
+func newMock(deps dependencies) option.Option[agent.Mock] {
 	logsAgent := &mockLogsAgent{
 		hasFlushed:      false,
 		addedSchedulers: make([]schedulers.Scheduler, 0),
@@ -47,7 +48,7 @@ func newMock(deps dependencies) optional.Option[agent.Mock] {
 		OnStart: logsAgent.start,
 		OnStop:  logsAgent.stop,
 	})
-	return optional.NewOption[agent.Mock](logsAgent)
+	return option.New[agent.Mock](logsAgent)
 }
 
 func (a *mockLogsAgent) start(context.Context) error {

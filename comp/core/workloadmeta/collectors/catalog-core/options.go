@@ -4,8 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package catalog is a wrapper that loads the available workloadmeta
-// collectors. It exists as a shorthand for importing all packages manually in
-// all of the agents.
+// collectors. This is the catalog used by the core agent.
 package catalog
 
 import (
@@ -14,15 +13,16 @@ import (
 	cfcontainer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
 	cfvm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/crio"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecsfargate"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/host"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubeapiserver"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nvml"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/process"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/processlanguage"
 	remoteprocesscollector "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 )
 
@@ -31,15 +31,16 @@ func getCollectorOptions() []fx.Option {
 		cfcontainer.GetFxOptions(),
 		cfvm.GetFxOptions(),
 		containerd.GetFxOptions(),
+		crio.GetFxOptions(),
 		docker.GetFxOptions(),
 		ecs.GetFxOptions(),
 		ecsfargate.GetFxOptions(),
-		kubeapiserver.GetFxOptions(),
 		kubelet.GetFxOptions(),
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),
 		remoteprocesscollector.GetFxOptions(),
-		host.GetFxOptions(),
+		processlanguage.GetFxOptions(),
+		nvml.GetFxOptions(),
 		process.GetFxOptions(),
 	}
 }

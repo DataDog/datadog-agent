@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build orchestrator && test
+
 package config
 
 import (
@@ -128,7 +130,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
 	expectedValue := "123.datadoghq.com"
 	suite.T().Setenv(ddOrchestratorURL, expectedValue)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig([]string{"env:prod"})
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -141,6 +143,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
 	err = orchestratorCfg.Load()
 	suite.NoError(err)
 
+	suite.Equal([]string{"env:prod"}, orchestratorCfg.ExtraTags)
 	suite.Equal(expectedValue, orchestratorCfg.OrchestratorEndpoints[0].Endpoint.Path)
 }
 
@@ -184,7 +187,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSize() {
 	expectedValue := "50"
 	suite.T().Setenv(ddMaxMessage, expectedValue)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -199,7 +202,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigMessageSizeTooHigh() {
 
 	suite.T().Setenv(ddMaxMessage, "150")
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -211,7 +214,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveWords() {
 	expectedValue := "token consul"
 	suite.T().Setenv(ddSensitiveWords, expectedValue)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -225,7 +228,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveAnnotationsAndLabels() {
 	expectedValue := "my-sensitive-annotation my-sensitive-label"
 	suite.T().Setenv(ddSensitiveAnnotationsLabels, expectedValue)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -235,7 +238,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigSensitiveAnnotationsAndLabels() {
 }
 
 func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -258,7 +261,7 @@ func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 
@@ -281,7 +284,7 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
 	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
-	orchestratorCfg := NewDefaultOrchestratorConfig()
+	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()
 	suite.NoError(err)
 

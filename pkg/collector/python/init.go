@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -97,6 +98,7 @@ char* ObfuscateSQL(char *, char *, char **);
 char* ObfuscateSQLExecPlan(char *, bool, char **);
 double getProcessStartTime();
 char* ObfuscateMongoDBString(char *, char **);
+void EmitAgentTelemetry(char *, char *, double, char *);
 
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
@@ -115,6 +117,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_obfuscate_sql_exec_plan_cb(rtloader, ObfuscateSQLExecPlan);
 	set_get_process_start_time_cb(rtloader, getProcessStartTime);
 	set_obfuscate_mongodb_string_cb(rtloader, ObfuscateMongoDBString);
+	set_emit_agent_telemetry_cb(rtloader, EmitAgentTelemetry);
 }
 
 //
@@ -194,7 +197,7 @@ func (ire InterpreterResolutionError) Error() string {
 		" Python's 'multiprocessing' library may fail to work.", ire.Err)
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 const PythonWinExeBasename = "python.exe"
 
 var (
@@ -203,7 +206,6 @@ var (
 	PythonVersion = ""
 	// The pythonHome variable typically comes from -ldflags
 	// it's needed in case the agent was built using embedded libs
-	pythonHome2 = ""
 	pythonHome3 = ""
 	// PythonHome contains the computed value of the Python Home path once the
 	// intepreter is created. It might be empty in case the interpreter wasn't
@@ -216,8 +218,7 @@ var (
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
 
-	//nolint:revive // TODO(AML) Fix revive linter
-	rtloader *C.rtloader_t = nil
+	rtloader *C.rtloader_t
 
 	expvarPyInit  *expvar.Map
 	pyInitLock    sync.RWMutex
@@ -231,20 +232,9 @@ func init() {
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
 
-	// Force the use of stdlib's distutils, to prevent loading the setuptools-vendored distutils
-	// in integrations, which causes a 10MB memory increase.
-	// Note: a future version of setuptools (TBD) will remove the ability to use this variable
-	// (https://github.com/pypa/setuptools/issues/3625),
-	// and Python 3.12 removes distutils from the standard library.
-	// Once we upgrade one of those, we won't have any choice but to use setuptools' distutils,
-	// which means we will get the memory increase again if integrations still use distutils.
-
-	// This must happen as early as possible in the process lifetime to avoid data race with
-	// `getenv`. Ideally before we start any goroutines that call native code or open network
-	// connections.
-	if v := os.Getenv("SETUPTOOLS_USE_DISTUTILS"); v == "" {
-		os.Setenv("SETUPTOOLS_USE_DISTUTILS", "stdlib")
-	}
+	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
+	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
+	initFIPS()
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -301,47 +291,43 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 	return absPath, nil
 }
 
-func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, error) {
-	// Since the install location can be set by the user on Windows we use relative import
-	if runtime.GOOS == "windows" {
-		_here, err := executable.Folder()
+func resolvePythonHome() {
+	// Allow to relatively import python
+	_here, err := executable.Folder()
+	if err != nil {
+		log.Warnf("Error getting executable folder: %v", err)
+		log.Warnf("Trying again allowing symlink resolution to fail")
+		_here, err = executable.FolderAllowSymlinkFailure()
 		if err != nil {
-			log.Warnf("Error getting executable folder: %v", err)
-			log.Warnf("Trying again allowing symlink resolution to fail")
-			_here, err = executable.FolderAllowSymlinkFailure()
-			if err != nil {
-				log.Warnf("Error getting executable folder w/o symlinks: %v", err)
-			}
-		}
-		log.Debugf("Executable folder is %v", _here)
-
-		embeddedPythonHome2 := filepath.Join(_here, "..", "embedded2")
-		embeddedPythonHome3 := filepath.Join(_here, "..", "embedded3")
-
-		// We want to use the path-relative embedded2/3 directories above by default.
-		// They will be correct for normal installation on Windows. However, if they
-		// are not present for cases like running unit tests, fall back to the compile
-		// time values.
-		if _, err := os.Stat(embeddedPythonHome2); os.IsNotExist(err) {
-			log.Warnf("Relative embedded directory not found for Python 2. Using default: %s", pythonHome2)
-		} else {
-			pythonHome2 = embeddedPythonHome2
-		}
-		if _, err := os.Stat(embeddedPythonHome3); os.IsNotExist(err) {
-			log.Warnf("Relative embedded directory not found for Python 3. Using default: %s", pythonHome3)
-		} else {
-			pythonHome3 = embeddedPythonHome3
+			log.Warnf("Error getting executable folder w/o symlinks: %v", err)
 		}
 	}
+	log.Debugf("Executable folder is %v", _here)
 
-	if pythonVersion == "2" {
-		PythonHome = pythonHome2
-	} else if pythonVersion == "3" {
-		PythonHome = pythonHome3
+	var embeddedPythonHome3 string
+	if runtime.GOOS == "windows" {
+		embeddedPythonHome3 = filepath.Join(_here, "..", "embedded3")
+	} else { // Both macOS and Linux have the same relative paths
+		embeddedPythonHome3 = filepath.Join(_here, "../..", "embedded")
 	}
+
+	// We want to use the path-relative embedded2/3 directories above by default.
+	// They will be correct for normal installation on Windows. However, if they
+	// are not present for cases like running unit tests, fall back to the compile
+	// time values.
+	if _, err := os.Stat(embeddedPythonHome3); os.IsNotExist(err) {
+		log.Warnf("Relative embedded directory not found for Python 3. Using default: %s", pythonHome3)
+	} else {
+		pythonHome3 = embeddedPythonHome3
+	}
+
+	PythonHome = pythonHome3
 
 	log.Infof("Using '%s' as Python home", PythonHome)
+}
 
+func resolvePythonExecPath(ignoreErrors bool) (string, error) {
+	resolvePythonHome()
 	// For Windows, the binary should be in our path already and have a
 	// consistent name
 	if runtime.GOOS == "windows" {
@@ -359,7 +345,7 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 	// don't want to use the default version (aka "python") but rather "python2" or
 	// "python3" based on the configuration. Also on some Python3 platforms there
 	// are no "python" aliases either.
-	interpreterBasename := "python" + pythonVersion
+	interpreterBasename := "python3"
 
 	// If we are in a development env or just the ldflags haven't been set, the PythonHome
 	// variable won't be set so what we do here is to just find out where our current
@@ -374,7 +360,7 @@ func resolvePythonExecPath(pythonVersion string, ignoreErrors bool) (string, err
 	return filepath.Join(PythonHome, "bin", interpreterBasename), nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Initialize initializes the Python interpreter
 func Initialize(paths ...string) error {
 	pythonVersion := pkgconfigsetup.Datadog().GetString("python_version")
 	allowPathHeuristicsFailure := pkgconfigsetup.Datadog().GetBool("allow_python_path_heuristics_failure")
@@ -391,24 +377,20 @@ func Initialize(paths ...string) error {
 	}
 
 	// Note: pythonBinPath is a module-level var
-	pythonBinPath, err := resolvePythonExecPath(pythonVersion, allowPathHeuristicsFailure)
+	pythonBinPath, err := resolvePythonExecPath(allowPathHeuristicsFailure)
 	if err != nil {
 		return err
 	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
-	//nolint:revive // TODO(AML) Fix revive linter
-	var pyErr *C.char = nil
+	var pyErr *C.char
 
 	csPythonHome := TrackedCString(PythonHome)
 	defer C._free(unsafe.Pointer(csPythonHome))
 	csPythonExecPath := TrackedCString(pythonBinPath)
 	defer C._free(unsafe.Pointer(csPythonExecPath))
 
-	if pythonVersion == "2" {
-		log.Infof("Initializing rtloader with Python 2 %s", PythonHome)
-		rtloader = C.make2(csPythonHome, csPythonExecPath, &pyErr)
-	} else if pythonVersion == "3" {
+	if pythonVersion == "3" {
 		log.Infof("Initializing rtloader with Python 3 %s", PythonHome)
 		rtloader = C.make3(csPythonHome, csPythonExecPath, &pyErr)
 	} else {
@@ -426,8 +408,21 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
-		initPymemTelemetry()
+	// Should we track python memory?
+	if pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
+		var interval time.Duration
+		if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") {
+			// detailed telemetry is enabled
+			interval = 1 * time.Second
+		} else if pkgconfigsetup.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
+			// default telemetry is enabled (emitted every 15 minute)
+			interval = 15 * time.Minute
+		}
+
+		// interval is 0 if telemetry is disabled
+		if interval > 0 {
+			initPymemTelemetry(interval)
+		}
 	}
 
 	// Set the PYTHONPATH if needed.
@@ -464,7 +459,7 @@ func Initialize(paths ...string) error {
 
 	// store the Python version after killing \n chars within the string
 	if pyInfo != nil {
-		PythonVersion = strings.Replace(C.GoString(pyInfo.version), "\n", "", -1)
+		PythonVersion = strings.ReplaceAll(C.GoString(pyInfo.version), "\n", "")
 		// Set python version in the cache
 		cache.Cache.Set(pythonInfoCacheKey, PythonVersion, cache.NoExpiration)
 
@@ -485,7 +480,7 @@ func GetRtLoader() *C.rtloader_t {
 	return rtloader
 }
 
-func initPymemTelemetry() {
+func initPymemTelemetry(d time.Duration) {
 	C.init_pymem_stats(rtloader)
 
 	// "alloc" for consistency with go memstats and mallochook metrics.
@@ -493,7 +488,7 @@ func initPymemTelemetry() {
 	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
 
 	go func() {
-		t := time.NewTicker(1 * time.Second)
+		t := time.NewTicker(d)
 		var prevAlloc C.size_t
 
 		for range t.C {
@@ -504,4 +499,43 @@ func initPymemTelemetry() {
 			prevAlloc = s.alloc
 		}
 	}()
+}
+
+func initFIPS() {
+	fipsEnabled, err := fips.Enabled()
+	if err != nil {
+		log.Warnf("could not check FIPS mode: %v", err)
+		return
+	}
+	resolvePythonHome()
+	if PythonHome == "" {
+		log.Warnf("Python home is empty. FIPS mode could not be enabled.")
+		return
+	}
+	if fipsEnabled {
+		err := enableFIPS(PythonHome)
+		if err != nil {
+			log.Warnf("could not initialize FIPS mode: %v", err)
+		}
+	}
+}
+
+// enableFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
+func enableFIPS(embeddedPath string) error {
+	envVars := map[string][]string{
+		"OPENSSL_CONF":    {embeddedPath, "ssl", "openssl.cnf"},
+		"OPENSSL_MODULES": {embeddedPath, "lib", "ossl-modules"},
+	}
+
+	for envVar, pathParts := range envVars {
+		if v := os.Getenv(envVar); v != "" {
+			continue
+		}
+		path := filepath.Join(pathParts...)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return fmt.Errorf("path %q does not exist", path)
+		}
+		os.Setenv(envVar, path)
+	}
+	return nil
 }

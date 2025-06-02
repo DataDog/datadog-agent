@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The `datadog-fips-agent` now builds with the ['requirefips' buildtag](https://github.com/microsoft/go/tree/microsoft/main/eng/doc/fips#build-option-to-require-fips-mode)
+    in the 7.64 Linux release and no longer needs the `GOFIPS=1` environment
+    variable set to enable FIPS mode. When upgrading from 7.63, this can be removed.

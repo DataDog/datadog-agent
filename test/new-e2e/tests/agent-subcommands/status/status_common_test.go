@@ -97,11 +97,12 @@ func fetchAndCheckStatus(v *baseStatusSuite, expectedSections []expectedSection)
 	}, 2*time.Minute, 20*time.Second)
 }
 
-func (v *baseStatusSuite) TestDefaultInstallStatus() {
+func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processAgentNotContain []string) {
 	expectedSections := []expectedSection{
 		{
 			name:             `Agent \(.*\)`, // TODO: verify that the right version is output
 			shouldBePresent:  true,
+			shouldContain:    shouldContainsFips(v),
 			shouldNotContain: []string{"FIPS proxy"},
 		},
 		{
@@ -175,7 +176,8 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 		{
 			name:             "Process Agent",
 			shouldBePresent:  true,
-			shouldNotContain: []string{"Status: Not running or unreachable"},
+			shouldContain:    processAgentContain,
+			shouldNotContain: processAgentNotContain,
 		},
 		{
 			name:            "Remote Configuration",
@@ -201,4 +203,11 @@ func (v *baseStatusSuite) TestDefaultInstallStatus() {
 	}
 
 	fetchAndCheckStatus(v, expectedSections)
+}
+
+func shouldContainsFips(v *baseStatusSuite) []string {
+	if v.Env().Agent.FIPSEnabled {
+		return []string{"FIPS Mode: enabled"}
+	}
+	return []string{"FIPS Mode: not available"}
 }

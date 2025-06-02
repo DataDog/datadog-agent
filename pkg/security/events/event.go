@@ -1,4 +1,4 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers $GOFILE
+//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=readonly -no_std_marshalers $GOFILE
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
@@ -11,6 +11,7 @@ package events
 import (
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -27,6 +28,8 @@ type AgentContext struct {
 	OS            string            `json:"os,omitempty"`
 	Arch          string            `json:"arch,omitempty"`
 	Origin        string            `json:"origin,omitempty"`
+	KernelVersion string            `json:"kernel_version,omitempty"`
+	Distribution  string            `json:"distribution,omitempty"`
 }
 
 // BackendEvent - Rule event wrapper used to send an event to the backend
@@ -42,6 +45,7 @@ type Event interface {
 	GetTags() []string
 	GetType() string
 	GetActionReports() []model.ActionReport
+	GetFieldValue(eval.Field) (interface{}, error)
 }
 
 // EventSender defines an event sender

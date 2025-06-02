@@ -13,22 +13,22 @@ import (
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type vmFakeintakeSuite struct {
+type vmLogsExampleSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 //go:embed testfixtures/custom_logs.yaml
 var customLogsConfig string
 
-func TestE2EVMFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &vmFakeintakeSuite{}, e2e.WithProvisioner(
+func TestVMLogsExampleSuite(t *testing.T) {
+	e2e.Run(t, &vmLogsExampleSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithAgentOptions(
 				agentparams.WithIntegration("custom_logs.d", customLogsConfig),
@@ -38,7 +38,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	))
 }
 
-func (s *vmFakeintakeSuite) TestLogs() {
+func (s *vmLogsExampleSuite) TestLogs() {
 	fakeintake := s.Env().FakeIntake.Client()
 	// part 1: no logs
 	s.EventuallyWithT(func(c *assert.CollectT) {

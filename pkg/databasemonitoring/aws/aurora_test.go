@@ -19,13 +19,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockrdsServiceConfigurer func(k *MockrdsService)
-
 func TestGetAuroraClusterEndpoints(t *testing.T) {
 	testCases := []struct {
 		name                           string
 		configureClient                mockrdsServiceConfigurer
 		clusterIDs                     []string
+		dbmTag                         *string
 		expectedAuroraClusterEndpoints map[string]*AuroraCluster
 		expectedErr                    error
 	}{
@@ -77,10 +76,88 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "single cluster id returns single endpoint from API with custom DBM tag",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("datadoghq.com/dbm"), Value: aws.String("custom")}},
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			dbmTag:     aws.String("datadoghq.com/dbm:custom"),
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							ClusterID:  "test-cluster",
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
+							DbmEnabled: true,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "single cluster id returns single endpoint from API with custom bare DBM tag",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("datadoghq.com/dbm")}},
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			dbmTag:     aws.String("datadoghq.com/dbm"),
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							ClusterID:  "test-cluster",
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
+							DbmEnabled: true,
 						},
 					},
 				},
@@ -132,22 +209,28 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint-2",
 							Port:       5432,
 							IamEnabled: false,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint-3",
 							Port:       5444,
 							IamEnabled: false,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
@@ -199,10 +282,12 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
@@ -211,7 +296,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns single endpoint from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster"})).Return(&rds.DescribeDBInstancesOutput{
 					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
@@ -226,16 +311,21 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 						},
 					},
 				}, nil).Times(1)
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{},
+				}, nil).Times(1)
 			},
 			clusterIDs: []string{"test-cluster", "test-cluster-2"},
 			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
@@ -244,7 +334,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 		{
 			name: "multiple cluster ids returns many endpoints from API",
 			configureClient: func(k *MockrdsService) {
-				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster", "test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster"})).Return(&rds.DescribeDBInstancesOutput{
 					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
@@ -256,6 +346,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							AvailabilityZone:                 aws.String("us-east-1a"),
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
+							TagList:                          []types.Tag{{Key: aws.String("datadoghq.com/dbm"), Value: aws.String("true")}},
 						},
 						{
 							Endpoint: &types.Endpoint{
@@ -268,6 +359,11 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("aurora-postgresql"),
 						},
+					},
+				}, nil).Times(1)
+
+				k.EXPECT().DescribeDBInstances(gomock.Any(), createDescribeDBInstancesRequest([]string{"test-cluster-2"})).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
 						{
 							Endpoint: &types.Endpoint{
 								Address: aws.String("test-endpoint-3"),
@@ -287,26 +383,33 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
+							DbmEnabled: true,
 						},
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint-2",
 							Port:       5432,
 							IamEnabled: false,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
 				"test-cluster-2": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster-2",
 							Endpoint:   "test-endpoint-3",
 							Port:       5444,
 							IamEnabled: true,
 							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
 						},
 					},
 				},
@@ -320,7 +423,187 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs)
+			dbmTag := defaultDbmTag
+			if tt.dbmTag != nil {
+				dbmTag = *tt.dbmTag
+			}
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, dbmTag)
+			if tt.expectedErr != nil {
+				assert.EqualError(t, err, tt.expectedErr.Error())
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedAuroraClusterEndpoints, clusters)
+		})
+	}
+}
+
+func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
+	testCases := []struct {
+		name                           string
+		configureClient                mockrdsServiceConfigurer
+		clusterIDs                     []string
+		expectedAuroraClusterEndpoints map[string]*AuroraCluster
+		expectedErr                    error
+	}{
+		{
+			name: "aurora-postgresql engine returns default postgres db name",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-postgresql"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							ClusterID:  "test-cluster",
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbName:     "postgres",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "aurora-mysql engine returns default db name for engine",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-mysql"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							ClusterID:  "test-cluster",
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-mysql",
+							DbName:     "mysql",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "aurora-postgresql engine returns default db name for engine",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("aurora-postgresql"),
+							DBName:                           aws.String("test-db-name"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs: []string{"test-cluster"},
+			expectedAuroraClusterEndpoints: map[string]*AuroraCluster{
+				"test-cluster": {
+					Instances: []*Instance{
+						{
+							ClusterID:  "test-cluster",
+							Endpoint:   "test-endpoint",
+							Port:       5432,
+							IamEnabled: true,
+							Engine:     "aurora-postgresql",
+							DbName:     "test-db-name",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "missing engine returns error",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs:  []string{"test-cluster"},
+			expectedErr: errors.New("no endpoints found for aurora clusters with id(s): test-cluster"),
+		},
+		{
+			name: "unsupported engine returns error",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), gomock.Any()).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBClusterIdentifier:              aws.String("test-cluster"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("does-not-exist"),
+						},
+					},
+				}, nil).Times(1)
+			},
+			clusterIDs:  []string{"test-cluster"},
+			expectedErr: errors.New("no endpoints found for aurora clusters with id(s): test-cluster"),
+		},
+	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			mockClient := NewMockrdsService(ctrl)
+			tt.configureClient(mockClient)
+			client := &Client{client: mockClient}
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, defaultDbmTag)
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
@@ -580,6 +863,67 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 			tags:               []string{"test:tag", "test2:tag2"},
 			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
 		},
+		{
+			name: "multiple pages returns ids from all pages",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					Marker: aws.String("next"),
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Marker: aws.String("next"),
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster-2"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+								{
+									Key:   aws.String("test2"),
+									Value: aws.String("tag2"),
+								},
+								{
+									Key:   aws.String("foo"),
+									Value: aws.String("bar"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{"test:tag", "test2:tag2"},
+			expectedClusterIDs: []string{"test-cluster", "test-cluster-2"},
+		},
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -596,16 +940,5 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedClusterIDs, clusters)
 		})
-	}
-}
-
-func createDescribeDBInstancesRequest(clusterIDs []string) *rds.DescribeDBInstancesInput {
-	return &rds.DescribeDBInstancesInput{
-		Filters: []types.Filter{
-			{
-				Name:   aws.String("db-cluster-id"),
-				Values: clusterIDs,
-			},
-		},
 	}
 }

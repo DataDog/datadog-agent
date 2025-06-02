@@ -8,6 +8,7 @@ package tags
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
 	"strings"
@@ -147,12 +148,8 @@ func MapToArray(tagsMap map[string]string) []string {
 
 func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]string) map[string]string {
 	merged := make(map[string]string)
-	for k, v := range tags {
-		merged[k] = v
-	}
-	for k, v := range overwritingTags {
-		merged[k] = v
-	}
+	maps.Copy(merged, tags)
+	maps.Copy(merged, overwritingTags)
 	return merged
 }
 
@@ -169,9 +166,7 @@ func BuildTracerTags(tags map[string]string) map[string]string {
 
 func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
 	tagsMap := make(map[string]string)
-	for k, v := range tags {
-		tagsMap[k] = v
-	}
+	maps.Copy(tagsMap, tags)
 	for _, blackListKey := range tagsToSkip {
 		delete(tagsMap, blackListKey)
 	}

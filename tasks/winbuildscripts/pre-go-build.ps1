@@ -11,13 +11,12 @@ Default: 3
 
 #>
 
-param(
-    [Parameter(Mandatory=$false)][string]$PythonRuntimes = '3'
-)
-
 $ErrorActionPreference = "Stop"
 
-& inv -e rtloader.make --python-runtimes="$PythonRuntimes" --install-prefix="$(Get-Location)\dev" --cmake-options='-G \"Unix Makefiles\"'
+# Run clean to avoid issues with CMakeCache.txt due to moving build roots
+& dda inv -- -e rtloader.clean
+
+& dda inv -- -e rtloader.make --install-prefix="$(Get-Location)\dev" --cmake-options='-G \"Unix Makefiles\"'
 $err = $LASTEXITCODE
 Write-Host Build result is $err
 if($err -ne 0){
@@ -25,7 +24,7 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
-& inv -e rtloader.install
+& dda inv -- -e rtloader.install
 $err = $LASTEXITCODE
 Write-Host rtloader install result is $err
 if($err -ne 0){
@@ -33,7 +32,7 @@ if($err -ne 0){
     [Environment]::Exit($err)
 }
 
-& inv -e build-messagetable
+& dda inv -- -e build-messagetable
 $err = $LASTEXITCODE
 Write-Host Build result is $err
 if($err -ne 0){

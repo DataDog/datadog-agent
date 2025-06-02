@@ -10,9 +10,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"runtime"
 	"sync"
 	"testing"
+	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
@@ -54,20 +56,19 @@ func TestTraceWriter(t *testing.T) {
 		{gzip.NewComponent()},
 		{zstd.NewComponent()},
 	}
-
 	for _, tc := range testCases {
-		srv := newTestServer()
-		cfg := &config.AgentConfig{
-			Hostname:   testHostname,
-			DefaultEnv: testEnv,
-			Endpoints: []*config.Endpoint{{
-				APIKey: "123",
-				Host:   srv.URL,
-			}},
-			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
-		}
-
 		t.Run(fmt.Sprintf("encoding:%s", tc.compressor.Encoding()), func(t *testing.T) {
+			srv := newTestServer()
+			defer srv.Close()
+			cfg := &config.AgentConfig{
+				Hostname:   testHostname,
+				DefaultEnv: testEnv,
+				Endpoints: []*config.Endpoint{{
+					APIKey: "123",
+					Host:   srv.URL,
+				}},
+				TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+			}
 			testSpans := []*SampledChunks{
 				randomSampledSpans(20, 8),
 				randomSampledSpans(10, 0),
@@ -152,6 +153,7 @@ func randomSampledSpans(spans, events int) *SampledChunks {
 		TracerPayload: &pb.TracerPayload{Chunks: []*pb.TraceChunk{traceChunk}},
 		Size:          pb.Trace(traceChunk.Spans).Msgsize() + pb.Trace(traceChunk.Spans[:events]).Msgsize(),
 		SpanCount:     int64(len(traceChunk.Spans)),
+		EventCount:    int64(events),
 	}
 }
 
@@ -196,6 +198,7 @@ func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledC
 
 func TestTraceWriterFlushSync(t *testing.T) {
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -228,6 +231,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 
 func TestResetBuffer(t *testing.T) {
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -250,13 +254,18 @@ func TestResetBuffer(t *testing.T) {
 		ContainerID: string(make([]byte, 50*1e6)),
 	}
 
+	w.mu.Lock()
 	w.tracerPayloads = append(w.tracerPayloads, bigPayload)
+	w.mu.Unlock()
 
 	runtime.GC()
 	runtime.ReadMemStats(&m)
 	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
 
+	w.mu.Lock()
 	w.resetBuffer()
+	w.mu.Unlock()
+
 	runtime.GC()
 	runtime.ReadMemStats(&m)
 	assert.Less(t, m.HeapInuse, uint64(50*1e6))
@@ -264,6 +273,7 @@ func TestResetBuffer(t *testing.T) {
 
 func TestTraceWriterSyncStop(t *testing.T) {
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -296,6 +306,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 
 func TestTraceWriterSyncNoop(t *testing.T) {
 	srv := newTestServer()
+	defer srv.Close()
 	cfg := &config.AgentConfig{
 		Hostname:   testHostname,
 		DefaultEnv: testEnv,
@@ -369,6 +380,89 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 		sendRandomSpanAndFlush(t, tw)
 		assertExpectedTps(t, 42, 15, true, tw.compressor)
 	})
+}
+
+func TestTraceWriterUpdateAPIKey(t *testing.T) {
+	assert := assert.New(t)
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+	}
+
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent())
+	defer tw.Stop()
+
+	url, err := url.Parse(srv.URL + pathTraces)
+	assert.NoError(err)
+
+	assert.Len(tw.senders, 1)
+	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal(url, tw.senders[0].cfg.url)
+
+	tw.UpdateAPIKey("invalid", "foo")
+	assert.Equal("123", tw.senders[0].cfg.apiKey)
+	assert.Equal(url, tw.senders[0].cfg.url)
+
+	tw.UpdateAPIKey("123", "foo")
+	assert.Equal("foo", tw.senders[0].cfg.apiKey)
+	assert.Equal(url, tw.senders[0].cfg.url)
+}
+
+func TestTraceWriterInfo(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		SynchronousFlushing: true,
+		// FlushPeriodSeconds is intentionally long to avoid our info stats being stepped on by a time flush
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40, FlushPeriodSeconds: 100},
+	}
+
+	testSpans := []*SampledChunks{
+		randomSampledSpans(20, 8),
+		randomSampledSpans(10, 0),
+		randomSampledSpans(40, 5),
+	}
+	// Use a flush threshold that allows the first two entries to not overflow,
+	// but overflow on the third.
+	defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
+	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstd.NewComponent())
+
+	time.Sleep(200 * time.Millisecond) // allow stats to be initialized
+
+	for _, ss := range testSpans {
+		tw.WriteChunks(ss)
+	}
+	err := tw.FlushSync()
+	assert.NoError(t, err)
+	time.Sleep(200 * time.Millisecond) // allow stats to be propagated in the reporter goroutine
+	// One payload flushes due to overflowing the threshold, and the second one
+	// because of the sync flush
+	assert.Equal(t, 2, srv.Accepted())
+	payloadsContain(t, srv.Payloads(), testSpans, zstd.NewComponent())
+
+	assert.Equal(t, int64(70), tw.statsLastMinute.Spans.Load())
+	assert.Equal(t, int64(13), tw.statsLastMinute.Events.Load())
+	assert.Equal(t, int64(3), tw.statsLastMinute.Traces.Load())
+	assert.Equal(t, int64(2), tw.statsLastMinute.Payloads.Load())
+	assert.NotEmpty(t, tw.statsLastMinute.Bytes.Load())
+	assert.NotEmpty(t, tw.statsLastMinute.BytesUncompressed.Load())
+	assert.Empty(t, tw.statsLastMinute.Errors.Load())
+	assert.Empty(t, tw.statsLastMinute.Retries.Load())
+
+	tw.Stop()
 }
 
 // deserializePayload decompresses a payload and deserializes it into a pb.AgentPayload.

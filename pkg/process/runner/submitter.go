@@ -10,13 +10,14 @@ import (
 	"hash/fnv"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
-
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -27,11 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
-	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -86,10 +85,12 @@ type CheckSubmitter struct {
 
 	stopHeartbeat chan struct{}
 	clock         clock.Clock
+
+	statsd statsd.ClientInterface
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
-func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, hostname string) (*CheckSubmitter, error) {
+func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, statsd statsd.ClientInterface, hostname string) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
@@ -166,6 +167,8 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 
 		stopHeartbeat: make(chan struct{}),
 		clock:         clock.New(),
+
+		statsd: statsd,
 	}, nil
 }
 
@@ -463,13 +466,7 @@ func (s *CheckSubmitter) getRequestID(start time.Time, chunkIndex int) string {
 }
 
 func (s *CheckSubmitter) shouldDropPayload(check string) bool {
-	for _, d := range s.dropCheckPayloads {
-		if d == check {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(s.dropCheckPayloads, check)
 }
 
 func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
@@ -482,7 +479,7 @@ func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
 	for {
 		select {
 		case <-heartbeatTicker.C:
-			statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
+			_ = s.statsd.Gauge("datadog.process.agent", 1, tags, 1)
 		case <-s.stopHeartbeat:
 			return
 		}

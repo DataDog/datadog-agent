@@ -26,4 +26,4 @@ Simply run `go test ./...` to run the tests with the [Fake API](api/fake).
 
 The tests can be run with the [Windows API](api/windows), which will install/remove event logs on the system and fill them with events.
 
-The integration tests can be run directly `go test ./... -evtapi Windows`, or through the invoke task `inv -e integration-tests`.
+The integration tests can be run directly `go test ./... -evtapi Windows`, or through the invoke task `dda inv -e integration-tests`.

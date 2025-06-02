@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    PHP support is enabled by default in the Cluster Agent

@@ -3,12 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// ---------------------------------------------------
-//
-// This is experimental code and is subject to change.
-//
-// ---------------------------------------------------
-
 package agenttelemetryimpl
 
 import (
@@ -16,37 +10,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/itchyny/gojq"
 	dto "github.com/prometheus/client_model/go"
 )
-
-type jBuilder struct {
-	jqSource    *gojq.Query
-	jpathTarget []string
-}
-
-// compileJBuilders compiles a map of JSON path and JQ query into a slice of jBuilder
-func compileJBuilders(params map[string]string) ([]jBuilder, error) {
-	var builders []jBuilder
-	for jpath, query := range params {
-		// Validate JSON/attribute path
-		jpaths := strings.Split(jpath, ".")
-		if len(jpaths) < 2 {
-			return nil, fmt.Errorf("jpath `%s` should contain at leat two elements", jpath)
-		}
-
-		// Compile JQ expression
-		q, err := gojq.Parse(query)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse jq query %s for jpath '%s': %s", query, jpath, err.Error())
-		}
-
-		builder := jBuilder{jqSource: q, jpathTarget: jpaths}
-		builders = append(builders, builder)
-	}
-
-	return builders, nil
-}
 
 // select only supported metric types
 func isSupportedMetricType(mt dto.MetricType) bool {
@@ -134,11 +99,16 @@ func aggregateMetric(mt dto.MetricType, aggm *dto.Metric, srcm *dto.Metric) {
 					aggmb.Exemplar.Label = nil
 				}
 			}
+
+			// copy the sample count (it is implicit "+Inf" bucket)
+			aggm.Histogram.SampleCount = srcm.Histogram.SampleCount
 		} else {
 			// for the same metric family bucket structure is the same
 			for i, srcb := range srcm.Histogram.Bucket {
 				*aggm.Histogram.Bucket[i].CumulativeCount += srcb.GetCumulativeCount()
 			}
+			// copy the sample count (it is implicit "+Inf" bucket)
+			*aggm.Histogram.SampleCount += srcm.Histogram.GetSampleCount()
 		}
 	}
 }
@@ -158,4 +128,14 @@ func cloneLabelsSorted(labels []*dto.LabelPair) []*dto.LabelPair {
 // Make string key from LabelPair
 func makeLabelPairKey(l *dto.LabelPair) string {
 	return fmt.Sprintf("%s:%s:", l.GetName(), l.GetValue())
+}
+
+// Sort and serialize labels into a string
+func convertLabelsToKey(labels []*dto.LabelPair) string {
+	sortedLabels := cloneLabelsSorted(labels)
+	var sb strings.Builder
+	for _, tag := range sortedLabels {
+		sb.WriteString(makeLabelPairKey(tag))
+	}
+	return sb.String()
 }

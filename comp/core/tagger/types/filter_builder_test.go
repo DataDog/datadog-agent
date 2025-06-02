@@ -58,6 +58,8 @@ func TestFilterBuilderOps(t *testing.T) {
 					KubernetesMetadata:     {},
 					KubernetesPodUID:       {},
 					Process:                {},
+					InternalID:             {},
+					GPU:                    {},
 				},
 				cardinality: HighCardinality,
 			},
