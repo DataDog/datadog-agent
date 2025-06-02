@@ -6,7 +6,6 @@
 package config
 
 import (
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -180,18 +179,14 @@ func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
 }
 
 func (l *LogsConfigKeys) getAdditionalEndpoints() ([]unmarshalEndpoint, string) {
-	var endpoints []unmarshalEndpoint
-	var err error
 	configKey := l.getConfigKey("additional_endpoints")
 	raw := l.getConfig().Get(configKey)
 	if raw == nil {
 		return nil, ""
 	}
-	if s, ok := raw.(string); ok && s != "" {
-		err = json.Unmarshal([]byte(s), &endpoints)
-	} else {
-		err = structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableSquash)
-	}
+
+	var endpoints []unmarshalEndpoint
+	err := structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableSquash)
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
