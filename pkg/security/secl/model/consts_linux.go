@@ -848,44 +848,144 @@ var (
 	// SetSockoptLevelConstants is the list of available levels for setsockopt events
 	// generate_constants:SetSockopt Levels,SetSockopt Levels are the supported levels for the setsockopt event.
 	SetSockoptLevelConstants = map[string]int{
+		"IPPROTO_IP":     syscall.IPPROTO_IP,
 		"SOL_SOCKET":     syscall.SOL_SOCKET,
-		"SO_DEBUG":       syscall.SO_DEBUG,
-		"SO_REUSEADDR":   syscall.SO_REUSEADDR,
-		"SO_TYPE":        syscall.SO_TYPE,
-		"SO_ERROR":       syscall.SO_ERROR,
-		"SO_DONTROUTE":   syscall.SO_DONTROUTE,
-		"SO_BROADCAST":   syscall.SO_BROADCAST,
-		"SO_SNDBUF":      syscall.SO_SNDBUF,
-		"SO_RCVBUF":      syscall.SO_RCVBUF,
-		"SO_SNDBUFFORCE": syscall.SO_SNDBUFFORCE,
-		"SO_RCVBUFFORCE": syscall.SO_RCVBUFFORCE,
-		"SO_KEEPALIVE":   syscall.SO_KEEPALIVE,
-		"SO_OOBINLINE":   syscall.SO_OOBINLINE,
-		"SO_NO_CHECK":    syscall.SO_NO_CHECK,
-		"SO_PRIORITY":    syscall.SO_PRIORITY,
-		"SO_LINGER":      syscall.SO_LINGER,
-		"SO_BSDCOMPAT":   syscall.SO_BSDCOMPAT,
-		"SO_PASSCRED":    syscall.SO_PASSCRED,
-		"SO_PEERCRED":    syscall.SO_PEERCRED,
-		"SO_RCVLOWAT":    syscall.SO_RCVLOWAT,
-		"SO_SNDLOWAT":    syscall.SO_SNDLOWAT,
-		// "SO_REUEPORT", "SO_RCVTIMEO", "SO_SNDTIMEO" are not defined in syscall package
+		"IPPROTO_TCP":    syscall.IPPROTO_TCP,
+		"IPPROTO_UDP":    syscall.IPPROTO_UDP,
+		"IPPROTO_IPV6":   syscall.IPPROTO_IPV6,
+		"IPPROTO_ICMPV6": syscall.IPPROTO_ICMPV6,
 	}
 
 	// SetSockOptOptNameConstants is the list of available options for setsockopt events
 	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event.
 	SetSockOptOptNameConstants = map[string]int{
-		"SO_ATTACH_FILTER": syscall.SO_ATTACH_FILTER,
-		"SO_DETACH_FILTER": syscall.SO_DETACH_FILTER,
-		"SO_PEERNAME":      syscall.SO_PEERNAME,
-		"SO_PEERSEC":       syscall.SO_PEERSEC,
-		"SO_PASSSEC":       syscall.SO_PASSSEC,
-		"SO_MARK":          syscall.SO_MARK,
-		"SO_PROTOCOL":      syscall.SO_PROTOCOL,
-		"SO_DOMAIN":        syscall.SO_DOMAIN,
-		"SO_RXQ_OVFL":      syscall.SO_RXQ_OVFL,
-		// "SO_GET_FILTER", "SO_ATTACH_REUSEPORT_CBPF", "SO_ATTACH_REUSEPORT_EBPF" are not defined in syscall package
+		// IPPROTO_IP options
+		"IP_TOS":                  syscall.IP_TOS,            // 1
+		"IP_TTL":                  syscall.IP_TTL,            // 2
+		"IP_HDRINCL":              syscall.IP_HDRINCL,        // 3
+		"IP_OPTIONS":              syscall.IP_OPTIONS,        // 4
+		"IP_ROUTER_ALERT":         syscall.IP_ROUTER_ALERT,   // 5
+		"IP_RECVOPTS":             syscall.IP_RECVOPTS,       // 6
+		"IP_RETOPTS":              syscall.IP_RETOPTS,        // 7
+		"IP_PKTINFO":              syscall.IP_PKTINFO,        // 8
+		"IP_MTU_DISCOVER":         syscall.IP_MTU_DISCOVER,   // 10
+		"IP_RECVERR":              syscall.IP_RECVERR,        // 11
+		"IP_RECVTTL":              syscall.IP_RECVTTL,        // 12
+		"IP_RECVTOS":              syscall.IP_RECVTOS,        // 13
+		"IP_FREEBIND":             syscall.IP_FREEBIND,       // 15
+		"IP_PASSSEC":              syscall.IP_PASSSEC,        // 18
+		"IP_TRANSPARENT":          syscall.IP_TRANSPARENT,    // 19
+		"IP_ORIGDSTADDR":          syscall.IP_ORIGDSTADDR,    // 20
+		"IP_MINTTL":               syscall.IP_MINTTL,         // 21
+		"IP_NODEFRAG":             22,                        // 22
+		"IP_CHECKSUM":             23,                        // 23
+		"IP_BIND_ADDRESS_NO_PORT": 24,                        // 24
+		"IP_RECVFRAGSIZE":         25,                        // 25
+		"IP_RECVERR_RFC4884":      26,                        // 26
+		"IP_MULTICAST_TTL":        syscall.IP_MULTICAST_TTL,  // 33
+		"IP_MULTICAST_LOOP":       syscall.IP_MULTICAST_LOOP, // 34
+		"IP_MULTICAST_ALL":        49,                        // 49
+		// SOL_SOCKET options
+		"SO_DEBUG":            syscall.SO_DEBUG,       // 1
+		"SO_REUSEADDR":        syscall.SO_REUSEADDR,   // 2
+		"SO_DONTROUTE":        syscall.SO_DONTROUTE,   // 5
+		"SO_BROADCAST":        syscall.SO_BROADCAST,   // 6
+		"SO_SNDBUF":           syscall.SO_SNDBUF,      // 7
+		"SO_RCVBUF":           syscall.SO_RCVBUF,      // 8
+		"SO_KEEPALIVE":        syscall.SO_KEEPALIVE,   // 9
+		"SO_OOBINLINE":        syscall.SO_OOBINLINE,   // 10
+		"SO_NO_CHECK":         syscall.SO_NO_CHECK,    // 11
+		"SO_PRIORITY":         syscall.SO_PRIORITY,    // 12
+		"SO_BSDCOMPAT":        syscall.SO_BSDCOMPAT,   // 14
+		"SO_REUSEPORT":        15,                     // 15
+		"SO_PASSCRED":         syscall.SO_PASSCRED,    // 16
+		"SO_RCVLOWAT":         syscall.SO_RCVLOWAT,    // 18
+		"SO_TIMESTAMP_OLD":    29,                     // 29
+		"SO_SNDBUFFORCE":      syscall.SO_SNDBUFFORCE, // 32
+		"SO_RCVBUFFORCE":      syscall.SO_RCVBUFFORCE, // 33
+		"SO_PASSSEC":          syscall.SO_PASSSEC,     // 34
+		"SO_TIMESTAMPNS_OLD":  35,                     // 35
+		"SO_MARK":             syscall.SO_MARK,        // 36
+		"SO_TIMESTAMPING_OLD": 37,                     // 37
+		"SO_RXQ_OVFL":         syscall.SO_RXQ_OVFL,    // 40
+		"SO_WIFI_STATUS":      41,                     // 41
+		"SO_PEEK_OFF":         42,                     // 42
+		"SO_NOFCS":            43,                     // 43
+		"SO_LOCK_FILTER":      44,                     // 44
+		"SO_SELECT_ERR_QUEUE": 45,                     // 45
+		"SO_BUSY_POLL":        46,                     // 46
+		"SO_MAX_PACING_RATE":  47,                     // 47
+		"SO_INCOMING_CPU":     49,                     // 49
+		"SO_CNX_ADVICE":       53,                     // 53
+		"SO_ZEROCOPY":         60,                     // 60
+		"SO_BINDTOIFINDEX":    62,                     // 62
+		"SO_TIMESTAMP_NEW":    63,                     // 63
+		"SO_TIMESTAMPNS_NEW":  64,                     // 64
+		"SO_TIMESTAMPING_NEW": 65,                     // 65
+		"SO_PREFER_BUSY_POLL": 69,                     // 69
+		"SO_BUSY_POLL_BUDGET": 70,                     // 70
+		"SO_BUF_LOCK":         72,                     // 72
+		// IPPROTO_TCP options
+		"TCP_NODELAY":              syscall.TCP_NODELAY,      // 1
+		"TCP_CORK":                 syscall.TCP_CORK,         // 3
+		"TCP_KEEPIDLE":             syscall.TCP_KEEPIDLE,     // 4
+		"TCP_KEEPINTVL":            syscall.TCP_KEEPINTVL,    // 5
+		"TCP_KEEPCNT":              syscall.TCP_KEEPCNT,      // 6
+		"TCP_SYNCNT":               syscall.TCP_SYNCNT,       // 7
+		"TCP_LINGER2":              syscall.TCP_LINGER2,      // 8
+		"TCP_DEFER_ACCEPT":         syscall.TCP_DEFER_ACCEPT, // 9
+		"TCP_WINDOW_CLAMP":         syscall.TCP_WINDOW_CLAMP, // 10
+		"TCP_QUICKACK":             syscall.TCP_QUICKACK,     // 12
+		"TCP_THIN_LINEAR_TIMEOUTS": 16,                       // 16
+		"TCP_THIN_DUPACK":          17,                       // 17
+		"TCP_USER_TIMEOUT":         18,                       // 18
+		"TCP_REPAIR":               19,                       // 19
+		"TCP_REPAIR_QUEUE":         20,                       // 20
+		"TCP_QUEUE_SEQ":            21,                       // 21
+		"TCP_FASTOPEN":             23,                       // 23
+		"TCP_TIMESTAMP":            24,                       // 24
+		"TCP_NOTSENT_LOWAT":        25,                       // 25
+		"TCP_SAVE_SYN":             27,                       // 27
+		"TCP_FASTOPEN_CONNECT":     30,                       // 30
+		"TCP_FASTOPEN_NO_COOKIE":   34,                       // 34
+		"TCP_INQ":                  36,                       // 36
+		"TCP_TX_DELAY":             37,                       // 37
 
+		// IPPROTO_UDP
+		// 17
+
+		// IPPROTO_IPV6 options
+		"IPV6_2292PKTINFO":          syscall.IPV6_2292PKTINFO,    // 2
+		"IPV6_2292HOPOPTS":          syscall.IPV6_2292HOPOPTS,    // 3
+		"IPV6_2292DSTOPTS":          syscall.IPV6_2292DSTOPTS,    // 4
+		"IPV6_2292RTHDR":            syscall.IPV6_2292RTHDR,      // 5
+		"IPV6_2292PKTOPTIONS":       syscall.IPV6_2292PKTOPTIONS, // 6
+		"IPV6_2292HOPLIMIT":         syscall.IPV6_2292HOPLIMIT,   // 8
+		"IPV6_FLOWINFO":             11,                          // 11
+		"IPV6_UNICAST_HOPS":         syscall.IPV6_UNICAST_HOPS,   // 16
+		"IPV6_MULTICAST_IF":         syscall.IPV6_MULTICAST_IF,   // 17
+		"IPV6_MULTICAST_HOPS":       syscall.IPV6_MULTICAST_HOPS, // 18
+		"IPV6_MULTICAST_LOOP":       syscall.IPV6_MULTICAST_LOOP, // 19
+		"IPV6_MTU_DISCOVER":         syscall.IPV6_MTU_DISCOVER,   // 23
+		"IPV6_RECVERR":              syscall.IPV6_RECVERR,        // 25
+		"IPV6_V6ONLY":               syscall.IPV6_V6ONLY,         // 26
+		"IPV6_MULTICAST_ALL":        29,                          // 29
+		"IPV6_ROUTER_ALERT_ISOLATE": 30,                          // 30
+		"IPV6_RECVERR_RFC4884":      31,                          // 31
+		"IPV6_FLOWINFO_SEND":        33,                          // 33
+		"IPV6_HDRINCL":              36,                          // 36
+		"IPV6_RECVPKTINFO":          syscall.IPV6_RECVPKTINFO,    // 49
+		"IPV6_RECVHOPLIMIT":         syscall.IPV6_RECVHOPLIMIT,   // 51
+		"IPV6_RECVHOPOPTS":          syscall.IPV6_RECVHOPOPTS,    // 53
+		"IPV6_RECVRTHDR":            syscall.IPV6_RECVRTHDR,      // 56
+		"IPV6_RECVDSTOPTS":          syscall.IPV6_RECVDSTOPTS,    // 58
+		"IPV6_RECVPATHMTU":          60,                          // 60
+		"IPV6_DONTFRAG":             62,                          // 62
+		"IPV6_RECVTCLASS":           syscall.IPV6_RECVTCLASS,     // 66
+		"IPV6_TCLASS":               syscall.IPV6_TCLASS,         // 67
+
+		// IPPROTO_ICMPV6
+		// 1
 	}
 )
 
