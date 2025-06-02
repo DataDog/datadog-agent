@@ -371,8 +371,8 @@ func GetTestSpan() *pb.Span {
 		Service:  "fennel_IS amazing!",
 		Name:     "something &&<@# that should be a metric!",
 		Resource: "NOT touched because it is going to be hashed",
-		Start:    9223372036854775807,
-		Duration: 9223372036854775807,
+		Start:    9_223_372_036_854_775_807,
+		Duration: 9_223_372_036_854_775_807,
 		Meta:     map[string]string{"http.host": "192.168.0.1"},
 		Metrics:  map[string]float64{"http.monitor": 41.99},
 		SpanLinks: []*pb.SpanLink{
@@ -392,27 +392,4 @@ func GetTestSpan() *pb.Span {
 	trace := pb.Trace{span}
 	traceutil.ComputeTopLevel(trace)
 	return trace[0]
-}
-
-// TestSpan returns a fix span with hardcoded info, useful for reproducible tests
-func TestSpan() *pb.Span {
-	return &pb.Span{
-		Duration: 10000000,
-		Error:    0,
-		Resource: "GET /some/raclette",
-		Service:  "django",
-		Name:     "django.controller",
-		SpanID:   42,
-		Start:    1472732573337575936,
-		TraceID:  424242,
-		Meta: map[string]string{
-			"user": "leo",
-			"pool": "fondue",
-		},
-		Metrics: map[string]float64{
-			"cheese_weight": 100000.0,
-		},
-		ParentID: 1111,
-		Type:     "http",
-	}
 }

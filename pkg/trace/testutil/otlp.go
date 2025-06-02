@@ -85,7 +85,7 @@ func setOTLPSpan(span ptrace.Span, s *OTLPSpan) {
 		span.SetStartTimestamp(pcommon.Timestamp(s.Start))
 	}
 	if s.End == 0 {
-		span.SetEndTimestamp(span.StartTimestamp() + 200000000)
+		span.SetEndTimestamp(span.StartTimestamp() + 200_000_000)
 	} else {
 		span.SetEndTimestamp(pcommon.Timestamp(s.End))
 	}
