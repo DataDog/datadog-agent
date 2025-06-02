@@ -1606,6 +1606,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.dbm_tag", "datadoghq.com/dbm:true")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.enabled", false)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.region", "")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.query_timeout", 10)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.tags", []string{"datadoghq.com/scrape:true"})
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.dbm_tag", "datadoghq.com/dbm:true")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
