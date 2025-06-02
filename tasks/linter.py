@@ -292,6 +292,7 @@ def gitlab_ci_shellcheck(
     Args:
         diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
+        > If none of these are passed, the full config will be generated automatically, but this will be slower.
     """
 
     # Used by the CI to skip linting if no changes
@@ -299,7 +300,7 @@ def gitlab_ci_shellcheck(
         print('No diff file found, skipping lint')
         return
 
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+    jobs, full_config = get_gitlab_ci_lintable_jobs(ctx, diff_file, config_file)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
@@ -417,7 +418,7 @@ def gitlab_change_paths(ctx):
 
 
 @task
-def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+def gitlab_ci_jobs_needs_rules(ctx, diff_file=None, config_file=None):
     """Verifies that each added / modified job contains `needs` and also `rules`.
 
     It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
@@ -426,12 +427,13 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     Args:
         diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+        > If none of these are passed, the full config will be generated automatically, but this will be slower.
 
     See:
       https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
     """
 
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+    jobs, full_config = get_gitlab_ci_lintable_jobs(ctx, diff_file, config_file)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
@@ -679,16 +681,17 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
 
 
 @task
-def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
+def gitlab_ci_jobs_owners(ctx, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
     """Verifies that each job is defined within JOBOWNERS files.
 
     Args:
         diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+        > If none of these are passed, the full config will be generated automatically, but this will be slower.
         path_jobowners: Path to the JOBOWNERS file
     """
 
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
+    jobs, full_config = get_gitlab_ci_lintable_jobs(ctx, diff_file, config_file, only_names=True)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
