@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/user"
 	"path"
 	"path/filepath"
 	"runtime"
