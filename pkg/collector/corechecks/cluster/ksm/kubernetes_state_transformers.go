@@ -13,6 +13,10 @@ import (
 	"strings"
 	"time"
 
+	// time/tzdata embeds the timezone database to support legacy timezone names
+	// (e.g. US/Central) used in upstream cronjob scheduling metric calculations
+	_ "time/tzdata"
+
 	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
