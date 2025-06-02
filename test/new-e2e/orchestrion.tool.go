@@ -19,5 +19,6 @@ import (
 	// Do not remove.
 	_ "github.com/DataDog/orchestrion" // integration
 
-	_ "gopkg.in/DataDog/dd-trace-go.v1" // integration
+	_ "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"                                   // integration
+	_ "gopkg.in/DataDog/dd-trace-go.v1/internal/civisibility/integrations/gotesting"     // integration
 )
