@@ -13,7 +13,6 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"os"
-	"os/user"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -40,6 +39,12 @@ var registryPropertiesToFetch = []string{
 	installDate,
 	versionField,
 }
+
+// ProfileList registry constants
+const (
+	profileListKey        = `SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList`
+	profileImagePathValue = "ProfileImagePath"
+)
 
 // RegistryCollector implements SoftwareCollector for Windows Registry
 type RegistryCollector struct{}
@@ -89,36 +94,34 @@ func (rc *RegistryCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 		}
 	}
 
-	// 3. All unmounted user hives (mount, collect, unmount)
-	userDirs, _ := os.ReadDir(`C:\Users`)
-	for _, dir := range userDirs {
-		profilePath := filepath.Join(`C:\Users`, dir.Name())
-		ntuser := filepath.Join(profilePath, "NTUSER.DAT")
-		usr, err := user.Lookup(dir.Name())
-		if err != nil || usr.Uid == "" {
-			continue
-		}
-		// Skip system accounts
-		if !strings.HasPrefix(usr.Uid, "S-1-5-21-") {
-			continue
-		}
-		sid := usr.Uid
+	// 3. All unmounted user hives (discovered via ProfileList registry)
+	userProfiles, profileWarns, err := getUserProfilesFromRegistry()
+	if err != nil {
+		return results, warnings, err
+	}
+	warnings = append(warnings, profileWarns...)
+
+	for _, profile := range userProfiles {
+		// Skip if this profile is already loaded in HKU
 		hku, _ := registry.OpenKey(registry.USERS, "", registry.READ)
 		loadedSIDs, _ := hku.ReadSubKeyNames(-1)
 		err = hku.Close()
 		if err != nil {
 			return nil, warnings, err
 		}
-		if slices.Contains(loadedSIDs, sid) {
+		if slices.Contains(loadedSIDs, profile.SID) {
 			continue
 		}
+
+		// Try to mount and collect from the user's NTUSER.DAT
+		ntuser := filepath.Join(profile.ProfilePath, "NTUSER.DAT")
 		if _, err = os.Stat(ntuser); err == nil {
 			if err = mountHive(ntuser); err == nil {
 				for _, p := range paths {
 					entries, warns := collectFromKey(registry.USERS, `temp\`+p.subkey, p.view)
 					warnings = append(warnings, warns...)
 					for _, entry := range entries {
-						entry.UserSID = sid
+						entry.UserSID = profile.SID
 						results = append(results, entry)
 					}
 				}
@@ -126,11 +129,66 @@ func (rc *RegistryCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 				if err != nil {
 					return nil, warnings, err
 				}
+			} else {
+				warnings = append(warnings, warnf("failed to mount hive for profile %s: %v", profile.SID, err))
 			}
 		}
 	}
 
 	return results, warnings, nil
+}
+
+// UserProfile represents a user profile entry from the ProfileList registry
+type UserProfile struct {
+	SID         string
+	ProfilePath string
+}
+
+// getUserProfilesFromRegistry reads user profiles from HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList
+func getUserProfilesFromRegistry() ([]UserProfile, []*Warning, error) {
+	var profiles []UserProfile
+	var warnings []*Warning
+
+	profileListKey, err := registry.OpenKey(registry.LOCAL_MACHINE, profileListKey, registry.READ)
+	if err != nil {
+		return profiles, warnings, fmt.Errorf("failed to open ProfileList list: %v", err)
+	}
+	defer func() { _ = profileListKey.Close() }()
+
+	sidKeys, err := profileListKey.ReadSubKeyNames(-1)
+	if err != nil {
+		return profiles, warnings, fmt.Errorf("failed to read ProfileList subkeys: %v", err)
+	}
+
+	for _, sid := range sidKeys {
+		// Only process regular user accounts (S-1-5-21-*), skip system accounts
+		if !strings.HasPrefix(sid, "S-1-5-21-") {
+			continue
+		}
+
+		sidKey, err := registry.OpenKey(profileListKey, sid, registry.READ)
+		if err != nil {
+			warnings = append(warnings, warnf("failed to open profile key for SID %s: %v", sid, err))
+			continue
+		}
+
+		profilePath, _, err := sidKey.GetStringValue(profileImagePathValue)
+		_ = sidKey.Close()
+
+		if err != nil {
+			warnings = append(warnings, warnf("failed to read ProfileImagePath for SID %s: %v", sid, err))
+			continue
+		}
+
+		if profilePath != "" {
+			profiles = append(profiles, UserProfile{
+				SID:         sid,
+				ProfilePath: profilePath,
+			})
+		}
+	}
+
+	return profiles, warnings, nil
 }
 
 // Helper to collect from a given root key and subkey
