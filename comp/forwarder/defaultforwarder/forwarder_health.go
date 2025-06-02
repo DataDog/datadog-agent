@@ -289,7 +289,17 @@ func (fh *forwarderHealth) checkValidAPIKey() bool {
 	fh.keyMapMutex.Unlock()
 
 	for domain, apiKeys := range keysPerDomain {
-		apiError, validKey = fh.checkValidAPIKeys(domain, apiKeys)
+		endpointApiError, endpointValidKey := fh.checkValidAPIKeys(domain, apiKeys)
+
+		// Only set the valid if the endpoint valid is true to ensure
+		// we don't unset the flag if one endpoint is not valid.
+		if endpointValidKey {
+			validKey = true
+		}
+
+		if endpointApiError {
+			apiError = true
+		}
 	}
 
 	// If there is an error during the api call, we assume that there is a

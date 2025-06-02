@@ -375,3 +375,55 @@ func TestConfigUpdateAPIKey(t *testing.T) {
 		runUpdateAPIKeysTest(t, test.description, test.before, test.after, test.expectBefore, test.expectAfter)
 	}
 }
+
+func TestOneEndpointInvalid(t *testing.T) {
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts1.Close()
+	defer ts2.Close()
+
+	// get ports from the test servers to make expected data
+	addr, _ := url.Parse(ts1.URL)
+	_, ts1Port, _ := net.SplitHostPort(addr.Host)
+	addr, _ = url.Parse(ts2.URL)
+	_, ts2Port, _ := net.SplitHostPort(addr.Host)
+
+	// swap if necessary to ensure ts1 has a smaller port than ts2
+	// makes the json marshal deterministic so test is not flakey
+	if ts1Port > ts2Port {
+		swapPort := ts1Port
+		ts1Port = ts2Port
+		ts2Port = swapPort
+		swapServer := ts1
+		ts1 = ts2
+		ts2 = swapServer
+	}
+
+	// additional endpoints has no API keys, but endpoint should still
+	// be valid because the main endpoint does.
+	keysPerDomains := map[string][]utils.APIKeys{
+		ts1.URL: {utils.NewAPIKeys("api_key", "api_key1")},
+		ts2.URL: {
+			utils.NewAPIKeys("additional_endpoints"),
+		},
+	}
+
+	log := logmock.New(t)
+	cfg := config.NewMock(t)
+
+	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+
+	for _, r := range resolvers {
+		resolver.OnUpdateConfig(r, log, cfg)
+	}
+
+	require.NoError(t, err)
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	fh.init()
+	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
+
+}
