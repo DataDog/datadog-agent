@@ -42,8 +42,6 @@ type SecurityModuleClientWrapper interface {
 	RunSelfTest() (*api.SecuritySelfTestResultMessage, error)
 	ReloadPolicies() (*api.ReloadPoliciesResultMessage, error)
 	GetRuleSetReport() (*api.GetRuleSetReportMessage, error)
-	GetEvents() (api.SecurityModule_GetEventsClient, error)
-	GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error)
 	ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error)
 	SaveSecurityProfile(name string, tag string) (*api.SecurityProfileSaveMessage, error)
 	Close()
@@ -140,24 +138,6 @@ func (c *RuntimeSecurityClient) GetRuleSetReport() (*api.GetRuleSetReportMessage
 	return response, nil
 }
 
-// GetEvents returns a stream of events
-func (c *RuntimeSecurityClient) GetEvents() (api.SecurityModule_GetEventsClient, error) {
-	stream, err := c.apiClient.GetEvents(context.Background(), &api.GetEventParams{})
-	if err != nil {
-		return nil, err
-	}
-	return stream, nil
-}
-
-// GetActivityDumpStream returns a stream of activity dumps
-func (c *RuntimeSecurityClient) GetActivityDumpStream() (api.SecurityModule_GetActivityDumpStreamClient, error) {
-	stream, err := c.apiClient.GetActivityDumpStream(context.Background(), &api.ActivityDumpStreamParams{})
-	if err != nil {
-		return nil, err
-	}
-	return stream, nil
-}
-
 // ListSecurityProfiles lists the profiles held in memory by the Security Profile manager
 func (c *RuntimeSecurityClient) ListSecurityProfiles(includeCache bool) (*api.SecurityProfileListMessage, error) {
 	return c.apiClient.ListSecurityProfiles(context.Background(), &api.SecurityProfileListParams{
@@ -182,9 +162,9 @@ func (c *RuntimeSecurityClient) Close() {
 
 // NewRuntimeSecurityClient instantiates a new RuntimeSecurityClient
 func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
-	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
+	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.cmd_socket")
 	if socketPath == "" {
-		return nil, errors.New("runtime_security_config.socket must be set")
+		return nil, errors.New("runtime_security_config.cmd_socket must be set")
 	}
 
 	family := config.GetFamilyAddress(socketPath)
