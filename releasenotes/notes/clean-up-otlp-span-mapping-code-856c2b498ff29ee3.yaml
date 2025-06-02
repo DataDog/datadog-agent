@@ -8,7 +8,7 @@
 ---
 upgrade:
   - |
-    Change how precedence of attributes is handled. All fields are now checked for in both span and resource level attributes, with the following order of precedence, from highest to lowest:
+    Change how attribute precedence is handled. All fields are now evaluated across both span and resource attributes, using the following order of precedence (from highest to lowest):
 
     - datadog.* span attributes
     - datadog.* resource attributes
