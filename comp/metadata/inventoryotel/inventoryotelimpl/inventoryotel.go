@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"path"
@@ -26,7 +25,6 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iointerface "github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -92,11 +90,10 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp                 iointerface.Component
-	Provider             runnerimpl.Provider
-	FlareProvider        flaretypes.Provider
-	StatusHeaderProvider status.HeaderInformationProvider
-	Endpoint             api.AgentEndpointProvider
+	Comp          iointerface.Component
+	Provider      runnerimpl.Provider
+	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newInventoryOtelProvider(deps dependencies) (provides, error) {
@@ -142,11 +139,10 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 	}
 
 	return provides{
-		Comp:                 i,
-		Provider:             i.MetadataProvider(),
-		FlareProvider:        i.FlareProvider(),
-		StatusHeaderProvider: status.NewHeaderInformationProvider(i),
-		Endpoint:             api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/inventory-otel", "GET"),
+		Comp:          i,
+		Provider:      i.MetadataProvider(),
+		FlareProvider: i.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/inventory-otel", "GET"),
 	}, nil
 }
 
@@ -264,14 +260,4 @@ func (i *inventoryotel) writePayloadAsJSON(w http.ResponseWriter, _ *http.Reques
 		return
 	}
 	w.Write(scrubbed)
-}
-
-// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
-func (i *inventoryotel) Get() otelMetadata {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	data := otelMetadata{}
-	maps.Copy(data, i.data)
-	return data
 }
