@@ -218,7 +218,7 @@ func TestOriginIDFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					string(conventions.K8SPodUIDKey): "k8s_pod_uid_goes_here",
+					string(semconv127.K8SPodUIDKey): "k8s_pod_uid_goes_here",
 				})
 				return attributes
 			}(),

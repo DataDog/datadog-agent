@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -86,11 +86,11 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		}
 		version := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogVersion)
 		if version == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
-			version = traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeServiceVersion)
+			version = traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.ServiceVersionKey))
 		}
 		cid := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogContainerID)
 		if cid == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
-			cid = traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, semconv.AttributeContainerID, semconv.AttributeK8SPodUID)
+			cid = traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 		}
 		var ctags []string
 		if cid != "" {
