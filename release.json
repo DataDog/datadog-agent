@@ -1,6 +1,6 @@
 {
     "base_branch": "7.66.x",
-    "current_milestone": "7.66.1",
+    "current_milestone": "7.66.2",
     "last_stable": {
         "6": "6.53.1",
         "7": "7.64.3"
