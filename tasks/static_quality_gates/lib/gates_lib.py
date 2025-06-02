@@ -49,9 +49,8 @@ def byte_to_string(size, unit_power=None, with_unit=True):
     return f"{sign}{s}{' '+size_name[unit_power] if with_unit else ''}"
 
 
-def string_to_latex_color(text, _):
+def string_to_latex_color(text):
     # Github latex colors are currently broken, we are disabling this function's color temporarily for now
-    # return r"$${\color{" + latex_color + "}" + text + "}$$"
     return r"$${" + text + "}$$"
 
 
@@ -122,11 +121,11 @@ class GateMetricHandler:
         string_value = byte_to_string(value, with_unit=with_unit, unit_power=2)
         if value > 0:
             string_value = "+" + string_value
-            return string_to_latex_color(string_value, "red")
+            return string_to_latex_color(string_value)
         elif value < 0:
-            return string_to_latex_color(string_value, "green")
+            return string_to_latex_color(string_value)
         else:
-            return string_to_latex_color(string_value, "green")
+            return string_to_latex_color(string_value)
 
     def get_formatted_metric_comparison(self, gate_name, first_metric, limit_metric):
         first_value = self.metrics[gate_name][first_metric]
