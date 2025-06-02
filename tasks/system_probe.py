@@ -430,6 +430,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
         "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
+        "pkg/dyninst/compiler/compile.go": "dyninst_event",
         "pkg/gpu/compile.go": "gpu",
     }
 
@@ -550,6 +551,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
+            ],
+            "pkg/dyninst/output/framing.go": [
+                "pkg/dyninst/ebpf/framing.h",
             ],
         }
         # TODO this uses the system clang, rather than the version-pinned copy we ship. Will this cause problems?
@@ -1006,7 +1010,21 @@ def go_package_dirs(packages, build_tags):
 
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
-    packages_arg = " ".join(packages)
+
+    # Prepend module path if the package path is relative
+    # and doesn't start with ./ (which go list handles correctly for local paths)
+    if not is_windows:
+        full_path_packages = []
+        module_path = "github.com/DataDog/datadog-agent/"
+        for pkg in packages:
+            if not pkg.startswith(".") and not pkg.startswith(module_path):
+                full_path_packages.append(module_path + pkg)
+            else:
+                full_path_packages.append(pkg)
+        packages_arg = " ".join(full_path_packages)
+    else:
+        packages_arg = " ".join(packages)
+
     cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]

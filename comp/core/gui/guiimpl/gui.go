@@ -279,7 +279,13 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 	accessToken := g.auth.GenerateAccessToken()
 
 	// set the accessToken as a cookie and redirect the user to root page
-	http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/", HttpOnly: true})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "accessToken",
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   31536000, // 1 year
+	})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

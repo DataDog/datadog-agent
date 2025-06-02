@@ -562,7 +562,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			expectedResult: "pass: \"********\"",
 		},
 		{
-			name:           "With nil Requet",
+			name:           "With nil Request",
 			request:        nil,
 			expectedResult: "pass: \"********\"",
 		},
@@ -581,7 +581,15 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			out := responseRecorder.Body.Bytes()
 			err := json.Unmarshal(out, &result)
 			require.NoError(t, err)
-			assert.Equal(t, string(result.Configs[0].Config.Instances[0]), tc.expectedResult)
+			assert.Equal(t, tc.expectedResult, string(result.Configs[0].Config.Instances[0]))
+
+			// Check also that the unresolved configs are returned
+			var unresolved []integration.Config
+			for _, config := range result.Unresolved {
+				unresolved = append(unresolved, config)
+			}
+			require.Len(t, unresolved, 1)
+			assert.Equal(t, tc.expectedResult, string(unresolved[0].Instances[0]))
 		})
 	}
 }

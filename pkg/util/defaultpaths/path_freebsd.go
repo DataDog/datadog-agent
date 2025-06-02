@@ -37,8 +37,6 @@ var (
 	PyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
 	// DistPath holds the path to the folder containing distribution files
 	distPath = filepath.Join(_here, "dist")
-	// InstallerPath holds the path to the installer binary
-	InstallerPath = filepath.Join(_here, "..", "..", "embedded", "bin", "installer")
 )
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
