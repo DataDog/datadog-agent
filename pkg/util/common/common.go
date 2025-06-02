@@ -119,13 +119,13 @@ func GetSliceOfStringMap(slice []interface{}) ([]map[string]string, error) {
 	entries := []map[string]string{}
 
 	for _, e := range slice {
-		value, ok := e.(map[interface{}]interface{})
+		value, ok := e.(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("unexpected type for slice value")
 		}
 		entry := map[string]string{}
 		for k, v := range value {
-			entry[fmt.Sprintf("%v", k)] = fmt.Sprintf("%v", v)
+			entry[k] = fmt.Sprintf("%v", v)
 		}
 		entries = append(entries, entry)
 	}

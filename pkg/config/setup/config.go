@@ -269,6 +269,20 @@ func initCommonWithServerless(config pkgconfigmodel.Setup) {
 	}
 }
 
+// This enable loading JSON string from env vars into the config as map[string]interface{}
+//
+// This method will no longer be needed once we have a default for every settings. Once we have a default we will be
+// able to enable JSON loading from env vars automatically.
+func enableJSONParsingFromEnv(config pkgconfigmodel.Setup, settingName string) {
+	config.ParseEnvAsMapStringInterface(settingName, func(in string) map[string]interface{} {
+		var mappings map[string]interface{}
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"%s" can not be parsed: %v`, settingName, err)
+		}
+		return mappings
+	})
+}
+
 // InitConfig initializes the config defaults on a config used by all agents
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
@@ -862,6 +876,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("orchestrator_explorer.max_message_bytes")
 	config.BindEnv("orchestrator_explorer.orchestrator_dd_url", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL", "DD_ORCHESTRATOR_URL")
 	config.BindEnv("orchestrator_explorer.orchestrator_additional_endpoints", "DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", "DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS")
+	enableJSONParsingFromEnv(config, "orchestrator_explorer.orchestrator_additional_endpoints")
 	config.BindEnv("orchestrator_explorer.use_legacy_endpoint")
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_manifest", true)
@@ -918,7 +933,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
-	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
+	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_additional_endpoints` setting. If both are set
+	// `orchestrator_explorer.orchestrator_additional_endpoints` will take precedence.
+	//
+	// Since this setting doesn't use BindEnv we don't need to call enableJSONParsingFromEnv for it
 	config.SetKnown("process_config.orchestrator_additional_endpoints")
 	config.BindEnvAndSetDefault("orchestrator_explorer.extra_tags", []string{})
 
@@ -1010,6 +1028,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("evp_proxy_config.dd_url")
 	config.BindEnv("evp_proxy_config.api_key")
 	config.BindEnv("evp_proxy_config.additional_endpoints")
+	enableJSONParsingFromEnv(config, "evp_proxy_config.additional_endpoints")
 	config.BindEnv("evp_proxy_config.max_payload_size")
 	config.BindEnv("evp_proxy_config.receiver_timeout")
 
@@ -1018,6 +1037,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("ol_proxy_config.dd_url")
 	config.BindEnv("ol_proxy_config.api_key")
 	config.BindEnv("ol_proxy_config.additional_endpoints")
+	enableJSONParsingFromEnv(config, "ol_proxy_config.additional_endpoints")
 	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
 
 	// command line options
@@ -1423,6 +1443,8 @@ func serverless(config pkgconfigmodel.Setup) {
 func forwarder(config pkgconfigmodel.Setup) {
 	// Forwarder
 	config.BindEnvAndSetDefault("additional_endpoints", map[string][]string{})
+	enableJSONParsingFromEnv(config, "additional_endpoints")
+
 	config.BindEnvAndSetDefault("forwarder_timeout", 20)
 	config.BindEnv("forwarder_retry_queue_max_size")                                                     // Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
 	config.BindEnv("forwarder_retry_queue_payloads_max_size")                                            // Default value is defined inside `NewOptions` in pkg/forwarder/forwarder.go
@@ -2554,6 +2576,14 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnv(prefix + "logs_dd_url") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
 	config.BindEnv(prefix + "dd_url")
 	config.BindEnv(prefix + "additional_endpoints")
+	config.ParseEnvAsSlice(prefix+"additional_endpoints", func(in string) []interface{} {
+		var mappings []interface{}
+		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
+			log.Errorf(`"%s" can not be parsed: %v`, prefix+"additional_endpoints", err)
+		}
+		return mappings
+	})
+
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
 	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm

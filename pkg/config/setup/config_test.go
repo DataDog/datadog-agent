@@ -1623,3 +1623,113 @@ func TestLoadProxyFromEnv(t *testing.T) {
 	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
 	assert.Equal(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("proxy.http"))
 }
+
+func TestSecretForAdditionalEndpoints(t *testing.T) {
+	// metris style additional_endpoints
+	metricsStyleSettings := []string{
+		"additional_endpoints",
+		"evp_proxy_config.additional_endpoints",
+		"ol_proxy_config.additional_endpoints",
+		"process_config.additional_endpoints",
+		"process_config.events_additional_endpoints",
+		"orchestrator_explorer.orchestrator_additional_endpoints",
+	}
+	for _, k := range metricsStyleSettings {
+		envName := "DD_" + strings.Replace(strings.ToUpper(k), ".", "_", -1)
+		t.Setenv(envName, "{\"test.com\": [\"ENC[abcdef]\"]}")
+	}
+	// APM have custom alias for their env vars
+	metricsStyleSettings = append(metricsStyleSettings,
+		"apm_config.additional_endpoints",
+		"apm_config.debugger_additional_endpoints",
+		"apm_config.profiling_additional_endpoints",
+		"apm_config.symdb_additional_endpoints",
+		"apm_config.telemetry.additional_endpoints",
+		"apm_config.debugger_diagnostics_additional_endpoints",
+	)
+
+	t.Setenv("DD_APM_PROFILING_ADDITIONAL_ENDPOINTS", "{\"test.com\": [\"ENC[abcdef]\"]}")
+	t.Setenv("DD_APM_ADDITIONAL_ENDPOINTS", "{\"test.com\": [\"ENC[abcdef]\"]}")
+	t.Setenv("DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS", "{\"test.com\": [\"ENC[abcdef]\"]}")
+	t.Setenv("DD_APM_TELEMETRY_ADDITIONAL_ENDPOINTS", "{\"test.com\": [\"ENC[abcdef]\"]}")
+	t.Setenv("DD_APM_SYMDB_ADDITIONAL_ENDPOINTS", "{\"test.com\": [\"ENC[abcdef]\"]}")
+	t.Setenv("DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS", "{\"test.com\": [\"ENC[abcdef]\"]}")
+
+	logsStyleSettings := []string{
+		"network_devices.metadata.additional_endpoints",
+		"network_devices.snmp_traps.forwarder.additional_endpoints",
+		"network_devices.netflow.forwarder.additional_endpoints",
+		"network_path.forwarder.additional_endpoints",
+		"container_lifecycle.additional_endpoints",
+		"container_image.additional_endpoints",
+		"sbom.additional_endpoints",
+		"service_discovery.forwarder.additional_endpoints",
+		"compliance_config.endpoints.additional_endpoints",
+		"runtime_security_config.endpoints.additional_endpoints",
+		"runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints",
+		"agent_telemetry.additional_endpoints",
+		"logs_config.additional_endpoints",
+		"database_monitoring.samples.additional_endpoints",
+		"database_monitoring.activity.additional_endpoints",
+		"database_monitoring.metrics.additional_endpoints",
+	}
+	// logs style additional_endpoints
+	for _, k := range logsStyleSettings {
+		envName := "DD_" + strings.Replace(strings.ToUpper(k), ".", "_", -1)
+		t.Setenv(envName, "[{\"host\": \"test.com\", \"api_key\": \"ENC[abcdef]\", \"port\": 1234, \"use_compression\": true}]")
+	}
+
+	config := newTestConf(t)
+	setupAPM(config)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, []byte("secret_backend_command: command"), 0o600)
+	config.SetConfigFile(configPath)
+
+	resolver := fxutil.Test[secrets.Component](t, fx.Options(
+		secretsimpl.MockModule(),
+		nooptelemetry.Module(),
+	))
+
+	mockresolver := resolver.(secrets.Mock)
+	mockresolver.SetBackendCommand("command")
+	mockresolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
+		return map[string]string{
+			"abcdef": "additional_api_key",
+		}, nil
+	})
+
+	err := LoadCustom(config, nil)
+	assert.NoError(t, err)
+
+	err = ResolveSecrets(config, resolver, "unit_test")
+	require.NoError(t, err)
+
+	for _, k := range metricsStyleSettings {
+		assert.Equal(t,
+			map[string]interface{}{
+				"test.com": []interface{}{"additional_api_key"},
+			},
+			config.Get(k),
+			k,
+		)
+		assert.Equal(t,
+			map[string][]string{"test.com": []string{"additional_api_key"}},
+			config.GetStringMapStringSlice(k),
+			k,
+		)
+	}
+	for _, k := range logsStyleSettings {
+		assert.Equal(t,
+			[]interface{}{
+				map[string]interface{}{
+					"host":            "test.com",
+					"api_key":         "additional_api_key",
+					"port":            float64(1234),
+					"use_compression": true,
+				},
+			},
+			config.Get(k),
+			k,
+		)
+	}
+}
