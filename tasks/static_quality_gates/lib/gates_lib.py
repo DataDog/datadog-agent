@@ -49,8 +49,10 @@ def byte_to_string(size, unit_power=None, with_unit=True):
     return f"{sign}{s}{' '+size_name[unit_power] if with_unit else ''}"
 
 
-def string_to_latex_color(text, latex_color):
-    return r"$${\color{" + latex_color + "}" + text + "}$$"
+def string_to_latex_color(text, _):
+    # Github latex colors are currently broken, we are disabling this function's color temporarily for now
+    # return r"$${\color{" + latex_color + "}" + text + "}$$"
+    return r"$${" + text + "}$$"
 
 
 def string_to_byte(size: str):
