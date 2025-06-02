@@ -19,6 +19,7 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 	type fields struct {
 		ServiceName         *string
 		Env                 *string
+		ServiceVersion      *string
 		Tracing             *bool
 		LogInjection        *bool
 		HealthMetrics       *bool
@@ -48,6 +49,7 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 			fields: fields{
 				ServiceName:         pointer.Ptr("svc"),
 				Env:                 pointer.Ptr("dev"),
+				ServiceVersion:      pointer.Ptr("0.0.0"),
 				Tracing:             pointer.Ptr(true),
 				LogInjection:        pointer.Ptr(true),
 				HealthMetrics:       pointer.Ptr(true),
@@ -90,6 +92,10 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 				{
 					Name:  "DD_ENV",
 					Value: "dev",
+				},
+				{
+					Name:  "DD_VERSION",
+					Value: "0.0.0",
 				},
 				{
 					Name:  "DD_TRACE_ENABLED",
@@ -189,6 +195,7 @@ func TestLibConfig_ToEnvs(t *testing.T) {
 			lc := LibConfig{
 				ServiceName:         tt.fields.ServiceName,
 				Env:                 tt.fields.Env,
+				ServiceVersion:      tt.fields.ServiceVersion,
 				Tracing:             tt.fields.Tracing,
 				LogInjection:        tt.fields.LogInjection,
 				HealthMetrics:       tt.fields.HealthMetrics,
