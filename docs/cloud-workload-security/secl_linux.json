@@ -15161,14 +15161,21 @@
       ]
     },
     {
-      "name": "SetSockopt Actions",
-      "link": "setsockopt-actions",
-      "description": "SetSockopt Actions are the supported actions for the setsockopt event.",
+      "name": "SetSockopt Levels",
+      "link": "setsockopt-levels",
+      "description": "SetSockopt Levels are the supported levels for the setsockopt event.",
       "all": [
         {
           "name": "SOL_SOCKET",
           "architecture": "all"
-        },
+        }
+      ]
+    },
+    {
+      "name": "SetSockopt Options",
+      "link": "setsockopt-options",
+      "description": "SetSockopt Options are the supported options for the setsockopt event.",
+      "all": [
         {
           "name": "SO_ATTACH_FILTER",
           "architecture": "all"

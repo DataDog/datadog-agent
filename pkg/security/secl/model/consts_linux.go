@@ -845,10 +845,14 @@ var (
 		"SYSCTL_READ":  SysCtlReadAction,
 		"SYSCTL_WRITE": SysCtlWriteAction,
 	}
-	// SetSockoptConstants is the list of available actions for setsockopt events
-	// generate_constants:SetSockopt Actions,SetSockopt Actions are the supported actions for the setsockopt event.
-	SetSockoptConstants = map[string]int{
-		"SOL_SOCKET":       syscall.SOL_SOCKET,
+	// SetSockoptLevelConstants is the list of available levels for setsockopt events
+	// generate_constants:SetSockopt Levels,SetSockopt Levels are the supported levels for the setsockopt event.
+	SetSockoptLevelConstants = map[string]int{
+		"SOL_SOCKET": syscall.SOL_SOCKET,
+	}
+	// SetSockOptOptNameConstants is the list of available options for setsockopt events
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event.
+	SetSockOptOptNameConstants = map[string]int{
 		"SO_ATTACH_FILTER": syscall.SO_ATTACH_FILTER,
 	}
 )
@@ -999,8 +1003,13 @@ func initSysCtlActionConstants() {
 		sysctlActionStrings[uint32(v)] = k
 	}
 }
-func initSetSockOptConstants() {
-	for k, v := range SetSockoptConstants {
+func initSetSockOptLevelConstants() {
+	for k, v := range SetSockoptLevelConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+	}
+}
+func initSetSockOptOptNameConstants() {
+	for k, v := range SetSockOptOptNameConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
 	}
 }
