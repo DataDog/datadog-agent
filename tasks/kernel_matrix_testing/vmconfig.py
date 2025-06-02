@@ -758,7 +758,11 @@ def gen_config_for_stack(
     vm_config = generate_vmconfig(vm_config, build_normalized_vm_def_by_set(vms, sets), vcpu, memory, ci, template)
 
     cm = ConfigManager()
-    if cm.config["setup"] == "remote":
+    setup = cm.config.get("setup")
+    if setup is None:
+        raise Exit("KMT setup information not recorded. Please run `dda inv kmt.init` to generate it.")
+
+    if setup == "remote":
         for vmset in vm_config["vmsets"]:
             if vmset["arch"] == "local":
                 raise Exit(
