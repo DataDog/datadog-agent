@@ -18,36 +18,36 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
-// AFPacketSource is a PacketSource implementation using AF_PACKET.
+// afPacketSource is a PacketSource implementation using AF_PACKET.
 // Why not use gopacket? Mainly because gopacket doesn't have read deadlines which we rely on.
 // Also, the zero-copy ringbuffer setup is unnecessary for traceroutes.
-type AFPacketSource struct {
+type afPacketSource struct {
 	sock *os.File
 }
 
-var _ Source = &AFPacketSource{}
+var _ Source = &afPacketSource{}
 
 // ethPAllNetwork is all protocols, in network byte order
 var ethPAllNetwork = htons(uint16(unix.ETH_P_ALL))
 
 // NewAFPacketSource creates a new AFPacketSource
-func NewAFPacketSource() (*AFPacketSource, error) {
+func NewAFPacketSource() (Source, error) {
 	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW|unix.SOCK_NONBLOCK, int(ethPAllNetwork))
 	if err != nil {
 		return nil, fmt.Errorf("NewAFPacketSource failed to create socket: %s", err)
 	}
 
 	sock := os.NewFile(uintptr(fd), "")
-	return &AFPacketSource{sock: sock}, nil
+	return &afPacketSource{sock: sock}, nil
 }
 
 // SetReadDeadline sets the deadline for when a Read() call must finish
-func (a *AFPacketSource) SetReadDeadline(t time.Time) error {
+func (a *afPacketSource) SetReadDeadline(t time.Time) error {
 	return a.sock.SetReadDeadline(t)
 }
 
 // Read reads a packet (starting with the IP frame)
-func (a *AFPacketSource) Read(buf []byte) (int, error) {
+func (a *afPacketSource) Read(buf []byte) (int, error) {
 	var payload []byte
 	for payload == nil {
 		n, err := a.sock.Read(buf)
@@ -64,7 +64,7 @@ func (a *AFPacketSource) Read(buf []byte) (int, error) {
 }
 
 // Close closes the socket
-func (a *AFPacketSource) Close() error {
+func (a *afPacketSource) Close() error {
 	return a.sock.Close()
 }
 

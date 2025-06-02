@@ -17,16 +17,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// SinkUnix is an implementation of the packet sink interface for unix OSes
-// TODO change to sinkUnix and don't export this?
-type SinkUnix struct {
+// sinkUnix is an implementation of the packet sink interface for unix OSes
+type sinkUnix struct {
 	rawConn syscall.RawConn
 }
 
-var _ Sink = &SinkUnix{}
+var _ Sink = &sinkUnix{}
 
 // NewSinkUnix returns a new SinkUnix implementing packet sink
-func NewSinkUnix(addr netip.Addr) (*SinkUnix, error) {
+func NewSinkUnix(addr netip.Addr) (Sink, error) {
 	if !addr.Is4() {
 		return nil, fmt.Errorf("SinkUnix only supports IPv4 addresses (for now)")
 	}
@@ -42,13 +41,13 @@ func NewSinkUnix(addr netip.Addr) (*SinkUnix, error) {
 		return nil, fmt.Errorf("failed to get raw connection: %w", err)
 	}
 
-	return &SinkUnix{
+	return &sinkUnix{
 		rawConn: rawConn,
 	}, nil
 }
 
 // WriteTo writes the given packet (buffer starts at the IP layer) to addrPort.
-func (p *SinkUnix) WriteTo(buf []byte, addrPort netip.AddrPort) error {
+func (p *sinkUnix) WriteTo(buf []byte, addrPort netip.AddrPort) error {
 	if !addrPort.Addr().Is4() {
 		return fmt.Errorf("SinkUnix only supports IPv4 addresses (for now)")
 	}
@@ -70,7 +69,7 @@ func (p *SinkUnix) WriteTo(buf []byte, addrPort netip.AddrPort) error {
 }
 
 // Close closes the socket
-func (p *SinkUnix) Close() error {
+func (p *sinkUnix) Close() error {
 	var closeErr error
 	err := p.rawConn.Control(func(fd uintptr) {
 		closeErr = unix.Close(int(fd))
