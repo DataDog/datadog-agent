@@ -7,8 +7,6 @@ package fleetstatusimpl
 
 import (
 	"bytes"
-	"expvar"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,11 +21,6 @@ import (
 )
 
 func TestFleetStatus(t *testing.T) {
-	rcMapStatus := expvar.NewMap("remoteConfigStatus")
-	rcEnabled := expvar.String{}
-	rcEnabled.Set("enabled")
-	rcMapStatus.Set("enabled", &rcEnabled)
-
 	tests := []struct {
 		name                   string
 		remoteUpdatesConfig    bool
@@ -35,22 +28,14 @@ func TestFleetStatus(t *testing.T) {
 		fleetAutomationEnabled bool
 	}{
 		{
-			name:                   "fleet enabled",
-			remoteUpdatesConfig:    true,
-			installerRunning:       true,
-			fleetAutomationEnabled: true,
+			name:                "remote updates disabled",
+			remoteUpdatesConfig: false,
+			installerRunning:    true,
 		},
 		{
-			name:                   "remote updates disabled",
-			remoteUpdatesConfig:    false,
-			installerRunning:       true,
-			fleetAutomationEnabled: false,
-		},
-		{
-			name:                   "installer not running",
-			remoteUpdatesConfig:    true,
-			installerRunning:       false,
-			fleetAutomationEnabled: false,
+			name:                "installer not running",
+			remoteUpdatesConfig: true,
+			installerRunning:    false,
 		},
 	}
 
@@ -59,9 +44,9 @@ func TestFleetStatus(t *testing.T) {
 			expectedStatus := map[string]interface{}{
 				"fleetAutomationStatus": map[string]interface{}{
 					"remoteManagementEnabled": tt.remoteUpdatesConfig,
-					"remoteConfigEnabled":     true,
+					"remoteConfigEnabled":     false,
 					"installerRunning":        tt.installerRunning,
-					"fleetAutomationEnabled":  tt.installerRunning && tt.remoteUpdatesConfig,
+					"fleetAutomationEnabled":  false,
 				},
 			}
 
@@ -91,30 +76,17 @@ func TestFleetStatus(t *testing.T) {
 			buffer := new(bytes.Buffer)
 			err = statusProvider.Text(false, buffer)
 			require.NoError(t, err)
-			if tt.fleetAutomationEnabled {
-				assert.Contains(t, buffer.String(), "Fleet Management is enabled")
-			} else {
-				assert.Contains(t, buffer.String(), "Fleet Management is disabled")
-			}
+			assert.Contains(t, buffer.String(), "Fleet Management is disabled")
 			buffer.Reset()
 
 			err = statusProvider.HTML(false, buffer)
 			require.NoError(t, err)
-			if tt.fleetAutomationEnabled {
-				assert.Contains(t, buffer.String(), "Fleet Management is enabled")
-			} else {
-				assert.Contains(t, buffer.String(), "Fleet Management is disabled")
-			}
+			assert.Contains(t, buffer.String(), "Fleet Management is disabled")
 		})
 	}
 }
 
 func TestFleetStatusWithSSI(t *testing.T) {
-	rcMapStatus := expvar.NewMap("remoteConfigStatus")
-	rcEnabled := expvar.String{}
-	rcEnabled.Set("enabled")
-	rcMapStatus.Set("enabled", &rcEnabled)
-
 	tests := []struct {
 		name                               string
 		autoInstrumentationStatusAvailable bool
@@ -137,9 +109,9 @@ func TestFleetStatusWithSSI(t *testing.T) {
 			expectedStatus := map[string]interface{}{
 				"fleetAutomationStatus": map[string]interface{}{
 					"remoteManagementEnabled": true,
-					"remoteConfigEnabled":     true,
+					"remoteConfigEnabled":     false,
 					"installerRunning":        true,
-					"fleetAutomationEnabled":  true,
+					"fleetAutomationEnabled":  false,
 				},
 			}
 			if tt.autoInstrumentationStatusAvailable {
@@ -185,7 +157,6 @@ func TestFleetStatusWithSSI(t *testing.T) {
 
 			err = statusProvider.HTML(false, buffer)
 			require.NoError(t, err)
-			fmt.Println(buffer.String())
 			if tt.autoInstrumentationStatusAvailable {
 				assert.Contains(t, buffer.String(), "Host:   Instrumented")
 			} else {

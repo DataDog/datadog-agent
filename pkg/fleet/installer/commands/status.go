@@ -138,7 +138,7 @@ type errorWithCode struct {
 func getRCStatus() (remoteConfigState, error) {
 	var response remoteConfigState
 
-	// The simplest thing here is to call ourselves with the daemon command
+	// The simplest thing here is to call ourselves with the daemon commandx
 	installerBinary, err := os.Executable()
 	if err != nil {
 		return response, fmt.Errorf("could not get installer binary path: %w", err)
