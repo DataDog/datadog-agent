@@ -425,6 +425,28 @@ func (w *workloadmeta) ListGPUs() []*wmdef.GPU {
 	return gpuList
 }
 
+// GetService implements Store#GetService
+func (w *workloadmeta) GetService(id string) (*wmdef.Service, error) {
+	entity, err := w.getEntityByKind(wmdef.KindService, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.Service), nil
+}
+
+// ListServices implements Store#ListServices
+func (w *workloadmeta) ListServices() []*wmdef.Service {
+	entities := w.listEntitiesByKind(wmdef.KindService)
+
+	services := make([]*wmdef.Service, 0, len(entities))
+	for i := range entities {
+		services = append(services, entities[i].(*wmdef.Service))
+	}
+
+	return services
+}
+
 // Notify implements Store#Notify
 func (w *workloadmeta) Notify(events []wmdef.CollectorEvent) {
 	if len(events) > 0 {
