@@ -25,10 +25,6 @@ var SoftwareInventory = &module.Factory{
 	ConfigNamespaces: []string{"software_inventory"},
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the Windows Software inventory module")
-		var err error = nil
-		if err != nil {
-			return nil, fmt.Errorf("unable to start the Windows Software Inventory module: %w", err)
-		}
 		return &softwareInventoryModule{}, nil
 	},
 }
