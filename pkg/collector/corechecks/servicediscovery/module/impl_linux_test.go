@@ -173,13 +173,13 @@ func getRunningPids(t require.TestingT) []int {
 }
 
 // getCheckWithParams call the /discovery/check endpoint with the given params.
-func getCheckWithParams(t require.TestingT, url string, params *params) *model.CheckResponse {
+func getCheckWithParams(t require.TestingT, url string, params *params) *model.ServicesResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathCheck
-	return makeRequest[model.CheckResponse](t, location, params)
+	return makeRequest[model.ServicesResponse](t, location, params)
 }
 
 // TODO: remove this after refactor
-func getCheckServices(t require.TestingT, url string) *model.CheckResponse {
+func getCheckServices(t require.TestingT, url string) *model.ServicesResponse {
 	return getCheckWithParams(t, url, nil)
 }
 

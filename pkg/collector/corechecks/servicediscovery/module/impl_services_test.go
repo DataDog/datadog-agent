@@ -44,13 +44,13 @@ import (
 
 // getServices call the /discovery/services endpoint. It will perform a /proc scan
 // to get the list of running pids and use them as the pids query param.
-func getServices(t require.TestingT, url string) *model.ServicesResponse {
+func getServices(t require.TestingT, url string) *model.ServicesEndpointResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathServices
 	params := &params{
 		pids: getRunningPids(t),
 	}
 
-	return makeRequest[model.ServicesResponse](t, location, params)
+	return makeRequest[model.ServicesEndpointResponse](t, location, params)
 }
 
 // Check that we get (only) listening processes for all expected protocols using the services endpoint.
@@ -99,8 +99,9 @@ func TestServicesBasic(t *testing.T) {
 
 		for _, pid := range expectedPIDs {
 			require.Contains(collect, seen, pid)
+			assert.Equal(collect, seen[pid].PID, pid)
+			assert.Greater(collect, seen[pid].StartTimeMilli, uint64(0))
 			require.Contains(collect, seen[pid].Ports, uint16(expectedPorts[pid]))
-			assertStat(collect, seen[pid])
 		}
 		for _, pid := range unexpectedPIDs {
 			assert.NotContains(collect, seen, pid)
@@ -382,21 +383,15 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 
 			pid := cmd.Process.Pid
 
-			proc, err := process.NewProcess(int32(pid))
-			require.NoError(t, err, "could not create gopsutil process handle")
-
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
 				resp := getServices(collect, discovery.url)
 				startEvent := findService(pid, resp.Services)
 				require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 
-				referenceValue, err := proc.Percent(0)
-				require.NoError(t, err, "could not get gopsutil cpu usage value")
-
+				assert.Equal(collect, startEvent.PID, pid)
+				assert.Greater(collect, startEvent.StartTimeMilli, uint64(0))
 				assert.Equal(collect, string(test.language), startEvent.Language)
 				assert.Equal(collect, string(apm.Provided), startEvent.APMInstrumentation)
-				assertStat(collect, *startEvent)
-				assert.InDelta(collect, referenceValue, startEvent.CPUCores*100, 10)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -442,24 +437,18 @@ func TestServicesNodeDocker(t *testing.T) {
 
 	pid := int(nodeJSPID)
 
-	proc, err := process.NewProcess(int32(pid))
-	require.NoError(t, err, "could not create gopsutil process handle")
-
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp := getServices(collect, discovery.url)
 		svc := findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
 
-		referenceValue, err := proc.Percent(0)
-		require.NoError(collect, err, "could not get gopsutil cpu usage value")
-
 		// test@... changed to test_... due to normalization.
+		assert.Equal(collect, svc.PID, pid)
+		assert.Greater(collect, svc.StartTimeMilli, uint64(0))
 		assert.Equal(collect, "test_nodejs-https-server", svc.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), svc.GeneratedNameSource)
 		assert.Equal(collect, "provided", svc.APMInstrumentation)
 		assert.Equal(collect, "web_service", svc.Type)
-		assertStat(collect, *svc)
-		assert.InDelta(collect, referenceValue, svc.CPUCores*100, 10)
 	}, 30*time.Second, 100*time.Millisecond)
 }
 
@@ -515,9 +504,10 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 				// Service assert
 				svc := findService(pid, resp.Services)
 				require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
+				assert.Equal(collect, svc.PID, pid)
+				assert.Greater(collect, svc.StartTimeMilli, uint64(0))
 				assert.Equal(collect, string(test.language), svc.Language)
 				assert.Equal(collect, string(apm.Provided), svc.APMInstrumentation)
-				assertStat(collect, *svc)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}

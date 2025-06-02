@@ -42,10 +42,10 @@ func (m *MockosImpl) EXPECT() *MockosImplMockRecorder {
 }
 
 // DiscoverServices mocks base method.
-func (m *MockosImpl) DiscoverServices() (*model.CheckResponse, error) {
+func (m *MockosImpl) DiscoverServices() (*model.ServicesResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DiscoverServices")
-	ret0, _ := ret[0].(*model.CheckResponse)
+	ret0, _ := ret[0].(*model.ServicesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

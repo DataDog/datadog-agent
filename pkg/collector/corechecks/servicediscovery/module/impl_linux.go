@@ -818,7 +818,7 @@ func (s *discovery) cleanCache(alivePids pidSet) {
 	}
 }
 
-func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.CheckResponse) {
+func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
 	for pid, info := range s.cache {
 		if !info.addedToMap {
 			err := s.network.addPid(uint32(pid))
@@ -867,7 +867,7 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Che
 	updateResponseNetworkStats(response.HeartbeatServices)
 }
 
-func (s *discovery) maybeUpdateNetworkStats(response *model.CheckResponse) {
+func (s *discovery) maybeUpdateNetworkStats(response *model.ServicesResponse) {
 	if s.network == nil {
 		return
 	}
@@ -902,7 +902,7 @@ func (s *discovery) cleanPidSets(alivePids pidSet, sets ...pidSet) {
 // updateServicesCPUStats updates the CPU stats of cached services, as well as the
 // global CPU time cache for future updates. This function is not thread-safe and
 // it is up to the caller to ensure s.mux is locked.
-func (s *discovery) updateServicesCPUStats(response *model.CheckResponse) error {
+func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) error {
 	if time.Since(s.lastCPUTimeUpdate) < s.config.cpuUsageUpdateDelay {
 		return nil
 	}
@@ -1077,7 +1077,7 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[i
 	}
 }
 
-func (s *discovery) updateCacheInfo(response *model.CheckResponse, now time.Time) {
+func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
 	updateCachedHeartbeat := func(service *model.Service) {
 		info, ok := s.cache[int32(service.PID)]
 		if !ok {
@@ -1105,7 +1105,7 @@ func (s *discovery) updateCacheInfo(response *model.CheckResponse, now time.Time
 // running are still alive. If not, it will use the latest cached information
 // about them to generate a stop event for the service. This function is not
 // thread-safe and it is up to the caller to ensure s.mux is locked.
-func (s *discovery) handleStoppedServices(response *model.CheckResponse, alivePids pidSet) {
+func (s *discovery) handleStoppedServices(response *model.ServicesResponse, alivePids pidSet) {
 	for pid := range s.runningServices {
 		if alivePids.has(pid) {
 			continue
@@ -1125,7 +1125,7 @@ func (s *discovery) handleStoppedServices(response *model.CheckResponse, alivePi
 }
 
 // getStatus returns the list of currently running services.
-func (s *discovery) getCheckServices(params params) (*model.CheckResponse, error) {
+func (s *discovery) getCheckServices(params params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -1136,7 +1136,7 @@ func (s *discovery) getCheckServices(params params) (*model.CheckResponse, error
 
 	context := newParsingContext()
 
-	response := &model.CheckResponse{
+	response := &model.ServicesResponse{
 		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
 		StoppedServices:   make([]model.Service, 0),
 		HeartbeatServices: make([]model.Service, 0),
@@ -1212,11 +1212,12 @@ func (s *discovery) getCheckServices(params params) (*model.CheckResponse, error
 
 // getServices processes a list of PIDs and returns service information for each.
 // This is used by the /services endpoint which accepts explicit PID lists and bypasses
-// the port retry logic used by the /check endpoint.
-func (s *discovery) getServices(params params) (*model.ServicesResponse, error) {
+// the port retry logic used by the /check endpoint. The caller (the Core-Agent
+// process collector) will handle the retry..
+func (s *discovery) getServices(params params) (*model.ServicesEndpointResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	response := &model.ServicesResponse{
+	response := &model.ServicesEndpointResponse{
 		Services: make([]model.Service, 0),
 	}
 
@@ -1237,9 +1238,6 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 // Unlike getService(), this function immediately returns nil if no ports are found,
 // rather than tracking retry attempts. This is used by the /services endpoint.
 func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *model.Service {
-	if s.shouldIgnorePid(pid) {
-		return nil
-	}
 	if s.shouldIgnoreComm(pid) {
 		return nil
 	}
@@ -1252,25 +1250,11 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 		return nil
 	}
 
-	rss, err := getRSS(pid)
+	info, err := s.getServiceInfo(pid)
 	if err != nil {
+		log.Tracef("[pid: %d] could not get service info: %v", pid, err)
 		return nil
 	}
-
-	var info *serviceInfo
-	cached, ok := s.cache[pid]
-	if ok {
-		info = cached
-	} else {
-		info, err = s.getServiceInfo(pid)
-		if err != nil {
-			log.Tracef("[pid: %d] could not get service info: %v", pid, err)
-			return nil
-		}
-		s.cache[pid] = info
-	}
-
-	info.rss = rss
 	info.ports = ports
 
 	out := &model.Service{}

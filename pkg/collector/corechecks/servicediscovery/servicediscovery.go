@@ -33,7 +33,7 @@ const (
 )
 
 type osImpl interface {
-	DiscoverServices() (*model.CheckResponse, error)
+	DiscoverServices() (*model.ServicesResponse, error)
 }
 
 var newOSImpl func() (osImpl, error)
