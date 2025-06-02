@@ -7,14 +7,16 @@
 package fleetstatusimpl
 
 import (
+	"context"
 	"embed"
 	"expvar"
 	"io"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
-	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/def"
+	ssistatus "github.com/DataDog/datadog-agent/comp/updater/ssistatus/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -22,8 +24,8 @@ import (
 type Requires struct {
 	Config config.Component
 
-	InstallerExec option.Option[installerexec.Component]
-	DaemonChecker option.Option[daemonchecker.Component]
+	SsiStatusProvider option.Option[ssistatus.Component]
+	DaemonChecker     option.Option[daemonchecker.Component]
 }
 
 // Provides defines the output of the fleetstatus component
@@ -32,19 +34,19 @@ type Provides struct {
 }
 
 type statusProvider struct {
-	Config        config.Component
-	InstallerExec installerexec.Component
-	DaemonChecker daemonchecker.Component
+	Config            config.Component
+	ssiStatusProvider ssistatus.Component
+	DaemonChecker     daemonchecker.Component
 }
 
 // NewComponent creates a new fleetstatus component
 func NewComponent(reqs Requires) Provides {
-	installerExec, _ := reqs.InstallerExec.Get()
+	ssiStatusProvider, _ := reqs.SsiStatusProvider.Get()
 	daemonChecker, _ := reqs.DaemonChecker.Get()
 	sp := &statusProvider{
-		Config:        reqs.Config,
-		InstallerExec: installerExec,
-		DaemonChecker: daemonChecker,
+		Config:            reqs.Config,
+		ssiStatusProvider: ssiStatusProvider,
+		DaemonChecker:     daemonChecker,
 	}
 
 	return Provides{
@@ -95,16 +97,30 @@ func (sp statusProvider) populateStatus(stats map[string]interface{}) {
 
 	remoteManagementEnabled := isRemoteManagementEnabled(sp.Config)
 	remoteConfigEnabled := isRemoteConfigEnabled()
-	isInstallerRunning := sp.InstallerExec != nil && sp.DaemonChecker != nil
-	if isInstallerRunning {
+	isInstallerRunning := false
+	if sp.DaemonChecker != nil {
 		isInstallerRunning, _ = sp.DaemonChecker.IsRunning()
 	}
 
 	status["remoteManagementEnabled"] = remoteManagementEnabled
 	status["remoteConfigEnabled"] = remoteConfigEnabled
 	status["installerRunning"] = isInstallerRunning
-
 	status["fleetAutomationEnabled"] = remoteManagementEnabled && remoteConfigEnabled && isInstallerRunning
+
+	if sp.ssiStatusProvider != nil {
+		autoInstrumentationEnabled, instrumentationModes, err := sp.ssiStatusProvider.AutoInstrumentationStatus(context.Background())
+		ssiStatus := make(map[string]bool)
+		if err == nil {
+			if autoInstrumentationEnabled {
+				ssiStatus["autoInstrumentationEnabled"] = true
+				ssiStatus["hostInstrumented"] = slices.Contains(instrumentationModes, "host")
+				ssiStatus["dockerInstrumented"] = slices.Contains(instrumentationModes, "docker")
+			}
+		} else {
+			ssiStatus["apmStatusNotAvailable"] = true
+		}
+		status["ssiStatus"] = ssiStatus
+	}
 
 	stats["fleetAutomationStatus"] = status
 }

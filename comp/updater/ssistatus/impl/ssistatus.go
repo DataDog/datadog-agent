@@ -65,7 +65,7 @@ func (c *ssiStatusComponent) Start(_ context.Context) error {
 				ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 				defer cancel()
 				// APM host-based auto injection (SSI)
-				autoInstrumentationEnabled, instrumentationModes, err := c.autoInstrumentationStatus(ctx)
+				autoInstrumentationEnabled, instrumentationModes, err := c.AutoInstrumentationStatus(ctx)
 				if err != nil {
 					c.log.Warnf("could not check APM auto-instrumentation status: %s", err)
 				}
