@@ -292,7 +292,7 @@ func OtelSpanToDDSpan(
 	traceID := otelspan.TraceID()
 	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
 	if !spanMetaHasKey(ddspan, "version") {
-		if version := traceutil.GetOTelAttrFromEitherMap(otelspan.Attributes(), otelres.Attributes(), true, semconv.AttributeServiceVersion); version != "" {
+		if version := traceutil.GetOTelAttrFromEitherMap(otelspan.Attributes(), otelres.Attributes(), true, string(semconv.ServiceVersionKey)); version != "" {
 			ddspan.Meta["version"] = version
 		}
 	}
