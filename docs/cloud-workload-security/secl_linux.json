@@ -2189,12 +2189,12 @@
         },
         {
           "name": "exec.file.metadatas.abi",
-          "definition": "[Experimental] ABI of the file (only for executable ones)",
+          "definition": "[Experimental] ABI of the file (only for executable files)",
           "property_doc_link": "exec-file-metadatas-abi-doc"
         },
         {
           "name": "exec.file.metadatas.architecture",
-          "definition": "[Experimental] Architecture of the file (only for executable ones)",
+          "definition": "[Experimental] Architecture of the file (only for executable files)",
           "property_doc_link": "exec-file-metadatas-architecture-doc"
         },
         {
@@ -10391,7 +10391,7 @@
       "name": "exec.file.metadatas.abi",
       "link": "exec-file-metadatas-abi-doc",
       "type": "int",
-      "definition": "[Experimental] ABI of the file (only for executable ones)",
+      "definition": "[Experimental] ABI of the file (only for executable files)",
       "prefixes": [
         "exec.file.metadatas"
       ],
@@ -10403,7 +10403,7 @@
       "name": "exec.file.metadatas.architecture",
       "link": "exec-file-metadatas-architecture-doc",
       "type": "int",
-      "definition": "[Experimental] Architecture of the file (only for executable ones)",
+      "definition": "[Experimental] Architecture of the file (only for executable files)",
       "prefixes": [
         "exec.file.metadatas"
       ],

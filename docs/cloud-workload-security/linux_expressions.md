@@ -612,8 +612,8 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exec.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`exec.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
-| [`exec.file.metadatas.abi`](#exec-file-metadatas-abi-doc) | [Experimental] ABI of the file (only for executable ones) |
-| [`exec.file.metadatas.architecture`](#exec-file-metadatas-architecture-doc) | [Experimental] Architecture of the file (only for executable ones) |
+| [`exec.file.metadatas.abi`](#exec-file-metadatas-abi-doc) | [Experimental] ABI of the file (only for executable files) |
+| [`exec.file.metadatas.architecture`](#exec-file-metadatas-architecture-doc) | [Experimental] Architecture of the file (only for executable files) |
 | [`exec.file.metadatas.compression`](#exec-file-metadatas-compression-doc) | [Experimental] Compression type of the file (only for compressed files) |
 | [`exec.file.metadatas.is_executable`](#exec-file-metadatas-is_executable-doc) | [Experimental] Tells if the file is executable or not |
 | [`exec.file.metadatas.is_garble_obfuscated`](#exec-file-metadatas-is_garble_obfuscated-doc) | [Experimental] Tells if the binary has been obfuscated using garble |
@@ -2963,7 +2963,7 @@ Definition: Timestamp of the event
 ### `exec.file.metadatas.abi` {#exec-file-metadatas-abi-doc}
 Type: int
 
-Definition: [Experimental] ABI of the file (only for executable ones)
+Definition: [Experimental] ABI of the file (only for executable files)
 
 
 Constants: [ABI](#abi)
@@ -2973,7 +2973,7 @@ Constants: [ABI](#abi)
 ### `exec.file.metadatas.architecture` {#exec-file-metadatas-architecture-doc}
 Type: int
 
-Definition: [Experimental] Architecture of the file (only for executable ones)
+Definition: [Experimental] Architecture of the file (only for executable files)
 
 
 Constants: [Architecture](#architecture)
