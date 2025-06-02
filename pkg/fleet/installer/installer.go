@@ -7,13 +7,11 @@
 package installer
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"runtime"
@@ -23,7 +21,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
@@ -155,66 +152,67 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 }
 
 // Status returns the installer status
-func (i *installerImpl) Status(ctx context.Context, debug bool) (*installertypes.InstallerStatus, error) {
-	states, err := i.States(ctx)
-	if err != nil {
-		return nil, err
-	}
-	configStates, err := i.ConfigStates(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (i *installerImpl) Status(_ context.Context, _ bool) (*installertypes.InstallerStatus, error) {
+	return &installertypes.InstallerStatus{}, nil
+	// states, err := i.States(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// configStates, err := i.ConfigStates(ctx)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	apmSSIStatus, err := ssi.GetInstrumentationStatus()
-	if err != nil {
-		log.Warnf("error getting APM injection status: %s", err.Error())
-	}
+	// apmSSIStatus, err := ssi.GetInstrumentationStatus()
+	// if err != nil {
+	// 	log.Warnf("error getting APM injection status: %s", err.Error())
+	// }
 
-	status := installertypes.InstallerStatus{
-		Version: version.AgentVersion,
-		Packages: &repository.PackageStates{
-			States:       states,
-			ConfigStates: configStates,
-		},
-		ApmInjectionStatus: apmSSIStatus,
-	}
+	// status := installertypes.InstallerStatus{
+	// 	Version: version.AgentVersion,
+	// 	Packages: &repository.PackageStates{
+	// 		States:       states,
+	// 		ConfigStates: configStates,
+	// 	},
+	// 	ApmInjectionStatus: apmSSIStatus,
+	// }
 
-	if debug {
-		// Remote Config status may be confusing for customers, so we only print it in debug mode
-		remoteConfigStatus, err := getRCStatus(ctx)
-		if err != nil {
-			log.Warn(err.Error())
-		}
-		status.RemoteConfigState = remoteConfigStatus.PackageStates
-	}
+	// if debug {
+	// 	// Remote Config status may be confusing for customers, so we only print it in debug mode
+	// 	remoteConfigStatus, err := getRCStatus(ctx)
+	// 	if err != nil {
+	// 		log.Warn(err.Error())
+	// 	}
+	// 	status.RemoteConfigState = remoteConfigStatus.PackageStates
+	// }
 
-	return &status, nil
+	// return &status, nil
 }
 
-func getRCStatus(ctx context.Context) (installertypes.RemoteConfigState, error) {
-	var response installertypes.RemoteConfigState
+// func getRCStatus(ctx context.Context) (installertypes.RemoteConfigState, error) {
+// 	var response installertypes.RemoteConfigState
 
-	// The simplest thing here is to call ourselves with the daemon command
-	installerBinary, err := os.Executable()
-	if err != nil {
-		return response, fmt.Errorf("could not get installer binary path: %w", err)
-	}
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	cmd := exec.CommandContext(ctx, installerBinary, "daemon", "rc-status")
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	err = cmd.Run()
-	if err != nil {
-		return response, fmt.Errorf("error running \"datadog-installer daemon rc-status\" (is the daemon running?): %s", stderr.String())
-	}
+// 	// The simplest thing here is to call ourselves with the daemon command
+// 	installerBinary, err := os.Executable()
+// 	if err != nil {
+// 		return response, fmt.Errorf("could not get installer binary path: %w", err)
+// 	}
+// 	stdout := new(bytes.Buffer)
+// 	stderr := new(bytes.Buffer)
+// 	cmd := exec.CommandContext(ctx, installerBinary, "daemon", "rc-status")
+// 	cmd.Stdout = stdout
+// 	cmd.Stderr = stderr
+// 	err = cmd.Run()
+// 	if err != nil {
+// 		return response, fmt.Errorf("error running \"datadog-installer daemon rc-status\" (is the daemon running?): %s", stderr.String())
+// 	}
 
-	err = json.Unmarshal(stdout.Bytes(), &response)
-	if err != nil {
-		return response, fmt.Errorf("error unmarshalling response: %w", err)
-	}
-	return response, nil
-}
+// 	err = json.Unmarshal(stdout.Bytes(), &response)
+// 	if err != nil {
+// 		return response, fmt.Errorf("error unmarshalling response: %w", err)
+// 	}
+// 	return response, nil
+// }
 
 // ForceInstall installs or updates a package, even if it's already installed
 func (i *installerImpl) ForceInstall(ctx context.Context, url string, args []string) error {
