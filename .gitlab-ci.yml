@@ -401,6 +401,7 @@ workflow:
 .on_deploy_manual:
   - <<: *if_deploy
     when: manual
+    allow_failure: true
 
 .on_deploy_success:
   - <<: *if_deploy
