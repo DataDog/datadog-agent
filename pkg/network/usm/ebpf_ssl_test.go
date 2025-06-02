@@ -83,7 +83,7 @@ func TestSSLMapsCleaner(t *testing.T) {
 	require.NotNil(t, monitor)
 
 	cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-	cleanProtocolMaps(t, "bio_new_socket_args", monitor.ebpfProgram.Manager.Manager)
+	cleanProtocolMaps(t, bioNewSocketArgsMap, monitor.ebpfProgram.Manager.Manager)
 
 	// find maps by names
 	maps := getMaps(t, monitor.ebpfProgram.Manager.Manager, sslPidKeyMaps)
