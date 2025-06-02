@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
 type danglingConfigWrapper struct {
@@ -22,6 +23,7 @@ type danglingConfigWrapper struct {
 // createDanglingConfig creates a new danglingConfigWrapper
 // This is used to keep track of the lifecycle of a dangling config
 func createDanglingConfig(config integration.Config) *danglingConfigWrapper {
+	unscheduledCheck.Delete(le.JoinLeaderValue, config.Name, config.Source)
 	return &danglingConfigWrapper{
 		config:           config,
 		timeCreated:      time.Now(),
