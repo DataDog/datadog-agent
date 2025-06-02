@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
 // datadogAgentPackage is the package for the Datadog Agent
@@ -94,25 +95,6 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 }
 
 // postStartExperimentDatadogAgent runs post start scripts for a given package.
-//
-// Function requirements:
-//   - be its own process, not run within the daemon
-//   - be run from a copy of the installer, not from the install path,
-//     to avoid locking the executable
-//
-// Rollback notes:
-// The Agent package uses an MSI to manage the installation.
-// This restricts us to one install present at a time, the previous version
-// must always be removed before installing the new version.
-// Thus we need a way to rollback to the previous version if installing the
-// new version fails, or if the new version fails to start.
-// This function/process will stay running for a time after installing the
-// new Agent version to ensure the new daemon is running.
-//   - If the new daemon is working properly then it will receive "promote"
-//     from the backend and will set an event to stop the watchdog.
-//   - If the new daemon fails to start, then after a timeout the watchdog will
-//     restore the previous version, which should start and then receive
-//     "stop experiment" from the backend.
 func postStartExperimentDatadogAgent(ctx HookContext) error {
 	// open event that signal the end of the experiment
 	// this will terminate other running instances of the watchdog
@@ -121,11 +103,8 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 
 	// Launch the background process
 	env := getenv()
-	installer, err := newInstallerExec(env)
-	if err != nil {
-		return fmt.Errorf("failed to create installer exec: %w", err)
-	}
-	err = installer.PostStartExperimentBackground(ctx, ctx.Package)
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, nil))
+	err := hooks.PostStartExperimentBackground(ctx, ctx.Package)
 	if err != nil {
 		return fmt.Errorf("failed to start background process: %w", err)
 	}
@@ -178,11 +157,6 @@ func postStartExperimentDatadogAgentBackground(ctx HookContext) error {
 }
 
 // postStopExperimentDatadogAgent runs post stop scripts for a given package.
-//
-// Function requirements:
-//   - be its own process, not run within the daemon
-//   - be run from a copy of the installer, not from the install path,
-//     to avoid locking the executable
 func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 	// set watchdog stop to make sure the watchdog stops
 	// don't care if it fails cause we will proceed with the stop anyway
@@ -191,11 +165,8 @@ func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 
 	// Launch the background process
 	env := getenv()
-	installer, err := newInstallerExec(env)
-	if err != nil {
-		return fmt.Errorf("failed to create installer exec: %w", err)
-	}
-	err = installer.PostStopExperimentBackground(ctx, ctx.Package)
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, nil))
+	err = hooks.PostStopExperimentBackground(ctx, ctx.Package)
 	if err != nil {
 		return fmt.Errorf("failed to start background process: %w", err)
 	}
@@ -627,20 +598,6 @@ func setFleetPoliciesDir(path string) error {
 }
 
 // postStartConfigExperimentDatadogAgent runs post start scripts for a config experiment.
-//
-// Function requirements:
-//   - be its own process, not run within the daemon
-//
-// Rollback notes:
-// The config experiment uses a watchdog to monitor the Agent service.
-// If the service fails to start or stops running, the watchdog will restore
-// the stable config using the remove-config-experiment command.
-// This ensures the system remains in a consistent state even if the experiment
-// config causes issues.
-//   - If the new config is working properly then it will receive "promote"
-//     from the backend and will set an event to stop the watchdog.
-//   - If the new config fails to start the Agent, then after a timeout the
-//     watchdog will restore the stable config.
 func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 	// open event that signal the end of the experiment
 	// this will terminate other running instances of the watchdog
@@ -649,82 +606,8 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 
 	// Launch the background process
 	env := getenv()
-	installer, err := newInstallerExec(env)
-	if err != nil {
-		return fmt.Errorf("failed to create installer exec: %w", err)
-	}
-	err = installer.PostStartConfigExperimentBackground(ctx, ctx.Package)
-	if err != nil {
-		return fmt.Errorf("failed to start background process: %w", err)
-	}
-
-	return nil
-}
-
-// restoreStableConfigFromExperiment restores the stable config using the remove-config-experiment command.
-//
-// call remove-config-experiment to:
-//   - restore stable config
-//   - update repository state / remove experiment link
-//
-// The updated repository state will cause the stable daemon to skip the stop-experiment
-// operation received from the backend, which avoids restarting the services again.
-func restoreStableConfigFromExperiment(ctx HookContext) error {
-	env := getenv()
-	installer, err := newInstallerExec(env)
-	if err != nil {
-		return fmt.Errorf("failed to create installer exec: %w", err)
-	}
-	err = installer.RemoveConfigExperiment(ctx, ctx.Package)
-	if err != nil {
-		return fmt.Errorf("failed to restore stable config: %w", err)
-	}
-
-	return nil
-}
-
-// preStopConfigExperimentDatadogAgent runs pre stop scripts for a config experiment.
-//
-// Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
-func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
-	// set watchdog stop to make sure the watchdog stops
-	// don't care if it fails cause we will proceed with the stop anyway
-	// this will just stop a watchdog that is running
-	_ = setWatchdogStopEvent()
-
-	// Launch the background process
-	env := getenv()
-	installer, err := newInstallerExec(env)
-	if err != nil {
-		return fmt.Errorf("failed to create installer exec: %w", err)
-	}
-	err = installer.PreStopConfigExperimentBackground(ctx, ctx.Package)
-	if err != nil {
-		return fmt.Errorf("failed to start background process: %w", err)
-	}
-
-	return nil
-}
-
-// postPromoteConfigExperimentDatadogAgent runs post promote scripts for a config experiment.
-//
-// Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
-func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
-	err := setWatchdogStopEvent()
-	if err != nil {
-		// if we can't set the event it means the watchdog has failed
-		// In this case, we were already promoting the experiment
-		// so we can continue without error
-		log.Errorf("failed to set premote event: %s", err)
-	}
-
-	// Launch the background process
-	env := getenv()
-	installer, err := newInstallerExec(env)
-	if err != nil {
-		return fmt.Errorf("failed to create installer exec: %w", err)
-	}
-	err = installer.PostPromoteConfigExperimentBackground(ctx, ctx.Package)
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, nil))
+	err := hooks.PostStartConfigExperimentBackground(ctx, ctx.Package)
 	if err != nil {
 		return fmt.Errorf("failed to start background process: %w", err)
 	}
@@ -770,34 +653,85 @@ func postStartConfigExperimentDatadogAgentBackground(ctx HookContext) error {
 	return nil
 }
 
-// preStopConfigExperimentDatadogAgentBackground runs pre stop scripts for a config experiment in the background.
-func preStopConfigExperimentDatadogAgentBackground(_ HookContext) error {
-	// Set the registry key to point to the previous stable config
-	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	err := setFleetPoliciesDir(stablePath)
+// restoreStableConfigFromExperiment restores the stable config using the remove-config-experiment command.
+//
+// call remove-config-experiment to:
+//   - restore stable config
+//   - update repository state / remove experiment link
+//
+// The updated repository state will cause the stable daemon to skip the stop-experiment
+// operation received from the backend, which avoids restarting the services again.
+func restoreStableConfigFromExperiment(ctx HookContext) error {
+	env := getenv()
+	installer, err := newInstallerExec(env)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create installer exec: %w", err)
+	}
+	err = installer.RemoveConfigExperiment(ctx, ctx.Package)
+	if err != nil {
+		return fmt.Errorf("failed to restore stable config: %w", err)
 	}
 
+	return nil
+}
+
+// preStopConfigExperimentDatadogAgent runs pre stop scripts for a config experiment.
+//
+// Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
+func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
+	// set watchdog stop to make sure the watchdog stops
+	// don't care if it fails cause we will proceed with the stop anyway
+	// this will just stop a watchdog that is running
+	_ = setWatchdogStopEvent()
+
+	// Launch the background process
+	env := getenv()
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, nil))
+	err := hooks.PreStopConfigExperimentBackground(ctx, ctx.Package)
+	if err != nil {
+		return fmt.Errorf("failed to start background process: %w", err)
+	}
+
+	return nil
+}
+
+// preStopConfigExperimentDatadogAgentBackground runs pre stop scripts for a config experiment in the background.
+func preStopConfigExperimentDatadogAgentBackground(_ HookContext) error {
 	// Start the agent service to pick up the stable config
-	err = winutil.RestartService("datadogagent")
+	err := winutil.RestartService("datadogagent")
 	if err != nil {
 		return fmt.Errorf("failed to start agent service: %w", err)
 	}
 	return nil
 }
 
-// postPromoteConfigExperimentDatadogAgentBackground runs post promote scripts for a config experiment in the background.
-func postPromoteConfigExperimentDatadogAgentBackground(_ HookContext) error {
-	// Set the registry key to point to the stable config (which now contains the promoted experiment)
-	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	err := setFleetPoliciesDir(stablePath)
+// postPromoteConfigExperimentDatadogAgent runs post promote scripts for a config experiment.
+//
+// Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
+func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
+	err := setWatchdogStopEvent()
 	if err != nil {
-		return err
+		// if we can't set the event it means the watchdog has failed
+		// In this case, we were already promoting the experiment
+		// so we can continue without error
+		log.Errorf("failed to set premote event: %s", err)
 	}
 
+	// Launch the background process
+	env := getenv()
+	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, nil))
+	err = hooks.PostPromoteConfigExperimentBackground(ctx, ctx.Package)
+	if err != nil {
+		return fmt.Errorf("failed to start background process: %w", err)
+	}
+
+	return nil
+}
+
+// postPromoteConfigExperimentDatadogAgentBackground runs post promote scripts for a config experiment in the background.
+func postPromoteConfigExperimentDatadogAgentBackground(_ HookContext) error {
 	// Start the agent service to pick up the promoted config
-	err = winutil.RestartService("datadogagent")
+	err := winutil.RestartService("datadogagent")
 	if err != nil {
 		return fmt.Errorf("failed to start agent service: %w", err)
 	}
