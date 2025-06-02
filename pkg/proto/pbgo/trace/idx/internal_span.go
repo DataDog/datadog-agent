@@ -116,6 +116,23 @@ func (tp *InternalTracerPayload) ContainerID() string {
 	return tp.Strings.Get(tp.ContainerIDRef)
 }
 
+func (tp *InternalTracerPayload) Env() string {
+	return tp.Strings.Get(tp.EnvRef)
+}
+
+func (tp *InternalTracerPayload) SetEnv(env string) {
+	tp.EnvRef = tp.Strings.Add(env)
+}
+
+// RemoveChunk removes a chunk by its index.
+func (tp *InternalTracerPayload) RemoveChunk(i int) {
+	if i < 0 || i >= len(tp.Chunks) {
+		return
+	}
+	tp.Chunks[i] = tp.Chunks[len(tp.Chunks)-1]
+	tp.Chunks = tp.Chunks[:len(tp.Chunks)-1]
+}
+
 // AddString deduplicates the provided string and returns the index to reference it in the string table
 func (tp *InternalTracerPayload) AddString(s string) uint32 {
 	return tp.Strings.Add(s)
@@ -146,6 +163,10 @@ type InternalTraceChunk struct {
 
 func (c *InternalTraceChunk) Origin() string {
 	return c.Strings.Get(c.OriginRef)
+}
+
+func (c *InternalTraceChunk) SetOrigin(origin string) {
+	c.OriginRef = c.Strings.Add(origin)
 }
 
 // InternalSpan is a span structure that is optimized for trace-agent usage
@@ -282,6 +303,21 @@ func (s *InternalSpan) DeleteAttribute(key string) {
 	keyIdx := s.Strings.Lookup(key)
 	if keyIdx != 0 {
 		delete(s.Attributes, keyIdx)
+	}
+}
+
+func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
+	for k, v := range s.Attributes {
+		// TODO: we could cache the results of these transformations
+		vString := v.AsString(s.Strings)
+		newV := f(s.Strings.Get(k), vString)
+		if newV != vString {
+			s.Attributes[k] = &AnyValue{
+				Value: &AnyValue_StringValueRef{
+					StringValueRef: s.Strings.Add(newV),
+				},
+			}
+		}
 	}
 }
 

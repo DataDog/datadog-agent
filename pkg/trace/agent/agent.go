@@ -17,6 +17,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
@@ -469,84 +470,87 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	}
 	now := time.Now()
 	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_v1_ms", now)
-	// ts := p.Source
+	ts := p.Source
 	// sampledChunks := new(writer.SampledChunks)
 	statsInput := stats.NewStatsInputV1(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID(), p.ClientComputedStats, p.ProcessTags)
 
-	// p.TracerPayload.Env = normalize.NormalizeTagValue(p.TracerPayload.Env)
+	p.TracerPayload.SetEnv(normalize.NormalizeTagValue(p.TracerPayload.Env()))
 	// // TODO: We should find a way to not repeat container tags resolution downstream in the stats writer.
 	// // We will first need to deprecate the `enable_cid_stats` feature flag.
 	// // Set payload's container tags just in case we're processing a payload that was not received via the agent's receiver
 	// // (e.g. an OTEL converted payload)
-	// if len(p.ContainerTags) == 0 && a.conf.ContainerTags != nil {
-	// 	cTags, err := a.conf.ContainerTags(p.TracerPayload.ContainerID)
-	// 	if err != nil {
-	// 		log.Debugf("Failed getting container tags for ID %s: %v", p.TracerPayload.ContainerID, err)
-	// 	} else {
-	// 		p.ContainerTags = cTags
-	// 	}
-	// }
+	if len(p.ContainerTags) == 0 && a.conf.ContainerTags != nil {
+		cTags, err := a.conf.ContainerTags(p.TracerPayload.ContainerID())
+		if err != nil {
+			log.Debugf("Failed getting container tags for ID %s: %v", p.TracerPayload.ContainerID(), err)
+		} else {
+			p.ContainerTags = cTags
+		}
+	}
 
 	// gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	// a.discardSpans(p)
 
-	// for i := 0; i < len(p.Chunks()); {
-	// 	chunk := p.Chunk(i)
-	// 	if len(chunk.Spans) == 0 {
-	// 		log.Debugf("Skipping received empty trace")
-	// 		p.RemoveChunk(i)
-	// 		continue
-	// 	}
+	for i := 0; i < len(p.TracerPayload.Chunks); {
+		chunk := p.TracerPayload.Chunks[i]
+		if len(chunk.Spans) == 0 {
+			log.Debugf("Skipping received empty trace")
+			p.TracerPayload.RemoveChunk(i)
+			continue
+		}
 
-	// 	tracen := int64(len(chunk.Spans))
-	// 	ts.SpansReceived.Add(tracen)
-	// 	err := a.normalizeTrace(p.Source, chunk.Spans)
-	// 	if err != nil {
-	// 		log.Debugf("Dropping invalid trace: %s", err)
-	// 		ts.SpansDropped.Add(tracen)
-	// 		p.RemoveChunk(i)
-	// 		continue
-	// 	}
+		tracen := int64(len(chunk.Spans))
+		ts.SpansReceived.Add(tracen)
+		err := a.normalizeTraceChunkV1(ts, chunk)
+		if err != nil {
+			log.Debugf("Dropping invalid trace: %s", err)
+			ts.SpansDropped.Add(tracen)
+			p.TracerPayload.RemoveChunk(i)
+			continue
+		}
 
-	// 	// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
-	// 	root := traceutil.GetRoot(chunk.Spans)
-	// 	setChunkAttributes(chunk, root)
-	// 	if allowed, denyingRule := a.Blacklister.Allows(root); !allowed {
-	// 		log.Debugf("Trace rejected by ignore resources rules. root: %v matching rule: \"%s\"", root, denyingRule.String())
-	// 		ts.TracesFiltered.Inc()
-	// 		ts.SpansFiltered.Add(tracen)
-	// 		p.RemoveChunk(i)
-	// 		continue
-	// 	}
+		// Root span is used to carry some trace-level metadata, such as sampling rate and priority.
+		root := traceutil.GetRootV1(chunk)
+		// We skip setting chunk attributes as we expect the tracer to have set them in the new payload format.
+		if allowed, denyingRule := a.Blacklister.AllowsString(root.Resource()); !allowed {
+			log.Debugf("Trace rejected by ignore resources rules. root: %v matching rule: \"%s\"", root, denyingRule.String())
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
+			p.TracerPayload.RemoveChunk(i)
+			continue
+		}
 
-	// 	if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags, a.conf.RequireTagsRegex, a.conf.RejectTagsRegex) {
-	// 		log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
-	// 		ts.TracesFiltered.Inc()
-	// 		ts.SpansFiltered.Add(tracen)
-	// 		p.RemoveChunk(i)
-	// 		continue
-	// 	}
+		if filteredByTagsV1(root, a.conf.RequireTags, a.conf.RejectTags, a.conf.RequireTagsRegex, a.conf.RejectTagsRegex) {
+			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
+			ts.TracesFiltered.Inc()
+			ts.SpansFiltered.Add(tracen)
+			p.TracerPayload.RemoveChunk(i)
+			continue
+		}
 
-	// 	// Extra sanitization steps of the trace.
-	// 	for _, span := range chunk.Spans {
-	// 		for k, v := range a.conf.GlobalTags {
-	// 			if k == tagOrigin {
-	// 				chunk.Origin = v
-	// 			} else {
-	// 				traceutil.SetMeta(span, k, v)
-	// 			}
-	// 		}
-	// 		if a.SpanModifier != nil {
-	// 			a.SpanModifier.ModifySpan(chunk, span)
-	// 		}
-	// 		a.obfuscateSpan(span)
-	// 		a.Truncate(span)
-	// 		if p.ClientComputedTopLevel {
-	// 			traceutil.UpdateTracerTopLevel(span)
-	// 		}
-	// 	}
-	// 	a.Replacer.Replace(chunk.Spans)
+		// Extra sanitization steps of the trace.
+		for _, span := range chunk.Spans {
+			for k, v := range a.conf.GlobalTags {
+				if k == tagOrigin {
+					chunk.SetOrigin(v)
+				} else {
+					span.SetStringAttribute(k, v)
+				}
+			}
+			// TODO: Skip for now as we will avoid SpanModifier for now as it's just used by serverless
+			// if a.SpanModifier != nil {
+			// 	a.SpanModifier.ModifySpan(chunk, span)
+			// }
+			a.obfuscateSpanInternal(span)
+			// 	a.Truncate(span)
+			// 	if p.ClientComputedTopLevel {
+			// 		traceutil.UpdateTracerTopLevel(span)
+			// 	}
+			// }
+			// a.Replacer.Replace(chunk.Spans)
+		}
+	}
 
 	// 	a.setRootSpanTags(root)
 	// 	if !p.ClientComputedTopLevel {
@@ -917,6 +921,33 @@ func filteredByTags(root *pb.Span, require, reject []*config.Tag, requireRegex, 
 	}
 	for _, tag := range requireRegex {
 		v, ok := root.Meta[tag.K]
+		if !ok || (tag.V != nil && !tag.V.MatchString(v)) {
+			return true
+		}
+	}
+	return false
+}
+
+func filteredByTagsV1(root *idx.InternalSpan, require, reject []*config.Tag, requireRegex, rejectRegex []*config.TagRegex) bool {
+	//TODO: refactor this to reduce duplication
+	for _, tag := range reject {
+		if v, ok := root.GetAttributeAsString(tag.K); ok && (tag.V == "" || v == tag.V) {
+			return true
+		}
+	}
+	for _, tag := range rejectRegex {
+		if v, ok := root.GetAttributeAsString(tag.K); ok && (tag.V == nil || tag.V.MatchString(v)) {
+			return true
+		}
+	}
+	for _, tag := range require {
+		v, ok := root.GetAttributeAsString(tag.K)
+		if !ok || (tag.V != "" && v != tag.V) {
+			return true
+		}
+	}
+	for _, tag := range requireRegex {
+		v, ok := root.GetAttributeAsString(tag.K)
 		if !ok || (tag.V != nil && !tag.V.MatchString(v)) {
 			return true
 		}

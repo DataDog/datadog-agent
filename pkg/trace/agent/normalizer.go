@@ -420,7 +420,7 @@ func (a *Agent) normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 // * return the normalized trace and an error:
 //   - nil if the trace can be accepted
 //   - a reason tag explaining the reason the traces failed normalization
-func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t idx.InternalTraceChunk) error {
+func (a *Agent) normalizeTraceChunkV1(ts *info.TagStats, t *idx.InternalTraceChunk) error {
 	if len(t.Spans) == 0 {
 		ts.TracesDropped.EmptyTrace.Inc()
 		return errors.New("trace is empty (reason:empty_trace)")
