@@ -882,8 +882,8 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 			require.NotNil(t, resolver.ticker)
 
 			if tc.scatter {
-				// The set random seed has a the scatterDuration is 5.477027098s
-				mockClock.Add(6 * time.Second)
+				// The set random seed has a the scatterDuration is 6.477027098s
+				mockClock.Add(7 * time.Second)
 
 				select {
 				case <-refreshCalledChan:
@@ -923,6 +923,38 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 			}
 		})
 	}
+}
+
+type alwaysZeroSource struct{}
+
+func (s *alwaysZeroSource) Int63() int64 {
+	return 0
+}
+
+func (s *alwaysZeroSource) Seed(int64) {}
+
+func TestScatterWithSmallRandomValue(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
+	originalValue := isAllowlistEnabled()
+	setAllowlistEnabled(false)
+	defer func() {
+		setAllowlistEnabled(originalValue)
+	}()
+
+	resolver.refreshInterval = 1 * time.Second
+	resolver.refreshIntervalScatter = true
+	resolver.fetchHookFunc = func(_ []string) (map[string]string, error) {
+		return map[string]string{
+			"test-handle": "updated-value",
+		}, nil
+	}
+
+	// NOTE: clock and ticker are not mocked, as the mock ticker doesn't fail on a
+	// zero parameter the way a real ticker does
+	r := rand.New(&alwaysZeroSource{})
+	resolver.startRefreshRoutine(r)
+	require.NotNil(t, resolver.ticker)
 }
 
 // helper to read number of rows in the audit file

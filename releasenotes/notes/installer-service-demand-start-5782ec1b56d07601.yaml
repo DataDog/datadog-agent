@@ -1,0 +1,5 @@
+fixes:
+  - |
+    The ``Datadog Installer`` service on Windows is now set to manual start.
+    This prevents alerts from tools that monitor automatically started services,
+    such as the Windows Server Manager Dashboard.

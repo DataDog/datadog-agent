@@ -29,7 +29,7 @@ def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, re
 
     with open(DDOT_BYOC_DOCKERFILE, 'w') as file:
         for line in contents:
-            if re.search("^ARG AGENT_VERSION=.*$", line):
+            if re.search("^ARG AGENT_REPO=.*$", line):
                 line = f"ARG AGENT_REPO={repo}\n"
             elif re.search("^ARG AGENT_VERSION=.*$", line):
                 line = f"ARG AGENT_VERSION={image}\n"
@@ -40,7 +40,7 @@ def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, re
 
 
 @task
-def build(ctx):
+def build(ctx, byoc=False):
     """
     Build the otel agent
     """
@@ -51,6 +51,7 @@ def build(ctx):
     env = {"GO111MODULE": "on"}
     build_tags = get_default_build_tags(build="otel-agent")
     ldflags = get_version_ldflags(ctx, major_version='7')
+    ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
 
     cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 

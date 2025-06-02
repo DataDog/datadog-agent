@@ -44,7 +44,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -79,7 +78,7 @@ type testDiscoveryModule struct {
 	url              string
 	mockWmeta        workloadmetamock.Mock
 	mockTagger       taggermock.Mock
-	mockTimeProvider *servicediscovery.Mocktimer
+	mockTimeProvider *MocktimeProvider
 }
 
 // setProcessContainer creates mock process and container entities in workloadmeta for testing.
@@ -110,7 +109,7 @@ func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCo
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 
 	mux := gorillamux.NewRouter()
 
@@ -442,7 +441,6 @@ func TestServiceName(t *testing.T) {
 
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(collect, "foo_bar", startEvent.DDService)
-		assert.Equal(collect, startEvent.DDService, startEvent.Name)
 		assert.Equal(collect, "sleep", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), startEvent.GeneratedNameSource)
 		assert.False(collect, startEvent.DDServiceInjected)
@@ -483,7 +481,6 @@ func TestServiceLifetime(t *testing.T) {
 	checkService := func(t assert.TestingT, service *model.Service, expectedTime time.Time) {
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(t, "foo_bar", service.DDService)
-		assert.Equal(t, service.DDService, service.Name)
 		assert.Equal(t, "sleep", service.GeneratedName)
 		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
 		assert.False(t, service.DDServiceInjected)
@@ -805,7 +802,6 @@ func TestNodeDocker(t *testing.T) {
 		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, "test_nodejs-https-server", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), startEvent.GeneratedNameSource)
-		assert.Equal(collect, startEvent.GeneratedName, startEvent.Name)
 		assert.Equal(collect, "provided", startEvent.APMInstrumentation)
 		assert.Equal(collect, "web_service", startEvent.Type)
 		assertStat(collect, *startEvent)
@@ -993,7 +989,6 @@ func TestDocker(t *testing.T) {
 	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid1111)
 	require.Contains(t, startEvent.Ports, uint16(1234))
 	require.Contains(t, startEvent.ContainerID, "dummyCID")
-	require.Contains(t, startEvent.Name, "http.server")
 	require.Contains(t, startEvent.GeneratedName, "http.server")
 	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, startEvent.ContainerServiceName, "foo_from_app_tag")
@@ -1068,8 +1063,8 @@ func TestCache(t *testing.T) {
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Equal(t, serviceNames[i], discovery.cache[pid].ddServiceName)
-		require.False(t, discovery.cache[pid].ddServiceInjected)
+		require.Equal(t, serviceNames[i], discovery.cache[pid].DDService)
+		require.False(t, discovery.cache[pid].DDServiceInjected)
 	}
 
 	cancel()
@@ -1119,7 +1114,7 @@ func TestMaxPortCheck(t *testing.T) {
 	params.heartbeatTime = 0
 
 	mockCtrl := gomock.NewController(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 	discovery := newDiscovery(t, mTimeProvider)
 
@@ -1439,8 +1434,8 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self))
 		require.NoError(t, err)
-		require.Equal(t, language.CPlusPlus, info.language)
-		require.Equal(t, apm.Provided, info.apmInstrumentation)
+		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
+		require.Equal(t, apm.Provided, apm.Instrumentation(info.APMInstrumentation))
 	})
 
 	t.Run("invalid metadata", func(t *testing.T) {
@@ -1448,7 +1443,7 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self))
 		require.NoError(t, err)
-		require.Equal(t, apm.None, info.apmInstrumentation)
+		require.Equal(t, apm.None, apm.Instrumentation(info.APMInstrumentation))
 	})
 }
 
