@@ -19,13 +19,15 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	collectorID   = "process-collector"
-	componentName = "workloadmeta-process"
+	collectorID       = "process-collector"
+	componentName     = "workloadmeta-process"
+	cacheValidityNoRT = 2 * time.Second
 )
 
 type collector struct {
@@ -36,6 +38,7 @@ type collector struct {
 	processProbe           procutil.Probe
 	processEventsCh        chan *Event
 	lastCollectedProcesses map[int32]*procutil.Process
+	containerProvider      proccontainers.ContainerProvider
 }
 
 // Event is a message type used to communicate with the stream function asynchronously
@@ -44,7 +47,7 @@ type Event struct {
 	Deleted []*workloadmeta.Process
 }
 
-func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe) collector {
+func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, containerProvider proccontainers.ContainerProvider) collector {
 	return collector{
 		id:                     id,
 		catalog:                catalog,
@@ -52,13 +55,19 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		processProbe:           processProbe,
 		processEventsCh:        make(chan *Event),
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
+		containerProvider:      containerProvider,
 	}
 }
 
 // NewProcessCollectorProvider returns a new process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewProcessCollectorProvider() (workloadmeta.CollectorProvider, error) {
-	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe())
+	containerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		return workloadmeta.CollectorProvider{}, err
+	}
+
+	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), containerProvider)
 	return workloadmeta.CollectorProvider{
 		Collector: &collector,
 	}, nil
@@ -95,6 +104,24 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	return nil
+}
+
+// parseProcessesToWorkloadMetaProcesses helper function to convert procs with container data into wlm entities
+func parseProcessesToWorkloadMetaProcesses(procs []*procutil.Process, pidToCid map[int]string) []*workloadmeta.Process {
+	wlmProcs := make([]*workloadmeta.Process, len(procs))
+	for i, proc := range procs {
+		wlmProcs[i] = processToWorkloadMetaProcess(proc)
+		cid, exists := pidToCid[int(proc.Pid)]
+		if exists {
+			wlmProcs[i].ContainerID = cid // existing behaviour which we will maintain until the collector is enabled
+			// storing container id as an entity field
+			wlmProcs[i].Owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   cid,
+			}
+		}
+	}
+	return wlmProcs
 }
 
 // processCacheDifference returns new processes that exist in procCacheA and not in procCacheB
@@ -137,18 +164,16 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 				return
 			}
 
+			// some processes are in a container so we want to store the container_id for them
+			pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
+			// TODO: potentially scrub process data here instead of in the check?
+
 			// categorize the processes into events for workloadmeta
 			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-			wlmCreatedProcs := make([]*workloadmeta.Process, len(createdProcs))
-			for i, proc := range createdProcs {
-				wlmCreatedProcs[i] = processToWorkloadMetaProcess(proc)
-			}
+			wlmCreatedProcs := parseProcessesToWorkloadMetaProcesses(createdProcs, pidToCid)
 
 			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
-			wlmDeletedProcs := make([]*workloadmeta.Process, len(deletedProcs))
-			for i, proc := range deletedProcs {
-				wlmDeletedProcs[i] = processToWorkloadMetaProcess(proc)
-			}
+			wlmDeletedProcs := parseProcessesToWorkloadMetaProcesses(deletedProcs, pidToCid)
 
 			// send these events to the channel
 			c.processEventsCh <- &Event{
