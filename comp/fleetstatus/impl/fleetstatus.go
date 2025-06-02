@@ -11,8 +11,7 @@ import (
 	"embed"
 	"expvar"
 	"io"
-
-	"golang.org/x/exp/slices"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"

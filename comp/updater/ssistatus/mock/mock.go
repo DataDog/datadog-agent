@@ -15,8 +15,7 @@ import (
 	ssiStatus "github.com/DataDog/datadog-agent/comp/updater/ssistatus/def"
 )
 
-
-type ssiStatusMock struct{
+type ssiStatusMock struct {
 	instrumentationModes []string
 }
 
@@ -32,8 +31,8 @@ func Mock(_ *testing.T) ssiStatus.Component {
 	return &ssiStatusMock{}
 }
 
-// Mock returns a mock for installerexec component.
-func MockWithInstrumentationModes(_ *testing.T, modes []string) ssiStatus.Component {
+// WithInstrumentationModes returns a mock for installerexec component.
+func WithInstrumentationModes(_ *testing.T, modes []string) ssiStatus.Component {
 	return &ssiStatusMock{
 		instrumentationModes: modes,
 	}

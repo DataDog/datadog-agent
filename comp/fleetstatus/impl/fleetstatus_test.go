@@ -143,10 +143,10 @@ func TestFleetStatusWithSSI(t *testing.T) {
 				},
 			}
 			if tt.autoInstrumentationStatusAvailable {
-				ssiStatus:= map[string]bool{
+				ssiStatus := map[string]bool{
 					"autoInstrumentationEnabled": true,
-					"hostInstrumented": true,
-					"dockerInstrumented": false,
+					"hostInstrumented":           true,
+					"dockerInstrumented":         false,
 				}
 				expectedStatus["fleetAutomationStatus"].(map[string]interface{})["ssiStatus"] = ssiStatus
 			}
@@ -156,7 +156,7 @@ func TestFleetStatusWithSSI(t *testing.T) {
 			daemonCheckerOption := option.New(daemoncheckerMock.Mock(t))
 			var ssisStatusProviderOption option.Option[ssistatus.Component]
 			if tt.autoInstrumentationStatusAvailable {
-				ssisStatusProviderOption = option.New(ssistatusmock.MockWithInstrumentationModes(t, []string{"host"}))
+				ssisStatusProviderOption = option.New(ssistatusmock.WithInstrumentationModes(t, []string{"host"}))
 			} else {
 				ssisStatusProviderOption = option.None[ssistatus.Component]()
 			}
@@ -184,7 +184,7 @@ func TestFleetStatusWithSSI(t *testing.T) {
 			buffer.Reset()
 
 			err = statusProvider.HTML(false, buffer)
-			require.NoError(t, err)		
+			require.NoError(t, err)
 			fmt.Println(buffer.String())
 			if tt.autoInstrumentationStatusAvailable {
 				assert.Contains(t, buffer.String(), "Host:   Instrumented")
