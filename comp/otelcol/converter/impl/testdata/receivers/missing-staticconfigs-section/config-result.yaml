@@ -8,17 +8,10 @@ receivers:
             scrape_protocols:
               - "PrometheusText0.0.4"
 
-    prometheus/dd-autoconfigured:
-      config:
-        scrape_configs:
-          - fallback_scrape_protocol: PrometheusText0.0.4
-            job_name: 'datadog-agent'
-            scrape_interval: 60s
-            metric_name_validation_scheme: legacy
-            scrape_protocols:
-              - "PrometheusText0.0.4"
-            static_configs:
-              - targets: ['0.0.0.0:8888']
+    otlp/dd-autoconfigured:
+      protocols:
+        http:
+          endpoint: "localhost:15678"
 
 exporters:
     datadog:
@@ -36,6 +29,14 @@ processors:
   infraattributes/user-defined:
 
 service:
+    telemetry:
+      metrics:
+        readers:
+          - periodic:
+              exporter:
+                otlp:
+                  protocol: http/protobuf
+                  endpoint: localhost:15678
     extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
     pipelines:
         metrics:
@@ -43,5 +44,5 @@ service:
             processors: [infraattributes/user-defined]
             exporters: [datadog]
         metrics/dd-autoconfigured/datadog:
-            receivers: [prometheus/dd-autoconfigured]
+            receivers: [otlp/dd-autoconfigured]
             exporters: [datadog]

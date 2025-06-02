@@ -129,11 +129,6 @@ func TestConvert(t *testing.T) {
 			expectedResult: "receivers/no-changes-multiple-dd-same-pipeline/config.yaml",
 		},
 		{
-			name:           "receivers/no-prometheus-receiver",
-			provided:       "receivers/no-prometheus-receiver/config.yaml",
-			expectedResult: "receivers/no-prometheus-receiver/config-result.yaml",
-		},
-		{
 			name:           "receivers/no-prom-multi-dd",
 			provided:       "receivers/no-prom-multi-dd/config.yaml",
 			expectedResult: "receivers/no-prom-multi-dd/config-result.yaml",

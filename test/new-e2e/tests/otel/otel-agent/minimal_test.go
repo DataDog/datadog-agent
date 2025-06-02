@@ -82,8 +82,8 @@ func (s *minimalTestSuite) TestHosts() {
 	utils.TestHosts(s)
 }
 
-func (s *minimalTestSuite) TestPrometheusMetrics() {
-	utils.TestPrometheusMetrics(s)
+func (s *minimalTestSuite) TestInternalMetrics() {
+	utils.TestInternalMetrics(s)
 }
 
 func (s *minimalTestSuite) TestOTelAgentInstalled() {
@@ -111,7 +111,7 @@ func (s *minimalTestSuite) TestOTelAgentStatus() {
 }
 
 func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
-	const expectedCfg = `service:
+	const expectedCfg = `
   extensions:
   - pprof/dd-autoconfigured
   - zpages/dd-autoconfigured

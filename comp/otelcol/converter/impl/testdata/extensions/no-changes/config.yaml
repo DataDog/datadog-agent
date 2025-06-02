@@ -12,6 +12,9 @@ extensions:
   ddflare/user-defined:
 
 service:
+  telemetry:
+    metrics:
+      level: none
   extensions:
     [
       pprof/user-defined,

@@ -7,7 +7,6 @@
 package converterimpl
 
 import (
-	"fmt"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -15,6 +14,7 @@ import (
 
 var (
 	// prometheus
+	defaultPromServerAddr  = "0.0.0.0:8888"
 	prometheusName         = "prometheus"
 	prometheusEnhancedName = prometheusName + "/" + ddAutoconfiguredSuffix
 	prometheusConfig       = map[string]any{
@@ -28,7 +28,7 @@ var (
 					"scrape_protocols":              []any{"PrometheusText0.0.4"},
 					"static_configs": []any{
 						map[string]any{
-							"targets": []any{"0.0.0.0:8888"},
+							"targets": []any{defaultPromServerAddr},
 						},
 					},
 				},
@@ -268,54 +268,4 @@ func getDatadogExporters(conf *confmap.Conf) map[string]any {
 	}
 
 	return datadogExporters
-}
-
-// findInternalMetricsAddress returns the address of internal prometheus server if configured
-func findInternalMetricsAddress(conf *confmap.Conf) string {
-	internalMetricsAddress := "0.0.0.0:8888"
-	mreaders := conf.Get("service::telemetry::metrics::readers")
-	mreadersSlice, ok := mreaders.([]any)
-	if !ok {
-		return internalMetricsAddress
-	}
-	for _, reader := range mreadersSlice {
-		readerMap, ok := reader.(map[string]any)
-		if !ok {
-			continue
-		}
-		pull, ok := readerMap["pull"]
-		if !ok {
-			continue
-		}
-		pullMap, ok := pull.(map[string]any)
-		if !ok {
-			continue
-		}
-		exp, ok := pullMap["exporter"]
-		if !ok {
-			continue
-		}
-		expMap, ok := exp.(map[string]any)
-		if !ok {
-			continue
-		}
-		promExp, ok := expMap["prometheus"]
-		if !ok {
-			continue
-		}
-		promExpMap, ok := promExp.(map[string]any)
-		if !ok {
-			continue
-		}
-		host := "0.0.0.0"
-		port := 8888
-		if h, ok := promExpMap["host"]; ok {
-			host = h.(string)
-		}
-		if p, ok := promExpMap["port"]; ok {
-			port = p.(int)
-		}
-		return fmt.Sprintf("%s:%d", host, port)
-	}
-	return internalMetricsAddress
 }
