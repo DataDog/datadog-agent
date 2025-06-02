@@ -14,11 +14,18 @@
     # Caching setup
     - DOCKER_CACHE_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"
     - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_TARGET}"
+    - CACHE_TO=""
+    - |
+      DOCKER_NO_CACHE=""
+      for target in ${NO_CACHE_TARGETS}; do
+        DOCKER_NO_CACHE="${DOCKER_NO_CACHE_FILTER} --no-cache-filter ${target}"
+      done
     # Don't use caching on nightlies, to allow for regular cache invalidation,
     # and update the cache on both main and nightly builds
     - |
       if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
-        CACHE_SOURCE="--no-cache"
+        DOCKER_NO_CACHE="--no-cache"
+        CACHE_SOURCE=""
         CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_TARGET},mode=max"
       fi
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
@@ -27,7 +34,8 @@
     # Don't use the cache on deploy pipelines to make sure we get the latest of everything
     - |
       if [[ "$DEPLOY_AGENT" == "true" ]]; then
-        CACHE_SOURCE="--no-cache"
+        DOCKER_NO_CACHE="--no-cache"
+        CACHE_SOURCE=""
       fi
     - AGENT_BASE_IMAGE_TAG=registry.ddbuild.io/ci/datadog-agent/agent-base-image${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-$ARCH
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
@@ -37,6 +45,7 @@
       docker buildx build --push --pull --platform linux/$ARCH \
         ${CACHE_SOURCE} \
         ${CACHE_TO} \
+        ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
         --build-arg CIBUILD=true \
         --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
@@ -108,6 +117,7 @@ docker_build_agent7:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
+    NO_CACHE_TARGETS: extract release
 
 # TODO: Move this job to .gitlab/deploy_containers/deploy_containers_a7.yml.
 # This cannot be done now because of the following reasons:
@@ -141,6 +151,7 @@ docker_build_agent7_arm64:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+    NO_CACHE_TARGETS: extract release
 
 # build agent7 fips image
 docker_build_fips_agent7:
@@ -155,6 +166,7 @@ docker_build_fips_agent7:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
+    NO_CACHE_TARGETS: extract release
 
 docker_build_fips_agent7_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -168,6 +180,7 @@ docker_build_fips_agent7_arm64:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips
     BUILD_ARG: --target test --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
+    NO_CACHE_TARGETS: extract release
 
 # build agent7 jmx image
 docker_build_agent7_jmx:
@@ -182,6 +195,7 @@ docker_build_agent7_jmx:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
+    NO_CACHE_TARGETS: extract release
 
 docker_build_agent7_jmx_arm64:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -195,6 +209,7 @@ docker_build_agent7_jmx_arm64:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
+    NO_CACHE_TARGETS: extract release
 
 docker_build_fips_agent7_jmx:
   extends: [.docker_build_job_definition_amd64, .docker_build_artifact]
@@ -208,6 +223,7 @@ docker_build_fips_agent7_jmx:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
+    NO_CACHE_TARGETS: extract release
 
 docker_build_fips_agent7_arm64_jmx:
   extends: [.docker_build_job_definition_arm64, .docker_build_artifact]
@@ -221,6 +237,7 @@ docker_build_fips_agent7_arm64_jmx:
     BUILD_CONTEXT: Dockerfiles/agent
     TAG_SUFFIX: -7-fips-jmx
     BUILD_ARG: --target test --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
+    NO_CACHE_TARGETS: extract release
 
 # agent base image: future agent images will be based on this image
 .docker_build_base_image:
