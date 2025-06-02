@@ -44,7 +44,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -79,7 +78,7 @@ type testDiscoveryModule struct {
 	url              string
 	mockWmeta        workloadmetamock.Mock
 	mockTagger       taggermock.Mock
-	mockTimeProvider *servicediscovery.Mocktimer
+	mockTimeProvider *MocktimeProvider
 }
 
 // setProcessContainer creates mock process and container entities in workloadmeta for testing.
@@ -110,7 +109,7 @@ func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCo
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 
 	mux := gorillamux.NewRouter()
 
@@ -1064,8 +1063,8 @@ func TestCache(t *testing.T) {
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Equal(t, serviceNames[i], discovery.cache[pid].ddServiceName)
-		require.False(t, discovery.cache[pid].ddServiceInjected)
+		require.Equal(t, serviceNames[i], discovery.cache[pid].DDService)
+		require.False(t, discovery.cache[pid].DDServiceInjected)
 	}
 
 	cancel()
@@ -1115,7 +1114,7 @@ func TestMaxPortCheck(t *testing.T) {
 	params.heartbeatTime = 0
 
 	mockCtrl := gomock.NewController(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 	discovery := newDiscovery(t, mTimeProvider)
 
@@ -1435,8 +1434,8 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self))
 		require.NoError(t, err)
-		require.Equal(t, language.CPlusPlus, info.language)
-		require.Equal(t, apm.Provided, info.apmInstrumentation)
+		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
+		require.Equal(t, apm.Provided, apm.Instrumentation(info.APMInstrumentation))
 	})
 
 	t.Run("invalid metadata", func(t *testing.T) {
@@ -1444,7 +1443,7 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self))
 		require.NoError(t, err)
-		require.Equal(t, apm.None, info.apmInstrumentation)
+		require.Equal(t, apm.None, apm.Instrumentation(info.APMInstrumentation))
 	})
 }
 
@@ -1480,4 +1479,97 @@ func TestStateEndpoint(t *testing.T) {
 	require.NotNil(t, state.PotentialServices)
 	require.NotNil(t, state.RunningServices)
 	require.NotNil(t, state.IgnorePids)
+}
+
+func TestNetworkStatsEndpoint(t *testing.T) {
+	tests := []struct {
+		name           string
+		pids           string
+		networkEnabled bool
+		expectedCode   int
+		expectedBody   *model.NetworkStatsResponse
+	}{
+		{
+			name:           "network stats disabled",
+			pids:           "123",
+			networkEnabled: false,
+			expectedCode:   http.StatusServiceUnavailable,
+		},
+		{
+			name:           "missing pids parameter",
+			pids:           "",
+			networkEnabled: true,
+			expectedCode:   http.StatusBadRequest,
+		},
+		{
+			name:           "invalid pid format",
+			pids:           "abc",
+			networkEnabled: true,
+			expectedCode:   http.StatusBadRequest,
+		},
+		{
+			name:           "valid pids",
+			pids:           "123,456",
+			networkEnabled: true,
+			expectedCode:   http.StatusOK,
+			expectedBody: &model.NetworkStatsResponse{
+				Stats: map[int]model.NetworkStats{
+					123: {
+						RxBytes: 1000,
+						TxBytes: 2000,
+					},
+					456: {
+						RxBytes: 3000,
+						TxBytes: 4000,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock network collector
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			mockNetwork := NewMocknetworkCollector(mockCtrl)
+			if tt.networkEnabled {
+				// Only expect getStats to be called for valid pids
+				if tt.expectedCode == http.StatusOK {
+					mockNetwork.EXPECT().
+						getStats(pidSet{123: {}, 456: {}}).
+						Return(map[uint32]NetworkStats{
+							123: {Rx: 1000, Tx: 2000},
+							456: {Rx: 3000, Tx: 4000},
+						}, nil)
+				}
+				mockNetwork.EXPECT().close().AnyTimes()
+			}
+
+			// Setup discovery module with mock network collector
+			module := setupDiscoveryModuleWithNetwork(t, func(_ *discoveryConfig) (networkCollector, error) {
+				if tt.networkEnabled {
+					return mockNetwork, nil
+				}
+				return nil, fmt.Errorf("network stats collection is not enabled")
+			})
+
+			// Make request to network stats endpoint
+			url := fmt.Sprintf("%s/%s/network-stats?pids=%s", module.url, config.DiscoveryModule, tt.pids)
+			resp, err := http.Get(url)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			// Check response
+			assert.Equal(t, tt.expectedCode, resp.StatusCode)
+
+			if tt.expectedCode == http.StatusOK {
+				var body model.NetworkStatsResponse
+				err := json.NewDecoder(resp.Body).Decode(&body)
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedBody, &body)
+			}
+		})
+	}
 }
