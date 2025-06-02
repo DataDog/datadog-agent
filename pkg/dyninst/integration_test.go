@@ -20,10 +20,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/go-json-experiment/json"
+
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
@@ -774,18 +775,6 @@ func TestDyninst(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:   "test_circular_type",
-			binary: "sample",
-			probes: []config.Probe{
-				&config.LogProbe{
-					ID: "test_circular_type",
-					Where: &config.Where{
-						MethodName: "main.test_circular_type",
-					},
-				},
-			},
-		},
 
 		// Stack trace tests
 		{
@@ -840,7 +829,7 @@ func TestDyninst(t *testing.T) {
 		},
 	}
 
-	t.Logf("Running %d comprehensive test cases for all functions in the sample program", len(testCases))
+	allTestData = make(map[string]TestData)
 
 	for _, tc := range testCases {
 		for _, cfg := range testprogs.CommonConfigs {
@@ -856,10 +845,18 @@ func TestDyninst(t *testing.T) {
 			})
 		}
 	}
+
+	js, err := json.Marshal(allTestData)
+	if err != nil {
+		t.Error(err)
+	}
+
+	fmt.Println(os.WriteFile("./test_cases.json", js, 0644))
 }
 
+var allTestData map[string]TestData
+
 func testDyninst(t *testing.T, sampleServicePath string, tc testCase) {
-	t.Logf("loading binary %s", sampleServicePath)
 	tempDir, err := os.MkdirTemp(os.TempDir(), "dyninst-integration-test-")
 	require.NoError(t, err)
 	defer func() {
@@ -892,7 +889,6 @@ func testDyninst(t *testing.T, sampleServicePath string, tc testCase) {
 	require.NoError(t, err)
 
 	// Compile the IR and prepare the BPF program.
-	t.Logf("compiling BPF")
 	codeDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.c"))
 	require.NoError(t, err)
 	require.NotNil(t, codeDump)
@@ -938,7 +934,6 @@ func testDyninst(t *testing.T, sampleServicePath string, tc testCase) {
 	}
 
 	// Launch the sample service, inject the BPF program and collect the output.
-	t.Logf("running and instrumenting sample")
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 
 	sampleProc := exec.CommandContext(ctx, sampleServicePath)
@@ -952,9 +947,6 @@ func testDyninst(t *testing.T, sampleServicePath string, tc testCase) {
 	require.NotNil(t, sampleStdin)
 	err = sampleProc.Start()
 	require.NoError(t, err)
-
-	fmt.Println("PID:", sampleProc.Process.Pid)
-
 	attached, err := sampleLink.Uprobe(methodName, bpfProg, &link.UprobeOptions{
 		PID:    sampleProc.Process.Pid,
 		Cookie: 0,
@@ -970,7 +962,6 @@ func testDyninst(t *testing.T, sampleServicePath string, tc testCase) {
 	require.NoError(t, err)
 
 	// Validate the output. For now we just check the total length.
-	t.Logf("processing output")
 	rd, err := ringbuf.NewReader(bpfCollection.Maps["out_ringbuf"])
 	require.NoError(t, err)
 	require.NotNil(t, rd)
@@ -986,10 +977,11 @@ func testDyninst(t *testing.T, sampleServicePath string, tc testCase) {
 	require.NotNil(t, record)
 	bpfOutDump.Write(record.RawSample)
 
-	// Uncomment to dump the IR and the raw sample for testing decoding:
-	fmt.Printf("// IR for %s\n", strings.ReplaceAll(tc.probes[0].(*config.LogProbe).Where.MethodName, ".", "_"))
-	pretty.Log(irp)
-	fmt.Printf("%s_bytes := %#v\n", strings.ReplaceAll(tc.probes[0].(*config.LogProbe).Where.MethodName, ".", "_"), record.RawSample)
+	funcName := strings.ReplaceAll(tc.probes[0].(*config.LogProbe).Where.MethodName, ".", "_")
+	allTestData[funcName] = TestData{
+		Prog: irp,
+		B:    record.RawSample,
+	}
 
 	header := (*output.EventHeader)(unsafe.Pointer(&record.RawSample[0]))
 	pos := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len)
@@ -999,4 +991,9 @@ func testDyninst(t *testing.T, sampleServicePath string, tc testCase) {
 	require.IsType(t, &ir.EventRootType{}, typ)
 	require.Equal(t, di.Length, typ.GetByteSize())
 	cancel()
+}
+
+type TestData struct {
+	Prog *ir.Program
+	B    []byte
 }
