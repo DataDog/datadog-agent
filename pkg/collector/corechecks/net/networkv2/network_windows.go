@@ -81,6 +81,7 @@ type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
 	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
+	TcpStats(kind string) (*mibTcpStats, error)
 }
 
 type defaultNetworkStats struct{}
@@ -95,6 +96,10 @@ func (n defaultNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCount
 
 func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, error) {
 	return net.Connections(kind)
+}
+
+func (n defaultNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
+	return getTcpStats(kind)
 }
 
 // Run executes the check
@@ -128,7 +133,7 @@ func (c *NetworkCheck) Run() error {
 	}
 
 	// _tcp_stats
-	err = submitTcpStats(sender)
+	err = c.submitTcpStats(sender)
 	if err != nil {
 		return err
 	}
@@ -190,7 +195,14 @@ var (
 )
 
 // gopsutil does not call GetTcpStatisticsEx so we need to do so manually for these stats
-func getTcpStats(inet uint) (*mibTcpStats, error) {
+func getTcpStats(protocolName string) (*mibTcpStats, error) {
+	var inet uint
+	switch protocolName {
+	case "tcp4":
+		inet = AF_INET
+	case "tcp6":
+		inet = AF_INET6
+	}
 	tcpStats := &mibTcpStats{}
 	r0, _, _ := syscall.SyscallN(procGetTcpStatisticsEx.Addr(), uintptr(unsafe.Pointer(tcpStats)), uintptr(inet), 0)
 	if r0 != 0 {
@@ -201,7 +213,7 @@ func getTcpStats(inet uint) (*mibTcpStats, error) {
 }
 
 // Collect metrics from Microsoft's TCPSTATS
-func submitTcpStats(sender sender.Sender) error {
+func (c *NetworkCheck) submitTcpStats(sender sender.Sender) error {
 	tcpStatsMapping := map[string]string{
 		"DwActiveOpens":  ".active_opens",
 		"DwPassiveOpens": ".passive_opens",
@@ -216,12 +228,12 @@ func submitTcpStats(sender sender.Sender) error {
 		"DwNumConns":     ".connections",
 	}
 
-	tcp4Stats, err := getTcpStats(AF_INET)
+	tcp4Stats, err := c.net.TcpStats("tcp4")
 	if err != nil {
 		return err
 	}
 
-	tcp6Stats, err := getTcpStats(AF_INET6)
+	tcp4Stats, err := c.net.TcpStats("tcp6")
 	if err != nil {
 		return err
 	}
@@ -245,14 +257,14 @@ func submitTcpStats(sender sender.Sender) error {
 			DwOutRsts:      tcp4Stats.DwOutRsts + tcp6Stats.DwOutRsts,
 			DwNumConns:     tcp4Stats.DwNumConns + tcp6Stats.DwNumConns,
 		}
-		submitMetricsFromStruct(sender, "system.net.tcp.", tcpAllStats, tcpStatsMapping)
+		submitMetricsFromStruct(sender, "system.net.tcp", tcpAllStats, tcpStatsMapping)
 	}
 
 	if !reflect.ValueOf(tcp4Stats).IsZero() {
-		submitMetricsFromStruct(sender, "system.net.tcp4.", tcp4Stats, tcpStatsMapping)
+		submitMetricsFromStruct(sender, "system.net.tcp4", tcp4Stats, tcpStatsMapping)
 	}
 	if !reflect.ValueOf(tcp6Stats).IsZero() {
-		submitMetricsFromStruct(sender, "system.net.tcp6.", tcp6Stats, tcpStatsMapping)
+		submitMetricsFromStruct(sender, "system.net.tcp6", tcp6Stats, tcpStatsMapping)
 	}
 
 	return nil

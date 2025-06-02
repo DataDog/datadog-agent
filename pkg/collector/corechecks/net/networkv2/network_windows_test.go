@@ -32,6 +32,10 @@ type fakeNetworkStats struct {
 	connectionStatsTCP4Error error
 	connectionStatsTCP6      []net.ConnectionStat
 	connectionStatsTCP6Error error
+	tcp4Stats                []net.ConnectionStat
+	tcp4StatsError           error
+	tcp6Stats                []net.ConnectionStat
+	tcp6StatsError           error
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
@@ -61,6 +65,16 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 		return n.connectionStatsTCP6, n.connectionStatsTCP6Error
 	}
 	return nil, nil
+}
+
+// TcpStats returns the mocked values for the GetTcpStatisticsEx syscall
+func (n *fakeNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
+	switch kind {
+	case "tcp4":
+		return n.tcp4Stats, n.tcp4Error
+	case "tcp6":
+		return n.tcp6Stats, n.tcp6Error
+	}
 }
 
 type MockCommandRunner struct {
@@ -236,6 +250,40 @@ func TestNetworkCheck(t *testing.T) {
 				Status: "CLOSING",
 			},
 		},
+		tcp4Stats: &mibTcpStats{
+			DwRtoAlgorithm: uint32(1), // not used
+			DwRtoMin:       uint32(2), // not used
+			DwRtoMax:       uint32(3), // not used
+			DwMaxConn:      uint32(4), // not used
+			DwActiveOpens:  uint32(5),
+			DwPassiveOpens: uint32(6),
+			DwAttemptFails: uint32(7),
+			DwEstabResets:  uint32(8),
+			DwCurrEstab:    uint32(9),
+			DwInSegs:       uint32(10),
+			DwOutSegs:      uint32(11),
+			DwRetransSegs:  uint32(12),
+			DwInErrs:       uint32(13),
+			DwOutRsts:      uint32(14),
+			DwNumConns:     uint32(15),
+		},
+		tcp6Stats: &mibTcpStats{
+			DwRtoAlgorithm: uint32(16), // not used
+			DwRtoMin:       uint32(17), // not used
+			DwRtoMax:       uint32(18), // not used
+			DwMaxConn:      uint32(19), // not used
+			DwActiveOpens:  uint32(20),
+			DwPassiveOpens: uint32(21),
+			DwAttemptFails: uint32(22),
+			DwEstabResets:  uint32(23),
+			DwCurrEstab:    uint32(24),
+			DwInSegs:       uint32(25),
+			DwOutSegs:      uint32(26),
+			DwRetransSegs:  uint32(27),
+			DwInErrs:       uint32(28),
+			DwOutRsts:      uint32(29),
+			DwNumConns:     uint32(30),
+		},
 	}
 
 	networkCheck := NetworkCheck{
@@ -280,63 +328,6 @@ collect_connection_state: true
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.drop", float64(24), "", lo0Tags)
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(25), "", lo0Tags)
 
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.retrans_segs", float64(22), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_segs", float64(23), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.out_segs", float64(24), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.active_opens", float64(39), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.passive_opens", float64(40), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.attempt_fails", float64(41), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.established_resets", float64(42), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_errors", float64(36), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.out_resets", float64(37), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_csum_errors", float64(38), "", customTags)
-
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.retrans_segs.count", float64(22), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_segs.count", float64(23), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_segs.count", float64(24), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.active_opens.count", float64(39), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.passive_opens.count", float64(40), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.attempt_fails.count", float64(41), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.established_resets.count", float64(42), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_errors.count", float64(36), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_resets.count", float64(37), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_csum_errors.count", float64(38), "", customTags)
-
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_datagrams", float64(25), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.no_ports", float64(26), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_errors", float64(27), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.out_datagrams", float64(28), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.rcv_buf_errors", float64(29), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.snd_buf_errors", float64(30), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.udp.in_csum_errors", float64(31), "", customTags)
-
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_datagrams.count", float64(25), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.no_ports.count", float64(26), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_errors.count", float64(27), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.out_datagrams.count", float64(28), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.rcv_buf_errors.count", float64(29), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.snd_buf_errors.count", float64(30), "", customTags)
-	mockSender.AssertCalled(t, "MonotonicCount", "system.net.udp.in_csum_errors.count", float64(31), "", customTags)
-
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_overflows", float64(32), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.listen_drops", float64(33), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.backlog_drops", float64(34), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.failed_retransmits", float64(35), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.ip.reverse_path_filter", float64(43), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.prune_called", float64(44), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.prune_rcv_drops", float64(45), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.prune_ofo_called", float64(46), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.paws_connection_drops", float64(47), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.paws_established_drops", float64(48), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_cookies_sent", float64(49), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_cookies_recv", float64(50), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_cookies_failed", float64(51), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.abort_on_timeout", float64(52), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.syn_retrans", float64(53), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.from_zero_window", float64(54), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.to_zero_window", float64(55), "", customTags)
-	mockSender.AssertCalled(t, "Rate", "system.net.tcp.tw_reused", float64(56), "", customTags)
-
 	mockSender.AssertCalled(t, "Gauge", "system.net.udp4.connections", float64(1), "", customTags)
 
 	mockSender.AssertCalled(t, "Gauge", "system.net.udp6.connections", float64(2), "", customTags)
@@ -352,6 +343,69 @@ collect_connection_state: true
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.time_wait", float64(2), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.closing", float64(12), "", customTags)
 	mockSender.AssertCalled(t, "Gauge", "system.net.tcp6.listening", float64(2), "", customTags)
+
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.active_opens", float64(25), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.active_opens.count", float64(25), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.passive_opens", float64(27), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.passive_opens.count", float64(27), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.attempt_fails", float64(29), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.attempt_fails.count", float64(29), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.established_resets", float64(31), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.established_resets.count", float64(31), "", customTags)
+	mockSender.AssertCalled(t, "Guage", "system.net.tcp.current_established", float64(33), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_segs", float64(35), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_segs.count", float64(35), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.out_segs", float64(37), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_segs.count", float64(37), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.retrans_segs", float64(39), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.retrans_segs.count", float64(39), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.in_errors", float64(41), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.in_errors.count", float64(41), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp.out_resets", float64(43), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp.out_resets.count", float64(43), "", customTags)
+	mockSender.AssertCalled(t, "Guage", "system.net.tcp.connections", float64(45), "", customTags)
+
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp4.active_opens", float64(5), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp4.active_opens.count", float64(5), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp4.passive_opens", float64(6), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp4.passive_opens.count", float64(6), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp4.attempt_fails", float64(7), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp4.attempt_fails.count", float64(7), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp4.established_resets", float64(8), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp4.established_resets.count", float64(8), "", customTags)
+	mockSender.AssertCalled(t, "Guage", "system.net.tcp4.current_established", float64(9), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp4.in_segs", float64(10), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp4.in_segs.count", float64(10), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp4.out_segs", float64(11), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp4.out_segs.count", float64(11), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp4.retrans_segs", float64(12), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp4.retrans_segs.count", float64(12), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp4.in_errors", float64(13), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp4.in_errors.count", float64(13), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp4.out_resets", float64(14), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp4.out_resets.count", float64(14), "", customTags)
+	mockSender.AssertCalled(t, "Guage", "system.net.tcp4.connections", float64(15), "", customTags)
+
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp6.active_opens", float64(20), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp6.active_opens.count", float64(20), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp6.passive_opens", float64(21), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp6.passive_opens.count", float64(21), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp6.attempt_fails", float64(22), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp6.attempt_fails.count", float64(22), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp6.established_resets", float64(23), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp6.established_resets.count", float64(23), "", customTags)
+	mockSender.AssertCalled(t, "Guage", "system.net.tcp6.current_established", float64(24), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp6.in_segs", float64(25), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp6.in_segs.count", float64(25), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp6.out_segs", float64(26), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp6.out_segs.count", float64(26), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp6.retrans_segs", float64(27), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp6.retrans_segs.count", float64(27), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp6.in_errors", float64(28), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp6.in_errors.count", float64(28), "", customTags)
+	mockSender.AssertCalled(t, "Rate", "system.net.tcp6.out_resets", float64(29), "", customTags)
+	mockSender.AssertCalled(t, "MonotonicCount", "system.net.tcp6.out_resets.count", float64(29), "", customTags)
+	mockSender.AssertCalled(t, "Guage", "system.net.tcp6.connections", float64(30), "", customTags)
 
 	mockSender.AssertCalled(t, "Commit")
 }
