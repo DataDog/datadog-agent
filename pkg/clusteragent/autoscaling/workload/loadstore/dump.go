@@ -17,15 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LoadstoreMetricInfo is the response type of the autoscaling workload check.
-type LoadstoreMetricInfo struct {
-	LocalAutoscalingWorkloadEntities []*LocalAutoscalingWorkloadEntity
+// LocalWorkloadMetricStoreInfo is the response type of the autoscaling workload check.
+type LocalWorkloadMetricStoreInfo struct {
+	LocalAutoscalingWorkloadEntities []LocalAutoscalingWorkloadEntity
 }
 
 // LocalAutoscalingWorkloadEntity has status data for local autoscaling workload.
-type LocalAutoscalingWorkloadEntity struct {
-	EntityStatus map[string]interface{} `json:",omitempty"`
-}
+type LocalAutoscalingWorkloadEntity map[string]interface{}
 
 func defaultDisabledNamespaces() map[string]struct{} {
 	disabledNamespaces := make(map[string]struct{})
@@ -34,10 +32,10 @@ func defaultDisabledNamespaces() map[string]struct{} {
 }
 
 // GetAutoscalingWorkloadCheck retrieves the autoscaling workload check response, from the local store and recommendation store.
-func GetAutoscalingWorkloadCheck(ctx context.Context) *LoadstoreMetricInfo {
+func GetAutoscalingWorkloadCheck(ctx context.Context) *LocalWorkloadMetricStoreInfo {
 
-	resp := LoadstoreMetricInfo{
-		LocalAutoscalingWorkloadEntities: make([]*LocalAutoscalingWorkloadEntity, 0),
+	resp := LocalWorkloadMetricStoreInfo{
+		LocalAutoscalingWorkloadEntities: make([]LocalAutoscalingWorkloadEntity, 0),
 	}
 
 	localCheck := getLocalAutoscalingWorkloadCheck(ctx)
@@ -47,11 +45,11 @@ func GetAutoscalingWorkloadCheck(ctx context.Context) *LoadstoreMetricInfo {
 	return &resp
 }
 
-func getLocalAutoscalingWorkloadCheck(ctx context.Context) []*LocalAutoscalingWorkloadEntity {
+func getLocalAutoscalingWorkloadCheck(ctx context.Context) []LocalAutoscalingWorkloadEntity {
 	if ctx == nil || !pkgconfigsetup.Datadog().GetBool("autoscaling.failover.enabled") {
 		return nil
 	}
-	result := make([]*LocalAutoscalingWorkloadEntity, 0)
+	result := make([]LocalAutoscalingWorkloadEntity, 0)
 	lStore := GetWorkloadMetricStore(ctx)
 	lStoreInfo := lStore.GetStoreInfo()
 	if len(lStoreInfo.StatsResults) == 0 {
@@ -64,37 +62,35 @@ func getLocalAutoscalingWorkloadCheck(ctx context.Context) []*LocalAutoscalingWo
 			log.Debugf("Skipping local autoscaling entity in disabled namespace: %s", statsResult.Namespace)
 			continue
 		}
-		entity := LocalAutoscalingWorkloadEntity{
-			EntityStatus: make(map[string]interface{}),
-		}
-		entity.EntityStatus["Namespace"] = statsResult.Namespace
-		entity.EntityStatus["PodOwner"] = statsResult.PodOwner
-		entity.EntityStatus["MetricName"] = statsResult.MetricName
-		entity.EntityStatus["Datapoints(PodLevel)"] = statsResult.Count
-		result = append(result, &entity)
+		result = append(result, LocalAutoscalingWorkloadEntity{
+			"Namespace":            statsResult.Namespace,
+			"PodOwner":             statsResult.PodOwner,
+			"MetricName":           statsResult.MetricName,
+			"Datapoints(PodLevel)": statsResult.Count,
+		})
 	}
 	return result
 }
 
 // Dump writes the autoscaling workload check response to the given writer.
-func (response *LoadstoreMetricInfo) Dump(w io.Writer) {
+func (response *LocalWorkloadMetricStoreInfo) Dump(w io.Writer) {
 	for _, workloadEntity := range response.LocalAutoscalingWorkloadEntities {
-		namespace, ok := workloadEntity.EntityStatus["Namespace"]
+		namespace, ok := workloadEntity["Namespace"]
 		if !ok || namespace == nil {
 			continue
 		}
 
-		podOwner, ok := workloadEntity.EntityStatus["PodOwner"]
+		podOwner, ok := workloadEntity["PodOwner"]
 		if !ok || podOwner == nil {
 			continue
 		}
 
-		metricName, ok := workloadEntity.EntityStatus["MetricName"]
+		metricName, ok := workloadEntity["MetricName"]
 		if !ok || metricName == nil {
 			continue
 		}
 
-		datapoints, ok := workloadEntity.EntityStatus["Datapoints(PodLevel)"]
+		datapoints, ok := workloadEntity["Datapoints(PodLevel)"]
 		if !ok || datapoints == nil {
 			continue
 		}

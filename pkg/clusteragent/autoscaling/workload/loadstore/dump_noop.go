@@ -15,15 +15,15 @@ import (
 	"io"
 )
 
-// LoadstoreMetricInfo is a placeholder for the response type of the autoscaling workload check.
-type LoadstoreMetricInfo struct{}
+// LocalWorkloadMetricStoreInfo is a placeholder for the response type of the autoscaling workload check.
+type LocalWorkloadMetricStoreInfo struct{}
 
 // GetAutoscalingWorkloadCheck is a noop function that returns nil.
-func GetAutoscalingWorkloadCheck(_ context.Context) *LoadstoreMetricInfo {
+func GetAutoscalingWorkloadCheck(_ context.Context) *LocalWorkloadMetricStoreInfo {
 	return nil
 }
 
 // Dump is a noop function.
-func (ls *LoadstoreMetricInfo) Dump(w io.Writer) {
+func (ls *LocalWorkloadMetricStoreInfo) Dump(_ io.Writer) {
 	// No-op
 }
