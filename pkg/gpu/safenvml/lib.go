@@ -22,32 +22,54 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// ErrSymbolNotFound represents an error when a required NVML symbol is not found in the library
-type ErrSymbolNotFound struct {
-	Symbol string
+// getCriticalAPIs returns the list of critical NVML APIs
+// required for basic functionality
+func getCriticalAPIs() []string {
+	return []string{
+		toNativeName("GetCount"),
+		toNativeName("GetCudaComputeCapability"),
+		toNativeName("GetHandleByIndex"),
+		toNativeName("GetIndex"),
+		toNativeName("GetMemoryInfo"),
+		toNativeName("GetName"),
+		toNativeName("GetNumGpuCores"),
+		toNativeName("GetUUID"),
+	}
 }
 
-func (e *ErrSymbolNotFound) Error() string {
-	return fmt.Sprintf("%s symbol not found in NVML library", e.Symbol)
-}
-
-// NewErrSymbolNotFound creates a new ErrSymbolNotFound error
-func NewErrSymbolNotFound(symbol string) error {
-	return &ErrSymbolNotFound{Symbol: symbol}
-}
-
-// ErrNotSupported represents an error when an NVML function returns ERROR_NOT_SUPPORTED
-type ErrNotSupported struct {
-	APIName string
-}
-
-func (e *ErrNotSupported) Error() string {
-	return fmt.Sprintf("%s is not supported by the GPU or driver", e.APIName)
-}
-
-// NewErrNotSupported creates a new ErrNotSupported error
-func NewErrNotSupported(apiName string) error {
-	return &ErrNotSupported{APIName: apiName}
+// getNonCriticalAPIs returns the list of non-critical NVML APIs
+// that are nice to have but not essential
+func getNonCriticalAPIs() []string {
+	return []string{
+		"nvmlShutdown",
+		"nvmlSystemGetDriverVersion",
+		toNativeName("GetArchitecture"),
+		toNativeName("GetAttributes"),
+		toNativeName("GetClockInfo"),
+		toNativeName("GetComputeRunningProcesses"),
+		toNativeName("GetCurrentClocksThrottleReasons"),
+		toNativeName("GetDecoderUtilization"),
+		toNativeName("GetEncoderUtilization"),
+		toNativeName("GetFanSpeed"),
+		toNativeName("GetFieldValues"),
+		toNativeName("GetGpuInstanceId"),
+		toNativeName("GetMaxClockInfo"),
+		toNativeName("GetMaxMigDeviceCount"),
+		toNativeName("GetMemoryBusWidth"),
+		toNativeName("GetMigDeviceHandleByIndex"),
+		toNativeName("GetMigMode"),
+		toNativeName("GetNvLinkState"),
+		toNativeName("GetPcieThroughput"),
+		toNativeName("GetPerformanceState"),
+		toNativeName("GetPowerManagementLimit"),
+		toNativeName("GetPowerUsage"),
+		toNativeName("GetRemappedRows"),
+		toNativeName("GetSamples"),
+		toNativeName("GetTemperature"),
+		toNativeName("GetTotalEnergyConsumption"),
+		toNativeName("GetUtilizationRates"),
+		toNativeName("IsMigDeviceHandle"),
+	}
 }
 
 // symbolLookup is an internal interface for checking symbol availability
@@ -82,7 +104,7 @@ func toNativeName(symbol string) string {
 
 func (s *safeNvml) lookup(symbol string) error {
 	if _, ok := s.capabilities[symbol]; !ok {
-		return NewErrSymbolNotFound(symbol)
+		return NewNvmlAPIErrorOrNil(symbol, nvml.ERROR_FUNCTION_NOT_FOUND)
 	}
 
 	return nil
@@ -94,12 +116,7 @@ func (s *safeNvml) SystemGetDriverVersion() (string, error) {
 		return "", err
 	}
 	driverVersion, ret := s.lib.SystemGetDriverVersion()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return "", NewErrNotSupported("SystemGetDriverVersion")
-	} else if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("error getting driver version: %s", nvml.ErrorString(ret))
-	}
-	return driverVersion, nil
+	return driverVersion, NewNvmlAPIErrorOrNil("SystemGetDriverVersion", ret)
 }
 
 // Shutdown shuts down the NVML library
@@ -108,12 +125,7 @@ func (s *safeNvml) Shutdown() error {
 		return err
 	}
 	ret := s.lib.Shutdown()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return NewErrNotSupported("Shutdown")
-	} else if ret != nvml.SUCCESS {
-		return fmt.Errorf("error shutting down NVML: %s", nvml.ErrorString(ret))
-	}
-	return nil
+	return NewNvmlAPIErrorOrNil("Shutdown", ret)
 }
 
 // DeviceGetCount returns the number of NVIDIA devices in the system
@@ -122,12 +134,7 @@ func (s *safeNvml) DeviceGetCount() (int, error) {
 		return 0, err
 	}
 	count, ret := s.lib.DeviceGetCount()
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return 0, NewErrNotSupported("GetDeviceCount")
-	} else if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting device count: %s", nvml.ErrorString(ret))
-	}
-	return count, nil
+	return count, NewNvmlAPIErrorOrNil("GetDeviceCount", ret)
 }
 
 // DeviceGetHandleByIndex returns a SafeDevice for the device at the given index
@@ -136,12 +143,10 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 		return nil, err
 	}
 	dev, ret := s.lib.DeviceGetHandleByIndex(idx)
-	if ret == nvml.ERROR_NOT_SUPPORTED {
-		return nil, NewErrNotSupported("DeviceGetHandleByIndex")
-	} else if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting device handle by index %d: %s", idx, nvml.ErrorString(ret))
+	if err := NewNvmlAPIErrorOrNil("DeviceGetHandleByIndex", ret); err != nil {
+		return nil, err
 	}
-	return NewDevice(dev)
+	return NewPhysicalDevice(dev)
 }
 
 // populateCapabilities verifies nvml API symbols exist in the native library (libnvidia-ml.so).
@@ -150,48 +155,10 @@ func (s *safeNvml) populateCapabilities() error {
 	s.capabilities = make(map[string]struct{})
 
 	// Critical API from libnvidia-ml.so that are required for basic functionality
-	criticalAPI := []string{
-		toNativeName("GetCount"),
-		toNativeName("GetCudaComputeCapability"),
-		toNativeName("GetHandleByIndex"),
-		toNativeName("GetIndex"),
-		toNativeName("GetMemoryInfo"),
-		toNativeName("GetName"),
-		toNativeName("GetNumGpuCores"),
-		toNativeName("GetUUID"),
-	}
+	criticalAPI := getCriticalAPIs()
 
 	// All other capabilities that are nice to have but not critical
-	// These are methods from SafeNvml and SafeDevice interfaces that are not in criticalAPI
-	allOtherAPI := []string{
-		"nvmlShutdown",
-		"nvmlSystemGetDriverVersion",
-		toNativeName("GetArchitecture"),
-		toNativeName("GetAttributes"),
-		toNativeName("GetClockInfo"),
-		toNativeName("GetComputeRunningProcesses"),
-		toNativeName("GetCurrentClocksThrottleReasons"),
-		toNativeName("GetDecoderUtilization"),
-		toNativeName("GetEncoderUtilization"),
-		toNativeName("GetFanSpeed"),
-		toNativeName("GetFieldValues"),
-		toNativeName("GetGpuInstanceId"),
-		toNativeName("GetMaxClockInfo"),
-		toNativeName("GetMaxMigDeviceCount"),
-		toNativeName("GetMemoryBusWidth"),
-		toNativeName("GetMigDeviceHandleByIndex"),
-		toNativeName("GetMigMode"),
-		toNativeName("GetNvLinkState"),
-		toNativeName("GetPcieThroughput"),
-		toNativeName("GetPerformanceState"),
-		toNativeName("GetPowerManagementLimit"),
-		toNativeName("GetPowerUsage"),
-		toNativeName("GetRemappedRows"),
-		toNativeName("GetSamples"),
-		toNativeName("GetTemperature"),
-		toNativeName("GetTotalEnergyConsumption"),
-		toNativeName("GetUtilizationRates"),
-	}
+	allOtherAPI := getNonCriticalAPIs()
 
 	// Check each critical API symbol and fail if any are missing
 	for _, api := range criticalAPI {

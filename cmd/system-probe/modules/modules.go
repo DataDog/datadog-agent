@@ -24,7 +24,7 @@ var moduleOrder = []types.ModuleName{
 	config.OOMKillProbeModule,
 	config.EventMonitorModule, // there is a dependency from EventMonitor -> NetworkTracer, so EventMonitor has to follow NetworkTracer
 	config.ProcessModule,
-	config.DynamicInstrumentationModule,
+	config.DynamicInstrumentationModule, // dynamic instrumentation needs to be after EventMonitor
 	config.LanguageDetectionModule,
 	config.ComplianceModule,
 	config.PingModule,
@@ -35,6 +35,9 @@ var moduleOrder = []types.ModuleName{
 
 // nolint: deadcode, unused // may be unused with certain build tag combinations
 func registerModule(mod *module.Factory) {
+	if mod.Name == "" {
+		return
+	}
 	all = append(all, mod)
 }
 

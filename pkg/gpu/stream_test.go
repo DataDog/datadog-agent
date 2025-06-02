@@ -9,6 +9,7 @@ package gpu
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +22,7 @@ import (
 )
 
 func TestKernelLaunchesHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -81,7 +82,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -153,7 +154,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -189,7 +190,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -234,7 +235,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -335,7 +336,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 
 		t.Run(name, func(t *testing.T) {
 			proc := kernel.ProcFSRoot()
-			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))
 
 			if fatbinParsingEnabled {
@@ -453,7 +454,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 }
 
 func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -490,7 +491,7 @@ func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
 }
 
 func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -569,7 +570,7 @@ func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
 }
 
 func TestMemoryAllocationEviction(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -608,7 +609,7 @@ func TestMemoryAllocationEviction(t *testing.T) {
 }
 
 func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -681,4 +682,38 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, evictionCounter, 1)
 	require.Equal(t, float64(totalEvents/2-limits.maxAllocEvents), evictionCounter[0].Value())
+}
+
+func TestStreamHandlerIsInactive(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	limits := streamLimits{
+		maxKernelLaunches: 5,
+		maxAllocEvents:    5,
+	}
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), limits, newStreamTelemetry(testutil.GetTelemetryMock(t)))
+	require.NoError(t, err)
+
+	inactivityThreshold := 1 * time.Second
+
+	// Test case 1: Stream with no events should be considered active
+	require.False(t, stream.isInactive(1000, inactivityThreshold))
+
+	// Test case 2: Stream with recent events should be considered active
+	launch := &gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
+			Pid_tgid:  1,
+			Ktime_ns:  1000,
+			Stream_id: 1,
+		},
+		Kernel_addr:     42,
+		Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+		Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+		Shared_mem_size: 100,
+	}
+	stream.handleKernelLaunch(launch)
+	require.False(t, stream.isInactive(2000, inactivityThreshold))
+
+	// Test case 3: Stream with events older than inactivity threshold should be considered inactive
+	require.True(t, stream.isInactive(3000000000, inactivityThreshold)) // 3 seconds later with 1 second threshold
 }

@@ -510,23 +510,23 @@ func (_c *SecurityModuleClientWrapper_GetEvents_Call) RunAndReturn(run func() (a
 }
 
 // GetRuleSetReport provides a mock function with no fields
-func (_m *SecurityModuleClientWrapper) GetRuleSetReport() (*api.GetRuleSetReportResultMessage, error) {
+func (_m *SecurityModuleClientWrapper) GetRuleSetReport() (*api.GetRuleSetReportMessage, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetRuleSetReport")
 	}
 
-	var r0 *api.GetRuleSetReportResultMessage
+	var r0 *api.GetRuleSetReportMessage
 	var r1 error
-	if rf, ok := ret.Get(0).(func() (*api.GetRuleSetReportResultMessage, error)); ok {
+	if rf, ok := ret.Get(0).(func() (*api.GetRuleSetReportMessage, error)); ok {
 		return rf()
 	}
-	if rf, ok := ret.Get(0).(func() *api.GetRuleSetReportResultMessage); ok {
+	if rf, ok := ret.Get(0).(func() *api.GetRuleSetReportMessage); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*api.GetRuleSetReportResultMessage)
+			r0 = ret.Get(0).(*api.GetRuleSetReportMessage)
 		}
 	}
 
@@ -556,12 +556,12 @@ func (_c *SecurityModuleClientWrapper_GetRuleSetReport_Call) Run(run func()) *Se
 	return _c
 }
 
-func (_c *SecurityModuleClientWrapper_GetRuleSetReport_Call) Return(_a0 *api.GetRuleSetReportResultMessage, _a1 error) *SecurityModuleClientWrapper_GetRuleSetReport_Call {
+func (_c *SecurityModuleClientWrapper_GetRuleSetReport_Call) Return(_a0 *api.GetRuleSetReportMessage, _a1 error) *SecurityModuleClientWrapper_GetRuleSetReport_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *SecurityModuleClientWrapper_GetRuleSetReport_Call) RunAndReturn(run func() (*api.GetRuleSetReportResultMessage, error)) *SecurityModuleClientWrapper_GetRuleSetReport_Call {
+func (_c *SecurityModuleClientWrapper_GetRuleSetReport_Call) RunAndReturn(run func() (*api.GetRuleSetReportMessage, error)) *SecurityModuleClientWrapper_GetRuleSetReport_Call {
 	_c.Call.Return(run)
 	return _c
 }

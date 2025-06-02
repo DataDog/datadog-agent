@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -28,9 +27,10 @@ type clocksCollector struct {
 func newClocksCollector(device ddnvml.SafeDevice) (Collector, error) {
 	// Check first if the device supports clock throttle reasons
 	_, err := device.GetCurrentClocksThrottleReasons()
-	unsupportedErr := &ddnvml.ErrNotSupported{}
-	if errors.As(err, &unsupportedErr) {
-		return nil, errUnsupportedDevice
+
+	if err != nil && ddnvml.IsUnsupported(err) {
+		// Only return unsupported device if the API is not supported or symbol not found
+		return nil, fmt.Errorf("%w: %w", errUnsupportedDevice, err)
 	}
 
 	return &clocksCollector{

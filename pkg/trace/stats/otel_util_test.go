@@ -15,8 +15,8 @@ import (
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/metric/noop"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -116,7 +116,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 		{
 			name:     "span with operation name, resource name and env attributes",
 			spanName: "spanname2",
-			rattrs:   map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env"},
+			rattrs:   map[string]string{"service.name": "svc", string(semconv.DeploymentEnvironmentKey): "tracer-env"},
 			sattrs:   map[string]any{"operation.name": "op", "resource.name": "res"},
 			spanKind: ptrace.SpanKindClient,
 			libname:  "spring",
@@ -142,8 +142,8 @@ func TestProcessOTLPTraces(t *testing.T) {
 		{
 			name:     "with container tags",
 			spanName: "spanname4",
-			rattrs:   map[string]string{"service.name": "svc", "db.system": "spanner", semconv.AttributeContainerID: "test_cid"},
-			ctagKeys: []string{semconv.AttributeContainerID},
+			rattrs:   map[string]string{"service.name": "svc", "db.system": "spanner", string(semconv.ContainerIDKey): "test_cid"},
+			ctagKeys: []string{string(semconv.ContainerIDKey)},
 			spanKind: ptrace.SpanKindClient,
 			expected: createStatsPayload(agentEnv, agentHost, "svc", "opentelemetry.client", "db", "client", "spanname4", agentHost, agentEnv, "test_cid", []string{"container_id:test_cid", "env:test_env"}, nil, true, false),
 		},
@@ -151,7 +151,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			name:               "operation name remapping and resource from http",
 			spanName:           "spanname5",
 			spanKind:           ptrace.SpanKindInternal,
-			sattrs:             map[string]any{semconv.AttributeHTTPMethod: "GET", semconv.AttributeHTTPRoute: "/home"},
+			sattrs:             map[string]any{string(semconv.HTTPMethodKey): "GET", string(semconv.HTTPRouteKey): "/home"},
 			spanNameRemappings: map[string]string{"opentelemetry.internal": "internal_op"},
 			expected:           createStatsPayload(agentEnv, agentHost, "otlpresourcenoservicename", "internal_op", "custom", "internal", "GET /home", agentHost, agentEnv, "", nil, nil, true, false),
 		},
@@ -160,8 +160,8 @@ func TestProcessOTLPTraces(t *testing.T) {
 			spanName:     "spanname6",
 			spanKind:     ptrace.SpanKindClient,
 			peerTagsAggr: true,
-			rattrs:       map[string]string{"service.name": "svc", semconv.AttributeDeploymentEnvironment: "tracer-env", "datadog.host.name": "dd-host"},
-			sattrs:       map[string]any{"operation.name": "op", semconv.AttributeRPCMethod: "call", semconv.AttributeRPCService: "rpc_service"},
+			rattrs:       map[string]string{"service.name": "svc", string(semconv.DeploymentEnvironmentKey): "tracer-env", "datadog.host.name": "dd-host"},
+			sattrs:       map[string]any{"operation.name": "op", string(semconv.RPCMethodKey): "call", string(semconv.RPCServiceKey): "rpc_service"},
 			expected:     createStatsPayload(agentEnv, agentHost, "svc", "op", "http", "client", "call rpc_service", "dd-host", "tracer-env", "", nil, []string{"rpc.service:rpc_service"}, true, false),
 		},
 
@@ -169,7 +169,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			name:      "ignore resource name",
 			spanName:  "spanname7",
 			spanKind:  ptrace.SpanKindClient,
-			sattrs:    map[string]any{"http.request.method": "GET", semconv.AttributeHTTPRoute: "/home"},
+			sattrs:    map[string]any{"http.request.method": "GET", string(semconv.HTTPRouteKey): "/home"},
 			ignoreRes: []string{"GET /home"},
 			expected:  &pb.StatsPayload{AgentEnv: agentEnv, AgentHostname: agentHost},
 		},
@@ -177,7 +177,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 			name:                             "obfuscate sql span",
 			spanName:                         "spanname8",
 			spanKind:                         ptrace.SpanKindClient,
-			rattrs:                           map[string]string{"service.name": "svc", semconv.AttributeDBSystem: semconv.AttributeDBSystemMSSQL, semconv.AttributeDBStatement: "SELECT username FROM users WHERE id = 12345"},
+			rattrs:                           map[string]string{"service.name": "svc", string(semconv.DBSystemKey): semconv.DBSystemMSSQL.Value.AsString(), string(semconv.DBStatementKey): "SELECT username FROM users WHERE id = 12345"},
 			enableObfuscation:                true,
 			enableReceiveResourceSpansV2:     true,
 			enableOperationAndResourceNameV2: true,
@@ -241,9 +241,8 @@ func TestProcessOTLPTraces(t *testing.T) {
 			conf.PeerTagsAggregation = tt.peerTagsAggr
 			conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 			conf.OTLPReceiver.SpanNameAsResourceName = tt.spanNameAsResourceName
-			if conf.OTLPReceiver.SpanNameAsResourceName || tt.enableOperationAndResourceNameV2 {
-				// Verify that while EnableOperationAndResourceNamesV2 is in alpha, SpanNameAsResourceName overrides it
-				conf.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
+			if !tt.enableOperationAndResourceNameV2 {
+				conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 			}
 			conf.OTLPReceiver.SpanNameRemappings = tt.spanNameRemappings
 			conf.Ignore["resource"] = tt.ignoreRes
@@ -298,7 +297,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	rspan := traces.ResourceSpans().AppendEmpty()
 	res := rspan.Resource()
 	res.Attributes().PutStr("service.name", "svc")
-	res.Attributes().PutStr(semconv.AttributeDeploymentEnvironment, "tracer-env")
+	res.Attributes().PutStr(string(semconv.DeploymentEnvironmentKey), "tracer-env")
 	res.Attributes().PutStr("datadog.host.name", "dd-host")
 
 	sspan := rspan.ScopeSpans().AppendEmpty()
@@ -309,8 +308,8 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	span1.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
 	span1.SetEndTimestamp(pcommon.NewTimestampFromTime(end))
 	span1.SetKind(ptrace.SpanKindClient)
-	span1.Attributes().PutStr(semconv.AttributeHTTPMethod, "GET")
-	span1.Attributes().PutStr(semconv.AttributeHTTPRoute, "/home")
+	span1.Attributes().PutStr(string(semconv.HTTPMethodKey), "GET")
+	span1.Attributes().PutStr(string(semconv.HTTPRouteKey), "/home")
 
 	span2 := sspan.Spans().AppendEmpty()
 	span2.SetTraceID(testTraceID)
@@ -325,6 +324,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.Hostname = agentHost
 	conf.DefaultEnv = agentEnv
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
+	conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 
 	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
 	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)

@@ -62,7 +62,7 @@ func TestNewNVLinkCollector(t *testing.T) {
 			mockSetup: func() ddnvml.SafeDevice {
 				return &mockSafeDevice{
 					fieldValuesFunc: func(_ []nvml.FieldValue) error {
-						return &ddnvml.ErrNotSupported{APIName: "GetFieldValues"}
+						return &ddnvml.NvmlAPIError{APIName: "GetFieldValues", NvmlErrorCode: nvml.ERROR_NOT_SUPPORTED}
 					},
 					uuid: "GPU-123",
 				}
@@ -74,7 +74,7 @@ func TestNewNVLinkCollector(t *testing.T) {
 			mockSetup: func() ddnvml.SafeDevice {
 				return &mockSafeDevice{
 					fieldValuesFunc: func(_ []nvml.FieldValue) error {
-						return fmt.Errorf("unknown error")
+						return &ddnvml.NvmlAPIError{APIName: "GetFieldValues", NvmlErrorCode: nvml.ERROR_UNKNOWN}
 					},
 					uuid: "GPU-123",
 				}

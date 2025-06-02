@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
@@ -132,10 +132,12 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 }
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
+	mockConfig := configmock.New(suite.T())
+
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources(logSources))
+	status.InitStatus(mockConfig, util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
@@ -194,10 +196,12 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 }
 
 func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard() {
+	mockConfig := configmock.New(suite.T())
+
 	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources(logSources))
+	status.InitStatus(mockConfig, util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
@@ -234,10 +238,12 @@ func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 }
 
 func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
+	mockConfig := configmock.New(suite.T())
+
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources(logSources))
+	status.InitStatus(mockConfig, util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
@@ -250,13 +256,14 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 }
 
 func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
+	mockConfig := configmock.New(suite.T())
 	filesLimit := 2
 	fileProvider := NewFileProvider(filesLimit, WildcardUseFileName)
 	logSources := []*sources.LogSource{
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
 	}
-	status.InitStatus(pkgconfigsetup.Datadog(), util.CreateSources(logSources))
+	status.InitStatus(mockConfig, util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())

@@ -17,6 +17,36 @@ import (
 	"strconv"
 )
 
+// Path is a path to a file or directory.
+type Path string
+
+// EnsureAbsent ensures that the path does not exist and removes it if it does.
+func (p Path) EnsureAbsent(rootPath string) error {
+	matches, err := filepath.Glob(filepath.Join(rootPath, string(p)))
+	if err != nil {
+		return fmt.Errorf("error globbing path: %w", err)
+	}
+	for _, match := range matches {
+		if err := os.RemoveAll(match); err != nil {
+			return fmt.Errorf("error removing path: %w", err)
+		}
+	}
+	return nil
+}
+
+// Paths is a collection of Path.
+type Paths []Path
+
+// EnsureAbsent ensures that the paths do not exist and removes them if they do.
+func (ps Paths) EnsureAbsent(rootPath string) error {
+	for _, p := range ps {
+		if err := p.EnsureAbsent(rootPath); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Directory represents a desired state for a directory.
 type Directory struct {
 	Path  string
@@ -129,16 +159,10 @@ func EnsureSymlink(source, target string) error {
 	return nil
 }
 
-// EnsureSymlinkIfNotExists ensures that the symlink is created; but only if it doesn't exist.
-func EnsureSymlinkIfNotExists(source, target string) error {
-	_, err := os.Stat(target)
-	if err == nil {
-		return nil // The symlink exists
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("error retrieving symlink: %w", err)
-	}
-	if err := os.Symlink(source, target); err != nil {
-		return fmt.Errorf("error creating symlink: %w", err)
+// EnsureSymlinkAbsent ensures that the symlink is removed.
+func EnsureSymlinkAbsent(target string) error {
+	if err := os.RemoveAll(target); err != nil {
+		return fmt.Errorf("error removing existing symlink: %w", err)
 	}
 	return nil
 }

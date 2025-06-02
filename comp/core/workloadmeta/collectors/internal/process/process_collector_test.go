@@ -5,20 +5,19 @@
 
 //go:build linux && test
 
-// Package process implements the local process collector for
+// Package processlanguage implements the process language collector for
 // Workloadmeta.
 package process
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -26,22 +25,10 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	processwlm "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
-	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// NewProcessDataWithMockProbe returns a new ProcessData with a mock probe
-func NewProcessDataWithMockProbe(t *testing.T) (*Data, *mocks.Probe) {
-	probe := mocks.NewProbe(t)
-	return &Data{
-		probe: probe,
-	}, probe
-}
 
 type collectorTest struct {
 	collector *collector
@@ -59,222 +46,271 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 		}),
 	))
 
-	wlmExtractor := processwlm.NewWorkloadMetaExtractor(mockStore.GetConfig())
-	mockProcessData, probe := NewProcessDataWithMockProbe(t)
-	mockProcessData.Register(wlmExtractor)
 	mockClock := clock.NewMock()
-	mockCtrl := gomock.NewController(t)
-	mockProvider := proccontainers.NewMockContainerProvider(mockCtrl)
-	processDiffCh := wlmExtractor.ProcessCacheDiff()
-	processCollector := &collector{
-		id:                collectorID,
-		store:             mockStore,
-		catalog:           workloadmeta.NodeAgent,
-		processDiffCh:     processDiffCh,
-		processData:       mockProcessData,
-		pidToCid:          make(map[int]string),
-		wlmExtractor:      wlmExtractor,
-		collectionClock:   mockClock,
-		containerProvider: mockProvider,
-	}
+	mockProbe := mocks.NewProbe(t)
+	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe)
 
-	return collectorTest{processCollector, probe, mockClock, mockStore}
+	return collectorTest{&processCollector, mockProbe, mockClock, mockStore}
 }
 
-func TestProcessCollector(t *testing.T) {
-	originalFlavor := flavor.GetFlavor()
-	defer flavor.SetFlavor(originalFlavor)
-	flavor.SetFlavor(flavor.DefaultAgent)
-
-	configOverrides := map[string]interface{}{
-		"language_detection.enabled":                true,
-		"process_config.process_collection.enabled": true,
-		"process_config.run_in_core_agent.enabled":  true,
-	}
-
-	c := setUpCollectorTest(t, configOverrides)
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-
-	processDiffCh := make(chan *processwlm.ProcessCacheDiff)
-	c.collector.processDiffCh = processDiffCh
-
-	err := c.collector.Start(ctx, c.mockStore)
-	require.NoError(t, err)
-
-	creationTime := time.Now().Unix()
-	processDiffCh <- &processwlm.ProcessCacheDiff{
-		Creation: []*processwlm.ProcessEntity{
-			{
-				Pid:          1,
-				ContainerId:  "cid",
-				NsPid:        1,
-				CreationTime: creationTime,
-				Language:     &languagemodels.Language{Name: languagemodels.Java},
-			},
+func createTestProcess1(pid int32, createTime int64) (*procutil.Process, *workloadmeta.Process) {
+	proc := &procutil.Process{
+		Pid:     pid,
+		Ppid:    6,
+		NsPid:   2,
+		Name:    "some name",
+		Cwd:     "some_directory/path",
+		Exe:     "test",
+		Comm:    "",
+		Cmdline: []string{"c1", "c2", "c3"},
+		Uids:    []int32{1, 2, 3, 4},
+		Gids:    []int32{1, 2, 3, 4, 5},
+		Stats: &procutil.Stats{
+			CreateTime: createTime,
 		},
 	}
 
-	expectedProc1 := &workloadmeta.Process{
+	expectedProc := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
-			ID:   "1",
 			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(proc.Pid)),
 		},
-		NsPid:        1,
-		ContainerID:  "cid",
-		CreationTime: time.UnixMilli(creationTime),
-		Language:     &languagemodels.Language{Name: languagemodels.Java},
+		Pid:          proc.Pid,
+		Ppid:         proc.Ppid,
+		NsPid:        proc.NsPid,
+		Name:         proc.Name,
+		Cwd:          proc.Cwd,
+		Exe:          proc.Exe,
+		Comm:         proc.Comm,
+		Cmdline:      proc.Cmdline,
+		Uids:         proc.Uids,
+		Gids:         proc.Gids,
+		CreationTime: time.UnixMilli(proc.Stats.CreateTime).UTC(),
 	}
-
-	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-		proc, err := c.mockStore.GetProcess(1)
-		assert.NoError(cT, err)
-		assert.Equal(cT, expectedProc1, proc)
-	}, time.Second, time.Millisecond*100)
-
-	processDiffCh <- &processwlm.ProcessCacheDiff{
-		Creation: []*processwlm.ProcessEntity{
-			{
-				Pid:          2,
-				ContainerId:  "cid",
-				NsPid:        2,
-				CreationTime: creationTime,
-				Language:     &languagemodels.Language{Name: languagemodels.Python},
-			},
-		},
-		Deletion: []*processwlm.ProcessEntity{
-			{
-				Pid:          1,
-				ContainerId:  "cid",
-				NsPid:        1,
-				CreationTime: creationTime,
-				Language:     &languagemodels.Language{Name: languagemodels.Java},
-			},
-		},
-	}
-
-	expectedProc2 := &workloadmeta.Process{
-		EntityID: workloadmeta.EntityID{
-			ID:   "2",
-			Kind: workloadmeta.KindProcess,
-		},
-		NsPid:        2,
-		ContainerID:  "cid",
-		CreationTime: time.UnixMilli(creationTime),
-		Language:     &languagemodels.Language{Name: languagemodels.Python},
-	}
-
-	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-		proc, err := c.mockStore.GetProcess(2)
-		assert.NoError(cT, err)
-		assert.Equal(cT, expectedProc2, proc)
-
-		_, err = c.mockStore.GetProcess(1)
-		assert.Error(cT, err)
-	}, time.Second, time.Millisecond*100)
+	return proc, expectedProc
 }
 
-func TestProcessCollectorStart(t *testing.T) {
-	tests := []struct {
-		name                 string
-		agentFlavor          string
-		langDetectionEnabled bool
-		runInCoreAgent       bool
-		expectedEnabled      bool
+func createTestProcess2(pid int32, createTime int64) (*procutil.Process, *workloadmeta.Process) {
+	proc := &procutil.Process{
+		Pid:     pid,
+		Ppid:    9,
+		NsPid:   3,
+		Name:    "some name 2",
+		Cwd:     "some_directory/path/path2",
+		Exe:     "exe",
+		Comm:    "hello",
+		Cmdline: []string{"c1", "c2", "c3", "c4", "c5"},
+		Uids:    []int32{1},
+		Gids:    []int32{1, 2},
+		Stats: &procutil.Stats{
+			CreateTime: createTime,
+		},
+	}
+
+	expectedProc := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(proc.Pid)),
+		},
+		Pid:          proc.Pid,
+		Ppid:         proc.Ppid,
+		NsPid:        proc.NsPid,
+		Name:         proc.Name,
+		Cwd:          proc.Cwd,
+		Exe:          proc.Exe,
+		Comm:         proc.Comm,
+		Cmdline:      proc.Cmdline,
+		Uids:         proc.Uids,
+		Gids:         proc.Gids,
+		CreationTime: time.UnixMilli(proc.Stats.CreateTime).UTC(),
+	}
+	return proc, expectedProc
+}
+
+// TestCreatedProcessesCollection tests the collector capturing new processes
+func TestCreatedProcessesCollection(t *testing.T) {
+	collectionInterval := time.Second * 10
+
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+	proc1, expectedProc1 := createTestProcess1(pid1, creationTime1)
+
+	creationTime2 := time.Now().Add(time.Second).Unix()
+	pid2 := int32(9999)
+	proc2, expectedProc2 := createTestProcess2(pid2, creationTime2)
+
+	for _, tc := range []struct {
+		description        string
+		configOverrides    map[string]interface{}
+		processesToCollect map[int32]*procutil.Process
+		expectedProcesses  map[int32]*workloadmeta.Process
 	}{
 		{
-			name:                 "core agent + all configs enabled",
-			agentFlavor:          flavor.DefaultAgent,
-			langDetectionEnabled: true,
-			runInCoreAgent:       true,
-			expectedEnabled:      true,
+			description:     "single new process",
+			configOverrides: map[string]interface{}{},
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				expectedProc1.Pid: expectedProc1,
+			},
 		},
 		{
-			name:                 "core agent + all configs disabled",
-			agentFlavor:          flavor.DefaultAgent,
-			langDetectionEnabled: false,
-			runInCoreAgent:       false,
-			expectedEnabled:      false,
+			description:     "multiple new processes",
+			configOverrides: map[string]interface{}{},
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				expectedProc1.Pid: expectedProc1,
+				expectedProc2.Pid: expectedProc2,
+			},
 		},
-		{
-			name:                 "process agent + all configs enabled",
-			agentFlavor:          flavor.ProcessAgent,
-			langDetectionEnabled: true,
-			runInCoreAgent:       true,
-			expectedEnabled:      false,
-		},
-		{
-			name:                 "process agent + all configs disabled",
-			agentFlavor:          flavor.ProcessAgent,
-			langDetectionEnabled: false,
-			runInCoreAgent:       false,
-			expectedEnabled:      false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			originalFlavor := flavor.GetFlavor()
-			defer flavor.SetFlavor(originalFlavor)
-			flavor.SetFlavor(test.agentFlavor)
-
-			configOverrides := map[string]interface{}{
-				"language_detection.enabled":               test.langDetectionEnabled,
-				"process_config.run_in_core_agent.enabled": test.runInCoreAgent,
-			}
-
-			c := setUpCollectorTest(t, configOverrides)
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, tc.configOverrides)
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			err := c.collector.Start(ctx, c.mockStore)
+			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
+			// by default disabled
+			c.collector.store = c.mockStore
+			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.stream(ctx)
 
-			enabled := err == nil
-			assert.Equal(t, test.expectedEnabled, enabled)
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
+			// update clock to trigger processing
+			c.mockClock.Add(collectionInterval)
+
+			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+				for pid, expectedProc := range tc.expectedProcesses {
+					actualProc, err := c.mockStore.GetProcess(pid)
+					assert.NoError(cT, err)
+					assert.Equal(cT, expectedProc, actualProc)
+				}
+			}, time.Second, time.Millisecond*100)
 		})
 	}
 }
 
-func TestProcessCollectorWithoutProcessCheck(t *testing.T) {
-	originalFlavor := flavor.GetFlavor()
-	defer flavor.SetFlavor(originalFlavor)
-	flavor.SetFlavor(flavor.DefaultAgent)
+// TestCreatedProcessesCollection tests the collector capturing lifecycle of a process (creation, deletion)
+func TestProcessLifecycleCollection(t *testing.T) {
+	collectionInterval := time.Second * 10
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+	proc1, expectedProc1 := createTestProcess1(pid1, creationTime1)
 
-	configOverrides := map[string]interface{}{
-		"language_detection.enabled":                true,
-		"process_config.process_collection.enabled": false,
-		"process_config.run_in_core_agent.enabled":  true,
-	}
+	creationTime2 := time.Now().Add(time.Second).Unix()
+	pid2 := int32(9999)
+	proc2, expectedProc2 := createTestProcess2(pid2, creationTime2)
 
-	c := setUpCollectorTest(t, configOverrides)
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
+	// same pid as proc1 but different creation time
+	proc3, expectedProc3 := createTestProcess1(pid1, creationTime2)
 
-	mockCtrl := gomock.NewController(t)
-	mockProvider := proccontainers.NewMockContainerProvider(mockCtrl)
-	c.collector.containerProvider = mockProvider
+	// same pid as proc2 but different creation time
+	creationTime3 := time.Now().Add(2 * time.Second).Unix()
+	proc4, expectedProc4 := createTestProcess1(pid2, creationTime3)
 
-	err := c.collector.Start(ctx, c.mockStore)
-	require.NoError(t, err)
-
-	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(map[int32]*procutil.Process{
-		1: {
-			Pid:     1,
-			Cmdline: []string{"proc", "-h", "-v"},
-			Stats:   &procutil.Stats{CreateTime: 1},
+	for _, tc := range []struct {
+		description              string
+		configOverrides          map[string]interface{}
+		processesToCollectA      map[int32]*procutil.Process
+		processesToCollectB      map[int32]*procutil.Process
+		expectedDeletedProcesses []*workloadmeta.Process
+		expectedLiveProcesses    []*workloadmeta.Process
+	}{
+		{
+			description:     "2 new processes and 1 finishes",
+			configOverrides: map[string]interface{}{},
+			processesToCollectA: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+			},
+			processesToCollectB: map[int32]*procutil.Process{
+				proc2.Pid: proc2,
+			},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				expectedProc1,
+			},
+			expectedLiveProcesses: []*workloadmeta.Process{
+				expectedProc2,
+			},
 		},
-	}, nil).Times(1)
+		{
+			description:     "2 new processes and 2 finishes",
+			configOverrides: map[string]interface{}{},
+			processesToCollectA: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+			},
+			processesToCollectB:   map[int32]*procutil.Process{},
+			expectedLiveProcesses: []*workloadmeta.Process{},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				expectedProc1,
+				expectedProc2,
+			},
+		},
+		{
+			description:     "2 new processes, 2 finish, but 2 new processes with the same pid",
+			configOverrides: map[string]interface{}{},
+			processesToCollectA: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+			},
+			processesToCollectB: map[int32]*procutil.Process{
+				proc3.Pid: proc3,
+				proc4.Pid: proc4,
+			},
+			expectedLiveProcesses: []*workloadmeta.Process{
+				expectedProc3, expectedProc4,
+			},
+			expectedDeletedProcesses: []*workloadmeta.Process{
+				expectedProc1, expectedProc2,
+			},
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, tc.configOverrides)
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
 
-	// Testing container id enrichment
-	expectedCid := "container1"
-	mockProvider.EXPECT().GetPidToCid(2 * time.Second).Return(map[int]string{1: expectedCid}).MinTimes(1)
+			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
+			// by default disabled
+			c.collector.store = c.mockStore
+			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.stream(ctx)
 
-	c.mockClock.Add(10 * time.Second)
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectA, nil).Times(1)
+			// update clock to trigger processing
+			c.mockClock.Add(collectionInterval)
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollectB, nil).Times(1)
+			// update clock to trigger processing
+			c.mockClock.Add(collectionInterval)
 
-	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
-		proc, err := c.mockStore.GetProcess(1)
-		assert.NoError(cT, err)
-		assert.NotNil(cT, proc)
-		assert.Equal(cT, expectedCid, proc.ContainerID)
-	}, 1*time.Second, time.Millisecond*100)
+			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+				actualProcs := c.mockStore.ListProcesses()
+				mapActualProcs := make(map[int32]*workloadmeta.Process, len(actualProcs))
+				for _, proc := range actualProcs {
+					mapActualProcs[proc.Pid] = proc
+				}
+
+				for _, expectedLiveProc := range tc.expectedLiveProcesses {
+					actualProc, exists := mapActualProcs[expectedLiveProc.Pid]
+					assert.True(cT, exists)
+					assert.Equal(cT, expectedLiveProc, actualProc)
+				}
+
+				for _, expectedDeletedProc := range tc.expectedDeletedProcesses {
+					actualProc, exists := mapActualProcs[expectedDeletedProc.Pid]
+
+					// the same process pid can exist so we ensure it is a different process by checking the creation time
+					if exists {
+						assert.NotEqual(cT, expectedDeletedProc.CreationTime, actualProc.CreationTime)
+					}
+
+				}
+			}, time.Second, time.Millisecond*100)
+		})
+	}
 }

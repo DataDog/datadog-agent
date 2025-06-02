@@ -1501,7 +1501,7 @@ func TestHandleECSTask(t *testing.T) {
 				ClusterName:  "ecs-cluster",
 				Family:       "datadog-agent",
 				Version:      "1",
-				AWSAccountID: 1234567891234,
+				AWSAccountID: "1234567891234",
 				LaunchType:   workloadmeta.ECSLaunchTypeEC2,
 				Containers: []workloadmeta.OrchestratorContainer{
 					{
@@ -1533,6 +1533,16 @@ func TestHandleECSTask(t *testing.T) {
 					},
 					StandardTags: []string{},
 				},
+				{
+					Source:               taskSource,
+					EntityID:             types.GetGlobalEntityID(),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ecs_cluster_name:ecs-cluster",
+					},
+					StandardTags: []string{},
+				},
 			},
 		},
 		{
@@ -1554,7 +1564,7 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				AvailabilityZone: "us-east-1c",
 				Region:           "us-east-1",
-				AWSAccountID:     1234567891234,
+				AWSAccountID:     "1234567891234",
 			},
 			expected: []*types.TagInfo{
 				{

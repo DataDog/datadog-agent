@@ -67,9 +67,8 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentDir, "root", "root")
-	state.AssertSymlinkExists("/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/stable", "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-agent", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", "root", "root")
-	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer", "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
@@ -132,11 +131,11 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 
 	state := s.host.State()
 	s.assertUnits(state, false)
-	state.AssertSymlinkExists("/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/stable", "root", "root")
+	state.AssertPathDoesNotExist("/opt/datadog-agent")
 
 	// is_installed avoids a re-install of datadog-agent with the install script
 	s.RunInstallScript(envForceNoInstall("datadog-agent"))
-	state.AssertSymlinkExists("/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/stable", "root", "root")
+	state.AssertPathDoesNotExist("/opt/datadog-agent")
 
 	// install deb/rpm manually
 	s.installDebRPMAgent()
@@ -144,9 +143,9 @@ func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 
 	state = s.host.State()
-	s.assertUnits(state, false)
+	s.assertUnits(state, true)
 	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
-	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.AssertPackageNotInstalledByInstaller("datadog-agent")
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {
@@ -418,6 +417,18 @@ func (s *packageAgentSuite) TestInstallWithLeftoverDebDir() {
 	state := s.host.State()
 	s.assertUnits(state, false)
 	s.host.Run("sudo systemctl show datadog-agent -p ExecStart | grep /opt/datadog-packages")
+}
+
+func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
+	s.host.Run("sudo userdel dd-agent || true")
+	s.host.Run("sudo groupdel dd-agent || true")
+	s.host.Run("sudo groupadd --system datadog")
+
+	s.RunInstallScript(envForceInstall("datadog-agent"))
+	defer s.Purge()
+
+	assert.True(s.T(), s.host.UserExists("dd-agent"), "dd-agent user should exist")
+	assert.True(s.T(), s.host.GroupExists("dd-agent"), "dd-agent group should exist")
 }
 
 func (s *packageAgentSuite) purgeAgentDebInstall() {

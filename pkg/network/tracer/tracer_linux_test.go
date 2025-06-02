@@ -41,7 +41,7 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -695,9 +695,10 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		m.EXPECT().IsAWS().Return(true)
 		network.Cloud = m
 
-		clouds := pkgconfigsetup.Datadog().Get("cloud_provider_metadata")
-		pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
-		defer pkgconfigsetup.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
+		mockConfig := configmock.New(t)
+		clouds := mockConfig.Get("cloud_provider_metadata")
+		mockConfig.SetWithoutSource("cloud_provider_metadata", []string{})
+		defer mockConfig.SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -1965,7 +1966,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	tr := setupTracer(t, cfg)
 
 	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
-		t.Skip("skipped on Fargate")
+		t.Skip("skipped on fentry")
 	}
 
 	cmd := []string{"curl", "-k", "-o/dev/null", "example.com"}
@@ -3002,4 +3003,69 @@ func (s *TracerSuite) TestTLSRawClient() {
 			assert.True(collect, c.ProtocolStack.Contains(protocols.HTTP), "expected HTTP protocol")
 		}, time.Second*5, time.Millisecond*200)
 	})
+}
+
+func (s *TracerSuite) TestTCPSynRst() {
+	// test for dialing a server that is closed - so we first send a SYN packet, and immediately get a RST back
+	t := s.T()
+	cfg := testConfig()
+
+	if isPrebuilt(cfg) {
+		t.Skip("failed connections not supported on prebuilt")
+	}
+
+	tr := setupTracer(t, cfg)
+
+	if tr.ebpfTracer.Type() == connection.TracerTypeFentry {
+		t.Skip("failed connections not (yet) supported on fentry")
+	}
+
+	// create a linux socket which will reserve a port for us
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
+	require.NoError(t, err)
+	defer unix.Close(fd)
+
+	// bind it to a port
+	unixLaddr := &unix.SockaddrInet4{
+		Port: 0,
+	}
+	copy(unixLaddr.Addr[:], net.ParseIP("127.0.0.1").To4())
+	err = unix.Bind(fd, unixLaddr)
+	require.NoError(t, err)
+
+	// get the port it bound to
+	addr, err := unix.Getsockname(fd)
+	require.NoError(t, err)
+	localAddr := &net.TCPAddr{
+		IP:   addr.(*unix.SockaddrInet4).Addr[:],
+		Port: addr.(*unix.SockaddrInet4).Port,
+	}
+
+	unixRemoteAddr := &unix.SockaddrInet4{
+		Port: 47,
+	}
+	copy(unixRemoteAddr.Addr[:], net.ParseIP("127.0.0.1").To4())
+	err = unix.Connect(fd, unixRemoteAddr)
+	require.Error(t, err)
+	require.Equal(t, unix.ECONNREFUSED, err)
+	remoteAddr := &net.TCPAddr{
+		IP:   unixRemoteAddr.Addr[:],
+		Port: unixRemoteAddr.Port,
+	}
+
+	var conn *network.ConnectionStats
+	var ok bool
+
+	// for ebpfless, wait for the packet capture to appear
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		connections, cleanup := getConnections(collect, tr)
+		defer cleanup()
+		conn, ok = findConnection(localAddr, remoteAddr, connections)
+		require.True(collect, ok)
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find connection")
+
+	// there is both an incoming and outgoing connection on loopback, just make sure it's not UNKNOWN
+	assert.NotEqual(t, network.UNKNOWN, conn.Direction)
+
+	assert.Equal(t, uint32(1), conn.TCPFailures[uint16(unix.ECONNREFUSED)])
 }

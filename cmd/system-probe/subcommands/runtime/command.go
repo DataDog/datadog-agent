@@ -85,7 +85,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
 				core.Bundle(),
 			)
 		},
@@ -378,7 +378,8 @@ func checkPoliciesLoaded(client secagent.SecurityModuleClientWrapper, writer io.
 		return fmt.Errorf("get policies request failed: %s", output.Error)
 	}
 
-	transformedOutput := output.GetRuleSetReportMessage().FromProtoToKFiltersRuleSetReport()
+	// extract and report the filters
+	transformedOutput := output.GetRuleSetReportMessage().GetFilters().FromProtoToFilterReport()
 
 	content, _ := json.MarshalIndent(transformedOutput, "", "\t")
 	_, err = fmt.Fprintf(writer, "%s\n", string(content))

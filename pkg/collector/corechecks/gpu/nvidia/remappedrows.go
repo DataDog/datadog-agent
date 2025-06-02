@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -25,9 +24,10 @@ type remappedRowsCollector struct {
 func newRemappedRowsCollector(device ddnvml.SafeDevice) (Collector, error) {
 	// Do a first check to see if the device supports remapped rows metrics
 	_, _, _, _, err := device.GetRemappedRows()
-	unsupportedErr := &ddnvml.ErrNotSupported{}
-	if errors.As(err, &unsupportedErr) {
-		return nil, errUnsupportedDevice
+
+	if err != nil && ddnvml.IsUnsupported(err) {
+		// Only return unsupported device if the API is not supported or symbol not found
+		return nil, fmt.Errorf("%w: %w", errUnsupportedDevice, err)
 	}
 
 	return &remappedRowsCollector{

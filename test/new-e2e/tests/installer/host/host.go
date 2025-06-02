@@ -133,6 +133,18 @@ func (h *Host) Run(command string, env ...string) string {
 	return h.remote.MustExecute(command, client.WithEnvVariables(envVars))
 }
 
+// UserExists checks if a user exists on the host.
+func (h *Host) UserExists(username string) bool {
+	_, err := h.remote.Execute(fmt.Sprintf("id -u %s", username))
+	return err == nil
+}
+
+// GroupExists checks if a group exists on the host.
+func (h *Host) GroupExists(groupname string) bool {
+	_, err := h.remote.Execute(fmt.Sprintf("id -g %s", groupname))
+	return err == nil
+}
+
 // FileExists checks if a file exists on the host.
 func (h *Host) FileExists(path string) (bool, error) {
 	return h.remote.FileExists(path)
@@ -232,6 +244,14 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 			"package %s not installed by the installer (err)",
 			pkg,
 		)
+	}
+}
+
+// AssertPackageNotInstalledByInstaller checks if a package is not installed by the installer on the host.
+func (h *Host) AssertPackageNotInstalledByInstaller(pkgs ...string) {
+	for _, pkg := range pkgs {
+		_, err := h.remote.ReadDir(fmt.Sprintf("/opt/datadog-packages/%s/stable/", pkg))
+		require.Error(h.t(), err, "package %s installed by the installer", pkg)
 	}
 }
 
@@ -738,8 +758,8 @@ func (s *State) AssertUnitsRunning(names ...string) {
 // AssertUnitsNotLoaded asserts that a systemd unit is not loaded.
 func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
-		_, ok := s.Units[name]
-		assert.True(s.t, !ok, "unit %v is loaded", name)
+		unit, ok := s.Units[name]
+		assert.True(s.t, !ok || (ok && unit.LoadState != Loaded), "unit %v is loaded", name)
 	}
 }
 

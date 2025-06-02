@@ -75,7 +75,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	assert.Nil(t, s.mapper)
 
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
-	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", 0, "", false)
+	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", 0, "", false, nil)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
 }
@@ -133,7 +133,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	parser.dsdOriginEnabled = true
 
 	// Metric
-	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", 0, "", false)
+	metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container"), "", 0, "", false, nil)
 	assert.NoError(err)
 	assert.Len(metrics, 1)
 	assert.Equal("metric-container", metrics[0].OriginInfo.LocalData.ContainerID)
@@ -177,7 +177,7 @@ func TestOrigin(t *testing.T) {
 		parser.dsdOriginEnabled = true
 
 		// Metric
-		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", 1234, "", false)
+		metrics, err := s.parseMetricMessage(nil, parser, []byte("metric.name:123|g|c:metric-container|#dd.internal.card:none"), "", 1234, "", false, nil)
 		assert.NoError(err)
 		assert.Len(metrics, 1)
 		assert.Equal("metric-container", metrics[0].OriginInfo.LocalData.ContainerID)

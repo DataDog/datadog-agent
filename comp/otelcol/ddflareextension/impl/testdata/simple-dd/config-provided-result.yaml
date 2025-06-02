@@ -27,7 +27,7 @@ exporters:
         mode: distributions
         send_aggregation_metrics: false
         send_count_sum_metrics: false
-      instrumentation_scope_metadata_as_tags: false
+      instrumentation_scope_metadata_as_tags: true
       resource_attributes_as_tags: false
       summaries:
         mode: gauges
@@ -43,11 +43,15 @@ exporters:
       multiplier: 1.5
       randomization_factor: 0.5
     sending_queue:
+      batch:
+      block_on_overflow: false
       blocking: false
       enabled: true
       num_consumers: 10
       queue_size: 1000
+      sizer: {}
       storage: null
+      wait_for_result: false
     timeout: 15s
     traces:
       compute_stats_by_span_kind: true

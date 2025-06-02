@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -31,12 +30,8 @@ func newNVLinkCollector(device ddnvml.SafeDevice) (Collector, error) {
 		},
 	}
 
-	err := device.GetFieldValues(fields)
-	unsupportedErr := &ddnvml.ErrNotSupported{}
-	if errors.As(err, &unsupportedErr) {
-		return nil, errUnsupportedDevice
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to get total number of nvlinks: %w", err)
+	if err := device.GetFieldValues(fields); err != nil {
+		return nil, fmt.Errorf("%w : %w", errUnsupportedDevice, err)
 	}
 
 	linksCount, convErr := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)

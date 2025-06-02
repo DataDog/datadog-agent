@@ -39,7 +39,7 @@ const commonRegistry = "gcr.io/datadoghq"
 var (
 	defaultLibraries = map[string]string{
 		"java":   "v1",
-		"python": "v2",
+		"python": "v3",
 		"ruby":   "v2",
 		"dotnet": "v3",
 		"js":     "v5",
@@ -1746,6 +1746,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			if tt.wantSkipInjection {
 				return
 			}
+
 			c.Mutators = mutator.core.newInitContainerMutators(requirements)
 			initalInitContainerCount := len(tt.pod.Spec.InitContainers)
 			err = c.mutatePod(tt.pod)
@@ -1892,7 +1893,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 		setupConfig               funcs
 	}{
 		{
-			name: "inject all with dotnet-profiler",
+			name: "inject all with dotnet-profiler no service name when SSI disabled",
 			pod: common.FakePodSpec{
 				Annotations: map[string]string{
 					"admission.datadoghq.com/all-lib.version":   "latest",
@@ -2516,10 +2517,15 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				ParentKind: "replicaset",
 				ParentName: "test-deployment-123",
 			}.Create(),
-			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
-				Name:  "DD_SERVICE",
-				Value: "test-deployment",
-			},
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-deployment",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-deployment",
+				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
@@ -2545,10 +2551,15 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				ParentKind: "statefulset",
 				ParentName: "test-statefulset-123",
 			}.Create(),
-			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
-				Name:  "DD_SERVICE",
-				Value: "test-statefulset-123",
-			},
+			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...),
+				corev1.EnvVar{
+					Name:  "DD_SERVICE",
+					Value: "test-statefulset-123",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-statefulset-123",
+				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
@@ -2610,6 +2621,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
 				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
@@ -2723,13 +2738,13 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: uuid,
 				},
 			},
-			expectedInjectedLibraries: map[string]string{"java": "v1.28.0", "python": "v2.5.1"},
+			expectedInjectedLibraries: map[string]string{"java": "v1.28.0", "python": "v3.6.0"},
 			expectedSecurityContext:   &corev1.SecurityContext{},
 			wantErr:                   false,
 			wantWebhookInitErr:        false,
 			setupConfig: funcs{
 				enableAPMInstrumentation,
-				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v2.5.1"}),
+				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v3.6.0"}),
 			},
 		},
 		{
@@ -2779,7 +2794,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			wantWebhookInitErr:        false,
 			setupConfig: funcs{
 				enableAPMInstrumentation,
-				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v2.5.1"}),
+				withLibVersions(map[string]string{"java": "v1.28.0", "python": "v3.6.0"}),
 			},
 		},
 		{
@@ -2792,6 +2807,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
+				},
+				{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
 				},
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -2862,6 +2881,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "test-app",
 				},
 				{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
+				},
+				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
 					Value: "true",
 				},
@@ -2928,6 +2951,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "test-app",
 				},
 				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
+				},
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
@@ -2963,6 +2990,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
 				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -3002,6 +3033,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					Value: "test-app",
 				},
 				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
+				},
+				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
 					Value: installTime,
 				},
@@ -3037,6 +3072,10 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_SERVICE",
 					Value: "test-app",
+				},
+				corev1.EnvVar{
+					Name:  "DD_SERVICE_K8S_ENV_SOURCE",
+					Value: "owner=test-app",
 				},
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
@@ -3384,6 +3423,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
 			mockConfig = configmock.New(t)
+			mockConfig.SetWithoutSource("apm_config.instrumentation.version", "v1")
 			if tt.setupConfig != nil {
 				for _, f := range tt.setupConfig {
 					f()
@@ -3391,7 +3431,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			}
 
 			// N.B. Force v1 for these tests!
-			webhook, errInitAPMInstrumentation := maybeWebhook(wmeta, mockConfig, instrumentationV1)
+			webhook, errInitAPMInstrumentation := maybeWebhook(wmeta, mockConfig)
 			if tt.wantWebhookInitErr {
 				require.Error(t, errInitAPMInstrumentation)
 				return
@@ -3412,7 +3452,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 					}
 				}
 				if !found {
-					require.Failf(t, "Unexpected env var injected in container", contEnv.Name)
+					require.Failf(t, "Unexpected env var injected in container", "env=%+v", contEnv)
 				}
 			}
 
@@ -3656,15 +3696,11 @@ func TestShouldInject(t *testing.T) {
 	}
 }
 
-func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component, versionOverride version) (*Webhook, error) {
+func maybeWebhook(wmeta workloadmeta.Component, ddConfig config.Component) (*Webhook, error) {
 	config, err := NewConfig(ddConfig)
 	if err != nil {
 		return nil, err
 	}
-
-	// N.B. keeping this around to continue to have tests for v1,
-	// even though it is disabled
-	config.version = versionOverride
 
 	mutator, err := NewNamespaceMutator(config, wmeta)
 	if err != nil {

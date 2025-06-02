@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -116,6 +116,6 @@ func getContainerTags(req *http.Request, cfg *config.AgentConfig, provider api.I
 func normalize(configsRequest *pbgo.ClientGetConfigsRequest) {
 	// err is explicitly ignored as it is not an actual error and the expected normalized service
 	// is returned regardless.
-	configsRequest.Client.ClientTracer.Service, _ = traceutil.NormalizeService(configsRequest.Client.ClientTracer.Service, configsRequest.Client.ClientTracer.Language)
-	configsRequest.Client.ClientTracer.Env = traceutil.NormalizeTagValue(configsRequest.Client.ClientTracer.Env)
+	configsRequest.Client.ClientTracer.Service, _ = normalizeutil.NormalizeService(configsRequest.Client.ClientTracer.Service, configsRequest.Client.ClientTracer.Language)
+	configsRequest.Client.ClientTracer.Env = normalizeutil.NormalizeTagValue(configsRequest.Client.ClientTracer.Env)
 }

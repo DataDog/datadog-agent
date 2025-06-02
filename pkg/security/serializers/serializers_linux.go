@@ -23,6 +23,7 @@ import (
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -90,6 +91,8 @@ type CGroupContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// CGroup manager
 	Manager string `json:"manager,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -991,7 +994,7 @@ func newAcceptEventSerializer(e *model.Event) *AcceptEventSerializer {
 	aes := &AcceptEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Accept.Addr,
 			model.AddressFamily(e.Accept.AddrFamily).String()),
-		Hostnames: e.Accept.Hostnames,
+		Hostnames: e.FieldHandlers.ResolveAcceptHostnames(e, &e.Accept),
 	}
 	return aes
 }
@@ -1010,7 +1013,7 @@ func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 		Addr: newIPPortFamilySerializer(&e.Connect.Addr,
 			model.AddressFamily(e.Connect.AddrFamily).String()),
 		Protocol:  model.L4Protocol(e.Connect.Protocol).String(),
-		Hostnames: e.Connect.Hostnames,
+		Hostnames: e.FieldHandlers.ResolveConnectHostnames(e, &e.Connect),
 	}
 	return ces
 }
@@ -1263,8 +1266,8 @@ func (e *EventSerializer) MarshalJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event) ([]byte, error) {
-	s := NewEventSerializer(event, nil)
+func MarshalEvent(event *model.Event, rule *rules.Rule) ([]byte, error) {
+	s := NewEventSerializer(event, rule)
 	return utils.MarshalEasyJSON(s)
 }
 
@@ -1274,9 +1277,9 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
+func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer:   NewBaseEventSerializer(event, opts),
+		BaseEventSerializer:   NewBaseEventSerializer(event, rule),
 		UserContextSerializer: newUserContextSerializer(event),
 		DDContextSerializer:   newDDContextSerializer(event),
 	}
@@ -1294,15 +1297,16 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(ctx.ContainerID),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
-			Variables: newVariablesContext(event, opts, "container."),
+			Variables: newVariablesContext(event, rule, "container."),
 		}
 	}
 
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
 		manager := event.FieldHandlers.ResolveCGroupManager(event, event.CGroupContext)
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID:      string(event.CGroupContext.CGroupID),
-			Manager: manager,
+			ID:        string(event.CGroupContext.CGroupID),
+			Manager:   manager,
+			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
 

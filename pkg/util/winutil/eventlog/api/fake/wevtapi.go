@@ -15,11 +15,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
-	"text/template"
-
-	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	"text/template" //nolint:depguard
 
 	"golang.org/x/sys/windows"
+
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
 // Fake Windows APIs that implement evtapi.API

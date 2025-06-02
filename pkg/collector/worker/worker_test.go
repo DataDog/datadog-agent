@@ -18,6 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -29,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -207,8 +208,9 @@ func TestWorkerName(t *testing.T) {
 }
 
 func TestWorker(t *testing.T) {
+	mockConfig := configmock.New(t)
 	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
@@ -283,8 +285,9 @@ func TestWorker(t *testing.T) {
 }
 
 func TestWorkerUtilizationExpvars(t *testing.T) {
+	mockConfig := configmock.New(t)
 	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
@@ -356,16 +359,18 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 }
 
 func TestWorkerErrorAndWarningHandling(t *testing.T) {
+	mockConfig := configmock.New(t)
 	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+	mockConfig = configmock.New(t)
 
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	testCheck1 := newCheck(t, "testing:123", true, nil)
 	testCheck2 := newCheck(t, "testing2:234", true, nil)
@@ -411,14 +416,16 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 }
 
 func TestWorkerConcurrentCheckScheduling(t *testing.T) {
+	mockConfig := configmock.New(t)
 	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+	mockConfig = configmock.New(t)
 
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	testCheck := newCheck(t, "testing:123", true, nil)
 
@@ -440,8 +447,9 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 }
 
 func TestWorkerStatsAddition(t *testing.T) {
+	mockConfig := configmock.New(t)
 	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
@@ -449,8 +457,9 @@ func TestWorkerStatsAddition(t *testing.T) {
 	shouldAddStatsFunc := func(id checkid.ID) bool {
 		return string(id) != "squelched:123"
 	}
+	mockConfig = configmock.New(t)
 
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	longRunningCheckNoErrorNoWarning := &testCheck{
 		t:           t,
@@ -500,8 +509,9 @@ func TestWorkerStatsAddition(t *testing.T) {
 
 func TestWorkerServiceCheckSending(t *testing.T) {
 	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
-	pkgconfigsetup.Datadog().SetWithoutSource("integration_check_status_enabled", "true")
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("integration_check_status_enabled", "true")
 
 	var wg sync.WaitGroup
 
@@ -586,8 +596,9 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 }
 
 func TestWorkerSenderNil(t *testing.T) {
+	mockConfig := configmock.New(t)
 	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
@@ -618,8 +629,9 @@ func TestWorkerSenderNil(t *testing.T) {
 }
 
 func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
+	mockConfig := configmock.New(t)
 	expvars.Reset()
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "myhost")
+	mockConfig.SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
@@ -728,6 +740,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			requires := haagentimpl.Requires{
 				Logger:      logComponent,
 				AgentConfig: agentConfigComponent,
+				Hostname:    hostnameimpl.NewHostnameService(),
 			}
 			haagentcomp, _ := haagentimpl.NewComponent(requires)
 			haagentcomp.Comp.SetLeader(tt.setLeaderValue)

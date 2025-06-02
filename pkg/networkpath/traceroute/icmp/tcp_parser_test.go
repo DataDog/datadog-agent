@@ -33,9 +33,10 @@ func TestTCPMatch(t *testing.T) {
 	srcPort := uint16(12345)
 	dstPort := uint16(443)
 	seqNum := uint32(2549)
+	packetID := uint16(333)
 	mockHeader := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
 	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
-	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP)
+	innerIPv4Layer := testutils.CreateMockIPv4Layer(packetID, innerSrcIP, innerDstIP, layers.IPProtocolTCP)
 	innerTCPLayer := testutils.CreateMockTCPLayer(srcPort, dstPort, seqNum, 12737, true, true, true)
 	icmpBytes := testutils.CreateMockICMPWithTCPPacket(nil, icmpLayer, innerIPv4Layer, innerTCPLayer, true)
 
@@ -48,6 +49,7 @@ func TestTCPMatch(t *testing.T) {
 		remoteIP    net.IP
 		remotePort  uint16
 		seqNum      uint32
+		packetID    uint16
 		// expected
 		expectedIP     net.IP
 		expectedErrMsg string
@@ -77,6 +79,7 @@ func TestTCPMatch(t *testing.T) {
 			remoteIP:       dstIP,
 			remotePort:     9001,
 			seqNum:         seqNum,
+			packetID:       packetID,
 			expectedIP:     net.IP{},
 			expectedErrMsg: "ICMP packet doesn't match",
 		},
@@ -89,15 +92,29 @@ func TestTCPMatch(t *testing.T) {
 			remoteIP:       innerDstIP,
 			remotePort:     dstPort,
 			seqNum:         seqNum,
+			packetID:       packetID,
 			expectedIP:     srcIP,
 			expectedErrMsg: "",
+		},
+		{
+			description:    "different packet ID doesn't match",
+			header:         mockHeader,
+			payload:        icmpBytes,
+			localIP:        innerSrcIP,
+			localPort:      srcPort,
+			remoteIP:       innerDstIP,
+			remotePort:     dstPort,
+			seqNum:         seqNum,
+			packetID:       packetID + 1,
+			expectedIP:     srcIP,
+			expectedErrMsg: "ICMP packet doesn't match",
 		},
 	}
 
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {
 			icmpParser := NewICMPTCPParser()
-			actualIP, err := icmpParser.Match(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			actualIP, err := icmpParser.Match(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum, test.packetID)
 			if test.expectedErrMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.expectedErrMsg), fmt.Sprintf("expected %q, got %q", test.expectedErrMsg, err.Error()))
@@ -112,7 +129,7 @@ func TestTCPMatch(t *testing.T) {
 func TestTCPParse(t *testing.T) {
 	ipv4Header := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
 	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
-	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP)
+	innerIPv4Layer := testutils.CreateMockIPv4Layer(333, innerSrcIP, innerDstIP, layers.IPProtocolTCP)
 	innerTCPLayer := testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
 
 	tt := []struct {

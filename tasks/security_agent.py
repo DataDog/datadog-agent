@@ -557,7 +557,7 @@ def cws_go_generate(ctx, verbose=False):
             "./pkg/security/serializers/serializers_linux_easyjson.go",
         )
 
-    ctx.run("go generate ./pkg/security/...")
+    ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
 
 @task
@@ -811,7 +811,6 @@ def sync_secl_win_pkg(ctx):
         ("args_envs.go", None),
         ("consts_common.go", None),
         ("consts_windows.go", "consts_win.go"),
-        ("consts_map_names_linux.go", None),
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),
         ("accessors_windows.go", "accessors_win.go"),

@@ -41,7 +41,7 @@ type metadataFinderFilter struct {
 func (f *metadataFinderFilter) Filter(token, lastToken TokenKind, buffer []byte) (TokenKind, []byte, error) {
 	if f.collectComments && token == Comment {
 		// A comment with line-breaks will be brought to a single line.
-		comment := strings.TrimSpace(strings.Replace(string(buffer), "\n", " ", -1))
+		comment := strings.TrimSpace(strings.ReplaceAll(string(buffer), "\n", " "))
 		f.size += int64(len(comment))
 		f.comments = append(f.comments, comment)
 	}
@@ -309,14 +309,19 @@ func (o *Obfuscator) ObfuscateSQLStringForDBMS(in string, dbms string) (*Obfusca
 // ObfuscateSQLStringWithOptions accepts an optional SQLOptions to change the behavior of the obfuscator
 // to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
 // and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (*ObfuscatedQuery, error) {
-	cacheKey := fmt.Sprintf("%v:%s", opts, in)
-	if v, ok := o.queryCache.Get(cacheKey); ok {
-		return v.(*ObfuscatedQuery), nil
-	}
+func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (oq *ObfuscatedQuery, err error) {
+	if o.queryCache.Cache != nil {
+		cacheKey := fmt.Sprintf("%v:%s", opts, in)
+		if v, ok := o.queryCache.Get(cacheKey); ok {
+			return v.(*ObfuscatedQuery), nil
+		}
 
-	var oq *ObfuscatedQuery
-	var err error
+		defer func() {
+			if oq != nil && err == nil {
+				o.queryCache.Set(cacheKey, oq, oq.Cost())
+			}
+		}()
+	}
 
 	if opts.ObfuscationMode != "" {
 		// If obfuscation mode is specified, we will use go-sqllexer pkg
@@ -330,7 +335,6 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (
 		return oq, err
 	}
 
-	o.queryCache.Set(cacheKey, oq, oq.Cost())
 	return oq, nil
 }
 

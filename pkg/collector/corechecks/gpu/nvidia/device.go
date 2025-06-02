@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 
@@ -41,6 +40,7 @@ var allDeviceMetrics = []deviceMetric{
 	{"temperature", getTemperature, metrics.GaugeType},
 	{"total_energy_consumption", getTotalEnergyConsumption, metrics.CountType},
 	{"sm_active", getSMActive, metrics.GaugeType},
+	{"device.total", getDeviceCount, metrics.GaugeType},
 }
 
 type deviceCollector struct {
@@ -69,10 +69,11 @@ func (c *deviceCollector) DeviceUUID() string {
 
 func (c *deviceCollector) removeUnsupportedGetters() {
 	metricsToRemove := common.StringSet{}
-	unsupportedErr := &ddnvml.ErrNotSupported{}
+
 	for _, metric := range c.metricGetters {
 		_, err := metric.getter(c.device)
-		if errors.As(err, &unsupportedErr) {
+		// Only remove metrics if the API is not supported or symbol not found
+		if err != nil && ddnvml.IsUnsupported(err) {
 			metricsToRemove.Add(metric.name)
 		}
 	}
@@ -232,4 +233,12 @@ func getTotalEnergyConsumption(dev ddnvml.SafeDevice) (float64, error) {
 	// returns energy in millijoules
 	energy, err := dev.GetTotalEnergyConsumption()
 	return float64(energy), err
+}
+
+func getDeviceCount(dev ddnvml.SafeDevice) (float64, error) {
+	r, err := dev.IsMigDeviceHandle()
+	if r || err != nil {
+		return float64(0), err
+	}
+	return float64(1), nil
 }

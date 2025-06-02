@@ -9,7 +9,6 @@ package servicediscovery
 
 import (
 	"cmp"
-	"net/http"
 	"testing"
 	"time"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
 type testProc struct {
@@ -57,7 +57,6 @@ var (
 var (
 	portTCP8080 = model.Service{
 		PID:                        procTestService1.pid,
-		Name:                       "test-service-1",
 		GeneratedName:              "test-service-1-generated",
 		GeneratedNameSource:        "test-service-1-generated-source",
 		ContainerServiceName:       "test-service-1-container",
@@ -83,7 +82,6 @@ var (
 	}
 	portTCP8080UpdatedRSS = model.Service{
 		PID:                        procTestService1.pid,
-		Name:                       "test-service-1",
 		GeneratedName:              "test-service-1-generated",
 		GeneratedNameSource:        "test-service-1-generated-source",
 		ContainerServiceName:       "test-service-1-container",
@@ -109,7 +107,6 @@ var (
 	}
 	portTCP5000 = model.Service{
 		PID:                        procPythonService.pid,
-		Name:                       "python-service",
 		GeneratedName:              "python-service",
 		GeneratedNameSource:        "python-service-source",
 		AdditionalGeneratedNames:   []string{"bar", "foo"},
@@ -147,7 +144,6 @@ func cmpEvents(a, b *event) bool {
 
 	vals := []any{
 		cmp.Compare(ap.LastSeen, bp.LastSeen),
-		cmp.Compare(ap.ServiceName, bp.ServiceName),
 		cmp.Compare(ap.ServiceType, bp.ServiceType),
 		cmp.Compare(ap.ServiceLanguage, bp.ServiceLanguage),
 		cmp.Compare(ap.Ports[0], bp.Ports[0]),
@@ -205,7 +201,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
 						ContainerServiceName:       "test-service-1-container",
@@ -240,7 +235,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
 						ContainerServiceName:       "test-service-1-container",
@@ -275,7 +269,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "test-service-1",
 						GeneratedServiceName:       "test-service-1-generated",
 						GeneratedServiceNameSource: "test-service-1-generated-source",
 						ContainerServiceName:       "test-service-1-container",
@@ -310,7 +303,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "python-service",
 						GeneratedServiceName:       "python-service",
 						GeneratedServiceNameSource: "python-service-source",
 						AdditionalGeneratedNames:   []string{"bar", "foo"},
@@ -338,7 +330,6 @@ func Test_linuxImpl(t *testing.T) {
 					APIVersion:  "v2",
 					Payload: &eventPayload{
 						NamingSchemaVersion:        "1",
-						ServiceName:                "python-service",
 						GeneratedServiceName:       "python-service",
 						GeneratedServiceNameSource: "python-service-source",
 						AdditionalGeneratedNames:   []string{"bar", "foo"},
@@ -416,7 +407,7 @@ func Test_linuxImpl(t *testing.T) {
 				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).getDiscoveryServices = func(_ *http.Client) (*model.ServicesResponse, error) {
+				check.os.(*linuxImpl).getDiscoveryServices = func(_ *sysprobeclient.CheckClient) (*model.ServicesResponse, error) {
 					return makeServiceResponseWithTime(cr.time, cr.servicesResp), nil
 				}
 				check.sender.hostname = mHostname

@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -64,30 +64,9 @@ var _ module.Module = &discovery{}
 // serviceInfo holds process data that should be cached between calls to the
 // endpoint.
 type serviceInfo struct {
-	name                       string
-	generatedName              string
-	generatedNameSource        string
-	additionalGeneratedNames   []string
-	containerServiceName       string
-	containerServiceNameSource string
-	ddServiceName              string
-	ddServiceInjected          bool
-	ports                      []uint16
-	checkedContainerData       bool
-	language                   language.Language
-	apmInstrumentation         apm.Instrumentation
-	cmdLine                    []string
-	startTimeMilli             uint64
-	rss                        uint64
-	cpuTime                    uint64
-	cpuUsage                   float64
-	containerID                string
-	lastHeartbeat              int64
-	addedToMap                 bool
-	rxBytes                    uint64
-	txBytes                    uint64
-	rxBps                      float64
-	txBps                      float64
+	model.Service
+	checkedContainerData bool
+	cpuTime              uint64
 }
 
 // toModelService fills the model.Service struct pointed to by out, using the
@@ -98,32 +77,14 @@ func (i *serviceInfo) toModelService(pid int32, out *model.Service) *model.Servi
 		return nil
 	}
 
+	*out = i.Service
 	out.PID = int(pid)
-	out.Name = i.name
-	out.GeneratedName = i.generatedName
-	out.GeneratedNameSource = i.generatedNameSource
-	out.AdditionalGeneratedNames = i.additionalGeneratedNames
-	out.ContainerServiceName = i.containerServiceName
-	out.ContainerServiceNameSource = i.containerServiceNameSource
-	out.DDService = i.ddServiceName
-	out.DDServiceInjected = i.ddServiceInjected
-	out.Ports = i.ports
-	out.APMInstrumentation = string(i.apmInstrumentation)
-	out.Language = string(i.language)
-	out.Type = string(servicetype.Detect(i.ports))
-	out.RSS = i.rss
-	out.CommandLine = i.cmdLine
-	out.StartTimeMilli = i.startTimeMilli
-	out.CPUCores = i.cpuUsage
-	out.ContainerID = i.containerID
-	out.LastHeartbeat = i.lastHeartbeat
-	out.RxBytes = i.rxBytes
-	out.TxBytes = i.txBytes
-	out.RxBps = i.rxBps
-	out.TxBps = i.txBps
+	out.Type = string(servicetype.Detect(i.Ports))
 
 	return out
 }
+
+//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=impl_mock_linux.go
 
 type timeProvider interface {
 	Now() time.Time
@@ -192,8 +153,6 @@ type discovery struct {
 
 	timeProvider timeProvider
 	network      networkCollector
-
-	networkErrorLimit *log.Limit
 }
 
 type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
@@ -228,7 +187,6 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 		tagger:             tagger,
 		timeProvider:       tp,
 		network:            network,
-		networkErrorLimit:  log.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
@@ -249,6 +207,7 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
+	httpMux.HandleFunc("/network-stats", s.handleNetworkStatsEndpoint)
 	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
 	return nil
 }
@@ -329,7 +288,7 @@ func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) 
 	state.LastCPUTimeUpdate = s.lastCPUTimeUpdate.Unix()
 	state.LastNetworkStatsUpdate = s.lastNetworkStatsUpdate.Unix()
 
-	utils.WriteAsJSON(w, state)
+	utils.WriteAsJSON(w, state, utils.CompactOutput)
 }
 
 func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) {
@@ -338,17 +297,13 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 
 	services := make([]model.Service, 0)
 
-	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
-		utils.WriteAsJSON(w, "could not get PIDs")
+		utils.WriteAsJSON(w, "could not get PIDs", utils.CompactOutput)
 		return
 	}
 
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
+	context := newParsingContext()
 
 	containers := s.getContainersMap()
 	containerTagsCache := make(map[string][]string)
@@ -362,7 +317,7 @@ func (s *discovery) handleDebugEndpoint(w http.ResponseWriter, _ *http.Request) 
 		services = append(services, *service)
 	}
 
-	utils.WriteAsJSON(w, services)
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 // handleCheck is the handler for the /check endpoint.
@@ -382,39 +337,7 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	utils.WriteAsJSON(w, services)
-}
-
-const prefix = "socket:["
-
-// getSockets get a list of socket inode numbers opened by a process
-func getSockets(pid int32) ([]uint64, error) {
-	statPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
-	d, err := os.Open(statPath)
-	if err != nil {
-		return nil, err
-	}
-	defer d.Close()
-	fnames, err := d.Readdirnames(-1)
-	if err != nil {
-		return nil, err
-	}
-	var sockets []uint64
-	for _, fd := range fnames {
-		fullPath, err := os.Readlink(filepath.Join(statPath, fd))
-		if err != nil {
-			continue
-		}
-		if strings.HasPrefix(fullPath, prefix) {
-			sock, err := strconv.ParseUint(fullPath[len(prefix):len(fullPath)-1], 10, 64)
-			if err != nil {
-				continue
-			}
-			sockets = append(sockets, sock)
-		}
-	}
-
-	return sockets, nil
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
 }
 
 // socketInfo stores information related to each socket.
@@ -574,8 +497,17 @@ func getNsInfo(pid int) (*namespaceInfo, error) {
 // parsingContext holds temporary context not preserved between invocations of
 // the endpoint.
 type parsingContext struct {
-	procRoot  string
-	netNsInfo map[uint32]*namespaceInfo
+	procRoot       string
+	netNsInfo      map[uint32]*namespaceInfo
+	readlinkBuffer []byte
+}
+
+func newParsingContext() parsingContext {
+	return parsingContext{
+		procRoot:       kernel.ProcFSRoot(),
+		netNsInfo:      make(map[uint32]*namespaceInfo),
+		readlinkBuffer: make([]byte, readlinkBufferSize),
+	}
 }
 
 // addIgnoredPid store excluded pid.
@@ -621,11 +553,18 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 		return nil, err
 	}
 
-	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	lang := language.FindInArgs(exe, cmdline)
-	if lang == "" {
-		lang = language.FindUsingPrivilegedDetector(s.privilegedDetector, proc.Pid)
+	var tracerMetadataArr []tracermetadata.TracerMetadata
+	var firstMetadata *tracermetadata.TracerMetadata
+
+	tracerMetadata, err := tracermetadata.GetTracerMetadata(int(pid), kernel.ProcFSRoot())
+	if err == nil {
+		// Currently we only get the first tracer metadata
+		tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
+		firstMetadata = &tracerMetadata
 	}
+
+	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
+	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, firstMetadata)
 	env, err := getTargetEnvs(proc)
 	if err != nil {
 		return nil, err
@@ -640,26 +579,23 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 	ctx.ContextMap = contextMap
 
 	nameMeta := detector.GetServiceName(lang, ctx)
-	apmInstrumentation := apm.Detect(lang, ctx)
-
-	name := nameMeta.DDService
-	if name == "" {
-		name = nameMeta.Name
-	}
+	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
 	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
 
 	return &serviceInfo{
-		name:                     name,
-		generatedName:            nameMeta.Name,
-		generatedNameSource:      string(nameMeta.Source),
-		additionalGeneratedNames: nameMeta.AdditionalNames,
-		ddServiceName:            nameMeta.DDService,
-		language:                 lang,
-		apmInstrumentation:       apmInstrumentation,
-		ddServiceInjected:        nameMeta.DDServiceInjected,
-		cmdLine:                  truncateCmdline(lang, cmdline),
-		startTimeMilli:           uint64(createTime),
+		Service: model.Service{
+			GeneratedName:            nameMeta.Name,
+			GeneratedNameSource:      string(nameMeta.Source),
+			AdditionalGeneratedNames: nameMeta.AdditionalNames,
+			DDService:                nameMeta.DDService,
+			DDServiceInjected:        nameMeta.DDServiceInjected,
+			TracerMetadata:           tracerMetadataArr,
+			Language:                 string(lang),
+			APMInstrumentation:       string(apmInstrumentation),
+			CommandLine:              truncateCmdline(lang, cmdline),
+			StartTimeMilli:           uint64(createTime),
+		},
 	}, nil
 }
 
@@ -668,7 +604,7 @@ func (s *discovery) getServiceInfo(pid int32) (*serviceInfo, error) {
 const maxNumberOfPorts = 50
 
 func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error) {
-	sockets, err := getSockets(pid)
+	sockets, err := getSockets(pid, context.readlinkBuffer)
 	if err != nil {
 		return nil, err
 	}
@@ -774,7 +710,11 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 		s.cache[pid] = info
 	}
 
-	if s.shouldIgnoreService(info.name) {
+	preferredName := info.DDService
+	if preferredName == "" {
+		preferredName = info.GeneratedName
+	}
+	if s.shouldIgnoreService(preferredName) {
 		s.addIgnoredPid(pid)
 		return nil
 	}
@@ -792,16 +732,9 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 // from it. This function is not thread-safe and it is up to the caller to ensure
 // s.mux is locked.
 func (s *discovery) cleanCache(alivePids pidSet) {
-	for pid, info := range s.cache {
+	for pid := range s.cache {
 		if alivePids.has(pid) {
 			continue
-		}
-
-		if info.addedToMap {
-			err := s.network.removePid(uint32(pid))
-			if err != nil {
-				log.Warn("unable to remove pid from network collector", pid, err)
-			}
 		}
 
 		delete(s.cache, pid)
@@ -817,33 +750,31 @@ func (s *discovery) cleanCache(alivePids pidSet) {
 }
 
 func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
-	for pid, info := range s.cache {
-		if !info.addedToMap {
-			err := s.network.addPid(uint32(pid))
-			if err == nil {
-				info.addedToMap = true
-			} else if s.networkErrorLimit.ShouldLog() {
-				// This error can occur if the eBPF map used by the network
-				// collector is full.
-				log.Warnf("unable to add to network collector %v: %v", pid, err)
-			}
+	pids := make(pidSet, len(s.cache))
+	for pid := range s.cache {
+		pids.add(pid)
+	}
+
+	allStats, err := s.network.getStats(pids)
+	if err != nil {
+		log.Warnf("unable to get network stats: %v", err)
+		return
+	}
+
+	for pid, stats := range allStats {
+		info, ok := s.cache[int32(pid)]
+		if !ok {
 			continue
 		}
 
-		stats, err := s.network.getStats(uint32(pid))
-		if err != nil {
-			log.Warnf("unable to get network stats %v: %v", pid, err)
-			continue
-		}
+		deltaRx := stats.Rx - info.RxBytes
+		deltaTx := stats.Tx - info.TxBytes
 
-		deltaRx := stats.Rx - info.rxBytes
-		deltaTx := stats.Tx - info.txBytes
+		info.RxBps = float64(deltaRx) / deltaSeconds
+		info.TxBps = float64(deltaTx) / deltaSeconds
 
-		info.rxBps = float64(deltaRx) / deltaSeconds
-		info.txBps = float64(deltaTx) / deltaSeconds
-
-		info.rxBytes = stats.Rx
-		info.txBytes = stats.Tx
+		info.RxBytes = stats.Rx
+		info.TxBytes = stats.Tx
 	}
 
 	updateResponseNetworkStats := func(services []model.Service) {
@@ -854,10 +785,10 @@ func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.Ser
 				continue
 			}
 
-			service.RxBps = info.rxBps
-			service.TxBps = info.txBps
-			service.RxBytes = info.rxBytes
-			service.TxBytes = info.txBytes
+			service.RxBps = info.RxBps
+			service.TxBps = info.TxBps
+			service.RxBytes = info.RxBytes
+			service.TxBytes = info.TxBytes
 		}
 	}
 
@@ -922,7 +853,7 @@ func (s *discovery) updateServicesCPUStats(response *model.ServicesResponse) err
 				continue
 			}
 
-			service.CPUCores = info.cpuUsage
+			service.CPUCores = info.CPUCores
 		}
 	}
 
@@ -1068,10 +999,10 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[i
 
 	serviceInfo, ok := s.cache[int32(service.PID)]
 	if ok {
-		serviceInfo.containerServiceName = serviceName
-		serviceInfo.containerServiceNameSource = tagName
+		serviceInfo.ContainerServiceName = serviceName
+		serviceInfo.ContainerServiceNameSource = tagName
 		serviceInfo.checkedContainerData = true
-		serviceInfo.containerID = containerID
+		serviceInfo.ContainerID = containerID
 	}
 }
 
@@ -1083,9 +1014,9 @@ func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.T
 			return
 		}
 
-		info.lastHeartbeat = now.Unix()
-		info.ports = service.Ports
-		info.rss = service.RSS
+		info.LastHeartbeat = now.Unix()
+		info.Ports = service.Ports
+		info.RSS = service.RSS
 	}
 
 	for i := range response.StartedServices {
@@ -1127,16 +1058,12 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	procRoot := kernel.ProcFSRoot()
 	pids, err := process.Pids()
 	if err != nil {
 		return nil, err
 	}
 
-	context := parsingContext{
-		procRoot:  procRoot,
-		netNsInfo: make(map[uint32]*namespaceInfo),
-	}
+	context := newParsingContext()
 
 	response := &model.ServicesResponse{
 		StartedServices:   make([]model.Service, 0, len(s.potentialServices)),
@@ -1161,7 +1088,7 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 				continue
 			}
 
-			serviceHeartbeatTime := time.Unix(info.lastHeartbeat, 0)
+			serviceHeartbeatTime := time.Unix(info.LastHeartbeat, 0)
 			if now.Sub(serviceHeartbeatTime).Truncate(time.Minute) < params.heartbeatTime {
 				// We only need to refresh the service info (ports, etc.) for
 				// this service if it's time to send a heartbeat.
@@ -1193,7 +1120,6 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 
 		// This is a new potential service
 		s.potentialServices.add(pid)
-		log.Debugf("[pid: %d] adding process to potential: %s", pid, service.Name)
 	}
 
 	s.updateCacheInfo(response, now)
@@ -1211,4 +1137,53 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	response.RunningServicesCount = len(s.runningServices)
 
 	return response, nil
+}
+
+// handleNetworkStatsEndpoint is the handler for the /network-stats endpoint.
+// Returns network statistics for the provided list of PIDs.
+func (s *discovery) handleNetworkStatsEndpoint(w http.ResponseWriter, req *http.Request) {
+	if s.network == nil {
+		http.Error(w, "network stats collection is not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Parse PIDs from query parameter
+	pidsStr := req.URL.Query().Get("pids")
+	if pidsStr == "" {
+		http.Error(w, "missing required 'pids' query parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Split and parse PIDs
+	pidStrs := strings.Split(pidsStr, ",")
+	pids := make(pidSet, len(pidStrs))
+	for _, pidStr := range pidStrs {
+		pid, err := strconv.ParseInt(pidStr, 10, 32)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid PID format: %s", pidStr), http.StatusBadRequest)
+			return
+		}
+		pids.add(int32(pid))
+	}
+
+	// Get network stats
+	stats, err := s.network.getStats(pids)
+	if err != nil {
+		log.Errorf("failed to get network stats: %v", err)
+		http.Error(w, "failed to get network stats", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert stats to response format
+	response := model.NetworkStatsResponse{
+		Stats: make(map[int]model.NetworkStats, len(stats)),
+	}
+	for pid, stat := range stats {
+		response.Stats[int(pid)] = model.NetworkStats{
+			RxBytes: stat.Rx,
+			TxBytes: stat.Tx,
+		}
+	}
+
+	utils.WriteAsJSON(w, response, utils.CompactOutput)
 }
