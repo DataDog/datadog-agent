@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux && linux_bpf
+
 package marshal
 
 import (
@@ -69,7 +71,7 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisUnknownCommand))
 				}
 				aggregationBuilder.SetTruncated(key.Truncated)
-				aggregationBuilder.SetKeyName(key.KeyName)
+				aggregationBuilder.SetKeyName(key.KeyName.Get())
 
 				for isErr, stats := range errorToStats.ErrorToStats {
 					if stats.Count == 0 {

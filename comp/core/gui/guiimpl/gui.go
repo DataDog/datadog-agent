@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -82,6 +83,7 @@ type dependencies struct {
 	Collector collector.Component
 	Ac        autodiscovery.Component
 	Lc        fx.Lifecycle
+	Hostname  hostnameinterface.Component
 }
 
 type provides struct {
@@ -141,7 +143,7 @@ func newGui(deps dependencies) provides {
 	securedRouter := publicRouter.PathPrefix("/").Subrouter()
 	// Set up handlers for the API
 	agentRouter := securedRouter.PathPrefix("/agent").Subrouter().StrictSlash(true)
-	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, g.startTimestamp)
+	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
 	checkRouter := securedRouter.PathPrefix("/checks").Subrouter().StrictSlash(true)
 	checkHandler(checkRouter, deps.Collector, deps.Ac)
 
@@ -277,7 +279,13 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 	accessToken := g.auth.GenerateAccessToken()
 
 	// set the accessToken as a cookie and redirect the user to root page
-	http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/", HttpOnly: true})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "accessToken",
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   31536000, // 1 year
+	})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

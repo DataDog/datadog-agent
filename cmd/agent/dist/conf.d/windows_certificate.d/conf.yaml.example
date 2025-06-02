@@ -1,0 +1,85 @@
+## All options defined here are available to all instances.
+#
+init_config:
+
+    ## @param service - string - optional
+    ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+    ##
+    ## Additionally, this sets the default `service` for every log source.
+    #
+    # service: <SERVICE>
+
+## Every instance is scheduled independently of the others.
+#
+instances:
+
+    ## @param certificate_store - string - required
+    ## The certificate store to query from when verifying the Windows certificates.
+    ## This check can only query from local machine certificates.
+    ## Enter the store name as found in `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`
+    #
+    # - certificate_store: MY
+
+    ## @param certificate_subject - list of strings - optional
+    ## A list of strings to filter by the subjects of the certificates.
+    ## For example if you have `Microsoft Root Authority` in `certificate_subjects`
+    ## and you have a certificate with subject,
+    ## "CN=Microsoft Root Authority, OU=Microsoft Corporation, OU=Copyright (c) 1997 Microsoft Corp."
+    ## then the certificate will be matched and metrics will be collected for that certificate.
+    ## If `certificate_subjects` is empty then all certificates in `certificate_store` are collected.
+    #
+    # certificate_subjects:
+    #   - <SUBJECT_1>
+    #   - <SUBJECT_2>
+
+    ## @param days_warning - integer - optional - default: 14
+    ## Number of days before certificate expiration from which the service check
+    ## `tls.cert_expiration` begins emitting WARNING.
+    #
+    # days_warning: 14
+
+    ## @param days_critical - integer - optional - default: 7
+    ## Number of days before certificate expiration from which the service check
+    ## `tls.cert_expiration` begins emitting CRITICAL.
+    #
+    # days_critical: 7
+
+    ## @param tags - list of strings - optional
+    ## A list of tags to attach to every metric and service check emitted by this instance.
+    ##
+    ## Learn more about tagging at https://docs.datadoghq.com/tagging
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+
+    ## @param service - string - optional
+    ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+    ##
+    ## Overrides any `service` defined in the `init_config` section.
+    #
+    # service: <SERVICE>
+
+    ## @param min_collection_interval - number - optional - default: 300
+    ## This changes the collection interval of the check. For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 300
+
+    ## @param empty_default_hostname - boolean - optional - default: false
+    ## This forces the check to send metrics with no hostname.
+    ##
+    ## This is useful for cluster-level checks.
+    #
+    # empty_default_hostname: false
+
+    ## @param metric_patterns - mapping - optional
+    ## A mapping of metrics to include or exclude, with each entry being a regular expression.
+    ##
+    ## Metrics defined in `exclude` will take precedence in case of overlap.
+    #
+    # metric_patterns:
+    #   include:
+    #   - <INCLUDE_REGEX>
+    #   exclude:
+    #   - <EXCLUDE_REGEX>

@@ -12,13 +12,13 @@ site_dir: site
 theme:
   name: material
   language: en
+  font:
+    text: Roboto
+    code: Roboto Mono
   favicon: assets/images/favicon.ico
   logo: assets/images/logo.svg
   icon:
     repo: fontawesome/brands/github-alt
-  font:
-    text: Roboto
-    code: Roboto Mono
   palette:
   - media: "(prefers-color-scheme: dark)"
     scheme: slate
@@ -35,8 +35,11 @@ theme:
   features:
   - content.action.edit
   - content.code.copy
+  - content.tabs.link
+  - content.tooltips
   - navigation.expand
   - navigation.footer
+  - navigation.indexes
   - navigation.instant
   - navigation.sections
   - navigation.tabs
@@ -98,7 +101,6 @@ plugins:
 markdown_extensions:
 # Built-in
 - markdown.extensions.abbr:
-- markdown.extensions.admonition:
 - markdown.extensions.attr_list:
 - markdown.extensions.footnotes:
 - markdown.extensions.md_in_html:
@@ -110,6 +112,53 @@ markdown_extensions:
 - pymdownx.arithmatex:
 - pymdownx.betterem:
     smart_enable: all
+- pymdownx.blocks.admonition:
+    # https://squidfunk.github.io/mkdocs-material/reference/admonitions/#supported-types
+    types:
+    - abstract
+    - bug
+    - danger
+    - example
+    - failure
+    - info
+    - note
+    - question
+    - quote
+    - success
+    - tip
+    - warning
+- pymdownx.blocks.details:
+    # Same as admonition types except prefixed by `details-`
+    types:
+    - name: details-abstract
+      class: abstract
+    - name: details-bug
+      class: bug
+    - name: details-danger
+      class: danger
+    - name: details-example
+      class: example
+    - name: details-failure
+      class: failure
+    - name: details-info
+      class: info
+    - name: details-note
+      class: note
+    - name: details-question
+      class: question
+    - name: details-quote
+      class: quote
+    - name: details-success
+      class: success
+    - name: details-tip
+      class: tip
+    - name: details-warning
+      class: warning
+- pymdownx.blocks.tab:
+    alternate_style: true
+    slugify: !!python/object/apply:pymdownx.slugs.slugify
+      kwds:
+        case: lower
 - pymdownx.caret:
 - pymdownx.critic:
 - pymdownx.details:
@@ -119,9 +168,10 @@ markdown_extensions:
     emoji_index: !!python/name:material.extensions.emoji.twemoji
     emoji_generator: !!python/name:material.extensions.emoji.to_svg
 - pymdownx.highlight:
-    guess_lang: false
+    anchor_linenums: true
+    line_spans: __span
     linenums_style: pymdownx-inline
-    use_pygments: true
+    pygments_lang_class: true
 - pymdownx.inlinehilite:
 - pymdownx.keys:
 - pymdownx.magiclink:
@@ -145,12 +195,6 @@ markdown_extensions:
     - links.txt
     - abbrs.txt
 - pymdownx.superfences:
-- pymdownx.tabbed:
-    alternate_style: true
-    combine_header_slug: true
-    slugify: !!python/object/apply:pymdownx.slugs.slugify
-      kwds:
-        case: lower
 - pymdownx.tasklist:
     custom_checkbox: true
 - pymdownx.tilde:
