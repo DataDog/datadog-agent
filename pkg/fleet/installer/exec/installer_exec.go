@@ -23,6 +23,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 )
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
@@ -206,6 +207,31 @@ func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, er
 		return false, err
 	}
 	return true, nil
+}
+
+// Status checks if a package is installed.
+func (i *InstallerExec) Status(ctx context.Context, debug bool) (_ *installertypes.InstallerStatus, err error) {
+	args := []string{"--json"}
+	if debug {
+		args = append(args, "--debug")
+	}
+	cmd := i.newInstallerCmd(ctx, "status", args...)
+	defer func() { cmd.span.Finish(err) }()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("error running status: %w\n%s", err, stderr.String())
+	}
+
+	var status installertypes.InstallerStatus
+	err = json.Unmarshal(stdout.Bytes(), &status)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling status: %w\n`%s`", err, stdout.String())
+	}
+	return &status, nil
 }
 
 // DefaultPackages returns the default packages to install.

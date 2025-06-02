@@ -44,6 +44,11 @@ func (m *testPackageManager) IsInstalled(ctx context.Context, pkg string) (bool,
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *testPackageManager) Status(ctx context.Context, debug bool) (*installertypes.InstallerStatus, error) {
+	args := m.Called(ctx, debug)
+	return args.Get(0).(*installertypes.InstallerStatus), args.Error(1)
+}
+
 func (m *testPackageManager) AvailableDiskSpace() (uint64, error) {
 	args := m.Called()
 	return args.Get(0).(uint64), args.Error(1)

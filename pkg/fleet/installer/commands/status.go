@@ -6,20 +6,15 @@
 package commands
 
 import (
-	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func statusCommand() *cobra.Command {
@@ -54,43 +49,20 @@ var functions = template.FuncMap{
 	},
 }
 
-type statusResponse struct {
-	Version            string                       `json:"version"`
-	Packages           *repository.PackageStates    `json:"packages"`
-	ApmInjectionStatus ssi.APMInstrumentationStatus `json:"apm_injection_status"`
-	RemoteConfigState  []*remoteConfigPackageState  `json:"remote_config_state"`
-}
-
 func status(debug bool, jsonOutput bool) error {
 	tmpl, err := template.New("status").Funcs(functions).Parse(string(statusTmpl))
 	if err != nil {
 		return fmt.Errorf("error parsing status template: %w", err)
 	}
 
-	// Get states & convert to map[string]packageState
-	packageStates, err := getState()
+	i, err := newInstallerCmd("get_states")
 	if err != nil {
-		return fmt.Errorf("error getting package states: %w", err)
+		return err
 	}
-
-	apmSSIStatus, err := ssi.GetInstrumentationStatus()
+	defer i.stop(err)
+	status, err := i.Status(i.ctx, debug)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error getting APM injection status: %s", err.Error())
-	}
-
-	status := statusResponse{
-		Version:            version.AgentVersion,
-		Packages:           packageStates,
-		ApmInjectionStatus: apmSSIStatus,
-	}
-
-	if debug {
-		// Remote Config status may be confusing for customers, so we only print it in debug mode
-		remoteConfigStatus, err := getRCStatus()
-		if err != nil {
-			fmt.Fprint(os.Stderr, err.Error())
-		}
-		status.RemoteConfigState = remoteConfigStatus.PackageStates
+		return err
 	}
 
 	if !jsonOutput {
@@ -106,56 +78,4 @@ func status(debug bool, jsonOutput bool) error {
 		fmt.Println(string(rawResult))
 	}
 	return nil
-}
-
-// remoteConfigState is the response to the daemon status route.
-// It is technically a json-encoded protobuf message but importing
-// the protos in the installer binary is too heavy.
-type remoteConfigState struct {
-	PackageStates []*remoteConfigPackageState `json:"remote_config_state"`
-}
-
-type remoteConfigPackageState struct {
-	Package                 string                   `json:"package"`
-	StableVersion           string                   `json:"stable_version,omitempty"`
-	ExperimentVersion       string                   `json:"experiment_version,omitempty"`
-	Task                    *remoteConfigPackageTask `json:"task,omitempty"`
-	StableConfigVersion     string                   `json:"stable_config_version,omitempty"`
-	ExperimentConfigVersion string                   `json:"experiment_config_version,omitempty"`
-}
-
-type remoteConfigPackageTask struct {
-	ID    string         `json:"id,omitempty"`
-	State int32          `json:"state,omitempty"`
-	Error *errorWithCode `json:"error,omitempty"`
-}
-
-type errorWithCode struct {
-	Code    uint64 `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
-}
-
-func getRCStatus() (remoteConfigState, error) {
-	var response remoteConfigState
-
-	// The simplest thing here is to call ourselves with the daemon command
-	installerBinary, err := os.Executable()
-	if err != nil {
-		return response, fmt.Errorf("could not get installer binary path: %w", err)
-	}
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	cmd := exec.Command(installerBinary, "daemon", "rc-status")
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	err = cmd.Run()
-	if err != nil {
-		return response, fmt.Errorf("error running \"datadog-installer daemon rc-status\" (is the daemon running?): %s", stderr.String())
-	}
-
-	err = json.Unmarshal(stdout.Bytes(), &response)
-	if err != nil {
-		return response, fmt.Errorf("error unmarshalling response: %w", err)
-	}
-	return response, nil
 }

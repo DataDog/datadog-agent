@@ -10,8 +10,6 @@ package ssistatusimpl
 import (
 	"context"
 	"fmt"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 )
 
 // autoInstrumentationStatus checks if the APM auto-instrumentation is enabled on the host. This will return false on Kubernetes
@@ -21,18 +19,20 @@ func (c *ssiStatusComponent) autoInstrumentationStatus(ctx context.Context) (boo
 		return false, nil, fmt.Errorf("could not check if injector package is installed: %w", err)
 	}
 
-	instrumentationStatus, err := ssi.GetInstrumentationStatus()
+	installerStatus, err := c.iexec.Status(ctx, false)
 	if err != nil {
-		return false, nil, fmt.Errorf("could not get APM injection status: %w", err)
+		return false, nil, fmt.Errorf("could not get installer status: %w", err)
 	}
 
 	instrumentationModes := []string{}
-	if instrumentationStatus.HostInstrumented {
+	if installerStatus.ApmInjectionStatus.HostInstrumented {
 		instrumentationModes = append(instrumentationModes, "host")
 	}
-	if instrumentationStatus.DockerInstalled && instrumentationStatus.DockerInstrumented {
+	if installerStatus.ApmInjectionStatus.DockerInstalled && installerStatus.ApmInjectionStatus.DockerInstrumented {
 		instrumentationModes = append(instrumentationModes, "docker")
 	}
 
-	return injectorInstalled && (instrumentationStatus.HostInstrumented || (instrumentationStatus.DockerInstrumented && instrumentationStatus.DockerInstalled)), instrumentationModes, nil
+	return injectorInstalled && (installerStatus.ApmInjectionStatus.HostInstrumented || (installerStatus.ApmInjectionStatus.DockerInstrumented && installerStatus.ApmInjectionStatus.DockerInstalled)),
+		instrumentationModes,
+		nil
 }

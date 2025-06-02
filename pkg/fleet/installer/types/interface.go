@@ -16,6 +16,7 @@ import (
 // Installer is a package manager that installs and uninstalls packages.
 type Installer interface {
 	IsInstalled(ctx context.Context, pkg string) (bool, error)
+	Status(ctx context.Context, debug bool) (*InstallerStatus, error)
 
 	AvailableDiskSpace() (uint64, error)
 	State(ctx context.Context, pkg string) (repository.State, error)
