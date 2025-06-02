@@ -233,7 +233,7 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) error {
 		return err
 	}
 
-	tcp4Stats, err := c.net.TcpStats("tcp6")
+	tcp6Stats, err := c.net.TcpStats("tcp6")
 	if err != nil {
 		return err
 	}
