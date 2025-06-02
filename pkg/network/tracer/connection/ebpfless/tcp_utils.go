@@ -56,6 +56,11 @@ const (
 	ProcessResultMapFull
 )
 
+// ShouldPersist returns whether this result has actionable data that can be persisted into the tracer
+func (r ProcessResult) ShouldPersist() bool {
+	return r == ProcessResultStoreConn || r == ProcessResultCloseConn
+}
+
 var statsTelemetry = struct {
 	expiredPendingConns     telemetry.Counter
 	droppedPendingConns     telemetry.Counter

@@ -5,10 +5,6 @@
 
 //go:build linux_bpf
 
-// TODO: This package and file name "obgect" are to work around a far too broad
-// gitignore rule. The rule and these files are to be renamed in a follow-up
-// change to avoid process overhead.
-
 // Package object abstracts the loading of debugging sections from an object
 // file (such as an ELF file).
 package object
