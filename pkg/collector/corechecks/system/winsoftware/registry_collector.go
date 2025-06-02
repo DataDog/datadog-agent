@@ -46,6 +46,9 @@ const (
 	profileImagePathValue = "ProfileImagePath"
 )
 
+// Helper value to indicate we want all entries from the registry
+const wantAll = -1
+
 // RegistryCollector implements SoftwareCollector for Windows Registry
 type RegistryCollector struct{}
 
@@ -73,12 +76,13 @@ func (rc *RegistryCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 
 	// 2. All loaded user hives (HKU)
 	hku, err := registry.OpenKey(registry.USERS, "", registry.READ)
+	var loadedUserSids []string
 	if err == nil {
 		// We intentionally ignore the Close error here as it's unlikely to fail
 		// and there's not much we can do about it in a defer
 		defer func() { _ = hku.Close() }()
-		userSIDs, _ := hku.ReadSubKeyNames(-1)
-		for _, sid := range userSIDs {
+		loadedUserSids, _ = hku.ReadSubKeyNames(wantAll)
+		for _, sid := range loadedUserSids {
 			// Only collect user hives for regular users, not system accounts
 			if !strings.HasPrefix(sid, "S-1-5-21-") {
 				continue
@@ -92,6 +96,9 @@ func (rc *RegistryCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 				}
 			}
 		}
+	} else {
+		// If we can't open HKU, log a warning but continue with the rest of the collection
+		warnings = append(warnings, warnf("failed to open HKU key: %v", err))
 	}
 
 	// 3. All unmounted user hives (discovered via ProfileList registry)
@@ -103,13 +110,7 @@ func (rc *RegistryCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 
 	for _, profile := range userProfiles {
 		// Skip if this profile is already loaded in HKU
-		hku, _ := registry.OpenKey(registry.USERS, "", registry.READ)
-		loadedSIDs, _ := hku.ReadSubKeyNames(-1)
-		err = hku.Close()
-		if err != nil {
-			return nil, warnings, err
-		}
-		if slices.Contains(loadedSIDs, profile.SID) {
+		if slices.Contains(loadedUserSids, profile.SID) {
 			continue
 		}
 
@@ -149,13 +150,13 @@ func getUserProfilesFromRegistry() ([]UserProfile, []*Warning, error) {
 	var profiles []UserProfile
 	var warnings []*Warning
 
-	profileListKey, err := registry.OpenKey(registry.LOCAL_MACHINE, profileListKey, registry.READ)
+	profileList, err := registry.OpenKey(registry.LOCAL_MACHINE, profileListKey, registry.READ)
 	if err != nil {
 		return profiles, warnings, fmt.Errorf("failed to open ProfileList list: %v", err)
 	}
-	defer func() { _ = profileListKey.Close() }()
+	defer func() { _ = profileList.Close() }()
 
-	sidKeys, err := profileListKey.ReadSubKeyNames(-1)
+	sidKeys, err := profileList.ReadSubKeyNames(wantAll)
 	if err != nil {
 		return profiles, warnings, fmt.Errorf("failed to read ProfileList subkeys: %v", err)
 	}
@@ -166,7 +167,7 @@ func getUserProfilesFromRegistry() ([]UserProfile, []*Warning, error) {
 			continue
 		}
 
-		sidKey, err := registry.OpenKey(profileListKey, sid, registry.READ)
+		sidKey, err := registry.OpenKey(profileList, sid, registry.READ)
 		if err != nil {
 			warnings = append(warnings, warnf("failed to open profile key for SID %s: %v", sid, err))
 			continue
@@ -202,7 +203,7 @@ func collectFromKey(root registry.Key, subkey string, view uint32) ([]*SoftwareE
 		return nil, warnings
 	}
 	defer func() { _ = key.Close() }()
-	subkeys, err := key.ReadSubKeyNames(-1)
+	subkeys, err := key.ReadSubKeyNames(wantAll)
 	if err != nil {
 		warnings = append(warnings, warnf("failed to read subkeys from %s: %v", subkey, err))
 		return nil, warnings
