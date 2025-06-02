@@ -47,7 +47,7 @@ type Event struct {
 	Deleted []*workloadmeta.Process
 }
 
-func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, containerProvider proccontainers.ContainerProvider) collector {
+func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe) collector {
 	return collector{
 		id:                     id,
 		catalog:                catalog,
@@ -55,19 +55,13 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		processProbe:           processProbe,
 		processEventsCh:        make(chan *Event),
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
-		containerProvider:      containerProvider,
 	}
 }
 
 // NewProcessCollectorProvider returns a new process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewProcessCollectorProvider() (workloadmeta.CollectorProvider, error) {
-	containerProvider, err := proccontainers.GetSharedContainerProvider()
-	if err != nil {
-		return workloadmeta.CollectorProvider{}, err
-	}
-
-	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), containerProvider)
+	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe())
 	return workloadmeta.CollectorProvider{
 		Collector: &collector,
 	}, nil
@@ -96,6 +90,14 @@ func (c *collector) collectionIntervalConfig() time.Duration {
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if c.isEnabled() {
+
+		if c.containerProvider == nil {
+			containerProvider, err := proccontainers.GetSharedContainerProvider()
+			if err != nil {
+				return err
+			}
+			c.containerProvider = containerProvider
+		}
 		c.store = store
 		go c.collect(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
 		go c.stream(ctx)

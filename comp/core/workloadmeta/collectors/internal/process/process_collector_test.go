@@ -56,7 +56,7 @@ func setUpCollectorTest(t *testing.T, configOverrides map[string]interface{}) co
 
 	mockClock := clock.NewMock()
 	mockProbe := mocks.NewProbe(t)
-	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, mockContainerProvider)
+	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe)
 
 	return collectorTest{&processCollector, mockProbe, mockClock, mockStore, mockContainerProvider}
 }
@@ -255,6 +255,7 @@ func TestCreatedProcessesCollection(t *testing.T) {
 
 			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
 			// by default disabled
+			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
 			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
@@ -404,6 +405,7 @@ func TestProcessLifecycleCollection(t *testing.T) {
 
 			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
 			// by default disabled
+			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
 			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
