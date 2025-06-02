@@ -219,17 +219,27 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 	}
 	defer m.Disconnect()
 
-	instService, err := winutil.OpenService(m, "Datadog Installer", windows.SERVICE_QUERY_STATUS)
+	instService, err := winutil.OpenService(m, "Datadog Installer", windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer instService.Close()
 
-	dataDogService, err := winutil.OpenService(m, "datadogagent", windows.SERVICE_QUERY_STATUS)
+	dataDogService, err := winutil.OpenService(m, "datadogagent", windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer dataDogService.Close()
+
+	// Start the services we intend to monitor
+	// Relying on the MSI or another tool to start the services before this
+	// call can be racy, particularly since the MSI only starts the Agent
+	// service, which in turn starts the Installer service sometime later.
+	// On success, Start() blocks until the service enters StartPending state.
+	_ = instService.Start()
+	_ = dataDogService.Start()
+	// Ignore errors from starting the services, the following loop will
+	// detect if the services are not running and return an error.
 
 	// main watchdog loop
 	// Watch the Installer and Agent services and ensure they stay running
