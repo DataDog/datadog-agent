@@ -1,4 +1,0 @@
----
-enhancements:
-  - |
-    ECS Fargate (Linux): added a one-time warning when `pidMode` is not set to `task`, which will prevent process collection.
