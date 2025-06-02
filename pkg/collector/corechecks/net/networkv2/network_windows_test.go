@@ -32,9 +32,9 @@ type fakeNetworkStats struct {
 	connectionStatsTCP4Error error
 	connectionStatsTCP6      []net.ConnectionStat
 	connectionStatsTCP6Error error
-	tcp4Stats                []net.ConnectionStat
+	tcp4Stats                *mibTcpStats
 	tcp4StatsError           error
-	tcp6Stats                []net.ConnectionStat
+	tcp6Stats                *mibTcpStats
 	tcp6StatsError           error
 }
 
