@@ -9,10 +9,14 @@ package agentsidecar
 
 import "fmt"
 
+// VolumeAlreadyAttached indicates that a give volume has
+// already been attached to a Pod's spec
 type VolumeAlreadyAttached struct {
 	volume string
 }
 
+// PathAlreadyMounted indicates that there is already
+// a volume mount mounted on a container at the specified path
 type PathAlreadyMounted struct {
 	path string
 }

@@ -301,7 +301,7 @@ func (w *Webhook) getSecurityInitTemplate() *corev1.Container {
 }
 
 func (w *Webhook) getVolumeTemplates() []corev1.Volume {
-	volumes := NewPseudoSet[corev1.Volume]()
+	volumes := newPseudoSet[corev1.Volume]()
 
 	if w.isReadOnlyRootFilesystem() {
 		for _, vol := range readOnlyRootFilesystemVolumes {
@@ -319,7 +319,7 @@ func (w *Webhook) getVolumeTemplates() []corev1.Volume {
 }
 
 func (w *Webhook) getVolumeMountTemplates() []corev1.VolumeMount {
-	volumeMounts := NewPseudoSet[corev1.VolumeMount]()
+	volumeMounts := newPseudoSet[corev1.VolumeMount]()
 
 	if w.isReadOnlyRootFilesystem() {
 		for _, vm := range readOnlyRootFilesystemVolumeMounts {

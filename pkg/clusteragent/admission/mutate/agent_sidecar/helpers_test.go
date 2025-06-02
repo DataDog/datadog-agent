@@ -18,7 +18,7 @@ func TestPseudoSet(t *testing.T) {
 	expected := []string{"a", "b", "c"}
 
 	t.Run("elements are deduplicated", func(t *testing.T) {
-		set := NewPseudoSet[string]()
+		set := newPseudoSet[string]()
 		for _, e := range elements {
 			set.Add(e)
 		}
