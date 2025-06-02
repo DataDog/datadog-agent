@@ -29,8 +29,9 @@ type flowContext struct {
 
 // flowStat tracks statistics about flows being processed
 type flowStat struct {
-	numberOfUses    uint64
-	flowsAggregated uint64
+	numberOfUses        uint64
+	flowsAggregated     uint64
+	flowDurationSeconds uint64
 }
 
 // flowAccumulator is used to accumulate aggregated flows
@@ -115,9 +116,9 @@ func (f *flowAccumulator) flush() ([]*common.Flow, []flowStat) {
 
 			// Create stats for this flow
 			stats := flowStat{
-				numberOfUses:    flowCtx.numberOfUses,
-				flowsAggregated: flowCtx.flowsAggregated,
-				// JMW for each flow to flush, observe a histogram metric for duration of the flow (end time - start time), and/or current time - lastFlush
+				numberOfUses:        flowCtx.numberOfUses,
+				flowsAggregated:     flowCtx.flowsAggregated,
+				flowDurationSeconds: flowCtx.flow.EndTimestamp - flowCtx.flow.StartTimestamp,
 			}
 			flowStats = append(flowStats, stats)
 

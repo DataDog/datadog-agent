@@ -49,6 +49,12 @@ var (
 		"netflow.aggregator", "flow_context_flows_aggregated", nil,
 		"Number of flows aggregated into a flow context before being flushed", flowContextBuckets,
 	)
+
+	durationSecondsBuckets              = []float64{30, 60, 90, 120, 150, 180, 210, 240, 270, 300}
+	telemetryFlowContextDurationSeconds = telemetry.NewHistogram(
+		"netflow.aggregator", "flow_context_duration_seconds", nil,
+		"Duration of a flow context from first flow seen to last flow seen before flush", durationSecondsBuckets,
+	)
 )
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
@@ -280,9 +286,11 @@ func (agg *FlowAggregator) flush() {
 		// JMW? agg.sender.Histogram(metricPrefix+"aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
 		telemetryFlowContextNumberOfUses.Observe(float64(flowStat.numberOfUses))
 		telemetryFlowContextFlowsAggregated.Observe(float64(flowStat.flowsAggregated))
+		telemetryFlowContextDurationSeconds.Observe(float64(flowStat.flowDurationSeconds))
+
 		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_number_of_uses", float64(flowStat.numberOfUses), "", nil)
 		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
-		// JMWTHU add Distribution of duration of flow context
+		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_duration_seconds", float64(flowStat.flowDurationSeconds), "", nil)
 	}
 
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
