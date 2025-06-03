@@ -324,12 +324,25 @@ func setupGoModule(ctx context.Context, cmd *exec.Cmd, programPath string) error
 	// modify original `exec.Cmd` object by setting the `Dir` field to the one we created
 	cmd.Dir = moduleDir
 
+	// Pin the golang.org/x/net module to an old version. Newer versions cannot
+	// be processed by Go <= 1.16 because the go.mod in x/net has the wrong
+	// format. Newer versions of the package have a go.mod file that can't be
+	// parsed by Go <= 1.16.
+	getCmd := exec.CommandContext(ctx, "go", "get", "golang.org/x/net@v0.35.0")
+	getCmd.Env = cmd.Env
+	getCmd.Dir = cmd.Dir
+	getCmd.Path = cmd.Path
+	output, err := getCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error executing 'go get': %s\n%s", err, output)
+	}
+
 	// now run `go mod tidy`
 	modCmd := exec.CommandContext(ctx, "go", "mod", "tidy")
 	modCmd.Env = cmd.Env
 	modCmd.Dir = cmd.Dir
 	modCmd.Path = cmd.Path
-	output, err := modCmd.CombinedOutput()
+	output, err = modCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error executing 'go mod tidy': %s\n%s", err, output)
 	}
