@@ -8,9 +8,9 @@
 package daemon
 
 import (
-	"time"
+	"golang.org/x/sys/windows"
 
-	"github.com/Microsoft/go-winio"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 // NewDaemonChecker creates a new DaemonChecker instance
@@ -19,11 +19,22 @@ func NewDaemonChecker() Checker {
 }
 
 func (c *daemonCheckerImpl) IsRunning() (bool, error) {
-	timeout := 100 * time.Millisecond
-	conn, err := winio.DialPipe(namedPipePath, &timeout)
+	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return false, err
+	}
+	defer manager.Disconnect()
+
+	service, err := winutil.OpenService(manager, "Datadog Installer", windows.SERVICE_QUERY_STATUS)
 	if err != nil {
 		return false, nil
 	}
-	conn.Close()
-	return true, nil
+	defer service.Close()
+
+	status, err := service.Query()
+	if err != nil {
+		return false, nil
+	}
+
+	return status.State == windows.SERVICE_RUNNING, nil
 }
