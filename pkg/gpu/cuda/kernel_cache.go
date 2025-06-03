@@ -151,7 +151,7 @@ func (kc *KernelCache) Stop() {
 func buildSymbolFileIdentifier(path string) (symbolFileIdentifier, error) {
 	stat, err := utils.UnixStat(path)
 	if err != nil {
-		return symbolFileIdentifier{}, fmt.Errorf("error getting file info: %w", err)
+		return symbolFileIdentifier{}, fmt.Errorf("error getting file info (path=%s): %w", path, err)
 	}
 
 	return symbolFileIdentifier{inode: int(stat.Ino), fileSize: stat.Size}, nil
