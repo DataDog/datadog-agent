@@ -9,9 +9,10 @@ package kafka
 
 import (
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/google/uuid"
 )
 
 // ConnTuple returns the connection tuple for the transaction
@@ -102,4 +103,20 @@ RawKernelTelemetry{
 }`, t.Topic_name_size_buckets[0], t.Topic_name_size_buckets[1], t.Topic_name_size_buckets[2], t.Topic_name_size_buckets[3],
 		t.Topic_name_size_buckets[4], t.Topic_name_size_buckets[5], t.Topic_name_size_buckets[6], t.Topic_name_size_buckets[7],
 		t.Topic_name_size_buckets[8], t.Topic_name_size_buckets[9], t.Produce_no_required_acks, fetchVersionsHits, produceVersionsHits)
+}
+
+func (k *KafkaTopicIDToNameKey) String() string {
+	topicUUID, err := uuid.FromBytes(k.Id[:])
+	if err != nil {
+		topicUUID = uuid.Nil
+	}
+
+	return fmt.Sprintf(
+		"[%v:%d ⇄ %v:%d] %s",
+		util.FromLowHigh(k.Tup.Saddr_l, k.Tup.Saddr_h),
+		k.Tup.Sport,
+		util.FromLowHigh(k.Tup.Daddr_l, k.Tup.Daddr_h),
+		k.Tup.Dport,
+		topicUUID.String(),
+	)
 }

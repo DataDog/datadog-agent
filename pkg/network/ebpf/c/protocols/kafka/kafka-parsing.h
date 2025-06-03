@@ -1044,15 +1044,21 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_STRING_SIZE) {
                 continue; // maybe handle null or empty topic names?
             }
-
-            // TODO Handle topic_name_size exceeding the packet size
-
+            if (offset + topic_name_size > pktbuf_data_end(pkt)) {
+                // handle reminder?
+                extra_debug("not enough data to read topic_name");
+                break;
+            }
             pktbuf_load_bytes_with_telemetry(pkt, offset, topic_name, topic_name_size);
             offset += topic_name_size;
 
             // Read topic UUID
             u8 topic_id[16] = {};
-            // TODO Handle topic_id exceeding the packet size
+            if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
+                // handle reminder?
+                extra_debug("not enough data to read topic_id");
+                break;
+            }
             pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
             offset += sizeof(topic_id);
 
@@ -1061,13 +1067,18 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 kafka_topic_id_to_name_key_t key;
                 bpf_memset(&key, 0, sizeof(key));
                 bpf_memcpy(&key.topic_id, topic_id, sizeof(topic_id));
-                bpf_memcpy(&key.tup, tup, sizeof(tup));
+                bpf_memcpy(&key.tup, tup, sizeof(*tup));
+
+                kafka_topic_id_to_name_value_t value;
+                bpf_memset(&value, 0, sizeof(value));
+                bpf_memcpy(&value.topic_name, topic_name, sizeof(value.topic_name));
+                value.topic_name_size = topic_name_size;
+
                 // Flip the tuple for the request tup.
                 flip_tuple(&key.tup);
-                bpf_map_update_elem(&kafka_topic_id_to_name, &key, topic_name, BPF_NOEXIST);
+                bpf_map_update_elem(&kafka_topic_id_to_name, &key, &value, BPF_ANY); // BPF_ANY?
 
-                log_debug("GUY update kafka_topic_id_to_name topic_id %02x%02x, topic_name %s",
-                          topic_id[0], topic_id[1], topic_name);
+                log_debug("GUY update kafka_topic_id_to_name topic name size %d, topic_name %s", topic_name_size, topic_name);
             }
 
             offset += sizeof(u8); // Skip bool is_internal
@@ -1950,36 +1961,42 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
             pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
             offset += sizeof(topic_id);
 
-            log_debug("GUY got topic id: %02x%02x%02x skipping", topic_id[0], topic_id[1], topic_id[2]);
-
             // Exit if the topic ID is not a valid UUID v4.
             if (!(IS_UUID_V4(topic_id))) {
+                log_debug("GUY topic id %02x%02x%02x is not a valid UUID v4", topic_id[0], topic_id[1], topic_id[2]);
                 return false;
             }
 
             kafka_topic_id_to_name_key_t key;
             bpf_memset(&key, 0, sizeof(key));
             bpf_memcpy(&key.topic_id, topic_id, sizeof(topic_id));
-            bpf_memcpy(&key.tup, tup, sizeof(tup));
+            bpf_memcpy(&key.tup, tup, sizeof(*tup));
 
-            char* topic_name = bpf_map_lookup_elem(&kafka_topic_id_to_name, &key);
-            if (topic_name == NULL) {
+            kafka_topic_id_to_name_value_t* topic_name_result = bpf_map_lookup_elem(&kafka_topic_id_to_name, &key);
+            if (topic_name_result == NULL) {
                 // ERROR
+                log_debug("GUY tup src_l:%llu,src_h:%llu", key.tup.saddr_l, key.tup.saddr_h);
+                log_debug("GUY tup dst_l:%llu, dst_h:%llu", key.tup.daddr_l, key.tup.daddr_h);
+                log_debug("GUY tup sport:%u, dport:%u", key.tup.sport, key.tup.dport);
+                log_debug("GUY map lookup failed for topic_id %02x%02x%02x", topic_id[0], topic_id[1], topic_id[2]);
                 return false;
             }
-            s16 topic_name_size = TOPIC_NAME_MAX_STRING_SIZE;
 
-            bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
-            bpf_memcpy(kafka_transaction->topic_name, topic_name, topic_name_size);
+            if (topic_name_result->topic_name_size <= 0 || topic_name_result->topic_name_size > TOPIC_NAME_MAX_STRING_SIZE) {
+                log_debug("GUY topic name size %u is invalid", topic_name_result->topic_name_size);
+                return false;
+            }
 
-            // TODO
-//            update_topic_name_size_telemetry(kafka_tel, topic_name_size);
-            kafka_transaction->topic_name_size = topic_name_size;
+            bpf_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
+            bpf_memcpy(kafka_transaction->topic_name, topic_name_result->topic_name, sizeof(kafka_transaction->topic_name));
+            kafka_transaction->topic_name_size = topic_name_result->topic_name_size;
 
-            log_debug("GUY found kafka_topic_id_to_name topic_id %02x%02x, topic_name %s",
-                      topic_id[0], topic_id[1], kafka_transaction->topic_name);
+            // Update telemetry with the topic name size
+            log_debug("GUY topic_name_size: %u", topic_name_result->topic_name_size);
+            log_debug("GUY topic_name: %s", kafka_transaction->topic_name);
+            update_topic_name_size_telemetry(kafka_tel, topic_name_result->topic_name_size);
 
-            CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
+            CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, TOPIC_NAME_MAX_STRING_SIZE, kafka_transaction->topic_name);
         } else {
             s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
             if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
@@ -1996,7 +2013,6 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
             offset += topic_name_size;
             CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
         }
-        log_debug("kafka: topic name is %s", kafka_transaction->topic_name);
     }
 
     switch (kafka_header.api_key) {

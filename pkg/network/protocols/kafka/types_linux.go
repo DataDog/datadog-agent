@@ -76,3 +76,8 @@ type RawKernelTelemetry struct {
 	Classified_produce_api_version_hits [13]uint64
 	Classified_fetch_api_version_hits   [18]uint64
 }
+
+type KafkaTopicIDToNameKey struct {
+	Tup ConnTuple
+	Id  [16]uint8
+}

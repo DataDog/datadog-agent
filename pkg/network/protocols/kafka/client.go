@@ -59,17 +59,17 @@ func NewClient(opts Options) (*Client, error) {
 }
 
 // CreateTopic creates a topic named topicName.
-func (c *Client) CreateTopic(topicName string) error {
+func (c *Client) CreateTopic(topicName string) (kadm.CreateTopicResponse, error) {
 	adminClient := kadm.NewClient(c.Client)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
-	_, err := adminClient.CreateTopics(ctxTimeout, 2, 1, nil, topicName)
-	if err != nil {
-		return err
+	responses, err := adminClient.CreateTopics(ctxTimeout, 2, 1, nil, topicName)
+	if len(responses) != 1 || err != nil {
+		return kadm.CreateTopicResponse{}, err
 	}
 
 	if err := c.waitForLeaders(topicName); err != nil {
-		return err
+		return kadm.CreateTopicResponse{}, err
 	}
 
 	c.Client.ForceMetadataRefresh()
@@ -78,7 +78,7 @@ func (c *Client) CreateTopic(topicName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	return c.Client.Ping(ctx)
+	return responses[topicName], c.Client.Ping(ctx)
 }
 
 func (c *Client) waitForLeaders(topicName string) error {

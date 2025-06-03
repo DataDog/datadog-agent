@@ -14,14 +14,14 @@ package kafka
 import "C"
 
 const (
-	TopicNameBuckets                                   = C.KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS
-	TopicNameMaxSize                                   = C.TOPIC_NAME_MAX_STRING_SIZE
-	ClassificationMaxSupportedProduceRequestApiVersion = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
-	ClassificationMinSupportedProduceRequestApiVersion = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION
-	DecodingMaxSupportedProduceRequestApiVersion       = C.KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
-	ClassificationMaxSupportedFetchRequestApiVersion   = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
-	ClassificationMinSupportedFetchRequestApiVersion   = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION
-	DecodingMaxSupportedFetchRequestApiVersion         = C.KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
+	TopicNameBuckets                                       = C.KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS
+	TopicNameMaxSize                                       = C.TOPIC_NAME_MAX_STRING_SIZE
+	ClassificationMaxSupportedProduceRequestApiVersion     = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
+	ClassificationMinSupportedProduceRequestApiVersion     = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION
+	DecodingMaxSupportedProduceRequestApiVersion           = C.KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
+	ClassificationMaxSupportedFetchRequestApiVersion       = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
+	ClassificationMinSupportedFetchRequestApiVersion       = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION
+	DecodingMaxSupportedFetchRequestApiVersion             = C.KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
 	ClassificationMinSupportedAPIVersionsRequestApiVersion = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION
 	ClassificationMaxSupportedAPIVersionsRequestApiVersion = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION
 )
@@ -36,3 +36,5 @@ type KafkaTransaction C.kafka_transaction_t
 type KafkaResponseContext C.kafka_response_context_t
 
 type RawKernelTelemetry C.kafka_telemetry_t
+
+type KafkaTopicIDToNameKey C.kafka_topic_id_to_name_key_t

@@ -186,27 +186,27 @@ static __always_inline u16 get_varint_number_of_topics(pktbuf_t pkt, u32 *offset
         return false;
     }
 
-    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
+    pktbuf_load_bytes_with_telemetry(pkt, *offset, bytes, sizeof(bytes));
 
     *offset += 1;
     if (isMSBSet(bytes[0])) {
         *offset += 1;
 
         if (isMSBSet(bytes[1])) {
-            // More than 16383 topics?
-            return false;
+            // More than 16383 topics? return invalid
+            return -1;
         }
     }
 
     // Convert varint bytes to u16
-    return (u16)((bytes[0] >> 8) + bytes[1]);
+    return (u16)((bytes[1] >> 8) + bytes[0]);
 }
 
 static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
     u16 topic_count = get_varint_number_of_topics(pkt, offset);
 
     // More than 16383 topics?
-    return topic_count < 16383;
+    return topic_count > 0 && topic_count < 16383;
 }
 
 // Skips a varint of up to `max_bytes` (4).  The `skip_varint_number_of_topics`
@@ -283,7 +283,7 @@ static __always_inline s16 read_nullable_string_size(pktbuf_t pkt, bool flexible
 static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexible, u32 offset) {
     // Skipping number of entries for now
     if (flexible) {
-        if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
+        if (!skip_varint_number_of_topics(pkt, &offset)) {
             return false;
         }
     } else {
@@ -318,6 +318,7 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
     // Skipping number of entries for now
     if (flexible) {
         if (!skip_varint_number_of_topics(pkt, &offset)) {
+            log_debug("GUY skip_varint_number_of_topics failed offset %d", offset);
             return false;
         }
     } else {
@@ -325,11 +326,16 @@ static __always_inline bool validate_first_topic_id(pktbuf_t pkt, bool flexible,
     }
 
     if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
+        log_debug("GUY after data end failed");
         return false;
     }
 
     pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
     offset += sizeof(topic_id);
+
+    log_debug("GUY topic_id %02x%02x offset %d", topic_id[0], topic_id[1], offset);
+
+    log_debug("GUY topic_id UUID v4 %d", IS_UUID_V4(topic_id));
 
     return IS_UUID_V4(topic_id);
 }
@@ -451,6 +457,8 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         }
         flexible = kafka_header->api_version >= 12;
         topic_id_instead_of_name = kafka_header->api_version >= 13;
+        log_debug("GUY api_version %d, topic_id_instead_of_name %d",
+                  kafka_header->api_version, topic_id_instead_of_name);
         break;
     case KAFKA_API_VERSIONS:
         // we only support flexible versions

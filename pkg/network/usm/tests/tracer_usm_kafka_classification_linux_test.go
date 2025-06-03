@@ -43,7 +43,8 @@ func buildProduceVersionTest(name string, version *kversion.Versions, targetAddr
 			})
 			require.NoError(t, err)
 			ctx.extras["produce_client"] = produceClient
-			require.NoError(t, produceClient.CreateTopic(ctx.extras["topic_name"].(string)))
+			_, err = produceClient.CreateTopic(ctx.extras["topic_name"].(string))
+			require.NoError(t, err)
 		},
 		postTracerSetup: func(t *testing.T, ctx testContext) {
 			produceClient := ctx.extras["produce_client"].(*kafka.Client)
@@ -75,7 +76,8 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 			})
 			require.NoError(t, err)
 			defer produceClient.Client.Close()
-			require.NoError(t, produceClient.CreateTopic(ctx.extras["topic_name"].(string)))
+			_, err = produceClient.CreateTopic(ctx.extras["topic_name"].(string))
+			require.NoError(t, err)
 
 			record := &kgo.Record{Topic: ctx.extras["topic_name"].(string), Value: []byte("Hello Kafka!")}
 			ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
@@ -202,7 +204,8 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*kafka.Client)
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				_, err := client.CreateTopic(ctx.extras["topic_name"].(string))
+				require.NoError(t, err, "failed to create topic")
 			},
 			validation: validateProtocolConnection(&protocols.Stack{}),
 			teardown:   kafkaTeardown,
@@ -225,7 +228,8 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				})
 				require.NoError(t, err)
 				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name"].(string)))
+				_, err = client.CreateTopic(ctx.extras["topic_name"].(string))
+				require.NoError(t, err, "failed to create topic")
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*kafka.Client)
@@ -256,8 +260,10 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				})
 				require.NoError(t, err)
 				ctx.extras["client"] = client
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name1"].(string)))
-				require.NoError(t, client.CreateTopic(ctx.extras["topic_name2"].(string)))
+				_, err = client.CreateTopic(ctx.extras["topic_name1"].(string))
+				require.NoError(t, err)
+				_, err = client.CreateTopic(ctx.extras["topic_name2"].(string))
+				require.NoError(t, err)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := ctx.extras["client"].(*kafka.Client)
