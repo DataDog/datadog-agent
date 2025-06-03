@@ -226,6 +226,21 @@ func (t *ebpfLessTracer) processConnection(
 		return fmt.Sprintf("connection: %s", conn)
 	})
 
+	if isNewConn && result.ShouldPersist() {
+		conn.Duration = time.Duration(time.Now().UnixNano())
+		direction, err := t.guessConnectionDirection(conn, pktType)
+		if err != nil {
+			return err
+		}
+		if direction == network.UNKNOWN {
+			return fmt.Errorf("could not determine connection direction")
+		}
+		conn.Direction = direction
+
+		// now that the direction is set, hash the connection
+		t.cookieHasher.Hash(conn)
+	}
+
 	switch result {
 	case ebpfless.ProcessResultNone:
 	case ebpfless.ProcessResultStoreConn:
@@ -241,20 +256,6 @@ func (t *ebpfLessTracer) processConnection(
 			ebpfLessTracerTelemetry.droppedConnections.Inc()
 		}()
 
-		if isNewConn {
-			conn.Duration = time.Duration(time.Now().UnixNano())
-			direction, err := t.determineConnectionDirection(conn, pktType)
-			if err != nil {
-				return err
-			}
-			if direction == network.UNKNOWN {
-				return fmt.Errorf("could not determine connection direction")
-			}
-			conn.Direction = direction
-
-			// now that the direction is set, hash the connection
-			t.cookieHasher.Hash(conn)
-		}
 		maxTrackedConns := int(t.config.MaxTrackedConnections)
 		storeConnOk = ebpfless.WriteMapWithSizeLimit(t.conns, tuple, conn, maxTrackedConns)
 	case ebpfless.ProcessResultCloseConn:
@@ -308,23 +309,11 @@ func buildTuple(pktType uint8, ip4 *layers.IPv4, ip6 *layers.IPv6, udp *layers.U
 	return tuple, flags
 }
 
-// determineConnectionDirection returns connection direction using information from the TCP processor.
-// If the TCP processor doesn't know the direction, it will attempt to guess.
-func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8) (network.ConnectionDirection, error) {
-	if conn.Type == network.TCP {
-		tuple := ebpfless.MakeEbpflessTuple(conn.ConnectionTuple)
-		dir, ok := t.tcp.GetConnDirection(tuple)
-		if !ok {
-			return network.UNKNOWN, fmt.Errorf("finalizeConnectionDirection: expected to find TCP connection for tuple: %+v", tuple)
-		}
-		switch dir {
-		case network.INCOMING:
-		case network.OUTGOING:
-			return dir, nil
-		case network.UNKNOWN:
-			// This happens when the TCP processor missed the SYN packet.
-			// Fall through and guess the direction.
-		}
+// guessConnectionDirection attempts to guess the connection direction based off bound ports
+func (t *ebpfLessTracer) guessConnectionDirection(conn *network.ConnectionStats, pktType uint8) (network.ConnectionDirection, error) {
+	// if we already have a direction, return that
+	if conn.Direction != network.UNKNOWN {
+		return conn.Direction, nil
 	}
 
 	ok := t.boundPorts.Find(conn.Type, conn.SPort)
