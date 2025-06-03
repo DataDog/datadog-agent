@@ -7,12 +7,12 @@ package kafka
 
 import (
 	"errors"
+	"unique"
 
 	"github.com/DataDog/sketches-go/ddsketch"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,7 +28,7 @@ const (
 type Key struct {
 	RequestAPIKey  uint16
 	RequestVersion uint16
-	TopicName      *intern.StringValue
+	TopicName      unique.Handle[string]
 	types.ConnectionKey
 }
 

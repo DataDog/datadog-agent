@@ -7,13 +7,13 @@
 package consumer
 
 import (
-	"go4.org/intern"
+	"unique"
 
 	"github.com/DataDog/datadog-agent/pkg/process/events/model"
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-var _ = intern.Value{}
+var _ unique.Handle[string]
 
 func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 	var result model.ProcessEvent

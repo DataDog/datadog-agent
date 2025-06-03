@@ -8,20 +8,17 @@
 package kafka
 
 import (
+	"unique"
+
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/intern"
-)
-
-var (
-	testInterner = intern.NewStringInterner()
 )
 
 // NewKey generates a new Key
 func NewKey(saddr, daddr util.Address, sport, dport uint16, topicName string, requestAPIKey, requestAPIVersion uint16) Key {
 	return Key{
 		ConnectionKey:  types.NewConnectionKey(saddr, daddr, sport, dport),
-		TopicName:      testInterner.GetString(topicName),
+		TopicName:      unique.Make(topicName),
 		RequestAPIKey:  requestAPIKey,
 		RequestVersion: requestAPIVersion,
 	}

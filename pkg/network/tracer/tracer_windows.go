@@ -16,8 +16,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	"go4.org/intern"
+	"unique"
 
 	"golang.org/x/sys/windows"
 
@@ -354,7 +353,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		return
 	}
 
-	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
+	c.ContainerID.Source, c.ContainerID.Dest = emptyContainerID, emptyContainerID
 
 	// on windows, cLastUpdateEpoch is already set as
 	// ns since unix epoch.
@@ -365,11 +364,11 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if len(p.Tags) > 0 {
-		c.Tags = make([]*intern.Value, len(p.Tags))
+		c.Tags = make([]unique.Handle[string], len(p.Tags))
 		copy(c.Tags, p.Tags)
 	}
 
-	if p.ContainerID != nil {
+	if p.ContainerID != emptyContainerID {
 		c.ContainerID.Source = p.ContainerID
 	}
 }

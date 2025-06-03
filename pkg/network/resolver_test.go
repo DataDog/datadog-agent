@@ -7,14 +7,16 @@ package network
 
 import (
 	"testing"
+	"unique"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
+
+var emptyContainerID unique.Handle[string]
 
 func TestResolveLocalConnections(t *testing.T) {
 	conns := []ConnectionStats{
@@ -29,10 +31,10 @@ func TestResolveLocalConnections(t *testing.T) {
 			Direction: OUTGOING,
 		},
 			ContainerID: struct {
-				Source *intern.Value
-				Dest   *intern.Value
+				Source unique.Handle[string]
+				Dest   unique.Handle[string]
 			}{
-				Source: intern.GetByString("6254f6bc5dc03a50440268c2c0771c476fb9a7230c510afef6114c4498b2a4f8"),
+				Source: unique.Make("6254f6bc5dc03a50440268c2c0771c476fb9a7230c510afef6114c4498b2a4f8"),
 			},
 			IntraHost: true,
 		},
@@ -47,10 +49,10 @@ func TestResolveLocalConnections(t *testing.T) {
 			Direction: OUTGOING,
 		},
 			ContainerID: struct {
-				Source *intern.Value
-				Dest   *intern.Value
+				Source unique.Handle[string]
+				Dest   unique.Handle[string]
 			}{
-				Source: intern.GetByString("6254f6bc5dc03a50440268c2c0771c476fb9a7230c510afef6114c4498b2a4f8"),
+				Source: unique.Make("6254f6bc5dc03a50440268c2c0771c476fb9a7230c510afef6114c4498b2a4f8"),
 			},
 			IntraHost: true,
 		},
@@ -65,10 +67,10 @@ func TestResolveLocalConnections(t *testing.T) {
 			Direction: INCOMING,
 		},
 			ContainerID: struct {
-				Source *intern.Value
-				Dest   *intern.Value
+				Source unique.Handle[string]
+				Dest   unique.Handle[string]
 			}{
-				Source: intern.GetByString("7e999c2c2349713e27cecf87ef8e0cf496aec08b06b6a8b8c988dd42a3839a98"),
+				Source: unique.Make("7e999c2c2349713e27cecf87ef8e0cf496aec08b06b6a8b8c988dd42a3839a98"),
 			},
 			IntraHost: true,
 		},
@@ -83,10 +85,10 @@ func TestResolveLocalConnections(t *testing.T) {
 			Direction: INCOMING,
 		},
 			ContainerID: struct {
-				Source *intern.Value
-				Dest   *intern.Value
+				Source unique.Handle[string]
+				Dest   unique.Handle[string]
 			}{
-				Source: intern.GetByString("7e999c2c2349713e27cecf87ef8e0cf496aec08b06b6a8b8c988dd42a3839a98"),
+				Source: unique.Make("7e999c2c2349713e27cecf87ef8e0cf496aec08b06b6a8b8c988dd42a3839a98"),
 			},
 			IntraHost: true,
 		},
@@ -98,12 +100,12 @@ func TestResolveLocalConnections(t *testing.T) {
 
 	for _, o := range outgoing {
 		require.NotNil(t, o.ContainerID.Dest)
-		assert.Equal(t, incoming[0].ContainerID.Source.Get().(string), o.ContainerID.Dest.Get().(string))
+		assert.Equal(t, incoming[0].ContainerID.Source.Value(), o.ContainerID.Dest.Value())
 	}
 
 	for _, i := range incoming {
 		require.NotNil(t, i.ContainerID.Dest)
-		assert.Equal(t, outgoing[0].ContainerID.Source.Get().(string), i.ContainerID.Dest.Get().(string))
+		assert.Equal(t, outgoing[0].ContainerID.Source.Value(), i.ContainerID.Dest.Value())
 	}
 }
 
@@ -132,10 +134,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 				},
 				IntraHost: true,
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo1"),
+					Source: unique.Make("foo1"),
 				},
 			},
 			expectedRaddrID: "foo2",
@@ -159,10 +161,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 				},
 				IntraHost: true,
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo2"),
+					Source: unique.Make("foo2"),
 				},
 			},
 			expectedRaddrID: "foo1",
@@ -180,10 +182,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			},
 				IntraHost: true,
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo3"),
+					Source: unique.Make("foo3"),
 				},
 			},
 			expectedRaddrID: "",
@@ -201,10 +203,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			},
 				IntraHost: true,
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo5"),
+					Source: unique.Make("foo5"),
 				},
 			},
 			expectedRaddrID: "foo3",
@@ -222,10 +224,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			},
 				IntraHost: true,
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo3"),
+					Source: unique.Make("foo3"),
 				},
 			},
 			expectedRaddrID: "foo5",
@@ -243,10 +245,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			},
 				IntraHost: true,
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo5"),
+					Source: unique.Make("foo5"),
 				},
 			},
 			expectedRaddrID: "foo3",
@@ -264,10 +266,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			},
 				IntraHost: true,
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo5"),
+					Source: unique.Make("foo5"),
 				},
 			},
 			expectedRaddrID: "",
@@ -315,10 +317,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			},
 				IntraHost: true,
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo6"),
+					Source: unique.Make("foo6"),
 				},
 			},
 			expectedRaddrID: "foo7",
@@ -336,10 +338,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 			},
 				IntraHost: true,
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo7"),
+					Source: unique.Make("foo7"),
 				},
 			},
 			expectedRaddrID: "foo6",
@@ -356,10 +358,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 				Direction: OUTGOING,
 			},
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo22"),
+					Source: unique.Make("foo22"),
 				},
 			},
 			expectedRaddrID: "", // should NOT resolve to foo7
@@ -376,10 +378,10 @@ func TestResolveLoopbackConnections(t *testing.T) {
 				Direction: OUTGOING,
 			},
 				ContainerID: struct {
-					Source *intern.Value
-					Dest   *intern.Value
+					Source unique.Handle[string]
+					Dest   unique.Handle[string]
 				}{
-					Source: intern.GetByString("foo21"),
+					Source: unique.Make("foo21"),
 				},
 			},
 			expectedRaddrID: "", // should NOT resolve to foo22
@@ -397,11 +399,11 @@ func TestResolveLoopbackConnections(t *testing.T) {
 	for i, te := range tests {
 		t.Run(te.name, func(t *testing.T) {
 			if te.expectedRaddrID == "" {
-				assert.Nil(t, conns[i].ContainerID.Dest, "raddr container id does not match expected value")
+				assert.Equal(t, emptyContainerID, conns[i].ContainerID.Dest, "raddr container id does not match expected value")
 				return
 			}
-			require.NotNil(t, conns[i].ContainerID.Dest, "expected: %s", te.expectedRaddrID)
-			assert.Equal(t, te.expectedRaddrID, conns[i].ContainerID.Dest.Get().(string), "raddr container id does not match expected value")
+			require.NotEqual(t, emptyContainerID, conns[i].ContainerID.Dest, "expected: %s", te.expectedRaddrID)
+			assert.Equal(t, te.expectedRaddrID, conns[i].ContainerID.Dest.Value(), "raddr container id does not match expected value")
 		})
 	}
 }

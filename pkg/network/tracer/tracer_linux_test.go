@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unique"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -38,7 +39,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
-	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -2431,12 +2431,12 @@ func BenchmarkAddProcessInfo(b *testing.B) {
 	c.LastUpdateEpoch = uint64(ts)
 	tr.processCache.add(&events.Process{
 		Pid: 1,
-		Tags: []*intern.Value{
-			intern.GetByString("env:env"),
-			intern.GetByString("version:version"),
-			intern.GetByString("service:service"),
+		Tags: []unique.Handle[string]{
+			unique.Make("env:env"),
+			unique.Make("version:version"),
+			unique.Make("service:service"),
 		},
-		ContainerID: intern.GetByString("container"),
+		ContainerID: unique.Make("container"),
 		StartTime:   time.Now().Unix(),
 		Expiry:      time.Now().Add(5 * time.Minute).Unix(),
 	})

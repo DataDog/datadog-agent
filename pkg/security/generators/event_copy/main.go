@@ -47,7 +47,7 @@ var tmpl = `
 package {{.Package}}
 
 import (
-	"go4.org/intern"
+	"unique"
 
 	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	{{- if ne .Package .StructPackage }}
@@ -55,7 +55,7 @@ import (
 	{{end}}
 )
 
-var _ = intern.Value{}
+var _ unique.Handle[string]
 
 func {{.Scope}} Copy(event *smodel.Event) any {
 	{{- if ne .Package .StructPackage }}
@@ -76,7 +76,7 @@ func {{.Scope}} Copy(event *smodel.Event) any {
 		value{{.Name}} := smodel.FilterEnvs(event.GetProcessEnvp(), map[string]bool{ {{ $envs }} })
 		{{- else -}}
 		{{- if index .Handler "intern" -}}
-		value{{.Name}} := intern.GetByString(event.{{$getter}}())
+		value{{.Name}} := unique.Make(event.{{$getter}}())
 		{{- else -}}
 		{{- if $cast -}}
 		value{{.Name}} := {{$cast}}(event.{{$getter}}())

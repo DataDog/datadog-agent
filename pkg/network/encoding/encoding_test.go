@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"sort"
 	"testing"
+	"unique"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -669,7 +670,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		if (i % 2) == 0 {
 			httpKey.Path = http.Path{
-				Content:  http.Interner.GetString(fmt.Sprintf("/path-%d", i)),
+				Content:  unique.Make(fmt.Sprintf("/path-%d", i)),
 				FullPath: true,
 			}
 			in.USMData.HTTP = map[http.Key]*http.RequestStats{httpKey: {}}
@@ -677,7 +678,7 @@ func TestPooledObjectGarbageRegression(t *testing.T) {
 
 			require.NotNil(t, out)
 			require.Len(t, out.EndpointAggregations, 1)
-			require.Equal(t, httpKey.Path.Content.Get(), out.EndpointAggregations[0].Path)
+			require.Equal(t, httpKey.Path.Content.Value(), out.EndpointAggregations[0].Path)
 		} else {
 			// No HTTP data in this payload, so we should never get HTTP data back after the serialization
 			in.USMData.HTTP = nil

@@ -135,7 +135,7 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
 
 		for key, reqStats := range stats {
-			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
+			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Value(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
 				currentStats := reqStats.Data[204]
 				if currentStats != nil && currentStats.Count == 1 {
 					return true
@@ -631,7 +631,7 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 		if key.Method.String() != req.Method {
 			continue
 		}
-		if key.Path.Content.Get() != req.URL.Path {
+		if key.Path.Content.Value() != req.URL.Path {
 			continue
 		}
 		if requests, exists := stats.Data[expectedStatus]; exists && requests.Count > 0 {

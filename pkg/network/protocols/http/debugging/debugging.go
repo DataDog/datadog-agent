@@ -58,7 +58,7 @@ func HTTP(stats map[http.Key]*http.RequestStats, dns map[util.Address][]dns.Host
 				Port: k.DstPort,
 			},
 			DNS:      getDNS(dns, serverAddr),
-			Path:     k.Path.Content.Get(),
+			Path:     k.Path.Content.Value(),
 			Method:   k.Method.String(),
 			ByStatus: make(map[uint16]Stats),
 		}
