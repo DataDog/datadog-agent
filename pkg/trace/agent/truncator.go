@@ -77,6 +77,7 @@ func (a *Agent) TruncateV1(s *idx.InternalSpan) {
 		if len(kString) > MaxMetaKeyLen {
 			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, kString)
 			s.DeleteAttribute(kString)
+			kString = normalize.TruncateUTF8(kString, MaxMetaKeyLen) + "..."
 			modified = true
 		}
 		newV := v
