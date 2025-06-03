@@ -8,7 +8,7 @@ Probes:
       Events:
         - ID: 1
           Type: 39 EventRootType ProbeEvent
-          InjectionPCs: [654924]
+          InjectionPCs: [654940]
           Condition: null
       Snapshot: false
     - ID: c
@@ -19,35 +19,67 @@ Probes:
       Events:
         - ID: 2
           Type: 40 EventRootType ProbeEvent
-          InjectionPCs: [655040]
+          InjectionPCs: [655056]
+          Condition: null
+      Snapshot: false
+    - ID: d
+      Kind: ProbeKindLog
+      Version: 0
+      Tags: []
+      Subprogram: {subprogram: 3}
+      Events:
+        - ID: 3
+          Type: 41 EventRootType ProbeEvent
+          InjectionPCs: [655372]
           Condition: null
       Snapshot: false
 Subprograms:
     - ID: 1
       Name: main.mapArg
-      OutOfLinePCRanges: [0x9fe40..0x9feb0]
+      OutOfLinePCRanges: [0x9fe50..0x9fec0]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 1 GoMapType map[string]int
           Locations:
-            - Range: 0x9fe40..0x9fe78
+            - Range: 0x9fe50..0x9fe88
               Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []
     - ID: 2
       Name: main.bigMapArg
-      OutOfLinePCRanges: [0x9feb0..0x9ff70]
+      OutOfLinePCRanges: [0x9fec0..0x9ff80]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 19 GoMapType map[string]main.bigStruct
           Locations:
-            - Range: 0x9feb0..0x9fee8
+            - Range: 0x9fec0..0x9fef8
               Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
-            - Range: 0x9fee8..0x9ff70
+            - Range: 0x9fef8..0x9ff80
               Pieces: [{Size: 0, InReg: false, StackOffset: 16, Register: 0}]
+          IsParameter: true
+          IsReturn: false
+      Lines: []
+    - ID: 3
+      Name: main.stringArg
+      OutOfLinePCRanges: [0xa0000..0xa0080]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 17 GoStringHeaderType string
+          Locations:
+            - Range: 0xa0000..0xa0024
+              Pieces:
+                - Size: 8
+                  InReg: true
+                  StackOffset: 0
+                  Register: 0
+                - Size: 8
+                  InReg: true
+                  StackOffset: 0
+                  Register: 1
           IsParameter: true
           IsReturn: false
       Lines: []
@@ -462,4 +494,18 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: m}
                   Offset: 0
                   Size: 0
-MaxTypeID: 40
+    - __kind: EventRootType
+      ID: 41
+      Name: ProbeEvent
+      ByteSize: 16
+      Expressions:
+        - Name: s
+          Offset: 0
+          Expression:
+            Type: 17 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 3, index: 0, name: s}
+                  Offset: 0
+                  Size: 16
+MaxTypeID: 41

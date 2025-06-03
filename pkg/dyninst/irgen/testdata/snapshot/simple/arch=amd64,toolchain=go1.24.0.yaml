@@ -22,6 +22,17 @@ Probes:
           InjectionPCs: ["0x491c73"]
           Condition: null
       Snapshot: false
+    - ID: d
+      Kind: ProbeKindLog
+      Version: 0
+      Tags: []
+      Subprogram: {subprogram: 3}
+      Events:
+        - ID: 3
+          Type: 41 EventRootType ProbeEvent
+          InjectionPCs: ["0x491daa"]
+          Condition: null
+      Snapshot: false
 Subprograms:
     - ID: 1
       Name: main.mapArg
@@ -48,6 +59,27 @@ Subprograms:
               Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
             - Range: 0x491c93..0x491d1b
               Pieces: [{Size: 0, InReg: false, StackOffset: 8, Register: 0}]
+          IsParameter: true
+          IsReturn: false
+      Lines: []
+    - ID: 3
+      Name: main.stringArg
+      OutOfLinePCRanges: [0x491da0..0x491e11]
+      InlinePCRanges: []
+      Variables:
+        - Name: s
+          Type: 17 GoStringHeaderType string
+          Locations:
+            - Range: 0x491da0..0x491dbe
+              Pieces:
+                - Size: 8
+                  InReg: true
+                  StackOffset: 0
+                  Register: 0
+                - Size: 8
+                  InReg: true
+                  StackOffset: 0
+                  Register: 3
           IsParameter: true
           IsReturn: false
       Lines: []
@@ -462,4 +494,18 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: m}
                   Offset: 0
                   Size: 0
-MaxTypeID: 40
+    - __kind: EventRootType
+      ID: 41
+      Name: ProbeEvent
+      ByteSize: 16
+      Expressions:
+        - Name: s
+          Offset: 0
+          Expression:
+            Type: 17 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 3, index: 0, name: s}
+                  Offset: 0
+                  Size: 16
+MaxTypeID: 41
