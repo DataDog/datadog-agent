@@ -241,6 +241,10 @@ func (g *LookupTableGenerator) getCommand(ctx context.Context, version goversion
 		log.Printf("error install directory at %q: %v", g.InstallDirectory, err)
 		return nil
 	}
+	// Force the toolchain used to be the version we're running; fail if the any
+	// of modules want a newer toolchain instead of letting go's toolchain
+	// selection mechanism transparently use a newer version.
+	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOTOOLCHAIN", "go"+version.String()))
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOPATH", filepath.Join(installDirectoryAbs, "build-gopath")))
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOCACHE", filepath.Join(installDirectoryAbs, "build-gocache")))
 	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOARCH", arch))
