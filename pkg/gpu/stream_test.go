@@ -22,7 +22,7 @@ import (
 )
 
 func TestKernelLaunchesHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -235,7 +235,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -336,7 +336,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 
 		t.Run(name, func(t *testing.T) {
 			proc := kernel.ProcFSRoot()
-			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))
 
 			if fatbinParsingEnabled {
@@ -454,7 +454,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 }
 
 func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -491,7 +491,7 @@ func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
 }
 
 func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -570,7 +570,7 @@ func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
 }
 
 func TestMemoryAllocationEviction(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -609,7 +609,7 @@ func TestMemoryAllocationEviction(t *testing.T) {
 }
 
 func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -685,7 +685,7 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 }
 
 func TestStreamHandlerIsInactive(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	limits := streamLimits{
 		maxKernelLaunches: 5,
 		maxAllocEvents:    5,
