@@ -62,13 +62,25 @@ def lint_and_test_gitlab_ci_config(
 def shellcheck_gitlab_ci_jobs(
     ctx,
     jobs: list[tuple[str, dict]],
-    exclude=DEFAULT_SHELLCHECK_EXCLUDES,
+    exclude: str = DEFAULT_SHELLCHECK_EXCLUDES,
     verbose: bool = False,
     shellcheck_args="",
     fail_fast: bool = False,
     use_bat: str | None = None,
     only_errors: bool = False,
 ):
+    """Lints the scripts for the given job objects using shellcheck.
+
+    Args:
+        exclude: A comma separated list of shellcheck error codes to exclude.
+        shellcheck_args: Additional arguments to pass to shellcheck.
+        fail_fast: If True, will stop at the first error.
+        use_bat: If True (or None), will (try to) use bat to display the script.
+        only_errors: Show only errors, not warnings.
+
+    Note:
+        Will raise an Exit if any errors are found.
+    """
     scripts = {}
     for job, content in jobs:
         # Skip jobs that are not executed
