@@ -43,9 +43,9 @@ var datadogAgentPackage = hooks{
 	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
 	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
 
-	// Background hooks for Windows
-	postStartExperimentBackground:         postStartExperimentDatadogAgentBackground,
-	postStopExperimentBackground:          postStopExperimentDatadogAgentBackground,
+	postStartExperimentBackground: postStartExperimentDatadogAgentBackground,
+	postStopExperimentBackground:  postStopExperimentDatadogAgentBackground,
+
 	postStartConfigExperimentBackground:   postStartConfigExperimentDatadogAgentBackground,
 	preStopConfigExperimentBackground:     preStopConfigExperimentDatadogAgentBackground,
 	postPromoteConfigExperimentBackground: postPromoteConfigExperimentDatadogAgentBackground,
@@ -604,10 +604,17 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 	// this allows for running multiple experiments in sequence
 	_ = setWatchdogStopEvent()
 
+	// Set the registry key to point to the experiment config
+	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "experiment")
+	err := setFleetPoliciesDir(experimentPath)
+	if err != nil {
+		return err
+	}
+
 	// Launch the background process
 	env := getenv()
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, nil))
-	err := hooks.PostStartConfigExperimentBackground(ctx, ctx.Package)
+	err = hooks.PostStartConfigExperimentBackground(ctx, ctx.Package)
 	if err != nil {
 		return fmt.Errorf("failed to start background process: %w", err)
 	}
@@ -617,15 +624,8 @@ func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
 
 // postStartConfigExperimentDatadogAgentBackground runs post start scripts for a config experiment in the background.
 func postStartConfigExperimentDatadogAgentBackground(ctx HookContext) error {
-	// Set the registry key to point to the experiment config
-	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "experiment")
-	err := setFleetPoliciesDir(experimentPath)
-	if err != nil {
-		return err
-	}
-
 	// Start the agent service to pick up the new config
-	err = winutil.RestartService("datadogagent")
+	err := winutil.RestartService("datadogagent")
 	if err != nil {
 		// Agent failed to start, restore stable config
 		restoreErr := restoreStableConfigFromExperiment(ctx)
@@ -684,10 +684,17 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	// this will just stop a watchdog that is running
 	_ = setWatchdogStopEvent()
 
+	// Set the registry key to point to the experiment config
+	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
+	err := setFleetPoliciesDir(experimentPath)
+	if err != nil {
+		return err
+	}
+
 	// Launch the background process
 	env := getenv()
 	hooks := NewHooks(env, repository.NewRepositories(paths.PackagesPath, nil))
-	err := hooks.PreStopConfigExperimentBackground(ctx, ctx.Package)
+	err = hooks.PreStopConfigExperimentBackground(ctx, ctx.Package)
 	if err != nil {
 		return fmt.Errorf("failed to start background process: %w", err)
 	}
@@ -715,6 +722,13 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 		// In this case, we were already promoting the experiment
 		// so we can continue without error
 		log.Errorf("failed to set premote event: %s", err)
+	}
+
+	// Set the registry key to point to the experiment config
+	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
+	err = setFleetPoliciesDir(experimentPath)
+	if err != nil {
+		return err
 	}
 
 	// Launch the background process
