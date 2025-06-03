@@ -6,7 +6,6 @@
 package modules
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winsoftware"
