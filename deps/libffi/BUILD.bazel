@@ -7,12 +7,11 @@ configure_make(
         "--disable-static",
     ],
     lib_source = "@libffi//:all",
-    out_lib_dir = "lib64",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libffi.so",
-            "libffi.so.6",
-            "libffi.so.6.0.4",
+            "libffi.so.8",
+            "libffi.so.8.1.4",
         ],
     }),
     visibility = ["//visibility:public"],
