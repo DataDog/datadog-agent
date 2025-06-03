@@ -18,7 +18,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils"
 )
@@ -27,12 +27,12 @@ var (
 	testVMID     = "02aab8a4-74ef-476e-8182-f6d2ba4166a6"
 	testHostname = "test-hostname"
 	testAttrs    = testutils.NewAttributeMap(map[string]string{
-		conventions.AttributeCloudProvider:  conventions.AttributeCloudProviderAzure,
-		conventions.AttributeHostName:       testHostname,
-		conventions.AttributeCloudRegion:    "location",
-		conventions.AttributeHostID:         testVMID,
-		conventions.AttributeCloudAccountID: "subscriptionID",
-		AttributeResourceGroupName:          "resourceGroup",
+		string(conventions.CloudProviderKey):  conventions.CloudProviderAzure.Value.AsString(),
+		string(conventions.HostNameKey):       testHostname,
+		string(conventions.CloudRegionKey):    "location",
+		string(conventions.HostIDKey):         testVMID,
+		string(conventions.CloudAccountIDKey): "subscriptionID",
+		AttributeResourceGroupName:            "resourceGroup",
 	})
 	testEmpty = testutils.NewAttributeMap(map[string]string{})
 )
@@ -77,8 +77,8 @@ func TestHostnameFromAttrs(t *testing.T) {
 		{
 			name: "no host id",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				conventions.AttributeCloudProvider: conventions.AttributeCloudProviderAzure,
-				conventions.AttributeHostName:      testHostname,
+				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.HostNameKey):      testHostname,
 			}),
 			ok:       true,
 			hostname: testHostname,

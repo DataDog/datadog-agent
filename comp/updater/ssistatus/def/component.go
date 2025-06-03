@@ -7,11 +7,9 @@
 // add it to the inventoryagent payload.
 package ssistatus
 
-import "context"
-
 // team: fleet
 
 // Component is the component type.
 type Component interface {
-	AutoInstrumentationStatus(context.Context) (bool, []string, error)
+	AutoInstrumentationStatus() (bool, []string, error)
 }

@@ -55,7 +55,6 @@ import (
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	installerexec "github.com/DataDog/datadog-agent/comp/updater/installerexec/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -142,7 +141,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provides the rdnssquerier module
 		rdnsquerierfx.Module(),
 
-		installerexec.Module(),
 		daemoncheckerfx.Module(),
 		fleetfx.Module(),
 

@@ -7,7 +7,6 @@
 package fleetstatusimpl
 
 import (
-	"context"
 	"embed"
 	"expvar"
 	"io"
@@ -108,7 +107,7 @@ func (sp statusProvider) populateStatus(stats map[string]interface{}) {
 	status["fleetAutomationEnabled"] = remoteManagementEnabled && remoteConfigEnabled && isInstallerRunning
 
 	if sp.ssiStatusProvider != nil {
-		autoInstrumentationEnabled, instrumentationModes, err := sp.ssiStatusProvider.AutoInstrumentationStatus(context.Background())
+		autoInstrumentationEnabled, instrumentationModes, err := sp.ssiStatusProvider.AutoInstrumentationStatus()
 		ssiStatus := make(map[string]bool)
 		if err == nil {
 			if autoInstrumentationEnabled {
