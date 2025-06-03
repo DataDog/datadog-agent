@@ -61,7 +61,7 @@ func run() error {
 	return nil
 }
 
-// This code is meant to include the netutil.limitedListenerConn type for the
+// This code is meant to include the netutil.limitListenerConn type for the
 // purposes of binary inspection. This type is sometimes behind the `net.Conn`
 // interface embedded in the `tls.Conn` type.
 func createTCPListener() {
