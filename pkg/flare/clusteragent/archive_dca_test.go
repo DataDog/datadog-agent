@@ -54,6 +54,81 @@ func TestGetAutoscalerList(t *testing.T) {
 	assert.Equal(t, mockResponse, flareOutput, "The flare output should match what was sent")
 }
 
+func TestGetDCALocalAutoscalingWorkloadList(t *testing.T) {
+	mockResponse := map[string]any{
+		"LocalAutoscalingWorkloadEntities": []interface{}{
+			map[string]any{
+				"Datapoints(PodLevel)": 1,
+				"MetricName":           "container.memory.usage",
+				"Namespace":            "kube-system",
+				"PodOwner":             "kube-dns",
+			},
+			map[string]any{
+				"Datapoints(PodLevel)": 2,
+				"MetricName":           "container.cpu.usage",
+				"Namespace":            "workload-notesapp",
+				"PodOwner":             "notes-app-deployment",
+			},
+		},
+	}
+
+	// Create test server that responds to /local-autoscaling-check path
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/local-autoscaling-check" {
+			out, _ := json.Marshal(mockResponse)
+			w.Write(out)
+		}
+	}))
+	defer s.Close()
+
+	setupClusterAgentIPCAddress(t, configmock.New(t), s.URL)
+
+	content, err := getDCALocalAutoscalingWorkloadList()
+	require.NoError(t, err)
+
+	// Parse the JSON response
+	var flareOutput map[string]any
+	err = json.Unmarshal(content, &flareOutput)
+	require.NoError(t, err, "Failed to unmarshal response JSON")
+
+	// Verify the structure and content more specifically
+	entities, ok := flareOutput["LocalAutoscalingWorkloadEntities"].([]interface{})
+	require.True(t, ok, "LocalAutoscalingWorkloadEntities should be an array")
+	assert.Len(t, entities, 2, "Should have 2 entities")
+
+	// Check first entity structure - note: JSON unmarshaling converts numbers to float64
+	firstEntity, ok := entities[0].(map[string]interface{})
+	require.True(t, ok, "First entity should be a map")
+	assert.Equal(t, float64(1), firstEntity["Datapoints(PodLevel)"], "Should have correct datapoints")
+	assert.Equal(t, "container.memory.usage", firstEntity["MetricName"], "Should have correct metric name")
+	assert.Equal(t, "kube-system", firstEntity["Namespace"], "Should have correct namespace")
+	assert.Equal(t, "kube-dns", firstEntity["PodOwner"], "Should have correct pod owner")
+
+	// Check second entity
+	secondEntity, ok := entities[1].(map[string]interface{})
+	require.True(t, ok, "Second entity should be a map")
+	assert.Equal(t, float64(2), secondEntity["Datapoints(PodLevel)"], "Should have correct datapoints")
+	assert.Equal(t, "container.cpu.usage", secondEntity["MetricName"], "Should have correct metric name")
+	assert.Equal(t, "workload-notesapp", secondEntity["Namespace"], "Should have correct namespace")
+	assert.Equal(t, "notes-app-deployment", secondEntity["PodOwner"], "Should have correct pod owner")
+}
+
+func TestGetDCALocalAutoscalingWorkloadListError(t *testing.T) {
+	// Create test server that returns an error
+	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/local-autoscaling-check" {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("Internal server error"))
+		}
+	}))
+	defer s.Close()
+
+	setupClusterAgentIPCAddress(t, configmock.New(t), s.URL)
+
+	_, err := getDCALocalAutoscalingWorkloadList()
+	assert.Error(t, err, "Should return an error when server responds with error")
+}
+
 func setupClusterAgentIPCAddress(t *testing.T, confMock model.Config, URL string) {
 	u, err := url.Parse(URL)
 	require.NoError(t, err)
