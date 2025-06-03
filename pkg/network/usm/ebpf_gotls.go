@@ -184,6 +184,14 @@ func (p *goTLSProgram) ConfigureOptions(options *manager.Options) {
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	options.MapSpecEditors[goTLSReadArgsMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.MapSpecEditors[goTLSWriteArgsMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 }
 
 // PreStart launches the goTLS main goroutine to handle events.
