@@ -130,6 +130,7 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.tls.istio.enabled":          true,
 		"service_monitoring_config.tls.go.enabled":             true,
 		"discovery.enabled":                                    true,
+		"gpu_monitoring.enabled":                               true,
 		"system_probe_config.enable_tcp_queue_length":          true,
 		"system_probe_config.enable_oom_kill":                  true,
 		"windows_crash_detection.enabled":                      true,
@@ -225,6 +226,7 @@ func TestInitData(t *testing.T) {
 		"feature_usm_istio_enabled":                    true,
 		"feature_usm_go_tls_enabled":                   true,
 		"feature_discovery_enabled":                    true,
+		"feature_gpu_monitoring_enabled":               true,
 		"feature_tcp_queue_length_enabled":             true,
 		"feature_oom_kill_enabled":                     true,
 		"feature_windows_crash_detection_enabled":      true,
@@ -500,6 +502,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
+	assert.False(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
 	assert.False(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
@@ -554,6 +557,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.False(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.False(t, ia.data["feature_discovery_enabled"].(bool))
+	assert.False(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
 	assert.False(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.False(t, ia.data["feature_oom_kill_enabled"].(bool))
 	assert.False(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
@@ -653,6 +657,7 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["feature_usm_istio_enabled"].(bool))
 	assert.True(t, ia.data["feature_usm_go_tls_enabled"].(bool))
 	assert.True(t, ia.data["feature_discovery_enabled"].(bool))
+	assert.True(t, ia.data["feature_gpu_monitoring_enabled"].(bool))
 	assert.True(t, ia.data["feature_tcp_queue_length_enabled"].(bool))
 	assert.True(t, ia.data["feature_oom_kill_enabled"].(bool))
 	assert.True(t, ia.data["feature_windows_crash_detection_enabled"].(bool))
