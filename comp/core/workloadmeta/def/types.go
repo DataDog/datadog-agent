@@ -607,6 +607,32 @@ func (c Container) DeepCopy() Entity {
 	return &cp
 }
 
+func printSBOM(sb *strings.Builder, sbom *SBOM) {
+	_, _ = fmt.Fprintln(sb, "----------- SBOM -----------")
+	if sbom != nil {
+		_, _ = fmt.Fprintln(sb, "Status:", sbom.Status)
+
+		switch SBOMStatus(sbom.Status) {
+		case Success:
+			_, _ = fmt.Fprintf(sb, "Generated in: %f seconds\n", sbom.GenerationDuration.Seconds())
+		case Failed:
+			_, _ = fmt.Fprintf(sb, "Error: %s\n", sbom.Error)
+		default:
+		}
+
+		if sbom.CycloneDXBOM == nil || sbom.CycloneDXBOM.Components == nil {
+			return
+		}
+
+		_, _ = fmt.Fprintf(sb, "Components (%d):\n", len(*sbom.CycloneDXBOM.Components))
+		for _, component := range *sbom.CycloneDXBOM.Components {
+			_, _ = fmt.Fprintf(sb, "- %s: %s %s %s\n", component.Type, component.Name, component.Version, component.BOMRef)
+		}
+	} else {
+		fmt.Fprintln(sb, "SBOM is nil")
+	}
+}
+
 // String implements Entity#String.
 func (c Container) String(verbose bool) string {
 	var sb strings.Builder
@@ -626,19 +652,7 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
-		if c.SBOM != nil {
-			_, _ = fmt.Fprintln(&sb, "Status:", c.SBOM.Status)
-			switch SBOMStatus(c.SBOM.Status) {
-			case Success:
-				_, _ = fmt.Fprintf(&sb, "Generated in: %f seconds\n", c.SBOM.GenerationDuration.Seconds())
-			case Failed:
-				_, _ = fmt.Fprintf(&sb, "Error: %s\n", c.SBOM.Error)
-			default:
-			}
-		} else {
-			fmt.Fprintln(&sb, "SBOM is nil")
-		}
+		printSBOM(&sb, c.SBOM)
 	}
 
 	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
@@ -1180,19 +1194,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
 
-		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
-		if i.SBOM != nil {
-			_, _ = fmt.Fprintln(&sb, "Status:", i.SBOM.Status)
-			switch i.SBOM.Status {
-			case Success:
-				_, _ = fmt.Fprintf(&sb, "Generated in: %.2f seconds\n", i.SBOM.GenerationDuration.Seconds())
-			case Failed:
-				_, _ = fmt.Fprintf(&sb, "Error: %s\n", i.SBOM.Error)
-			default:
-			}
-		} else {
-			fmt.Fprintln(&sb, "SBOM is nil")
-		}
+		printSBOM(&sb, i.SBOM)
 
 		_, _ = fmt.Fprintln(&sb, "----------- Layers -----------")
 		for _, layer := range i.Layers {
