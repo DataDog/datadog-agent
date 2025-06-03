@@ -2382,3 +2382,105 @@ func buildConfigComponent(t *testing.T, setHostnameInConfig bool, coreConfigOpti
 	))
 	return c
 }
+
+func TestMultiRegionFailoverConfig(t *testing.T) {
+	t.Run("default-values", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.enabled": true,
+			"multi_region_failover.site":    "site2",
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		// Check that the default values are set correctly
+		assert.False(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.False(t, cfg.MRFFailoverAPM())
+
+		// Verify MRF endpoint is created
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://trace.agent.mrf.site2", cfg.Endpoints[1].Host)
+	})
+
+	t.Run("default-true-config", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.site":         "site2",
+			"multi_region_failover.enabled":      true,
+			"multi_region_failover.failover_apm": true,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.True(t, cfg.MRFFailoverAPM())
+
+		// Verify MRF endpoint is created
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://trace.agent.mrf.site2", cfg.Endpoints[1].Host)
+	})
+
+	t.Run("default-false-config", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.site":         "site2",
+			"multi_region_failover.enabled":      true,
+			"multi_region_failover.failover_apm": false,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		assert.False(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.False(t, cfg.MRFFailoverAPM())
+
+		// Verify MRF endpoint is created
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://trace.agent.mrf.site2", cfg.Endpoints[1].Host)
+	})
+
+	t.Run("mrf-disabled", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.site":         "site2",
+			"multi_region_failover.enabled":      false,
+			"multi_region_failover.failover_apm": true,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		// When MRF is disabled, the failover_apm setting should not be applied
+		assert.False(t, cfg.MRFFailoverAPMDefault)
+		assert.Nil(t, cfg.MRFFailoverAPMRC)
+		assert.False(t, cfg.MRFFailoverAPM())
+
+		// Verify no MRF endpoint is created when MRF is disabled
+		assert.Len(t, cfg.Endpoints, 1)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+	})
+
+	t.Run("mrf-custom-url", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"multi_region_failover.enabled":      true,
+			"multi_region_failover.dd_url":       "https://custom.mrf.site",
+			"multi_region_failover.failover_apm": true,
+		}
+		config := buildConfigComponent(t, true, fx.Replace(corecomp.MockParams{Overrides: overrides}))
+		cfg := config.Object()
+		require.NotNil(t, cfg)
+
+		// Verify MRF endpoint is created with custom URL
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.False(t, cfg.Endpoints[0].IsMRF)
+		assert.True(t, cfg.Endpoints[1].IsMRF)
+		assert.Equal(t, "https://custom.mrf.site", cfg.Endpoints[1].Host)
+	})
+}
