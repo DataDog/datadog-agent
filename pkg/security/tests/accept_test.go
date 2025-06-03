@@ -90,6 +90,8 @@ func TestAcceptEvent(t *testing.T) {
 	})
 
 	t.Run("accept-af-inet-any-tcp-success-sockaddrin-io-uring", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		port := rand.IntN(MAX-MIX) + MIX
 
 		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)

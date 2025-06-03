@@ -1316,6 +1316,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 func (s *KafkaProtocolParsingSuite) TestKafkaFetchRaw() {
 	t := s.T()
 	versions := []int{4, 5, 7, 11, 12}
+	require.Contains(t, versions, kafka.DecodingMaxSupportedFetchRequestApiVersion, "The latest API version for FetchRequest should be tested")
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {
@@ -1544,7 +1545,8 @@ func getSplitGroups(req kmsg.Request, resp kmsg.Response, formatter *kmsg.Reques
 
 func (s *KafkaProtocolParsingSuite) TestKafkaProduceRaw() {
 	t := s.T()
-	versions := []int{8, 9, 10}
+	versions := []int{8, 9, 10, 12}
+	require.Contains(t, versions, kafka.DecodingMaxSupportedProduceRequestApiVersion, "The latest API version for ProduceRequest should be tested")
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {
@@ -1625,7 +1627,7 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
@@ -1655,7 +1657,7 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {

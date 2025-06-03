@@ -1,12 +1,4 @@
 receivers:
-  prometheus:
-    config:
-      scrape_configs:
-        - job_name: "datadog-agent"
-          scrape_interval: 60s
-          metric_name_validation_scheme: legacy
-          static_configs:
-            - targets: ["0.0.0.0:8888"]
   otlp:
     protocols:
       grpc:
@@ -37,6 +29,9 @@ extensions:
   ddflare/user-defined:
 
 service:
+  telemetry:
+    metrics:
+      level: none
   extensions:
     [
       pprof/user-defined,
@@ -54,7 +49,7 @@ service:
       processors: [batch, infraattributes/dd-autoconfigured]
       exporters: [datadog/connector]
     metrics:
-      receivers: [otlp, datadog/connector, prometheus]
+      receivers: [otlp, datadog/connector]
       processors: [batch, infraattributes/dd-autoconfigured]
       exporters: [datadog]
     logs:
