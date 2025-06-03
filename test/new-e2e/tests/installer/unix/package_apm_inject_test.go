@@ -45,9 +45,9 @@ func (s *packageApmInjectSuite) TestInstall() {
 
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-inject", "datadog-apm-library-python")
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-inject", "datadog-apm-library-python")
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 	state := s.host.State()
 	state.AssertFileExists("/opt/datadog-packages/run/environment", 0644, "root", "root")
-	state.AssertSymlinkExists("/run/datadog-installer", "/opt/datadog-packages/run", "root", "root") // /run as /var/run points to /run, it's a limitation of the state packages
 	state.AssertSymlinkExists("/etc/default/datadog-agent", "/opt/datadog-packages/run/environment", "root", "root")
 	state.AssertSymlinkExists("/etc/default/datadog-agent-trace", "/opt/datadog-packages/run/environment", "root", "root")
 	state.AssertDirExists("/var/log/datadog/dotnet", 0777, "root", "root")
@@ -169,10 +169,6 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
-		"DD_APM_INSTRUMENTATION_ENABLED=all",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
-		envForceNoInstall("datadog-apm-inject"),
-		envForceNoInstall("datadog-apm-library-python"),
 		"TESTING_APT_URL=",
 		"TESTING_APT_REPO_VERSION=",
 		"TESTING_YUM_URL=",
@@ -224,10 +220,6 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
-		"DD_APM_INSTRUMENTATION_ENABLED=all",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
-		envForceNoInstall("datadog-apm-inject"),
-		envForceNoInstall("datadog-apm-library-python"),
 		"TESTING_APT_URL=",
 		"TESTING_APT_REPO_VERSION=",
 		"TESTING_YUM_URL=",
@@ -248,7 +240,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.8.5",
-		envForceVersion("datadog-apm-inject", "0.15.0-1"),
+		envForceVersion("datadog-apm-inject", "0.39.0-1"),
 	)
 	defer s.Purge()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
@@ -257,8 +249,8 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.8.5", "root", "root")
 
-	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.15.0-1", 0755, "root", "root")
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.15.0-1", "root", "root")
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.39.0", 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.39.0", "root", "root")
 
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
@@ -271,7 +263,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python:2.9.2",
-		envForceVersion("datadog-apm-inject", "0.16.0-1"),
+		envForceVersion("datadog-apm-inject", "0.40.0-1"),
 	)
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
@@ -281,9 +273,9 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.9.2", 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.9.2", "root", "root")
 
-	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-inject/0.15.0-1")
-	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.16.0-1", 0755, "root", "root")
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.16.0-1", "root", "root")
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-inject/0.39.0")
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.40.0", 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.40.0", "root", "root")
 
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
@@ -369,10 +361,6 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
-		"DD_APM_INSTRUMENTATION_ENABLED=host",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
-		envForceNoInstall("datadog-apm-inject"),
-		envForceNoInstall("datadog-apm-library-python"),
 		"TESTING_APT_URL=",
 		"TESTING_APT_REPO_VERSION=",
 		"TESTING_YUM_URL=",
@@ -380,7 +368,6 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 		"DD_REPO_URL=datadoghq.com",
 	)
 	s.host.Run("sudo apt-get install -y datadog-apm-inject datadog-apm-library-python || sudo yum install -y datadog-apm-inject datadog-apm-library-python")
-	defer s.Purge()
 	defer s.purgeInjectorDebInstall()
 
 	state := s.host.State()
@@ -393,6 +380,7 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 	)
+	defer s.Purge()
 
 	// Old commands still work
 	s.Env().RemoteHost.MustExecute("dd-host-install --uninstall")

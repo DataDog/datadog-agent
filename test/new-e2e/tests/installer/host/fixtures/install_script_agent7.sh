@@ -774,6 +774,7 @@ fi
 ##
 
 if [ "$DD_APM_INSTRUMENTATION_ENABLED" = "docker" ] ; then
+  export DD_NO_AGENT_INSTALL=true
   install_type="linux_single_step_dkr"
   no_agent=true
 fi
