@@ -6,11 +6,14 @@ from collections import defaultdict
 from glob import glob
 from typing import Any
 
+import yaml
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.gitlab_api import (
     MultiGitlabCIDiff,
+    compute_gitlab_ci_config_diff,
+    get_all_gitlab_ci_configurations,
     get_preset_contexts,
     is_leaf_job,
     load_context,
@@ -300,7 +303,7 @@ def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_co
 def check_owners_gitlab_ci_jobs(
     jobs: list[tuple[str, dict]],
     ci_linters_config: CILintersConfig,
-    path_jobowners: str,
+    path_jobowners: str = '.gitlab/JOBOWNERS',
 ):
     jobowners = read_owners(path_jobowners, remove_default_pattern=True)
     job_names = [name for (name, _) in jobs]
@@ -328,6 +331,7 @@ def check_owners_gitlab_ci_jobs(
     print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
 
 
+# === Task-specific helpers === #
 class SSMParameterCall:
     def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
         """
@@ -380,6 +384,24 @@ def list_get_parameter_calls(file):
     return calls
 
 
+def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners):
+    error_files = []
+    for path in modified_yml_files:
+        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
+        if not teams:
+            error_files.append(path)
+
+    if error_files:
+        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
+
+        raise Exit(
+            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
+        )
+    else:
+        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+
+
+# === "Plumbing" methods === #
 # Note: Using * prevents passing positional, avoiding confusion between configs and diff
 def extract_gitlab_ci_jobs(
     *, configs: dict[str, dict] | None = None, diff: MultiGitlabCIDiff | None = None
@@ -395,9 +417,13 @@ def extract_gitlab_ci_jobs(
         If `only_names` is True, it will be a simple list of all the job names.
     """
     # Dict of entrypoint -> config object, of the format returned by `get_all_gitlab_ci_configurations`
-    assert (configs or diff) and not (configs and diff), "Please pass exactly one of a config object or a diff object"
 
-    if diff:
+    # Unfortunately a MultiGitlabCIDiff is not always truthy (see its __bool__), so we have to check explicitely
+    assert (configs is not None or diff is not None) and not (
+        configs is not None and diff is not None
+    ), "Please pass exactly one of a config object or a diff object"
+
+    if diff is not None:
         jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
     else:
         jobs = [
@@ -414,18 +440,37 @@ def extract_gitlab_ci_jobs(
     return jobs
 
 
-def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners):
-    error_files = []
-    for path in modified_yml_files:
-        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
-        if not teams:
-            error_files.append(path)
+def load_or_generate_gitlab_ci_configs(ctx, yaml_to_load: str | None = None, **kwargs) -> dict[str, dict]:
+    """
+    Load a "full" gitlabci config object from file, or re-generate it if needed.
+    "Full" in this context means that:
+    - The "full" configuration object is a dict of entrypoint -> gitlabci configuration object
+    - In each sub-object, all `include`s, `reference`s and `extend`s have been resolved.
 
-    if error_files:
-        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
+    Args:
+        `yaml_to_load`: Path to a yaml file containing a full gitlabci config object
+    Any other kwargs will be passed to `get_all_gitlab_ci_configurations`, called if need to regenerate the config.
+    """
+    if yaml_to_load:
+        with open(yaml_to_load) as f:
+            return yaml.safe_load(f)
 
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+    return get_all_gitlab_ci_configurations(ctx, **kwargs)
+
+
+def load_or_generate_gitlab_ci_diff(
+    ctx, yaml_to_load: str | None = None, **kwargs
+) -> tuple[dict[str, dict], dict[str, dict], MultiGitlabCIDiff]:
+    """
+    Similar to `load_or_generate_gitlab_ci_configs`, but returns a 'diff triplet'.
+
+    We call a "diff triplet" a triplet of `(diff, before_config, after_config)`, as generated by the `compute_gitlab_ci_config` task.
+    Any extra kwargs are passed as-is to `compute_gitlab_ci_config_diff`.
+    """
+    if yaml_to_load:
+        with open(yaml_to_load) as f:
+            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
+            return diff.before, diff.after, diff  # type: ignore
+
+    before, after, diff = compute_gitlab_ci_config_diff(ctx, **kwargs)
+    return before, after, diff
