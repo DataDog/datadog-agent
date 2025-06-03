@@ -16,14 +16,6 @@ func newNetworkCollector(_ *discoveryConfig) (networkCollector, error) {
 func (c *nopNetworkCollector) close() {
 }
 
-func (c *nopNetworkCollector) addPid(_ uint32) error {
-	return nil
-}
-
-func (c *nopNetworkCollector) removePid(_ uint32) error {
-	return nil
-}
-
-func (c *nopNetworkCollector) getStats(_ uint32) (NetworkStats, error) {
-	return NetworkStats{}, nil
+func (c *nopNetworkCollector) getStats(_ pidSet) (map[uint32]NetworkStats, error) {
+	return nil, nil
 }

@@ -42,8 +42,8 @@ type InstanceConfig struct {
 
 	Protocol  string `yaml:"protocol"`
 	TCPMethod string `yaml:"tcp_method"`
-	// TCPSynCompatibilityMode makes TCP SYN mimic the tcptraceroute tool as closely as possible
-	TCPSynCompatibilityMode bool `yaml:"tcp_syn_compatibility_mode"`
+	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
+	TCPSynParisTracerouteMode bool `yaml:"tcp_syn_paris_traceroute_mode"`
 
 	SourceService      string `yaml:"source_service"`
 	DestinationService string `yaml:"destination_service"`
@@ -67,12 +67,12 @@ type CheckConfig struct {
 	MaxTTL             uint8
 	Protocol           payload.Protocol
 	TCPMethod          payload.TCPMethod
-	// TCPSynCompatibilityMode makes TCP SYN mimic the tcptraceroute tool as closely as possible
-	TCPSynCompatibilityMode bool
-	Timeout                 time.Duration
-	MinCollectionInterval   time.Duration
-	Tags                    []string
-	Namespace               string
+	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
+	TCPSynParisTracerouteMode bool
+	Timeout                   time.Duration
+	MinCollectionInterval     time.Duration
+	Tags                      []string
+	Namespace                 string
 }
 
 // NewCheckConfig builds a new check config
@@ -98,7 +98,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.DestinationService = instance.DestinationService
 	c.Protocol = payload.Protocol(strings.ToUpper(instance.Protocol))
 	c.TCPMethod = payload.MakeTCPMethod(instance.TCPMethod)
-	c.TCPSynCompatibilityMode = instance.TCPSynCompatibilityMode
+	c.TCPSynParisTracerouteMode = instance.TCPSynParisTracerouteMode
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,

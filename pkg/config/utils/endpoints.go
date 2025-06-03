@@ -249,7 +249,7 @@ func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
 // version (see AddAgentVersionToDomain).
-var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)(\.)?$`)
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
 func getDomainPrefix(app string) string {

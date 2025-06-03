@@ -86,9 +86,4 @@ build do
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     end
   end
-
-  # The file below is touched by software builds that don't put anything in the installation
-  # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
-  # final package
-  delete "#{install_dir}/uselessfile"
 end

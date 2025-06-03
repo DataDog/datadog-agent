@@ -71,7 +71,7 @@ func TestShouldIgnorePid(t *testing.T) {
 				// wait until the service name becomes available
 				info, err := discovery.getServiceInfo(int32(cmd.Process.Pid))
 				assert.NoError(collect, err)
-				assert.Equal(collect, test.service, info.ddServiceName)
+				assert.Equal(collect, test.service, info.DDService)
 			}, 3*time.Second, 100*time.Millisecond)
 
 			// now can check the ignored service

@@ -112,7 +112,7 @@ func toMapStringInterface(data any, path string) (map[string]interface{}, error)
 			case string:
 				convert[k] = iter.Value().Interface()
 			default:
-				return nil, fmt.Errorf("error non-string key type for map for '%s'", path)
+				convert[fmt.Sprintf("%v", key.Interface())] = iter.Value().Interface()
 			}
 		}
 		return convert, nil

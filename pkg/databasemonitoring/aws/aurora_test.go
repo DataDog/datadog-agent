@@ -19,10 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type mockrdsServiceConfigurer func(k *MockrdsService)
-
-const defaultDbmTag = "datadoghq.com/dbm:true"
-
 func TestGetAuroraClusterEndpoints(t *testing.T) {
 	testCases := []struct {
 		name                           string
@@ -80,6 +76,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -116,6 +113,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -153,6 +151,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -210,6 +209,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -217,6 +217,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DbName:     "postgres",
 						},
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint-2",
 							Port:       5432,
 							IamEnabled: false,
@@ -224,6 +225,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DbName:     "postgres",
 						},
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint-3",
 							Port:       5444,
 							IamEnabled: false,
@@ -280,6 +282,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -317,6 +320,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -379,6 +383,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -387,6 +392,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							DbmEnabled: true,
 						},
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint-2",
 							Port:       5432,
 							IamEnabled: false,
@@ -398,6 +404,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 				"test-cluster-2": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster-2",
 							Endpoint:   "test-endpoint-3",
 							Port:       5444,
 							IamEnabled: true,
@@ -463,6 +470,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -497,6 +505,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -532,6 +541,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 				"test-cluster": {
 					Instances: []*Instance{
 						{
+							ClusterID:  "test-cluster",
 							Endpoint:   "test-endpoint",
 							Port:       5432,
 							IamEnabled: true,
@@ -561,7 +571,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 				}, nil).Times(1)
 			},
 			clusterIDs:  []string{"test-cluster"},
-			expectedErr: errors.New("engine is nil for instance test-cluster"),
+			expectedErr: errors.New("no endpoints found for aurora clusters with id(s): test-cluster"),
 		},
 		{
 			name: "unsupported engine returns error",
@@ -583,7 +593,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 				}, nil).Times(1)
 			},
 			clusterIDs:  []string{"test-cluster"},
-			expectedErr: errors.New("error getting default db name from engine: unsupported engine type: does-not-exist"),
+			expectedErr: errors.New("no endpoints found for aurora clusters with id(s): test-cluster"),
 		},
 	}
 	for _, tt := range testCases {
@@ -930,16 +940,5 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedClusterIDs, clusters)
 		})
-	}
-}
-
-func createDescribeDBInstancesRequest(clusterIDs []string) *rds.DescribeDBInstancesInput {
-	return &rds.DescribeDBInstancesInput{
-		Filters: []types.Filter{
-			{
-				Name:   aws.String("db-cluster-id"),
-				Values: clusterIDs,
-			},
-		},
 	}
 }

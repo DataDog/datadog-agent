@@ -68,10 +68,10 @@ instances: [{}]
 func (v *LinuxFIPSComplianceSuite) TestFIPSDefaultConfig() {
 	_, err := v.Env().RemoteHost.Execute("sudo GOFIPS=0 datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "the 'requirefips' build tag is enabled, but it conflicts with the detected env variable GOFIPS=0 which would disable FIPS mode")
+	assert.Contains(v.T(), err.Error(), "the 'requirefips' build tag is enabled, but it conflicts with the environment variable GOFIPS=0 which would disable FIPS mode")
 
 	status := v.Env().RemoteHost.MustExecute("sudo datadog-agent status")
-	assert.NotContains(v.T(), status, "can't enable FIPS mode for OpenSSL")
+	assert.NotContains(v.T(), status, "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
 	assert.Contains(v.T(), status, "Status date")
 	assert.Contains(v.T(), status, "FIPS Mode: enabled")
 }
@@ -82,7 +82,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSNoFIPSProvider() {
 
 	status, err := v.Env().RemoteHost.Execute("sudo datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "can't enable FIPS mode for OpenSSL")
+	assert.Contains(v.T(), err.Error(), "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
 	assert.NotContains(v.T(), status, "Status date")
 
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp /opt/datadog-agent/embedded/ssl/openssl.cnf")
@@ -93,7 +93,7 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledNoOpenSSLConfig() {
 
 	status, err := v.Env().RemoteHost.Execute("sudo datadog-agent status")
 	require.NotNil(v.T(), err)
-	assert.Contains(v.T(), err.Error(), "can't enable FIPS mode for OpenSSL")
+	assert.Contains(v.T(), err.Error(), "FIPS mode requested (requirefips tag set) but not available in OpenSSL")
 	assert.NotContains(v.T(), status, "Status date")
 
 	v.Env().RemoteHost.MustExecute("sudo mv /opt/datadog-agent/embedded/ssl/openssl.cnf.tmp /opt/datadog-agent/embedded/ssl/openssl.cnf")

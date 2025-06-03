@@ -33,20 +33,6 @@ func (m *MocknetworkCollector) EXPECT() *MocknetworkCollectorMockRecorder {
 	return m.recorder
 }
 
-// addPid mocks base method.
-func (m *MocknetworkCollector) addPid(pid uint32) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "addPid", pid)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// addPid indicates an expected call of addPid.
-func (mr *MocknetworkCollectorMockRecorder) addPid(pid interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "addPid", reflect.TypeOf((*MocknetworkCollector)(nil).addPid), pid)
-}
-
 // close mocks base method.
 func (m *MocknetworkCollector) close() {
 	m.ctrl.T.Helper()
@@ -60,30 +46,16 @@ func (mr *MocknetworkCollectorMockRecorder) close() *gomock.Call {
 }
 
 // getStats mocks base method.
-func (m *MocknetworkCollector) getStats(pid uint32) (NetworkStats, error) {
+func (m *MocknetworkCollector) getStats(pids pidSet) (map[uint32]NetworkStats, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "getStats", pid)
-	ret0, _ := ret[0].(NetworkStats)
+	ret := m.ctrl.Call(m, "getStats", pids)
+	ret0, _ := ret[0].(map[uint32]NetworkStats)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // getStats indicates an expected call of getStats.
-func (mr *MocknetworkCollectorMockRecorder) getStats(pid interface{}) *gomock.Call {
+func (mr *MocknetworkCollectorMockRecorder) getStats(pids interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getStats", reflect.TypeOf((*MocknetworkCollector)(nil).getStats), pid)
-}
-
-// removePid mocks base method.
-func (m *MocknetworkCollector) removePid(pid uint32) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "removePid", pid)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// removePid indicates an expected call of removePid.
-func (mr *MocknetworkCollectorMockRecorder) removePid(pid interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "removePid", reflect.TypeOf((*MocknetworkCollector)(nil).removePid), pid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getStats", reflect.TypeOf((*MocknetworkCollector)(nil).getStats), pids)
 }

@@ -14,10 +14,10 @@ type FilterValues []FilterValue
 // FilterValue represents a field, its value, its type and whether it's a used
 // to compare with or against its value
 type FilterValue struct {
-	Field eval.Field
-	Value interface{}
-	Type  eval.FieldValueType
-	Mode  FilterMode
+	Field eval.Field          `json:"field"`
+	Value interface{}         `json:"value"`
+	Type  eval.FieldValueType `json:"type"`
+	Mode  FilterMode          `json:"mode"`
 }
 
 // Merge merges to FilterValues ensuring there is no duplicate value

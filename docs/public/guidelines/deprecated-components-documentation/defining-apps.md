@@ -14,14 +14,15 @@ A "simple binary" here is one that does not have subcommands.
 
 The Cobra configuration for the binary is contained in the `command` subpackage of the main package (`cmd/<binary>/command`). The `main` function calls this package to create the command, and then executes it:
 
-=== ":octicons-file-code-16: cmd/&lt;binary&gt;/main.go"
-    ```go
-    func main() {
-        if err := command.MakeCommand().Execute(); err != nil {
-            os.Exit(-1)
-        }
+/// tab | :octicons-file-code-16: cmd/&lt;binary&gt;/main.go
+```go
+func main() {
+    if err := command.MakeCommand().Execute(); err != nil {
+        os.Exit(-1)
     }
-    ```
+}
+```
+///
 
 The `command.MakeCommand` function creates the `*cobra.Command` for the binary, with a `RunE` field that defines an app, as described below.
 
@@ -31,48 +32,51 @@ Many binaries have a collection of subcommands, along with some command-line fla
 
 As with simple binaries, the top-level Cobra command is defined by a `MakeCommand` function in `cmd/<binary>/command`. This `command` package should also define a `GlobalParams` struct and a `SubcommandFactory` type:
 
-=== ":octicons-file-code-16: cmd/&lt;binary&gt;/command/command.go"
-    ```go
-    // GlobalParams contains the values of agent-global Cobra flags.
-    //
-    // A pointer to this type is passed to SubcommandFactory's, but its contents
-    // are not valid until Cobra calls the subcommand's Run or RunE function.
-    type GlobalParams struct {
-        // ConfFilePath holds the path to the folder containing the configuration
-        // file, to allow overrides from the command line
-        ConfFilePath string
+/// tab | :octicons-file-code-16: cmd/&lt;binary&gt;/command/command.go
+```go
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
+type GlobalParams struct {
+    // ConfFilePath holds the path to the folder containing the configuration
+    // file, to allow overrides from the command line
+    ConfFilePath string
 
-        // ...
-    }
+    // ...
+}
 
-    // SubcommandFactory is a callable that will return a slice of subcommands.
-    type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
-    ```
+// SubcommandFactory is a callable that will return a slice of subcommands.
+type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
+```
+///
 
 Each subcommand is implemented in a subpackage of `cmd/<binary>/subcommands`, such as `cmd/<binary>/subcommands/version`. Each such subpackage contains a `command.go` defining a `Commands` function that defines the subcommands for that package:
 
-=== ":octicons-file-code-16: cmd/&lt;binary&gt;/subcommands/&lt;command&gt;/command.go"
-    ```go
-    func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-        cmd := &cobra.Command { .. }
-        return []*cobra.Command{cmd}
-    }
-    ```
+/// tab | :octicons-file-code-16: cmd/&lt;binary&gt;/subcommands/&lt;command&gt;/command.go
+```go
+func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+    cmd := &cobra.Command { .. }
+    return []*cobra.Command{cmd}
+}
+```
+///
 
 While `Commands` typically returns only one command, it may make sense to return multiple commands when the implementations share substantial amounts of code, such as starting, stopping and restarting a service.
 
 The `main` function supplies a slice of subcommand factories to `command.MakeCommand`, which calls each one and adds the resulting subcommands to the root command.
 
-=== ":octicons-file-code-16: cmd/&lt;binary&gt;/main.go"
-    ```go
-    subcommandFactories := []command.SubcommandFactory{
-        frobnicate.Commands,
-        ...,
-    }
-    if err := command.MakeCommand(subcommandFactories).Execute(); err != nil {
-        os.Exit(-1)
-    }
-    ```
+/// tab | :octicons-file-code-16: cmd/&lt;binary&gt;/main.go
+```go
+subcommandFactories := []command.SubcommandFactory{
+    frobnicate.Commands,
+    ...,
+}
+if err := command.MakeCommand(subcommandFactories).Execute(); err != nil {
+    os.Exit(-1)
+}
+```
+///
 
 The `GlobalParams` type supports Cobra arguments that are global to all subcommands. It is passed to each subcommand factory so that the defined `RunE` callbacks can access these arguments. If the binary has no global command-line arguments, it's OK to omit this type.
 

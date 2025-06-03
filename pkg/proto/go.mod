@@ -11,10 +11,10 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/stretchr/testify v1.10.0
-	github.com/tinylib/msgp v1.2.5
+	github.com/tinylib/msgp v1.3.0
 	github.com/vmihailenco/msgpack/v4 v4.3.13
-	google.golang.org/genproto/googleapis/api v0.0.0-20250414145226-207652e42e2e
-	google.golang.org/grpc v1.72.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20250425173222-7b384671a197
+	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.6
 )
 

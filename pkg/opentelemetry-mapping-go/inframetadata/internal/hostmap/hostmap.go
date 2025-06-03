@@ -14,7 +14,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	conventions "go.opentelemetry.io/collector/semconv/v1.18.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.18.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/gohai"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload"
@@ -118,14 +118,14 @@ func ieeeRAtoGolangFormat(IEEERAMACaddress string) string {
 // isAWS checks if a resource attribute map
 // is coming from an AWS VM.
 func isAWS(m pcommon.Map) (bool, error) {
-	cloudProvider, ok, err := strField(m, conventions.AttributeCloudProvider)
+	cloudProvider, ok, err := strField(m, string(conventions.CloudProviderKey))
 	if err != nil {
 		return false, err
 	} else if !ok {
 		// no cloud provider field
 		return false, nil
 	}
-	return cloudProvider == conventions.AttributeCloudProviderAWS, nil
+	return cloudProvider == conventions.CloudProviderAWS.Value.AsString(), nil
 }
 
 // instanceID gets the AWS EC2 instance ID from a resource attribute map.
@@ -137,7 +137,7 @@ func instanceID(m pcommon.Map) (string, bool, error) {
 	if onAWS, err := isAWS(m); err != nil || !onAWS {
 		return "", onAWS, err
 	}
-	return strField(m, conventions.AttributeHostID)
+	return strField(m, string(conventions.HostIDKey))
 }
 
 // ec2Hostname gets the AWS EC2 OS hostname from a resource attribute map.
@@ -149,7 +149,7 @@ func ec2Hostname(m pcommon.Map) (string, bool, error) {
 	if onAWS, err := isAWS(m); err != nil || !onAWS {
 		return "", onAWS, err
 	}
-	return strField(m, conventions.AttributeHostName)
+	return strField(m, string(conventions.HostNameKey))
 }
 
 // Set a hardcoded host metadata payload.

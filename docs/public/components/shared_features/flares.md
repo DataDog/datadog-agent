@@ -20,7 +20,7 @@ directories, scrubbing data, and so on).
 
 Example:
 
-```golang
+```go
 import (
 	yaml "gopkg.in/yaml.v2"
 
@@ -29,10 +29,10 @@ import (
 
 func (c *myComponent) fillFlare(fb flare.FlareBuilder) error {
 	// Creating a new file
-	fb.AddFile( 
+	fb.AddFile(
 		"runtime_config_dump.yaml",
 		[]byte("content of my file"),
-	) //nolint:errcheck	
+	) //nolint:errcheck
 
 	// Copying a file from the disk into the flare
 	fb.CopyFile("/etc/datadog-agent/datadog.yaml") //nolint:errcheck
@@ -57,7 +57,8 @@ needs to provide a new [Provider](https://pkg.go.dev/github.com/DataDog/datadog-
 Use [NewProvider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare/types#NewProvider) function for this.
 
 Example:
-```golang
+
+```go
 import (
 	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 )
@@ -86,9 +87,9 @@ func newComponent(deps Requires) Provides {
 The flare component offers a
 [FlareBuilder mock](https://github.com/DataDog/datadog-agent/blob/d0035f997e796204ec4ec07a8bc467c85b9ee6fb/comp/core/flare/helpers/builder_mock.go#L22) to test your callback.
 
-
 Example:
-```golang
+
+```go
 import (
 	"testing"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -100,7 +101,7 @@ func TestFillFlare(t testing.T) {
 	flareBuilderMock := helpers.NewFlareBuilderMock(t)
 
 	myComp.fillFlare(flareBuilderMock, false)
-	
+
 	flareBuilderMock.AssertFileExists("datadog.yaml")
 	flareBuilderMock.AssertFileContent("some_file.txt", "my content")
 	// ...

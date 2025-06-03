@@ -136,9 +136,10 @@ func runTestCase(t *testing.T, function string, expectedCaptureValue CapturedVal
 	})
 	require.NoError(t, err, "template execute")
 
+	cm.ProcTracker.HandleProcessStartSync(uint32(cmd.Process.Pid))
+
 	// Read the configuration via the config manager
-	_, err = cm.ConfigWriter.Write(buf.Bytes())
-	require.NoError(t, err, "read new configuration")
+	_ = cm.ConfigWriter.WriteSync(buf.Bytes())
 
 	var lastSnapshot ditypes.CapturedValueMap
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
