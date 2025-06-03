@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -74,24 +73,10 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 			continue
 		}
 
-		sattr := otelspan.Attributes()
-		rattr := otelres.Attributes()
-		env := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogEnvironment)
-		if env == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
-			env = traceutil.GetOTelEnv(otelspan, otelres)
-		}
-		hostname := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogHost)
-		if hostname == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
-			hostname = traceutil.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
-		}
-		version := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogVersion)
-		if version == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
-			version = traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.ServiceVersionKey))
-		}
-		cid := traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, transform.KeyDatadogContainerID)
-		if cid == "" && !conf.OTLPReceiver.IgnoreMissingDatadogFields {
-			cid = traceutil.GetOTelAttrFromEitherMap(sattr, rattr, true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
-		}
+		env := transform.GetOTelEnv(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		hostname := transform.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		version := transform.GetOTelVersion(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+		cid := transform.GetOTelContainerID(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		var ctags []string
 		if cid != "" {
 			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)

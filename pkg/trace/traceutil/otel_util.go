@@ -6,18 +6,15 @@
 package traceutil
 
 import (
-	"context"
 	"encoding/binary"
 	"strings"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/otel/attribute"
 	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
-	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -564,53 +561,6 @@ func GetOTelOperationNameV1(
 	return name
 }
 
-// GetOtelSource returns the source based on OTel span and resource attributes.
-func GetOtelSource(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator) (source.Source, bool) {
-	ctx := context.Background()
-	src, srcok := tr.ResourceToSource(ctx, res, SignalTypeSet, nil)
-	if !srcok {
-		if v := GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
-			srcok = true
-		}
-	}
-	return src, srcok
-}
-
-// GetOTelHostname returns the DD hostname based on OTel span and resource attributes.
-func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Translator, fallbackHost string) string {
-	src, srcok := GetOtelSource(span, res, tr)
-	if srcok {
-		switch src.Kind {
-		case source.HostnameKind:
-			return src.Identifier
-		default:
-			// We are not on a hostname (serverless), hence the hostname is empty
-			return ""
-		}
-	} else {
-		// fallback hostname from Agent conf.Hostname
-		return fallbackHost
-	}
-}
-
-// GetOTelStatusCode returns the DD status code of the OTel span.
-func GetOTelStatusCode(span ptrace.Span, res pcommon.Resource) uint32 {
-	if code, ok := span.Attributes().Get(string(semconv.HTTPStatusCodeKey)); ok {
-		return uint32(code.Int())
-	}
-	if code, ok := span.Attributes().Get("http.response.status_code"); ok {
-		return uint32(code.Int())
-	}
-	if code, ok := res.Attributes().Get(string(semconv.HTTPStatusCodeKey)); ok {
-		return uint32(code.Int())
-	}
-	if code, ok := res.Attributes().Get("http.response.status_code"); ok {
-		return uint32(code.Int())
-	}
-	return 0
-}
-
 // GetOTelContainerTags returns a list of DD container tags in the OTel resource attributes.
 // Tags are always normalized.
 func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
@@ -632,11 +582,6 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 		}
 	}
 	return containerTags
-}
-
-// GetOTelEnv returns the environment based on OTel span and resource attributes, with span taking precedence.
-func GetOTelEnv(span ptrace.Span, res pcommon.Resource) string {
-	return GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
 }
 
 // OTelTraceIDToUint64 converts an OTel trace ID to an uint64

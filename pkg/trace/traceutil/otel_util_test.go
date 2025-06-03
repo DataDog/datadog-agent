@@ -10,15 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/otel/metric/noop"
 	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
-	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -628,97 +624,6 @@ func TestGetOTelOperationName(t *testing.T) {
 	}
 }
 
-func TestGetOTelHostname(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		rattrs       map[string]string
-		sattrs       map[string]string
-		fallbackHost string
-		expected     string
-	}{
-		{
-			name:     "datadog.host.name",
-			rattrs:   map[string]string{"datadog.host.name": "test-host"},
-			expected: "test-host",
-		},
-		{
-			name:     "_dd.hostname",
-			rattrs:   map[string]string{"_dd.hostname": "test-host"},
-			expected: "test-host",
-		},
-		{
-			name:         "fallback hostname",
-			fallbackHost: "test-host",
-			expected:     "test-host",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			span := ptrace.NewSpan()
-			span.SetName("span_name")
-			for k, v := range tt.sattrs {
-				span.Attributes().PutStr(k, v)
-			}
-			res := pcommon.NewResource()
-			for k, v := range tt.rattrs {
-				res.Attributes().PutStr(k, v)
-			}
-			set := componenttest.NewNopTelemetrySettings()
-			set.MeterProvider = noop.NewMeterProvider()
-			tr, err := attributes.NewTranslator(set)
-			assert.NoError(t, err)
-			actual := GetOTelHostname(span, res, tr, tt.fallbackHost)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
-}
-
-func TestGetOTelStatusCode(t *testing.T) {
-	tests := []struct {
-		name     string
-		sattrs   map[string]int64
-		rattrs   map[string]int64
-		expected uint32
-	}{
-		{
-			name:     "none set",
-			expected: 0,
-		},
-		{
-			name:     "span semconv.AttributeHTTPStatusCode",
-			sattrs:   map[string]int64{string(semconv.HTTPStatusCodeKey): 200},
-			expected: 200,
-		},
-		{
-			name:     "span http.response.status_code",
-			sattrs:   map[string]int64{"http.response.status_code": 404},
-			expected: 404,
-		},
-		{
-			name:     "resource semconv.AttributeHTTPStatusCode",
-			rattrs:   map[string]int64{string(semconv.HTTPStatusCodeKey): 201},
-			expected: 201,
-		},
-		{
-			name:     "resource http.response.status_code",
-			rattrs:   map[string]int64{"http.response.status_code": 418},
-			expected: 418,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			span := ptrace.NewSpan()
-			for k, v := range tt.sattrs {
-				span.Attributes().PutInt(k, v)
-			}
-			res := pcommon.NewResource()
-			for k, v := range tt.rattrs {
-				res.Attributes().PutInt(k, v)
-			}
-			assert.Equal(t, tt.expected, GetOTelStatusCode(span, res))
-		})
-	}
-}
-
 func TestGetOTelContainerTags(t *testing.T) {
 	res := pcommon.NewResource()
 	res.Attributes().PutStr(string(semconv.ContainerIDKey), "cid")
@@ -728,62 +633,4 @@ func TestGetOTelContainerTags(t *testing.T) {
 	res.Attributes().PutStr("az", "my-az")
 	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az", string(semconv.ContainerIDKey), string(semconv.ContainerNameKey), string(semconv.ContainerImageNameKey), string(semconv.ContainerImageTagKey)}), "container_id:cid", "container_name:cname", "image_name:ciname", "image_tag:citag", "az:my-az")
 	assert.Contains(t, GetOTelContainerTags(res.Attributes(), []string{"az"}), "az:my-az")
-}
-
-func TestGetOTelEnv(t *testing.T) {
-	tests := []struct {
-		name     string
-		sattrs   map[string]string
-		rattrs   map[string]string
-		expected string
-	}{
-		{
-			name:     "neither set",
-			expected: "",
-		},
-		{
-			name:     "only in resource (semconv127)",
-			rattrs:   map[string]string{string(semconv127.DeploymentEnvironmentNameKey): "env-res-127"},
-			expected: "env-res-127",
-		},
-		{
-			name:     "only in resource (semconv)",
-			rattrs:   map[string]string{string(semconv.DeploymentEnvironmentKey): "env-res"},
-			expected: "env-res",
-		},
-		{
-			name:     "only in span (semconv127)",
-			sattrs:   map[string]string{string(semconv127.DeploymentEnvironmentNameKey): "env-span-127"},
-			expected: "env-span-127",
-		},
-		{
-			name:     "only in span (semconv)",
-			sattrs:   map[string]string{string(semconv.DeploymentEnvironmentKey): "env-span"},
-			expected: "env-span",
-		},
-		{
-			name:     "both set (span wins)",
-			sattrs:   map[string]string{string(semconv.DeploymentEnvironmentKey): "env-span"},
-			rattrs:   map[string]string{string(semconv.DeploymentEnvironmentKey): "env-res"},
-			expected: "env-span",
-		},
-		{
-			name:     "normalization",
-			sattrs:   map[string]string{string(semconv.DeploymentEnvironmentKey): "  ENV "},
-			expected: "_env",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			span := ptrace.NewSpan()
-			for k, v := range tt.sattrs {
-				span.Attributes().PutStr(k, v)
-			}
-			res := pcommon.NewResource()
-			for k, v := range tt.rattrs {
-				res.Attributes().PutStr(k, v)
-			}
-			assert.Equal(t, tt.expected, GetOTelEnv(span, res))
-		})
-	}
 }

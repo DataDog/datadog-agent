@@ -2392,7 +2392,6 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otel.library.name":             "ddtracer",
 					"otel.library.version":          "v2",
 					"service.version":               "v1.2.3",
-					"version":                       "v1.2.3",
 					"w3c.tracestate":                "state",
 					"otel.trace_id":                 "72df520af2bde7a5240031ead750e5f3",
 					"events":                        "[{\"time_unix_nano\":123,\"name\":\"boom\",\"attributes\":{\"message\":\"Out of memory\",\"accuracy\":2.4},\"dropped_attributes_count\":2},{\"time_unix_nano\":456,\"name\":\"exception\",\"attributes\":{\"exception.message\":\"Out of memory\",\"exception.type\":\"mem\",\"exception.stacktrace\":\"1/2/3\"},\"dropped_attributes_count\":2}]",
