@@ -8,6 +8,7 @@ package ssistatusimpl
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -53,6 +54,7 @@ type ssiStatusComponent struct {
 	log            log.Component
 	iexec          installerexec.Component
 	stopCh         chan struct{}
+	newFileCh      chan struct{} // Channel to trigger updates when a new file is added
 	fswatcher      *fsnotify.Watcher
 }
 
@@ -63,6 +65,9 @@ func (c *ssiStatusComponent) Start(_ context.Context) error {
 	}
 	c.fswatcher = watcher
 	c.stopCh = make(chan struct{})
+	c.newFileCh = make(chan struct{}) // Buffered channel to avoid blocking
+
+	// Only update the status if a SSI-related file is modified / created
 	go func() {
 		for {
 			select {
@@ -70,7 +75,7 @@ func (c *ssiStatusComponent) Start(_ context.Context) error {
 				if !ok {
 					return
 				}
-				if event.Op&fsnotify.Write == fsnotify.Write {
+				if event.Has(fsnotify.Write) || event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove) {
 					c.update()
 				}
 			case err, ok := <-c.fswatcher.Errors:
@@ -78,19 +83,46 @@ func (c *ssiStatusComponent) Start(_ context.Context) error {
 					return
 				}
 				c.log.Errorf("Error watching file: %v", err)
+			case <-c.newFileCh:
+				c.update()
 			case <-c.stopCh:
 				return
 			}
 		}
 	}()
-	c.update() // Initial update to set the initial state
-	files := []string{"/etc/ld.so.preload", "/etc/docker/daemon.json", "/opt/datadog-packages/datadog-apm-inject"}
-	for _, file := range files {
-		err := c.fswatcher.Add(file)
-		if err != nil {
-			return err
+
+	// Periodically try to watch the files, as they may not exist at the time of the initial start
+	go func() {
+		watched := make(map[string]bool)
+		for {
+			select {
+			case <-time.After(time.Minute):
+				for _, file := range watchedFiles {
+					_, err := os.Stat(file)
+					if err == nil && !watched[file] {
+						if err := c.fswatcher.Add(file); err != nil {
+							c.log.Errorf("Error watching file %s: %v", file, err)
+						} else {
+							watched[file] = true
+							c.log.Debugf("Started watching file: %s", file)
+							c.newFileCh <- struct{}{} // Trigger an update when a new file is added
+						}
+					} else if os.IsNotExist(err) && watched[file] {
+						if err := c.fswatcher.Remove(file); err != nil {
+							c.log.Errorf("Error removing file %s from watcher: %v", file, err)
+						} else {
+							delete(watched, file)
+							c.log.Debugf("Stopped watching file: %s", file)
+						}
+					}
+				}
+			case <-c.stopCh:
+				return
+			}
 		}
-	}
+	}()
+
+	c.update() // Initial update to set the initial state
 	return nil
 }
 

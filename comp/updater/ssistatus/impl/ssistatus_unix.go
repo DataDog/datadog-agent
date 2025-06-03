@@ -12,6 +12,10 @@ import (
 	"fmt"
 )
 
+var (
+	watchedFiles = []string{"/etc/ld.so.preload", "/etc/docker/daemon.json", "/opt/datadog-packages/datadog-apm-inject"}
+)
+
 // autoInstrumentationStatus checks if the APM auto-instrumentation is enabled on the host. This will return false on Kubernetes
 func (c *ssiStatusComponent) autoInstrumentationStatus(ctx context.Context) (bool, []string, error) {
 	injectorInstalled, err := c.iexec.IsInstalled(ctx, "datadog-apm-inject")
