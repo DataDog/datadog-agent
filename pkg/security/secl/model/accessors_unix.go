@@ -1891,6 +1891,94 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.file.metadatas.abi":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadatasABI(ev, &ev.Exec.FileMetadatas)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadatas.architecture":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadatasArchitecture(ev, &ev.Exec.FileMetadatas)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadatas.compression":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadatasCompression(ev, &ev.Exec.FileMetadatas)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadatas.is_executable":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadatasIsExecutable(ev, &ev.Exec.FileMetadatas)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadatas.is_garble_obfuscated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadatasIsGarbleObfuscated(ev, &ev.Exec.FileMetadatas)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadatas.is_upx_packed":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadatasIsUPXPacked(ev, &ev.Exec.FileMetadatas)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadatas.size":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveFileMetadatasSize(ev, &ev.Exec.FileMetadatas))
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadatas.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadatasType(ev, &ev.Exec.FileMetadatas)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.file.mode":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -22599,6 +22687,14 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.file.hashes",
 		"exec.file.in_upper_layer",
 		"exec.file.inode",
+		"exec.file.metadatas.abi",
+		"exec.file.metadatas.architecture",
+		"exec.file.metadatas.compression",
+		"exec.file.metadatas.is_executable",
+		"exec.file.metadatas.is_garble_obfuscated",
+		"exec.file.metadatas.is_upx_packed",
+		"exec.file.metadatas.size",
+		"exec.file.metadatas.type",
 		"exec.file.mode",
 		"exec.file.modification_time",
 		"exec.file.mount_id",
@@ -24234,6 +24330,22 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exec.file.in_upper_layer":
 		return "exec", reflect.Bool, "bool", nil
 	case "exec.file.inode":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadatas.abi":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadatas.architecture":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadatas.compression":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadatas.is_executable":
+		return "exec", reflect.Bool, "bool", nil
+	case "exec.file.metadatas.is_garble_obfuscated":
+		return "exec", reflect.Bool, "bool", nil
+	case "exec.file.metadatas.is_upx_packed":
+		return "exec", reflect.Bool, "bool", nil
+	case "exec.file.metadatas.size":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadatas.type":
 		return "exec", reflect.Int, "int", nil
 	case "exec.file.mode":
 		return "exec", reflect.Int, "int", nil
@@ -28152,6 +28264,62 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "exec.file.inode"}
 		}
 		ev.Exec.Process.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "exec.file.metadatas.abi":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadatas.abi"}
+		}
+		ev.Exec.FileMetadatas.ABI = int(rv)
+		return nil
+	case "exec.file.metadatas.architecture":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadatas.architecture"}
+		}
+		ev.Exec.FileMetadatas.Architecture = int(rv)
+		return nil
+	case "exec.file.metadatas.compression":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadatas.compression"}
+		}
+		ev.Exec.FileMetadatas.Compression = int(rv)
+		return nil
+	case "exec.file.metadatas.is_executable":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadatas.is_executable"}
+		}
+		ev.Exec.FileMetadatas.IsExecutable = rv
+		return nil
+	case "exec.file.metadatas.is_garble_obfuscated":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadatas.is_garble_obfuscated"}
+		}
+		ev.Exec.FileMetadatas.IsGarbleObfuscated = rv
+		return nil
+	case "exec.file.metadatas.is_upx_packed":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadatas.is_upx_packed"}
+		}
+		ev.Exec.FileMetadatas.IsUPXPacked = rv
+		return nil
+	case "exec.file.metadatas.size":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadatas.size"}
+		}
+		ev.Exec.FileMetadatas.Size = int64(rv)
+		return nil
+	case "exec.file.metadatas.type":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadatas.type"}
+		}
+		ev.Exec.FileMetadatas.Type = int(rv)
 		return nil
 	case "exec.file.mode":
 		if ev.Exec.Process == nil {

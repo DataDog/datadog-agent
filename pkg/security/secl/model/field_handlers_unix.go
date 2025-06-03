@@ -396,6 +396,30 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exec.Process)
 		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadatasSize(ev, &ev.Exec.FileMetadatas)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadatasType(ev, &ev.Exec.FileMetadatas)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadatasIsExecutable(ev, &ev.Exec.FileMetadatas)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadatasArchitecture(ev, &ev.Exec.FileMetadatas)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadatasABI(ev, &ev.Exec.FileMetadatas)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadatasIsUPXPacked(ev, &ev.Exec.FileMetadatas)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadatasCompression(ev, &ev.Exec.FileMetadatas)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadatasIsGarbleObfuscated(ev, &ev.Exec.FileMetadatas)
+		}
+		if !forADs {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
 		}
 	case "exit":
@@ -1153,6 +1177,14 @@ type FieldHandlers interface {
 	ResolveFileFieldsInUpperLayer(ev *Event, e *FileFields) bool
 	ResolveFileFieldsUser(ev *Event, e *FileFields) string
 	ResolveFileFilesystem(ev *Event, e *FileEvent) string
+	ResolveFileMetadatasABI(ev *Event, e *FileMetadatas) int
+	ResolveFileMetadatasArchitecture(ev *Event, e *FileMetadatas) int
+	ResolveFileMetadatasCompression(ev *Event, e *FileMetadatas) int
+	ResolveFileMetadatasIsExecutable(ev *Event, e *FileMetadatas) bool
+	ResolveFileMetadatasIsGarbleObfuscated(ev *Event, e *FileMetadatas) bool
+	ResolveFileMetadatasIsUPXPacked(ev *Event, e *FileMetadatas) bool
+	ResolveFileMetadatasSize(ev *Event, e *FileMetadatas) int
+	ResolveFileMetadatasType(ev *Event, e *FileMetadatas) int
 	ResolveFilePath(ev *Event, e *FileEvent) string
 	ResolveHashesFromEvent(ev *Event, e *FileEvent) []string
 	ResolveHostname(ev *Event, e *BaseEvent) string
@@ -1271,6 +1303,30 @@ func (dfh *FakeFieldHandlers) ResolveFileFieldsUser(ev *Event, e *FileFields) st
 }
 func (dfh *FakeFieldHandlers) ResolveFileFilesystem(ev *Event, e *FileEvent) string {
 	return string(e.Filesystem)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadatasABI(ev *Event, e *FileMetadatas) int {
+	return int(e.ABI)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadatasArchitecture(ev *Event, e *FileMetadatas) int {
+	return int(e.Architecture)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadatasCompression(ev *Event, e *FileMetadatas) int {
+	return int(e.Compression)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadatasIsExecutable(ev *Event, e *FileMetadatas) bool {
+	return bool(e.IsExecutable)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadatasIsGarbleObfuscated(ev *Event, e *FileMetadatas) bool {
+	return bool(e.IsGarbleObfuscated)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadatasIsUPXPacked(ev *Event, e *FileMetadatas) bool {
+	return bool(e.IsUPXPacked)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadatasSize(ev *Event, e *FileMetadatas) int {
+	return int(e.Size)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadatasType(ev *Event, e *FileMetadatas) int {
+	return int(e.Type)
 }
 func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
 	return string(e.PathnameStr)
