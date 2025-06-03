@@ -9,7 +9,5 @@ package module
 
 type networkCollector interface {
 	close()
-	addPid(pid uint32) error
-	removePid(pid uint32) error
-	getStats(pid uint32) (NetworkStats, error)
+	getStats(pids pidSet) (map[uint32]NetworkStats, error)
 }

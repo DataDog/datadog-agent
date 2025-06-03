@@ -103,10 +103,15 @@ func (cr *CRHandlers) GetMetadataTags(ctx processors.ProcessorContext, resourceM
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, resource interface{}) {
+	pctx := ctx.(*processors.K8sProcessorContext)
 	r := resource.(*unstructured.Unstructured)
 	annotations := r.GetAnnotations()
 	labels := r.GetLabels()
 	redact.RemoveSensitiveAnnotationsAndLabels(annotations, labels)
 	r.SetAnnotations(annotations)
 	r.SetLabels(labels)
+
+	if pctx.Cfg.IsScrubbingEnabled {
+		redact.ScrubCRManifest(r, pctx.Cfg.Scrubber)
+	}
 }

@@ -23,8 +23,8 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/attribute"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 )
 
 var (
@@ -51,7 +51,7 @@ func (t *Translator) hostNameAndServiceNameFromResource(ctx context.Context, res
 	if src, ok := t.attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler); ok && src.Kind == source.HostnameKind {
 		host = src.Identifier
 	}
-	if s, ok := res.Attributes().Get(conventions.AttributeServiceName); ok {
+	if s, ok := res.Attributes().Get(string(conventions.ServiceNameKey)); ok {
 		service = s.AsString()
 	}
 	return host, service
@@ -86,7 +86,7 @@ func (t *Translator) MapLogs(ctx context.Context, ld plog.Logs, hostFromAttribut
 					host = t.hostFromAttributes(ctx, log.Attributes())
 				}
 				if service == "" {
-					if s, ok := log.Attributes().Get(conventions.AttributeServiceName); ok {
+					if s, ok := log.Attributes().Get(string(conventions.ServiceNameKey)); ok {
 						service = s.AsString()
 					}
 				}

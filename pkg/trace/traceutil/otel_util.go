@@ -14,10 +14,10 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
-	semconv126 "go.opentelemetry.io/collector/semconv/v1.26.0"
-	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/attribute"
+	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
+	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
@@ -50,69 +50,69 @@ const (
 // DBTypes are semconv types that should map to span.Type values given in the mapping
 var dbTypes = map[string]string{
 	// SQL db types
-	semconv.AttributeDBSystemOtherSQL:      spanTypeSQL,
-	semconv.AttributeDBSystemMSSQL:         spanTypeSQL,
-	semconv.AttributeDBSystemMySQL:         spanTypeSQL,
-	semconv.AttributeDBSystemOracle:        spanTypeSQL,
-	semconv.AttributeDBSystemDB2:           spanTypeSQL,
-	semconv.AttributeDBSystemPostgreSQL:    spanTypeSQL,
-	semconv.AttributeDBSystemRedshift:      spanTypeSQL,
-	semconv.AttributeDBSystemCloudscape:    spanTypeSQL,
-	semconv.AttributeDBSystemHSQLDB:        spanTypeSQL,
-	semconv.AttributeDBSystemMaxDB:         spanTypeSQL,
-	semconv.AttributeDBSystemIngres:        spanTypeSQL,
-	semconv.AttributeDBSystemFirstSQL:      spanTypeSQL,
-	semconv.AttributeDBSystemEDB:           spanTypeSQL,
-	semconv.AttributeDBSystemCache:         spanTypeSQL,
-	semconv.AttributeDBSystemFirebird:      spanTypeSQL,
-	semconv.AttributeDBSystemDerby:         spanTypeSQL,
-	semconv.AttributeDBSystemInformix:      spanTypeSQL,
-	semconv.AttributeDBSystemMariaDB:       spanTypeSQL,
-	semconv.AttributeDBSystemSqlite:        spanTypeSQL,
-	semconv.AttributeDBSystemSybase:        spanTypeSQL,
-	semconv.AttributeDBSystemTeradata:      spanTypeSQL,
-	semconv.AttributeDBSystemVertica:       spanTypeSQL,
-	semconv.AttributeDBSystemH2:            spanTypeSQL,
-	semconv.AttributeDBSystemColdfusion:    spanTypeSQL,
-	semconv.AttributeDBSystemCockroachdb:   spanTypeSQL,
-	semconv.AttributeDBSystemProgress:      spanTypeSQL,
-	semconv.AttributeDBSystemHanaDB:        spanTypeSQL,
-	semconv.AttributeDBSystemAdabas:        spanTypeSQL,
-	semconv.AttributeDBSystemFilemaker:     spanTypeSQL,
-	semconv.AttributeDBSystemInstantDB:     spanTypeSQL,
-	semconv.AttributeDBSystemInterbase:     spanTypeSQL,
-	semconv.AttributeDBSystemNetezza:       spanTypeSQL,
-	semconv.AttributeDBSystemPervasive:     spanTypeSQL,
-	semconv.AttributeDBSystemPointbase:     spanTypeSQL,
-	semconv117.AttributeDBSystemClickhouse: spanTypeSQL, // not in semconv 1.6.1
+	semconv.DBSystemOtherSQL.Value.AsString():      spanTypeSQL,
+	semconv.DBSystemMSSQL.Value.AsString():         spanTypeSQL,
+	semconv.DBSystemMySQL.Value.AsString():         spanTypeSQL,
+	semconv.DBSystemOracle.Value.AsString():        spanTypeSQL,
+	semconv.DBSystemDB2.Value.AsString():           spanTypeSQL,
+	semconv.DBSystemPostgreSQL.Value.AsString():    spanTypeSQL,
+	semconv.DBSystemRedshift.Value.AsString():      spanTypeSQL,
+	semconv.DBSystemCloudscape.Value.AsString():    spanTypeSQL,
+	semconv.DBSystemHSQLDB.Value.AsString():        spanTypeSQL,
+	semconv.DBSystemMaxDB.Value.AsString():         spanTypeSQL,
+	semconv.DBSystemIngres.Value.AsString():        spanTypeSQL,
+	semconv.DBSystemFirstSQL.Value.AsString():      spanTypeSQL,
+	semconv.DBSystemEDB.Value.AsString():           spanTypeSQL,
+	semconv.DBSystemCache.Value.AsString():         spanTypeSQL,
+	semconv.DBSystemFirebird.Value.AsString():      spanTypeSQL,
+	semconv.DBSystemDerby.Value.AsString():         spanTypeSQL,
+	semconv.DBSystemInformix.Value.AsString():      spanTypeSQL,
+	semconv.DBSystemMariaDB.Value.AsString():       spanTypeSQL,
+	semconv.DBSystemSqlite.Value.AsString():        spanTypeSQL,
+	semconv.DBSystemSybase.Value.AsString():        spanTypeSQL,
+	semconv.DBSystemTeradata.Value.AsString():      spanTypeSQL,
+	semconv.DBSystemVertica.Value.AsString():       spanTypeSQL,
+	semconv.DBSystemH2.Value.AsString():            spanTypeSQL,
+	semconv.DBSystemColdfusion.Value.AsString():    spanTypeSQL,
+	semconv.DBSystemCockroachdb.Value.AsString():   spanTypeSQL,
+	semconv.DBSystemProgress.Value.AsString():      spanTypeSQL,
+	semconv.DBSystemHanaDB.Value.AsString():        spanTypeSQL,
+	semconv.DBSystemAdabas.Value.AsString():        spanTypeSQL,
+	semconv.DBSystemFilemaker.Value.AsString():     spanTypeSQL,
+	semconv.DBSystemInstantDB.Value.AsString():     spanTypeSQL,
+	semconv.DBSystemInterbase.Value.AsString():     spanTypeSQL,
+	semconv.DBSystemNetezza.Value.AsString():       spanTypeSQL,
+	semconv.DBSystemPervasive.Value.AsString():     spanTypeSQL,
+	semconv.DBSystemPointbase.Value.AsString():     spanTypeSQL,
+	semconv117.DBSystemClickhouse.Value.AsString(): spanTypeSQL, // not in semconv 1.6.1
 
 	// Cassandra db types
-	semconv.AttributeDBSystemCassandra: spanTypeCassandra,
+	semconv.DBSystemCassandra.Value.AsString(): spanTypeCassandra,
 
 	// Redis db types
-	semconv.AttributeDBSystemRedis: spanTypeRedis,
+	semconv.DBSystemRedis.Value.AsString(): spanTypeRedis,
 
 	// Memcached db types
-	semconv.AttributeDBSystemMemcached: spanTypeMemcached,
+	semconv.DBSystemMemcached.Value.AsString(): spanTypeMemcached,
 
 	// Mongodb db types
-	semconv.AttributeDBSystemMongoDB: spanTypeMongoDB,
+	semconv.DBSystemMongoDB.Value.AsString(): spanTypeMongoDB,
 
 	// Elasticsearch db types
-	semconv.AttributeDBSystemElasticsearch: spanTypeElasticsearch,
+	semconv.DBSystemElasticsearch.Value.AsString(): spanTypeElasticsearch,
 
 	// Opensearch db types, not in semconv 1.6.1
-	semconv117.AttributeDBSystemOpensearch: spanTypeOpenSearch,
+	semconv117.DBSystemOpensearch.Value.AsString(): spanTypeOpenSearch,
 
 	// Generic db types
-	semconv.AttributeDBSystemHive:      spanTypeDB,
-	semconv.AttributeDBSystemHBase:     spanTypeDB,
-	semconv.AttributeDBSystemNeo4j:     spanTypeDB,
-	semconv.AttributeDBSystemCouchbase: spanTypeDB,
-	semconv.AttributeDBSystemCouchDB:   spanTypeDB,
-	semconv.AttributeDBSystemCosmosDB:  spanTypeDB,
-	semconv.AttributeDBSystemDynamoDB:  spanTypeDB,
-	semconv.AttributeDBSystemGeode:     spanTypeDB,
+	semconv.DBSystemHive.Value.AsString():      spanTypeDB,
+	semconv.DBSystemHBase.Value.AsString():     spanTypeDB,
+	semconv.DBSystemNeo4j.Value.AsString():     spanTypeDB,
+	semconv.DBSystemCouchbase.Value.AsString(): spanTypeDB,
+	semconv.DBSystemCouchDB.Value.AsString():   spanTypeDB,
+	semconv.DBSystemCosmosDB.Value.AsString():  spanTypeDB,
+	semconv.DBSystemDynamoDB.Value.AsString():  spanTypeDB,
+	semconv.DBSystemGeode.Value.AsString():     spanTypeDB,
 }
 
 // checkDBType checks if the dbType is a known db type and returns the corresponding span.Type
@@ -230,7 +230,7 @@ func SpanKind2Type(span ptrace.Span, res pcommon.Resource) string {
 		typ = "web"
 	case ptrace.SpanKindClient:
 		typ = "http"
-		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, semconv.AttributeDBSystem)
+		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, string(semconv.DBSystemKey))
 		if db == "" {
 			break
 		}
@@ -257,7 +257,7 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 	case ptrace.SpanKindServer:
 		typ = "web"
 	case ptrace.SpanKindClient:
-		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, semconv.AttributeDBSystem)
+		db := GetOTelAttrValInResAndSpanAttrs(span, res, true, string(semconv.DBSystemKey))
 		if db == "" {
 			typ = "http"
 		} else {
@@ -272,7 +272,7 @@ func GetOTelSpanType(span ptrace.Span, res pcommon.Resource) string {
 // GetOTelService returns the DD service name based on OTel span and resource attributes.
 func GetOTelService(res pcommon.Resource, normalize bool) string {
 	// No need to normalize with NormalizeTagValue since we will do NormalizeService later
-	svc := GetOTelAttrVal(res.Attributes(), false, semconv.AttributeServiceName)
+	svc := GetOTelAttrVal(res.Attributes(), false, string(semconv.ServiceNameKey))
 	if svc == "" {
 		svc = "otlpresourcenoservicename"
 	}
@@ -293,30 +293,30 @@ func GetOTelService(res pcommon.Resource, normalize bool) string {
 func GetOTelResourceV1(span ptrace.Span, res pcommon.Resource) (resName string) {
 	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
 	if resName == "" {
-		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
+		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
 			// use the HTTP method + route (if available)
 			resName = m
-			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeHTTPRoute); route != "" {
+			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
 				resName = resName + " " + route
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingOperation); m != "" {
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationKey)); m != "" {
 			resName = m
 			// use the messaging operation
-			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
+			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
 				resName = resName + " " + dest
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCMethod); m != "" {
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCMethodKey)); m != "" {
 			resName = m
 			// use the RPC method
-			if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCService); m != "" {
+			if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCServiceKey)); m != "" {
 				// ...and service if available
 				resName = resName + " " + svc
 			}
-		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationType); m != "" {
+		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationTypeKey)); m != "" {
 			// Enrich GraphQL query resource names.
 			// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
 			resName = m
-			if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationName); name != "" {
+			if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationNameKey)); name != "" {
 				resName = resName + " " + name
 			}
 		} else {
@@ -341,57 +341,57 @@ func GetOTelResourceV2(span ptrace.Span, res pcommon.Resource) (resName string) 
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", string(semconv.HTTPMethodKey)); m != "" {
 		if m == "_OTHER" {
 			m = "HTTP"
 		}
 		// use the HTTP method + route (if available)
 		resName = m
 		if span.Kind() == ptrace.SpanKindServer {
-			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeHTTPRoute); route != "" {
+			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.HTTPRouteKey)); route != "" {
 				resName = resName + " " + route
 			}
 		}
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingOperation); m != "" {
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingOperationKey)); m != "" {
 		resName = m
 		// use the messaging operation
-		if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
+		if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.MessagingDestinationKey), string(semconv117.MessagingDestinationNameKey)); dest != "" {
 			resName = resName + " " + dest
 		}
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCMethod); m != "" {
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCMethodKey)); m != "" {
 		resName = m
 		// use the RPC method
-		if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCService); m != "" {
+		if svc := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.RPCServiceKey)); m != "" {
 			// ...and service if available
 			resName = resName + " " + svc
 		}
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationType); m != "" {
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationTypeKey)); m != "" {
 		// Enrich GraphQL query resource names.
 		// See https://github.com/open-telemetry/semantic-conventions/blob/v1.29.0/docs/graphql/graphql-spans.md
 		resName = m
-		if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv117.AttributeGraphqlOperationName); name != "" {
+		if name := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv117.GraphqlOperationNameKey)); name != "" {
 			resName = resName + " " + name
 		}
 		return
 	}
 
-	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeDBSystem); m != "" {
+	if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.DBSystemKey)); m != "" {
 		// Since traces are obfuscated by span.Resource in pkg/trace/agent/obfuscate.go, we should use span.Resource as the resource name.
 		// https://github.com/DataDog/datadog-agent/blob/62619a69cff9863f5b17215847b853681e36ff15/pkg/trace/agent/obfuscate.go#L32
-		if dbStatement := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeDBStatement); dbStatement != "" {
+		if dbStatement := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv.DBStatementKey)); dbStatement != "" {
 			resName = dbStatement
 			return
 		}
-		if dbQuery := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv126.AttributeDBQueryText); dbQuery != "" {
+		if dbQuery := GetOTelAttrValInResAndSpanAttrs(span, res, false, string(semconv126.DBQueryTextKey)); dbQuery != "" {
 			resName = dbQuery
 			return
 		}
@@ -414,7 +414,7 @@ func GetOTelOperationNameV2(
 	isServer := span.Kind() == ptrace.SpanKindServer
 
 	// http
-	if method := GetOTelAttrVal(span.Attributes(), false, "http.request.method", semconv.AttributeHTTPMethod); method != "" {
+	if method := GetOTelAttrVal(span.Attributes(), false, "http.request.method", string(semconv.HTTPMethodKey)); method != "" {
 		if isServer {
 			return "http.server.request"
 		}
@@ -424,13 +424,13 @@ func GetOTelOperationNameV2(
 	}
 
 	// database
-	if v := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeDBSystem); v != "" && isClient {
+	if v := GetOTelAttrVal(span.Attributes(), true, string(semconv.DBSystemKey)); v != "" && isClient {
 		return v + ".query"
 	}
 
 	// messaging
-	system := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeMessagingSystem)
-	op := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeMessagingOperation)
+	system := GetOTelAttrVal(span.Attributes(), true, string(semconv.MessagingSystemKey))
+	op := GetOTelAttrVal(span.Attributes(), true, string(semconv.MessagingOperationKey))
 	if system != "" && op != "" {
 		switch span.Kind() {
 		case ptrace.SpanKindClient, ptrace.SpanKindServer, ptrace.SpanKindConsumer, ptrace.SpanKindProducer:
@@ -439,12 +439,12 @@ func GetOTelOperationNameV2(
 	}
 
 	// RPC & AWS
-	rpcValue := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeRPCSystem)
+	rpcValue := GetOTelAttrVal(span.Attributes(), true, string(semconv.RPCSystemKey))
 	isRPC := rpcValue != ""
 	isAws := isRPC && (rpcValue == "aws-api")
 	// AWS client
 	if isAws && isClient {
-		if service := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeRPCService); service != "" {
+		if service := GetOTelAttrVal(span.Attributes(), true, string(semconv.RPCServiceKey)); service != "" {
 			return "aws." + service + ".request"
 		}
 		return "aws.client.request"
@@ -459,14 +459,14 @@ func GetOTelOperationNameV2(
 	}
 
 	// FAAS client
-	provider := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeFaaSInvokedProvider)
-	invokedName := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeFaaSInvokedName)
+	provider := GetOTelAttrVal(span.Attributes(), true, string(semconv.FaaSInvokedProviderKey))
+	invokedName := GetOTelAttrVal(span.Attributes(), true, string(semconv.FaaSInvokedNameKey))
 	if provider != "" && invokedName != "" && isClient {
 		return provider + "." + invokedName + ".invoke"
 	}
 
 	// FAAS server
-	trigger := GetOTelAttrVal(span.Attributes(), true, semconv.AttributeFaaSTrigger)
+	trigger := GetOTelAttrVal(span.Attributes(), true, string(semconv.FaaSTriggerKey))
 	if trigger != "" && isServer {
 		return trigger + ".invoke"
 	}
@@ -573,7 +573,7 @@ func GetOTelStatusCode(span ptrace.Span) uint32 {
 	if code, ok := span.Attributes().Get("http.response.status_code"); ok {
 		return uint32(code.Int())
 	}
-	if code, ok := span.Attributes().Get(semconv.AttributeHTTPStatusCode); ok {
+	if code, ok := span.Attributes().Get(string(semconv.HTTPStatusCodeKey)); ok {
 		return uint32(code.Int())
 	}
 	return 0
@@ -605,7 +605,7 @@ func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 // GetOTelEnv returns the environment based on OTel resource attributes.
 func GetOTelEnv(res pcommon.Resource) string {
 	// TODO(songy23): use AttributeDeploymentEnvironmentName once collector version upgrade is unblocked
-	return GetOTelAttrVal(res.Attributes(), true, "deployment.environment.name", semconv.AttributeDeploymentEnvironment)
+	return GetOTelAttrVal(res.Attributes(), true, "deployment.environment.name", string(semconv.DeploymentEnvironmentKey))
 }
 
 // OTelTraceIDToUint64 converts an OTel trace ID to an uint64
