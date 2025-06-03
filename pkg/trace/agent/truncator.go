@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
@@ -56,6 +57,44 @@ func (a *Agent) Truncate(s *pb.Span) {
 			k = normalize.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
 
 			s.Metrics[k] = v
+		}
+	}
+}
+
+// Truncate checks that the span resource, meta and metrics are within the max length
+// and modifies them if they are not
+func (a *Agent) TruncateV1(s *idx.InternalSpan) {
+	//TODO: This function knows too much about the internal span structure, we should refactor it
+	r, ok := a.TruncateResource(s.Resource())
+	if !ok {
+		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", a.conf.MaxResourceLen, s.Resource)
+		s.SetResource(r)
+	}
+
+	for k, v := range s.Attributes {
+		modified := false
+		kString := s.Strings.Get(k)
+		if len(kString) > MaxMetaKeyLen {
+			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, kString)
+			s.DeleteAttribute(kString)
+			modified = true
+		}
+		newV := v
+		switch vAttr := v.Value.(type) {
+		case *idx.AnyValue_StringValueRef:
+			vString := s.Strings.Get(vAttr.StringValueRef)
+			if len(vString) > MaxMetaValLen {
+				vString = normalize.TruncateUTF8(vString, MaxMetaValLen) + "..."
+				newV = &idx.AnyValue{
+					Value: &idx.AnyValue_StringValueRef{
+						StringValueRef: s.Strings.Add(vString),
+					},
+				}
+				modified = true
+			}
+		}
+		if modified {
+			s.Attributes[s.Strings.Add(kString)] = newV
 		}
 	}
 }

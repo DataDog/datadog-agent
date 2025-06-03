@@ -543,7 +543,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			// 	a.SpanModifier.ModifySpan(chunk, span)
 			// }
 			a.obfuscateSpanInternal(span)
-			// 	a.Truncate(span)
+			a.TruncateV1(span)
 			// 	if p.ClientComputedTopLevel {
 			// 		traceutil.UpdateTracerTopLevel(span)
 			// 	}

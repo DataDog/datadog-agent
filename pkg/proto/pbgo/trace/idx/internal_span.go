@@ -306,6 +306,10 @@ func (s *InternalSpan) DeleteAttribute(key string) {
 	}
 }
 
+func (s *InternalSpan) DeleteAttributeIdx(keyIdx uint32) {
+	delete(s.Attributes, keyIdx)
+}
+
 func (s *InternalSpan) MapStringAttributes(f func(k, v string) string) {
 	for k, v := range s.Attributes {
 		// TODO: we could cache the results of these transformations
