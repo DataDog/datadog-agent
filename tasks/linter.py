@@ -17,13 +17,16 @@ from tasks.devcontainer import run_on_devcontainer
 from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
+    MultiGitlabCIDiff,
+    compute_gitlab_ci_config_diff,
     full_config_get_all_leaf_jobs,
     full_config_get_all_stages,
+    get_all_gitlab_ci_configurations,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
-from tasks.libs.common.git import get_default_branch, get_file_modifications, get_staged_files
+from tasks.libs.common.git import get_common_ancestor, get_default_branch, get_file_modifications, get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.gitlab import (
     _gitlab_ci_jobs_codeowners_lint,
@@ -240,6 +243,86 @@ def github_actions_shellcheck(
 
 # === GITLAB === #
 ## === Main linter tasks === ##
+@task(iterable=["job_files"])
+def full_gitlab_ci(
+    ctx,
+    configs_file: str | None = None,
+    diffs_file: str | None = None,
+    *,
+    test: str = "all",
+    custom_context: str = "",
+    shellcheck_exclude: str = "",
+    shellcheck_verbose: bool = False,
+    shellcheck_args: str = "",
+    shellcheck_fail_fast: bool = False,
+    shellcheck_use_bat: str | None = None,
+    shellcheck_only_errors: bool = False,
+    job_files: list[str] | None = None,
+    path_jobowners: str = '.gitlab/JOBOWNERS',
+):
+    """
+    Top-level task for running all gitlabci-related linters
+
+    Having them all run from a single function like this prevents needing to regenerate the config at every step, which can take a while.
+
+    Args:
+        test: The context preset to test the gitlab ci with containing environment variables.
+        custom_context: A custom context to test the gitlab ci config with.
+        shellcheck_exclude: A comma separated list of shellcheck error codes to exclude.
+        shellcheck_shellcheck_args: Additional arguments to pass to shellcheck.
+        shellcheck_fail_fast: If True, will stop at the first shellcheck error.
+        shellcheck_use_bat: If True (or None), will (try to) use bat to display the shellcheck results.
+        shellcheck_only_errors: Show only shellcheck errors, not warnings.
+        job_files: Job files for which to check existence of `change: paths:` rules
+        path_jobowners: Path to a JOBOWNERS file defining which jobs are owned by which teams
+    """
+    configs: dict[str, dict]
+    diff: MultiGitlabCIDiff
+
+    if diffs_file:
+        with open(diffs_file) as f:
+            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
+            configs = diff.after  # type: ignore
+    elif configs_file:
+        with open(configs_file) as f:
+            configs = yaml.safe_load(f)
+
+        # We still need to generate the diff as some tasks require it
+        # TODO[@Ishirui]: Make all linting tasks able to take a configs object instead of a diff
+        before = get_common_ancestor(ctx, get_default_branch(), "HEAD")
+        root_file = next(iter(configs.keys()))  # We assume the first file specified in the configs is the root
+        before_configs = get_all_gitlab_ci_configurations(ctx, input_file=root_file, git_ref=before)
+        diff = MultiGitlabCIDiff.from_contents(before=before_configs, after=configs)
+    else:
+        _, configs, diff = compute_gitlab_ci_config_diff(ctx)
+
+    changed_jobs = extract_gitlab_ci_jobs(diff=diff)
+    all_jobs = extract_gitlab_ci_jobs(configs=configs)
+
+    lint_and_test_gitlab_ci_config(configs, test=test, custom_context=custom_context)
+    shellcheck_gitlab_ci_jobs(
+        ctx,
+        changed_jobs,
+        exclude=shellcheck_exclude,
+        verbose=shellcheck_verbose,
+        shellcheck_args=shellcheck_args,
+        fail_fast=shellcheck_fail_fast,
+        use_bat=shellcheck_use_bat,
+        only_errors=shellcheck_only_errors,
+    )
+    check_change_paths_gitlab_ci_jobs(changed_jobs)
+    check_change_paths_gitlab_ci_config(ctx, configs, job_files=job_files)
+
+    ci_linters_config = CILintersConfig(
+        lint=True,
+        all_jobs=full_config_get_all_leaf_jobs(configs),
+        all_stages=full_config_get_all_stages(configs),
+    )
+
+    check_needs_rules_gitlab_ci_jobs(changed_jobs, ci_linters_config)
+    check_owners_gitlab_ci_jobs(all_jobs, ci_linters_config, path_jobowners=path_jobowners)
+
+
 @task
 def gitlab_ci(ctx, configs_file: str | None = None, input_file=".gitlab-ci.yml", test="all", custom_context=None):
     """Lints Gitlab CI files in the datadog-agent repository.
