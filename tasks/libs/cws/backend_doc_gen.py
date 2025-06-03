@@ -32,7 +32,7 @@ class SchemaDefinition:
 
 
 def remove_schema_props(node):
-    if type(node) is dict:
+    if isinstance(node, dict):
         return {key: remove_schema_props(item) for key, item in node.items() if key != "$schema"}
     else:
         return node
