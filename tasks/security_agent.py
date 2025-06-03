@@ -725,7 +725,7 @@ def go_generate_check(ctx):
     if failing_tasks:
         for ft in failing_tasks:
             task = ft.name.replace("_", "-")
-            print(f"Task `dda inv {ft.name}` resulted in dirty files, please re-run it:")
+            print(f"Task `dda inv {task}` resulted in dirty files, please re-run it:")
             for file in ft.dirty_files:
                 print(f"* {file}")
         raise Exit(code=1)
