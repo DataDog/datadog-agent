@@ -9,6 +9,7 @@ package module
 
 import (
 	"fmt"
+	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -29,8 +30,9 @@ const (
 )
 
 type eBPFNetworkCollector struct {
-	m        *ddebpf.Manager
-	statsMap *ebpfmaps.GenericMap[NetworkStatsKey, NetworkStats]
+	m          *ddebpf.Manager
+	statsMap   *ebpfmaps.GenericMap[NetworkStatsKey, NetworkStats]
+	errorLimit *log.Limit
 }
 
 func (c *eBPFNetworkCollector) setupManager(buf bytecode.AssetReader, options manager.Options) error {
@@ -121,6 +123,7 @@ func (c *eBPFNetworkCollector) initCORE(cfg *discoveryConfig) error {
 
 func newNetworkCollector(cfg *discoveryConfig) (networkCollector, error) {
 	collector := eBPFNetworkCollector{}
+	collector.errorLimit = log.NewLogLimit(10, 10*time.Minute)
 
 	if cfg.EnableCORE {
 		err := collector.initCORE(cfg)
@@ -153,21 +156,42 @@ func (c *eBPFNetworkCollector) close() {
 	}
 }
 
-func (c *eBPFNetworkCollector) addPid(pid uint32) error {
-	key := NetworkStatsKey{Pid: pid}
+func (c *eBPFNetworkCollector) getStats(pids pidSet) (map[uint32]NetworkStats, error) {
+	stats := make(map[uint32]NetworkStats)
+	var toDelete []NetworkStatsKey
+
+	it := c.statsMap.IterateWithBatchSize(0)
+	var key NetworkStatsKey
 	var val NetworkStats
+	for it.Next(&key, &val) {
+		if !pids.has(int32(key.Pid)) {
+			toDelete = append(toDelete, key)
+			continue
+		}
 
-	return c.statsMap.Put(&key, &val)
-}
+		stats[key.Pid] = val
+	}
 
-func (c *eBPFNetworkCollector) removePid(pid uint32) error {
-	key := NetworkStatsKey{Pid: pid}
-	return c.statsMap.Delete(&key)
-}
+	// Delete pids which were in the eBPF map but not in the requested pids set
+	for _, key := range toDelete {
+		err := c.statsMap.Delete(&key)
+		if err != nil {
+			log.Warnf("error deleting pid %d from eBPF map: %v", key.Pid, err)
+		}
+	}
 
-func (c *eBPFNetworkCollector) getStats(pid uint32) (NetworkStats, error) {
-	key := NetworkStatsKey{Pid: pid}
-	var val NetworkStats
-	err := c.statsMap.Lookup(&key, &val)
-	return val, err
+	// Add new pids which were not in the eBPF map
+	for pid := range pids {
+		if _, ok := stats[uint32(pid)]; ok {
+			continue
+		}
+
+		err := c.statsMap.Put(&NetworkStatsKey{Pid: uint32(pid)}, &NetworkStats{})
+		if err != nil && c.errorLimit.ShouldLog() {
+			// This error can occur if the eBPF map is full.
+			log.Warnf("error adding pid %d to eBPF map: %v", pid, err)
+		}
+	}
+
+	return stats, nil
 }

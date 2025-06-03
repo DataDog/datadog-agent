@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils"
 )
@@ -41,9 +41,9 @@ func TestDefaultHostname(t *testing.T) {
 func TestHostnameFromAttrs(t *testing.T) {
 	t.Run("host id", func(t *testing.T) {
 		attrs := testutils.NewAttributeMap(map[string]string{
-			conventions.AttributeCloudProvider: conventions.AttributeCloudProviderAWS,
-			conventions.AttributeHostID:        testInstanceID,
-			conventions.AttributeHostName:      testIP,
+			string(conventions.CloudProviderKey): conventions.CloudProviderAWS.Value.AsString(),
+			string(conventions.HostIDKey):        testInstanceID,
+			string(conventions.HostNameKey):      testIP,
 		})
 		hostname, ok := HostnameFromAttrs(attrs)
 		assert.True(t, ok)
@@ -52,8 +52,8 @@ func TestHostnameFromAttrs(t *testing.T) {
 
 	t.Run("no host id", func(t *testing.T) {
 		attrs := testutils.NewAttributeMap(map[string]string{
-			conventions.AttributeCloudProvider: conventions.AttributeCloudProviderAWS,
-			conventions.AttributeHostName:      testIP,
+			string(conventions.CloudProviderKey): conventions.CloudProviderAWS.Value.AsString(),
+			string(conventions.HostNameKey):      testIP,
 		})
 		hostname, ok := HostnameFromAttrs(attrs)
 		assert.False(t, ok)
@@ -63,12 +63,12 @@ func TestHostnameFromAttrs(t *testing.T) {
 
 func TestHostInfoFromAttributes(t *testing.T) {
 	attrs := testutils.NewAttributeMap(map[string]string{
-		conventions.AttributeCloudProvider: conventions.AttributeCloudProviderAWS,
-		conventions.AttributeHostID:        testInstanceID,
-		conventions.AttributeHostName:      testIP,
-		"ec2.tag.tag1":                     "val1",
-		"ec2.tag.tag2":                     "val2",
-		"ignored":                          "ignored",
+		string(conventions.CloudProviderKey): conventions.CloudProviderAWS.Value.AsString(),
+		string(conventions.HostIDKey):        testInstanceID,
+		string(conventions.HostNameKey):      testIP,
+		"ec2.tag.tag1":                       "val1",
+		"ec2.tag.tag2":                       "val2",
+		"ignored":                            "ignored",
 	})
 
 	hostInfo := HostInfoFromAttributes(attrs)
