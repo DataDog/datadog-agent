@@ -4791,7 +4791,7 @@ api_key:
   # DD_DYNAMIC_INSTRUMENTATION_ENABLED: false
 
   ## @param DD_DATA_JOBS_ENABLED - boolean - optional - default: false
-  ## Enable data jobs visibility (experimental or internal feature).
+  ## Enable data jobs visibility.
   # DD_DATA_JOBS_ENABLED: false
 
   ## @param DD_APPSEC_SCA_ENABLED - boolean - optional - default: false
