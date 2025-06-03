@@ -516,10 +516,7 @@ def docker_functional_tests(
 
 
 @task
-def generate_cws_documentation(ctx, go_generate=False):
-    if go_generate:
-        cws_go_generate(ctx)
-
+def generate_cws_documentation(ctx):
     # secl docs
     secl_doc_gen.generate_secl_documentation("./docs/cloud-workload-security/secl_linux.json", "./docs/cloud-workload-security/linux_expressions.md", "./linux_expressions.md")
     secl_doc_gen.generate_secl_documentation("./docs/cloud-workload-security/secl_windows.json", "./docs/cloud-workload-security/windows_expressions.md", "./windows_expressions.md")
@@ -556,6 +553,9 @@ def cws_go_generate(ctx, verbose=False):
 
     # synchronize the seclwin package from the secl package
     sync_secl_win_pkg(ctx)
+
+    # generate documentation
+    generate_cws_documentation(ctx)
 
 
 @task
