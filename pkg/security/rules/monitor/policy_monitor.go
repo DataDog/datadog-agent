@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -151,8 +152,8 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
-func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState) {
-	rule, event := newRuleSetLoadedEvent(acc, policies)
+func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState, filterReport *kfilters.FilterReport) {
+	rule, event := newRuleSetLoadedEvent(acc, policies, filterReport)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
@@ -213,6 +214,7 @@ type RuleSetAction struct {
 	Scope        string      `json:"scope,omitempty"`
 	Size         int         `json:"size,omitempty"`
 	TTL          string      `json:"ttl,omitempty"`
+	Inherited    bool        `json:"inherited,omitempty"`
 }
 
 // RuleKillAction is used to report the 'kill' action
@@ -242,7 +244,8 @@ type LogAction struct {
 // easyjson:json
 type RulesetLoadedEvent struct {
 	events.CustomEventCommonFields
-	Policies []*PolicyState `json:"policies"`
+	Policies []*PolicyState         `json:"policies"`
+	Filters  *kfilters.FilterReport `json:"filters,omitempty"`
 }
 
 // ToJSON marshal using json format
@@ -301,6 +304,7 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 				Append:       action.Def.Set.Append,
 				Scope:        string(action.Def.Set.Scope),
 				Size:         action.Def.Set.Size,
+				Inherited:    action.Def.Set.Inherited,
 			}
 			if action.Def.Set.TTL != nil {
 				ruleAction.Set.TTL = action.Def.Set.TTL.String()
@@ -387,9 +391,10 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 }
 
 // newRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func newRuleSetLoadedEvent(acc *events.AgentContainerContext, policies []*PolicyState) (*rules.Rule, *events.CustomEvent) {
+func newRuleSetLoadedEvent(acc *events.AgentContainerContext, policies []*PolicyState, filterReport *kfilters.FilterReport) (*rules.Rule, *events.CustomEvent) {
 	evt := RulesetLoadedEvent{
 		Policies: policies,
+		Filters:  filterReport,
 	}
 	evt.FillCustomEventCommonFields(acc)
 

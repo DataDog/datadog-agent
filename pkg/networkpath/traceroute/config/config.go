@@ -35,6 +35,6 @@ type Config struct {
 	Protocol payload.Protocol
 	// TCPMethod is the method used to run a TCP traceroute.
 	TCPMethod payload.TCPMethod
-	// TCPSynCompatibilityMode makes TCP SYN mimic the tcptraceroute tool as closely as possible
-	TCPSynCompatibilityMode bool
+	// TCPSynParisTracerouteMode makes TCP SYN act like paris traceroute (fixed packet ID, randomized seq)
+	TCPSynParisTracerouteMode bool
 }

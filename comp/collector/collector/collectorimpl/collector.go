@@ -238,17 +238,31 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 
 // StopCheck halts a check and remove the instance
 func (c *collectorImpl) StopCheck(id checkid.ID) error {
+	var ch check.Check
+	var collectorScheduler *scheduler.Scheduler
+	var collectorRunner *runner.Runner
+
+	// This lock is needed because stop() can be called concurrently and sets
+	// c.runner and c.scheduler to nil
+	c.m.RLock()
 	if !c.started() {
+		c.m.RUnlock()
 		return fmt.Errorf("the collector is not running")
 	}
 
-	ch, found := c.get(id)
+	ch, found := c.checks[id]
 	if !found {
+		c.m.RUnlock()
 		return fmt.Errorf("cannot find a check with ID %s", id)
 	}
 
+	// These two are not nil because we checked that the collector is started
+	collectorScheduler = c.scheduler
+	collectorRunner = c.runner
+	c.m.RUnlock()
+
 	// unschedule the instance
-	if err := c.scheduler.Cancel(id); err != nil {
+	if err := collectorScheduler.Cancel(id); err != nil {
 		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
 	}
 
@@ -263,7 +277,7 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 		stats.SetStateCancelling()
 	}
 
-	if err := c.runner.StopCheck(id); err != nil {
+	if err := collectorRunner.StopCheck(id); err != nil {
 		// still attempt to cancel the check before returning the error
 		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)
