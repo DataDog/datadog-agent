@@ -1184,6 +1184,10 @@
           "$ref": "#/$defs/File",
           "description": "File information of the interpreter"
         },
+        "cgroup": {
+          "$ref": "#/$defs/CGroupContext",
+          "description": "CGroup context"
+        },
         "container": {
           "$ref": "#/$defs/ContainerContext",
           "description": "Container context"
@@ -1322,6 +1326,10 @@
         "interpreter": {
           "$ref": "#/$defs/File",
           "description": "File information of the interpreter"
+        },
+        "cgroup": {
+          "$ref": "#/$defs/CGroupContext",
+          "description": "CGroup context"
         },
         "container": {
           "$ref": "#/$defs/ContainerContext",

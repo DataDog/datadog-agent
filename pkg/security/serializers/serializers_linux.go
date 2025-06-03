@@ -84,17 +84,6 @@ type FileSerializer struct {
 	MountOrigin string `json:"mount_origin,omitempty"`
 }
 
-// CGroupContextSerializer serializes a cgroup context to JSON
-// easyjson:json
-type CGroupContextSerializer struct {
-	// CGroup ID
-	ID string `json:"id,omitempty"`
-	// CGroup manager
-	Manager string `json:"manager,omitempty"`
-	// Variables values
-	Variables Variables `json:"variables,omitempty"`
-}
-
 // UserContextSerializer serializes a user context to JSON
 // easyjson:json
 type UserContextSerializer struct {
@@ -244,6 +233,8 @@ type ProcessSerializer struct {
 	Executable *FileSerializer `json:"executable,omitempty"`
 	// File information of the interpreter
 	Interpreter *FileSerializer `json:"interpreter,omitempty"`
+	// CGroup context
+	CGroup *CGroupContextSerializer `json:"cgroup,omitempty"`
 	// Container context
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// First command line argument
@@ -832,6 +823,13 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerID),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
+			}
+		}
+
+		if len(ps.CGroup.CGroupID) > 0 {
+			psSerializer.CGroup = &CGroupContextSerializer{
+				ID:      string(ps.CGroup.CGroupID),
+				Manager: ps.CGroup.CGroupManager,
 			}
 		}
 
