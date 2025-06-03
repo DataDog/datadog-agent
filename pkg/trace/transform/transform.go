@@ -15,7 +15,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -266,7 +266,7 @@ func OtelSpanToDDSpan(
 	traceID := otelspan.TraceID()
 	ddspan.Meta["otel.trace_id"] = hex.EncodeToString(traceID[:])
 	if !spanMetaHasKey(ddspan, "version") {
-		if serviceVersion, ok := otelres.Attributes().Get(semconv.AttributeServiceVersion); ok {
+		if serviceVersion, ok := otelres.Attributes().Get(string(semconv.ServiceVersionKey)); ok {
 			ddspan.Meta["version"] = serviceVersion.AsString()
 		}
 	}
@@ -299,14 +299,14 @@ func OtelSpanToDDSpan(
 		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
 	}
 	if lib.Name() != "" {
-		ddspan.Meta[semconv.OtelLibraryName] = lib.Name()
+		ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
 	}
 	if lib.Version() != "" {
-		ddspan.Meta[semconv.OtelLibraryVersion] = lib.Version()
+		ddspan.Meta[string(semconv.OtelLibraryVersionKey)] = lib.Version()
 	}
-	ddspan.Meta[semconv.OtelStatusCode] = otelspan.Status().Code().String()
+	ddspan.Meta[string(semconv.OtelStatusCodeKey)] = otelspan.Status().Code().String()
 	if msg := otelspan.Status().Message(); msg != "" {
-		ddspan.Meta[semconv.OtelStatusDescription] = msg
+		ddspan.Meta[string(semconv.OtelStatusDescriptionKey)] = msg
 	}
 
 	if !conf.OTLPReceiver.IgnoreMissingDatadogFields {
@@ -502,13 +502,13 @@ func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, metaMap ma
 			continue
 		}
 		attrs := e.Attributes()
-		if v, ok := attrs.Get(semconv.AttributeExceptionMessage); ok {
+		if v, ok := attrs.Get(string(semconv.ExceptionMessageKey)); ok {
 			metaMap["error.msg"] = v.AsString()
 		}
-		if v, ok := attrs.Get(semconv.AttributeExceptionType); ok {
+		if v, ok := attrs.Get(string(semconv.ExceptionTypeKey)); ok {
 			metaMap["error.type"] = v.AsString()
 		}
-		if v, ok := attrs.Get(semconv.AttributeExceptionStacktrace); ok {
+		if v, ok := attrs.Get(string(semconv.ExceptionStacktraceKey)); ok {
 			metaMap["error.stack"] = v.AsString()
 		}
 	}
