@@ -139,10 +139,11 @@ type FunctionMetadata struct {
 	// This is unfortunate; I don't think there is a clean way to work around this
 	// (since the data is just missing).
 	// The best solution I have found is to:
-	// - manually handle cases where entire parameters are missing
-	//   if it's known that they only occur on a specific Go version
-	//   (Go 1.16.* is one that I have found to be troublesome)
-	//   and insert the appropriate parameter locations if known.
+	// - manually handle cases where entire parameters are missing if it's known
+	//   that they only occur on a specific Go version (Go 1.16.* is completely
+	//   missing locations for a param we're interested in, and go 1.13-1.15
+	//   only has partial location info for that param) and insert the
+	//   appropriate parameter locations if known.
 	// - if all of the parameters are missing,
 	//   then I have found that manually re-implementing
 	//   the stack/register allocation algorithm for function arguments/returns
@@ -186,19 +187,14 @@ type FunctionMetadata struct {
 // but so far, taking the locations at face value and interpreting them directly
 // (specifically handling mixed stack/register locations)
 // has been successful in getting the expected values from eBPF.
-//
-// TODO: look into cases where a middle piece of a parameter has been eliminated
-//
-//	(such as the length of a slice),
-//	and make sure result is expected/handled well.
-//	Then, document such cases.
 type ParameterMetadata struct {
 	// Total size in bytes.
 	TotalSize int64
 	// Kind of variable.
 	Kind reflect.Kind
 
-	// Pieces that make up the location of this parameter at runtime
+	// Pieces that make up the location of this parameter at runtime. Empty if
+	// the parameter is completely or even partially unavailable.
 	Pieces []ParameterPiece
 }
 
