@@ -40,9 +40,7 @@ const expectedLayerCount = 2
 func NewFrameParser() *FrameParser {
 	p := &FrameParser{}
 	p.parserv4 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
-	// TODO: IPv6 is not actually implemented yet
-	p.parserv6 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &p.IP6, &p.TCP, &p.ICMP6, &p.Payload)
-
+	p.parserv6 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &p.IP6, &p.ICMP6, &p.Payload)
 	return p
 }
 
@@ -52,10 +50,7 @@ func (p *FrameParser) Parse(buffer []byte) error {
 	if err != nil {
 		return err
 	}
-	// TODO: currently we don't support ipv6
-	if parser == p.parserv6 {
-		return ignoredLayerErr
-	}
+
 	err = parser.DecodeLayers(buffer, &p.Layers)
 	var unsupportedErr gopacket.UnsupportedLayerType
 	if errors.As(err, &unsupportedErr) {
@@ -67,7 +62,7 @@ func (p *FrameParser) Parse(buffer []byte) error {
 		err = nil
 	}
 	if err != nil {
-		return fmt.Errorf("Parse: %w", err)
+		return &common.BadPacketError{Err: err}
 	}
 	if err := p.checkLayers(); err != nil {
 		return &common.BadPacketError{Err: err}
@@ -91,9 +86,8 @@ func (p *FrameParser) GetTransportLayer() gopacket.LayerType {
 	return p.Layers[1]
 }
 
-// TODO IPv6
-var ipLayers = []gopacket.LayerType{layers.LayerTypeIPv4}
-var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerTypeUDP, layers.LayerTypeICMPv4}
+var ipLayers = []gopacket.LayerType{layers.LayerTypeIPv4, layers.LayerTypeIPv6}
+var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerTypeUDP, layers.LayerTypeICMPv4, layers.LayerTypeIPv6}
 
 // checkLayers sanity checks the layers of the parse.
 func (p *FrameParser) checkLayers() error {
@@ -132,11 +126,25 @@ func getIPv4Pair(ip4 *layers.IPv4) IPPair {
 	return IPPair{SrcAddr: srcAddr, DstAddr: dstAddr}
 }
 
+func getIPv6Pair(ip6 *layers.IPv6) IPPair {
+	srcAddr, ok := netip.AddrFromSlice(ip6.SrcIP)
+	if !ok {
+		return IPPair{}
+	}
+	dstAddr, ok := netip.AddrFromSlice(ip6.DstIP)
+	if !ok {
+		return IPPair{}
+	}
+	return IPPair{srcAddr, dstAddr}
+}
+
 // GetIPPair gets the IPPair of the IP layer
 func (p *FrameParser) GetIPPair() (IPPair, error) {
 	switch p.GetIPLayer() {
 	case layers.LayerTypeIPv4:
 		return getIPv4Pair(&p.IP4), nil
+	case layers.LayerTypeIPv6:
+		return getIPv6Pair(&p.IP6), nil
 	default:
 		// TODO IPv6
 		return IPPair{}, fmt.Errorf("GetIPPair: unexpected IP layer type %s", p.Layers[0])
@@ -217,8 +225,20 @@ func (p *FrameParser) GetICMPInfo() (ICMPInfo, error) {
 			Payload:         slices.Clone(innerPkt.Payload),
 		}
 		return icmpInfo, nil
+	case layers.LayerTypeICMPv6:
+		var innerPkt layers.IPv6
+		err = (&innerPkt).DecodeFromBytes(p.ICMP6.Payload, gopacket.NilDecodeFeedback)
+		if err != nil {
+			return ICMPInfo{}, fmt.Errorf("GetICMPInfo failed to decode inner packet: %w", err)
+		}
+
+		icmpInfo := ICMPInfo{
+			IPPair:   ipPair,
+			ICMPPair: getIPv6Pair(&innerPkt),
+			Payload:  slices.Clone(innerPkt.Payload),
+		}
+		return icmpInfo, nil
 	default:
-		// TODO IPv6
 		return ICMPInfo{}, fmt.Errorf("GetICMPInfo: unexpected layer type %s", p.Layers[1])
 	}
 }

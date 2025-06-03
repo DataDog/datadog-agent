@@ -7,12 +7,14 @@
 package packets
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 //go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=packet_source_mockgen.go
@@ -39,9 +41,12 @@ func ReadAndParse(source Source, buffer []byte, parser *FrameParser) error {
 	if n == 0 {
 		return fmt.Errorf("ConnHandle Read() returned 0 bytes")
 	}
-
 	err = parser.Parse(buffer[:n])
 	if err != nil {
+		log.DebugFunc(func() string {
+			data := hex.EncodeToString(buffer[:n])
+			return fmt.Sprintf("error parsing packet of length %d: %s, %s", n, err, data)
+		})
 		return err
 	}
 
