@@ -17,9 +17,21 @@ func main() {
 		log.Fatalf("error: %v", err)
 	}
 	intArg(0x0123456789abcdef)
+	stringArg("Hello, world!")
+	sliceArg([]byte("Hello, world!"))
 }
 
 //go:noinline
 func intArg(i int) {
 	fmt.Println(i)
+}
+
+//go:noinline
+func stringArg(s string) {
+	fmt.Println(s)
+}
+
+//go:noinline
+func sliceArg(s []byte) {
+	fmt.Println(s)
 }
