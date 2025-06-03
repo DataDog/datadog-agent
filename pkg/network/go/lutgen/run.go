@@ -330,7 +330,7 @@ func setupGoModule(ctx context.Context, cmd *exec.Cmd, programPath string) error
 
 	// Pin the golang.org/x/net module to an old version. Newer versions cannot
 	// be processed by Go <= 1.16 because the go.mod in x/net has the wrong
-	// format. Newer versions of the package have a go.mod file that can't be
+	// format. Newer versions of the module have a go.mod file that can't be
 	// parsed by Go <= 1.16.
 	getCmd := exec.CommandContext(ctx, "go", "get", "golang.org/x/net@v0.35.0")
 	getCmd.Env = cmd.Env
