@@ -53,6 +53,14 @@ func UpdateTracerTopLevel(s *pb.Span) {
 	}
 }
 
+// UpdateTracerTopLevel sets _top_level tag on spans flagged by the tracer
+func UpdateTracerTopLevelV1(s *idx.InternalSpan) {
+	topLevel, ok := s.GetAttributeAsFloat64(tracerTopLevelKey)
+	if ok && topLevel == 1 {
+		s.SetFloat64Attribute(topLevelKey, 1)
+	}
+}
+
 // IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasured(s *pb.Span) bool {
 	return IsMeasuredMetrics(s.Metrics)

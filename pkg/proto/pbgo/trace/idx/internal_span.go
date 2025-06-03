@@ -298,6 +298,22 @@ func (s *InternalSpan) SetStringAttribute(key, value string) {
 	}
 }
 
+func (s *InternalSpan) SetFloat64Attribute(key string, value float64) {
+	// TODO: removing a string
+	s.Attributes[s.Strings.Add(key)] = &AnyValue{
+		Value: &AnyValue_DoubleValue{
+			DoubleValue: value,
+		},
+	}
+}
+
+// SetAttributeFromString sets the attribute from a string, attempting to use the most backwards compatible type possible
+// for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
+func (s *InternalSpan) SetAttributeFromString(key, value string) {
+	// TODO: removing a string
+	s.Attributes[s.Strings.Add(key)] = FromString(s.Strings, value)
+}
+
 func (s *InternalSpan) DeleteAttribute(key string) {
 	// TODO: removing a string
 	keyIdx := s.Strings.Lookup(key)
@@ -367,6 +383,19 @@ type InternalSpanEvent struct {
 	Attributes map[uint32]*AnyValue
 }
 
+func (se *InternalSpanEvent) GetAttributeAsString(key string) (string, bool) {
+	if attr, ok := se.Attributes[se.Strings.Lookup(key)]; ok {
+		return attr.AsString(se.Strings), true
+	}
+	return "", false
+}
+
+// SetAttributeFromString sets the attribute on an InternalSpanEvent from a string, attempting to use the most backwards compatible type possible
+// for the attribute value. Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
+func (se *InternalSpanEvent) SetAttributeFromString(key, value string) {
+	se.Attributes[se.Strings.Add(key)] = FromString(se.Strings, value)
+}
+
 // AsString returns the attribute in string format, this format is backwards compatible with non-v1 behavior
 func (attr *AnyValue) AsString(strTable *StringTable) string {
 	switch v := attr.Value.(type) {
@@ -425,5 +454,29 @@ func (attr *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
 		return 0, fmt.Errorf("key-value list value not a float64")
 	default:
 		return 0, fmt.Errorf("unknown value type not a float64")
+	}
+}
+
+// FromString creates an AnyValue from a string, attempting to use the most backwards compatible type possible
+// Meaning we will prefer DoubleValue > IntValue > StringValue to match the previous metrics vs meta behavior
+func FromString(strTable *StringTable, s string) *AnyValue {
+	if intVal, err := strconv.ParseInt(s, 10, 64); err == nil {
+		return &AnyValue{
+			Value: &AnyValue_IntValue{
+				IntValue: intVal,
+			},
+		}
+	}
+	if floatVal, err := strconv.ParseFloat(s, 64); err == nil {
+		return &AnyValue{
+			Value: &AnyValue_DoubleValue{
+				DoubleValue: floatVal,
+			},
+		}
+	}
+	return &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: strTable.Add(s),
+		},
 	}
 }

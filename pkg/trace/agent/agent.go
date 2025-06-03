@@ -544,12 +544,11 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			// }
 			a.obfuscateSpanInternal(span)
 			a.TruncateV1(span)
-			// 	if p.ClientComputedTopLevel {
-			// 		traceutil.UpdateTracerTopLevel(span)
-			// 	}
-			// }
-			// a.Replacer.Replace(chunk.Spans)
+			if p.ClientComputedTopLevel {
+				traceutil.UpdateTracerTopLevelV1(span)
+			}
 		}
+		a.Replacer.ReplaceV1(chunk)
 	}
 
 	// 	a.setRootSpanTags(root)
