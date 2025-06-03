@@ -442,25 +442,45 @@ func (c *ntmConfig) mergeAllLayers() error {
 func (c *ntmConfig) computeAllSettings(node InnerNode, path string) []string {
 	c.maybeRebuild()
 
-	knownKeys := []string{}
+	keySet := make(map[string]struct{})
+
+	// 1. Collect all known keys from schema
+	c.collectKeysFromNode(c.schema, path, keySet, true)
+
+	// 2. Collect all keys from merged tree (only ones with values)
+	c.collectKeysFromNode(c.root, "", keySet, false)
+
+	// 3. Collect all unknown keys, even if they have no value set
+	c.collectKeysFromNode(c.unknown, "", keySet, true)
+
+	allKeys := make([]string, 0, len(keySet))
+	for key := range keySet {
+		allKeys = append(allKeys, key)
+	}
+
+	slices.Sort(allKeys)
+	return allKeys
+}
+
+func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllSchemaKeys bool) {
 	for _, name := range node.ChildrenKeys() {
 		newPath := joinKey(path, name)
 
-		child, _ := node.GetChild(name)
+		child, err := node.GetChild(name)
+		if err != nil {
+			continue
+		}
+
 		if leaf, ok := child.(LeafNode); ok {
-			if leaf.Source() != model.SourceSchema {
-				knownKeys = append(knownKeys, newPath)
-			} else if c.leafAtPathFromNode(newPath, c.root) != missingLeaf {
-				knownKeys = append(knownKeys, newPath)
+			// For schema nodes, include all keys if requested
+			// For other nodes, only include if they have actual values
+			if includeAllSchemaKeys || leaf != missingLeaf {
+				keySet[newPath] = struct{}{}
 			}
 		} else if inner, ok := child.(InnerNode); ok {
-			knownKeys = append(knownKeys, c.computeAllSettings(inner, newPath)...)
-		} else {
-			log.Errorf("unknown node type in the tree: %T", child)
+			c.collectKeysFromNode(inner, newPath, keySet, includeAllSchemaKeys)
 		}
 	}
-	slices.Sort(knownKeys)
-	return knownKeys
 }
 
 // BuildSchema is called when Setup is complete, and the config is ready to be used
@@ -623,7 +643,7 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	return hasNoneDefaultsLeaf(curr.(InnerNode))
 }
 
-// AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
+// AllKeysLowercased returns all keys lower-cased from the default tree, including keys that are merely marked as known
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()

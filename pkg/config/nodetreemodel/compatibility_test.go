@@ -9,6 +9,8 @@ package nodetreemodel
 import (
 	"bytes"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -210,8 +212,9 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 		})
 
 		wantKeys := []string{"port", "host"}
-		assert.ElementsMatch(t, wantKeys, keys(viperConf.GetKnownKeysLowercased()))
-		assert.ElementsMatch(t, wantKeys, keys(ntmConf.GetKnownKeysLowercased()))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
+
 	})
 
 	t.Run("Includes defaults", func(t *testing.T) {
@@ -220,8 +223,8 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 		})
 
 		wantKeys := []string{"timeout"}
-		assert.ElementsMatch(t, wantKeys, keys(viperConf.GetKnownKeysLowercased()))
-		assert.ElementsMatch(t, wantKeys, keys(ntmConf.GetKnownKeysLowercased()))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
 	})
 
 	t.Run("Includes environment bindings", func(t *testing.T) {
@@ -231,8 +234,8 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 		})
 
 		wantKeys := []string{"log", "log.level"}
-		assert.ElementsMatch(t, wantKeys, keys(viperConf.GetKnownKeysLowercased()))
-		assert.ElementsMatch(t, wantKeys, keys(ntmConf.GetKnownKeysLowercased()))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
 	})
 
 	t.Run("Combined known/default/env", func(t *testing.T) {
@@ -244,8 +247,27 @@ func TestCompareGetKnownKeysLowercased(t *testing.T) {
 		})
 
 		wantKeys := []string{"port", "timeout", "log", "log.level"}
-		assert.ElementsMatch(t, wantKeys, keys(viperConf.GetKnownKeysLowercased()))
-		assert.ElementsMatch(t, wantKeys, keys(ntmConf.GetKnownKeysLowercased()))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
+	})
+
+	t.Run("Handles unknown YAML keys", func(t *testing.T) {
+		yamlData := `
+port: 8080
+customKey1: 8080
+customKey2: unused
+`
+		viperConf, ntmConf := constructBothConfigs(yamlData, true, func(cfg model.Setup) {
+			cfg.SetKnown("port") // unrelated known key
+		})
+
+		// Expected to not include customKey if it’s unknown
+		assert.ElementsMatch(t, []string{"port"}, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, []string{"port"}, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
+		assert.NotContains(t, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())), "customkey1")
+		assert.NotContains(t, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())), "customkey1")
+		assert.NotContains(t, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())), "customkey2")
+		assert.NotContains(t, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())), "customkey2")
 	})
 }
 
@@ -294,13 +316,22 @@ log:
 		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
 		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
 	})
-}
 
-// Utility function to extract keys from a map
-func keys(m map[string]interface{}) []string {
-	var result []string
-	for k := range m {
-		result = append(result, k)
-	}
-	return result
+	t.Run("Includes unknown YAML keys", func(t *testing.T) {
+		dataYaml := `
+port: 8080
+host: 
+customKey1:
+customKey2: unused
+`
+
+		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+			cfg.SetKnown("port")
+			cfg.SetKnown("host")
+		})
+
+		wantKeys := []string{"port", "host", "customkey1", "customkey2"}
+		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
+		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
+	})
 }
