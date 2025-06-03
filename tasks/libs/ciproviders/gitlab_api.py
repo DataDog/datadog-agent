@@ -867,6 +867,7 @@ def get_all_gitlab_ci_configurations(
     Returns:
         A dictionary of [entry point] -> configuration
     """
+    print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
 
     # configurations[input_file] -> parsed config
     configurations: dict[str, dict] = {}
