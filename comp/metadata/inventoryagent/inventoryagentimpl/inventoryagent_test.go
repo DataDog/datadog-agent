@@ -636,6 +636,9 @@ system_probe_config:
 
 dynamic_instrumentation:
   enabled: true
+
+gpu_monitoring:
+  enabled: true
 `, nil
 	}
 
