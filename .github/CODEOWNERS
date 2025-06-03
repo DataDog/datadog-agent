@@ -343,8 +343,6 @@
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
-/comp/updater/installerexec @DataDog/fleet
-/comp/updater/ssistatus @DataDog/fleet
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
 /comp/haagent @DataDog/ndm-core
@@ -612,6 +610,7 @@
 /comp/core/tagger/collectors            @DataDog/container-platform @DataDog/container-integrations
 /pkg/sbom/                              @DataDog/agent-security @DataDog/container-integrations
 /pkg/networkpath/                       @DataDog/Networks
+/pkg/networkpath/traceroute/            @DataDog/Networks @DataDog/windows-agent
 /pkg/collector/corechecks/networkpath/  @DataDog/Networks
 
 /releasenotes/                          @DataDog/documentation
@@ -694,7 +693,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/container-intake
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
-/test/new-e2e/tests/netpath                   @DataDog/Networks
+/test/new-e2e/tests/netpath                   @DataDog/Networks @DataDog/windows-agent
 /test/new-e2e/tests/npm                       @DataDog/Networks
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-agent
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
