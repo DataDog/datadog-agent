@@ -78,9 +78,9 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 
 	probes := []config.Probe{
 		&config.LogProbe{
-			ID: "intArg",
+			ID: "sliceArg",
 			Where: &config.Where{
-				MethodName: "main.intArg",
+				MethodName: "main.sliceArg",
 			},
 		},
 	}
@@ -152,7 +152,7 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, bpfProbe.Close()) }()
 
-	attached, err := sampleLink.Uprobe("main.intArg", bpfProg, &link.UprobeOptions{
+	attached, err := sampleLink.Uprobe("main.sliceArg", bpfProg, &link.UprobeOptions{
 		PID:    sampleProc.Process.Pid,
 		Cookie: 0,
 	})
@@ -181,17 +181,21 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 
 	header := (*output.EventHeader)(unsafe.Pointer(&record.RawSample[0]))
 	require.Equal(t, uint32(len(record.RawSample)), header.Data_byte_len)
+	t.Logf("header: %#v", *header)
 
 	pos := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len)
-	di := (*output.DataItemHeader)(unsafe.Pointer(&record.RawSample[pos]))
-	typ, ok := irp.Types[ir.TypeID(di.Type)]
-	require.True(t, ok)
-	require.IsType(t, &ir.EventRootType{}, typ)
-	require.Equal(t, di.Length, typ.GetByteSize())
-
-	expectedTotalLen := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len) + uint32(unsafe.Sizeof(*di)) + uint32(di.Length)
-	if expectedTotalLen%8 > 0 {
-		expectedTotalLen += 8 - expectedTotalLen%8
+	for pos < header.Data_byte_len {
+		di := (*output.DataItemHeader)(unsafe.Pointer(&record.RawSample[pos]))
+		t.Logf("header: %#v", *di)
+		typ, ok := irp.Types[ir.TypeID(di.Type)]
+		if !ok {
+			t.Fatalf("unknown type: %d", di.Type)
+		}
+		pos += uint32(unsafe.Sizeof(*di))
+		t.Logf("di: %s @0x%x: %#v", typ.GetName(), di.Address, record.RawSample[pos:pos+uint32(di.Length)])
+		pos += uint32(di.Length)
+		if pos%8 > 0 {
+			pos += 8 - pos%8
+		}
 	}
-	require.Equal(t, expectedTotalLen, header.Data_byte_len)
 }

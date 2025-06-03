@@ -27,7 +27,7 @@ func (s *cCodeSerializer) CommentFunction(id sm.FunctionID, pc uint32) error {
 }
 
 // SerializeInstruction serializes a stack machine instruction into the output stream.
-func (s *cCodeSerializer) SerializeInstruction(name string, paramBytes []byte) error {
+func (s *cCodeSerializer) SerializeInstruction(name string, paramBytes []byte, comment string) error {
 	_, err := fmt.Fprintf(s.out, "\t\t%s, ", name)
 	if err != nil {
 		return err
@@ -38,7 +38,11 @@ func (s *cCodeSerializer) SerializeInstruction(name string, paramBytes []byte) e
 			return err
 		}
 	}
-	_, err = fmt.Fprintf(s.out, "\n")
+	if comment != "" {
+		_, err = fmt.Fprintf(s.out, "// %s\n", comment)
+	} else {
+		_, err = fmt.Fprintf(s.out, "\n")
+	}
 	return err
 }
 
