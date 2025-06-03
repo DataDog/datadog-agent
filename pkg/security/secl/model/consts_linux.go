@@ -860,10 +860,10 @@ var (
 	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event.
 	SetSockOptOptNameConstants = map[string]int{
 		// All the values were added according to the Linux kernel headers:
-		// include/uapi/linux/in.h
-		// include/uapi/linux/socket.h
-		// include/uapi/linux/tcp.h
-		// include/uapi/linux/in6.h
+		// https://elixir.bootlin.com/linux/v5.15.86/source/include/uapi/linux/in.h
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/socket.h
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/tcp.h
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/in6.h
 
 		// IPPROTO_IP options
 		"IP_TOS":                    syscall.IP_TOS,
