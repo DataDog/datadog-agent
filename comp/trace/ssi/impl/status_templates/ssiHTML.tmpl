@@ -1,0 +1,20 @@
+<div class="stat">
+  <span class="stat_title">Single Step Instrumentation</span>
+  <span class="stat_data">
+    {{ with .singleStepInstrumentation }}
+      {{ if .ssiStatusActivated }}
+        Status: {{ if eq .ssiStatus "enabled" }}Enabled{{ else }}Disabled{{ end }}
+        OCI Installer Version: {{ if .ociInstallerVersion }}{{ .ociInstallerVersion }}{{ else }}Not available{{ end }}
+        Injector Version: {{ if .injectorVersion }}{{ .injectorVersion }}{{ else }}Unable to fetch the version{{ end }}
+        Libraries Installed:
+        {{ if .libraries }}
+          {{ range $language, $version := .libraries }}
+            {{ $language }}: {{ $version }}
+          {{ end }}
+        {{ else }}
+          None
+        {{ end }}
+      {{ end }}
+    {{ end }}
+  </span>
+</div>
