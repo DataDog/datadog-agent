@@ -1226,7 +1226,7 @@ def gitlab_configuration_is_modified(ctx):
     return False
 
 
-def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
+def compute_gitlab_ci_config_diff(ctx, before: str | None = None, after: str | None = None):
     """Computes the full configs and the diff between two git references.
 
     The "after reference" is compared to the Lowest Common Ancestor (LCA) commit of "before reference" and "after reference".
