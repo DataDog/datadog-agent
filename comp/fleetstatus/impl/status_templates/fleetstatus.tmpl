@@ -1,0 +1,7 @@
+{{ with .fleetAutomationStatus }}
+{{ if .fleetAutomationEnabled }}Fleet Management is enabled{{ else }}Fleet Management is disabled{{ end }}
+
+Remote Management Status:    {{ if and .remoteManagementEnabled (eq .remoteManagementEnabled true) }}Enabled{{ else }}Disabled{{ end }}
+Remote Configuration Status: {{ if and .remoteConfigEnabled (eq .remoteConfigEnabled true) }}Enabled{{ else }}Disabled{{ end }}
+Datadog Installer Status:    {{ if and .installerRunning (eq .installerRunning true) }}Running{{ else }}Not running{{ end }}
+{{ end }}
