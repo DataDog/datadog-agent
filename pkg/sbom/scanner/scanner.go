@@ -334,11 +334,13 @@ func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collec
 	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type(collector.Options()))
 	s.scanQueue.Forget(request)
 
-	if scanResult.ImgMeta != nil {
-		imgMeta := s.getImageMetadata(request)
+	if imgMeta := scanResult.ImgMeta; imgMeta != nil {
+		if imgMeta.SBOM == nil || imgMeta.SBOM.CycloneDXBOM == nil || imgMeta.SBOM.CycloneDXBOM.Components == nil {
+			imgMeta = s.getImageMetadata(request)
+		}
 
 		if imgMeta.SBOM == nil || imgMeta.SBOM.CycloneDXBOM == nil || imgMeta.SBOM.CycloneDXBOM.Components == nil {
-			log.Errorf("invalid scan result for '%s'", request.ID())
+			log.Warnf("invalid scan result for '%s'", request.ID())
 			return
 		}
 
