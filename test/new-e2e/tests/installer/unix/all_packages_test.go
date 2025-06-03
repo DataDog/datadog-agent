@@ -421,6 +421,9 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		case "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT":
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_inject_version: %s\n", value)
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
+		case "TESTING_KEYS_URL":
+			playbookStringSuffix += fmt.Sprintf("    datadog_apt_key_url_new: https://%s/DATADOG_APT_KEY_CURRENT.public\n", value)
+			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		default:
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		}
