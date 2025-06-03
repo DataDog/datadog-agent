@@ -146,8 +146,6 @@ func OtelSpanToDDSpanMinimal(
 		if !spanMetaHasKey(ddspan, "span.kind") {
 			ddspan.Meta["span.kind"] = traceutil.OTelSpanKindName(spanKind)
 		}
-		if code == 0 {
-		}
 	}
 
 	if code != 0 {
