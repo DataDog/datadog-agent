@@ -14,7 +14,7 @@
     # Caching setup
     - DOCKER_CACHE_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"
     - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_TARGET}"
-    - CACHE_TO=""
+    - CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_TARGET}-test,mode=max"
     - |
       DOCKER_NO_CACHE=""
       for target in ${NO_CACHE_TARGETS}; do
