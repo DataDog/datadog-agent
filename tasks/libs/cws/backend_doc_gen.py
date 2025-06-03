@@ -1,7 +1,5 @@
-import argparse
 import json
 from dataclasses import dataclass
-from typing import List
 
 import tasks.libs.cws.common as common
 
@@ -29,8 +27,8 @@ class DefinitionFieldDescription:
 class SchemaDefinition:
     name: str
     schema: str
-    references: List[DefinitionReference]
-    descriptions: List[DefinitionFieldDescription]
+    references: list[DefinitionReference]
+    descriptions: list[DefinitionFieldDescription]
 
 
 def remove_schema_props(node):
@@ -89,9 +87,7 @@ def generate_backend_documentation(input: str, output: str, template: str):
 
     output_file = open(output, "w")
     print(
-        common.fill_template(
-            template, event_schema=presentable_json, parameters=parameters, definitions=definitions
-        ),
+        common.fill_template(template, event_schema=presentable_json, parameters=parameters, definitions=definitions),
         file=output_file,
     )
     output_file.close()

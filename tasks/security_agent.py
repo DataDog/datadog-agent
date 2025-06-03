@@ -9,14 +9,14 @@ import re
 import shutil
 import sys
 import tempfile
-import tasks.libs.cws.backend_doc_gen as backend_doc_gen
-import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from itertools import chain
 from subprocess import check_output
 
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+import tasks.libs.cws.backend_doc_gen as backend_doc_gen
+import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.agent import generate_config
 from tasks.build_tags import add_fips_tags, get_default_build_tags
 from tasks.go import run_golangci_lint
@@ -518,11 +518,27 @@ def docker_functional_tests(
 @task
 def generate_cws_documentation(ctx):
     # secl docs
-    secl_doc_gen.generate_secl_documentation("./docs/cloud-workload-security/secl_linux.json", "./docs/cloud-workload-security/linux_expressions.md", "./linux_expressions.md")
-    secl_doc_gen.generate_secl_documentation("./docs/cloud-workload-security/secl_windows.json", "./docs/cloud-workload-security/windows_expressions.md", "./windows_expressions.md")
+    secl_doc_gen.generate_secl_documentation(
+        "./docs/cloud-workload-security/secl_linux.json",
+        "./docs/cloud-workload-security/linux_expressions.md",
+        "./linux_expressions.md",
+    )
+    secl_doc_gen.generate_secl_documentation(
+        "./docs/cloud-workload-security/secl_windows.json",
+        "./docs/cloud-workload-security/windows_expressions.md",
+        "./windows_expressions.md",
+    )
     # backend event docs
-    backend_doc_gen.generate_backend_documentation("./docs/cloud-workload-security/backend_linux.schema.json", "./docs/cloud-workload-security/backend_linux.md", "./backend_linux.md")
-    backend_doc_gen.generate_backend_documentation("./docs/cloud-workload-security/backend_windows.schema.json", "./docs/cloud-workload-security/backend_windows.md", "./backend_windows.md")
+    backend_doc_gen.generate_backend_documentation(
+        "./docs/cloud-workload-security/backend_linux.schema.json",
+        "./docs/cloud-workload-security/backend_linux.md",
+        "./backend_linux.md",
+    )
+    backend_doc_gen.generate_backend_documentation(
+        "./docs/cloud-workload-security/backend_windows.schema.json",
+        "./docs/cloud-workload-security/backend_windows.md",
+        "./backend_windows.md",
+    )
 
 
 @task

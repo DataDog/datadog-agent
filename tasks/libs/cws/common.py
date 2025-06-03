@@ -1,7 +1,6 @@
 import os
 
 
-
 def fill_template(template_name, **kwargs):
     import jinja2
 

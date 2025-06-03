@@ -1,7 +1,5 @@
-import argparse
 import json
 from dataclasses import dataclass
-from typing import List
 
 import tasks.libs.cws.common as common
 
@@ -20,7 +18,7 @@ class EventType:
     definition: str
     min_agent_version: str
     experimental: bool
-    properties: List[EventTypeProperty]
+    properties: list[EventTypeProperty]
 
 
 @dataclass
@@ -35,10 +33,10 @@ class PropertyDocumentation:
     link: str
     datatype: str
     definition: str
-    prefixes: List[str]
+    prefixes: list[str]
     constants: str
     constants_link: str
-    examples: List[Example]
+    examples: list[Example]
 
 
 @dataclass
@@ -52,7 +50,7 @@ class Constants:
     name: str
     link: str
     definition: str
-    all: List[Constant]
+    all: list[Constant]
 
 
 def build_event_types(top_node):
