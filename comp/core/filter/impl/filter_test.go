@@ -76,8 +76,10 @@ func TestADAnnotationFilter(t *testing.T) {
 	t.Run("improper exclude annotation", func(t *testing.T) {
 		container := filterdef.Container{
 			Name: "dd-agent",
-			Annotations: map[string]string{
-				"ad.datadoghq.com/garbage": "true",
+			Owner: filterdef.Pod{
+				Annotations: map[string]string{
+					"ad.datadoghq.com/garbage": "true",
+				},
 			},
 		}
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
@@ -87,8 +89,10 @@ func TestADAnnotationFilter(t *testing.T) {
 	t.Run("proper exclude annotation", func(t *testing.T) {
 		container := filterdef.Container{
 			Name: "dd-agent",
-			Annotations: map[string]string{
-				"ad.datadoghq.com/dd-agent.exclude": "true",
+			Owner: filterdef.Pod{
+				Annotations: map[string]string{
+					"ad.datadoghq.com/dd-agent.exclude": "true",
+				},
 			},
 		}
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
@@ -99,8 +103,10 @@ func TestADAnnotationFilter(t *testing.T) {
 	t.Run("blank container name", func(t *testing.T) {
 		// Edge case if the container name is missing
 		container := filterdef.Container{
-			Annotations: map[string]string{
-				"ad.datadoghq.com/.exclude": "true",
+			Owner: filterdef.Pod{
+				Annotations: map[string]string{
+					"ad.datadoghq.com/.exclude": "true",
+				},
 			},
 		}
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
@@ -125,22 +131,28 @@ func TestCombinedFilter(t *testing.T) {
 	assert.Equal(t, false, res)
 
 	container = filterdef.Container{
-		Name:      "dd-agent",
-		Namespace: "default",
+		Name: "dd-agent",
+		Owner: filterdef.Pod{
+			Namespace: "default",
+		},
 	}
 	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
 	assert.Equal(t, false, res)
 
 	container = filterdef.Container{
-		Name:      "nginx",
-		Namespace: "default",
+		Name: "nginx",
+		Owner: filterdef.Pod{
+			Namespace: "default",
+		},
 	}
 	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
 	assert.Equal(t, false, res)
 
 	container = filterdef.Container{
-		Name:      "nginx",
-		Namespace: "datadog-agent",
+		Name: "nginx",
+		Owner: filterdef.Pod{
+			Namespace: "datadog-agent",
+		},
 	}
 	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
 	assert.Equal(t, true, res)
@@ -182,8 +194,10 @@ func TestContainerSBOMFilter(t *testing.T) {
 			exclude:  []string{"name:nginx"},
 			pauseCtn: false,
 			container: filterdef.Container{
-				Name:      "nginx",
-				Namespace: "default",
+				Name: "nginx",
+				Owner: filterdef.Pod{
+					Namespace: "default",
+				},
 			},
 			expected: false,
 		},
@@ -193,8 +207,10 @@ func TestContainerSBOMFilter(t *testing.T) {
 			exclude:  []string{"kube_namespace:default"},
 			pauseCtn: false,
 			container: filterdef.Container{
-				Name:      "nginx",
-				Namespace: "default",
+				Name: "nginx",
+				Owner: filterdef.Pod{
+					Namespace: "default",
+				},
 			},
 			expected: false,
 		},

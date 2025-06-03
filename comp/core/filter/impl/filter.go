@@ -115,17 +115,20 @@ func evaluateResource[T ~int](
 		var setResult = filterdef.Unknown
 		for _, filter := range filterSet {
 
+			// 1. Retrieve the filtering program
 			prg := f.getProgram(resource.Type(), int(filter))
 			if prg == nil {
 				f.log.Warnf("No program found for filter %d on resource %s", filter, resource.Type())
 				continue
 			}
 
+			// 2. Evaluate the filtering program
 			res, prgErrs := prg.Evaluate(resource.Type(), resource.ToMap())
 			if prgErrs != nil {
 				f.log.Debug(prgErrs)
 			}
 
+			// 3. Process the results
 			if res == filterdef.Included {
 				f.log.Debugf("Resource %s is included by filter %d", resource.Type(), filter)
 				return res
@@ -134,6 +137,8 @@ func evaluateResource[T ~int](
 				setResult = filterdef.Excluded
 			}
 		}
+		// If the set of filters produces a Include/Exclude result,
+		// then return the set's results and don't execute subsequent sets.
 		if setResult != filterdef.Unknown {
 			return setResult
 		}

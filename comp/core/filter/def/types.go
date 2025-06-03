@@ -42,23 +42,19 @@ const (
 
 // Container represents a container object.
 type Container struct {
-	ID          string
-	Name        string
-	Image       string
-	Namespace   string
-	Annotations map[string]string
-	Owner       Filterable
+	ID    string
+	Name  string
+	Image string
+	Owner Filterable
 }
 
 // CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
 func CreateContainer(container workloadmeta.Container, owner Filterable) Container {
 	return Container{
-		ID:          container.ID,
-		Name:        container.Name,
-		Image:       container.Image.Name,
-		Namespace:   container.Namespace,
-		Annotations: container.Annotations,
-		Owner:       owner,
+		ID:    container.ID,
+		Name:  container.Name,
+		Image: container.Image.Name,
+		Owner: owner,
 	}
 }
 
@@ -67,11 +63,9 @@ var _ Filterable = &Container{}
 // ToMap converts the Container object to a map.
 func (c Container) ToMap() map[string]any {
 	m := map[string]any{
-		"id":          c.ID,
-		"name":        c.Name,
-		"image":       c.Image,
-		"namespace":   c.Namespace,
-		"annotations": c.Annotations,
+		"id":    c.ID,
+		"name":  c.Name,
+		"image": c.Image,
 	}
 	if c.Owner != nil {
 		m[string(c.Owner.Type())] = c.Owner.ToMap()

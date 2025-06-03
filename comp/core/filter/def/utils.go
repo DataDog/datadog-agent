@@ -9,12 +9,14 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
+const (
+	highPrecedence = 0
+	lowPrecedence  = 1
+)
+
 // GetSharedMetricsFilters identifies the filtering component's individual Container Filters for container metrics.
 func GetSharedMetricsFilters() [][]ContainerFilter {
-	const (
-		highPrecedence = 0
-		lowPrecedence  = 1
-	)
+
 	flist := make([][]ContainerFilter, 2)
 
 	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations}
@@ -39,5 +41,41 @@ func GetSharedMetricsFilters() [][]ContainerFilter {
 	}
 
 	flist[lowPrecedence] = low
+	return flist
+}
+
+type Scope string
+
+const (
+	GlobalFilter  Scope = "GlobalFilter"
+	MetricsFilter Scope = "MetricsFilter"
+	LogsFilter    Scope = "LogsFilter"
+)
+
+// GetAutodiscoveryFilters identifies the filtering component's individual Container Filters for autodiscovery.
+func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
+
+	flist := make([][]ContainerFilter, 2)
+
+	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations}
+
+	low := []ContainerFilter{ContainerGlobal}
+
+	switch filterScope {
+	case GlobalFilter:
+		if len(pkgconfigsetup.Datadog().GetStringSlice("container_include")) == 0 {
+			low = append(low, ContainerACLegacyInclude)
+		}
+		if len(pkgconfigsetup.Datadog().GetStringSlice("container_exclude")) == 0 {
+			low = append(low, ContainerACLegacyExclude)
+		}
+	case MetricsFilter:
+		low = append(low, ContainerMetrics)
+	case LogsFilter:
+		low = append(low, ContainerLogs)
+	}
+
+	flist[lowPrecedence] = low
+
 	return flist
 }

@@ -16,6 +16,7 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	"github.com/DataDog/datadog-agent/comp/core/filter/program"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	legacyFilter "github.com/DataDog/datadog-agent/pkg/util/containers"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -78,7 +79,7 @@ func ContainerGlobalProgram(config config.Component, logger log.Component) progr
 
 // ContainerADAnnotationsProgram creates a program for filtering container annotations
 func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) program.CELProgram {
-	excludeFilter := `("ad.datadoghq.com/" + container.name + ".exclude") in container.annotations && container.annotations["ad.datadoghq.com/" + container.name + ".exclude"] == "true"`
+	excludeFilter := `("ad.datadoghq.com/" + container.name + ".exclude") in container.pod.annotations && container.pod.annotations["ad.datadoghq.com/" + container.name + ".exclude"] == "true"`
 	excludeProgram, err := createCELProgram(excludeFilter, filter.ContainerType)
 
 	if err != nil {
@@ -164,13 +165,13 @@ var containerFieldMapping = map[string]string{
 	"id":             fmt.Sprintf("%s.id.matches", filter.ContainerType),
 	"name":           fmt.Sprintf("%s.name.matches", filter.ContainerType),
 	"image":          fmt.Sprintf("%s.image.matches", filter.ContainerType),
-	"kube_namespace": fmt.Sprintf("%s.namespace.matches", filter.ContainerType),
+	"kube_namespace": fmt.Sprintf("%s.%s.namespace.matches", filter.ContainerType, filter.PodType),
 }
 
 // convertOldToNewFilter converts the legacy regex ad filter format to the google cel format.
 //
 // Old Format: []string{"image:nginx.*", "name:xyz-.*"},
-// New Format: "container.name.matches('xyz-.*') || container.image.matches('nginx.*')""
+// New Format: "container.name.matches('xyz-.*') || container.image.matches('nginx.*')"
 func convertOldToNewFilter(old []string) (string, error) {
 	var newFilters []string
 	for _, filter := range old {
@@ -187,7 +188,12 @@ func convertOldToNewFilter(old []string) (string, error) {
 
 		key, value := parts[0], parts[1]
 		celsafeValue := celEscape(value)
-		// Map the key to the new format
+
+		// Legacy support for image filtering
+		if key == "image" {
+			value = legacyFilter.PreprocessImageFilter(value)
+		}
+
 		if newField, ok := containerFieldMapping[key]; ok {
 			newFilters = append(newFilters, fmt.Sprintf("%s('%s')", newField, celsafeValue))
 		} else {
@@ -197,9 +203,14 @@ func convertOldToNewFilter(old []string) (string, error) {
 	return strings.Join(newFilters, " || "), nil
 }
 
-// celEscape escapes backslashes and double quotes for CEL compatibility
+// celEscape escapes backslashes and single quotes for CEL compatibility
 func celEscape(s string) string {
+
+	// Backslashes must be escaped because CEL parses string literals first.
 	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`) // TODO: CHECK THIS
+
+	// Must escape the single quote because we wrap the
+	// entire input within single quotes in the CEL expression.
+	s = strings.ReplaceAll(s, `'`, `\'`)
 	return s
 }
