@@ -202,6 +202,9 @@ def sanitize_env_vars():
     We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
     """
     for env in os.environ:
+        # Allow the env var that enables NodeTreeModel for testing purposes
+        if env == "DD_CONF_NODETREEMODEL":
+            continue
         if env.startswith("DD_"):
             del os.environ[env]
 

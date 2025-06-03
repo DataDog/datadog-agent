@@ -404,6 +404,9 @@
         },
         "private": {
           "type": "boolean"
+        },
+        "inherited": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,

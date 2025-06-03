@@ -11,6 +11,8 @@ package probe
 import (
 	"encoding/binary"
 	"fmt"
+	"net"
+	"net/netip"
 	"path"
 	"strings"
 	"syscall"
@@ -777,4 +779,34 @@ func (fh *EBPFFieldHandlers) ResolveProcessNSID(e *model.Event) (uint64, error) 
 	}
 	e.ProcessCacheEntry.Process.NSID = nsid
 	return nsid, nil
+}
+
+func (fh *EBPFFieldHandlers) resolveHostnames(ip net.IP) []string {
+	if !fh.config.Probe.DNSResolutionEnabled {
+		return nil
+	}
+
+	nip, ok := netip.AddrFromSlice(ip)
+	if ok {
+		return fh.resolvers.DNSResolver.HostListFromIP(nip)
+	}
+	return nil
+}
+
+// ResolveConnectHostnames resolves the hostnames of a connect event
+func (fh *EBPFFieldHandlers) ResolveConnectHostnames(_ *model.Event, e *model.ConnectEvent) []string {
+	if len(e.Hostnames) == 0 {
+		e.Hostnames = fh.resolveHostnames(e.Addr.IPNet.IP)
+	}
+
+	return e.Hostnames
+}
+
+// ResolveAcceptHostnames resolves the hostnames of an accept event
+func (fh *EBPFFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.AcceptEvent) []string {
+	if len(e.Hostnames) == 0 {
+		e.Hostnames = fh.resolveHostnames(e.Addr.IPNet.IP)
+	}
+
+	return e.Hostnames
 }

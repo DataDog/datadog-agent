@@ -536,6 +536,7 @@ def generate_cws_documentation(ctx, go_generate=False):
 
 @task
 def cws_go_generate(ctx, verbose=False):
+    # run different `go generate` for pkg/security/secl and pkg/security
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
     ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/generators/accessors")
@@ -558,6 +559,9 @@ def cws_go_generate(ctx, verbose=False):
         )
 
     ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
+
+    # synchronize the seclwin package from the secl package
+    sync_secl_win_pkg(ctx)
 
 
 @task
@@ -703,7 +707,6 @@ def go_generate_check(ctx):
         [cws_go_generate],
         [generate_cws_documentation],
         [gen_mocks],
-        [sync_secl_win_pkg],
     ]
     failing_tasks = []
 

@@ -299,7 +299,7 @@ def exception_threshold_bump(ctx):
     :param ctx:
     :return:
     """
-    current_branch_name = get_current_branch()
+    current_branch_name = get_current_branch(ctx)
     ancestor_commit = get_common_ancestor(ctx, "HEAD")
     repo = get_gitlab_repo()
     with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):

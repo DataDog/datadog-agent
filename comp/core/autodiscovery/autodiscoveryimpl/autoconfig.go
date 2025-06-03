@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
+	"github.com/cenkalti/backoff"
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -47,7 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/cenkalti/backoff"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -86,14 +85,10 @@ type AutoConfig struct {
 	taggerComp               tagger.Component
 	logs                     logComp.Component
 	telemetryStore           *acTelemetry.Store
-	startOnce                sync.Once
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
 	m sync.RWMutex
-
-	// ranOnce is set to 1 once the AutoConfig has been executed
-	ranOnce *atomic.Bool
 }
 
 const (
@@ -178,11 +173,11 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			ac.Start()
+			ac.start()
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
-			ac.Stop()
+			ac.stop()
 			return nil
 		},
 	})
@@ -203,7 +198,6 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
-		ranOnce:                  atomic.NewBool(false),
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
 		wmeta:                    wmeta,
@@ -253,50 +247,16 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 
 // GetConfigCheck returns scrubbed information from all configuration providers
 func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
-	var response integration.ConfigCheckResponse
-
-	configSlice := ac.GetAllConfigs()
-	sort.Slice(configSlice, func(i, j int) bool {
-		return configSlice[i].Name < configSlice[j].Name
-	})
-
-	configResponses := make([]integration.ConfigResponse, len(configSlice))
-
-	for i, config := range configSlice {
-		instanceIDs := make([]string, len(config.Instances))
-		for j, instance := range config.Instances {
-			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
-		}
-		configResponses[i] = integration.ConfigResponse{
-			Config:      ac.scrubConfig(config),
-			InstanceIDs: instanceIDs,
-		}
-	}
-
-	response.Configs = configResponses
-
-	response.ResolveWarnings = GetResolveWarnings()
-	response.ConfigErrors = GetConfigErrors()
-
-	unresolved := ac.getUnresolvedTemplates()
-	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
-
-	for ids, configs := range unresolved {
-		scrubbedConfigs := make([]integration.Config, len(configs))
-		for idx, config := range configs {
-			scrubbedConfigs[idx] = ac.scrubConfig(config)
-		}
-
-		scrubbedUnresolved[ids] = scrubbedConfigs
-	}
-
-	response.Unresolved = scrubbedUnresolved
-
-	return response
+	return ac.buildConfigCheckResponse(true)
 }
 
 // getRawConfigCheck returns information from all configuration providers
 func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
+	return ac.buildConfigCheckResponse(false)
+}
+
+// buildConfigCheckResponse is a helper to build the ConfigCheckResponse for both scrubbed and raw configs.
+func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigCheckResponse {
 	var response integration.ConfigCheckResponse
 
 	configSlice := ac.GetAllConfigs()
@@ -311,6 +271,11 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 		for j, instance := range config.Instances {
 			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
 		}
+
+		if scrub {
+			config = ac.scrubConfig(config)
+		}
+
 		configResponses[i] = integration.ConfigResponse{
 			Config:      config,
 			InstanceIDs: instanceIDs,
@@ -318,10 +283,19 @@ func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
 	}
 
 	response.Configs = configResponses
-
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
-	response.Unresolved = ac.getUnresolvedTemplates()
+
+	if scrub {
+		unresolved := ac.getUnresolvedConfigs()
+		scrubbedUnresolved := make(map[string]integration.Config, len(unresolved))
+		for id, config := range unresolved {
+			scrubbedUnresolved[id] = ac.scrubConfig(config)
+		}
+		response.Unresolved = scrubbedUnresolved
+	} else {
+		response.Unresolved = ac.getUnresolvedConfigs()
+	}
 
 	return response
 }
@@ -391,23 +365,19 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-// Start will listen to the service channels before anything is sent to them
-// Usually, Start and Stop methods should not be in the component interface as it should be handled using Lifecycle hooks.
-// We make exceptions here because we need to disable it at runtime.
-func (ac *AutoConfig) Start() {
-	ac.startOnce.Do(func() {
-		listeners.RegisterListeners(ac.serviceListenerFactories)
-		providers.RegisterProviders(ac.providerCatalog)
-		setupAcErrors()
-		// Start the service listener
-		go ac.serviceListening()
-	})
+// start will listen to the service channels before anything is sent to them
+func (ac *AutoConfig) start() {
+	listeners.RegisterListeners(ac.serviceListenerFactories)
+	providers.RegisterProviders(ac.providerCatalog)
+	setupAcErrors()
+	// Start the service listener
+	go ac.serviceListening()
 }
 
-// Stop just shuts down AutoConfig in a clean way.
+// stop just shuts down AutoConfig in a clean way.
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
-func (ac *AutoConfig) Stop() {
+func (ac *AutoConfig) stop() {
 	// stop polled config providers without holding ac.m
 	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
@@ -472,22 +442,6 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 			}
 		}
 	}
-
-	ac.ranOnce.Store(true)
-}
-
-// ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
-// components that depend on this value.
-func (ac *AutoConfig) ForceRanOnceFlag() {
-	ac.ranOnce.Store(true)
-}
-
-// HasRunOnce returns true if the AutoConfig has ran once.
-func (ac *AutoConfig) HasRunOnce() bool {
-	if ac == nil {
-		return false
-	}
-	return ac.ranOnce.Load()
 }
 
 // GetAllConfigs returns all resolved and non-template configs known to
@@ -641,10 +595,10 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
 }
 
-// getUnresolvedTemplates returns all templates in the cache, in their unresolved
+// getUnresolvedConfigs returns all the active configs, in their unresolved
 // state.
-func (ac *AutoConfig) getUnresolvedTemplates() map[string][]integration.Config {
-	return ac.store.templateCache.getUnresolvedTemplates()
+func (ac *AutoConfig) getUnresolvedConfigs() map[string]integration.Config {
+	return ac.cfgMgr.getActiveConfigs()
 }
 
 // GetIDOfCheckWithEncryptedSecrets returns the ID that a checkID had before
