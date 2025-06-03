@@ -91,12 +91,16 @@ type hookOptions struct {
 	// Package is the name of the package to run the hook for.
 	Package string
 	// HookName is the name of the hook to run.
-	HookName    string
-	PackageType PackageType
-	Upgrade     bool
-	WindowsArgs []string
+	HookName string
 	// Detached set to true to run the hook in the background with detached standard IO.
 	Detached bool
+
+	// TODO: needs docs
+	PackageType PackageType
+	Upgrade     bool
+
+	// TODO: may be unused now
+	WindowsArgs []string
 }
 
 // PreInstall calls the pre-install hook for the package.
