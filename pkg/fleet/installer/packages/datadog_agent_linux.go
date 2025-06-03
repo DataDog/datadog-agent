@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
@@ -482,11 +481,11 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType:
-		return systemd.StopUnits(ctx, reverseStringSlice(s.SystemdUnitsStable)...)
+		return systemd.StopUnits(ctx, s.SystemdUnitsStable...)
 	case service.UpstartType:
-		return upstart.StopAll(ctx, reverseStringSlice(s.UpstartServices)...)
+		return upstart.StopAll(ctx, s.UpstartServices...)
 	case service.SysvinitType:
-		return sysvinit.StopAll(ctx, reverseStringSlice(s.SysvinitServices)...)
+		return sysvinit.StopAll(ctx, s.SysvinitServices...)
 	default:
 		return fmt.Errorf("unsupported service manager")
 	}
@@ -659,11 +658,4 @@ func writeEmbeddedUnit(dir string, unit string, content []byte) error {
 		return fmt.Errorf("failed to write file: %v", err)
 	}
 	return nil
-}
-
-func reverseStringSlice(slice []string) []string {
-	reversed := make([]string, len(slice))
-	copy(reversed, slice)
-	slices.Reverse(reversed)
-	return reversed
 }
