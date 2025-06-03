@@ -116,6 +116,10 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			shouldNotContain: []string{"Error"},
 		},
 		{
+			name:            "APM Auto-Instrumentation",
+			shouldBePresent: true,
+		},
+		{
 			name:            "Autodiscovery",
 			shouldBePresent: false,
 		},
