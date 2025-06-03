@@ -8,9 +8,13 @@ package ssistatusimpl
 
 import (
 	"context"
+	"embed"
+	"io"
+	"slices"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	ssistatus "github.com/DataDog/datadog-agent/comp/updater/ssistatus/def"
@@ -26,7 +30,8 @@ type Requires struct {
 
 // Provides defines the output of the ssistatus component
 type Provides struct {
-	Comp ssistatus.Component
+	Comp   ssistatus.Component
+	Status status.InformationProvider
 }
 
 // NewComponent creates a new ssistatus component
@@ -38,10 +43,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: ssiStatus.Start, OnStop: ssiStatus.Stop})
 
 	provides := Provides{
-		Comp: ssiStatus,
+		Comp:   ssiStatus,
+		Status: status.NewInformationProvider(ssiStatus),
 	}
 	return provides, nil
 }
+
+//go:embed status_templates
+var templatesFS embed.FS
 
 type ssiStatusComponent struct {
 	inventoryAgent inventoryagent.Component
@@ -78,4 +87,56 @@ func (c *ssiStatusComponent) update() {
 func (c *ssiStatusComponent) Stop(_ context.Context) error {
 	close(c.stopCh)
 	return nil
+}
+
+// Name renders the name
+func (c *ssiStatusComponent) Name() string {
+	return "APM Auto-Instrumentation"
+}
+
+// Section renders the section
+func (c *ssiStatusComponent) Section() string {
+	return "APM Auto-Instrumentation"
+}
+
+// JSON renders the JSON
+func (c *ssiStatusComponent) JSON(_ bool, stats map[string]interface{}) error {
+	c.populateStatus(stats)
+	return nil
+}
+
+// Text renders the text output
+func (c *ssiStatusComponent) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "ssistatus.tmpl", buffer, c.getStatusInfo())
+}
+
+// HTML renders the html output
+func (c *ssiStatusComponent) HTML(_ bool, buffer io.Writer) error {
+	return status.RenderHTML(templatesFS, "ssistatusHTML.tmpl", buffer, c.getStatusInfo())
+}
+
+func (c *ssiStatusComponent) populateStatus(stats map[string]interface{}) {
+	autoInstrumentationEnabled, instrumentationModes, err := c.autoInstrumentationStatus()
+	ssiStatus := make(map[string]bool)
+	if err == nil {
+		ssiStatus["apmStatusNotAvailable"] = false
+		if autoInstrumentationEnabled {
+			ssiStatus["autoInstrumentationEnabled"] = true
+			ssiStatus["hostInstrumented"] = slices.Contains(instrumentationModes, "host")
+			ssiStatus["dockerInstrumented"] = slices.Contains(instrumentationModes, "docker")
+		} else {
+			ssiStatus["autoInstrumentationEnabled"] = false
+		}
+	} else {
+		ssiStatus["apmStatusNotAvailable"] = true
+	}
+	stats["ssiStatus"] = ssiStatus
+}
+
+func (c *ssiStatusComponent) getStatusInfo() map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	c.populateStatus(stats)
+
+	return stats
 }
