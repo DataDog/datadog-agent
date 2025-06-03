@@ -1312,7 +1312,6 @@ int main(int argc, char **argv) {
         int sub_argc = last_arg - i;
         char **sub_argv = argv + i;
         int exit_code = 0;
-        printf("Yihaaaaaa\n");
 
         if (strcmp(cmd, "check") == 0) {
             exit_code = EXIT_SUCCESS;
@@ -1323,7 +1322,6 @@ int main(int argc, char **argv) {
         } else if (strcmp(cmd, "ptrace-attach") == 0) {
             exit_code = ptrace_attach();
         } else if (strcmp(cmd, "setrlimit-nofile") == 0) {
-            printf("YOLOOOOOOO\n");
             exit_code = setrlimit_nofile();
         } else if (strcmp(cmd, "setrlimit-nproc") == 0) {
             exit_code = setrlimit_nproc();
