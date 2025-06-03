@@ -24,16 +24,37 @@ type sinkUnix struct {
 
 var _ Sink = &sinkUnix{}
 
-// NewSinkUnix returns a new SinkUnix implementing packet sink
+// NewSinkUnix returns a new sinkUnix implementing packet sink
 func NewSinkUnix(addr netip.Addr) (Sink, error) {
-	if !addr.Is4() {
-		return nil, fmt.Errorf("SinkUnix only supports IPv4 addresses (for now)")
-	}
-	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_RAW|unix.SOCK_NONBLOCK, unix.IPPROTO_RAW)
-	if err != nil {
-		return nil, fmt.Errorf("NewSinkUnix failed to create socket: %s", err)
+	var domain, protocol int
+
+	if addr.Is4() {
+		domain = unix.AF_INET
+		protocol = unix.IPPROTO_RAW
+	} else if addr.Is6() {
+		domain = unix.AF_INET6
+		protocol = unix.IPPROTO_RAW
+	} else {
+		return nil, fmt.Errorf("SinkUnix supports only IPv4 or IPv6 addresses")
 	}
 
+	fd, err := unix.Socket(domain, unix.SOCK_RAW|unix.SOCK_NONBLOCK, protocol)
+	if err != nil {
+		return nil, fmt.Errorf("NewSinkUnix failed to create socket: %w", err)
+	}
+	if addr.Is4() {
+		err = unix.SetsockoptInt(fd, unix.IPPROTO_IP, unix.IP_HDRINCL, 1)
+		if err != nil {
+			unix.Close(fd)
+			return nil, fmt.Errorf("failed to set IP_HDRINCL: %w", err)
+		}
+	} else {
+		err = unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_HDRINCL, 1)
+		if err != nil {
+			unix.Close(fd)
+			return nil, fmt.Errorf("failed to set IPV6_HDRINCL: %w", err)
+		}
+	}
 	sock := os.NewFile(uintptr(fd), "")
 	rawConn, err := sock.SyscallConn()
 	if err != nil {
@@ -46,13 +67,32 @@ func NewSinkUnix(addr netip.Addr) (Sink, error) {
 	}, nil
 }
 
-// WriteTo writes the given packet (buffer starts at the IP layer) to addrPort.
-func (p *sinkUnix) WriteTo(buf []byte, addrPort netip.AddrPort) error {
-	if !addrPort.Addr().Is4() {
-		return fmt.Errorf("SinkUnix only supports IPv4 addresses (for now)")
+func (s *sinkUnix) Control(fn func(fd uintptr) error) error {
+	var ctrlErr error
+	err := s.rawConn.Control(func(fd uintptr) {
+		ctrlErr = fn(fd)
+	})
+	if err != nil {
+		return fmt.Errorf("rawConn control error: %w", err)
 	}
-	sa := &unix.SockaddrInet4{
-		Addr: addrPort.Addr().As4(),
+	return ctrlErr
+}
+
+// WriteTo writes the given packet (buffer starts at the IP layer) to addrPort.
+func (p *sinkUnix) WriteTo(buf []byte, addr netip.Addr) error {
+	var sa unix.Sockaddr
+	if addr.Is4() {
+		sa4 := &unix.SockaddrInet4{}
+		b := addr.As4()
+		copy(sa4.Addr[:], b[:])
+		sa = sa4
+	} else if addr.Is6() {
+		sa6 := &unix.SockaddrInet6{}
+		b := addr.As16()
+		copy(sa6.Addr[:], b[:])
+		sa = sa6
+	} else {
+		return fmt.Errorf("invalid IP address")
 	}
 
 	var sendtoErr error

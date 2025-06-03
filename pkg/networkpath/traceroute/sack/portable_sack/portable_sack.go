@@ -1,78 +1,60 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2025-present Datadog, Inc.
-
-// Package main contains a portable binary to easily run SACK traceroutes
 package main
 
 import (
-	"context"
-	"encoding/json"
+	"encoding/hex"
+	"errors"
 	"fmt"
-	"net/netip"
-	"os"
-	"time"
+	"log"
 
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/sack"
-
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 func main() {
-	loglevel := os.Getenv("LOG_LEVEL")
-	if loglevel == "" {
-		loglevel = "warn"
+	// Your raw packet as a hex string
+	rawHex := "6000000000093a0126001f1805b0b805e650d39fe773d649200148604860000000000000000088888000ff7bcb78000101"
+
+	// Decode the hex string to bytes
+	packetData, err := hex.DecodeString(rawHex)
+	if err != nil {
+		log.Fatalf("Failed to decode hex: %v", err)
 	}
 
-	err := pkglogsetup.SetupLogger(
-		pkglogsetup.LoggerName("sack"),
-		loglevel,
-		"",
-		"",
-		false,
-		true,
-		false,
-		pkgconfigsetup.Datadog(),
+	// Set up decoding layers
+	var (
+		ipv6    layers.IPv6
+		icmpv6  layers.ICMPv6
+		payload gopacket.Payload
 	)
+
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &ipv6, &icmpv6, &payload)
+	decoded := []gopacket.LayerType{}
+
+	err = parser.DecodeLayers(packetData, &decoded)
+	var unsupportedErr gopacket.UnsupportedLayerType
+	if errors.As(err, &unsupportedErr) {
+
+		err = nil
+	}
 	if err != nil {
-		fmt.Printf("SetupLogger failed: %s\n", err)
-		os.Exit(1)
+		log.Fatalf("Failed to parse packet: %v", err)
 	}
 
-	if len(os.Args) < 2 {
-		println("Usage: portable_sack <target>")
-		os.Exit(1)
+	for _, layerType := range decoded {
+		switch layerType {
+		case layers.LayerTypeIPv6:
+			fmt.Println("IPv6:")
+			fmt.Printf("  Src: %s\n", ipv6.SrcIP)
+			fmt.Printf("  Dst: %s\n", ipv6.DstIP)
+			fmt.Printf("  HopLimit: %d\n", ipv6.HopLimit)
+			fmt.Printf("  NextHeader: %s\n", ipv6.NextHeader)
+		case layers.LayerTypeICMPv6:
+			fmt.Println("ICMPv6:")
+			fmt.Printf("  Type: %s\n", icmpv6.TypeCode.Type())
+			fmt.Printf("  Code: %d\n", icmpv6.TypeCode.Code())
+			fmt.Printf("  Checksum: 0x%x\n", icmpv6.Checksum)
+		case gopacket.LayerTypePayload:
+			fmt.Printf("Payload: %x\n", payload.LayerContents())
+		}
 	}
-	target := os.Args[1]
-
-	cfg := sack.Params{
-		Target:           netip.MustParseAddrPort(target),
-		HandshakeTimeout: 500 * time.Millisecond,
-		FinTimeout:       500 * time.Millisecond,
-		ParallelParams: common.TracerouteParallelParams{
-			TracerouteParams: common.TracerouteParams{
-				MinTTL:            1,
-				MaxTTL:            30,
-				TracerouteTimeout: 1 * time.Second,
-				PollFrequency:     100 * time.Millisecond,
-				SendDelay:         10 * time.Millisecond,
-			},
-		},
-		LoosenICMPSrc: true,
-	}
-
-	results, err := sack.RunSackTraceroute(context.Background(), cfg)
-	if err != nil {
-		fmt.Printf("Traceroute failed: %s\n", err)
-		os.Exit(1)
-	}
-	json, err := json.MarshalIndent(results, "", "  ")
-	if err != nil {
-		fmt.Printf("Error marshalling results: %s\n", err)
-		os.Exit(1)
-	}
-	println(string(json))
 }
