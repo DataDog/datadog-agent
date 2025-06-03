@@ -1195,6 +1195,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/File",
                     "description": "File information of the interpreter"
                 },
+                "cgroup": {
+                    "$ref": "#/$defs/CGroupContext",
+                    "description": "CGroup context"
+                },
                 "container": {
                     "$ref": "#/$defs/ContainerContext",
                     "description": "Container context"
@@ -1333,6 +1337,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "interpreter": {
                     "$ref": "#/$defs/File",
                     "description": "File information of the interpreter"
+                },
+                "cgroup": {
+                    "$ref": "#/$defs/CGroupContext",
+                    "description": "CGroup context"
                 },
                 "container": {
                     "$ref": "#/$defs/ContainerContext",
@@ -3837,6 +3845,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/File",
             "description": "File information of the interpreter"
         },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext",
+            "description": "CGroup context"
+        },
         "container": {
             "$ref": "#/$defs/ContainerContext",
             "description": "Container context"
@@ -3925,6 +3937,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
+| `cgroup` | CGroup context |
 | `container` | Container context |
 | `argv0` | First command line argument |
 | `args` | Command line arguments |
@@ -3943,6 +3956,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
+| [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
 
@@ -4022,6 +4036,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "interpreter": {
             "$ref": "#/$defs/File",
             "description": "File information of the interpreter"
+        },
+        "cgroup": {
+            "$ref": "#/$defs/CGroupContext",
+            "description": "CGroup context"
         },
         "container": {
             "$ref": "#/$defs/ContainerContext",
@@ -4130,6 +4148,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
+| `cgroup` | CGroup context |
 | `container` | Container context |
 | `argv0` | First command line argument |
 | `args` | Command line arguments |
@@ -4152,6 +4171,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [ProcessCredentials](#processcredentials) |
 | [UserSessionContext](#usersessioncontext) |
 | [File](#file) |
+| [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
 | [Process](#process) |
