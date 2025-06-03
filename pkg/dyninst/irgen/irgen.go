@@ -95,6 +95,14 @@ func GenerateIR(
 	if err := completeGoTypes(v.typeCatalog); err != nil {
 		return nil, err
 	}
+
+	// Rewrite the variable types to use the complete types.
+	for _, subprogram := range v.subprograms {
+		for _, variable := range subprogram.Variables {
+			variable.Type = v.typeCatalog.typesByID[variable.Type.GetID()]
+		}
+	}
+
 	if err := populateEventsRootExpressions(
 		v.probes, v.typeCatalog,
 	); err != nil {
