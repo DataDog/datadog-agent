@@ -1,69 +1,62 @@
 # deploy mutable image tags stage
 # Contains jobs which deploy Agent 7 related mutable image tags to the registries. That means - not uploading the image, but only creating the tags.
 
-include:
-  - .gitlab/common/container_publish_job_templates.yml
-  - .gitlab/deploy_containers/conditions.yml
-
 .deploy_mutable_image_tags_base:
   extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
   dependencies: []
   before_script:
     - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
-    - export AGENT_REFERENCE=${AGENT_REPOSITORY}:${VERSION}
+    - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${IMG_TAG_REFERENCE_SUFFIX}
 
 # Stable tags
 
 deploy_mutable_image_tags-a7:
   extends: .deploy_mutable_image_tags_base
   stage: deploy_mutable_image_tags
-  rules:
-    !reference [.on_final]
+  rules: !reference [.on_final]
   parallel:
     matrix:
-      - IMG_NEW_TAGS: 7,latest
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}
-      - IMG_NEW_TAGS: 7-jmx,latest-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-jmx
-      - IMG_NEW_TAGS: 7-servercore,latest-servercore
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore
-      - IMG_NEW_TAGS: 7-servercore-jmx,latest-servercore-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-jmx
-      - IMG_NEW_TAGS: 7-ltsc2019,latest-ltsc2019
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ltsc2019
-      - IMG_NEW_TAGS: 7-ltsc2022,latest-ltsc2022
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-ltsc2022
-      - IMG_NEW_TAGS: 7-servercore-ltsc2019,latest-servercore-ltsc2019
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2019
-      - IMG_NEW_TAGS: 7-servercore-ltsc2022,latest-servercore-ltsc2022
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2022
-      - IMG_NEW_TAGS: 7-servercore-ltsc2019-jmx,latest-servercore-ltsc2019-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2019-jmx
-      - IMG_NEW_TAGS: 7-servercore-ltsc2022-jmx,latest-servercore-ltsc2022-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-servercore-ltsc2022-jmx
-      - IMG_NEW_TAGS: 7-full,latest-full
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-full
+      - IMG_TAG_REFERENCE_SUFFIX: [""]
+        IMG_NEW_TAGS: ["7,latest"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-jmx"]
+        IMG_NEW_TAGS: ["7-jmx,latest-jmx"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore"]
+        IMG_NEW_TAGS: ["7-servercore,latest-servercore"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore-jmx"]
+        IMG_NEW_TAGS: ["7-servercore-jmx,latest-servercore-jmx"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-ltsc2019"]
+        IMG_NEW_TAGS: ["7-ltsc2019,latest-ltsc2019"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-ltsc2022"]
+        IMG_NEW_TAGS: ["7-ltsc2022,latest-ltsc2022"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore-ltsc2019"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2019,latest-servercore-ltsc2019"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore-ltsc2022"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2022,latest-servercore-ltsc2022"]
+      - IMG_TAG_REFERENCE_SUFFIX: "-servercore-ltsc2019-jmx"
+        IMG_NEW_TAGS: ["7-servercore-ltsc2019-jmx,latest-servercore-ltsc2019-jmx"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore-ltsc2022-jmx"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2022-jmx,latest-servercore-ltsc2022-jmx"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-full"]
+        IMG_NEW_TAGS: ["7-full,latest-full"]
 
 deploy_mutable_image_tags-a7_internal:
   extends: .deploy_mutable_image_tags_base
   stage: deploy_mutable_image_tags
-  rules:
-    !reference [.on_internal_final]
+  rules: !reference [.on_internal_final]
   parallel:
     matrix:
-      - IMG_NEW_TAGS: 7-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-jmx
-      - IMG_NEW_TAGS: 7-full
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-full
-      - IMG_NEW_TAGS: 7-fips-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-fips-jmx
+      - IMG_TAG_REFERENCE_SUFFIX: "-jmx"
+        IMG_NEW_TAGS: 7-jmx
+      - IMG_TAG_REFERENCE_SUFFIX: "-full"
+        IMG_NEW_TAGS: 7-full
+      - IMG_TAG_REFERENCE_SUFFIX: "-fips-jmx"
+        IMG_NEW_TAGS: 7-fips-jmx
 
 deploy_mutable_image_tags-dogstatsd:
-  extends: .deploy_mutable_image_tags_base
+  extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
-  rules:
-    !reference [.on_final]
+  rules: !reference [.on_final]
   before_script:
     - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}
@@ -72,11 +65,11 @@ deploy_mutable_image_tags-dogstatsd:
 deploy_mutable_image_tags-a7-fips:
   extends: .deploy_mutable_image_tags_base
   stage: deploy_mutable_image_tags
-  rules:
-    !reference [.on_final]
+  rules: !reference [.on_final]
   parallel:
     matrix:
-      - IMG_NEW_TAGS: 7-fips
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-fips
-      - IMG_NEW_TAGS: 7-fips-jmx
-        IMG_TAG_REFERENCE: ${AGENT_REFERENCE}-fips-jmx
+      - IMG_TAG_REFERENCE_SUFFIX: "-fips"
+        IMG_NEW_TAGS: 7-fips
+      - IMG_TAG_REFERENCE_SUFFIX: "-fips-jmx"
+        IMG_NEW_TAGS: 7-fips-jmx
+
