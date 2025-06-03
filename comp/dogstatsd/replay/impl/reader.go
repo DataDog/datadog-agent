@@ -32,6 +32,11 @@ type TrafficCaptureReader struct {
 	sync.Mutex
 }
 
+func (tc *TrafficCaptureReader) Init() {
+	// skip header
+	tc.offset = uint32(len(datadogHeader))
+}
+
 // Read reads the contents of the traffic capture and writes each packet to a channel
 func (tc *TrafficCaptureReader) Read(ready chan struct{}) {
 	tc.Lock()

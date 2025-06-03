@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package v12;
+
+message Payload {
+  string containerId = 2;
+  uint64 numRecords = 5;
+  string globalTags = 6;
+  Groups groups = 7;
+}
+
+message Groups {
+  repeated Group group = 1;
+}
+
+message Group {
+  bytes tags = 1;
+  oneof content {
+    bytes metrics = 2;
+    Group subgroup = 3;
+  }
+}

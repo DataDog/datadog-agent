@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package v09;
+
+message Payload {
+    string containerId = 2;
+    int64 numRecords = 5;
+    string globalTags = 6;
+
+    repeated sint64 names = 10;
+    repeated sint64 tagsets = 18;
+    repeated sint64 tags = 11;
+    repeated int64 types = 12;
+    repeated double values = 13;
+    repeated int64 sketchCounts = 14;
+    repeated int64 sketchLengths = 15;
+    repeated int32 sketchBinKeys = 16;
+    repeated uint32 sketchBinCounts = 17;
+    string namesJoined = 21;
+    string tagsJoined = 22;
+}

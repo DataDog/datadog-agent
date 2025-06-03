@@ -1,0 +1,5 @@
+/capture.zstd
+/*.pb
+/pprof.*
+/metricproto
+/reader
