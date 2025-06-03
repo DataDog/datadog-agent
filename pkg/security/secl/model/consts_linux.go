@@ -859,6 +859,12 @@ var (
 	// SetSockOptOptNameConstants is the list of available options for setsockopt events
 	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event.
 	SetSockOptOptNameConstants = map[string]int{
+		// All the values were added according to the Linux kernel headers:
+		// include/uapi/linux/in.h
+		// include/uapi/linux/socket.h
+		// include/uapi/linux/tcp.h
+		// include/uapi/linux/in6.h
+
 		// IPPROTO_IP options
 		"IP_TOS":                    syscall.IP_TOS,
 		"IP_TTL":                    syscall.IP_TTL,
