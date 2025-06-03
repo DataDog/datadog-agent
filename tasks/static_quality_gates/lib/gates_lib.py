@@ -132,11 +132,11 @@ class GateMetricHandler:
         second_value = self.metrics[gate_name][limit_metric]
         limit_value_string = r"$${" + byte_to_string(second_value, unit_power=2, with_unit=False) + "}$$"
         if first_value > second_value:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "red")} > {limit_value_string}"
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} > {limit_value_string}"
         elif first_value < second_value:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "green")} < {limit_value_string}"
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} < {limit_value_string}"
         else:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False), "orange")} = {limit_value_string}"
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} = {limit_value_string}"
 
     def register_metric(self, gate_name, metric_name, metric_value):
         if self.metrics.get(gate_name, None) is None:
