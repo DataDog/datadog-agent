@@ -138,7 +138,6 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 
 			// if the key is not defined in the schema, we can still add it to the destination
 			if value == nil || isScalar(value) || isSlice(value) {
-				schemaChild = newLeafNode(value, model.SourceSchema)
 				dest.InsertChildNode(key, newLeafNode(value, source))
 				continue
 			}

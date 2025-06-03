@@ -435,11 +435,11 @@ func (c *ntmConfig) mergeAllLayers() error {
 
 	c.root = root
 	// recompile allSettings now that we have the full config
-	c.allSettings = c.computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings("")
 	return nil
 }
 
-func (c *ntmConfig) computeAllSettings(node InnerNode, path string) []string {
+func (c *ntmConfig) computeAllSettings(path string) []string {
 	c.maybeRebuild()
 
 	keySet := make(map[string]struct{})
@@ -496,7 +496,7 @@ func (c *ntmConfig) buildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
-	c.allSettings = c.computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings("")
 }
 
 // Stringify stringifies the config, but only with the test build tag
