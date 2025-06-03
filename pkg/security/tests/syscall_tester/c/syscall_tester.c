@@ -208,9 +208,6 @@ int setrlimit_nofile() {
         perror("setrlimit RLIMIT_NOFILE");
         return EXIT_FAILURE;
     }
-
-    printf("setrlimit RLIMIT_NOFILE: %lu\n", rlim.rlim_cur);
-    
     return EXIT_SUCCESS;
 }
 
@@ -223,9 +220,6 @@ int setrlimit_nproc() {
         perror("setrlimit RLIMIT_NPROC");
         return EXIT_FAILURE;
     }
-
-    printf("setrlimit RLIMIT_NPROC: %lu\n", rlim.rlim_cur);
-    
     return EXIT_SUCCESS;
 }
 
@@ -250,10 +244,7 @@ int setrlimit_core() {
     if (setrlimit(RLIMIT_CORE, &rlim) < 0) {
         perror("setrlimit RLIMIT_CORE");
         return EXIT_FAILURE;
-    }
-
-    printf("setrlimit RLIMIT_CORE: %lu\n", rlim.rlim_cur);
-    
+    }    
     return EXIT_SUCCESS;
 }
 
