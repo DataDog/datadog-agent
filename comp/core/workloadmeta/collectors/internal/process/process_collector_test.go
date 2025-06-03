@@ -387,14 +387,8 @@ func TestProcessLifecycleCollection(t *testing.T) {
 				}),
 			},
 			expectedDeletedProcesses: []*workloadmeta.Process{
-				workloadmetaProcess(proc1, &workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   "container_id_1",
-				}),
-				workloadmetaProcess(proc2, &workloadmeta.EntityID{
-					Kind: workloadmeta.KindContainer,
-					ID:   "container_id_2",
-				}),
+				workloadmetaProcess(proc1, nil),
+				workloadmetaProcess(proc2, nil),
 			},
 		},
 	} {

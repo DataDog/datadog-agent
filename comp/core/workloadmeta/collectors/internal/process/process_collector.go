@@ -108,10 +108,10 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	return nil
 }
 
-// parseProcessesToWorkloadMetaProcesses helper function to convert procs with container data into wlm entities
-func parseProcessesToWorkloadMetaProcesses(procs []*procutil.Process, pidToCid map[int]string) []*workloadmeta.Process {
-	wlmProcs := make([]*workloadmeta.Process, len(procs))
-	for i, proc := range procs {
+// createdProcessesToWorkloadMetaProcesses helper function to convert createdProcs with container data into wlm entities
+func createdProcessesToWorkloadmetaProcesses(createdProcs []*procutil.Process, pidToCid map[int]string) []*workloadmeta.Process {
+	wlmProcs := make([]*workloadmeta.Process, len(createdProcs))
+	for i, proc := range createdProcs {
 		wlmProcs[i] = processToWorkloadMetaProcess(proc)
 		cid, exists := pidToCid[int(proc.Pid)]
 		if exists {
@@ -121,6 +121,20 @@ func parseProcessesToWorkloadMetaProcesses(procs []*procutil.Process, pidToCid m
 				Kind: workloadmeta.KindContainer,
 				ID:   cid,
 			}
+		}
+	}
+	return wlmProcs
+}
+
+// deletedProcessesToWorkloadMetaProcesses helper function to convert deletedProcs into wlm entities
+func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) []*workloadmeta.Process {
+	wlmProcs := make([]*workloadmeta.Process, len(deletedProcs))
+	for i, proc := range deletedProcs {
+		wlmProcs[i] = &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(proc.Pid)),
+			},
 		}
 	}
 	return wlmProcs
@@ -172,10 +186,12 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 
 			// categorize the processes into events for workloadmeta
 			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-			wlmCreatedProcs := parseProcessesToWorkloadMetaProcesses(createdProcs, pidToCid)
+
+			wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid)
 
 			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
-			wlmDeletedProcs := parseProcessesToWorkloadMetaProcesses(deletedProcs, pidToCid)
+			// wlm only uses the EventType, Source, ID, and Kind for deletion events
+			wlmDeletedProcs := deletedProcessesToWorkloadmetaProcesses(deletedProcs)
 
 			// send these events to the channel
 			c.processEventsCh <- &Event{
