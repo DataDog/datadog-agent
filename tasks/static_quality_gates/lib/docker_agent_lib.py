@@ -78,7 +78,7 @@ def check_image_size(image_on_wire_size, image_on_disk_size, max_on_wire_size, m
         raise AssertionError(error_message)
 
 
-def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent", image_suffix="", **kwargs):
+def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent", image_suffix=None, **kwargs):
     arguments = argument_extractor(
         kwargs,
         max_on_wire_size=read_byte_input,
@@ -108,6 +108,7 @@ def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent"
             )
         )
     image_suffixes = "-7" if flavor == "agent" else "" + "-jmx" if jmx else "" + image_suffix if image_suffix else ""
+    print(f"Image suffixes : {image_suffixes}")
     if flavor != "dogstatsd" and is_nightly_run:
         flavor += "-nightly"
     url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
