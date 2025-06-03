@@ -1,39 +1,21 @@
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS baseimage
-ARG BASE_IMAGE_UBUNTU_VERSION
-ARG BASE_IMAGE_UBUNTU_NAME
-LABEL baseimage.os="ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
-LABEL baseimage.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-LABEL org.opencontainers.image.base.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
-LABEL org.opencontainers.image.title="Datadog Agent"
-
-ARG CIBUILD
-# NOTE about APT mirrorlists:
-# It seems that this feature could use some improvement. If you just get mirrorlist
-# from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
-# cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
-# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
-# should be reliable enough in combination and also well maintained.
-RUN if [ "$CIBUILD" = "true" ]; then \
-  echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
-  echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
-  sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://security.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
-         -e 's#http://ports.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.ports#g' /etc/apt/sources.list; \
-  fi
-
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update
 
 FROM baseimage AS nosys-seccomp
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN DEBIAN_FRONTEND=noninteractive \
+  apt update \
+  && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev \
+  && rm -rf /var/lib/apt/lists/*
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
 FROM baseimage AS extract-base
-RUN apt install --no-install-recommends -y curl ca-certificates maven xz-utils
+RUN DEBIAN_FRONTEND=noninteractive \
+  apt update \
+  && apt install --no-install-recommends -y curl ca-certificates maven xz-utils \
+  && rm -rf /var/lib/apt/lists/*
 
 ############################################################
 #  Preparation stage: retrieval of 3rd party dependencies  #
@@ -108,6 +90,12 @@ RUN --mount=from=artifacts,target=/artifacts \
 ########################################################################
 
 FROM baseimage AS release-base
+ARG BASE_IMAGE_UBUNTU_VERSION
+ARG BASE_IMAGE_UBUNTU_NAME
+LABEL baseimage.os="ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
+LABEL baseimage.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.base.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
+LABEL org.opencontainers.image.title="Datadog Agent"
 
 ENV DOCKER_DD_AGENT=true \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
@@ -125,7 +113,9 @@ ARG WITH_JMX
 ARG WITH_JMX_FIPS
 
 # make sure we have recent dependencies -- CVE-fixing time!
-RUN apt full-upgrade -y \
+RUN DEBIAN_FRONTEND=noninteractive \
+  apt update \
+  && apt full-upgrade -y \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
@@ -136,7 +126,7 @@ RUN apt full-upgrade -y \
     mkdir -p /usr/share/man/man1 \
     && apt install --no-install-recommends -y openjdk-11-jre-headless; \
   fi \
-  && apt clean
+  && rm -rf /var/lib/apt/lists/* && apt clean
 
 ###########################################################
 #  Release docker image construction including the Agent  #
