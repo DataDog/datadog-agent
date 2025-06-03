@@ -9,6 +9,8 @@ import re
 import shutil
 import sys
 import tempfile
+import tasks.libs.cws.backend_doc_gen as backend_doc_gen
+import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from itertools import chain
 from subprocess import check_output
 
@@ -519,19 +521,11 @@ def generate_cws_documentation(ctx, go_generate=False):
         cws_go_generate(ctx)
 
     # secl docs
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_linux.json --output ./docs/cloud-workload-security/linux_expressions.md --template ./linux_expressions.md"
-    )
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_windows.json --output ./docs/cloud-workload-security/windows_expressions.md --template ./windows_expressions.md"
-    )
+    secl_doc_gen.generate_secl_documentation("./docs/cloud-workload-security/secl_linux.json", "./docs/cloud-workload-security/linux_expressions.md", "./linux_expressions.md")
+    secl_doc_gen.generate_secl_documentation("./docs/cloud-workload-security/secl_windows.json", "./docs/cloud-workload-security/windows_expressions.md", "./windows_expressions.md")
     # backend event docs
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_linux.schema.json --output ./docs/cloud-workload-security/backend_linux.md --template ./backend_linux.md"
-    )
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_windows.schema.json --output ./docs/cloud-workload-security/backend_windows.md --template ./backend_windows.md"
-    )
+    backend_doc_gen.generate_backend_documentation("./docs/cloud-workload-security/backend_linux.schema.json", "./docs/cloud-workload-security/backend_linux.md", "./backend_linux.md")
+    backend_doc_gen.generate_backend_documentation("./docs/cloud-workload-security/backend_windows.schema.json", "./docs/cloud-workload-security/backend_windows.md", "./backend_windows.md")
 
 
 @task

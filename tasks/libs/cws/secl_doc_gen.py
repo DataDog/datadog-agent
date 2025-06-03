@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass
 from typing import List
 
-import common
+import tasks.libs.cws.common as common
 
 
 @dataclass
