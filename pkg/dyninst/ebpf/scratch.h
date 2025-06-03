@@ -23,7 +23,10 @@
 
 typedef uint64_t buf_offset_t;
 
+#ifndef PAGE_SIZE
 #define PAGE_SIZE 4*1024
+#endif
+
 #define RINGBUF_CAPACITY ((uint64_t)1 << 23)
 #define SCRATCH_BUF_LEN ((uint64_t)1 << 15) // 32KiB
 
