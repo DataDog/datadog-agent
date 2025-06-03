@@ -23,6 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
+const (
+	msiexecPath = `C:\Windows\System32\msiexec.exe`
+)
+
 type msiexecArgs struct {
 	// target should be either a full path to a MSI, an URL to a MSI or a product code.
 	target string
@@ -319,9 +323,24 @@ func Cmd(options ...MsiexecOption) (*Msiexec, error) {
 	// Do NOT pass the args to msiexec in exec.Command as it will apply some quoting algorithm (CommandLineToArgvW) that is
 	// incompatible with msiexec. It will make arguments like `TARGETDIR` fail because they will be quoted.
 	// Instead, we use the SysProcAttr.CmdLine option and do the quoting ourselves.
-	args := append([]string{`"C:\Windows\system32\msiexec.exe"`, a.msiAction, fmt.Sprintf(`"%s"`, a.target), "/qn", "/log", fmt.Sprintf(`"%s"`, a.logFile)}, a.additionalArgs...)
-	cmd.Cmd = exec.Command("msiexec")
-	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: strings.Join(args, " ")}
+	args := append([]string{
+		fmt.Sprintf(`"%s"`, msiexecPath),
+		a.msiAction,
+		fmt.Sprintf(`"%s"`, a.target),
+		"/qn",
+		"/log", fmt.Sprintf(`"%s"`, a.logFile),
+	}, a.additionalArgs...)
+
+	cmd.Cmd = &exec.Cmd{
+		// Don't call exec.Command("msiexec") to create the exec.Cmd struct
+		// as it will try to lookup msiexec.exe using %PATH%.
+		// Alternatively we could pass the full path of msiexec.exe to exec.Command(...)
+		// but it's much simpler to create the struct manually.
+		Path: msiexecPath,
+		SysProcAttr: &syscall.SysProcAttr{
+			CmdLine: strings.Join(args, " "),
+		},
+	}
 	cmd.logFile = a.logFile
 
 	return cmd, nil
