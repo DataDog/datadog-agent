@@ -1,3 +1,2 @@
 runtime_security_config:
   enabled: true
-  direct_send_from_system_probe: true 
