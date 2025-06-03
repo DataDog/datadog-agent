@@ -5,7 +5,7 @@
 
 //go:build ignore
 
-package module
+package core
 
 /*
 #include "../c/ebpf/runtime/discovery-types.h"
