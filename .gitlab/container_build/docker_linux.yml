@@ -18,7 +18,7 @@
     - |
       DOCKER_NO_CACHE=""
       for target in ${NO_CACHE_TARGETS}; do
-        DOCKER_NO_CACHE="${DOCKER_NO_CACHE_FILTER} --no-cache-filter ${target}"
+        DOCKER_NO_CACHE="${DOCKER_NO_CACHE} --no-cache-filter ${target}"
       done
     # Don't use caching on nightlies, to allow for regular cache invalidation,
     # and update the cache on both main and nightly builds
