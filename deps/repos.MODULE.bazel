@@ -82,14 +82,14 @@ http_archive(
     url = "https://github.com/besser82/libxcrypt/releases/download/v{0}/libxcrypt-{0}.tar.xz".format(LIBXCRYPT_VERSION),
 )
 
-LIBFFI_VERSION = "3.2.1"
+LIBFFI_VERSION = "3.4.8"
 
 http_archive(
     name = "libffi",
     build_file_content = all_content,
-    sha256 = "d06ebb8e1d9a22d19e38d63fdb83954253f39bedc5d46232a05645685722ca37",
+    sha256 = "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b",
     strip_prefix = "libffi-{0}".format(LIBFFI_VERSION),
-    url = "https://sourceware.org/ftp/libffi/libffi-{0}.tar.gz".format(LIBFFI_VERSION),
+    url = "https://github.com/libffi/libffi/releases/download/v{0}/libffi-{0}.tar.gz".format(LIBFFI_VERSION),
 )
 
 # Defines a "ncurses" target for the lib.
