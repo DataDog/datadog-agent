@@ -126,7 +126,7 @@ func createdProcessesToWorkloadmetaProcesses(createdProcs []*procutil.Process, p
 	return wlmProcs
 }
 
-// deletedProcessesToWorkloadMetaProcesses helper function to convert deletedProcs into wlm entities
+// deletedProcessesToWorkloadMetaProcesses helper function to convert deletedProcs into wlm entities. wlm only uses the EventType, Source, ID, and Kind for deletion events
 func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) []*workloadmeta.Process {
 	wlmProcs := make([]*workloadmeta.Process, len(deletedProcs))
 	for i, proc := range deletedProcs {
@@ -190,7 +190,6 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 			wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid)
 
 			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
-			// wlm only uses the EventType, Source, ID, and Kind for deletion events
 			wlmDeletedProcs := deletedProcessesToWorkloadmetaProcesses(deletedProcs)
 
 			// send these events to the channel
