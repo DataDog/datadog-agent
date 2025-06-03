@@ -50,11 +50,12 @@ WORKDIR /output
 ENV S6_VERSION="v2.2.0.3"
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
-RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && curl -L ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-${S6ARCH}.tar.gz -o /output/s6.tgz
-COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
-# To calculate S6_SHA256SUM for a specific version, run:
-# curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-<arch>.tar.gz | sha256sum
-RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - && rm -f /output/s6.$TARGETARCH.sha256
+RUN --mount=target=/context \
+  S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") \
+  && curl -L ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-${S6ARCH}.tar.gz -o /output/s6.tgz \
+  # To calculate S6_SHA256SUM for a specific version, run:
+  # curl -L https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-<arch>.tar.gz | sha256sum
+  && echo "$(cat /context/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c -
 
 # Download BouncyCastle FIPS provider jar files.
 COPY bouncycastle-fips/pom.xml /opt/bouncycastle-fips/
@@ -120,22 +121,38 @@ ENV DOCKER_DD_AGENT=true \
     # Allow readonlyrootfs
     S6_READ_ONLY_ROOT=1
 
+ARG WITH_JMX
+ARG WITH_JMX_FIPS
+
 # make sure we have recent dependencies -- CVE-fixing time!
 RUN apt full-upgrade -y \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libseccomp2 tzdata adduser
+  && apt install -y iproute2 libseccomp2 tzdata adduser \
+  # Install openjdk-11-jre-headless on jmx flavor
+  && if [ -n "$WITH_JMX" ]; then \
+    mkdir -p /usr/share/man/man1 \
+    && apt install --no-install-recommends -y openjdk-11-jre-headless; \
+  fi \
+  && apt clean
 
-ARG WITH_JMX
-ARG WITH_JMX_FIPS
+###########################################################
+#  Release docker image construction including the Agent  #
+###########################################################
 
-# Install openjdk-11-jre-headless on jmx flavor
-RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
-  && mkdir -p /usr/share/man/man1 \
-  && apt install --no-install-recommends -y openjdk-11-jre-headless \
-  && apt clean; fi
+FROM release-base AS release
+LABEL maintainer="Datadog <package@datadoghq.com>"
+
+ARG DD_GIT_REPOSITORY_URL
+ARG DD_GIT_COMMIT_SHA
+ENV \
+    # Allow User Group to exec the secret backend script.
+    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
+    # Source code integration
+    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
+    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 # Extract s6-overlay
 #
@@ -168,22 +185,6 @@ ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Dj
 COPY s6-services /etc/services.d/
 COPY cont-init.d /etc/cont-init.d/
 COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
-
-###########################################################
-#  Release docker image construction including the Agent  #
-###########################################################
-
-FROM release-base AS release
-LABEL maintainer="Datadog <package@datadoghq.com>"
-
-ARG DD_GIT_REPOSITORY_URL
-ARG DD_GIT_COMMIT_SHA
-ENV \
-    # Allow User Group to exec the secret backend script.
-    DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true" \
-    # Source code integration
-    DD_GIT_REPOSITORY_URL=${DD_GIT_REPOSITORY_URL} \
-    DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 # Copy agent from extract stage
 COPY --from=extract /output/ /
