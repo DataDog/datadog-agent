@@ -299,6 +299,12 @@ func (a *Agent) setRootSpanTags(root *pb.Span) {
 	sampler.SetClientRate(root, clientSampleRate)
 }
 
+// setRootSpanTags sets up any necessary tags on the root span.
+func (a *Agent) setRootSpanTagsV1(root *idx.InternalSpan) {
+	clientSampleRate := sampler.GetGlobalRateV1(root)
+	sampler.SetClientRateV1(root, clientSampleRate)
+}
+
 // setFirstTraceTags sets additional tags on the first trace for each service processed by the agent,
 // so that we can see that the service has successfully onboarded onto APM.
 func (a *Agent) setFirstTraceTags(root *pb.Span) {
@@ -549,16 +555,9 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			}
 		}
 		a.Replacer.ReplaceV1(chunk)
+
+		a.setRootSpanTagsV1(root)
 	}
-
-	// 	a.setRootSpanTags(root)
-	// 	if !p.ClientComputedTopLevel {
-	// 		// Figure out the top-level spans now as it involves modifying the Metrics map
-	// 		// which is not thread-safe while samplers and concentrator might modify it too.
-	// 		traceutil.ComputeTopLevel(chunk.Spans)
-	// 	}
-
-	// 	a.setPayloadAttributes(p, root, chunk)
 
 	// 	pt := processedTrace(p, chunk, root, imageTag, gitCommitSha)
 	// 	if !p.ClientComputedStats {

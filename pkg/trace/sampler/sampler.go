@@ -10,6 +10,7 @@ import (
 	"math"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -111,6 +112,15 @@ func GetGlobalRate(s *pb.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateGlobal, 1.0)
 }
 
+// GetGlobalRateV1 gets the cumulative sample rate of the trace to which this span belongs to.
+func GetGlobalRateV1(s *idx.InternalSpan) float64 {
+	v, ok := s.GetAttributeAsFloat64(KeySamplingRateGlobal)
+	if !ok {
+		return 1.0
+	}
+	return v
+}
+
 // GetClientRate gets the rate at which the trace this span belongs to was sampled by the tracer.
 // NOTE: This defaults to 1 if no rate is stored.
 func GetClientRate(s *pb.Span) float64 {
@@ -124,6 +134,16 @@ func SetClientRate(s *pb.Span, rate float64) {
 	} else {
 		// We assume missing value is 1 to save bandwidth (check getter).
 		delete(s.Metrics, KeySamplingRateClient)
+	}
+}
+
+// SetClientRateV1 sets the rate at which the trace this span belongs to was sampled by the tracer.
+func SetClientRateV1(s *idx.InternalSpan, rate float64) {
+	if rate < 1 {
+		s.SetFloat64Attribute(KeySamplingRateClient, rate)
+	} else {
+		// We assume missing value is 1 to save bandwidth (check getter).
+		s.DeleteAttribute(KeySamplingRateClient)
 	}
 }
 
