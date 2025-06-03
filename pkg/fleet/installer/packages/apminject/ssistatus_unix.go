@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package ssistatusimpl
+package apminject
 
 import (
 	"fmt"
@@ -14,8 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 )
 
-// autoInstrumentationStatus checks if the APM auto-instrumentation is enabled on the host. This will return false on Kubernetes
-func (c *ssiStatusComponent) autoInstrumentationStatus() (bool, []string, error) {
+// NewSSIStatusProvider creates a new SSIStatusProvider instance
+func NewSSIStatusProvider() Provider {
+	return &ssiStatusProviderImpl{}
+}
+
+// AutoInstrumentationStatus checks if the APM auto-instrumentation is enabled on the host. This will return false on Kubernetes
+func (c *ssiStatusProviderImpl) AutoInstrumentationStatus() (bool, []string, error) {
 	// Ideally we would call the installer package to check if the injector is installed (using the status), but doing so
 	// significantly increases the memory footprint of the agent, so we check the filesystem directly.
 
