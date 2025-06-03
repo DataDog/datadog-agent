@@ -66,7 +66,6 @@ var _ module.Module = &discovery{}
 type serviceInfo struct {
 	model.Service
 	checkedContainerData bool
-	addedToMap           bool
 	cpuTime              uint64
 }
 
@@ -154,8 +153,6 @@ type discovery struct {
 
 	timeProvider timeProvider
 	network      networkCollector
-
-	networkErrorLimit *log.Limit
 }
 
 type networkCollectorFactory func(cfg *discoveryConfig) (networkCollector, error)
@@ -190,7 +187,6 @@ func newDiscoveryWithNetwork(wmeta workloadmeta.Component, tagger tagger.Compone
 		tagger:             tagger,
 		timeProvider:       tp,
 		network:            network,
-		networkErrorLimit:  log.NewLogLimit(10, 10*time.Minute),
 	}
 }
 
@@ -211,6 +207,7 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
+	httpMux.HandleFunc("/network-stats", s.handleNetworkStatsEndpoint)
 	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
 	return nil
 }
@@ -735,16 +732,9 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 // from it. This function is not thread-safe and it is up to the caller to ensure
 // s.mux is locked.
 func (s *discovery) cleanCache(alivePids pidSet) {
-	for pid, info := range s.cache {
+	for pid := range s.cache {
 		if alivePids.has(pid) {
 			continue
-		}
-
-		if info.addedToMap {
-			err := s.network.removePid(uint32(pid))
-			if err != nil {
-				log.Warn("unable to remove pid from network collector", pid, err)
-			}
 		}
 
 		delete(s.cache, pid)
@@ -760,22 +750,20 @@ func (s *discovery) cleanCache(alivePids pidSet) {
 }
 
 func (s *discovery) updateNetworkStats(deltaSeconds float64, response *model.ServicesResponse) {
-	for pid, info := range s.cache {
-		if !info.addedToMap {
-			err := s.network.addPid(uint32(pid))
-			if err == nil {
-				info.addedToMap = true
-			} else if s.networkErrorLimit.ShouldLog() {
-				// This error can occur if the eBPF map used by the network
-				// collector is full.
-				log.Warnf("unable to add to network collector %v: %v", pid, err)
-			}
-			continue
-		}
+	pids := make(pidSet, len(s.cache))
+	for pid := range s.cache {
+		pids.add(pid)
+	}
 
-		stats, err := s.network.getStats(uint32(pid))
-		if err != nil {
-			log.Warnf("unable to get network stats %v: %v", pid, err)
+	allStats, err := s.network.getStats(pids)
+	if err != nil {
+		log.Warnf("unable to get network stats: %v", err)
+		return
+	}
+
+	for pid, stats := range allStats {
+		info, ok := s.cache[int32(pid)]
+		if !ok {
 			continue
 		}
 
@@ -1149,4 +1137,53 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 	response.RunningServicesCount = len(s.runningServices)
 
 	return response, nil
+}
+
+// handleNetworkStatsEndpoint is the handler for the /network-stats endpoint.
+// Returns network statistics for the provided list of PIDs.
+func (s *discovery) handleNetworkStatsEndpoint(w http.ResponseWriter, req *http.Request) {
+	if s.network == nil {
+		http.Error(w, "network stats collection is not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Parse PIDs from query parameter
+	pidsStr := req.URL.Query().Get("pids")
+	if pidsStr == "" {
+		http.Error(w, "missing required 'pids' query parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Split and parse PIDs
+	pidStrs := strings.Split(pidsStr, ",")
+	pids := make(pidSet, len(pidStrs))
+	for _, pidStr := range pidStrs {
+		pid, err := strconv.ParseInt(pidStr, 10, 32)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid PID format: %s", pidStr), http.StatusBadRequest)
+			return
+		}
+		pids.add(int32(pid))
+	}
+
+	// Get network stats
+	stats, err := s.network.getStats(pids)
+	if err != nil {
+		log.Errorf("failed to get network stats: %v", err)
+		http.Error(w, "failed to get network stats", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert stats to response format
+	response := model.NetworkStatsResponse{
+		Stats: make(map[int]model.NetworkStats, len(stats)),
+	}
+	for pid, stat := range stats {
+		response.Stats[int(pid)] = model.NetworkStats{
+			RxBytes: stat.Rx,
+			TxBytes: stat.Tx,
+		}
+	}
+
+	utils.WriteAsJSON(w, response, utils.CompactOutput)
 }
