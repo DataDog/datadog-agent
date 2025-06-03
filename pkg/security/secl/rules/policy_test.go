@@ -972,10 +972,9 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 		Rules: []*RuleDefinition{
 			{
 				ID:         "first_execution_context",
-				Expression: `open.file.path == "/tmp/first"`,
+				Expression: `open.file.path == "/tmp/first" && ${process.correlation_key} == ""`,
 				Actions: []*ActionDefinition{
 					{
-						Filter: stringPtr(`${process.correlation_key} == ""`),
 						Set: &SetDefinition{
 							Name:         "correlation_key",
 							DefaultValue: "",
@@ -988,10 +987,10 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 			},
 			{
 				ID:         "second_execution_context",
-				Expression: `open.file.path == "/tmp/second"`,
+				Expression: `open.file.path == "/tmp/second" && ${process.correlation_key} in ["", ~"first_*"]`,
 				Actions: []*ActionDefinition{
 					{
-						Filter: stringPtr(`${process.correlation_key} in [~"first_*"]`),
+						Filter: stringPtr(`${process.correlation_key} != ""`),
 						Set: &SetDefinition{
 							Name:         "parent_correlation_keys",
 							DefaultValue: "",
@@ -1002,7 +1001,6 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 						},
 					},
 					{
-						Filter: stringPtr(`${process.correlation_key} in ["", ~"first_*"]`),
 						Set: &SetDefinition{
 							Name:         "correlation_key",
 							DefaultValue: "",
@@ -1015,10 +1013,10 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 			},
 			{
 				ID:         "third_execution_context",
-				Expression: `open.file.path == "/tmp/third"`,
+				Expression: `open.file.path == "/tmp/third" && ${process.correlation_key} in ["", ~"first_*", ~"second_*"]`,
 				Actions: []*ActionDefinition{
 					{
-						Filter: stringPtr(`${process.correlation_key} in [~"first_*", ~"second_*"]`),
+						Filter: stringPtr(`${process.correlation_key} != ""`),
 						Set: &SetDefinition{
 							Name:         "parent_correlation_keys",
 							DefaultValue: "",
@@ -1029,7 +1027,6 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 						},
 					},
 					{
-						Filter: stringPtr(`${process.correlation_key} in ["", ~"first_*", ~"second_*"]`),
 						Set: &SetDefinition{
 							Name:         "correlation_key",
 							DefaultValue: "",
@@ -1099,7 +1096,7 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 
 	correlationKeyFromFirstRule := correlationKeyValue.(string)
 
-	// trigger the first rule again, and make sure the correlation_key doesn't change
+	// trigger the first rule again, and make sure nothing changes
 	event2 := fakeOpenEvent("/tmp/first", 2, event.ProcessCacheEntry)
 	ctx = eval.NewContext(event2)
 
@@ -1108,8 +1105,8 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
 	assert.True(t, set)
 
-	if !rs.Evaluate(event2) {
-		t.Errorf("Expected event to match rule")
+	if rs.Evaluate(event2) {
+		t.Errorf("Didn't expected event to match rule")
 	}
 
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
@@ -1154,8 +1151,8 @@ func TestActionSetVariableInheritedFilter(t *testing.T) {
 	assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
 	assert.True(t, set)
 
-	if !rs.Evaluate(event4) {
-		t.Errorf("Expected event to match rule")
+	if rs.Evaluate(event4) {
+		t.Errorf("Didn't expected event to match rule")
 	}
 
 	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
