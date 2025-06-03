@@ -692,11 +692,6 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	// Reset the try counter since we only count tries in a row.
 	delete(s.noPortTries, pid)
 
-	rss, err := getRSS(pid)
-	if err != nil {
-		return nil
-	}
-
 	var info *serviceInfo
 	cached, ok := s.cache[pid]
 	if ok {
@@ -722,7 +717,6 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	service := &model.Service{}
 	info.toModelService(pid, service)
 	service.Ports = ports
-	service.RSS = rss
 
 	return service
 }
@@ -1006,6 +1000,24 @@ func (s *discovery) enrichContainerData(service *model.Service, containers map[i
 	}
 }
 
+func (s *discovery) updateRSS(response *model.ServicesResponse) {
+	updateResponseRSS := func(services []model.Service) {
+		for i := range services {
+			service := &services[i]
+
+			rss, err := getRSS(int32(service.PID))
+			if err != nil {
+				continue
+			}
+
+			service.RSS = rss
+		}
+	}
+
+	updateResponseRSS(response.StartedServices)
+	updateResponseRSS(response.HeartbeatServices)
+}
+
 func (s *discovery) updateCacheInfo(response *model.ServicesResponse, now time.Time) {
 	updateCachedHeartbeat := func(service *model.Service) {
 		info, ok := s.cache[int32(service.PID)]
@@ -1122,6 +1134,7 @@ func (s *discovery) getServices(params params) (*model.ServicesResponse, error) 
 		s.potentialServices.add(pid)
 	}
 
+	s.updateRSS(response)
 	s.updateCacheInfo(response, now)
 	s.handleStoppedServices(response, alivePids)
 
