@@ -166,6 +166,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.127.0
 	go.opentelemetry.io/collector/component/componenttest v0.127.0
 	go.opentelemetry.io/collector/config/configopaque v1.33.0
+	go.opentelemetry.io/collector/config/configtls v1.33.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.127.0
 )
 
@@ -223,7 +224,6 @@ require (
 	go.opentelemetry.io/collector/config/configauth v0.127.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.33.0 // indirect
 	go.opentelemetry.io/collector/config/confighttp v0.127.0 // indirect
-	go.opentelemetry.io/collector/config/configtls v1.33.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.127.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.127.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.127.0 // indirect
