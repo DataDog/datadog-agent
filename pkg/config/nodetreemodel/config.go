@@ -13,13 +13,14 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 
 	"go.uber.org/atomic"
 
 	"github.com/mitchellh/mapstructure"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -453,32 +454,25 @@ func (c *ntmConfig) computeAllSettings(path string) []string {
 	// 3. Collect all unknown keys, even if they have no value set
 	c.collectKeysFromNode(c.unknown, "", keySet, true)
 
-	allKeys := make([]string, 0, len(keySet))
-	for key := range keySet {
-		allKeys = append(allKeys, key)
-	}
-
+	allKeys := maps.Keys(keySet)
 	slices.Sort(allKeys)
 	return allKeys
 }
 
-func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllSchemaKeys bool) {
+func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllKeys bool) {
 	for _, name := range node.ChildrenKeys() {
 		newPath := joinKey(path, name)
 
-		child, err := node.GetChild(name)
-		if err != nil {
-			continue
-		}
+		child, _ := node.GetChild(name)
 
 		if leaf, ok := child.(LeafNode); ok {
-			// For schema nodes, include all keys if requested
+			// Include all keys if requested
 			// For other nodes, only include if they have actual values
-			if includeAllSchemaKeys || leaf != missingLeaf {
+			if includeAllKeys || leaf != missingLeaf {
 				keySet[newPath] = struct{}{}
 			}
 		} else if inner, ok := child.(InnerNode); ok {
-			c.collectKeysFromNode(inner, newPath, keySet, includeAllSchemaKeys)
+			c.collectKeysFromNode(inner, newPath, keySet, includeAllKeys)
 		}
 	}
 }

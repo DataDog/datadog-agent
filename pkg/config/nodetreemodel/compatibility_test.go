@@ -135,7 +135,7 @@ func TestCompareAllSettingsWithoutDefault(t *testing.T) {
 }
 
 func TestCompareGetEnvVars(t *testing.T) {
-	dataYaml := ``
+	dataYaml := `unknown_setting: 123`
 
 	t.Run("With BindEnv", func(t *testing.T) {
 		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
@@ -152,10 +152,10 @@ func TestCompareGetEnvVars(t *testing.T) {
 
 		assert.Equal(t, viperEnvVars, ntmEnvVars, "viper and ntm should return the same environment variables")
 
-		expected := []string{"TEST_PORT", "TEST_HOST", "TEST_LOG_LEVEL"}
-		for _, ev := range expected {
-			assert.Contains(t, viperEnvVars, ev, "viper missing expected env var: %s", ev)
-			assert.Contains(t, ntmEnvVars, ev, "ntm missing expected env var: %s", ev)
+		expected := []string{"TEST_HOST", "TEST_LOG_LEVEL", "TEST_PORT"}
+		for i, ev := range expected {
+			assert.Equal(t, viperEnvVars[i], ev, "viper missing expected env var: %s", ev)
+			assert.Equal(t, ntmEnvVars[i], ev, "ntm missing expected env var: %s", ev)
 		}
 	})
 
@@ -201,6 +201,24 @@ func TestCompareGetEnvVars(t *testing.T) {
 
 		assert.Contains(t, viperConf.GetEnvVars(), expected, "viper should apply prefix and replacer")
 		assert.Contains(t, ntmConf.GetEnvVars(), expected, "ntm should apply prefix and replacer")
+	})
+
+	t.Run("Adding an unknown setting in the yaml", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+			cfg.SetKnown("PORT")
+			cfg.SetDefault("HOST", "localhost")
+			cfg.BindEnv("log_level")
+		})
+
+		viperEnvVars := viperConf.GetEnvVars()
+		ntmEnvVars := ntmConf.GetEnvVars()
+
+		sort.Strings(viperEnvVars)
+		sort.Strings(ntmEnvVars)
+
+		expected := []string{"DD_LOG_LEVEL"}
+		assert.Equal(t, viperEnvVars, expected, "viper should return only known env vars")
+		assert.Equal(t, ntmEnvVars, expected, "ntm should return only known env vars")
 	})
 }
 
