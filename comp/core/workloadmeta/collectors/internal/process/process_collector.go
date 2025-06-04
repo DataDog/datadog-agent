@@ -19,13 +19,15 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	collectorID   = "process-collector"
-	componentName = "workloadmeta-process"
+	collectorID       = "process-collector"
+	componentName     = "workloadmeta-process"
+	cacheValidityNoRT = 2 * time.Second
 )
 
 type collector struct {
@@ -36,6 +38,7 @@ type collector struct {
 	processProbe           procutil.Probe
 	processEventsCh        chan *Event
 	lastCollectedProcesses map[int32]*procutil.Process
+	containerProvider      proccontainers.ContainerProvider
 }
 
 // Event is a message type used to communicate with the stream function asynchronously
@@ -87,6 +90,14 @@ func (c *collector) collectionIntervalConfig() time.Duration {
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if c.isEnabled() {
+
+		if c.containerProvider == nil {
+			containerProvider, err := proccontainers.GetSharedContainerProvider()
+			if err != nil {
+				return err
+			}
+			c.containerProvider = containerProvider
+		}
 		c.store = store
 		go c.collect(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
 		go c.stream(ctx)
@@ -95,6 +106,38 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	return nil
+}
+
+// createdProcessesToWorkloadMetaProcesses helper function to convert createdProcs with container data into wlm entities
+func createdProcessesToWorkloadmetaProcesses(createdProcs []*procutil.Process, pidToCid map[int]string) []*workloadmeta.Process {
+	wlmProcs := make([]*workloadmeta.Process, len(createdProcs))
+	for i, proc := range createdProcs {
+		wlmProcs[i] = processToWorkloadMetaProcess(proc)
+		cid, exists := pidToCid[int(proc.Pid)]
+		if exists {
+			wlmProcs[i].ContainerID = cid // existing behaviour which we will maintain until the collector is enabled
+			// storing container id as an entity field
+			wlmProcs[i].Owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   cid,
+			}
+		}
+	}
+	return wlmProcs
+}
+
+// deletedProcessesToWorkloadMetaProcesses helper function to convert deletedProcs into wlm entities. wlm only uses the EventType, Source, ID, and Kind for deletion events
+func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) []*workloadmeta.Process {
+	wlmProcs := make([]*workloadmeta.Process, len(deletedProcs))
+	for i, proc := range deletedProcs {
+		wlmProcs[i] = &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(proc.Pid)),
+			},
+		}
+	}
+	return wlmProcs
 }
 
 // processCacheDifference returns new processes that exist in procCacheA and not in procCacheB
@@ -137,18 +180,17 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 				return
 			}
 
+			// some processes are in a container so we want to store the container_id for them
+			pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
+			// TODO: potentially scrub process data here instead of in the check?
+
 			// categorize the processes into events for workloadmeta
 			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-			wlmCreatedProcs := make([]*workloadmeta.Process, len(createdProcs))
-			for i, proc := range createdProcs {
-				wlmCreatedProcs[i] = processToWorkloadMetaProcess(proc)
-			}
+
+			wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid)
 
 			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
-			wlmDeletedProcs := make([]*workloadmeta.Process, len(deletedProcs))
-			for i, proc := range deletedProcs {
-				wlmDeletedProcs[i] = processToWorkloadMetaProcess(proc)
-			}
+			wlmDeletedProcs := deletedProcessesToWorkloadmetaProcesses(deletedProcs)
 
 			// send these events to the channel
 			c.processEventsCh <- &Event{
