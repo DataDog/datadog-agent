@@ -184,7 +184,6 @@ new-e2e-containers-eks:
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-examples-gke:
-  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [ .on_e2e_main_release_or_rc ]
     - !reference [.manual]
