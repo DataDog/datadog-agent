@@ -348,8 +348,10 @@ func newCheck(_ config.Component) check.Check {
 	return &NetworkCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		net:       defaultNetworkStats{},
-		config: networkInstanceConfig{
-			CollectRateMetrics: true,
+		config: networkConfig{
+			instance: networkInstanceConfig{
+				CollectRateMetrics: true,
+			},
 		},
 	}
 }

@@ -747,10 +747,12 @@ func newCheck(cfg config.Component) check.Check {
 	return &NetworkCheck{
 		CheckBase: core.NewCheckBase(CheckName),
 		net:       defaultNetworkStats{procPath: procfsPath},
-		config: networkInstanceConfig{
-			CollectRateMetrics:        true,
-			WhitelistConntrackMetrics: []string{"max", "count"},
-			UseSudoConntrack:          true,
+		config: networkConfig{
+			instance: networkInstanceConfig{
+				CollectRateMetrics:        true,
+				WhitelistConntrackMetrics: []string{"max", "count"},
+				UseSudoConntrack:          true,
+			},
 		},
 	}
 }

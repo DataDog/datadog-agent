@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 )
 
 type fakeNetworkStats struct {
@@ -85,8 +86,21 @@ type MockCommandRunner struct {
 	mock.Mock
 }
 
+func createTestNetworkCheck(mockNetStats fakeNetworkStats) check.Check {
+	return &NetworkCheck{
+		net: mockNetStats,
+		config: networkConfig{
+			instance: networkInstanceConfig{
+				CollectRateMetrics:        true,
+				WhitelistConntrackMetrics: []string{"max", "count"},
+				UseSudoConntrack:          true,
+			},
+		},
+	}
+}
+
 func TestDefaultConfiguration(t *testing.T) {
-	check := NetworkCheck{}
+	check := createTestNetworkCheck(nil)
 	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
@@ -95,7 +109,7 @@ func TestDefaultConfiguration(t *testing.T) {
 }
 
 func TestConfiguration(t *testing.T) {
-	check := NetworkCheck{}
+	check := createTestNetworkCheck(nil)
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
 excluded_interfaces:
@@ -290,9 +304,7 @@ func TestNetworkCheck(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
@@ -443,9 +455,7 @@ func TestExcludedInterfaces(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 excluded_interfaces:
@@ -523,9 +533,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 excluded_interface_re: "eth[0-9]"
