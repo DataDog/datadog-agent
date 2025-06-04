@@ -532,7 +532,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
             ],
-            "pkg/collector/corechecks/servicediscovery/module/kern_types.go": [
+            "pkg/collector/corechecks/servicediscovery/core/kern_types.go": [
                 "pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-types.h",
             ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [

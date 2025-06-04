@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package module
+package core
 
 import (
 	"bufio"
@@ -84,7 +84,7 @@ func getGlobalCPUTime() (uint64, error) {
 }
 
 // updateCPUCoresStats updates the provided serviceInfo cpuUsage and cpuTime stats.
-func updateCPUCoresStats(pid int, info *serviceInfo, lastGlobalCPUTime, currentGlobalCPUTime uint64) error {
+func updateCPUCoresStats(pid int, info *ServiceInfo, lastGlobalCPUTime, currentGlobalCPUTime uint64) error {
 	statPath := kernel.HostProc(strconv.Itoa(pid), "stat")
 
 	// This file is very small so just read it fully.
@@ -117,11 +117,11 @@ func updateCPUCoresStats(pid int, info *serviceInfo, lastGlobalCPUTime, currentG
 		return err
 	}
 
-	processTimeDelta := float64(usrTime + sysTime - info.cpuTime)
+	processTimeDelta := float64(usrTime + sysTime - info.CPUTime)
 	globalTimeDelta := float64(currentGlobalCPUTime - lastGlobalCPUTime)
 
 	info.CPUCores = processTimeDelta / globalTimeDelta * float64(runtime.NumCPU())
-	info.cpuTime = usrTime + sysTime
+	info.CPUTime = usrTime + sysTime
 
 	return nil
 }
