@@ -109,15 +109,17 @@ func (mc *MSICollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
 func getMsiProductInfo(productCode []uint16, propertiesToFetch []string) (*SoftwareEntry, error) {
 	// Helper to fetch a property
 	getProp := func(propName string) (string, error) {
-		buf := make([]uint16, windows.MAX_PATH)
-		bufLen := uint32(len(buf))
+		bufLen := uint32(windows.MAX_PATH)
 		ret := windows.ERROR_MORE_DATA
 		for errors.Is(ret, windows.ERROR_MORE_DATA) {
+			buf := make([]uint16, bufLen)
 			ret = msiGetProductInfo(propName, &productCode[0], &buf[0], &bufLen)
 			if errors.Is(ret, windows.ERROR_SUCCESS) {
 				return windows.UTF16ToString(buf[:bufLen]), nil
 			}
-			buf = make([]uint16, bufLen)
+			// If the buffer passed in is too small, the count returned does not include the terminating null character.
+			// If the error was not ERROR_MORE_DATA we'll just exit the loop.
+			bufLen++
 		}
 		return "", fmt.Errorf("unexpected return from msiGetProductInfo for %s: %w", propName, ret)
 	}
