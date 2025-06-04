@@ -5,7 +5,11 @@ $Env:Python2_ROOT_DIR=$Env:TEST_EMBEDDED_PY2
 $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 
 & ridk enable
-& $Env:Python3_ROOT_DIR\python.exe -m pip install dda
+& $Env:Python3_ROOT_DIR\python.exe -c "import dda"
+$err = $LASTEXITCODE
+if ($err -ne 0) {
+    & $Env:Python3_ROOT_DIR\python.exe -m pip install dda
+}
 & $Env:Python3_ROOT_DIR\python.exe -m dda self dep sync -f legacy-tasks
 
 $PROBE_BUILD_ROOT=(Get-Location).Path
