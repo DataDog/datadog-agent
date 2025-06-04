@@ -28,7 +28,7 @@ import (
 
 func TestStatsHandler(t *testing.T) {
 	mockProbe := mocks.NewProbe(t)
-	mockProbe.On("StatsWithPermByPID", []int32{1, 2, 3}).Return(map[int32]*procutil.StatsWithPerm{
+	mockProbe.On("StatsWithPermByPID", []int32{1}).Return(map[int32]*procutil.StatsWithPerm{
 		1: {
 			OpenFdCount: 10,
 			IOStat: &procutil.IOCountersStat{
