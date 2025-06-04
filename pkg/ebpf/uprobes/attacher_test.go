@@ -19,20 +19,16 @@ import (
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -49,6 +45,14 @@ func TestCanCreateAttacher(t *testing.T) {
 	require.NotNil(t, ua)
 }
 
+func TestInternalProcessesRegex(t *testing.T) {
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/system-probe"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/trace-agent"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/process-agent"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/security-agent"))
+	require.True(t, internalProcessRegex.MatchString("datadog-agent/bin/otel-agent"))
+}
+
 func TestAttachPidExcludesInternal(t *testing.T) {
 	exe := "datadog-agent/bin/system-probe"
 	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
@@ -62,6 +66,40 @@ func TestAttachPidExcludesInternal(t *testing.T) {
 
 	err = ua.AttachPIDWithOptions(1, false)
 	require.ErrorIs(t, err, ErrInternalDDogProcessRejected)
+}
+
+func TestAttachPidExcludesContainerdTmp(t *testing.T) {
+	tmpdir := t.TempDir()
+
+	// Create a tmpdir/tmpmounts/containerd-mount/bar directory with a file in
+	// it to simulate a containerd tmp mount. It needs to exist so that the code
+	// will be able to read that file
+	exe := filepath.Join(tmpdir, "tmpmounts/containerd-mount/bar")
+	require.NoError(t, os.MkdirAll(filepath.Dir(exe), 0755))
+	require.NoError(t, os.WriteFile(exe, []byte{}, 0644))
+
+	procRoot := CreateFakeProcFS(t, []FakeProcFSEntry{{Pid: 1, Cmdline: exe, Command: exe, Exe: exe}})
+	config := AttacherConfig{
+		ExcludeTargets:        ExcludeContainerdTmp,
+		ProcRoot:              procRoot,
+		EnableDetailedLogging: true,
+		Rules: []*AttachRule{
+			{Targets: AttachToExecutable},
+		},
+	}
+
+	// Cleanup should be called anyways, even if the attach fails
+	inspector := &MockBinaryInspector{}
+	inspector.On("Cleanup", mock.Anything).Return(nil)
+
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, inspector, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	err = ua.AttachPIDWithOptions(1, false)
+	require.ErrorIs(t, err, utils.ErrEnvironment)
+
+	inspector.AssertExpectations(t)
 }
 
 func TestAttachPidReadsSharedLibraries(t *testing.T) {
@@ -113,6 +151,18 @@ func TestAttachPidExcludesSelf(t *testing.T) {
 
 	err = ua.AttachPIDWithOptions(uint32(os.Getpid()), false)
 	require.ErrorIs(t, err, ErrSelfExcluded)
+}
+
+func TestAttachToBinaryContainerdTmpReturnsErrEnvironment(t *testing.T) {
+	config := AttacherConfig{
+		ExcludeTargets: ExcludeContainerdTmp,
+	}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, &MockManager{}, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	err = ua.attachToBinary(utils.FilePath{PID: uint32(os.Getpid()), HostPath: "/foo/tmpmounts/containerd-mount/bar"}, nil, nil)
+	require.ErrorIs(t, err, utils.ErrEnvironment)
 }
 
 func TestGetExecutablePath(t *testing.T) {
@@ -711,138 +761,53 @@ func TestAttachToLibrariesOfPid(t *testing.T) {
 	mockMan.AssertExpectations(t)
 }
 
-type attachedProbe struct {
-	probe *manager.Probe
-	fpath *utils.FilePath
-}
-
-func (ap *attachedProbe) String() string {
-	return fmt.Sprintf("attachedProbe{probe: %s, PID: %d, path: %s}", ap.probe.EBPFFuncName, ap.fpath.PID, ap.fpath.HostPath)
-}
-
-func stringifyAttachedProbes(probes []attachedProbe) []string {
-	var result []string
-	for _, ap := range probes {
-		result = append(result, ap.String())
+func testUprobeAttacherInner(t *testing.T, attacherFunc func() AttacherRunner, targetFunc func() AttacherTargetRunner) {
+	if !sharedlibraries.IsSupported(ddebpf.NewConfig()) {
+		t.Skip("skip as shared libraries are not supported for this platform")
 	}
-	return result
+
+	attacher := attacherFunc()
+	target := targetFunc()
+
+	libPath := getLibSSLPath(t)
+	config := RunTestAttacherConfig{
+		WaitTimeForAttach: 3 * time.Second,
+		WaitTimeForDetach: 3 * time.Second,
+		PathsToOpen:       []string{libPath},
+		ExpectedProbes: []ProbeRequest{
+			{
+				ProbeName: "uprobe__SSL_connect",
+				Path:      libPath,
+			},
+			{
+				ProbeName: "uprobe__main",
+			},
+		},
+	}
+
+	RunTestAttacher(t, LibraryAndMainAttacherTestConfigName, attacher, target, config)
 }
 
 func TestUprobeAttacher(t *testing.T) {
-	lib := getLibSSLPath(t)
-	ebpfCfg := ddebpf.NewConfig()
-	require.NotNil(t, ebpfCfg)
+	t.Run("BareAttacher", func(t *testing.T) {
+		t.Run("BareProcess", func(t *testing.T) {
+			testUprobeAttacherInner(t, NewSameProcessAttacherRunner, NewFmapperRunner)
+		})
 
-	if !sharedlibraries.IsSupported(ebpfCfg) {
-		t.Skip("Kernel version does not support shared libraries")
-		return
-	}
-
-	procMon := launchProcessMonitor(t, false)
-
-	connectProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}
-	mainProbeID := manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__main"}
-
-	mgr := manager.Manager{}
-
-	attacherCfg := AttacherConfig{
-		Rules: []*AttachRule{
-			{
-				LibraryNameRegex: regexp.MustCompile(`libssl.so`),
-				Targets:          AttachToSharedLibraries,
-				ProbesSelector: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: connectProbeID},
-				},
-			},
-			{
-				Targets: AttachToExecutable,
-				ProbesSelector: []manager.ProbesSelector{
-					&manager.ProbeSelector{ProbeIdentificationPair: mainProbeID},
-				},
-				ProbeOptionsOverride: map[string]ProbeOptions{
-					mainProbeID.EBPFFuncName: {
-						IsManualReturn: false,
-						Symbol:         "main.main",
-					},
-				},
-			},
-		},
-		ExcludeTargets:        ExcludeInternal | ExcludeSelf,
-		EbpfConfig:            ebpfCfg,
-		EnableDetailedLogging: true,
-		SharedLibsLibset:      sharedlibraries.LibsetCrypto,
-	}
-
-	var attachedProbes []attachedProbe
-
-	callback := func(probe *manager.Probe, fpath *utils.FilePath) {
-		attachedProbes = append(attachedProbes, attachedProbe{probe: probe, fpath: fpath})
-	}
-
-	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, attacherCfg, &mgr, callback, &NativeBinaryInspector{}, procMon)
-	require.NoError(t, err)
-	require.NotNil(t, ua)
-
-	err = ddebpf.LoadCOREAsset("uprobe_attacher-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
-		require.NoError(t, mgr.InitWithOptions(buf, opts))
-		require.NoError(t, mgr.Start())
-		t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
-
-		return nil
+		t.Run("ContainerizedProcess", func(t *testing.T) {
+			testUprobeAttacherInner(t, NewSameProcessAttacherRunner, NewContainerizedFmapperRunner)
+		})
 	})
-	require.NoError(t, err)
 
-	require.NoError(t, ua.Start())
-	t.Cleanup(ua.Stop)
+	t.Run("ContainerizedAttacher", func(t *testing.T) {
+		t.Run("BareProcess", func(t *testing.T) {
+			testUprobeAttacherInner(t, NewContainerizedAttacherRunner, NewFmapperRunner)
+		})
 
-	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
-	require.NoError(t, err)
-
-	var connectProbe, mainProbe *attachedProbe
-	require.Eventually(t, func() bool {
-		// Find the probes we want to attach.
-		// Note that we might attach to other processes, so filter by ours only
-		for _, ap := range attachedProbes {
-			if ap.probe.EBPFFuncName == "uprobe__SSL_connect" && ap.fpath.PID == uint32(cmd.Process.Pid) {
-				connectProbe = &ap
-			} else if ap.probe.EBPFFuncName == "uprobe__main" && ap.fpath.PID == uint32(cmd.Process.Pid) {
-				mainProbe = &ap
-			}
-		}
-
-		return connectProbe != nil && mainProbe != nil
-	}, 5*time.Second, 50*time.Millisecond, "expected to attach 2 probes, got %d: %v (%v)", len(attachedProbes), attachedProbes, stringifyAttachedProbes(attachedProbes))
-
-	require.NotNil(t, connectProbe)
-	// Allow suffix, as sometimes the path reported is /proc/<pid>/root/<path>
-	require.True(t, strings.HasSuffix(connectProbe.fpath.HostPath, lib), "expected to attach to %s, got %s", lib, connectProbe.fpath.HostPath)
-	require.Equal(t, uint32(cmd.Process.Pid), connectProbe.fpath.PID)
-
-	require.NotNil(t, mainProbe)
-	require.Equal(t, uint32(cmd.Process.Pid), mainProbe.fpath.PID)
-
-	require.True(t, connectProbe.probe.IsRunning())
-	require.True(t, mainProbe.probe.IsRunning())
-
-	// Kill the process to trigger the detach
-	cmd.Process.Kill()
-
-	// Ensure probes are correctly detached
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.False(c, connectProbe.probe.IsRunning())
-		assert.False(c, mainProbe.probe.IsRunning())
-	}, 1*time.Second, 10*time.Millisecond)
-}
-
-func launchProcessMonitor(t *testing.T, useEventStream bool) *monitor.ProcessMonitor {
-	pm := monitor.GetProcessMonitor()
-	t.Cleanup(pm.Stop)
-	require.NoError(t, pm.Initialize(useEventStream))
-	if useEventStream {
-		monitor.InitializeEventConsumer(testutil.NewTestProcessConsumer(t))
-	}
-
-	return pm
+		t.Run("ContainerizedProcess", func(t *testing.T) {
+			testUprobeAttacherInner(t, NewContainerizedAttacherRunner, NewContainerizedFmapperRunner)
+		})
+	})
 }
 
 func createTempTestFile(t *testing.T, name string) (string, utils.PathIdentifier) {
@@ -1080,4 +1045,134 @@ func methodHasBeenCalledWithPredicate(registry *MockFileRegistry, methodName str
 		}
 	}
 	return false
+}
+
+func TestSyncRetryAndReattach(t *testing.T) {
+	proc := FakeProcFSEntry{
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Command: "/bin/bash",
+		Exe:     "/bin/bash",
+	}
+	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	emptyProcFS := CreateFakeProcFS(t, []FakeProcFSEntry{})
+
+	config := AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+				},
+			},
+		},
+		EnablePeriodicScanNewProcesses: true,
+		MaxPeriodicScansPerProcess:     2,
+	}
+
+	registry := &MockFileRegistry{}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, nil, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	ua.fileRegistry = registry
+
+	// First attempt should fail, registry should report no processes
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("inspection failed")).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err) // Sync itself doesn't return errors from individual attachments
+	require.Equal(t, 1, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Second attempt should succeed, registry should still report no processes
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Scan an empty procFS to simulate a process exit, the registry in this case does know about the process
+	// to simulate it has been attached correctly
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{proc.Pid: {}}).Once()
+	registry.On("Unregister", proc.Pid).Return(nil).Once()
+	ua.config.ProcRoot = emptyProcFS
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Empty(t, ua.scansPerPid)
+	registry.AssertExpectations(t)
+
+	// Should be able to re-attach to same PID, registry doesn't know about the process as it was detached before
+	ua.config.ProcRoot = procFS
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, config.MaxPeriodicScansPerProcess, ua.scansPerPid[proc.Pid]) // attached correctly, so marked as already scanned to the max
+	registry.AssertExpectations(t)
+}
+
+func TestSyncNoAttach(t *testing.T) {
+	proc := FakeProcFSEntry{
+		Pid:     1,
+		Cmdline: "/bin/bash",
+		Command: "/bin/bash",
+		Exe:     "/bin/bash",
+	}
+	procFS := CreateFakeProcFS(t, []FakeProcFSEntry{proc})
+	emptyProcFS := CreateFakeProcFS(t, []FakeProcFSEntry{})
+
+	config := AttacherConfig{
+		ProcRoot: procFS,
+		Rules: []*AttachRule{
+			{
+				Targets: AttachToExecutable,
+				ProbesSelector: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "uprobe__SSL_connect"}},
+				},
+			},
+		},
+		EnablePeriodicScanNewProcesses: true,
+		MaxPeriodicScansPerProcess:     2,
+	}
+
+	registry := &MockFileRegistry{}
+	ua, err := NewUprobeAttacher(testModuleName, testAttacherName, config, nil, nil, nil, newMockProcessMonitor())
+	require.NoError(t, err)
+	require.NotNil(t, ua)
+
+	ua.fileRegistry = registry
+
+	// All attempts should fail
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("inspection failed")).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err) // Sync itself doesn't return errors from individual attachments
+	require.Equal(t, 1, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Second attempt should still fail
+	registry.On("Register", proc.Exe, proc.Pid, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("inspection failed")).Once()
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Third attempt should not even get to the registry, so we don't expect any calls to the Register method
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Equal(t, 2, ua.scansPerPid[proc.Pid])
+	registry.AssertExpectations(t)
+
+	// Scan an empty procFS to simulate the process exiting, it should disapper from the scansPerPid map
+	registry.On("GetRegisteredProcesses").Return(map[uint32]struct{}{}).Once()
+	ua.config.ProcRoot = emptyProcFS
+	err = ua.Sync(true, true)
+	require.NoError(t, err)
+	require.Empty(t, ua.scansPerPid)
+	registry.AssertExpectations(t)
 }

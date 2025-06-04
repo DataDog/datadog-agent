@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -115,12 +117,17 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 		return err
 	}
 
-	err = installAgentPackage(env, "experiment", nil, "start_agent_experiment.log")
+	args := getStartExperimentMSIArgs()
+	err = installAgentPackage(env, "experiment", args, "start_agent_experiment.log")
 	if err != nil {
 		// we failed to install the Agent, we need to restore the stable Agent
 		// to leave the system in a consistent state.
-		// if the reinstall of the sable fails again we can't do much.
-		_ = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
+		// if the reinstall of the stable fails again we can't do much.
+		restoreErr := restoreStableAgentFromExperiment(ctx, env)
+		if restoreErr != nil {
+			log.Error(restoreErr)
+			err = fmt.Errorf("%w, %w", err, restoreErr)
+		}
 		return err
 	}
 
@@ -130,18 +137,12 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		log.Errorf("Watchdog failed: %s", err)
 		// we failed to start the watchdog, the Agent stopped, or we received a timeout
-		// we need to restore the stable Agent
-		// to leave the system in a consistent state.
-		// remove the experiment Agent
-		err = removeAgentIfInstalled(ctx)
-		if err != nil {
-			// we failed to remove the experiment Agent
-			// we can't do much here
-			log.Errorf("Failed to remove experiment Agent: %s", err)
-			return fmt.Errorf("failed to remove experiment Agent: %w", err)
+		// we need to restore the stable Agent to leave the system in a consistent state.
+		restoreErr := restoreStableAgentFromExperiment(ctx, env)
+		if restoreErr != nil {
+			log.Error(restoreErr)
+			err = fmt.Errorf("%w, %w", err, restoreErr)
 		}
-		// reinstall the stable Agent
-		_ = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
 		return err
 	}
 
@@ -213,30 +214,42 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 	}
 	defer m.Disconnect()
 
-	instService, err := winutil.OpenService(m, "Datadog Installer", windows.SERVICE_QUERY_STATUS)
+	instService, err := winutil.OpenService(m, "Datadog Installer", windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer instService.Close()
 
-	dataDogService, err := winutil.OpenService(m, "datadogagent", windows.SERVICE_QUERY_STATUS)
+	dataDogService, err := winutil.OpenService(m, "datadogagent", windows.SERVICE_QUERY_STATUS|windows.SERVICE_START)
 	if err != nil {
 		return fmt.Errorf("could not access service: %w", err)
 	}
 	defer dataDogService.Close()
 
+	// Start the services we intend to monitor
+	// Relying on the MSI or another tool to start the services before this
+	// call can be racy, particularly since the MSI only starts the Agent
+	// service, which in turn starts the Installer service sometime later.
+	// On success, Start() blocks until the service enters StartPending state.
+	_ = instService.Start()
+	_ = dataDogService.Start()
+	// Ignore errors from starting the services, the following loop will
+	// detect if the services are not running and return an error.
+
 	// main watchdog loop
+	// Watch the Installer and Agent services and ensure they stay running
+	// The Agent MSI starts them initially.
 	for time.Now().Before(timeout) {
 		// check the Installer service
 		status, err := instService.Query()
 		if err != nil {
 			return fmt.Errorf("could not query service: %w", err)
 		}
-		if status.State != svc.Running {
+		if status.State != svc.Running && status.State != svc.StartPending {
 			// the service has died
 			// we need to restore the stable Agent
 			// return an error to signal the caller to restore the stable Agent
-			return fmt.Errorf("Datadog Agent is not running")
+			return fmt.Errorf("Datadog Installer is not running")
 		}
 
 		// check the Agent service
@@ -244,7 +257,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 		if err != nil {
 			return fmt.Errorf("could not query service: %w", err)
 		}
-		if status.State != svc.Running {
+		if status.State != svc.Running && status.State != svc.StartPending {
 			// the service has died
 			// we need to restore the stable Agent
 			// return an error to signal the caller to restore the stable Agent
@@ -289,19 +302,19 @@ func installAgentPackage(env *env.Env, target string, args []string, logFileName
 	// and we need to reinstall it with the same configuration
 	// and we wipe out our registry keys containing the configuration
 	// that the next install would have used
-	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, paths.DatadogDataDir)
-	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, paths.DatadogProgramFilesDir)
+	dataDir := fmt.Sprintf(`APPLICATIONDATADIRECTORY="%s"`, env.MsiParams.ApplicationDataDirectory)
+	projectLocation := fmt.Sprintf(`PROJECTLOCATION="%s"`, env.MsiParams.ProjectLocation)
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
 		msi.WithMsiFromPackagePath(target, datadogAgent),
 		msi.WithLogFile(logFile),
 	}
-	if env.AgentUserName != "" {
-		opts = append(opts, msi.WithDdAgentUserName(env.AgentUserName))
+	if env.MsiParams.AgentUserName != "" {
+		opts = append(opts, msi.WithDdAgentUserName(env.MsiParams.AgentUserName))
 	}
-	if env.AgentUserPassword != "" {
-		opts = append(opts, msi.WithDdAgentUserPassword(env.AgentUserPassword))
+	if env.MsiParams.AgentUserPassword != "" {
+		opts = append(opts, msi.WithDdAgentUserPassword(env.MsiParams.AgentUserPassword))
 	}
 	additionalArgs := []string{"FLEET_INSTALL=1", dataDir, projectLocation}
 
@@ -457,23 +470,94 @@ func getAgentUserNameFromRegistry() (string, error) {
 	return user, nil
 }
 
-// getenv returns an Env struct with values from the environment.
+// getenv returns an Env struct with values from the environment, supplemented by values from the registry.
 //
 // See also env.FromEnv()
 //
-// This function also reads the Agent user name from the registry if it is not set in the environment.
+// This function prefers values from the environment, falling back to the registry if not set, for values:
+//   - Agent user name
+//   - Project location
+//   - Application data directory
+//
+// This accomplishes the following:
+//   - ensures setup carries over settings from previous installs (i.e. before remote updates)
+//   - ensures subcommands provide the correct options even if the MSI removes the registry keys (like during rollback)
 func getenv() *env.Env {
 	env := env.FromEnv()
 
 	// fallback to registry for agent user
-	if env.AgentUserName == "" {
+	if env.MsiParams.AgentUserName == "" {
 		user, err := getAgentUserNameFromRegistry()
 		if err != nil {
 			log.Warnf("Could not read Agent user from registry: %v", err)
 		} else {
-			env.AgentUserName = user
+			env.MsiParams.AgentUserName = user
 		}
 	}
 
+	// fallback to registry for custom paths
+	if env.MsiParams.ProjectLocation == "" {
+		env.MsiParams.ProjectLocation = paths.DatadogProgramFilesDir
+	}
+	if env.MsiParams.ApplicationDataDirectory == "" {
+		env.MsiParams.ApplicationDataDirectory = paths.DatadogDataDir
+	}
+
 	return env
+}
+
+func newInstallerExec(env *env.Env) (*exec.InstallerExec, error) {
+	installerBin, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("could not get installer executable path: %w", err)
+	}
+	installerBin, err = filepath.EvalSymlinks(installerBin)
+	if err != nil {
+		return nil, fmt.Errorf("could not get resolve installer executable path: %w", err)
+	}
+	installer := exec.NewInstallerExec(env, installerBin)
+	return installer, nil
+}
+
+// restoreStableAgentFromExperiment restores the stable Agent using the remove-experiment command.
+//
+// call remove-experiment to:
+//   - remove current version and reinstall stable version
+//   - update repository state / remove experiment link
+//
+// The updated repository state will cause the stable daemon to skip the stop-experiment
+// operation received from the backend, which avoids reinstalling the stable Agent again.
+func restoreStableAgentFromExperiment(ctx HookContext, env *env.Env) error {
+	installer, err := newInstallerExec(env)
+	if err != nil {
+		return fmt.Errorf("failed to create installer exec: %w", err)
+	}
+	err = installer.RemoveExperiment(ctx, ctx.Package)
+	if err != nil {
+		return fmt.Errorf("failed to restore stable Agent: %w", err)
+	}
+
+	return nil
+}
+
+// getStartExperimentMSIArgs returns additional MSI arguments to be passed during experiment installation.
+//
+// This is primarily used for testing purposes to inject custom MSI arguments during experiment installation,
+// for example, to add WIXFAILWHENDEFERRED=1 to test MSI rollback.
+// The arguments are read from the registry key "HKLM\SOFTWARE\Datadog\Datadog Agent\ExperimentMSIArgs".
+func getStartExperimentMSIArgs() []string {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE,
+		`SOFTWARE\Datadog\Datadog Agent`,
+		registry.ALL_ACCESS)
+	if err != nil {
+		return []string{}
+	}
+	defer k.Close()
+
+	args, _, err := k.GetStringsValue("StartExperimentMSIArgs")
+	if err != nil {
+		return []string{}
+	}
+
+	return args
 }

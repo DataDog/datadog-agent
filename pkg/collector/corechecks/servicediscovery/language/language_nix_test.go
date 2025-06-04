@@ -15,8 +15,56 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 )
+
+func TestDetectHierarchy(t *testing.T) {
+	detector := privileged.NewLanguageDetector()
+	data := []struct {
+		name           string
+		exe            string
+		args           []string
+		tracerMetadata *tracermetadata.TracerMetadata
+		expectedLang   Language
+	}{
+		{
+			name:           "tracer metadata with cpp",
+			exe:            "python",
+			args:           []string{"python", "myscript.py"},
+			tracerMetadata: &tracermetadata.TracerMetadata{TracerLanguage: "cpp"},
+			expectedLang:   CPlusPlus,
+		},
+		{
+			name:           "empty tracer metadata",
+			exe:            "python",
+			args:           []string{"python", "myscript.py"},
+			tracerMetadata: &tracermetadata.TracerMetadata{},
+			expectedLang:   Python,
+		},
+		{
+			name:           "nil tracer metadata",
+			exe:            "python",
+			args:           []string{"python", "myscript.py"},
+			tracerMetadata: nil,
+			expectedLang:   Python,
+		},
+		{
+			name:           "empty exe and args",
+			exe:            "",
+			args:           []string{},
+			tracerMetadata: nil,
+			expectedLang:   Go,
+		},
+	}
+
+	for _, d := range data {
+		t.Run(d.name, func(t *testing.T) {
+			lang := Detect(d.exe, d.args, int32(os.Getpid()), detector, d.tracerMetadata)
+			require.Equal(t, d.expectedLang, lang)
+		})
+	}
+}
 
 func Test_findInArgs(t *testing.T) {
 	data := []struct {

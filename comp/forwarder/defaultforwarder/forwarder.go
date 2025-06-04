@@ -7,6 +7,7 @@ package defaultforwarder
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"go.uber.org/fx"
@@ -34,29 +35,42 @@ type provides struct {
 	StatusProvider status.InformationProvider
 }
 
-func newForwarder(dep dependencies) provides {
+func newForwarder(dep dependencies) (provides, error) {
 	if dep.Params.useNoopForwarder {
 		return provides{
 			Comp: NoopForwarder{},
-		}
+		}, nil
 	}
 
-	options := createOptions(dep.Params, dep.Config, dep.Log)
+	options, err := createOptions(dep.Params, dep.Config, dep.Log)
+	if err != nil {
+		return provides{}, err
+	}
 
-	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options)
+	return NewForwarder(dep.Config, dep.Log, dep.Lc, true, options), nil
 }
 
-func createOptions(params Params, config config.Component, log log.Component) *Options {
+func createOptions(params Params, config config.Component, log log.Component) (*Options, error) {
 	var options *Options
 	keysPerDomain, err := utils.GetMultipleEndpoints(config)
 	if err != nil {
 		log.Error("Misconfiguration of agent endpoints: ", err)
+		return nil, fmt.Errorf("Misconfiguration of agent endpoints: %s", err)
 	}
 
 	if !params.withResolver {
-		options = NewOptions(config, log, keysPerDomain)
+		options, err = NewOptions(config, log, keysPerDomain)
+		if err != nil {
+			log.Error("Error creating forwarder options: ", err)
+			return nil, fmt.Errorf("Error creating forwarder options: %s", err)
+		}
 	} else {
-		options = NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
+		r, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+		if err != nil {
+			log.Error("Error creating resolver: ", err)
+			return nil, fmt.Errorf("Error creating resolver: %s", err)
+		}
+		options = NewOptionsWithResolvers(config, log, r)
 	}
 	// Override the DisableAPIKeyChecking only if WithFeatures was called
 	if disableAPIKeyChecking, ok := params.disableAPIKeyCheckingOverride.Get(); ok {
@@ -72,7 +86,7 @@ func createOptions(params Params, config config.Component, log log.Component) *O
 		}
 		log.Infof("domain '%s' has %d keys: %s", resolver.GetBaseDomain(), len(scrubbedKeys), strings.Join(scrubbedKeys, ", "))
 	}
-	return options
+	return options, nil
 }
 
 // NewForwarder returns a new forwarder component.
@@ -98,7 +112,8 @@ func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, i
 }
 
 func newMockForwarder(config config.Component, log log.Component) provides {
+	options, _ := NewOptions(config, log, nil)
 	return provides{
-		Comp: NewDefaultForwarder(config, log, NewOptions(config, log, nil)),
+		Comp: NewDefaultForwarder(config, log, options),
 	}
 }

@@ -10,11 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type ConfigTestSuite struct {
@@ -539,7 +540,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 		Port:                   443,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       6,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
@@ -587,7 +588,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       6,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
@@ -623,11 +624,12 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
-		Host:                   "http-intake.logs.datadoghq.com",
+		Host:                   "http-intake.logs.datadoghq.com.",
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       6,
+		CompressionKind:        GzipCompressionKind,
+		CompressionLevel:       GzipCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
@@ -659,7 +661,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 func getTestEndpoint(host string, port int, ssl bool) Endpoint {
 	e := NewEndpoint("123", "", host, port, ssl)
 	e.UseCompression = true
-	e.CompressionLevel = 6
+	e.CompressionLevel = ZstdCompressionLevel // by default endpoints uses zstd
 	e.BackoffFactor = pkgconfigsetup.DefaultLogsSenderBackoffFactor
 	e.BackoffBase = pkgconfigsetup.DefaultLogsSenderBackoffBase
 	e.BackoffMax = pkgconfigsetup.DefaultLogsSenderBackoffMax
@@ -735,7 +737,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "observability_pipelines_worker.host:8443")
 	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
-	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com", 0, true))
+	expectedEndpoints := getTestEndpoints(getTestEndpoint("agent-http-intake.logs.datadoghq.com.", 0, true))
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
 }
@@ -744,7 +746,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.config.SetWithoutSource("api_key", "123")
 
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.use_compression", false)
-	suite.config.SetWithoutSource("network_devices.netflow.forwarder.compression_level", 10)
+	suite.config.SetWithoutSource("network_devices.netflow.forwarder.zstd_compression_level", 10)
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.batch_wait", 10)
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.connection_reset_interval", 3)
 	suite.config.SetWithoutSource("network_devices.netflow.forwarder.logs_no_ssl", true)
@@ -769,7 +771,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 		configSettingPath:       "api_key",
 		isAdditionalEndpoint:    false,
 		additionalEndpointsIdx:  0,
-		Host:                    "ndmflow-intake.datadoghq.com",
+		Host:                    "ndmflow-intake.datadoghq.com.",
 		Port:                    0,
 		useSSL:                  true,
 		UseCompression:          false,
@@ -820,7 +822,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 		Port:                   443,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       6,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
@@ -865,7 +867,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 		Port:                   443,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       6,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,

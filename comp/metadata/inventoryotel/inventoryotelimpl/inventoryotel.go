@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"path"
@@ -22,18 +21,17 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iointerface "github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
@@ -75,7 +73,7 @@ type inventoryotel struct {
 	m          sync.Mutex
 	data       otelMetadata
 	hostname   string
-	authToken  authtoken.Component
+	ipc        ipc.Component
 	f          *freshConfig
 	httpClient *http.Client
 }
@@ -86,32 +84,32 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	AuthToken  authtoken.Component
+	IPC        ipc.Component
+	Hostname   hostnameinterface.Component
 }
 
 type provides struct {
 	fx.Out
 
-	Comp                 iointerface.Component
-	Provider             runnerimpl.Provider
-	FlareProvider        flaretypes.Provider
-	StatusHeaderProvider status.HeaderInformationProvider
-	Endpoint             api.AgentEndpointProvider
+	Comp          iointerface.Component
+	Provider      runnerimpl.Provider
+	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newInventoryOtelProvider(deps dependencies) (provides, error) {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	// HTTP client need not verify otel-agent cert since it's self-signed
 	// at start-up. TLS used for encryption not authentication.
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	i := &inventoryotel{
-		conf:      deps.Config,
-		log:       deps.Log,
-		hostname:  hname,
-		data:      make(otelMetadata),
-		authToken: deps.AuthToken,
+		conf:     deps.Config,
+		log:      deps.Log,
+		hostname: hname,
+		data:     make(otelMetadata),
+		ipc:      deps.IPC,
 		httpClient: &http.Client{
 			Transport: tr,
 			Timeout:   httpTO,
@@ -142,11 +140,10 @@ func newInventoryOtelProvider(deps dependencies) (provides, error) {
 	}
 
 	return provides{
-		Comp:                 i,
-		Provider:             i.MetadataProvider(),
-		FlareProvider:        i.FlareProvider(),
-		StatusHeaderProvider: status.NewHeaderInformationProvider(i),
-		Endpoint:             api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/inventory-otel", "GET"),
+		Comp:          i,
+		Provider:      i.MetadataProvider(),
+		FlareProvider: i.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/inventory-otel", "GET"),
 	}, nil
 }
 
@@ -169,10 +166,7 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 }
 
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
-	authToken, err := i.authToken.Get()
-	if err != nil {
-		return nil, err
-	}
+	authToken := i.ipc.GetAuthToken()
 
 	// Create a Bearer string by appending string access token
 	bearer := "Bearer " + authToken
@@ -267,14 +261,4 @@ func (i *inventoryotel) writePayloadAsJSON(w http.ResponseWriter, _ *http.Reques
 		return
 	}
 	w.Write(scrubbed)
-}
-
-// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
-func (i *inventoryotel) Get() otelMetadata {
-	i.m.Lock()
-	defer i.m.Unlock()
-
-	data := otelMetadata{}
-	maps.Copy(data, i.data)
-	return data
 }

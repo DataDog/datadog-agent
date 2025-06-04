@@ -91,6 +91,8 @@ type CGroupContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// CGroup manager
 	Manager string `json:"manager,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -540,6 +542,15 @@ type SyscallArgsSerializer struct {
 	FSType *string `json:"fs_type,omitempty"`
 }
 
+// SetSockOptEventSerializer defines a setsockopt event serializer
+// easyjson:json
+type SetSockOptEventSerializer struct {
+	// Level at which the option is defined
+	Level uint32 `json:"level"`
+	// Name of the option being set
+	OptName uint32 `json:"optname"`
+}
+
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
 
 	switch e.GetEventType() {
@@ -618,18 +629,19 @@ func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *Syscall
 // SyscallContextSerializer serializes syscall context
 // easyjson:json
 type SyscallContextSerializer struct {
-	Chmod  *SyscallArgsSerializer `json:"chmod,omitempty"`
-	Chown  *SyscallArgsSerializer `json:"chown,omitempty"`
-	Chdir  *SyscallArgsSerializer `json:"chdir,omitempty"`
-	Exec   *SyscallArgsSerializer `json:"exec,omitempty"`
-	Open   *SyscallArgsSerializer `json:"open,omitempty"`
-	Unlink *SyscallArgsSerializer `json:"unlink,omitempty"`
-	Link   *SyscallArgsSerializer `json:"link,omitempty"`
-	Rename *SyscallArgsSerializer `json:"rename,omitempty"`
-	Utimes *SyscallArgsSerializer `json:"utimes,omitempty"`
-	Mount  *SyscallArgsSerializer `json:"mount,omitempty"`
-	Mkdir  *SyscallArgsSerializer `json:"mkdir,omitempty"`
-	Rmdir  *SyscallArgsSerializer `json:"rmdir,omitempty"`
+	Chmod      *SyscallArgsSerializer `json:"chmod,omitempty"`
+	Chown      *SyscallArgsSerializer `json:"chown,omitempty"`
+	Chdir      *SyscallArgsSerializer `json:"chdir,omitempty"`
+	Exec       *SyscallArgsSerializer `json:"exec,omitempty"`
+	Open       *SyscallArgsSerializer `json:"open,omitempty"`
+	Unlink     *SyscallArgsSerializer `json:"unlink,omitempty"`
+	Link       *SyscallArgsSerializer `json:"link,omitempty"`
+	Rename     *SyscallArgsSerializer `json:"rename,omitempty"`
+	Utimes     *SyscallArgsSerializer `json:"utimes,omitempty"`
+	Mount      *SyscallArgsSerializer `json:"mount,omitempty"`
+	Mkdir      *SyscallArgsSerializer `json:"mkdir,omitempty"`
+	Rmdir      *SyscallArgsSerializer `json:"rmdir,omitempty"`
+	SetSockOpt *SyscallArgsSerializer `json:"setsockopt,omitempty"`
 }
 
 func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event, attachEventypeCb func(*SyscallContextSerializer, *SyscallArgsSerializer)) *SyscallContextSerializer {
@@ -679,6 +691,7 @@ type EventSerializer struct {
 	*RawPacketSerializer          `json:"packet,omitempty"`
 	*NetworkFlowMonitorSerializer `json:"network_flow_monitor,omitempty"`
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
+	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -992,7 +1005,7 @@ func newAcceptEventSerializer(e *model.Event) *AcceptEventSerializer {
 	aes := &AcceptEventSerializer{
 		Addr: newIPPortFamilySerializer(&e.Accept.Addr,
 			model.AddressFamily(e.Accept.AddrFamily).String()),
-		Hostnames: e.Accept.Hostnames,
+		Hostnames: e.FieldHandlers.ResolveAcceptHostnames(e, &e.Accept),
 	}
 	return aes
 }
@@ -1011,7 +1024,7 @@ func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 		Addr: newIPPortFamilySerializer(&e.Connect.Addr,
 			model.AddressFamily(e.Connect.AddrFamily).String()),
 		Protocol:  model.L4Protocol(e.Connect.Protocol).String(),
-		Hostnames: e.Connect.Hostnames,
+		Hostnames: e.FieldHandlers.ResolveConnectHostnames(e, &e.Connect),
 	}
 	return ces
 }
@@ -1252,6 +1265,12 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 		EventTypeState: e.EventTypeState.String(),
 	}
 }
+func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
+	return &SetSockOptEventSerializer{
+		Level:   e.SetSockOpt.Level,
+		OptName: e.SetSockOpt.OptName,
+	}
+}
 
 // ToJSON returns json
 func (e *EventSerializer) ToJSON() ([]byte, error) {
@@ -1302,8 +1321,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
 		manager := event.FieldHandlers.ResolveCGroupManager(event, event.CGroupContext)
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID:      string(event.CGroupContext.CGroupID),
-			Manager: manager,
+			ID:        string(event.CGroupContext.CGroupID),
+			Manager:   manager,
+			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
 
@@ -1552,6 +1572,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	case model.SysCtlEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.SysCtlEventSerializer = newSysCtlEventSerializer(&event.SysCtl, event)
+	case model.SetSockOptEventType:
+		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
 	}
 
 	return s

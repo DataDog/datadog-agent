@@ -79,8 +79,10 @@ const (
 	CgroupTracingEventType
 	// DNSEventType DNS event
 	DNSEventType
-	// DNSResponseEventType DNS Response event
-	DNSResponseEventType
+	// ShortDNSResponseEventType DNS Response event
+	ShortDNSResponseEventType
+	// FullDNSResponseEventType DNS Response event
+	FullDNSResponseEventType
 	// NetDeviceEventType is sent for events on net devices
 	NetDeviceEventType
 	// VethPairEventType is sent when a new veth pair is created
@@ -111,6 +113,8 @@ const (
 	StatEventType
 	// SysCtlEventType sysctl event
 	SysCtlEventType
+	// SetSockOptEventType is sent when a socket option is set
+	SetSockOptEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -271,8 +275,10 @@ func (t EventType) String() string {
 		return "cgroup_write"
 	case SysCtlEventType:
 		return "sysctl"
-	case DNSResponseEventType:
+	case FullDNSResponseEventType:
 		return "dns_response"
+	case SetSockOptEventType:
+		return "setsockopt"
 	default:
 		return "unknown"
 	}

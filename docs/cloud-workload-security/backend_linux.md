@@ -223,6 +223,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "manager": {
                     "type": "string",
                     "description": "CGroup manager"
+                },
+                "variables": {
+                    "$ref": "#/$defs/Variables",
+                    "description": "Variables values"
                 }
             },
             "additionalProperties": false,
@@ -294,16 +298,26 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "integer",
                     "description": "id is the unique identifier of the DNS request"
                 },
+                "is_query": {
+                    "type": "boolean",
+                    "description": "is_query if true means it's a question, if false is a response"
+                },
                 "question": {
                     "$ref": "#/$defs/DNSQuestion",
                     "description": "question is a DNS question for the DNS request"
+                },
+                "response": {
+                    "$ref": "#/$defs/DNSResponseEvent",
+                    "description": "response is a DNS response for the DNS request"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
                 "id",
-                "question"
+                "is_query",
+                "question",
+                "response"
             ],
             "description": "DNSEventSerializer serializes a DNS event to JSON"
         },
@@ -340,6 +354,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "count"
             ],
             "description": "DNSQuestionSerializer serializes a DNS question to JSON"
+        },
+        "DNSResponseEvent": {
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "description": "RCode is the response code present in the response"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "description": "DNSResponseEventSerializer serializes a DNS response event to JSON"
         },
         "EventContext": {
             "properties": {
@@ -1633,6 +1661,25 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
+        "SetSockOptEvent": {
+            "properties": {
+                "level": {
+                    "type": "integer",
+                    "description": "Level at which the option is defined"
+                },
+                "optname": {
+                    "type": "integer",
+                    "description": "Name of the option being set"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "level",
+                "optname"
+            ],
+            "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+        },
         "SignalEvent": {
             "properties": {
                 "type": {
@@ -1812,6 +1859,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/SyscallArgs"
                 },
                 "rmdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "setsockopt": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -1993,6 +2043,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "sysctl": {
             "$ref": "#/$defs/SysCtlEvent"
+        },
+        "setsockopt": {
+            "$ref": "#/$defs/SetSockOptEvent"
         }
     },
     "additionalProperties": false,
@@ -2039,6 +2092,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `packet` | $ref | Please see [RawPacket](#rawpacket) |
 | `network_flow_monitor` | $ref | Please see [NetworkFlowMonitor](#networkflowmonitor) |
 | `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
+| `setsockopt` | $ref | Please see [SetSockOptEvent](#setsockoptevent) |
 
 ## `AWSIMDSEvent`
 
@@ -2372,6 +2426,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "manager": {
             "type": "string",
             "description": "CGroup manager"
+        },
+        "variables": {
+            "$ref": "#/$defs/Variables",
+            "description": "Variables values"
         }
     },
     "additionalProperties": false,
@@ -2385,7 +2443,11 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `id` | CGroup ID |
 | `manager` | CGroup manager |
+| `variables` | Variables values |
 
+| References |
+| ---------- |
+| [Variables](#variables) |
 
 ## `ConnectEvent`
 
@@ -2498,16 +2560,26 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer",
             "description": "id is the unique identifier of the DNS request"
         },
+        "is_query": {
+            "type": "boolean",
+            "description": "is_query if true means it's a question, if false is a response"
+        },
         "question": {
             "$ref": "#/$defs/DNSQuestion",
             "description": "question is a DNS question for the DNS request"
+        },
+        "response": {
+            "$ref": "#/$defs/DNSResponseEvent",
+            "description": "response is a DNS response for the DNS request"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
         "id",
-        "question"
+        "is_query",
+        "question",
+        "response"
     ],
     "description": "DNSEventSerializer serializes a DNS event to JSON"
 }
@@ -2517,11 +2589,14 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | id is the unique identifier of the DNS request |
+| `is_query` | is_query if true means it's a question, if false is a response |
 | `question` | question is a DNS question for the DNS request |
+| `response` | response is a DNS response for the DNS request |
 
 | References |
 | ---------- |
 | [DNSQuestion](#dnsquestion) |
+| [DNSResponseEvent](#dnsresponseevent) |
 
 ## `DNSQuestion`
 
@@ -2571,6 +2646,32 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `name` | name is the queried domain name |
 | `size` | size is the total DNS request size in bytes |
 | `count` | count is the total count of questions in the DNS request |
+
+
+## `DNSResponseEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "code": {
+            "type": "integer",
+            "description": "RCode is the response code present in the response"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "code"
+    ],
+    "description": "DNSResponseEventSerializer serializes a DNS response event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `code` | RCode is the response code present in the response |
 
 
 ## `EventContext`
@@ -4455,6 +4556,38 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `event_type_state` | State of the event type in this profile |
 
 
+## `SetSockOptEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "level": {
+            "type": "integer",
+            "description": "Level at which the option is defined"
+        },
+        "optname": {
+            "type": "integer",
+            "description": "Name of the option being set"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "level",
+        "optname"
+    ],
+    "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `level` | Level at which the option is defined |
+| `optname` | Name of the option being set |
+
+
 ## `SignalEvent`
 
 
@@ -4720,6 +4853,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "rmdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "setsockopt": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },

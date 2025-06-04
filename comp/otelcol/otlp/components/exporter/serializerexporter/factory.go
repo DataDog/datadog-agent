@@ -185,14 +185,11 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		if err != nil {
 			return nil, err
 		}
-		go func() {
-			params.Logger.Info("starting forwarder")
-			err := forwarder.Start()
-			if err != nil {
-				params.Logger.Error("failed to start forwarder", zap.Error(err))
-			}
-		}()
-
+		params.Logger.Info("starting forwarder")
+		err := forwarder.Start()
+		if err != nil {
+			params.Logger.Error("failed to start forwarder", zap.Error(err))
+		}
 	}
 
 	// TODO: Ideally the attributes translator would be created once and reused

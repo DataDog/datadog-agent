@@ -4,7 +4,6 @@ import os
 
 from invoke import Exit, UnexpectedExit
 
-from tasks.github_tasks import pr_commenter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.notify.utils import AWS_S3_CP_CMD
@@ -27,11 +26,6 @@ class PackageSize:
     @property
     def name(self):
         return f"{self.flavor}-{self.arch}-{self.os}"
-
-    def arch_name(self):
-        if self.arch in ["x86_64", "amd64"]:
-            return "amd"
-        return "arm"
 
     def ko(self):
         return self.diff > self.threshold
@@ -152,30 +146,9 @@ def get_ancestor(ctx, package_sizes, on_main):
     return ancestor
 
 
-def display_message(ctx, ancestor, rows, reduction_rows, decision):
-    is_open = '' if "Passed" in decision else ' open'
-    size_wins = f"""<details open>
-<summary> Size reduction summary </summary>
-
-|package|diff|status|size|ancestor|threshold|
-|--|--|--|--|--|--|
-{reduction_rows}
-</details>
-"""
-    message = f"""Comparison with [ancestor](https://github.com/DataDog/datadog-agent/commit/{ancestor}) `{ancestor}`
-{size_wins if reduction_rows else ''}
-
-<details{is_open}>
-  <summary> Diff per package </summary>
-
-|package|diff|status|size|ancestor|threshold|
-|--|--|--|--|--|--|
-{rows}
-</details>
-
-## Decision
-{decision}
-
-{"Currently this PR is blocked, you can reach out to #agent-delivery-help to get support/ask for an exception." if "❌" in decision else ""}
-"""
-    pr_commenter(ctx, title="Uncompressed package size comparison", body=message)
+def get_package_name(binary: str, flavor: str):
+    package_name = "datadog-"
+    if flavor:
+        package_name += f"{flavor}-"
+    package_name += binary
+    return package_name

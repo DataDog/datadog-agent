@@ -45,11 +45,10 @@ func TestPrintConfigCheck(t *testing.T) {
 		ResolveWarnings: map[string][]string{
 			"some_identifier": {"some_warning"},
 		},
-		Unresolved: map[string][]integration.Config{
+		Unresolved: map[string]integration.Config{
 			"unresolved_config": {
-				{
-					Instances: []integration.Data{integration.Data("{unresolved:sad}")},
-				},
+				ADIdentifiers: []string{"unresolved_config"},
+				Instances:     []integration.Data{integration.Data("{unresolved:sad}")},
 			},
 		},
 	}
@@ -86,10 +85,9 @@ Log Config:
 some_identifier
 * some_warning
 
-=== Unresolved Configs ===
+=== Collected configs (matched and unmatched) ===
 
 Auto-discovery IDs: unresolved_config
-Templates:
 check_name: ""
 init_config: null
 instances:
@@ -151,8 +149,8 @@ Log Config:
 				assert.Contains(t, b.String(), "\x1b[31m")
 			} else {
 				// We replace windows line break by linux so the tests pass on every OS
-				expectedResult := strings.Replace(test.expected, "\r\n", "\n", -1)
-				output := strings.Replace(b.String(), "\r\n", "\n", -1)
+				expectedResult := strings.ReplaceAll(test.expected, "\r\n", "\n")
+				output := strings.ReplaceAll(b.String(), "\r\n", "\n")
 
 				assert.Equal(t, expectedResult, output)
 			}

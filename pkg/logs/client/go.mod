@@ -19,7 +19,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/net v0.39.0
+	golang.org/x/net v0.40.0
 )
 
 require (
@@ -53,7 +53,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
@@ -61,7 +61,7 @@ require (
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
-	github.com/magiconair/properties v1.8.9 // indirect
+	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -69,12 +69,12 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.22.0 // indirect
-	github.com/prometheus/client_model v0.6.1 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.62.0 // indirect
-	github.com/prometheus/procfs v0.16.0 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.3 // indirect
-	github.com/spf13/afero v1.11.0 // indirect
-	github.com/spf13/cast v1.7.1 // indirect
+	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.4 // indirect
+	github.com/spf13/afero v1.14.0 // indirect
+	github.com/spf13/cast v1.8.0 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
@@ -82,13 +82,13 @@ require (
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.18.1 // indirect
-	go.uber.org/fx v1.23.0 // indirect
+	go.uber.org/dig v1.19.0 // indirect
+	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -99,12 +99,15 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
-	github.com/DataDog/datadog-agent/comp/api/authtoken => ../../../comp/api/authtoken
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ../../../comp/core/configsync
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface
+	github.com/DataDog/datadog-agent/comp/core/ipc/def => ../../../comp/core/ipc/def
+	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers => ../../../comp/core/ipc/httphelpers
+	github.com/DataDog/datadog-agent/comp/core/ipc/impl => ../../../comp/core/ipc/impl
+	github.com/DataDog/datadog-agent/comp/core/ipc/mock => ../../../comp/core/ipc/mock
 	github.com/DataDog/datadog-agent/comp/core/log/def => ../../../comp/core/log/def
 	github.com/DataDog/datadog-agent/comp/core/log/fx => ../../../comp/core/log/fx
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../comp/core/log/impl

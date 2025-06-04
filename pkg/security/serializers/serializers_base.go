@@ -189,8 +189,19 @@ type DNSQuestionSerializer struct {
 type DNSEventSerializer struct {
 	// id is the unique identifier of the DNS request
 	ID uint16 `json:"id"`
+	// is_query if true means it's a question, if false is a response
+	Query bool `json:"is_query"`
 	// question is a DNS question for the DNS request
 	Question DNSQuestionSerializer `json:"question"`
+	// response is a DNS response for the DNS request
+	Response *DNSResponseEventSerializer `json:"response"`
+}
+
+// DNSResponseEventSerializer serializes a DNS response event to JSON
+// easyjson:json
+type DNSResponseEventSerializer struct {
+	// RCode is the response code present in the response
+	RCode uint8 `json:"code"`
 }
 
 // ExitEventSerializer serializes an exit event to JSON
@@ -320,16 +331,25 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 
 // nolint: deadcode, unused
 func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
-	return &DNSEventSerializer{
-		ID: d.ID,
+	ret := &DNSEventSerializer{
+		ID:    d.ID,
+		Query: !d.HasResponse(),
 		Question: DNSQuestionSerializer{
-			Class: model.QClass(d.Class).String(),
-			Type:  model.QType(d.Type).String(),
-			Name:  d.Name,
-			Size:  d.Size,
-			Count: d.Count,
+			Class: model.QClass(d.Question.Class).String(),
+			Type:  model.QType(d.Question.Type).String(),
+			Name:  d.Question.Name,
+			Size:  d.Question.Size,
+			Count: d.Question.Count,
 		},
 	}
+
+	if d.HasResponse() {
+		ret.Response = &DNSResponseEventSerializer{
+			RCode: d.Response.ResponseCode,
+		}
+	}
+
+	return ret
 }
 
 // nolint: deadcode, unused
@@ -454,6 +474,7 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 	if rule != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
+			// do not serialize hardcoded variables like process.pid
 			if _, found := model.SECLVariables[name]; found {
 				continue
 			}
@@ -464,6 +485,11 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 
 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
 				(prefix == "" && strings.Contains(name, ".")) {
+				continue
+			}
+
+			// Skip private variables
+			if variable.GetVariableOpts().Private {
 				continue
 			}
 

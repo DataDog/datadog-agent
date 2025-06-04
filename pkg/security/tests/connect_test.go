@@ -10,14 +10,17 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"golang.org/x/net/nettest"
 	"net"
+	"net/http"
+	"syscall"
 	"testing"
 
-	"golang.org/x/sys/unix"
-
+	"github.com/iceber/iouring-go"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/net/nettest"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -32,8 +35,16 @@ func TestConnectEvent(t *testing.T) {
 			Expression: `connect.addr.family == AF_INET && process.file.name == "syscall_tester"`,
 		},
 		{
+			ID:         "test_connect_af_inet_io_uring",
+			Expression: `connect.addr.port == 4242 && connect.addr.family == AF_INET && process.file.name == "testsuite"`,
+		},
+		{
 			ID:         "test_connect_af_inet6",
 			Expression: `connect.addr.family == AF_INET6 && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_connect_nonblocking_socket",
+			Expression: `connect.addr.port == 443 && process.file.name == "testsuite"`,
 		},
 	}
 
@@ -49,19 +60,20 @@ func TestConnectEvent(t *testing.T) {
 	}
 
 	t.Run("connect-af-inet-any-tcp-success", func(t *testing.T) {
-		done := make(chan error)
-		started := make(chan struct{})
-		go bindAndAcceptConnection("tcp", ":4242", done, started)
+		SkipIfNotAvailable(t)
 
-		// Wait until the server is listening before attempting to connect
-		<-started
+		listener, err := net.Listen("tcp", ":4242")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer listener.Close()
+
+		go listener.Accept()
 
 		test.WaitSignal(t, func() error {
 			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "tcp"); err != nil {
 				return err
 			}
-			err := <-done
-			close(done)
 			return err
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
@@ -74,19 +86,87 @@ func TestConnectEvent(t *testing.T) {
 		})
 	})
 
-	t.Run("connect-af-inet-any-udp-success", func(t *testing.T) {
-		done := make(chan error)
-		started := make(chan struct{})
-		go bindAndAcceptConnection("udp", ":4242", done, started)
+	t.Run("io-uring-connect-af-inet-any-tcp-success", func(t *testing.T) {
+		SkipIfNotAvailable(t)
 
-		<-started
+		listener, err := net.Listen("tcp", ":4242")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer listener.Close()
+
+		go listener.Accept()
+
+		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unix.Close(fd)
+
+		iour, err := iouring.New(1)
+		if err != nil {
+			if errors.Is(err, unix.ENOTSUP) {
+				t.Fatal(err)
+			}
+			t.Skip("io_uring not supported")
+		}
+		defer iour.Close()
+
+		sa := unix.SockaddrInet4{
+			Port: 4242,
+			Addr: [4]byte(net.IPv4(0, 0, 0, 0)),
+		}
+
+		prepRequest, err := iouring.Connect(int32(fd), sa)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ch := make(chan iouring.Result, 1)
+
+		test.WaitSignal(t, func() error {
+			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
+				return err
+			}
+
+			result := <-ch
+			ret, err := result.ReturnInt()
+			if err != nil {
+				if err == syscall.EBADF || err == syscall.EINVAL {
+					return ErrSkipTest{fmt.Sprintf("connect not supported by io_uring: %s", err)}
+				}
+				return err
+			}
+
+			if ret < 0 {
+				return fmt.Errorf("failed to connect with io_uring: %d", ret)
+			}
+
+			return err
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "connect", event.GetType(), "wrong event type")
+			assertTriggeredRule(t, rule, "test_connect_af_inet_io_uring")
+			assert.Equal(t, uint16(unix.AF_INET), event.Connect.AddrFamily, "wrong address family")
+			assert.Equal(t, "testsuite", event.ProcessContext.FileEvent.BasenameStr, "wrong process name")
+			assert.Equal(t, uint16(4242), event.Connect.Addr.Port, "wrong address port")
+			assert.Equal(t, string("0.0.0.0/32"), event.Connect.Addr.IPNet.String(), "wrong address")
+			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Connect.Protocol, "wrong protocol")
+			assert.Contains(t, []int64{0, -int64(syscall.EAGAIN)}, event.Connect.Retval, "wrong retval")
+			test.validateConnectSchema(t, event)
+		})
+	})
+
+	t.Run("connect-af-inet-any-udp-success", func(t *testing.T) {
+		conn, err := net.ListenPacket("udp", ":4242")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
 
 		test.WaitSignal(t, func() error {
 			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET", "any", "udp"); err != nil {
 				return err
 			}
-			err := <-done
-			close(done)
 			return err
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
@@ -104,18 +184,18 @@ func TestConnectEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		done := make(chan error)
-		started := make(chan struct{})
-		go bindAndAcceptConnection("tcp", ":4242", done, started)
+		listener, err := net.Listen("tcp", ":4242")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer listener.Close()
 
-		<-started
+		go listener.Accept()
 
 		test.WaitSignal(t, func() error {
 			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "tcp"); err != nil {
 				return err
 			}
-			err := <-done
-			close(done)
 			return err
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
@@ -133,18 +213,16 @@ func TestConnectEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		done := make(chan error)
-		started := make(chan struct{})
-		go bindAndAcceptConnection("udp", ":4242", done, started)
-
-		<-started
+		conn, err := net.ListenPacket("udp", ":4242")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
 
 		test.WaitSignal(t, func() error {
 			if err := runSyscallTesterFunc(context.Background(), t, syscallTester, "connect", "AF_INET6", "any", "udp"); err != nil {
 				return err
 			}
-			err := <-done
-			close(done)
 			return err
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "connect", event.GetType(), "wrong event type")
@@ -156,47 +234,20 @@ func TestConnectEvent(t *testing.T) {
 			test.validateConnectSchema(t, event)
 		})
 	})
-}
 
-func bindAndAcceptConnection(proto, address string, done chan error, started chan struct{}) {
-	switch proto {
-	case "tcp":
-		listener, err := net.Listen(proto, address)
-		if err != nil {
-			done <- fmt.Errorf("failed to bind to %s:%s: %w", proto, address, err)
-			return
-		}
-		defer listener.Close()
+	t.Run("connect-non-blocking-socket", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			resp, err := http.Get("https://www.google.com")
+			if err != nil {
+				return err
+			}
+			resp.Body.Close()
 
-		// Signal that the server is ready to accept connections
-		close(started)
-
-		c, err := listener.Accept()
-		if err != nil {
-			fmt.Printf("accept error: %v\n", err)
-			done <- err
-			return
-		}
-		defer c.Close()
-
-		fmt.Println("Connection accepted")
-
-	case "udp", "unixgram":
-		conn, err := net.ListenPacket(proto, address)
-		if err != nil {
-			done <- err
-			return
-		}
-		defer conn.Close()
-
-		// For packet-based connections, we can signal readiness immediately
-		close(started)
-
-	default:
-		done <- fmt.Errorf("unsupported protocol: %s", proto)
-		return
-	}
-
-	// Wait for the test to complete before returning
-	done <- nil
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, "connect", event.GetType(), "wrong event type")
+			assert.Equal(t, uint16(443), event.Connect.Addr.Port, "wrong address port")
+			test.validateConnectSchema(t, event)
+		})
+	})
 }

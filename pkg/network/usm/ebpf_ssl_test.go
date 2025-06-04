@@ -10,7 +10,6 @@ package usm
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -53,9 +52,9 @@ func testArch(t *testing.T, arch string) {
 	require.NoError(t, err)
 
 	if arch == runtime.GOARCH {
-		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, "shared_libraries", cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, cmd.Process.Pid, utils.ManualTracingFallbackDisabled)
 	} else {
-		utils.WaitForPathToBeBlocked(t, consts.USMModuleName, "shared_libraries", lib)
+		utils.WaitForPathToBeBlocked(t, consts.USMModuleName, UsmTLSAttacherName, lib)
 	}
 }
 
@@ -65,13 +64,6 @@ func TestArchAmd64(t *testing.T) {
 
 func TestArchArm64(t *testing.T) {
 	testArch(t, "arm64")
-}
-
-func TestContainerdTmpErrEnvironment(t *testing.T) {
-	hookFunction := addHooks(nil, "foo", nil)
-	path := utils.FilePath{PID: uint32(os.Getpid()), HostPath: "/foo/tmpmounts/containerd-mount/bar"}
-	err := hookFunction(path)
-	require.ErrorIs(t, err, utils.ErrEnvironment)
 }
 
 // TestSSLMapsCleaner verifies that SSL-related kernel maps are cleared correctly.
@@ -91,7 +83,7 @@ func TestSSLMapsCleaner(t *testing.T) {
 	require.NotNil(t, monitor)
 
 	cleanProtocolMaps(t, "ssl", monitor.ebpfProgram.Manager.Manager)
-	cleanProtocolMaps(t, "bio_new_socket_args", monitor.ebpfProgram.Manager.Manager)
+	cleanProtocolMaps(t, bioNewSocketArgsMap, monitor.ebpfProgram.Manager.Manager)
 
 	// find maps by names
 	maps := getMaps(t, monitor.ebpfProgram.Manager.Manager, sslPidKeyMaps)

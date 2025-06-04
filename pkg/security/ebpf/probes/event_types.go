@@ -361,6 +361,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("vfs_setxattr"),
 				kprobeOrFentry("mnt_want_write"),
 			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("io_fsetxattr"),
+				kretprobeOrFexit("io_fsetxattr"),
+				kprobeOrFentry("io_setxattr"),
+				kretprobeOrFexit("io_setxattr"),
+			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("mnt_want_write_file"),
 				kprobeOrFentry("mnt_want_write_file_path"),
@@ -454,6 +460,11 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "kill", fentry, Entry)},
 		},
 
+		// List of probes required to capture setsockopt events
+		"setsockopt": {
+			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setsockopt", fentry, EntryAndExit)},
+		},
+
 		// List of probes required to capture splice events
 		"splice": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "splice", fentry, EntryAndExit)},
@@ -473,12 +484,20 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("security_socket_bind"),
 			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("io_bind"),
+				kretprobeOrFexit("io_bind"),
+			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bind", fentry, EntryAndExit)},
 		},
 		// List of probes required to capture connect events
 		"connect": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("security_socket_connect"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("io_connect"),
+				kretprobeOrFexit("io_connect"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", fentry, EntryAndExit)},
 		},

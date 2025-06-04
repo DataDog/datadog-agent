@@ -37,10 +37,7 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
 
 	// prometheus receiver
-	addPrometheusReceiver(conf, prometheusReceiver)
-
-	// datadog connector
-	changeDefaultConfigsForDatadogConnector(conf)
+	addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
 
 	// add datadog agent sourced config
 	addCoreAgentConfig(conf, c.coreConfig)
@@ -119,4 +116,29 @@ func addComponentToPipeline(conf *confmap.Conf, comp component, pipelineName str
 	}
 
 	*conf = *confmap.NewFromStringMap(stringMapConf)
+}
+
+// findComps finds and returns the matching components and their configs in a string conf map.
+// Component can be receivers, processors, connectors or exporters.
+func findComps(stringMapConf map[string]any, compName string, compType string) map[string]map[string]any {
+	comps, ok := stringMapConf[compType]
+	if !ok {
+		return nil
+	}
+	compsMap, ok := comps.(map[string]any)
+	if !ok {
+		return nil
+	}
+	cfgsByRecv := make(map[string]map[string]any)
+	for name, cfg := range compsMap {
+		if componentName(name) != compName {
+			continue
+		}
+		cfgMap, ok := cfg.(map[string]any)
+		if !ok {
+			cfgMap = nil // some components like debug exporter can leave configs empty and use defaults
+		}
+		cfgsByRecv[name] = cfgMap
+	}
+	return cfgsByRecv
 }
