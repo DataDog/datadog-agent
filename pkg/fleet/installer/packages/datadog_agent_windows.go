@@ -732,9 +732,9 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 	// this will just stop a watchdog that is running
 	_ = setWatchdogStopEvent()
 
-	// Set the registry key to point to the experiment config
-	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	err := setFleetPoliciesDir(experimentPath)
+	// Set the registry key to point to the previous stable config
+	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
+	err := setFleetPoliciesDir(stablePath)
 	if err != nil {
 		return err
 	}
@@ -771,9 +771,9 @@ func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 		log.Errorf("failed to set premote event: %s", err)
 	}
 
-	// Set the registry key to point to the experiment config
-	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	err = setFleetPoliciesDir(experimentPath)
+	// Set the registry key to point to the stable config (which now contains the promoted experiment)
+	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
+	err = setFleetPoliciesDir(stablePath)
 	if err != nil {
 		return err
 	}
