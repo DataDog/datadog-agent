@@ -142,14 +142,9 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 
 		var fileStats unix.Statx_t
 		if err := unix.Statx(unix.AT_FDCWD, fullPath, 0, unix.STATX_ALL, &fileStats); err != nil {
-			fileinfo, err := os.Stat(fullPath)
+			stat, err := utils.UnixStat(fullPath)
 			if err != nil {
 				seclog.Tracef("unable to stat mapped file %s", fullPath)
-				continue
-			}
-
-			stat, ok := fileinfo.Sys().(*syscall.Stat_t)
-			if !ok {
 				continue
 			}
 
@@ -158,7 +153,8 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.Open.File.FileFields.UID = stat.Uid
 			evt.Open.File.FileFields.GID = stat.Gid
 
-			if fileinfo.Mode().IsRegular() {
+			mode := utils.UnixStatModeToGoFileMode(stat.Mode)
+			if mode.IsRegular() {
 				evt.FieldHandlers.ResolveHashes(model.FileOpenEventType, &pn.Process, &evt.Open.File)
 			}
 		} else {

@@ -17,12 +17,12 @@ import (
 )
 
 // DualTaggerParams returns the params use inside the main agent
-func DualTaggerParams() (tagger.DualParams, tagger.Params, tagger.RemoteParams) {
+func DualTaggerParams() (tagger.DualParams, tagger.RemoteParams) {
 	return tagger.DualParams{
 			UseRemote: func(c config.Component) bool {
 				return pkgconfigsetup.IsCLCRunner(c) && c.GetBool("clc_runner_remote_tagger_enabled")
 			},
-		}, tagger.Params{}, tagger.RemoteParams{
+		}, tagger.RemoteParams{
 			RemoteTarget: func(config.Component) (string, error) {
 				target, err := utils.GetClusterAgentEndpoint()
 				if err != nil {

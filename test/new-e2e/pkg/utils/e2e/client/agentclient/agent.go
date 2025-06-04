@@ -65,6 +65,9 @@ type Agent interface {
 
 	// JMX run the jmx command and returns a Status struct and error
 	JMX(commandArgs ...AgentArgsOption) (*Status, error)
+
+	// WorkloadList runs the workload-list command and returns the output
+	WorkloadList() (*Status, error)
 }
 
 // Status contains the Agent status content

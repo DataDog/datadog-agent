@@ -10,6 +10,7 @@ package agentcrashdetectimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -18,15 +19,13 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
-	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
-	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -60,6 +59,13 @@ var (
 	baseKey = `SOFTWARE\Datadog\Datadog Agent\agent_crash_reporting`
 )
 
+// AgentBSOD for Agent Telemetry reporting
+type AgentBSOD struct {
+	Date     string `json:"date"`
+	Offender string `json:"offender"`
+	BugCheck string `json:"bugcheck"`
+}
+
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
@@ -79,19 +85,19 @@ type AgentCrashDetect struct {
 	instance              *WinCrashConfig
 	reporter              *crashreport.WinCrashReporter
 	crashDetectionEnabled bool
-	tconfig               *traceconfig.AgentConfig
 	probeconfig           compsysconfig.Component
+	atel                  agenttelemetry.Component
 }
 
 type agentCrashComponent struct {
-	tconfig *traceconfig.AgentConfig
 }
 
 type dependencies struct {
 	fx.In
 
-	TConfig   comptraceconfig.Component
-	SConfig   compsysconfig.Component
+	Config compsysconfig.Component
+	Atel   agenttelemetry.Component
+
 	Lifecycle fx.Lifecycle
 }
 
@@ -168,33 +174,37 @@ func (wcd *AgentCrashDetect) Run() error {
 	}
 
 	log.Infof("Sending crash: %v", formatText(crash))
-	lts := internaltelemetry.NewClient(wcd.tconfig.NewHTTPClient(), toTelemEndpoints(wcd.tconfig.TelemetryConfig.Endpoints), "ddnpm", true)
-	lts.SendLog("WARN", formatText(crash))
-	return nil
-}
 
-func toTelemEndpoints(endpoints []*traceconfig.Endpoint) []*internaltelemetry.Endpoint {
-	telemEndpoints := make([]*internaltelemetry.Endpoint, 0, len(endpoints))
-	for _, e := range endpoints {
-		telemEndpoints = append(telemEndpoints, &internaltelemetry.Endpoint{
-			Host:   e.Host,
-			APIKey: e.APIKey,
-		})
+	bsod := AgentBSOD{
+		Date:     crash.DateString,
+		Offender: crash.Offender,
+		BugCheck: crash.BugCheck,
 	}
-	return telemEndpoints
+	var bsodPayload []byte
+	bsodPayload, err = json.Marshal(bsod)
+	if err != nil {
+		return err
+	}
+
+	// "agentbsod" is payload type registered with the Agent Telemetry component
+	err = wcd.atel.SendEvent("agentbsod", bsodPayload)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 	instance := &agentCrashComponent{}
-	instance.tconfig = deps.TConfig.Object()
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			core.RegisterCheck(CheckName, option.New(func() check.Check {
 				checkInstance := &AgentCrashDetect{
 					CheckBase:   core.NewCheckBase(CheckName),
 					instance:    &WinCrashConfig{},
-					tconfig:     instance.tconfig,
-					probeconfig: deps.SConfig,
+					probeconfig: deps.Config,
+					atel:        deps.Atel,
 				}
 				return checkInstance
 			}))

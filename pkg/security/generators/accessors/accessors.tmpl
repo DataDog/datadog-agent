@@ -45,7 +45,7 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 
-func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.GettersOnly }}
@@ -251,6 +251,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			{{else}}
 				Weight: eval.FunctionWeight,
 			{{end}}
+			Offset: offset,
 		}, nil
 	{{end}}
 	}
@@ -272,7 +273,7 @@ func (ev *Event) GetFields() []eval.Field {
 
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	m := &Model{}
-	evaluator, err := m.GetEvaluator(field, "")
+	evaluator, err := m.GetEvaluator(field, "", 0)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +283,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	return value, nil
 }
 
-func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, error) {
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.GettersOnly }}
@@ -290,11 +291,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	{{end}}
 
 	case "{{$Name}}":
-		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, nil
+		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", nil
 	{{end}}
 	}
 
-	return "", reflect.Invalid, &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
 }
 
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {

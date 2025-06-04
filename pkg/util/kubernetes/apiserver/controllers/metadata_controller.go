@@ -25,7 +25,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -560,32 +559,4 @@ func (m *metadataController) deleteService(namespace, svc string) error {
 		m.store.set(node.Name, newMetaBundle)
 	}
 	return nil
-}
-
-// GetPodMetadataNames is used when the API endpoint of the DCA to get the metadata of a pod is hit.
-func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	cacheKey := agentcache.BuildAgentKey(apiserver.MetadataMapperCachePrefix, nodeName)
-	metaBundleInterface, found := agentcache.Cache.Get(cacheKey)
-	if !found {
-		log.Tracef("no metadata was found for the pod %s on node %s", podName, nodeName)
-		return nil, nil
-	}
-
-	metaBundle, ok := metaBundleInterface.(*apiserver.MetadataMapperBundle)
-	if !ok {
-		return nil, fmt.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
-	}
-	// The list of metadata collected in the metaBundle is extensible and is handled here.
-	// If new cluster level tags need to be collected by the agent, only this needs to be modified.
-	serviceList, foundServices := metaBundle.ServicesForPod(ns, podName)
-	if !foundServices {
-		log.Tracef("no cached services list found for the pod %s on the node %s", podName, nodeName)
-		return nil, nil
-	}
-	log.Tracef("CacheKey: %s, with %d services", cacheKey, len(serviceList))
-	var metaList []string
-	for _, s := range serviceList {
-		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
-	}
-	return metaList, nil
 }

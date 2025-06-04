@@ -19,6 +19,7 @@
 #include "span.h"
 #include "syscall_macro.h"
 #include "syscalls.h"
+#include "sysctl.h"
 #include "user_sessions.h"
 #include "utils.h"
 
@@ -28,5 +29,6 @@
 #include "network/router.h"
 #include "network/dns.h"
 #include "network/imds.h"
+#include "network/flow.h"
 
 #endif

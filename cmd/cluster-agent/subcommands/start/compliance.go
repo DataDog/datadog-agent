@@ -11,7 +11,6 @@ import (
 	"context"
 	"os"
 
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -120,9 +119,10 @@ func startCompliance(senderManager sender.SenderManager, wmeta workloadmeta.Comp
 }
 
 func wrapKubernetesClient(apiCl *apiserver.APIClient, isLeader func() bool) compliance.KubernetesProvider {
-	return func(_ context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+	return func(_ context.Context) (dynamic.Interface, compliance.KubernetesGroupsAndResourcesProvider, error) {
 		if isLeader() {
-			return apiCl.DynamicCl, apiCl.Cl.Discovery(), nil
+			discoveryCl := apiCl.Cl.Discovery()
+			return apiCl.DynamicCl, discoveryCl.ServerGroupsAndResources, nil
 		}
 		return nil, nil, compliance.ErrIncompatibleEnvironment
 	}

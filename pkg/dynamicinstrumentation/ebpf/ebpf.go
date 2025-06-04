@@ -13,15 +13,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"text/template"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/diagnostics"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	ebpfruntime "github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,7 +56,35 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 		return fmt.Errorf("could not create bpf collection for probe %s: %w", probe.ID, err)
 	}
 
+	numCPUs, err := kernel.PossibleCPUs()
+	if err != nil {
+		numCPUs = 128
+		log.Error("unable to detect number of CPUs. assuming 128 cores")
+	}
+	outerMapSpec := spec.Maps["param_stacks"]
+	outerMapSpec.MaxEntries = uint32(numCPUs)
+
+	inner := &ebpf.MapSpec{
+		Type:       ebpf.Stack,
+		MaxEntries: 2048,
+		ValueSize:  8,
+	}
+
+	for i := range outerMapSpec.MaxEntries {
+		innerMap, err := ebpf.NewMap(inner)
+		if err != nil {
+			return fmt.Errorf("could not create bpf map for reading memory content: %w", err)
+		}
+		outerMapSpec.Contents = append(outerMapSpec.Contents,
+			ebpf.MapKV{
+				Key:   uint32(i),
+				Value: innerMap,
+			},
+		)
+	}
+
 	mapReplacements := map[string]*ebpf.Map{}
+
 	if probe.ID != ditypes.ConfigBPFProbeID {
 		// config probe is special and should not be on the same ringbuffer
 		// as the rest of regular events. Despite having the same "events" name,
@@ -81,13 +111,17 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 	if err != nil {
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {
-			log.Infof("Verifier error: %+v\n", ve)
+			log.Errorf("Verifier rejection occurred while loading bpf collection for probe %s", probe.ID)
+			log.Tracef("Verifier output for probe %s: %+v\n", probe.ID, ve)
 		}
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", err.Error())
 		return fmt.Errorf("could not load bpf collection for probe %s: %w", probe.ID, err)
 	}
 
-	procInfo.InstrumentationObjects[probe.ID] = bpfObject
+	if procInfo.InstrumentationObjects == nil {
+		procInfo.InstrumentationObjects = ditypes.NewInstrumentationObjectsMap()
+	}
+	procInfo.InstrumentationObjects.Set(probe.ID, bpfObject)
 
 	// Populate map used for zero'ing out regions of memory
 	zeroValMap, ok := bpfObject.Maps["zeroval"]
@@ -105,18 +139,20 @@ func AttachBPFUprobe(procInfo *ditypes.ProcessInfo, probe *ditypes.Probe) error 
 	}
 
 	// Attach BPF probe to function in executable
-	bpfProgram, ok := bpfObject.Programs[probe.GetBPFFuncName()]
+	bpfProgram, ok := bpfObject.Programs[ditypes.GetBPFFuncName(probe)]
 	if !ok {
 		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "ATTACH_ERROR", fmt.Sprintf("couldn't find bpf program for symbol %s", probe.FuncName))
 		return fmt.Errorf("could not find bpf program for symbol %s", probe.FuncName)
 	}
 
+	manager.TraceFSLock.Lock()
 	link, err := executable.Uprobe(probe.FuncName, bpfProgram, &link.UprobeOptions{
 		PID: int(procInfo.PID),
 	})
+	manager.TraceFSLock.Unlock()
 	if err != nil {
-		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "UPROBE_FAILURE", err.Error())
-		return fmt.Errorf("could not attach bpf program via uprobe: %w", err)
+		diagnostics.Diagnostics.SetError(procInfo.ServiceName, procInfo.RuntimeID, probe.ID, "UPROBE_FAILURE", fmt.Sprintf("%s: %s", probe.FuncName, err.Error()))
+		return fmt.Errorf("could not attach bpf program for %s via uprobe: %w", probe.FuncName, err)
 	}
 
 	procInfo.SetUprobeLink(probe.ID, &link)
@@ -132,7 +168,9 @@ func CompileBPFProgram(probe *ditypes.Probe) error {
 		if err != nil {
 			return err
 		}
-		programTemplate, err := template.New("program_template").Parse(string(fileContents))
+		programTemplate, err := template.New("program_template").Funcs(template.FuncMap{
+			"GetBPFFuncName": ditypes.GetBPFFuncName,
+		}).Parse(string(fileContents))
 		if err != nil {
 			return err
 		}
@@ -144,12 +182,12 @@ func CompileBPFProgram(probe *ditypes.Probe) error {
 	}
 
 	cfg := ddebpf.NewConfig()
-	opts := runtime.CompileOptions{
+	opts := ebpfruntime.CompileOptions{
 		AdditionalFlags:  getCFlags(cfg),
 		ModifyCallback:   f,
 		UseKernelHeaders: true,
 	}
-	compiledOutput, err := runtime.Dynamicinstrumentation.CompileWithOptions(cfg, opts)
+	compiledOutput, err := ebpfruntime.Dynamicinstrumentation.CompileWithOptions(cfg, opts)
 	if err != nil {
 		return err
 	}
@@ -162,6 +200,7 @@ func getCFlags(config *ddebpf.Config) []string {
 	cflags := []string{
 		"-g",
 		"-Wno-unused-variable",
+		"-Wno-unused-function",
 	}
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")

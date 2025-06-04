@@ -8,6 +8,7 @@ package uptane
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
@@ -29,7 +30,7 @@ func getTestDB(t *testing.T) *bbolt.DB {
 
 func TestLocalStore(t *testing.T) {
 	db := getTestDB(t)
-	root := []byte(`{"signatures":[{"keyid":"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8","sig":"ada4a7723d462eb4c1f087025f81f5eab5de48cb18b710de94ad2194ee9e0524fafe6eaddf95e894808f8254380a86f8f7219d69bf693d6e1c80db904a47830e"}],"signed":{"_type":"root","consistent_snapshot":true,"expires":"1970-01-01T00:00:00Z","keys":{"44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"286d6ae328365afec0f92519ceab68cd627e34072cde90b2f5d167badea970f2"},"scheme":"ed25519"},"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"afdd68be53815d67f8fa99cf101aac4589a358c660adf7dd4e179fe96834d3c9"},"scheme":"ed25519"}},"roles":{"root":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"snapshot":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"targets":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"timestamp":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2}},"spec_version":"1.0","version":2}}`)
+	root := []byte(`{"signatures":[{"keyid":"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8","sig":"ada4a7723d462eb4c1f087025f81f5eab5de48cb18b710de94ad2194ee9e0524fafe6eaddf95e894808f8254380a86f8f7219d69bf693d6e1c80db904a47830e"}],"signed":{"_type":"root","consistent_snapshot":true,"expires":"1970-01-01T00:00:17Z","keys":{"44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"286d6ae328365afec0f92519ceab68cd627e34072cde90b2f5d167badea970f2"},"scheme":"ed25519"},"b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8":{"keyid_hash_algorithms":["sha256","sha512"],"keytype":"ed25519","keyval":{"public":"afdd68be53815d67f8fa99cf101aac4589a358c660adf7dd4e179fe96834d3c9"},"scheme":"ed25519"}},"roles":{"root":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"snapshot":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"targets":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2},"timestamp":{"keyids":["44d70fa8eae4c07f26c2767270827b6b9e11e7972926b3b419b5ea14ec32f796","b2b93a6dccc96d053e6db39181124c85ba4156d43503d4351b5500316fa084e8"],"threshold":2}},"spec_version":"1.0","version":2}}`)
 	embeddedRoots := meta.NewEmbeddedRoot(root)
 
 	transactionalStore := newTransactionalStore(db)
@@ -41,6 +42,10 @@ func TestLocalStore(t *testing.T) {
 	rootVersion, err := store.GetMetaVersion("root.json")
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), rootVersion)
+
+	rootExpires, err := store.GetMetaExpires("root.json")
+	assert.NoError(t, err)
+	assert.Equal(t, time.Unix(17, 0).In(time.UTC), rootExpires)
 
 	metas, err := store.GetMeta()
 	assert.NoError(t, err)

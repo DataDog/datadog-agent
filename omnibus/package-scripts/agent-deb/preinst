@@ -4,7 +4,6 @@
 #
 # .deb: STEP 2 of 5
 
-INSTALL_DIR=/opt/datadog-agent
 SERVICE_NAME=datadog-agent
 
 set -e
@@ -35,16 +34,9 @@ if [ -f "/lib/systemd/system/$SERVICE_NAME.service" ] || [ -f "/usr/lib/systemd/
     fi
 fi
 
-# For versions < 6.10 using the custom datadog-pip, TUF and in-toto files were kept in TUF_REPO_DIR.
-# They were not being cleaned by these versions, so let's do that now on install/upgrade
-TUF_REPO_DIR=$INSTALL_DIR/repositories
-if [ -d $TUF_REPO_DIR ]; then
-    rm -rf $TUF_REPO_DIR
+# Uninstall the agent if it was installed by the installer
+if command -v datadog-installer >/dev/null 2>&1 && datadog-installer is-installed datadog-agent; then
+    datadog-installer remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
 fi
-
-# Remove any unpacked BTF files
-find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re/btf" -name "*.btf*" -type f -delete || true
-# And remove empty directories
-find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re" -type d -empty -delete || true
 
 exit 0

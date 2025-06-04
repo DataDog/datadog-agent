@@ -17,17 +17,21 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/exp/maps"
 
-	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -47,7 +51,8 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			hostnameimpl.MockModule(),
 		),
 	)
 }
@@ -118,7 +123,6 @@ func TestInitData(t *testing.T) {
 		"service_monitoring_config.enable_http_monitoring":     true,
 		"service_monitoring_config.tls.native.enabled":         true,
 		"service_monitoring_config.enabled":                    true,
-		"service_monitoring_config.tls.java.enabled":           true,
 		"service_monitoring_config.enable_http2_monitoring":    true,
 		"service_monitoring_config.enable_kafka_monitoring":    true,
 		"service_monitoring_config.enable_postgres_monitoring": true,
@@ -174,11 +178,14 @@ func TestInitData(t *testing.T) {
 	}
 	ia := getTestInventoryPayload(t, overrides, sysprobeOverrides)
 	ia.refreshMetadata()
+	isFips, err := fips.Enabled()
+	assert.Nil(t, err)
 
 	expected := map[string]any{
 		"agent_version":                    version.AgentVersion,
 		"agent_startup_time_ms":            pkgconfigsetup.StartTime.UnixMilli(),
 		"flavor":                           flavor.GetFlavor(),
+		"fips_mode":                        isFips,
 		"config_apm_dd_url":                "http://name:********@someintake.example.com/",
 		"config_dd_url":                    "http://name:********@someintake.example.com/",
 		"config_site":                      "test",
@@ -190,7 +197,6 @@ func TestInitData(t *testing.T) {
 		"config_eks_fargate":               true,
 
 		"feature_process_language_detection_enabled": true,
-		"feature_fips_enabled":                       true,
 		"feature_logs_enabled":                       true,
 		"feature_cspm_enabled":                       true,
 		"feature_cspm_host_benchmarks_enabled":       true,
@@ -268,10 +274,11 @@ func TestFlareProviderFilename(t *testing.T) {
 }
 
 func TestConfigRefresh(t *testing.T) {
+	cfg := configmock.New(t)
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfigsetup.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
@@ -526,7 +533,8 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			config.MockModule(),
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
-			authtokenimpl.Module(),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			hostnameimpl.MockModule(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)

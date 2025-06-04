@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 
@@ -38,6 +39,7 @@ type MultiLineSuite struct {
 }
 
 func TestMultiLineSuite(t *testing.T) {
+	flake.Mark(t)
 	s := &MultiLineSuite{}
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(

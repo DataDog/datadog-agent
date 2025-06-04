@@ -40,10 +40,7 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 // ProcessAndContinue enriches the message context with tokens.
 // This implements the Heuristic interface - this heuristic does not stop processing.
 func (t *Tokenizer) ProcessAndContinue(context *messageContext) bool {
-	maxBytes := len(context.rawMessage)
-	if maxBytes > t.maxEvalBytes {
-		maxBytes = t.maxEvalBytes
-	}
+	maxBytes := min(len(context.rawMessage), t.maxEvalBytes)
 	tokens, indicies := t.tokenize(context.rawMessage[:maxBytes])
 	context.tokens = tokens
 	context.tokenIndicies = indicies
@@ -324,10 +321,7 @@ func tokensToString(tokens []tokens.Token) string {
 // used for comparison. This function is optimized to exit early if the match is impossible
 // without having to compare all of the tokens.
 func isMatch(seqA []tokens.Token, seqB []tokens.Token, thresh float64) bool {
-	count := len(seqA)
-	if len(seqB) < count {
-		count = len(seqB)
-	}
+	count := min(len(seqB), len(seqA))
 
 	if count == 0 {
 		return len(seqA) == len(seqB)

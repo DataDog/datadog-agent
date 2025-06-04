@@ -1,7 +1,11 @@
 import os
+import re
 import sys
 import tempfile
+from collections.abc import Iterator
+from typing import NamedTuple
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
@@ -15,13 +19,12 @@ from tasks.libs.common.omnibus import (
     send_cache_miss_event,
     should_retry_bundle_install,
 )
+from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
-from tasks.libs.releasing.version import get_version, load_release_versions
+from tasks.libs.releasing.version import get_version, load_dependencies
 
 
-def omnibus_run_task(
-    ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info", host_distribution=None
-):
+def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
     with ctx.cd("omnibus"):
         overrides_cmd = ""
         if base_dir:
@@ -37,19 +40,13 @@ def omnibus_run_task(
             # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
             omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
 
-        if omnibus_s3_cache:
-            populate_s3_cache = "--populate-s3-cache"
-        else:
-            populate_s3_cache = ""
-
-        cmd = "{omnibus} {task} {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
+        cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
         args = {
             "omnibus": omnibus,
             "task": task,
             "project_name": target_project,
             "log_level": log_level,
             "overrides": overrides_cmd,
-            "populate_s3_cache": populate_s3_cache,
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
@@ -75,7 +72,7 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
                     return
                 except UnexpectedExit as e:
                     if not should_retry_bundle_install(e.result):
-                        print(f'Fatal error while installing omnibus: {e.result.stdout}. Cannot continue.')
+                        print(f'Fatal error while installing omnibus: {e.result.stderr}. Cannot continue.')
                         raise
                     print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
         raise Exit('Too many failures while installing omnibus, giving up')
@@ -84,7 +81,6 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
 def get_omnibus_env(
     ctx,
     skip_sign=False,
-    release_version="nightly",
     major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
@@ -94,7 +90,7 @@ def get_omnibus_env(
     custom_config_dir=None,
     fips_mode=False,
 ):
-    env = load_release_versions(ctx, release_version)
+    env = load_dependencies(ctx)
 
     # If the host has a GOMODCACHE set, try to reuse it
     if not go_mod_cache and os.environ.get('GOMODCACHE'):
@@ -103,7 +99,7 @@ def get_omnibus_env(
     if go_mod_cache:
         env['OMNIBUS_GOMODCACHE'] = go_mod_cache
 
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
+    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION']
     for key in env_override:
         value = os.environ.get(key)
         # Only overrides the env var if the value is a non-empty string.
@@ -159,11 +155,15 @@ def get_omnibus_env(
     env_to_forward = [
         # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
         'DEPLOY_AGENT',
+        # Forward the BUCKET_BRANCH variable to differentiate a nightly pipeline from a release pipeline
+        'BUCKET_BRANCH',
         'PACKAGE_ARCH',
         'INSTALL_DIR',
         'DD_CC',
         'DD_CXX',
         'DD_CMAKE_TOOLCHAIN',
+        'OMNIBUS_FORCE_PACKAGES',
+        'OMNIBUS_PACKAGE_ARTIFACT_DIR',
     ]
     for key in env_to_forward:
         if key in os.environ:
@@ -187,9 +187,7 @@ def build(
     gem_path=None,
     skip_deps=False,
     skip_sign=False,
-    release_version="nightly",
     major_version='7',
-    omnibus_s3_cache=False,
     hardened_runtime=False,
     system_probe_bin=None,
     go_mod_cache=None,
@@ -222,7 +220,6 @@ def build(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        release_version=release_version,
         major_version=major_version,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
@@ -313,7 +310,6 @@ def build(
             target_project=target_project,
             base_dir=base_dir,
             env=env,
-            omnibus_s3_cache=omnibus_s3_cache,
             log_level=log_level,
             host_distribution=host_distribution,
         )
@@ -356,7 +352,6 @@ def manifest(
     base_dir=None,
     gem_path=None,
     skip_sign=False,
-    release_version="nightly",
     major_version='7',
     hardened_runtime=False,
     system_probe_bin=None,
@@ -369,7 +364,6 @@ def manifest(
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
-        release_version=release_version,
         major_version=major_version,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
@@ -397,9 +391,122 @@ def manifest(
         target_project=target_project,
         base_dir=base_dir,
         env=env,
-        omnibus_s3_cache=False,
         log_level=log_level,
     )
+
+
+@task()
+def build_repackaged_agent(ctx, log_level="info"):
+    """
+    Create an Agent package by using an existing Agent package as a base and rebuilding the Agent binaries with the local checkout.
+
+    Currently only expected to work for debian packages, and requires the `dpkg` command to be available.
+    """
+    # Make sure we let the user know that we're going to overwrite the existing Agent installation if present
+    agent_path = "/opt/datadog-agent"
+    if os.path.exists(agent_path):
+        if not yes_no_question(
+            f"The Agent installation directory {agent_path} already exists, and will be overwritten by this build. Continue?",
+            color="red",
+            default=False,
+        ):
+            raise Exit("Operation cancelled")
+
+        import shutil
+
+        shutil.rmtree("/opt/datadog-agent")
+
+    architecture = ctx.run("dpkg --print-architecture", hide=True).stdout.strip()
+
+    # Fetch the Packages file from the nightly repository and get the datadog-agent package with the highest pipeline ID
+    # The assumption here is that only nightlies from master are pushed to the nightly repository
+    # and that simply picking up the highest pipeline ID will give us what we want without having to query Gitlab.
+    packages_url = f"https://apt.datad0g.com/dists/nightly/7/binary-{architecture}/Packages"
+    with requests.get(packages_url, stream=True) as response:
+        response.raise_for_status()
+        lines = response.iter_lines(decode_unicode=True)
+
+        latest_package = max(
+            (pkg for pkg in _packages_from_deb_metadata(lines) if pkg.package_name == "datadog-agent"),
+            key=_pipeline_id_of_package,
+        )
+
+    env = get_omnibus_env(ctx, skip_sign=True, major_version='7', flavor=AgentFlavor.base)
+
+    env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
+    env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+    # Set up compiler flags (assumes an environment based on our glibc-targeting toolchains)
+    if architecture == "amd64":
+        env.update(
+            {
+                "DD_CC": "x86_64-unknown-linux-gnu-gcc",
+                "DD_CXX": "x86_64-unknown-linux-gnu-g++",
+                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake",
+            }
+        )
+    elif architecture == "arm64":
+        env.update(
+            {
+                "DD_CC": "aarch64-unknown-linux-gnu-gcc",
+                "DD_CXX": "aarch64-unknown-linux-gnu-g++",
+                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake",
+            }
+        )
+
+    print("Using the following package as a base:", env['OMNIBUS_REPACKAGE_SOURCE_URL'])
+
+    bundle_install_omnibus(ctx, None, env)
+
+    omnibus_run_task(ctx, "build", "agent", base_dir=None, env=env, log_level=log_level)
+
+
+class DebPackageInfo(NamedTuple):
+    package_name: str | None
+    filename: str | None
+    sha256: str | None
+
+    @classmethod
+    def from_metadata(cls, package_info: dict) -> "DebPackageInfo":
+        """Creates a DebPackageInfo object from a dictionary of package metadata."""
+        return cls(
+            package_name=package_info.get("Package"),
+            filename=package_info.get("Filename"),
+            sha256=package_info.get("SHA256"),
+        )
+
+
+def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo]:
+    """Generator function that yields package blocks from the lines of a deb Packages metadata file."""
+    package_info = {}
+    for line in lines:
+        # Empty line indicates end of package block
+        if not line.strip():
+            if package_info:
+                yield DebPackageInfo.from_metadata(package_info)
+                package_info = {}  # Reset for next package
+            continue
+
+        try:
+            key, value = line.split(":", 1)
+            package_info[key] = value.strip()
+        except ValueError:
+            continue
+
+    # Don't forget the last package if it exists
+    if package_info:
+        yield DebPackageInfo.from_metadata(package_info)
+
+
+def _pipeline_id_of_package(package: DebPackageInfo) -> int:
+    """
+    Returns the pipeline ID of the package, or -1 if the package doesn't have a pipeline ID.
+
+    The filenames are expected to be in the format of pool/d/da/datadog-agent_<version>.pipeline.<pipeline_id>-1_<arch>.deb
+    """
+    pipeline_id_match = re.search(r'pipeline\.(\d+)', package.filename)
+    if pipeline_id_match:
+        return int(pipeline_id_match[1])
+    return -1
 
 
 def _otool_install_path_replacements(otool_output, install_path):

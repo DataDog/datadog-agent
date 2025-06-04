@@ -7,10 +7,18 @@
 package diagnose
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"sort"
+	"strings"
 
 	"go.uber.org/fx"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -21,6 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	"github.com/DataDog/datadog-agent/comp/core/diagnose/format"
+	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
+	diagnoseLocal "github.com/DataDog/datadog-agent/comp/core/diagnose/local"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -33,12 +45,8 @@ import (
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -109,6 +117,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				logscompressorfx.Module(),
 				metricscompressorfx.Module(),
+				diagnosefx.Module(),
 			)
 		},
 	}
@@ -188,6 +197,20 @@ This command print the inventory-agent metadata payload. This payload is used by
 		},
 	}
 
+	payloadHostGpuCmd := &cobra.Command{
+		Use:   "host-gpu",
+		Short: "[internal] Print the host-gpu agent metadata payload.",
+		Long: `
+This command print the host-gpu metadata payload. This payload is used by the 'host page' product.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("host-gpu")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	payloadInventoriesHostCmd := &cobra.Command{
 		Use:   "inventory-host",
 		Short: "[internal] Print the Inventory host metadata payload.",
@@ -206,7 +229,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 		Use:   "inventory-otel",
 		Short: "Print the Inventory otel metadata payload.",
 		Long: `
-This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
+This command print the inventory-otel metadata payload. This payload is used by the 'OTel Agent' product.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("inventory-otel")),
@@ -218,7 +241,7 @@ This command print the inventory-otel metadata payload. This payload is used by 
 
 	payloadInventoriesHaAgentCmd := &cobra.Command{
 		Use:   "ha-agent",
-		Short: "Print the HA Agent metadata payload.",
+		Short: "Print the HA Agent Metadata payload.",
 		Long: `
 This command print the ha-agent metadata payload. This payload is used by the 'HA Agent' feature.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -299,10 +322,23 @@ This command print the security-agent metadata payload. This payload is used by 
 		},
 	}
 
+	agentFullTelemetryCmd := &cobra.Command{
+		Use:   "agent-full-telemetry",
+		Short: "[internal] Print the full agent telemetry metrics exposed by the agent",
+		Long:  `.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printAgentFullTelemetry,
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
+	showPayloadCommand.AddCommand(payloadHostGpuCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHaAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
@@ -310,6 +346,7 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
 	showPayloadCommand.AddCommand(agentTelemetryCmd)
+	showPayloadCommand.AddCommand(agentFullTelemetryCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
@@ -320,42 +357,61 @@ func cmdDiagnose(cliParams *cliParams,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
-	_ log.Component,
+	log log.Component,
 	tagger tagger.Component,
-) error {
-	diagCfg := diagnosis.Config{
-		Verbose:    cliParams.verbose,
-		RunLocal:   cliParams.runLocal,
-		JSONOutput: cliParams.JSONOutput,
-		Include:    cliParams.include,
-		Exclude:    cliParams.exclude,
+	diagnoseComponent diagnose.Component,
+	config config.Component) error {
+
+	diagCfg := diagnose.Config{
+		Verbose: cliParams.verbose,
+		Include: cliParams.include,
+		Exclude: cliParams.exclude,
 	}
 	w := color.Output
 
 	// Is it List command
 	if cliParams.listSuites {
-		diagnose.ListStdOut(w, diagCfg)
+		var sortedSuitesName []string
+		sortedSuitesName = append(sortedSuitesName, diagnose.AllSuites...)
+
+		sort.Strings(sortedSuitesName)
+
+		fmt.Fprintf(w, "Diagnose suites ...\n")
+		for idx, suiteName := range sortedSuitesName {
+			fmt.Fprintf(w, "  %d. %s\n", idx+1, suiteName)
+		}
 		return nil
 	}
 
-	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac, tagger)
 	// Run command
+	var err error
+	var result *diagnose.Result
+	if !cliParams.runLocal {
+		result, err = requestDiagnosesFromAgentProcess(diagCfg)
 
-	// Get the diagnose result
-	diagnoses, err := diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
-	if err != nil && !diagCfg.RunLocal {
-		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
-		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
-
-		diagCfg.RunLocal = true
-		diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnoseDeps)
 		if err != nil {
-			fmt.Fprintln(w, color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))
-			return err
+			if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
+				fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
+				fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+			}
+			result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, senderManager, wmeta, ac, secretResolver, tagger, config)
 		}
+	} else {
+		if !cliParams.JSONOutput { // If JSON output is requested, the output should stay a valid JSON
+			fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
+		}
+		result, err = diagnoseLocal.Run(diagnoseComponent, diagCfg, log, senderManager, wmeta, ac, secretResolver, tagger, config)
 	}
 
-	return diagnose.RunDiagnoseStdOut(w, diagCfg, diagnoses)
+	if err != nil {
+		return err
+	}
+
+	if cliParams.JSONOutput {
+		return format.JSON(w, result)
+	}
+
+	return format.Text(w, diagCfg, result)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future
@@ -365,7 +421,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 		return nil
 	}
 
-	c := util.GetClient(false)
+	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return err
@@ -379,5 +435,68 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 	}
 
 	fmt.Println(string(r))
+	return nil
+}
+
+func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config) (*diagnose.Result, error) {
+	// Get client to Agent's RPC call
+	c := util.GetClient()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return nil, fmt.Errorf("error getting IPC address for the agent: %w", err)
+	}
+
+	// Make sure we have a session token (for privileged information)
+	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
+		return nil, fmt.Errorf("auth error: %w", err)
+	}
+
+	// Form call end-point
+	//nolint:revive // TODO(CINT) Fix revive linter
+	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+
+	// Serialized diag config to pass it to Agent execution context
+	var cfgSer []byte
+	if cfgSer, err = json.Marshal(diagCfg); err != nil {
+		return nil, fmt.Errorf("error while encoding diagnose configuration: %s", err)
+	}
+
+	// Run diagnose code inside Agent process
+	var response []byte
+	response, err = util.DoPost(c, diagnoseURL, "application/json", bytes.NewBuffer(cfgSer))
+	if err != nil {
+		if response != nil && string(response) != "" {
+			return nil, fmt.Errorf("error getting diagnoses from running agent: %s", strings.TrimSpace(string(response)))
+		}
+		return nil, fmt.Errorf("the agent was unable to get diagnoses from running agent: %w", err)
+	}
+
+	// Deserialize results
+	var diagnoses diagnose.Result
+	err = json.Unmarshal(response, &diagnoses)
+	if err != nil {
+		return nil, fmt.Errorf("error while decoding diagnose results returned from Agent: %w", err)
+	}
+
+	return &diagnoses, nil
+}
+
+// printAgentFullTelemetry gets the full telemetry payload exposed by the agent
+func printAgentFullTelemetry(config config.Component) error {
+	c := util.GetClient()
+	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	if err != nil {
+		return err
+	}
+	r, err := c.Get(fmt.Sprintf("http://%s:%s/telemetry", ipcAddress, config.GetString("expvar_port")))
+	if err != nil {
+		return err
+	}
+	defer r.Body.Close()
+	result, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(result))
 	return nil
 }

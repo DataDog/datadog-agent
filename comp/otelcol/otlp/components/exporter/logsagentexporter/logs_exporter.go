@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
@@ -28,6 +29,7 @@ type Exporter struct {
 	logsAgentChannel chan *message.Message
 	logSource        *sources.LogSource
 	translator       *logsmapping.Translator
+	gatewaysUsage    otel.GatewayUsage
 }
 
 // NewExporter initializes a new logs agent exporter with the given parameters
@@ -37,6 +39,18 @@ func NewExporter(
 	logSource *sources.LogSource,
 	logsAgentChannel chan *message.Message,
 	attributesTranslator *attributes.Translator,
+) (*Exporter, error) {
+	return NewExporterWithGatewayUsage(set, cfg, logSource, logsAgentChannel, attributesTranslator, otel.NewDisabledGatewayUsage())
+}
+
+// NewExporterWithGatewayUsage initializes a new logs agent exporter with the given parameters
+func NewExporterWithGatewayUsage(
+	set component.TelemetrySettings,
+	cfg *Config,
+	logSource *sources.LogSource,
+	logsAgentChannel chan *message.Message,
+	attributesTranslator *attributes.Translator,
+	gatewaysUsage otel.GatewayUsage,
 ) (*Exporter, error) {
 	translator, err := logsmapping.NewTranslator(set, attributesTranslator, cfg.OtelSource)
 	if err != nil {
@@ -48,6 +62,7 @@ func NewExporter(
 		logsAgentChannel: logsAgentChannel,
 		logSource:        logSource,
 		translator:       translator,
+		gatewaysUsage:    gatewaysUsage,
 	}, nil
 }
 
@@ -64,7 +79,7 @@ func (e *Exporter) ConsumeLogs(ctx context.Context, ld plog.Logs) (err error) {
 		}
 	}()
 
-	payloads := e.translator.MapLogs(ctx, ld)
+	payloads := e.translator.MapLogs(ctx, ld, e.gatewaysUsage.GetHostFromAttributesHandler())
 	for _, ddLog := range payloads {
 		tags := strings.Split(ddLog.GetDdtags(), ",")
 		// Tags are set in the message origin instead

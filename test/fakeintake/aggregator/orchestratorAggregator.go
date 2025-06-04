@@ -62,6 +62,8 @@ type OrchestratorPayload struct {
 	IngressParentCollector               *agentmodel.CollectorIngress
 	VerticalPodAutoscaler                *agentmodel.VerticalPodAutoscaler
 	VerticalPodAutoscalerParentCollector *agentmodel.CollectorVerticalPodAutoscaler
+	ECSTask                              *agentmodel.ECSTask
+	ECSTaskParentCollector               *agentmodel.CollectorECSTask
 }
 
 func (p OrchestratorPayload) name() string {
@@ -321,6 +323,18 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				UID:                                  verticalPodAutoscaler.Metadata.Uid,
 				Name:                                 verticalPodAutoscaler.Metadata.Name,
 				Tags:                                 append(body.Tags, verticalPodAutoscaler.Tags...),
+			})
+		}
+	case *agentmodel.CollectorECSTask:
+		for _, task := range body.Tasks {
+			out = append(out, &OrchestratorPayload{
+				Type:                   msg.Header.Type,
+				CollectedTime:          payload.Timestamp,
+				ECSTask:                task,
+				ECSTaskParentCollector: body,
+				UID:                    task.Arn,
+				Name:                   task.Arn,
+				Tags:                   task.Tags,
 			})
 		}
 

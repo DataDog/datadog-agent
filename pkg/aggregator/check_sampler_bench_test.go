@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -26,9 +26,10 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -46,12 +47,14 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// flush and because the serializer is not initialized it panics with a nil.
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
+	mockConfig := configmock.New(b)
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
-	taggerComponent := mock.SetupFakeTagger(b)
-	forwarderOpts := forwarder.NewOptionsWithResolvers(pkgconfigsetup.Datadog(), deps.Log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	taggerComponent := taggerfxmock.SetupFakeTagger(b)
+	resolver, _ := resolver.NewSingleDomainResolvers(map[string][]utils.APIKeys{"hello": {utils.NewAPIKeys("", "world")}})
+	forwarderOpts := forwarder.NewOptionsWithResolvers(mockConfig, deps.Log, resolver)
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	sharedForwarder := forwarder.NewDefaultForwarder(pkgconfigsetup.Datadog(), deps.Log, forwarderOpts)
+	sharedForwarder := forwarder.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, logscompressionmock.NewMockCompressor()))
 	haAgent := haagentmock.NewMockHaAgent()
@@ -77,7 +80,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 }
 
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
-	taggerComponent := mock.SetupFakeTagger(b)
+	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	checkSampler := newCheckSampler(1, true, true, 1000, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}

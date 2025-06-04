@@ -41,6 +41,12 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
+agents:
+  containers:
+    otelAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &minimalTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(minimalConfig)))))
@@ -54,7 +60,10 @@ var minimalParams = utils.IAParams{
 
 func (s *minimalTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s, false)
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *minimalTestSuite) TestOTLPTraces() {
@@ -91,4 +100,62 @@ func (s *minimalTestSuite) TestOTelFlareFiles() {
 
 func (s *minimalTestSuite) TestOTelRemoteConfigPayload() {
 	utils.TestOTelRemoteConfigPayload(s, minimalProvidedConfig, minimalFullConfig)
+}
+
+func (s *minimalTestSuite) TestCoreAgentStatus() {
+	utils.TestCoreAgentStatusCmd(s)
+}
+
+func (s *minimalTestSuite) TestOTelAgentStatus() {
+	utils.TestOTelAgentStatusCmd(s)
+}
+
+func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
+	const expectedCfg = `service:
+  extensions:
+  - pprof/dd-autoconfigured
+  - zpages/dd-autoconfigured
+  - health_check/dd-autoconfigured
+  - ddflare/dd-autoconfigured
+  pipelines:
+    logs:
+      exporters:
+      - datadog
+      processors:
+      - batch
+      - infraattributes/dd-autoconfigured
+      receivers:
+      - otlp
+    metrics:
+      exporters:
+      - datadog
+      processors:
+      - batch
+      - infraattributes/dd-autoconfigured
+      receivers:
+      - otlp
+      - datadog/connector
+    metrics/dd-autoconfigured/datadog:
+      exporters:
+      - datadog
+      processors: []
+      receivers:
+      - prometheus/dd-autoconfigured
+    traces:
+      exporters:
+      - datadog/connector
+      processors:
+      - batch
+      - infraattributes/dd-autoconfigured
+      receivers:
+      - otlp
+    traces/send:
+      exporters:
+      - datadog
+      processors:
+      - batch
+      - infraattributes/dd-autoconfigured
+      receivers:
+      - otlp`
+	utils.TestCoreAgentConfigCmd(s, expectedCfg)
 }

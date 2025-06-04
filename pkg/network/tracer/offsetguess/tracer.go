@@ -32,6 +32,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -94,7 +95,7 @@ func NewTracerOffsetGuesser() (OffsetGuesser, error) {
 				{ProbeIdentificationPair: idPair(probes.IP6MakeSkb)},
 				{ProbeIdentificationPair: idPair(probes.IP6MakeSkbPre470)},
 				{ProbeIdentificationPair: idPair(probes.TCPv6ConnectReturn), KProbeMaxActive: 128},
-				{ProbeIdentificationPair: idPair(probes.NetDevQueue)},
+				{ProbeIdentificationPair: idPair(probes.NetDevQueueTracepoint)},
 			},
 		},
 	}, nil
@@ -157,7 +158,7 @@ func extractIPv6AddressAndPort(addr net.Addr) (ip [4]uint32, port uint16, err er
 }
 
 func expectedValues(conn net.Conn) (*fieldValues, error) {
-	netns, err := kernel.GetCurrentIno()
+	netns, err := netns.GetCurrentIno()
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +218,7 @@ func (*tracerOffsetGuesser) Probes(c *config.Config) (map[probes.ProbeFuncName]s
 		return nil, fmt.Errorf("could not kernel version: %w", err)
 	}
 	if kv >= kernel.VersionCode(4, 7, 0) {
-		enableProbe(p, probes.NetDevQueue)
+		enableProbe(p, probes.NetDevQueueTracepoint)
 	}
 
 	if c.CollectTCPv6Conns || c.CollectUDPv6Conns {

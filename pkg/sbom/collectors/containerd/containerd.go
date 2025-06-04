@@ -11,7 +11,6 @@ package containerd
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	"github.com/containerd/containerd"
 
@@ -84,16 +83,13 @@ func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.
 	}
 	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
-	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
+	c.opts = sbom.ScanOptionsFromConfigForContainers(cfg)
 	return nil
 }
 
 // Scan performs the scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	containerdScanRequest, ok := request.(scanRequest)
-	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.ContainerdCollector)}
-	}
+	imageID := request.ID()
 
 	if c.containerdClient == nil {
 		cl, err := cutil.NewContainerdUtil()
@@ -107,11 +103,11 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
 	}
-	imageMeta, err := wmeta.GetImage(containerdScanRequest.ID())
+	imageMeta, err := wmeta.GetImage(imageID)
 	if err != nil {
-		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", containerdScanRequest.ID(), err)}
+		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", imageID, err)}
 	}
-	log.Infof("containerd scan request [%v]: scanning image %v", containerdScanRequest.ID(), imageMeta.Name)
+	log.Infof("containerd scan request [%v]: scanning image %v", imageID, imageMeta.Name)
 
 	image, err := c.containerdClient.Image(imageMeta.Namespace, imageMeta.Name)
 	if err != nil {

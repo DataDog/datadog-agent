@@ -71,6 +71,8 @@ const (
 	PreInitialized StoreKey = "pre_initialized"
 	// MajorVersion config flag parameter name
 	MajorVersion StoreKey = "major_version"
+	// FIPS config flag parameter name
+	FIPS StoreKey = "fips"
 )
 
 const (

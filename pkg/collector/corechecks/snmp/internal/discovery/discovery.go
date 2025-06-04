@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// This code is deprecated, new code is in: comp/core/autodiscovery/listeners/snmp.go
+
 //nolint:revive // TODO(NDM) Fix revive linter
 package discovery
 
@@ -154,7 +156,7 @@ func (d *Discovery) discoverDevices() {
 	defer discoveryTicker.Stop()
 	for {
 		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, subnet.cacheKey), &expvar.String{})
-		subnet.devicesScannedCounter.Store(0)
+		subnet.devicesScannedCounter.Store(uint32(len(subnet.config.IgnoredIPAddresses)))
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
 		copy(startingIP, subnet.startingIP)

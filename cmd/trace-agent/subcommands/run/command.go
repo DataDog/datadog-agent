@@ -17,9 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -111,7 +111,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		}),
 		zstdfx.Module(),
 		trace.Bundle(),
-		fetchonlyimpl.Module(),
+		ipcfx.ModuleReadWrite(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),

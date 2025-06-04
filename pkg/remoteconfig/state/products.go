@@ -34,6 +34,8 @@ var validProducts = map[string]struct{}{
 	ProductTesting2:                     {},
 	ProductOrchestratorK8sCRDs:          {},
 	ProductHaAgent:                      {},
+	ProductNDMDeviceProfilesCustom:      {},
+	ProductMetricControl:                {},
 }
 
 const (
@@ -93,4 +95,8 @@ const (
 	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
 	// ProductHaAgent is the HA Agent product
 	ProductHaAgent = "HA_AGENT"
+	// ProductNDMDeviceProfilesCustom receives user-created SNMP profiles for network device monitoring
+	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
+	// ProductMetricControl receives configuration for the metrics control.
+	ProductMetricControl = "METRIC_CONTROL"
 )

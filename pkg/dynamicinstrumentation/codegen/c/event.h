@@ -20,6 +20,7 @@ typedef struct expression_context {
     event_t *event;  // output event allocated on ringbuffer
     __u64 *temp_storage;  // temporary storage array on heap used by some location expressions
     char *zero_string;    // array of zero's used to zero out buffers
+    struct bpf_map* param_stack;
 } expression_context_t;
 
 #endif

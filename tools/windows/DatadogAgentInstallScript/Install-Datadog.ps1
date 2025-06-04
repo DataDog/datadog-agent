@@ -9,7 +9,7 @@ $GENERAL_ERROR_CODE = 1
 # Set some defaults if not provided
 $ddInstallerUrl = $env:DD_INSTALLER_URL
 if (-Not $ddInstallerUrl) {
-   $ddInstallerUrl = "https://s3.amazonaws.com/dd-agent-mstesting/datadog-installer-x86_64.exe"
+   $ddInstallerUrl = "https://install.datadoghq.com/datadog-installer-x86_64.exe"
 }
 
 $ddRemoteUpdates = $env:DD_REMOTE_UPDATES
@@ -74,11 +74,11 @@ function Send-Telemetry($payload) {
 }
 
 function Show-Error($errorMessage, $errorCode) {
-   Write-Error -ErrorAction Continue @"
-    Datadog Install script failed:
+   Write-Host -ForegroundColor Red @"
+Datadog Install script failed:
 
-    Error message: $($errorMessage)
-    Error code: $($errorCode)
+Error message: $($errorMessage)
+Error code: $($errorCode)
 
 "@
 
@@ -225,11 +225,18 @@ try {
       Remove-Item -Force $installer
    }
 
-   Write-Host "Downloading installer from $ddInstallerUrl"
-   [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
+   # Check if ddInstallerUrl is a local file path
+   if (Test-Path $ddInstallerUrl) {
+      Write-Host "Using local installer file: $ddInstallerUrl"
+      Copy-Item -Path $ddInstallerUrl -Destination $installer
+   } else {
+      Write-Host "Downloading installer from $ddInstallerUrl"
+      [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
+   }
 
-   # If not set the `default-packages` won't contain the Datadog Agent
-   $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT = "True"
+   # set so `default-packages` won't contain the Datadog Agent
+   # as it is now installed during the beginning of the bootstrap process
+   $env:DD_INSTALLER_DEFAULT_PKG_INSTALL_DATADOG_AGENT = "False"
 
    Write-Host "Starting bootstrap process"
    $result = Start-ProcessWithOutput -Path $installer -ArgumentList "bootstrap"
@@ -273,9 +280,11 @@ try {
 }
 catch [ExitCodeException] {
    Show-Error $_.Exception.Message $_.Exception.LastExitCode
+   Exit $_.Exception.LastExitCode
 }
 catch {
    Show-Error $_.Exception.Message $GENERAL_ERROR_CODE
+   Exit $GENERAL_ERROR_CODE
 }
 finally {
    Write-Host "Cleaning up..."

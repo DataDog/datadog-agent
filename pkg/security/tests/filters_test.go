@@ -416,15 +416,15 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_1",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid == 1005`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid == 1005`,
 		},
 		{
 			ID:         "test_equal_2",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid == 0`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid == 0`,
 		},
 		{
 			ID:         "test_equal_3",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid == AUDIT_AUID_UNSET`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid == AUDIT_AUID_UNSET`,
 		},
 	}
 
@@ -466,7 +466,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_range_lesser",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid < 500`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid < 500`,
 		},
 	}
 
@@ -498,7 +498,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_range_greater",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid > 1000`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid > 1000`,
 		},
 	}
 
@@ -530,7 +530,7 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_4",
-			Expression: `open.file.path =~ "/tmp/test-auid" && process.auid != AUDIT_AUID_UNSET`,
+			Expression: `open.file.path =~ "/tmp/test-a*" && process.auid != AUDIT_AUID_UNSET`,
 		},
 	}
 
@@ -562,7 +562,7 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_equal_1",
-			Expression: `unlink.file.path =~ "/tmp/test-auid" && process.auid == 1009`,
+			Expression: `unlink.file.path =~ "/tmp/test-a*" && process.auid == 1009`,
 		},
 	}
 
@@ -585,6 +585,7 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 func TestFilterDiscarderMask(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	// use the same basename to have the basename approver letting pass both open and utimes event
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_mask_open_rule",
@@ -649,7 +650,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 			t.Fatal("shouldn't get a utimes event")
 		}
 
-		// not check that we still have the open allowed
+		// now check that we still have the open allowed
 		test.WaitSignal(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
 			if err != nil {

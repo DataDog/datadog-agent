@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io"
 	"math/bits"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -188,7 +187,7 @@ func TestProcessContext(t *testing.T) {
 		},
 		{
 			ID:         "test_self_exec",
-			Expression: `exec.file.name in ["syscall_tester", "exe"] && exec.argv0 == "selfexec123" && process.comm == "exe"`,
+			Expression: `exec.file.name in ["syscall_tester", "exe"] && exec.argv0 == "selfexec123"`,
 		},
 		{
 			ID:         "test_rule_ctx_1",
@@ -457,9 +456,6 @@ func TestProcessContext(t *testing.T) {
 	test.Run(t, "args-overflow-list-50", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
-		// force seed to have something we can reproduce
-		rand.Seed(1)
-
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
 		for i := 0; i != nArgs; i++ {
@@ -506,9 +502,6 @@ func TestProcessContext(t *testing.T) {
 
 	test.Run(t, "args-overflow-list-500", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
-
-		// force seed to have something we can reproduce
-		rand.Seed(1)
 
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
@@ -612,9 +605,6 @@ func TestProcessContext(t *testing.T) {
 	test.Run(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 
-		// force seed to have something we can reproduce
-		rand.Seed(1)
-
 		// number of envs overflow
 		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		var buf bytes.Buffer
@@ -671,9 +661,6 @@ func TestProcessContext(t *testing.T) {
 
 	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
-
-		// force seed to have something we can reproduce
-		rand.Seed(1)
 
 		// number of envs overflow
 		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
@@ -837,7 +824,9 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_ancestors")
-			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			if !ebpfLessEnabled {
+				assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			}
 		})
 	})
 
@@ -861,8 +850,10 @@ func TestProcessContext(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_parent")
-			assert.Equal(t, "sh", event.ProcessContext.Parent.Comm)
-			assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			if !ebpfLessEnabled {
+				assert.Equal(t, "sh", event.ProcessContext.Parent.Comm)
+				assert.Equal(t, "sh", event.ProcessContext.Ancestor.Comm)
+			}
 		})
 	})
 
@@ -998,8 +989,11 @@ func TestProcessContext(t *testing.T) {
 			_, _ = cmd.CombinedOutput()
 
 			return nil
-		}, test.validateExecEvent(t, kind, func(_ *model.Event, rule *rules.Rule) {
+		}, test.validateExecEvent(t, kind, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_self_exec")
+			if !ebpfLessEnabled {
+				assert.Equal(t, "exe", event.ProcessContext.Comm)
+			}
 		}))
 	})
 
@@ -2277,9 +2271,10 @@ func TestProcessResolution(t *testing.T) {
 
 		// This makes use of the cache and do not parse /proc
 		// it still checks the ResolveFromProcfs returns the correct entry
-		procEntry := resolver.ResolveFromProcfs(pid, nil)
+		procEntry := resolver.ResolveFromProcfs(pid, 0, nil)
 		if procEntry == nil {
-			t.Fatalf("not able to resolve the entry")
+			t.Errorf("not able to resolve the entry of pid %d", pid)
+			return
 		}
 
 		equals(t, mapsEntry, procEntry, false)

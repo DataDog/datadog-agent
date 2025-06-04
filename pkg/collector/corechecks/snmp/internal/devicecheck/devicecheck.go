@@ -10,15 +10,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"reflect"
 	"runtime"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -36,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
@@ -291,7 +292,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 		deviceDiagnosis := d.diagnoses.Report()
 
-		d.sender.ReportNetworkDeviceMetadata(d.config, profile, values, deviceMetadataTags, collectionTime,
+		d.sender.ReportNetworkDeviceMetadata(d.config, profile, values, deviceMetadataTags, metricTags, collectionTime,
 			deviceStatus, pingStatus, deviceDiagnosis)
 	}
 
@@ -416,7 +417,7 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI
-func (d *DeviceCheck) GetDiagnoses() []diagnosis.Diagnosis {
+func (d *DeviceCheck) GetDiagnoses() []diagnose.Diagnosis {
 	return d.diagnoses.ReportAsAgentDiagnoses()
 }
 

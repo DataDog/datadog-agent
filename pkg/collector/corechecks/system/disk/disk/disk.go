@@ -2,13 +2,14 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 //go:build !windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package disk
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 
 	yaml "gopkg.in/yaml.v2"
@@ -153,12 +154,7 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 }
 
 func stringSliceContain(slice []string, x string) bool {
-	for _, e := range slice {
-		if e == x {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, x)
 }
 
 func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []string {

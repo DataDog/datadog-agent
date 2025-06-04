@@ -11,6 +11,7 @@ import (
 	"context"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -52,9 +53,7 @@ func LoadConfiguration(_ context.Context, hostroot string) (string, interface{})
 		data, err := readFileLimit(path)
 		if err == nil {
 			conf := parseAPTConfiguration(data)
-			for k, v := range conf {
-				aptConfs[k] = v
-			}
+			maps.Copy(aptConfs, conf)
 		}
 	}
 

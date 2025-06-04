@@ -66,7 +66,7 @@ func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bo
 	}
 	// reconstruct the list of all DNS requests
 	if len(dn.Requests) > 0 {
-		DNSNames.Insert(dn.Requests[0].Name)
+		DNSNames.Insert(dn.Requests[0].Question.Name)
 	}
 	return false
 }

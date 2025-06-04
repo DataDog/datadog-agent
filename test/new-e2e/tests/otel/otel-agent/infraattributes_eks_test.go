@@ -30,6 +30,12 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
+agents:
+  containers:
+    otelAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSOptions(eks.WithLinuxNodeGroup()), awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
@@ -43,7 +49,10 @@ var eksParams = utils.IAParams{
 
 func (s *iaEKSTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s, false)
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	utils.TestCalendarApp(s, false, utils.CalendarService)
 }
 
 func (s *iaEKSTestSuite) TestOTLPTraces() {
@@ -76,6 +85,12 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
+agents:
+  containers:
+    otelAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
 	e2e.Run(t, &iaUSTEKSTestSuite{}, e2e.WithProvisioner(awskubernetes.EKSProvisioner(awskubernetes.WithEKSOptions(eks.WithLinuxNodeGroup()), awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)))))
@@ -83,7 +98,10 @@ datadog:
 
 func (s *iaUSTEKSTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	utils.TestCalendarApp(s, true)
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	utils.TestCalendarApp(s, true, utils.CalendarService)
 }
 
 func (s *iaUSTEKSTestSuite) TestOTLPTraces() {

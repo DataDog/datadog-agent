@@ -42,7 +42,7 @@ GOARCH_MAPPING = {
 
 def run_golangci_lint(
     ctx,
-    module_path,
+    base_path,
     targets,
     rtloader_root=None,
     build_tags=None,
@@ -67,7 +67,7 @@ def run_golangci_lint(
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
     verbosity = "-v" if verbose else ""
-    # we split targets to avoid going over the memory limit from circleCI
+    # we split targets to reduce memory usage
     results = []
     time_results = []
     for target in targets:
@@ -79,7 +79,7 @@ def run_golangci_lint(
             tags_arg = " ".join(sorted(set(tags)))
             timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
             res = ctx.run(
-                f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
+                f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{base_path}" {golangci_lint_kwargs} {target}/...',
                 env=env,
                 warn=True,
             )
@@ -89,7 +89,7 @@ def run_golangci_lint(
                 raise KeyboardInterrupt()
             return res
 
-        target_path = Path(module_path) / target
+        target_path = Path(base_path) / target
         result, time_result = TimedOperationResult.run(
             lint_module, target_path, 'Lint ' + target_path.as_posix(), target=target
         )
@@ -180,7 +180,7 @@ def lint_licenses(ctx):
                 """\
                 Licenses are not up-to-date.
 
-                Please run 'inv generate-licenses' to update {}."""
+                Please run 'dda inv generate-licenses' to update {}."""
             ).format(file),
             code=1,
         )
@@ -191,7 +191,7 @@ def lint_licenses(ctx):
 @task
 def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
     """
-    Generates the LICENSE-3rdparty.csv file. Run this if `inv lint-licenses` fails.
+    Generates the LICENSE-3rdparty.csv file. Run this if `dda inv lint-licenses` fails.
     """
     new_licenses = get_licenses_list(ctx, filename)
 
@@ -244,8 +244,8 @@ def check_go_mod_replaces(ctx, fix=False):
     if errors_found:
         message = "\nErrors found:\n"
         message += "\n".join("  - " + error for error in sorted(errors_found))
-        message += "\n\n Run `inv check-go-mod-replaces --fix` to fix the errors.\n"
-        message += "This task operates on go.sum files, so make sure to run `inv -e tidy` after fixing the errors."
+        message += "\n\n Run `dda inv check-go-mod-replaces --fix` to fix the errors.\n"
+        message += "This task operates on go.sum files, so make sure to run `dda inv -e tidy` after fixing the errors."
         raise Exit(message=message)
 
 
@@ -303,7 +303,7 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             if os.path.isfile(os.path.join(ctx.cwd, "main")):
                 os.remove(os.path.join(ctx.cwd, "main"))
 
-        raise_if_errors(errors_found, "Run 'inv tidy' to fix 'out of sync' errors.")
+        raise_if_errors(errors_found, "Run 'dda inv tidy' to fix 'out of sync' errors.")
 
 
 @task
@@ -314,7 +314,7 @@ def tidy_all(ctx):
 
 
 @task
-def tidy(ctx):
+def tidy(ctx, verbose: bool = False):
     check_valid_mods(ctx)
 
     ctx.run("go work sync")
@@ -330,20 +330,26 @@ def tidy(ctx):
             resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
 
     # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
+    verbosity = "-x" if verbose else ""
     promises = []
     for mod in get_default_modules().values():
         with ctx.cd(mod.full_path()):
             # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
-            promises.append(ctx.run("go mod tidy", asynchronous=True))
+            promises.append(ctx.run(f"go mod tidy {verbosity}", asynchronous=True))
 
     for promise in promises:
         promise.join()
 
 
+@task(autoprint=True)
+def version(_):
+    return Path(".go-version").read_text(encoding="utf-8").strip()
+
+
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.23.5 linux/amd64"
+    # result is like "go version go1.24.3 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

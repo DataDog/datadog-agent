@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -169,7 +169,7 @@ type DemultiplexerAgentTestDeps struct {
 }
 
 func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
-	taggerComponent := mock.SetupFakeTagger(t)
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	return fxutil.Test[DemultiplexerAgentTestDeps](
 		t,

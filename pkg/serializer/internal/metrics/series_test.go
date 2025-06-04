@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -515,6 +516,7 @@ func TestPayloadsSeries(t *testing.T) {
 		"zlib": {kind: compression.ZlibKind},
 		"zstd": {kind: compression.ZstdKind},
 	}
+	logger := logmock.New(t)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			testSeries := metrics.Series{}
@@ -547,7 +549,7 @@ func TestPayloadsSeries(t *testing.T) {
 			originalLength := len(testSeries)
 
 			compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-			builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor)
+			builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logger)
 			iterableSeries := CreateIterableSeries(CreateSerieSource(testSeries))
 			payloads, err := builder.BuildWithOnErrItemTooBigPolicy(iterableSeries, stream.DropItemOnErrItemTooBig)
 			require.Nil(t, err)
@@ -595,7 +597,7 @@ func BenchmarkPayloadsSeries(b *testing.B) {
 	var r transaction.BytesPayloads
 	mockConfig := mock.New(b)
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
-	builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor)
+	builder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(b))
 	for n := 0; n < b.N; n++ {
 		// always record the result of Payloads to prevent
 		// the compiler eliminating the function call.

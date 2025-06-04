@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"
 
@@ -51,9 +52,12 @@ var supportedDeviceTypes = map[string]bool{
 }
 
 // ReportNetworkDeviceMetadata reports device metadata
-func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, profile profiledefinition.ProfileDefinition, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
+func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, profile profiledefinition.ProfileDefinition, store *valuestore.ResultValueStore, origTags []string, origMetricTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, pingStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := utils.CopyStrings(origTags)
 	tags = sortutil.UniqInPlace(tags)
+
+	metricTags := utils.CopyStrings(origMetricTags)
+	metricTags = sortutil.UniqInPlace(metricTags)
 
 	metadataStore := buildMetadataStore(profile.Metadata, store)
 
@@ -63,7 +67,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
 
-	metadataPayloads := devicemetadata.BatchPayloads(config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
+	metadataPayloads := devicemetadata.BatchPayloads(integrations.SNMP, config.Namespace, config.ResolvedSubnetName, collectTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, diagnoses)
 
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
@@ -90,7 +94,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		if interfaceStatus.Alias != "" {
 			interfaceTags = append(interfaceTags, "interface_alias:"+interfaceStatus.Alias)
 		}
-		interfaceTags = append(interfaceTags, tags...)
+		interfaceTags = append(interfaceTags, metricTags...)
 
 		// append user's custom interface tags
 		interfaceCfg, err := getInterfaceConfig(ms.interfaceConfigs, interfaceIndex, interfaceTags)
@@ -99,7 +103,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		}
 		interfaceTags = append(interfaceTags, interfaceCfg.Tags...)
 
-		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
+		ms.sender.Gauge(interfaceStatusMetric, 1, ms.hostname, interfaceTags)
 	}
 }
 
@@ -473,15 +477,27 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 }
 
 func getRemDeviceAddressByCDPRemIndex(store *metadata.Store, strIndex string) string {
-	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote.device_address_type", strIndex)
-	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
-		return net.IP(store.GetColumnAsByteArray("cdp_remote.device_address", strIndex)).String()
-	} else { //nolint:revive // TODO(NDM) Fix revive linter
-		// TODO: use cdpCacheSecondaryMgmtAddrType or cdpCacheAddress in this case
-		return "" // Note if this is the case this won't pass the backend check and will generate the error
-		// "deviceIP cannot be empty (except when interface id_type is mac_address)"
+	remoteDeviceAddress := getRemDeviceAddressIfIPType(store, strIndex, "device_address_type", "device_address")
+	if remoteDeviceAddress != "" {
+		return remoteDeviceAddress
 	}
 
+	remoteDeviceSecondaryAddress := getRemDeviceAddressIfIPType(store, strIndex, "device_secondary_address_type", "device_secondary_address")
+	if remoteDeviceSecondaryAddress != "" {
+		return remoteDeviceSecondaryAddress
+	}
+
+	// Note: If this also returns an empty string, this won't pass the backend check and will generate the error
+	// "deviceIP cannot be empty (except when interface id_type is mac_address)"
+	return getRemDeviceAddressIfIPType(store, strIndex, "device_cache_address_type", "device_cache_address")
+}
+
+func getRemDeviceAddressIfIPType(store *metadata.Store, strIndex string, addressTypeField string, addressField string) string {
+	remoteDeviceAddressType := store.GetColumnAsString("cdp_remote."+addressTypeField, strIndex)
+	if remoteDeviceAddressType == ciscoNetworkProtocolIPv4 || remoteDeviceAddressType == ciscoNetworkProtocolIPv6 {
+		return net.IP(store.GetColumnAsByteArray("cdp_remote."+addressField, strIndex)).String()
+	}
+	return ""
 }
 
 func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string) string {

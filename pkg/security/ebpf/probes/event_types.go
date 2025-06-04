@@ -46,6 +46,9 @@ func NetworkSelectors() []manager.ProbesSelector {
 			kprobeOrFentry("security_socket_connect"),
 			kprobeOrFentry("security_sk_classify_flow"),
 			kprobeOrFentry("inet_release"),
+			kprobeOrFentry("inet_csk_destroy_sock"),
+			kprobeOrFentry("sk_destruct"),
+			kprobeOrFentry("inet_put_port"),
 			kprobeOrFentry("inet_shutdown"),
 			kprobeOrFentry("inet_bind"),
 			kretprobeOrFexit("inet_bind"),
@@ -75,8 +78,15 @@ func NetworkSelectors() []manager.ProbesSelector {
 }
 
 // SyscallMonitorSelectors is the list of probes that should be activated for the syscall monitor feature
-var SyscallMonitorSelectors = []manager.ProbesSelector{
-	&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sys_enter"}},
+func SyscallMonitorSelectors() []manager.ProbesSelector {
+	return []manager.ProbesSelector{
+		&manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "sys_enter",
+			},
+		},
+	}
 }
 
 // SnapshotSelectors selectors required during the snapshot
@@ -92,15 +102,9 @@ func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
 	}
 }
 
-var selectorsPerEventTypeStore map[eval.EventType][]manager.ProbesSelector
-
 // GetSelectorsPerEventType returns the list of probes that should be activated for each event
 func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSelector {
-	if selectorsPerEventTypeStore != nil {
-		return selectorsPerEventTypeStore
-	}
-
-	selectorsPerEventTypeStore = map[eval.EventType][]manager.ProbesSelector{
+	selectorsPerEventTypeStore := map[eval.EventType][]manager.ProbesSelector{
 		// The following probes will always be activated, regardless of the loaded rules
 		"*": {
 			// Exec probes
@@ -113,12 +117,14 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 					kprobeOrFentry("security_bprm_check"),
 				}},
 				kprobeOrFentry("setup_new_exec_interp"),
+				// kernels < 4.17 will rely on the tracefs events interface to attach kprobes, which requires event names to be unique
+				// because the setup_new_exec_interp and setup_new_exec_args_envs probes are attached to the same function, we rely on using a secondary uid for that purpose
 				kprobeOrFentry("setup_new_exec_args_envs", withUID(SecurityAgentUID+"_a")),
 				kprobeOrFentry("setup_arg_pages"),
 				kprobeOrFentry("mprotect_fixup"),
 				kprobeOrFentry("exit_itimers"),
-				kprobeOrFentry("vfs_open"),
 				kprobeOrFentry("do_dentry_open"),
+				kprobeOrFentry("vfs_open"),
 				kprobeOrFentry("commit_creds"),
 				kprobeOrFentry("switch_task_namespaces"),
 				kprobeOrFentry("do_coredump"),
@@ -187,6 +193,9 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			}},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("filp_close"),
+			}},
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("terminate_walk"),
 			}},
 
 			// iouring
@@ -266,11 +275,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 
 			// Link
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("vfs_link"),
+				// source dentry
+				kprobeOrFentry("complete_walk"),
+				// target dentry
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					kprobeOrFentry("filename_create"),
-					kprobeOrFentry("security_path_link"),
-					kprobeOrFentry("security_path_mkdir"),
+					kretprobeOrFexit("filename_create"),
+					kretprobeOrFexit("__lookup_hash"),
 				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", fentry, EntryAndExit)},
@@ -320,7 +330,6 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				kprobeOrFentry("vfs_mkdir"),
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
 					kprobeOrFentry("filename_create"),
-					kprobeOrFentry("security_path_link"),
 					kprobeOrFentry("security_path_mkdir"),
 				}},
 			}},
@@ -351,6 +360,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("vfs_setxattr"),
 				kprobeOrFentry("mnt_want_write"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("io_fsetxattr"),
+				kretprobeOrFexit("io_fsetxattr"),
+				kprobeOrFentry("io_setxattr"),
+				kretprobeOrFexit("io_setxattr"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("mnt_want_write_file"),
@@ -464,12 +479,20 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("security_socket_bind"),
 			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("io_bind"),
+				kretprobeOrFexit("io_bind"),
+			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bind", fentry, EntryAndExit)},
 		},
 		// List of probes required to capture connect events
 		"connect": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("security_socket_connect"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("io_connect"),
+				kretprobeOrFexit("io_connect"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", fentry, EntryAndExit)},
 		},
@@ -483,6 +506,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchdir", fentry, EntryAndExit)},
 		},
 
+		// List of probes required to capture network_flow_monitor events
 		"network_flow_monitor": {
 			// perf_event probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -492,6 +516,19 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 						EBPFFuncName: "network_stats_worker",
 					},
 				},
+			}},
+		},
+
+		// List of probes required to capture sysctl events
+		"sysctl": {
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.ProbeSelector{
+					ProbeIdentificationPair: manager.ProbeIdentificationPair{
+						UID:          SecurityAgentUID,
+						EBPFFuncName: "cgroup_sysctl",
+					},
+				},
+				kprobeOrFentry("proc_sys_call_handler"),
 			}},
 		},
 	}

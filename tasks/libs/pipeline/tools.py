@@ -4,6 +4,7 @@ import datetime
 import functools
 import platform
 import sys
+from enum import Enum
 from time import sleep, time
 from typing import cast
 
@@ -17,6 +18,55 @@ from tasks.libs.common.git import get_default_branch
 from tasks.libs.common.user_interactions import yes_no_question
 
 PIPELINE_FINISH_TIMEOUT_SEC = 3600 * 5
+
+
+# Reference: https://docs.gitlab.com/api/graphql/reference/#cijobstatus
+class GitlabJobStatus(Enum):
+    CANCELED = "canceled"
+    CANCELING = "canceling"
+    CREATED = "created"
+    FAILED = "failed"
+    MANUAL = "manual"
+    PENDING = "pending"
+    PREPARING = "preparing"
+    RUNNING = "running"
+    SCHEDULED = "scheduled"
+    SKIPPED = "skipped"
+    SUCCESS = "success"
+    WAITING_FOR_CALLBACK = "waiting_for_callback"
+    WAITING_FOR_RESOURCE = "waiting_for_resource"
+
+    def has_finished(self) -> bool:  # noqa
+        """Returns whether Gitlab has executed this job to the end, canceled it,
+        or skipped it. In other words, this function returns True when this job
+        won't be executed anymore unless manually retried."""
+        return self in {self.CANCELED, self.CANCELING, self.FAILED, self.SUCCESS, self.SKIPPED}
+
+    def is_pending(self) -> bool:  # noqa
+        """Returns whether Gitlab has not yet executed this job, but will do so at some point"""
+        return self in {
+            self.CREATED,
+            self.PENDING,
+            self.SCHEDULED,
+            self.WAITING_FOR_CALLBACK,
+            self.WAITING_FOR_RESOURCE,
+            self.MANUAL,
+        }
+
+    def is_running(self) -> bool:  # noqa
+        """Returns whether Gitlab is currently executing this job"""
+        return self in {self.RUNNING, self.PREPARING}
+
+    def will_run_automatically(self) -> bool:  # noqa
+        """Returns True if this job isn't running right now but will be
+        eventually be executed by Gitlab without manual intervention"""
+        return self in {
+            self.CREATED,
+            self.PENDING,
+            self.WAITING_FOR_CALLBACK,
+            self.WAITING_FOR_RESOURCE,
+            self.SCHEDULED,
+        }
 
 
 class FilteredOutException(Exception):
@@ -116,8 +166,6 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
 def trigger_agent_pipeline(
     repo: Project,
     ref=None,
-    release_version_6="nightly",
-    release_version_7="nightly-a7",
     branch="nightly",
     deploy=False,
     deploy_installer=False,
@@ -136,7 +184,7 @@ def trigger_agent_pipeline(
     """
 
     ref = ref or get_default_branch()
-    args = {}
+    args = {"TRIGGERED_PIPELINE": "true"}
 
     if deploy:
         args["DEPLOY_AGENT"] = "true"
@@ -158,12 +206,6 @@ def trigger_agent_pipeline(
         args["RUN_E2E_TESTS"] = "off"
 
     args["RUN_KMT_TESTS"] = "on" if kmt_tests else "off"
-
-    if release_version_6 is not None:
-        args["RELEASE_VERSION_6"] = release_version_6
-
-    if release_version_7 is not None:
-        args["RELEASE_VERSION_7"] = release_version_7
 
     if branch is not None:
         args["BUCKET_BRANCH"] = branch

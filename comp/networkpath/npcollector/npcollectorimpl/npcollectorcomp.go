@@ -8,6 +8,7 @@ package npcollectorimpl
 import (
 	"context"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -28,6 +29,7 @@ type dependencies struct {
 	AgentConfig config.Component
 	Telemetry   telemetry.Component
 	RDNSQuerier rdnsquerier.Component
+	Statsd      statsd.ClientInterface
 }
 
 type provides struct {
@@ -66,7 +68,7 @@ func newNpCollector(deps dependencies) provides {
 			deps.Logger.Errorf("Error getting EpForwarder")
 			collector = newNoopNpCollectorImpl()
 		} else {
-			collector = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.Telemetry, rdnsQuerier)
+			collector = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.Telemetry, rdnsQuerier, deps.Statsd)
 			deps.Lc.Append(fx.Hook{
 				// No need for OnStart hook since NpCollector.Init() will be called by clients when needed.
 				OnStart: func(context.Context) error {

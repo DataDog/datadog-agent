@@ -15,9 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestCreateContainerService(t *testing.T) {
@@ -143,6 +144,7 @@ func TestCreateContainerService(t *testing.T) {
 			Annotations: map[string]string{
 				fmt.Sprintf("ad.datadoghq.com/%s.exclude", kubernetesContainer.Name):         `false`,
 				fmt.Sprintf("ad.datadoghq.com/%s.exclude", kubernetesExcludedContainer.Name): `true`,
+				tolerateUnreadyAnnotation: `true`,
 			},
 		},
 		Containers: []workloadmeta.OrchestratorContainer{
@@ -161,7 +163,29 @@ func TestCreateContainerService(t *testing.T) {
 		Ready: false,
 	}
 
-	taggerComponent := mock.SetupFakeTagger(t)
+	// Define a container excluded by the "container_exclude" config setting
+	containerExcludeConfigSetting := []string{"image:gcr.io/excluded:.*"}
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_exclude", containerExcludeConfigSetting)
+	containerExcludedByConfigSetting := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "excluded",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "excluded",
+		},
+		Image: workloadmeta.ContainerImage{
+			RawName:   "gcr.io/excluded:latest",
+			ShortName: "excluded",
+		},
+		State: workloadmeta.ContainerState{
+			Running: true,
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+	}
+
+	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	tests := []struct {
 		name             string
@@ -270,7 +294,7 @@ func TestCreateContainerService(t *testing.T) {
 						},
 						hosts: map[string]string{"pod": pod.IP},
 						ports: []ContainerPort{},
-						ready: pod.Ready,
+						ready: true,
 					},
 				},
 			},
@@ -279,6 +303,11 @@ func TestCreateContainerService(t *testing.T) {
 			name:             "running in k8s has excluded annotation is excluded",
 			container:        kubernetesExcludedContainer,
 			pod:              pod,
+			expectedServices: map[string]wlmListenerSvc{},
+		},
+		{
+			name:             "excluded by config setting",
+			container:        containerExcludedByConfigSetting,
 			expectedServices: map[string]wlmListenerSvc{},
 		},
 	}

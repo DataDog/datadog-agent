@@ -225,3 +225,23 @@ func TestCachedConntrackClose(t *testing.T) {
 
 	m.EXPECT().Close().Times(len(ctrks))
 }
+
+func TestTracerEbpflessConntrack(t *testing.T) {
+	// when ebfless starts up, the conntrackers will be unsupported and come out nil.
+	conntracker := chainConntrackers(nil, nil)
+	defer conntracker.Close()
+	// sanity check that it is a no-op conntracker like we expect
+	require.Empty(t, conntracker.GetType())
+	tr := &Tracer{
+		config:      testConfig(),
+		conntracker: conntracker,
+	}
+	cachedConntrack := tr.getCachedConntrack()
+	defer cachedConntrack.Close()
+	created, err := cachedConntrack.conntrackCreator(netns.None())
+	require.NoError(t, err)
+	defer created.Close()
+
+	// cachedConntrack should be using no-op conntrack
+	require.True(t, netlink.IsNoOpConntrack(created))
+}

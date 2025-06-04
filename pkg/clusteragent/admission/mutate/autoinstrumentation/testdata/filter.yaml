@@ -12,15 +12,26 @@ apm_config:
             app: "billing-service"
         namespaceSelector:
           matchNames:
-          - "billing-service"
+            - "billing-service"
         ddTraceVersions:
-          python: "v2"
+          python: "v3"
       - name: "Microservices"
         podSelector:
           matchLabels:
             language: "java"
         ddTraceVersions:
           java: "v1"
+      - name: "Enabled Prod Namespaces"
+        namespaceSelector:
+          matchLabels:
+            tracing: "yes"
+          matchExpressions:
+            - key: "env"
+              operator: "In"
+              values:
+                - "prod"
+        ddTraceVersions:
+          dotnet: "v1"
       - name: "Unknown Language"
         podSelector:
           matchLabels:

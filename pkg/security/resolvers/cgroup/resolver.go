@@ -69,7 +69,10 @@ func NewResolver(statsdClient statsd.ClientInterface) (*Resolver, error) {
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
-		value.CallReleaseCallback()
+		if value.CGroupContext.IsContainer() {
+			value.ContainerContext.CallReleaseCallback()
+		}
+		value.CGroupContext.CallReleaseCallback()
 		value.Deleted.Store(true)
 
 		cr.NotifyListeners(CGroupDeleted, value)
@@ -147,6 +150,13 @@ func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupCon
 	defer cr.Unlock()
 
 	return cr.cgroups.Get(cgroupPath)
+}
+
+// GetContainerWorkloads returns the container workloads
+func (cr *Resolver) GetContainerWorkloads() *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry] {
+	cr.Lock()
+	defer cr.Unlock()
+	return cr.containerWorkloads
 }
 
 // GetWorkload returns the workload referenced by the provided ID

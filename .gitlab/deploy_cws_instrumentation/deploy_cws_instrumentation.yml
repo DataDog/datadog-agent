@@ -15,7 +15,7 @@ include:
     - job: "docker_build_cws_instrumentation_arm64"
       artifacts: false
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(inv agent.version --url-safe)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
     - if [[ "$CWS_INSTRUMENTATION_REPOSITORY" == "" ]]; then export CWS_INSTRUMENTATION_REPOSITORY="cws-instrumentation"; fi
     - export IMG_BASE_SRC="${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"

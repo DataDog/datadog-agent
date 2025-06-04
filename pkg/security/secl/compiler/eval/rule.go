@@ -235,7 +235,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 		}
 
 		regID, field := state.registers[0].ID, state.registers[0].Field
-		lenEval, err := model.GetEvaluator(field+".length", regID)
+		lenEval, err := model.GetEvaluator(field+".length", regID, 0)
 		if err != nil {
 			return nil, &ErrIteratorVariable{Err: err}
 		}
@@ -244,10 +244,7 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 
 		// eval with each possible value of the registers
 		evalBool.EvalFnc = func(ctx *Context) bool {
-			size := lenEval.Eval(ctx).(int)
-			if size > maxRegisterIteration {
-				size = maxRegisterIteration
-			}
+			size := min(lenEval.Eval(ctx).(int), maxRegisterIteration)
 
 			for i := 0; i != size; i++ {
 				ctx.Registers[regID] = i

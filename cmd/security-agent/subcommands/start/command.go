@@ -26,14 +26,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/runtime"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -51,9 +50,7 @@ import (
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -102,7 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfigsetup.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle(),
-				dogstatsd.ClientBundle,
+				statsd.Module(),
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
@@ -131,7 +128,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
-					runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
+					runtimeAgent, err := agent.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -167,13 +164,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						PythonVersionGetFunc: python.GetPythonVersion,
 					},
 				),
-				fx.Provide(func(config config.Component) status.HeaderInformationProvider {
-					return status.NewHeaderInformationProvider(hostimpl.StatusProvider{
-						Config: config,
-					})
-				}),
 				statusimpl.Module(),
-				fetchonlyimpl.Module(),
 				configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 				autoexitimpl.Module(),
 				fx.Supply(pidimpl.NewParams(params.pidfilePath)),
@@ -187,6 +178,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				settingsimpl.Module(),
 				logscompressionfx.Module(),
+				ipcfx.ModuleReadWrite(),
 			)
 		},
 	}
@@ -201,10 +193,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) error {
+func start(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) error {
 	defer StopAgent(log)
 
-	err := RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, at)
+	err := RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, ipc)
 	if errors.Is(err, ErrAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -256,7 +248,7 @@ var ErrAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(log log.Component, config config.Component, secrets secrets.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) (err error) {
+func RunAgent(log log.Component, config config.Component, secrets secrets.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) (err error) {
 	if err := coredump.Setup(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -299,7 +291,7 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 		}
 	}()
 
-	srv, err = api.NewServer(statusComponent, settings, wmeta, at, secrets)
+	srv, err = api.NewServer(statusComponent, settings, wmeta, ipc, secrets)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}
@@ -363,6 +355,7 @@ func setupInternalProfiling(config config.Component) error {
 
 		tags := config.GetStringSlice(secAgentKey("internal_profiling.extra_tags"))
 		tags = append(tags, fmt.Sprintf("version:%v", version.AgentVersion))
+		tags = append(tags, "__dd_internal_profiling:datadog-agent")
 
 		profSettings := profiling.Settings{
 			ProfilingURL:         site,

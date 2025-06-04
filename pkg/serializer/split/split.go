@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
 // the backend accepts payloads up to 3MB, but being conservative is okay
@@ -74,7 +74,7 @@ func CheckSizeAndSerialize(m marshaler.AbstractMarshaler, compress bool, marshal
 }
 
 // Payloads serializes a metadata payload and sends it to the forwarder
-func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Component) (transaction.BytesPayloads, error) {
+func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFct, strategy compression.Component, logger log.Component) (transaction.BytesPayloads, error) {
 	marshallers := []marshaler.AbstractMarshaler{m}
 	smallEnoughPayloads := transaction.BytesPayloads{}
 	tooBig, compressedPayload, _, err := CheckSizeAndSerialize(m, compress, marshalFct, strategy)
@@ -83,7 +83,7 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 	}
 	// If the payload's size is fine, just return it
 	if !tooBig {
-		log.Debug("The payload was not too big, returning the full payload")
+		logger.Debug("The payload was not too big, returning the full payload")
 		splitterNotTooBig.Add(1)
 		tlmSplitterNotTooBig.Inc()
 		smallEnoughPayloads = append(smallEnoughPayloads, transaction.NewBytesPayloadWithoutMetaData(compressedPayload))
@@ -114,11 +114,11 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 			// This is the same function used in dd-agent
 			compressionRatio := float64(payloadSize) / float64(compressedSize)
 			numChunks := compressedSize/maxPayloadSizeCompressed + 1 + int(compressionRatio/2)
-			log.Debugf("split the payload into into %d chunks", numChunks)
+			logger.Debugf("split the payload into into %d chunks", numChunks)
 			chunks, err := toSplit.SplitPayload(numChunks)
-			log.Debugf("payload was split into %d chunks", len(chunks))
+			logger.Debugf("payload was split into %d chunks", len(chunks))
 			if err != nil {
-				log.Warnf("Some payloads could not be split, dropping them")
+				logger.Warnf("Some payloads could not be split, dropping them")
 				splitterPayloadDrops.Add(1)
 				tlmSplitterPayloadDrops.Inc()
 				return smallEnoughPayloads, err
@@ -128,30 +128,30 @@ func Payloads(m marshaler.AbstractMarshaler, compress bool, marshalFct MarshalFc
 				// serialize the payload
 				tooBigChunk, compressedPayload, _, err := CheckSizeAndSerialize(chunk, compress, marshalFct, strategy)
 				if err != nil {
-					log.Debugf("Error serializing a chunk: %s", err)
+					logger.Debugf("Error serializing a chunk: %s", err)
 					continue
 				}
 				if !tooBigChunk {
 					// if the payload is small enough, return it straight away
 					smallEnoughPayloads = append(smallEnoughPayloads, transaction.NewBytesPayloadWithoutMetaData(compressedPayload))
-					log.Debugf("chunk was small enough: %v, smallEnoughPayloads are of length: %v", len(compressedPayload), len(smallEnoughPayloads))
+					logger.Debugf("chunk was small enough: %v, smallEnoughPayloads are of length: %v", len(compressedPayload), len(smallEnoughPayloads))
 				} else {
 					// if it is not small enough, append it to the list of payloads
 					marshallers = append(marshallers, chunk)
-					log.Debugf("chunk was not small enough: %v, marshallers are of length: %v", len(compressedPayload), len(marshallers))
+					logger.Debugf("chunk was not small enough: %v, marshallers are of length: %v", len(compressedPayload), len(marshallers))
 				}
 			}
 		}
 		if len(marshallers) == 0 {
-			log.Debug("marshallers was empty, breaking out of the loop")
+			logger.Debug("marshallers was empty, breaking out of the loop")
 			tooBig = false
 		} else {
-			log.Debug("marshallers was not empty, running around the loop again")
+			logger.Debug("marshallers was not empty, running around the loop again")
 			loops++
 		}
 	}
 	if len(marshallers) != 0 {
-		log.Warnf("Some payloads could not be split, dropping them")
+		logger.Warnf("Some payloads could not be split, dropping them")
 		splitterPayloadDrops.Add(1)
 		tlmSplitterPayloadDrops.Inc()
 	}

@@ -25,6 +25,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function
+from tasks.libs.types.types import JobDependency
 
 BASE_URL = "https://gitlab.ddbuild.io"
 CONFIG_SPECIAL_OBJECTS = {
@@ -37,8 +38,8 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token():
-    if "GITLAB_TOKEN" not in os.environ:
-        print("GITLAB_TOKEN not found in env. Trying keychain...")
+    if "GITLAB_TOKEN" not in os.environ and "DD_GITLAB_TOKEN" not in os.environ:
+        print("GITLAB_TOKEN / DD_GITLAB_TOKEN not found in env. Trying keychain...")
         if platform.system() == "Darwin":
             try:
                 output = subprocess.check_output(
@@ -56,7 +57,8 @@ def get_gitlab_token():
             "or export it from your .bashrc or equivalent."
         )
         raise Exit(code=1)
-    return os.environ["GITLAB_TOKEN"]
+
+    return os.environ.get("GITLAB_TOKEN", os.environ.get("DD_GITLAB_TOKEN"))
 
 
 def get_gitlab_bot_token():
@@ -72,9 +74,7 @@ def get_gitlab_bot_token():
             except subprocess.CalledProcessError:
                 print("GITLAB_BOT_TOKEN not found in keychain...")
                 pass
-        print(
-            "Please make sure that the GITLAB_BOT_TOKEN is set or that " "the GITLAB_BOT_TOKEN keychain entry is set."
-        )
+        print("Please make sure that the GITLAB_BOT_TOKEN is set or that the GITLAB_BOT_TOKEN keychain entry is set.")
         raise Exit(code=1)
     return os.environ["GITLAB_BOT_TOKEN"]
 
@@ -1041,8 +1041,7 @@ def get_preset_contexts(required_tests):
     main_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
-        ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
+        ("CI_PIPELINE_SOURCE", ["push", "api"]),  # ["trigger", "pipeline", "schedule"]
         ("DEPLOY_AGENT", ["true"]),
         ("RUN_ALL_BUILDS", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
@@ -1063,7 +1062,7 @@ def get_preset_contexts(required_tests):
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
         ("CI_COMMIT_BRANCH", ["mq-working-branch-main"]),
-        ("CI_PIPELINE_SOURCE", ["pipeline"]),
+        ("CI_PIPELINE_SOURCE", ["api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("RUN_ALL_BUILDS", ["false"]),
         ("RUN_E2E_TESTS", ["auto"]),
@@ -1073,15 +1072,24 @@ def get_preset_contexts(required_tests):
     conductor_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
-        ("CI_COMMIT_TAG", [""]),  # ["", "1.2.3-rc.4", "6.6.6"]
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("DDR_WORKFLOW_ID", ["true"]),
     ]
+    installer_contexts = [
+        ("BUCKET_BRANCH", ["nightly"]),
+        ("CI_COMMIT_BRANCH", ["main"]),
+        ("CI_PIPELINE_SOURCE", ["push", "api"]),
+        ("DEPLOY_AGENT", ["false"]),
+        ("DEPLOY_INSTALLER", ["true"]),
+        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_E2E_TESTS", ["auto"]),
+        ("RUN_KMT_TESTS", ["on"]),
+        ("RUN_UNIT_TESTS", ["on"]),
+    ]
     integrations_core_contexts = [
-        ("RELEASE_VERSION_6", ["nightly"]),
-        ("RELEASE_VERSION_7", ["nightly-a7"]),
         ("BUCKET_BRANCH", ["dev"]),
         ("DEPLOY_AGENT", ["false"]),
+        ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("INTEGRATIONS_CORE_VERSION", ["foo/bar"]),
         ("RUN_KITCHEN_TESTS", ["false"]),
         ("RUN_E2E_TESTS", ["off"]),
@@ -1096,6 +1104,8 @@ def get_preset_contexts(required_tests):
             generate_contexts(mq_contexts, [], all_contexts)
         if test in ["all", "conductor"]:
             generate_contexts(conductor_contexts, [], all_contexts)
+        if test in ["all", "installer"]:
+            generate_contexts(installer_contexts, [], all_contexts)
         if test in ["all", "integrations"]:
             generate_contexts(integrations_core_contexts, [], all_contexts)
     return all_contexts
@@ -1286,8 +1296,8 @@ def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     gitlab_ci = yaml.safe_load("".join(file_content))
     variables = gitlab_ci['variables']
-    # Select the buildimages prefixed with CI_IMAGE matchins input images list + buildimages prefixed with DATADOG_AGENT_
-    images_to_update = list(find_buildimages(variables, images, "CI_IMAGE_")) + list(find_buildimages(variables))
+    # Select the buildimages prefixed with CI_IMAGE matchins input images list
+    images_to_update = list(find_buildimages(variables, images))
     if update:
         output = update_image_tag(file_content, tag, images_to_update, test=test)
         with open(file_path, "w") as gl:
@@ -1295,10 +1305,10 @@ def update_gitlab_config(file_path, tag, images="", test=True, update=True):
     return images_to_update
 
 
-def find_buildimages(variables, images="", prefix="DATADOG_AGENT_"):
+def find_buildimages(variables, images="", prefix="CI_IMAGE_"):
     """
     Select the buildimages variables to update.
-    With default values, the former DATADOG_AGENT_ variables are updated.
+    With default values, the former CI_IMAGE_ variables are updated.
     """
     suffix = "_SUFFIX"
     for variable in variables:
@@ -1333,3 +1343,26 @@ def update_image_tag(lines, tag, variables, test=True):
         else:
             output.append(line)
     return output
+
+
+def get_gitlab_job_dependencies(gitlab_cfg: dict, job_name: str) -> list[JobDependency]:
+    """
+    Get the dependencies of a job from the gitlab configuration.
+    """
+    job_dependencies = []
+    job_data = gitlab_cfg[job_name]
+    if "needs" in job_data:
+        for need in job_data["needs"]:
+            job_name = need["job"]
+            matrix_needs = need.get('parallel', {}).get('matrix', [])
+            tags = []
+            for matrix_need in matrix_needs:
+                need_tags = []
+                for tag_name, tag_values in matrix_need.items():
+                    if isinstance(tag_values, str):
+                        tag_values = [tag_values]
+                    need_tags.append((tag_name, set(tag_values)))
+                tags.append(need_tags)
+
+            job_dependencies.append(JobDependency(job_name, tags))
+    return job_dependencies

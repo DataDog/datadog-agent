@@ -27,6 +27,24 @@ func getFlowProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_inet_csk_destroy_sock",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_sk_destruct",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_inet_put_port",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_sk_common_release",
 			},
 		},
@@ -96,8 +114,8 @@ func getFlowProbes() []*manager.Probe {
 // GetAllFlushNetworkStatsTaillCallFunctions returns the list of network flush tail call functions
 func GetAllFlushNetworkStatsTaillCallFunctions() []string {
 	return []string{
-		"tail_call_target_flush_network_stats_exec",
-		"tail_call_target_flush_network_stats_exit",
+		tailCallFnc("flush_network_stats_exec"),
+		tailCallFnc("flush_network_stats_exit"),
 	}
 }
 
@@ -107,14 +125,14 @@ func getFlushNetworkStatsTailCallRoutes() []manager.TailCallRoute {
 			ProgArrayName: "flush_network_stats_progs",
 			Key:           FlushNetworkStatsExecKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_flush_network_stats_exec",
+				EBPFFuncName: tailCallFnc("flush_network_stats_exec"),
 			},
 		},
 		{
 			ProgArrayName: "flush_network_stats_progs",
 			Key:           FlushNetworkStatsExitKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tail_call_target_flush_network_stats_exit",
+				EBPFFuncName: tailCallFnc("flush_network_stats_exit"),
 			},
 		},
 	}

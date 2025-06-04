@@ -68,6 +68,11 @@ const (
 	samplerHasher = uint64(1111111111111111111)
 )
 
+// IsKeep returns whether the priority is "keep".
+func (s SamplingPriority) IsKeep() bool {
+	return s == PriorityAutoKeep || s == PriorityUserKeep
+}
+
 func (s SamplingPriority) tagValue() string {
 	switch s {
 	case PriorityUserDrop:

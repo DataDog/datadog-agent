@@ -56,12 +56,47 @@ func (k *KnownFlakyTests) IsFlaky(pkg string, testName string) bool {
 // Parse parses the reader in the flake.yaml format
 func Parse(r io.Reader) (*KnownFlakyTests, error) {
 	dec := yaml.NewDecoder(r)
-	pkgToTests := make(map[string][]map[string]string)
+	pkgToTests := make(map[string]interface{})
+
 	if err := dec.Decode(&pkgToTests); err != nil {
 		return nil, fmt.Errorf("unmarshal: %w", err)
 	}
-	kf := &KnownFlakyTests{packageTestList: make(map[string]map[string]struct{})}
+	// Convert the map[string]interface{} to a map[string]map[string]string after excluding on-log
+	pkgToTestsWithoutOnLog := make(map[string][]map[string]string)
 	for pkg, tests := range pkgToTests {
+		if pkg == "on-log" {
+			continue
+		}
+
+		testsSlice, ok := tests.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid tests format for package %s", pkg)
+		}
+
+		var parsedTests []map[string]string
+		for _, test := range testsSlice {
+			testMap, ok := test.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("invalid test entry format for package %s", pkg)
+			}
+
+			// Convert each test entry to map[string]string
+			convertedTest := make(map[string]string)
+			for k, v := range testMap {
+				if str, ok := v.(string); ok {
+					convertedTest[k] = str
+				} else {
+					return nil, fmt.Errorf("invalid test field value for package %s: %v", pkg, v)
+				}
+			}
+			parsedTests = append(parsedTests, convertedTest)
+		}
+
+		pkgToTestsWithoutOnLog[pkg] = parsedTests
+	}
+
+	kf := &KnownFlakyTests{packageTestList: make(map[string]map[string]struct{})}
+	for pkg, tests := range pkgToTestsWithoutOnLog {
 		for _, t := range tests {
 			if _, ok := t["test"]; !ok {
 				return nil, fmt.Errorf("test field is required for %s", pkg)

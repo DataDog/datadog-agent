@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -34,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/tar"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,6 +60,8 @@ const (
 	DatadogPackageLayerMediaType types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
 	// DatadogPackageConfigLayerMediaType is the media type for the optional Datadog Package config layer.
 	DatadogPackageConfigLayerMediaType types.MediaType = "application/vnd.datadog.package.config.layer.v1.tar+zstd"
+	// DatadogPackageInstallerLayerMediaType is the media type for the optional Datadog Package installer layer.
+	DatadogPackageInstallerLayerMediaType types.MediaType = "application/vnd.datadog.package.installer.layer.v1"
 )
 
 const (
@@ -332,12 +335,19 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string)
 					if err != nil {
 						return err
 					}
-					err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+
+					switch layerMediaType {
+					case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType:
+						err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+					case DatadogPackageInstallerLayerMediaType:
+						err = writeBinary(uncompressedLayer, dir)
+					default:
+						return fmt.Errorf("unsupported layer media type: %s", layerMediaType)
+					}
 					uncompressedLayer.Close()
 					if err != nil {
 						return err
 					}
-
 					return nil
 				},
 			)
@@ -413,6 +423,10 @@ func isRetryableNetworkError(err error) bool {
 		}
 	}
 
+	if strings.Contains(err.Error(), "connection reset by peer") {
+		return true
+	}
+
 	return isStreamResetError(err)
 }
 
@@ -443,4 +457,25 @@ func (k usernamePasswordKeychain) Resolve(_ authn.Resource) (authn.Authenticator
 		Username: k.username,
 		Password: k.password,
 	}), nil
+}
+
+// writeBinary extracts the binary from the given reader to the given path.
+func writeBinary(r io.Reader, path string) error {
+	outFile, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("could not create file: %w", err)
+	}
+	defer outFile.Close()
+
+	limitedReader := io.LimitReader(r, layerMaxSize)
+	_, err = io.Copy(outFile, limitedReader)
+	if err != nil {
+		return fmt.Errorf("could not write to file: %w", err)
+	}
+
+	if err := outFile.Chmod(0700); err != nil {
+		return fmt.Errorf("could not set file permissions: %w", err)
+	}
+
+	return nil
 }

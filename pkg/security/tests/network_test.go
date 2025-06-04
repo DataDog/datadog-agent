@@ -71,7 +71,7 @@ func TestNetworkCIDR(t *testing.T) {
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
-			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
+			assert.Equal(t, "google.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
 		})
@@ -101,6 +101,11 @@ func TestRawPacket(t *testing.T) {
 
 	testDestIP := "192.168.172.171"
 	testUDPDestPort := uint16(12345)
+
+	_, expectedIPNet, err := net.ParseCIDR(testDestIP + "/32")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// create dummy interface
 	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testDestIP+"/32")
@@ -142,10 +147,6 @@ func TestRawPacket(t *testing.T) {
 			assert.Equal(t, "packet", event.GetType(), "wrong event type")
 			assertTriggeredRule(t, rule, "test_rule_raw_packet_udp4")
 			assertFieldEqual(t, event, "packet.l3_protocol", int(model.EthPIP))
-			_, expectedIPNet, err := net.ParseCIDR(testDestIP + "/32")
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "packet.destination.ip", *expectedIPNet)
 			assertFieldEqual(t, event, "packet.l4_protocol", int(model.IPProtoUDP))
 			assertFieldEqual(t, event, "packet.destination.port", int(testUDPDestPort))
@@ -246,12 +247,12 @@ func TestRawPacketFilter(t *testing.T) {
 
 	for _, filter := range filters {
 		t.Run(filter.BPFFilter, func(t *testing.T) {
-			runTest(t, []rawpacket.Filter{filter}, rawpacket.DefaultProgOpts)
+			runTest(t, []rawpacket.Filter{filter}, rawpacket.DefaultProgOpts())
 		})
 	}
 
 	t.Run("all-without-limit", func(t *testing.T) {
-		runTest(t, filters, rawpacket.DefaultProgOpts)
+		runTest(t, filters, rawpacket.DefaultProgOpts())
 	})
 
 	t.Run("all-with-limit", func(t *testing.T) {
@@ -260,7 +261,7 @@ func TestRawPacketFilter(t *testing.T) {
 			return kv.IsDebianKernel() && kv.Code < kernel.Kernel5_2
 		})
 
-		opts := rawpacket.DefaultProgOpts
+		opts := rawpacket.DefaultProgOpts()
 		opts.MaxProgSize = 4000
 		opts.NopInstLen = 3500
 		runTest(t, filters, opts)

@@ -7,6 +7,7 @@
 package agenttests
 
 import (
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -18,7 +19,7 @@ import (
 )
 
 type testAgentInstallSuite struct {
-	installerwindows.BaseInstallerSuite
+	installerwindows.BaseSuite
 }
 
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
@@ -42,7 +43,7 @@ func (s *testAgentInstallSuite) installAgent() {
 	// Arrange
 
 	// Act
-	output, err := s.Installer().InstallPackage(installerwindows.AgentPackage)
+	output, err := s.Installer().InstallPackage(consts.AgentPackage)
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
@@ -53,13 +54,13 @@ func (s *testAgentInstallSuite) removeAgentPackage() {
 	// Arrange
 
 	// Act
-	output, err := s.Installer().RemovePackage(installerwindows.AgentPackage)
+	output, err := s.Installer().RemovePackage(consts.AgentPackage)
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to remove the Datadog Agent package: %s", output)
 	s.Require().Host(s.Env().RemoteHost).HasNoDatadogAgentService()
 	s.Require().Host(s.Env().RemoteHost).
-		NoDirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage),
+		NoDirExists(consts.GetStableDirFor(consts.AgentPackage),
 			"the package directory should be removed")
 }
 
@@ -85,6 +86,6 @@ func (s *testAgentInstallSuite) uninstallAgentWithMSI() {
 	// Assert
 	s.Require().NoErrorf(err, "failed to uninstall the Datadog Agent package")
 	s.Require().Host(s.Env().RemoteHost).
-		DirExists(installerwindows.GetStableDirFor(installerwindows.AgentPackage),
+		DirExists(consts.GetStableDirFor(consts.AgentPackage),
 			"the package directory should still exist after manually uninstalling the Agent with the MSI")
 }

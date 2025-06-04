@@ -8,12 +8,13 @@ package file
 
 import (
 	"regexp"
+	"slices"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
@@ -258,7 +259,7 @@ func (s *Launcher) removeSource(source *sources.LogSource) {
 	for i, src := range s.activeSources {
 		if src == source {
 			// no need to stop the tailer here, it will be stopped in the next iteration of scan.
-			s.activeSources = append(s.activeSources[:i], s.activeSources[i+1:]...)
+			s.activeSources = slices.Delete(s.activeSources, i, i+1)
 			break
 		}
 	}

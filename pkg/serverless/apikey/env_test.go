@@ -6,19 +6,21 @@
 package apikey
 
 import (
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-var getFunc = func(string) (string, error) {
+var getFunc = func(string, aws.FIPSEndpointState) (string, error) {
 	return "DECRYPTED_VAL", nil
 }
 
 var mockSetSecretsFromEnv = func(t *testing.T, testEnvVars []string) {
-	for envKey, envVal := range getSecretEnvVars(testEnvVars, getFunc, getFunc) {
+	for envKey, envVal := range getSecretEnvVars(testEnvVars, getFunc, getFunc, false) {
 		t.Setenv(envKey, strings.TrimSpace(envVal))
 	}
 }
@@ -35,13 +37,49 @@ func TestGetSecretEnvVars(t *testing.T) {
 		"DD_KMS_API_KEY=123",
 	}
 
-	decryptedEnvVars := getSecretEnvVars(testEnvVars, getFunc, getFunc)
+	decryptedEnvVars := getSecretEnvVars(testEnvVars, getFunc, getFunc, false)
 
 	assert.Equal(t, map[string]string{
 		"TEST_KMS":   "DECRYPTED_VAL",
 		"TEST_SM":    "DECRYPTED_VAL",
 		apiKeyEnvVar: "DECRYPTED_VAL",
 	}, decryptedEnvVars)
+}
+
+func TestGetSecretEnvVarsWithFIPS(t *testing.T) {
+	tests := []struct {
+		shouldUseFips bool
+		expectedFIPS  aws.FIPSEndpointState
+	}{
+		{true, aws.FIPSEndpointStateEnabled},
+		{false, aws.FIPSEndpointStateUnset},
+	}
+
+	for _, tc := range tests {
+		t.Run(strconv.FormatBool(tc.shouldUseFips), func(t *testing.T) {
+			var kmsFIPS aws.FIPSEndpointState
+			var smFIPS aws.FIPSEndpointState
+			mockKMSFunc := func(_ string, fips aws.FIPSEndpointState) (string, error) {
+				kmsFIPS = fips
+				return "decrypted", nil
+			}
+			mockSMFunc := func(_ string, fips aws.FIPSEndpointState) (string, error) {
+				smFIPS = fips
+				return "decrypted", nil
+			}
+
+			testEnvVars := []string{
+				"TEST_KMS_KMS_ENCRYPTED=test",
+				"TEST_SM_SECRET_ARN=test",
+			}
+			getSecretEnvVars(testEnvVars, mockKMSFunc, mockSMFunc, tc.shouldUseFips)
+
+			assert.Equal(t, tc.expectedFIPS, kmsFIPS,
+				"kmsFunc received wrong FIPS state")
+			assert.Equal(t, tc.expectedFIPS, smFIPS,
+				"smFunc received wrong FIPS state")
+		})
+	}
 }
 
 func TestDDApiKey(t *testing.T) {

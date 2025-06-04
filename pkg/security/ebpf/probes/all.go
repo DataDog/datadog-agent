@@ -36,6 +36,19 @@ var (
 	EventsPerfRingBufferSize = 256 * os.Getpagesize()
 )
 
+// see kernel definitions
+func tailCallFnc(name string) string {
+	return "tail_call_" + name
+}
+
+func tailCallTracepointFnc(name string) string {
+	return "tail_call_tracepoint_" + name
+}
+
+func tailCallClassifierFnc(name string) string {
+	return "tail_call_classifier_" + name
+}
+
 func appendSyscallProbes(probes []*manager.Probe, fentry bool, flag int, compat bool, syscalls ...string) []*manager.Probe {
 	for _, syscall := range syscalls {
 		probes = append(probes,
@@ -66,7 +79,7 @@ func computeDefaultEventsRingBufferSize() uint32 {
 }
 
 // AllProbes returns the list of all the probes of the runtime security module
-func AllProbes(fentry bool) []*manager.Probe {
+func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	var allProbes []*manager.Probe
 	allProbes = append(allProbes, getAttrProbes(fentry)...)
 	allProbes = append(allProbes, getExecProbes(fentry)...)
@@ -99,6 +112,7 @@ func AllProbes(fentry bool) []*manager.Probe {
 	allProbes = append(allProbes, getChdirProbes(fentry)...)
 	allProbes = append(allProbes, GetOnDemandProbes()...)
 	allProbes = append(allProbes, GetPerfEventProbes()...)
+	allProbes = append(allProbes, getSysCtlProbes(cgroup2MountPoint)...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -182,6 +196,8 @@ type MapSpecEditorOpts struct {
 	SecurityProfileMaxCount   int
 	ReducedProcPidCacheSize   bool
 	NetworkFlowMonitorEnabled bool
+	NetworkSkStorageEnabled   bool
+	SpanTrackMaxCount         int
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -215,11 +231,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"rate_limiters": {
+		"pid_rate_limiters": {
 			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
-
 		"active_flows": {
 			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
@@ -256,6 +271,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"span_tls": {
+			MaxEntries: uint32(opts.SpanTrackMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 
 	if opts.PathResolutionEnabled {
@@ -289,11 +308,20 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 	}
 
-	if !kv.HasSKStorage() {
+	if opts.NetworkSkStorageEnabled {
+		// SK_Storage maps are enabled and available, delete fall back
+		editors["sock_meta"] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			KeySize:    1,
+			ValueSize:  1,
+			MaxEntries: 1,
+			EditorFlag: manager.EditKeyValue | manager.EditType | manager.EditMaxEntries,
+		}
+	} else {
 		// Edit each SK_Storage map and transform them to a basic hash maps so they can be loaded by older kernels.
 		// We need this so that the eBPF manager can link the SK_Storage maps in our eBPF programs, even if deadcode
 		// elimination will clean up the piece of code that work with them prior to running the verifier.
-		editors["sock_active_pid_route"] = manager.MapSpecEditor{
+		editors["sk_storage_meta"] = manager.MapSpecEditor{
 			Type:       ebpf.Hash,
 			KeySize:    1,
 			ValueSize:  1,
@@ -340,6 +368,7 @@ func AllRingBuffers() []*manager.RingBuffer {
 func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonitorEnabled, rawPacketEnabled, supportMmapableMaps bool) []manager.TailCallRoute {
 	var routes []manager.TailCallRoute
 
+	routes = append(routes, getOpenTailCallRoutes()...)
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(eRPCDentryResolutionEnabled, supportMmapableMaps)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
@@ -356,7 +385,7 @@ func AllTailRoutes(eRPCDentryResolutionEnabled, networkEnabled, networkFlowMonit
 // AllBPFProbeWriteUserProgramFunctions returns the list of program functions that use the bpf_probe_write_user helper
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
-		"tail_call_target_dentry_resolver_erpc_write_user",
+		tailCallFnc("dentry_resolver_erpc_write_user"),
 	}
 }
 

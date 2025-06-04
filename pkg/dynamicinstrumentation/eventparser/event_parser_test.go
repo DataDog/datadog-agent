@@ -9,6 +9,7 @@ package eventparser
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
@@ -148,6 +149,7 @@ func TestReadParams(t *testing.T) {
 	tests := []struct {
 		name           string
 		inputBuffer    []byte
+		indicies       []uint64
 		expectedResult []*ditypes.Param
 	}{
 		{
@@ -165,18 +167,14 @@ func TestReadParams(t *testing.T) {
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 				0, 0, 0, 0,
 			},
+			indicies: []uint64{0},
 			expectedResult: []*ditypes.Param{{
-				Type: "slice", Size: 0x2, Kind: 0x17,
+				Type: "[]struct", Size: 0x1, Kind: 0x17,
 				Fields: []*ditypes.Param{
 					{Type: "struct", Size: 0x3, Kind: 0x19, Fields: []*ditypes.Param{
 						{ValueStr: "1", Type: "uint8", Size: 0x1, Kind: 0x8},
 						{ValueStr: "2", Type: "uint16", Size: 0x2, Kind: 0x9},
 						{ValueStr: "3", Type: "uint8", Size: 0x1, Kind: 0x8},
-					}},
-					{Type: "struct", Size: 0x3, Kind: 0x19, Fields: []*ditypes.Param{
-						{ValueStr: "4", Type: "uint8", Size: 0x1, Kind: 0x8},
-						{ValueStr: "5", Type: "uint16", Size: 0x2, Kind: 0x9},
-						{ValueStr: "6", Type: "uint8", Size: 0x1, Kind: 0x8},
 					}},
 				},
 			}},
@@ -185,7 +183,7 @@ func TestReadParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := readParams(tt.inputBuffer)
+			output := readParams(tt.indicies, tt.inputBuffer)
 			assert.Equal(t, output, tt.expectedResult)
 		})
 	}
@@ -217,16 +215,8 @@ func TestParseTypeDefinition(t *testing.T) {
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			},
 			expectedResult: &ditypes.Param{
-				Type: "slice", Size: 0x2, Kind: 0x17,
+				Type: "[]struct", Size: 0x1, Kind: 0x17,
 				Fields: []*ditypes.Param{
-					{
-						Type: "struct", Size: 0x3, Kind: 0x19,
-						Fields: []*ditypes.Param{
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-							{Type: "uint16", Size: 0x2, Kind: 0x9},
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-						},
-					},
 					{
 						Type: "struct", Size: 0x3, Kind: 0x19,
 						Fields: []*ditypes.Param{
@@ -256,23 +246,8 @@ func TestParseTypeDefinition(t *testing.T) {
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			},
 			expectedResult: &ditypes.Param{
-				Type: "slice", Size: 0x2, Kind: 0x17,
+				Type: "[]struct", Size: 0x1, Kind: 0x17,
 				Fields: []*ditypes.Param{
-					{
-						Type: "struct", Size: 0x4, Kind: 0x19,
-						Fields: []*ditypes.Param{
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-							{Type: "uint8", Size: 0x1, Kind: 0x8},
-							{
-								Type: "struct", Size: 0x2, Kind: 0x19,
-								Fields: []*ditypes.Param{
-									{Type: "uint8", Size: 0x1, Kind: 0x8},
-									{Type: "uint8", Size: 0x1, Kind: 0x8},
-								},
-							},
-						},
-					},
 					{
 						Type: "struct", Size: 0x4, Kind: 0x19,
 						Fields: []*ditypes.Param{
@@ -328,17 +303,19 @@ func TestParseParams(t *testing.T) {
 	type testCase struct {
 		Name           string
 		Buffer         []byte
+		Indicies       []uint64
 		ExpectedOutput []*ditypes.Param
 	}
 
 	testCases := []testCase{
 		{
-			Name:   "uint slice ok",
-			Buffer: []byte{23, 3, 0, 7, 8, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			Name:     "uint slice ok",
+			Buffer:   []byte{23, 3, 0, 7, 8, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			Indicies: []uint64{0},
 			ExpectedOutput: []*ditypes.Param{
 				{
-					Type: "slice",
-					Size: 3,
+					Type: "[]uint",
+					Size: 1,
 					Kind: byte(reflect.Slice),
 					Fields: []*ditypes.Param{
 						{
@@ -347,28 +324,17 @@ func TestParseParams(t *testing.T) {
 							Type:     "uint",
 							Size:     8,
 						},
-						{
-							Kind:     byte(reflect.Uint),
-							ValueStr: "2",
-							Type:     "uint",
-							Size:     8,
-						},
-						{
-							Kind:     byte(reflect.Uint),
-							ValueStr: "3",
-							Type:     "uint",
-							Size:     8,
-						},
 					},
 				},
 			},
 		},
 		{
-			Name:   "uint pointer ok",
-			Buffer: []byte{22, 8, 0, 7, 8, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			Name:     "uint pointer ok",
+			Buffer:   []byte{22, 8, 0, 7, 8, 0, 248, 60, 128, 0, 64, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			Indicies: []uint64{0},
 			ExpectedOutput: []*ditypes.Param{
 				{
-					Type: "ptr",
+					Type: "*uint",
 					Size: 8,
 					Kind: byte(reflect.Pointer),
 					Fields: []*ditypes.Param{
@@ -383,36 +349,31 @@ func TestParseParams(t *testing.T) {
 			},
 		},
 		{
-			Name:   "struct pointer ok",
-			Buffer: []byte{22, 8, 0, 25, 3, 0, 1, 1, 0, 2, 8, 0, 4, 2, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			Name:     "struct pointer ok",
+			Buffer:   []byte{22, 8, 0, 25, 2, 0, 7, 8, 0, 1, 1, 0, 248, 60, 128, 0, 64, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			Indicies: []uint64{0},
 			ExpectedOutput: []*ditypes.Param{
 				{
-					Type: "ptr",
+					Type: "*struct",
 					Size: 8,
 					Kind: byte(reflect.Pointer),
 					Fields: []*ditypes.Param{
 						{
 							Type: "struct",
-							Size: 3,
+							Size: 2,
 							Kind: byte(reflect.Struct),
 							Fields: []*ditypes.Param{
+								{
+									Kind:     byte(reflect.Uint),
+									ValueStr: "9",
+									Type:     "uint",
+									Size:     8,
+								},
 								{
 									Kind:     byte(reflect.Bool),
 									ValueStr: "true",
 									Type:     "bool",
 									Size:     1,
-								},
-								{
-									Kind:     byte(reflect.Int),
-									ValueStr: "1",
-									Type:     "int",
-									Size:     8,
-								},
-								{
-									Kind:     byte(reflect.Int16),
-									ValueStr: "2",
-									Type:     "int16",
-									Size:     2,
 								},
 							},
 						},
@@ -421,40 +382,16 @@ func TestParseParams(t *testing.T) {
 			},
 		},
 		{
-			Name:   "struct pointer nil",
-			Buffer: []byte{22, 8, 0, 25, 3, 0, 1, 1, 0, 2, 8, 0, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			Name:     "struct pointer nil",
+			Buffer:   []byte{22, 8, 0, 25, 3, 0, 1, 1, 0, 2, 8, 0, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			Indicies: []uint64{0},
 			ExpectedOutput: []*ditypes.Param{
 				{
-					Type: "ptr",
-					Size: 8,
-					Kind: byte(reflect.Pointer),
-					Fields: []*ditypes.Param{
-						{
-							Type: "struct",
-							Size: 3,
-							Kind: byte(reflect.Struct),
-							Fields: []*ditypes.Param{
-								{
-									Kind:     byte(reflect.Bool),
-									ValueStr: "false",
-									Type:     "bool",
-									Size:     1,
-								},
-								{
-									Kind:     byte(reflect.Int),
-									ValueStr: "0",
-									Type:     "int",
-									Size:     8,
-								},
-								{
-									Kind:     byte(reflect.Int16),
-									ValueStr: "0",
-									Type:     "int16",
-									Size:     2,
-								},
-							},
-						},
-					},
+					Type:     "*struct",
+					Size:     8,
+					Kind:     byte(reflect.Pointer),
+					ValueStr: "0x0",
+					Fields:   nil,
 				},
 			},
 		},
@@ -462,7 +399,12 @@ func TestParseParams(t *testing.T) {
 
 	for i := range testCases {
 		t.Run(testCases[i].Name, func(t *testing.T) {
-			result := readParams(testCases[i].Buffer)
+			result := readParams(testCases[i].Indicies, testCases[i].Buffer)
+			for i := range result {
+				if strings.HasPrefix(result[i].Type, "*") && result[i].ValueStr != "0x0" {
+					result[i].ValueStr = ""
+				}
+			}
 			assert.Equal(t, testCases[i].ExpectedOutput, result)
 		})
 	}

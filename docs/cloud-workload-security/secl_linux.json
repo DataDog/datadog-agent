@@ -73,6 +73,11 @@
           "property_doc_link": "event-os-doc"
         },
         {
+          "name": "event.rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "event-rule-tags-doc"
+        },
+        {
           "name": "event.service",
           "definition": "Service associated with the event",
           "property_doc_link": "event-service-doc"
@@ -1323,13 +1328,18 @@
       "name": "accept",
       "definition": "An accept was executed",
       "type": "Network",
-      "from_agent_version": "7.60",
+      "from_agent_version": "7.63",
       "experimental": false,
       "properties": [
         {
           "name": "accept.addr.family",
           "definition": "Address family",
           "property_doc_link": "accept-addr-family-doc"
+        },
+        {
+          "name": "accept.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "accept-addr-hostname-doc"
         },
         {
           "name": "accept.addr.ip",
@@ -1880,6 +1890,11 @@
           "property_doc_link": "connect-addr-family-doc"
         },
         {
+          "name": "connect.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "connect-addr-hostname-doc"
+        },
+        {
           "name": "connect.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -1949,6 +1964,11 @@
           "property_doc_link": "dns-question-type-doc"
         },
         {
+          "name": "dns.response.code",
+          "definition": "Response code of the DNS response according to RFC 1035",
+          "property_doc_link": "dns-response-code-doc"
+        },
+        {
           "name": "network.destination.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -2007,7 +2027,7 @@
     },
     {
       "name": "exec",
-      "definition": "A process was executed or forked",
+      "definition": "A process was executed (does not trigger on fork syscalls).",
       "type": "Process",
       "from_agent_version": "7.27",
       "experimental": false,
@@ -7284,6 +7304,55 @@
       ]
     },
     {
+      "name": "sysctl",
+      "definition": "A sysctl parameter was read or modified",
+      "type": "Kernel",
+      "from_agent_version": "7.65",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "sysctl.action",
+          "definition": "Action performed on the system control parameter",
+          "property_doc_link": "sysctl-action-doc"
+        },
+        {
+          "name": "sysctl.file_position",
+          "definition": "Position in the sysctl control parameter file at which the action occurred",
+          "property_doc_link": "sysctl-file_position-doc"
+        },
+        {
+          "name": "sysctl.name",
+          "definition": "Name of the system control parameter",
+          "property_doc_link": "sysctl-name-doc"
+        },
+        {
+          "name": "sysctl.name_truncated",
+          "definition": "Indicates that the name field is truncated",
+          "property_doc_link": "sysctl-name_truncated-doc"
+        },
+        {
+          "name": "sysctl.old_value",
+          "definition": "Old value of the system control parameter",
+          "property_doc_link": "sysctl-old_value-doc"
+        },
+        {
+          "name": "sysctl.old_value_truncated",
+          "definition": "Indicates that the old value field is truncated",
+          "property_doc_link": "sysctl-old_value_truncated-doc"
+        },
+        {
+          "name": "sysctl.value",
+          "definition": "New and/or current value for the system control parameter depending on the action type",
+          "property_doc_link": "sysctl-value-doc"
+        },
+        {
+          "name": "sysctl.value_truncated",
+          "definition": "Indicates that the value field is truncated",
+          "property_doc_link": "sysctl-value_truncated-doc"
+        }
+      ]
+    },
+    {
       "name": "unlink",
       "definition": "A file was deleted",
       "type": "File",
@@ -9727,6 +9796,18 @@
       "examples": []
     },
     {
+      "name": "accept.addr.hostname",
+      "link": "accept-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
+      "prefixes": [
+        "accept"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "bind.addr.family",
       "link": "bind-addr-family-doc",
       "type": "int",
@@ -10027,6 +10108,18 @@
       "examples": []
     },
     {
+      "name": "connect.addr.hostname",
+      "link": "connect-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "connect.protocol",
       "link": "connect-protocol-doc",
       "type": "int",
@@ -10104,7 +10197,7 @@
       "type": "int",
       "definition": "the class looked up by the DNS question",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "DNS qclasses",
       "constants_link": "dns-qclasses",
@@ -10116,7 +10209,7 @@
       "type": "int",
       "definition": "the total count of questions in the DNS request",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -10128,7 +10221,7 @@
       "type": "int",
       "definition": "the total DNS request size in bytes",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -10140,7 +10233,7 @@
       "type": "string",
       "definition": "the queried domain name",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -10152,10 +10245,22 @@
       "type": "int",
       "definition": "a two octet code which specifies the DNS question type",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "DNS qtypes",
       "constants_link": "dns-qtypes",
+      "examples": []
+    },
+    {
+      "name": "dns.response.code",
+      "link": "dns-response-code-doc",
+      "type": "int",
+      "definition": "Response code of the DNS response according to RFC 1035",
+      "prefixes": [
+        "dns.response"
+      ],
+      "constants": "DNS Responses",
+      "constants_link": "dns-responses",
       "examples": []
     },
     {
@@ -10199,6 +10304,18 @@
       "link": "event-os-doc",
       "type": "string",
       "definition": "Operating system of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.rule.tags",
+      "link": "event-rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
       "prefixes": [
         ""
       ],
@@ -11020,6 +11137,102 @@
       ],
       "constants": "Pipe buffer flags",
       "constants_link": "pipe-buffer-flags",
+      "examples": []
+    },
+    {
+      "name": "sysctl.action",
+      "link": "sysctl-action-doc",
+      "type": "int",
+      "definition": "Action performed on the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "SysCtl Actions",
+      "constants_link": "sysctl-actions",
+      "examples": []
+    },
+    {
+      "name": "sysctl.file_position",
+      "link": "sysctl-file_position-doc",
+      "type": "int",
+      "definition": "Position in the sysctl control parameter file at which the action occurred",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.name",
+      "link": "sysctl-name-doc",
+      "type": "string",
+      "definition": "Name of the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.name_truncated",
+      "link": "sysctl-name_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the name field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.old_value",
+      "link": "sysctl-old_value-doc",
+      "type": "string",
+      "definition": "Old value of the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.old_value_truncated",
+      "link": "sysctl-old_value_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the old value field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.value",
+      "link": "sysctl-value-doc",
+      "type": "string",
+      "definition": "New and/or current value for the system control parameter depending on the action type",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.value_truncated",
+      "link": "sysctl-value_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the value field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -12354,6 +12567,85 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "DNS Responses",
+      "link": "dns-responses",
+      "description": "DNS Responses are the supported response codes",
+      "all": [
+        {
+          "name": "NOERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "FORMERR",
+          "architecture": "all"
+        },
+        {
+          "name": "SERVFAIL",
+          "architecture": "all"
+        },
+        {
+          "name": "NXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTIMP",
+          "architecture": "all"
+        },
+        {
+          "name": "REFUSED",
+          "architecture": "all"
+        },
+        {
+          "name": "YXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "YXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTAUTH",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTZONE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADVERS",
+          "architecture": "all"
+        },
+        {
+          "name": "BADSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "BADKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "BADTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADMODE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADALG",
           "architecture": "all"
         }
       ]
@@ -14954,6 +15246,21 @@
         },
         {
           "name": "SIGSYS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SysCtl Actions",
+      "link": "sysctl-actions",
+      "description": "SysCtl Actions are the supported actions for the sysctl event.",
+      "all": [
+        {
+          "name": "SYSCTL_READ",
+          "architecture": "all"
+        },
+        {
+          "name": "SYSCTL_WRITE",
           "architecture": "all"
         }
       ]

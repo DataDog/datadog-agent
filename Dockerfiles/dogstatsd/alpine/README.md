@@ -39,7 +39,7 @@ spec:
           - name: DD_DOGSTATSD_SOCKET
             value: "/socket/statsd.socket"
           - name: DD_SEND_HOST_METADATA
-            # Legacy option name, keep as `false` when running alongside another Agent 
+            # Legacy option name, keep as `false` when running alongside another Agent
             value: "false"
           - name: DD_ENABLE_METADATA_COLLECTION
             value: "false"
@@ -85,7 +85,7 @@ spec:
           - name: DD_API_KEY
             value: ___value___
           - name: DD_SEND_HOST_METADATA
-            # Legacy option name, keep as `false` when running alongside another Agent 
+            # Legacy option name, keep as `false` when running alongside another Agent
             value: "false"
           - name: DD_ENABLE_METADATA_COLLECTION
             value: "false"
@@ -97,4 +97,4 @@ spec:
 
 ## How to build it
 
-You can use `inv dogstatsd.image-build` to build your own dogstatsd image
+You can use `dda inv dogstatsd.image-build` to build your own dogstatsd image

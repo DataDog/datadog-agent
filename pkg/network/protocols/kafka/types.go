@@ -14,10 +14,14 @@ package kafka
 import "C"
 
 const (
-	TopicNameBuckets                     = C.KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS
-	TopicNameMaxSize                     = C.TOPIC_NAME_MAX_STRING_SIZE
-	MaxSupportedProduceRequestApiVersion = C.KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
-	MaxSupportedFetchRequestApiVersion   = C.KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
+	TopicNameBuckets                                   = C.KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS
+	TopicNameMaxSize                                   = C.TOPIC_NAME_MAX_STRING_SIZE
+	ClassificationMaxSupportedProduceRequestApiVersion = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
+	ClassificationMinSupportedProduceRequestApiVersion = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_PRODUCE_REQUEST_API_VERSION
+	DecodingMaxSupportedProduceRequestApiVersion       = C.KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION
+	ClassificationMaxSupportedFetchRequestApiVersion   = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
+	ClassificationMinSupportedFetchRequestApiVersion   = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION
+	DecodingMaxSupportedFetchRequestApiVersion         = C.KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
 )
 
 type ConnTuple C.conn_tuple_t

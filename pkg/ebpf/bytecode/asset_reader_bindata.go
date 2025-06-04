@@ -9,25 +9,26 @@ package bytecode
 
 import (
 	"bytes"
-	"embed"
+	"errors"
 	"io"
 	"path"
+	"runtime"
 )
-
-// Note that these files are placed in the build directory by the tasks/system_probe.py:copy_bundled_ebpf_files
-// function, called by the tasks that build the object files. This function copies those files from the
-// architecture-specific build directory as we cannot use variables in these directives
-
-//go:embed build/runtime-security.o
-//go:embed build/runtime-security-syscall-wrapper.o
-//go:embed build/runtime-security-fentry.o
-//go:embed build/runtime-security-offset-guesser.o
-var bindata embed.FS
 
 // GetReader returns a new AssetReader for the specified bundled asset
 func GetReader(dir, name string) (AssetReader, error) {
 	dir = "build"
-	assetPath := path.Join(dir, name)
+	var arch string
+	switch runtime.GOARCH {
+	case "amd64":
+		arch = "x86_64"
+	case "arm64":
+		arch = "arm64"
+	default:
+		return nil, errors.New("unsupported architecture")
+	}
+
+	assetPath := path.Join(dir, arch, name)
 
 	content, err := bindata.ReadFile(assetPath)
 	if err != nil {

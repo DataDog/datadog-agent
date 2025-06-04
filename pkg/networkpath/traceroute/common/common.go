@@ -10,10 +10,10 @@ package common
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"time"
 
-	"github.com/google/gopacket/layers"
 	"golang.org/x/net/ipv4"
 )
 
@@ -26,6 +26,7 @@ type (
 		Target     net.IP
 		DstPort    uint16
 		Hops       []*Hop
+		Tags       []string
 	}
 
 	// Hop encapsulates information about a single
@@ -33,7 +34,8 @@ type (
 	Hop struct {
 		IP       net.IP
 		Port     uint16
-		ICMPType layers.ICMPv4TypeCode
+		ICMPType uint8
+		ICMPCode uint8
 		RTT      time.Duration
 		IsDest   bool
 	}
@@ -49,7 +51,7 @@ type (
 
 	// MatcherFunc defines functions for matching a packet from the wire to
 	// a traceroute based on the source/destination addresses and an identifier
-	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32) (net.IP, error)
+	MatcherFunc func(*ipv4.Header, []byte, net.IP, uint16, net.IP, uint16, uint32, uint16) (net.IP, error)
 )
 
 // Error implements the error interface for
@@ -83,4 +85,10 @@ func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, net.Conn, e
 	}
 
 	return localUDPAddr, conn, nil
+}
+
+// UnmappedAddrFromSlice is the same as netip.AddrFromSlice but it also gets rid of mapped ipv6 addresses.
+func UnmappedAddrFromSlice(slice []byte) (netip.Addr, bool) {
+	addr, ok := netip.AddrFromSlice(slice)
+	return addr.Unmap(), ok
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -372,7 +373,7 @@ func benchmarkCreateSingleMarshaler(b *testing.B, createEvents func(numberOfItem
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
 		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(b))
 		events := createEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -387,7 +388,7 @@ func BenchmarkCreateMarshalersBySourceType(b *testing.B) {
 	runBenchmark(b, func(b *testing.B, numberOfItem int) {
 		cfg := configmock.New(b)
 		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(b))
 		events := createBenchmarkEvents(numberOfItem)
 
 		b.ResetTimer()
@@ -405,7 +406,7 @@ func BenchmarkCreateMarshalersSeveralSourceTypes(b *testing.B) {
 		cfg := configmock.New(b)
 
 		compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor)
+		payloadBuilder := stream.NewJSONPayloadBuilder(true, cfg, compressor, logmock.New(b))
 
 		events := Events{}
 		// Half of events have the same source type

@@ -209,6 +209,29 @@ struct dns_event_t {
     char name[DNS_MAX_LENGTH];
 };
 
+struct short_dns_response_event_t {
+    struct kevent_t event;
+
+    struct dnshdr header;
+    char data[DNS_RECEIVE_MAX_LENGTH];
+};
+
+struct full_dns_response_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct network_context_t network;
+
+    struct dnshdr header;
+    char data[DNS_RECEIVE_MAX_LENGTH];
+};
+
+union dns_responses_t {
+    struct short_dns_response_event_t short_dns_response;
+    struct full_dns_response_event_t full_dns_response;
+};
+
 struct imds_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -446,6 +469,8 @@ struct chdir_event_t {
     struct file_t file;
 };
 
+#define ON_DEMAND_PER_ARG_SIZE 64
+
 struct on_demand_event_t {
     struct kevent_t event;
     struct process_context_t process;
@@ -453,7 +478,7 @@ struct on_demand_event_t {
     struct container_context_t container;
 
     u32 synth_id;
-    char data[256];
+    char data[ON_DEMAND_PER_ARG_SIZE * 6];
 };
 
 struct raw_packet_event_t {
@@ -476,6 +501,21 @@ struct network_flow_monitor_event_t {
 
     u64 flows_count; // keep as u64 to prevent inconsistent verifier output on bounds checks
     struct flow_stats_t flows[ACTIVE_FLOWS_MAX_SIZE];
+};
+
+struct sysctl_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+
+    u32 action;
+    u32 file_position;
+    u16 name_len;
+    u16 old_value_len;
+    u16 new_value_len;
+    u16 flags;
+    char sysctl_buffer[MAX_SYSCTL_BUFFER_LEN];
 };
 
 #endif

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
@@ -76,6 +77,27 @@ func NewHostAgentClientWithParams(context common.Context, hostOutput remote.Host
 func NewDockerAgentClient(context common.Context, dockerAgentOutput agent.DockerAgentOutput, options ...agentclientparams.Option) (agentclient.Agent, error) {
 	params := agentclientparams.NewParams(dockerAgentOutput.DockerManager.Host.OSFamily, options...)
 	ae := newAgentDockerExecutor(context, dockerAgentOutput)
+	commandRunner := newAgentCommandRunner(context.T(), ae)
+
+	if params.ShouldWaitForReady {
+		if err := commandRunner.waitForReadyTimeout(agentReadyTimeout); err != nil {
+			return nil, err
+		}
+	}
+
+	return commandRunner, nil
+}
+
+// NewK8sAgentClient creates an Agent client for a Kubernetes install, passing the ListOptions
+// to select the pod that runs the agent. There are some helper functions to create common selectors,
+// such as AgentSelectorAnyPod that will select any pod that runs the agent.
+func NewK8sAgentClient(context common.Context, podSelector metav1.ListOptions, clusterClient *KubernetesClient, options ...agentclientparams.Option) (agentclient.Agent, error) {
+	params := agentclientparams.NewParams(osComp.LinuxFamily, options...)
+	ae, err := newAgentK8sExecutor(podSelector, clusterClient)
+	if err != nil {
+		return nil, fmt.Errorf("could not create k8s agent executor: %w", err)
+	}
+
 	commandRunner := newAgentCommandRunner(context.T(), ae)
 
 	if params.ShouldWaitForReady {

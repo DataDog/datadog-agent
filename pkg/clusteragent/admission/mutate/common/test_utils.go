@@ -130,6 +130,7 @@ type FakePodSpec struct {
 	Envs        []corev1.EnvVar
 	ParentKind  string
 	ParentName  string
+	Containers  []corev1.Container
 }
 
 // Create makes a Pod from a FakePodSpec setting up sane defaults.
@@ -140,7 +141,13 @@ func (f FakePodSpec) Create() *corev1.Pod {
 	if f.Name == "" {
 		f.Name = "pod"
 	}
-	return fakePodWithParent(f.NS, f.Name, f.Annotations, f.Labels, f.Envs, f.ParentKind, f.ParentName)
+	pod := fakePodWithParent(f.NS, f.Name, f.Annotations, f.Labels, f.Envs, f.ParentKind, f.ParentName)
+
+	if len(f.Containers) > 0 {
+		pod.Spec.Containers = append(pod.Spec.Containers, f.Containers...)
+	}
+
+	return pod
 }
 
 // fakePodWithParent returns a pod with the given parent kind and name
@@ -222,6 +229,14 @@ func FakePodWithEnvFieldRefValue(name, envKey, path string) *corev1.Pod {
 // FakePodWithNamespaceAndLabel returns a pod with the given label and namespace
 func FakePodWithNamespaceAndLabel(namespace, k, v string) *corev1.Pod {
 	pod := FakePodWithLabel(k, v)
+	pod.Namespace = namespace
+
+	return pod
+}
+
+// FakePodWithNamespace returns a pod with a namespace.
+func FakePodWithNamespace(name, namespace string) *corev1.Pod {
+	pod := FakePod(name)
 	pod.Namespace = namespace
 
 	return pod

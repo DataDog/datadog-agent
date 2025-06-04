@@ -11,8 +11,10 @@
 package model
 
 import (
+	"fmt"
 	"net"
 	"net/netip"
+	"runtime"
 	"time"
 
 	"github.com/google/gopacket"
@@ -27,8 +29,51 @@ const (
 	FileFieldsSize = 72
 )
 
+// NewEvent returns a new Event
+func (m *Model) NewEvent() eval.Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+		CGroupContext: &CGroupContext{},
+	}
+}
+
+// NewFakeEvent returns a new event using the default field handlers
+func NewFakeEvent() *Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			FieldHandlers:    &FakeFieldHandlers{},
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+		CGroupContext: &CGroupContext{},
+	}
+}
+
 // Event represents an event sent from the kernel
 // genaccessors
+// gengetter: GetContainerCreatedAt
+// gengetter: GetContainerId
+// gengetter: GetExecCmdargv
+// gengetter: GetExecFilePath
+// gengetter: GetExecFilePath)
+// gengetter: GetExitCode
+// gengetter: GetMountMountpointPath
+// gengetter: GetMountRootPath
+// gengetter: GetProcessEnvp
+// gengetter: GetProcessExecTime
+// gengetter: GetProcessExitTime
+// gengetter: GetProcessForkTime
+// gengetter: GetProcessGid
+// gengetter: GetProcessGroup
+// gengetter: GetProcessPid
+// gengetter: GetProcessPpid
+// gengetter: GetProcessUid
+// gengetter: GetProcessUser
+// gengetter: GetTimestamp
+// gengetter: GetEventService
 type Event struct {
 	BaseEvent
 
@@ -38,7 +83,7 @@ type Event struct {
 	// context
 	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds"` // [7.36] [Network] Network context
-	CGroupContext  CGroupContext  `field:"cgroup"`
+	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -57,7 +102,7 @@ type Event struct {
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed or forked
+	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
 	SetUID        SetuidEvent        `field:"setuid" event:"setuid"` // [7.27] [Process] A process changed its effective uid
 	SetGID        SetgidEvent        `field:"setgid" event:"setgid"` // [7.27] [Process] A process changed its effective gid
 	Capset        CapsetEvent        `field:"capset" event:"capset"` // [7.27] [Process] A process changed its capacity set
@@ -69,7 +114,7 @@ type Event struct {
 	// network syscalls
 	Bind    BindEvent    `field:"bind" event:"bind"`       // [7.37] [Network] A bind was executed
 	Connect ConnectEvent `field:"connect" event:"connect"` // [7.60] [Network] A connect was executed
-	Accept  AcceptEvent  `field:"accept" event:"accept"`   // [7.60] [Network] An accept was executed
+	Accept  AcceptEvent  `field:"accept" event:"accept"`   // [7.63] [Network] An accept was executed
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -79,6 +124,7 @@ type Event struct {
 	MProtect     MProtectEvent     `field:"mprotect" event:"mprotect"`           // [7.35] [Kernel] A mprotect command was executed
 	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
+	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -101,8 +147,19 @@ type Event struct {
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 }
 
+var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+var cgroupContextZero CGroupContext
+
+// Zero the event
+func (e *Event) Zero() {
+	*e = eventZero
+	*e.BaseEvent.ContainerContext = containerContextZero
+	*e.CGroupContext = cgroupContextZero
+}
+
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
+	Releasable
 	CGroupID      containerutils.CGroupID    `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupFlags   containerutils.CGroupFlags `field:"-"`
 	CGroupManager string                     `field:"manager,handler:ResolveCGroupManager"` // SECLDoc[manager] Definition:`[Experimental] Lifecycle manager of the cgroup`
@@ -124,6 +181,21 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	if cg.CGroupFile.MountID == 0 {
 		cg.CGroupFile.MountID = cg2.CGroupFile.MountID
 	}
+}
+
+// IsContainer returns whether a cgroup maps to a container
+func (cg *CGroupContext) IsContainer() bool {
+	return cg.CGroupFlags.IsContainer()
+}
+
+// Hash returns a unique key for the entity
+func (cg *CGroupContext) Hash() string {
+	return string(cg.CGroupID)
+}
+
+// ParentScope returns the parent entity scope
+func (cg *CGroupContext) ParentScope() (eval.VariableScope, bool) {
+	return nil, false
 }
 
 // SyscallEvent contains common fields for all the event
@@ -202,10 +274,10 @@ type CapsetEvent struct {
 
 // Credentials represents the kernel credentials of a process
 type Credentials struct {
-	UID   uint32 `field:"uid,opts:gen_getters"`   // SECLDoc[uid] Definition:`UID of the process`
-	GID   uint32 `field:"gid,opts:gen_getters"`   // SECLDoc[gid] Definition:`GID of the process`
-	User  string `field:"user,opts:gen_getters"`  // SECLDoc[user] Definition:`User of the process` Example:`process.user == "root"` Description:`Constrain an event to be triggered by a process running as the root user.`
-	Group string `field:"group,opts:gen_getters"` // SECLDoc[group] Definition:`Group of the process`
+	UID   uint32 `field:"uid"`   // SECLDoc[uid] Definition:`UID of the process`
+	GID   uint32 `field:"gid"`   // SECLDoc[gid] Definition:`GID of the process`
+	User  string `field:"user"`  // SECLDoc[user] Definition:`User of the process` Example:`process.user == "root"` Description:`Constrain an event to be triggered by a process running as the root user.`
+	Group string `field:"group"` // SECLDoc[group] Definition:`Group of the process`
 
 	EUID   uint32 `field:"euid"`   // SECLDoc[euid] Definition:`Effective UID of the process`
 	EGID   uint32 `field:"egid"`   // SECLDoc[egid] Definition:`Effective GID of the process`
@@ -254,15 +326,15 @@ type Process struct {
 	LinuxBinprm LinuxBinprm `field:"interpreter,check:HasInterpreter,set_handler:SetInterpreterFields"` // Script interpreter as identified by the shebang
 
 	// pid_cache_t
-	ForkTime time.Time `field:"fork_time,opts:getters_only|gen_getters"`
-	ExitTime time.Time `field:"exit_time,opts:getters_only|gen_getters"`
-	ExecTime time.Time `field:"exec_time,opts:getters_only|gen_getters"`
+	ForkTime time.Time `field:"fork_time,opts:getters_only"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only"`
 
 	// TODO: merge with ExecTime
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
 	Cookie uint64 `field:"-"`
-	PPid   uint32 `field:"ppid,opts:gen_getters"` // SECLDoc[ppid] Definition:`Parent process ID`
+	PPid   uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	// credentials_t section of pid_cache_t
 	Credentials
@@ -278,13 +350,13 @@ type Process struct {
 	EnvsEntry *EnvsEntry `field:"-"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
-	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100"`                                                                                                                                                                                        // SECLDoc[argv0] Definition:`First argument of the process`
-	Args          string   `field:"args,handler:ResolveProcessArgs,weight:500,opts:skip_ad|readonly"`                                                                                                                                                                    // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
-	Argv          []string `field:"argv,handler:ResolveProcessArgv,weight:500; cmdargv,handler:ResolveProcessCmdArgv,opts:getters_only|gen_getters; args_flags,handler:ResolveProcessArgsFlags,opts:helper; args_options,handler:ResolveProcessArgsOptions,opts:helper"` // SECLDoc[argv] Definition:`Arguments of the process (as an array, excluding argv0)` Example:`exec.argv in ["127.0.0.1"]` Description:`Matches any process that has this IP address as one of its arguments.` SECLDoc[args_flags] Definition:`Flags in the process arguments` Example:`exec.args_flags in ["s"] && exec.args_flags in ["V"]` Description:`Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".` SECLDoc[args_options] Definition:`Argument of the process as options` Example:`exec.args_options in ["p=0-1024"]` Description:`Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.`
-	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated"`                                                                                                                                                                                  // SECLDoc[args_truncated] Definition:`Indicator of arguments truncation`
-	Envs          []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                                                                                                                                                                                          // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp          []string `field:"envp,handler:ResolveProcessEnvp,weight:100,opts:gen_getters"`                                                                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
-	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated"`                                                                                                                                                                                  // SECLDoc[envs_truncated] Definition:`Indicator of environment variables truncation`
+	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100"`                                                                                                                                                                            // SECLDoc[argv0] Definition:`First argument of the process`
+	Args          string   `field:"args,handler:ResolveProcessArgs,weight:500,opts:skip_ad"`                                                                                                                                                                 // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
+	Argv          []string `field:"argv,handler:ResolveProcessArgv,weight:500; cmdargv,handler:ResolveProcessCmdArgv,opts:getters_only; args_flags,handler:ResolveProcessArgsFlags,opts:helper; args_options,handler:ResolveProcessArgsOptions,opts:helper"` // SECLDoc[argv] Definition:`Arguments of the process (as an array, excluding argv0)` Example:`exec.argv in ["127.0.0.1"]` Description:`Matches any process that has this IP address as one of its arguments.` SECLDoc[args_flags] Definition:`Flags in the process arguments` Example:`exec.args_flags in ["s"] && exec.args_flags in ["V"]` Description:`Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".` SECLDoc[args_options] Definition:`Argument of the process as options` Example:`exec.args_options in ["p=0-1024"]` Description:`Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.`
+	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated"`                                                                                                                                                                      // SECLDoc[args_truncated] Definition:`Indicator of arguments truncation`
+	Envs          []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                                                                                                                                                                              // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp          []string `field:"envp,handler:ResolveProcessEnvp,weight:100"`                                                                                                                                                                              // SECLDoc[envp] Definition:`Environment variables of the process`
+	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated"`                                                                                                                                                                      // SECLDoc[envs_truncated] Definition:`Indicator of environment variables truncation`
 
 	ArgsScrubbed string   `field:"args_scrubbed,handler:ResolveProcessArgsScrubbed,opts:getters_only"`
 	ArgvScrubbed []string `field:"argv_scrubbed,handler:ResolveProcessArgvScrubbed,opts:getters_only"`
@@ -294,8 +366,7 @@ type Process struct {
 	SymlinkBasenameStr string              `field:"-"`
 
 	// cache version
-	ScrubbedArgvResolved bool           `field:"-"`
-	Variables            eval.Variables `field:"-"`
+	ScrubbedArgvResolved bool `field:"-"`
 
 	// IsThread is the negation of IsExec and should be manipulated directly
 	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
@@ -316,6 +387,16 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 		pce.IsKworker = false
 	}
 	return true, nil
+}
+
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+}
+
+// ParentScope returns the parent entity scope
+func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
+	return pc.Ancestor, pc.Ancestor != nil
 }
 
 // ExecEvent represents a exec event
@@ -350,9 +431,9 @@ type FileFields struct {
 type FileEvent struct {
 	FileFields
 
-	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length|gen_getters" op_override:"ProcessSymlinkPathname"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
-	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"`         // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
-	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                                  // SECLDoc[filesystem] Definition:`File's filesystem`
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
+	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
 	MountPath   string `field:"-"`
 	MountSource uint32 `field:"-"`
@@ -431,9 +512,9 @@ type MountEvent struct {
 	SyscallEvent
 	SyscallContext
 	Mount
-	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath,opts:gen_getters"` // SECLDoc[mountpoint.path] Definition:`Path of the mount point`
-	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`                     // SECLDoc[source.path] Definition:`Source path of a bind mount`
-	MountRootPath                  string `field:"root.path,handler:ResolveMountRootPath,opts:gen_getters"`        // SECLDoc[root.path] Definition:`Root path of the mount`
+	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath"` // SECLDoc[mountpoint.path] Definition:`Path of the mount point`
+	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // SECLDoc[source.path] Definition:`Source path of a bind mount`
+	MountRootPath                  string `field:"root.path,handler:ResolveMountRootPath"`        // SECLDoc[root.path] Definition:`Root path of the mount`
 	MountPointPathResolutionError  error  `field:"-"`
 	MountSourcePathResolutionError error  `field:"-"`
 	MountRootPathResolutionError   error  `field:"-"`
@@ -485,8 +566,8 @@ type SELinuxEvent struct {
 
 // PIDContext holds the process context of a kernel event
 type PIDContext struct {
-	Pid       uint32 `field:"pid,opts:gen_getters"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
-	Tid       uint32 `field:"tid"`                  // SECLDoc[tid] Definition:`Thread ID of the thread`
+	Pid       uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Tid       uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
 	NetNS     uint32 `field:"-"`
 	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
 	ExecInode uint64 `field:"-"`          // used to track exec and event loss
@@ -678,6 +759,7 @@ type ActivityDumpLoadConfig struct {
 	EndTimestampRaw      uint64
 	Rate                 uint16 // max number of events per sec
 	Paused               uint32
+	CGroupFlags          containerutils.CGroupFlags
 }
 
 // NetworkDeviceContext represents the network device context of a network event
@@ -700,17 +782,19 @@ type BindEvent struct {
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Connection address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`    // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr       IPPortContext `field:"addr"`                                                       // Connection address
+	Hostnames  []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`                                                // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`                                                   // SECLDoc[protocol] Definition:`Socket Protocol`
 }
 
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`        // Connection address
-	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+	Addr       IPPortContext `field:"addr"`                                                      // Connection address
+	Hostnames  []string      `field:"addr.hostname,handler:ResolveAcceptHostnames,opts:skip_ad"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`                                               // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device
@@ -750,19 +834,29 @@ type PathKey struct {
 	PathID  uint32 `field:"-"`
 }
 
+// OnDemandPerArgSize is the size of each argument in Data in the on-demand event
+const OnDemandPerArgSize = 64
+
+// OnDemandParsedArgsCount is the number of parsed arguments in the on-demand event
+const OnDemandParsedArgsCount = 6
+
 // OnDemandEvent identifies an on-demand event generated from on-demand probes
 type OnDemandEvent struct {
-	ID       uint32    `field:"-"`
-	Name     string    `field:"name,handler:ResolveOnDemandName"`
-	Data     [256]byte `field:"-"`
-	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
-	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
-	Arg2Str  string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
-	Arg2Uint uint64    `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
-	Arg3Str  string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
-	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
-	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
-	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+	ID       uint32                                             `field:"-"`
+	Name     string                                             `field:"name,handler:ResolveOnDemandName" op_override:"OnDemandNameOverrides"`
+	Data     [OnDemandParsedArgsCount * OnDemandPerArgSize]byte `field:"-"`
+	Arg1Str  string                                             `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
+	Arg1Uint uint64                                             `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
+	Arg2Str  string                                             `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
+	Arg2Uint uint64                                             `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
+	Arg3Str  string                                             `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
+	Arg3Uint uint64                                             `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
+	Arg4Str  string                                             `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	Arg4Uint uint64                                             `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+	Arg5Str  string                                             `field:"arg5.str,handler:ResolveOnDemandArg5Str"`
+	Arg5Uint uint64                                             `field:"arg5.uint,handler:ResolveOnDemandArg5Uint"`
+	Arg6Str  string                                             `field:"arg6.str,handler:ResolveOnDemandArg6Str"`
+	Arg6Uint uint64                                             `field:"arg6.uint,handler:ResolveOnDemandArg6Uint"`
 }
 
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
@@ -880,4 +974,16 @@ func (it *FlowsIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *
 // Len returns the len
 func (it *FlowsIterator) Len(ctx *eval.Context) int {
 	return len(ctx.Event.(*Event).NetworkFlowMonitor.Flows)
+}
+
+// SysCtlEvent is used to represent a system control parameter event
+type SysCtlEvent struct {
+	Action            uint32 `field:"action"`              // SECLDoc[action] Definition:`Action performed on the system control parameter` Constants:`SysCtl Actions`
+	FilePosition      uint32 `field:"file_position"`       // SECLDoc[file_position] Definition:`Position in the sysctl control parameter file at which the action occurred`
+	Name              string `field:"name"`                // SECLDoc[name] Definition:`Name of the system control parameter`
+	NameTruncated     bool   `field:"name_truncated"`      // SECLDoc[name_truncated] Definition:`Indicates that the name field is truncated`
+	OldValue          string `field:"old_value"`           // SECLDoc[old_value] Definition:`Old value of the system control parameter`
+	OldValueTruncated bool   `field:"old_value_truncated"` // SECLDoc[old_value_truncated] Definition:`Indicates that the old value field is truncated`
+	Value             string `field:"value"`               // SECLDoc[value] Definition:`New and/or current value for the system control parameter depending on the action type`
+	ValueTruncated    bool   `field:"value_truncated"`     // SECLDoc[value_truncated] Definition:`Indicates that the value field is truncated`
 }

@@ -8,6 +8,7 @@ processors:
   batch:
     timeout: 5s
     send_batch_size: 100
+  infraattributes:
 
 exporters:
   debug:
@@ -15,6 +16,9 @@ exporters:
 extensions:
   ddflare:
     include_metadata: true  # Set to true for testing; adjust for production.
+  # ddprofiling:
+  #   api:
+  #     key: abcde12345
 
 service:
   pipelines:

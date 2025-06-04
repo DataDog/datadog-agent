@@ -9,6 +9,7 @@ package model
 import (
 	"crypto/sha256"
 	"fmt"
+	"maps"
 	"sync"
 	"syscall"
 
@@ -182,6 +183,29 @@ var (
 		"CLASS_ANY":    255,
 	}
 
+	// DNSResponseCodeConstants see https://datatracker.ietf.org/doc/html/rfc2929
+	// generate_constants:DNS Responses,DNS Responses are the supported response codes
+	DNSResponseCodeConstants = map[string]int{
+		"NOERROR":  0,
+		"FORMERR":  1,
+		"SERVFAIL": 2,
+		"NXDOMAIN": 3,
+		"NOTIMP":   4,
+		"REFUSED":  5,
+		"YXDOMAIN": 6,
+		"YXRRSET":  7,
+		"NXRRSET":  8,
+		"NOTAUTH":  9,
+		"NOTZONE":  10,
+		"BADVERS":  16,
+		"BADSIG":   16,
+		"BADKEY":   17,
+		"BADTIME":  18,
+		"BADMODE":  19,
+		"BADNAME":  20,
+		"BADALG":   21,
+	}
+
 	// BooleanConstants holds the evaluator for boolean constants
 	// generate_constants:Boolean constants,Boolean constants are the supported boolean constants.
 	BooleanConstants = map[string]interface{}{
@@ -347,6 +371,7 @@ var (
 var (
 	dnsQTypeStrings         = map[uint32]string{}
 	dnsQClassStrings        = map[uint32]string{}
+	dnsResponseCodeStrings  = map[uint32]string{}
 	l3ProtocolStrings       = map[L3Protocol]string{}
 	l4ProtocolStrings       = map[L4Protocol]string{}
 	networkDirectionStrings = map[NetworkDirection]string{}
@@ -397,6 +422,13 @@ func initDNSQClassConstants() {
 	}
 }
 
+func initDNSResponseCodeConstants() {
+	for k, v := range DNSResponseCodeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		dnsResponseCodeStrings[uint32(v)] = k
+	}
+}
+
 func initDNSQTypeConstants() {
 	for k, v := range DNSQTypeConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
@@ -442,9 +474,7 @@ func initExitCauseConstants() {
 }
 
 func initBoolConstants() {
-	for k, v := range BooleanConstants {
-		seclConstants[k] = v
-	}
+	maps.Copy(seclConstants, BooleanConstants)
 }
 
 func initSSLVersionConstants() {
@@ -474,6 +504,7 @@ func initConstants() {
 	initSignalConstants()
 	initPipeBufFlagConstants()
 	initDNSQClassConstants()
+	initDNSResponseCodeConstants()
 	initDNSQTypeConstants()
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
@@ -484,6 +515,7 @@ func initConstants() {
 	initAUIDConstants()
 	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
+	initSysCtlActionConstants()
 }
 
 // RetValError represents a syscall return error value

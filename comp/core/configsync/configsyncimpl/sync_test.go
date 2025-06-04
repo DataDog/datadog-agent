@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -78,12 +78,12 @@ func TestUpdater(t *testing.T) {
 	cfg.Set("key1", "base_value", model.SourceDefault)
 
 	cs := configSync{
-		Config:    cfg,
-		Log:       logmock.New(t),
-		Authtoken: authtoken.Component(&fetchonlyimpl.MockFetchOnly{}),
-		url:       url,
-		client:    client,
-		ctx:       context.Background(),
+		Config: cfg,
+		Log:    logmock.New(t),
+		IPC:    ipcmock.New(t),
+		url:    url,
+		client: client,
+		ctx:    context.Background(),
 	}
 
 	cs.updater()

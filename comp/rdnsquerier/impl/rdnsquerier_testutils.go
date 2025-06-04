@@ -9,11 +9,13 @@ package rdnsquerierimpl
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
 
@@ -143,9 +145,7 @@ func (ts *testState) makeExpectedTelemetry(checkTelemetry map[string]float64) ma
 		"cache_expired":           0.0,
 		"cache_max_size_exceeded": 0.0,
 	}
-	for name, value := range checkTelemetry {
-		et[name] = value
-	}
+	maps.Copy(et, checkTelemetry)
 	return et
 }
 

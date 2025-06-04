@@ -5,15 +5,10 @@
     - when: on_success
   before_script:
     - !reference [.retrieve_linux_go_deps]
-    # HACK: empty the build directory cache (that can come from previous runs)
-    #       to not have remainders of previous runs, which can make our deps bootstrapping logic fail.
-    # TODO: remove this once we switch to k8s runners, they won't have this problem
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -depth  # -delete implies -depth
-    - find "$CI_BUILDS_DIR" ! -path '*DataDog/datadog-agent*' -delete || true  # Allow failure, we can't remove parent folders of datadog-agent
   script:
-    - inv check-go-version
-    - inv -e system-probe.build-object-files --strip-object-files
-    - inv -e system-probe.save-build-outputs $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
+    - dda inv -- check-go-version
+    - dda inv -- -e system-probe.build-object-files --strip-object-files
+    - dda inv -- -e system-probe.save-build-outputs $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
   variables:
     KUBERNETES_MEMORY_REQUEST: "6Gi"
     KUBERNETES_MEMORY_LIMIT: "12Gi"
@@ -26,7 +21,7 @@
 
 build_system-probe-x64:
   stage: binary_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   extends: .system-probe_build_common
@@ -35,7 +30,7 @@ build_system-probe-x64:
 
 build_system-probe-arm64:
   stage: binary_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   needs: ["go_deps"]
   tags: ["arch:arm64"]
   extends: .system-probe_build_common

@@ -44,6 +44,11 @@ func TestMkdir(t *testing.T) {
 	}
 	defer test.Close()
 
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	mkdirMode := uint16(0o707)
 	expectedMode := uint16(applyUmask(int(mkdirMode)))
 
@@ -152,10 +157,6 @@ func TestMkdir(t *testing.T) {
 			value, _ := event.GetFieldValue("event.async")
 			assert.Equal(t, value.(bool), true)
 
-			executable, err := os.Executable()
-			if err != nil {
-				t.Fatal(err)
-			}
 			assertFieldEqual(t, event, "process.file.path", executable)
 		})
 	})

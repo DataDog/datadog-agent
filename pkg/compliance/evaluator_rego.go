@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build unix
+
 package compliance
 
 import (
@@ -16,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	regoast "github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/rego"
-	regotypes "github.com/open-policy-agent/opa/types"
+	regoast "github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/rego"
+	regotypes "github.com/open-policy-agent/opa/v1/types"
 )
 
 // EvaluateRegoRule evaluates the given rule and resolved inputs map against
@@ -34,7 +36,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 		return nil
 	}
 
-	log.Infof("running rego check for rule=%s", rule.ID)
+	log.Debugf("running rego check for rule=%s", rule.ID)
 	log.Tracef("building rego modules for rule=%s", rule.ID)
 	modules, err := buildRegoModules(benchmark.dirname, rule)
 	if err != nil {
@@ -59,6 +61,7 @@ func EvaluateRegoRule(ctx context.Context, resolvedInputs ResolvedInputs, benchm
 			"opa.runtime": {},
 		}),
 		rego.ParsedInput(input),
+		rego.SetRegoVersion(regoast.RegoV0),
 	)
 
 	log.Tracef("starting rego evaluation for rule=%s:%s", benchmark.FrameworkID, rule.ID)

@@ -30,12 +30,6 @@ type MockProvides struct {
 // MockPkgSigning is the mocked struct that implements the packagesigning component interface
 type MockPkgSigning struct{}
 
-// GetAsJSON is a mocked method on the component
-func (ps *MockPkgSigning) GetAsJSON() ([]byte, error) {
-	str := "some bytes"
-	return []byte(str), nil
-}
-
 // newMock returns the mocked packagesigning struct
 func newMock() MockProvides {
 	ps := &MockPkgSigning{}

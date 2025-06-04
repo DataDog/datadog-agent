@@ -28,12 +28,9 @@ import (
 // Kubernetes cluster-autoscaler to mark a volume as safe to evict
 const K8sAutoscalerSafeToEvictVolumesAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 
-// MutationFunc is a function that mutates a pod
-type MutationFunc func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error)
-
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
-func Mutate(rawPod []byte, ns string, mutationType string, m MutationFunc, dc dynamic.Interface) ([]byte, error) {
+func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) ([]byte, error) {
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
@@ -79,6 +76,21 @@ func InjectEnv(pod *corev1.Pod, env corev1.EnvVar) (injected bool) {
 	})
 }
 
+// AddAnnotation adds an annotation to a pod if it doesn't already exist.
+func AddAnnotation(pod *corev1.Pod, key string, value string) (injected bool) {
+	if pod.Annotations == nil {
+		pod.Annotations = make(map[string]string)
+	}
+
+	if _, ok := pod.Annotations[key]; ok {
+		log.Debugf("Ignoring annotation '%s' for %s as it already exists", PodString(pod), key)
+		return false
+	}
+
+	pod.Annotations[key] = value
+	return true
+}
+
 // injectEnvInContainer injects an env var into a container if it doesn't exist.
 func injectEnvInContainer(container *corev1.Container, env corev1.EnvVar) (injected bool) {
 	if contains(container.Env, env.Name) {
@@ -119,16 +131,12 @@ func injectDynamicEnvInContainers(containers []corev1.Container, fn BuildEnvVarF
 }
 
 // InjectVolume injects a volume into a pod template if it doesn't exist
-func InjectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.VolumeMount) bool {
+// Returns 2 boolean flags respectively indicating if a volume was injected and whether a volume mount was added
+func InjectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.VolumeMount) (volumeInjected bool, volumeMountsInjected bool) {
 	podStr := PodString(pod)
-	for _, vol := range pod.Spec.Volumes {
-		if vol.Name == volume.Name {
-			log.Debugf("Ignoring pod %q: volume %q already exists", podStr, vol.Name)
-			return false
-		}
-	}
 
-	shouldInject := false
+	injectedVolumeMount := false
+
 	for i, container := range pod.Spec.Containers {
 		if containsVolumeMount(container.VolumeMounts, volumeMount) {
 			// Ensure volume mount name and path uniqueness
@@ -136,7 +144,7 @@ func InjectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.Volu
 			continue
 		}
 		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts, volumeMount)
-		shouldInject = true
+		injectedVolumeMount = true
 	}
 	for i, container := range pod.Spec.InitContainers {
 		if containsVolumeMount(container.VolumeMounts, volumeMount) {
@@ -145,14 +153,24 @@ func InjectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.Volu
 			continue
 		}
 		pod.Spec.InitContainers[i].VolumeMounts = append(pod.Spec.InitContainers[i].VolumeMounts, volumeMount)
-		shouldInject = true
+		injectedVolumeMount = true
 	}
 
-	if shouldInject {
+	volumeAlreadyExists := false
+	for _, vol := range pod.Spec.Volumes {
+		if vol.Name == volume.Name {
+			log.Debugf("Pod %q: Volume %q already exists. Not adding again", podStr, vol.Name)
+			volumeAlreadyExists = true
+		}
+	}
+
+	shouldInjectVolume := !volumeAlreadyExists && injectedVolumeMount
+
+	if shouldInjectVolume {
 		pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
 	}
 
-	return shouldInject
+	return shouldInjectVolume, injectedVolumeMount
 }
 
 // PodString returns a string that helps identify the pod

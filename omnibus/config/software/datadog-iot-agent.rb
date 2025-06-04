@@ -61,7 +61,7 @@ build do
     mkdir conf_dir
     mkdir "#{install_dir}/bin/agent"
 
-    command "inv agent.build --flavor iot --no-development --major-version #{major_version_arg}", env: env
+    command "dda inv -- agent.build --flavor iot --no-development --major-version #{major_version_arg}", env: env
 
       # move around bin and config files
     move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
@@ -86,9 +86,4 @@ build do
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"
     end
   end
-
-  # The file below is touched by software builds that don't put anything in the installation
-  # directory (libgcc right now) so that the git_cache gets updated let's remove it from the
-  # final package
-  delete "#{install_dir}/uselessfile"
 end

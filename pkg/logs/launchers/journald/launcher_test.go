@@ -14,16 +14,15 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/journald"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 type MockJournal struct{}
@@ -63,10 +62,10 @@ func (s *MockJournalFactory) NewJournalFromPath(path string) (tailer.Journal, er
 func newTestLauncher(t *testing.T) *Launcher {
 	t.Helper()
 
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	launcher := NewLauncherWithFactory(&MockJournalFactory{}, flare.NewFlareController(), fakeTagger)
-	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditor.New("", "registry.json", time.Hour, health.RegisterLiveness("fake")), tailers.NewTailerTracker())
+	launcher.Start(launchers.NewMockSourceProvider(), pipeline.NewMockProvider(), auditorMock.NewMockRegistry(), tailers.NewTailerTracker())
 	return launcher
 }
 

@@ -21,9 +21,14 @@ type (
 	// tcpResponse encapsulates the data from a
 	// TCP response needed for matching
 	tcpResponse struct {
-		SrcIP       net.IP
-		DstIP       net.IP
-		TCPResponse layers.TCP
+		SrcIP   net.IP
+		DstIP   net.IP
+		SrcPort uint16
+		DstPort uint16
+		SYN     bool
+		ACK     bool
+		RST     bool
+		AckNum  uint32
 	}
 
 	// parser encapsulates everything needed to
@@ -38,6 +43,7 @@ type (
 func newParser() *parser {
 	tcpParser := &parser{}
 	tcpParser.decodingLayerParser = gopacket.NewDecodingLayerParser(layers.LayerTypeTCP, &tcpParser.layer)
+	tcpParser.decodingLayerParser.IgnoreUnsupported = true
 	return tcpParser
 }
 
@@ -55,9 +61,14 @@ func (tp *parser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, e
 	}
 
 	resp := &tcpResponse{
-		SrcIP:       header.Src,
-		DstIP:       header.Dst,
-		TCPResponse: tp.layer,
+		SrcIP:   header.Src,
+		DstIP:   header.Dst,
+		SrcPort: uint16(tp.layer.SrcPort),
+		DstPort: uint16(tp.layer.DstPort),
+		SYN:     tp.layer.SYN,
+		ACK:     tp.layer.ACK,
+		RST:     tp.layer.RST,
+		AckNum:  tp.layer.Ack,
 	}
 	// make sure the TCP layer is cleared between runs
 	tp.layer = layers.TCP{}
@@ -68,7 +79,7 @@ func (tp *parser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, e
 // MatchTCP parses a TCP packet from a header and packet bytes and compares the information
 // contained in the packet to what's expected and returns the source IP of the incoming packet
 // if it's successful or a MismatchError if the packet can be read but doesn't match
-func (tp *parser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, error) {
+func (tp *parser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, _ uint16) (net.IP, error) {
 	if header.Protocol != 6 { // TCP
 		return net.IP{}, errors.New("expected a TCP packet")
 	}
@@ -88,14 +99,19 @@ func (tp *parser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, l
 }
 
 func (t *tcpResponse) Match(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) bool {
-	flagsCheck := (t.TCPResponse.SYN && t.TCPResponse.ACK) || t.TCPResponse.RST
-	sourcePort := uint16(t.TCPResponse.SrcPort)
-	destPort := uint16(t.TCPResponse.DstPort)
+	flagsCheck := (t.SYN && t.ACK) || t.RST
+	sourcePort := t.SrcPort
+	destPort := t.DstPort
+
+	// the destination can return a RST instead of a RSTACK.
+	// in that case, usually the ackNum is 0 and there's nothing we can do to check it.
+	// it still will check the IP/ports match.
+	ackMatches := (seqNum == t.AckNum-1) || (t.RST && !t.ACK)
 
 	return remoteIP.Equal(t.SrcIP) &&
 		remotePort == sourcePort &&
 		localIP.Equal(t.DstIP) &&
 		localPort == destPort &&
-		seqNum == t.TCPResponse.Ack-1 &&
+		ackMatches &&
 		flagsCheck
 }

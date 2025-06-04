@@ -17,7 +17,7 @@ var templatesFS embed.FS
 
 // Name renders the name
 func (i *haagentimpl) Name() string {
-	return "HA Agent metadata"
+	return "HA Agent Metadata"
 }
 
 // Index renders the index
@@ -43,6 +43,7 @@ func (i *haagentimpl) HTML(_ bool, buffer io.Writer) error {
 }
 
 func (i *haagentimpl) populateStatus(stats map[string]interface{}) {
+	stats["enabled"] = i.haAgent.Enabled()
 	stats["ha_agent_metadata"] = i.Get()
 }
 

@@ -9,10 +9,33 @@
 package model
 
 import (
+	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
+
+// NewEvent returns a new Event
+func (m *Model) NewEvent() eval.Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+	}
+}
+
+// NewFakeEvent returns a new event using the default field handlers
+func NewFakeEvent() *Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			FieldHandlers:    &FakeFieldHandlers{},
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+	}
+}
 
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
@@ -25,6 +48,17 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 // Event represents an event sent from the kernel
 // genaccessors
+// gengetter: GetContainerId
+// gengetter: GetContainerId
+// gengetter: GetEventService
+// gengetter: GetExecFilePath
+// gengetter: GetExitCode
+// gengetter: GetProcessEnvp
+// gengetter: GetProcessExecTime
+// gengetter: GetProcessExitTime
+// gengetter: GetProcessPid
+// gengetter: GetProcessPpid
+// gengetter: GetTimestamp
 type Event struct {
 	BaseEvent
 
@@ -45,6 +79,14 @@ type Event struct {
 	DeleteRegistryKey   DeleteRegistryKeyEvent   `field:"delete_key;delete" event:"delete_key"`    // [7.52] [Registry] A registry key was deleted
 
 	ChangePermission ChangePermissionEvent `field:"change_permission" event:"change_permission" ` // [7.55] [Registry] A permission change was made
+}
+
+var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+
+// Zero the event
+func (e *Event) Zero() {
+	*e = eventZero
+	*e.BaseEvent.ContainerContext = containerContextZero
 }
 
 // FileEvent is the common file event type
@@ -81,7 +123,7 @@ type Process struct {
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
-	PPid uint32 `field:"ppid,opts:gen_getters"` // SECLDoc[ppid] Definition:`Parent process ID`
+	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`
@@ -92,12 +134,11 @@ type Process struct {
 	OwnerSidString string `field:"user_sid"`                 // SECLDoc[user_sid] Definition:`Sid of the user of the process`
 	User           string `field:"user,handler:ResolveUser"` // SECLDoc[user] Definition:`User name`
 
-	Envs []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                  // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100,opts:gen_getters"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
+	Envs []string `field:"envs,handler:ResolveProcessEnvs,weight:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
-	Variables               eval.Variables `field:"-"`
-	ScrubbedCmdLineResolved bool           `field:"-"`
+	ScrubbedCmdLineResolved bool `field:"-"`
 }
 
 // ExecEvent represents a exec event
@@ -107,7 +148,7 @@ type ExecEvent struct {
 
 // PIDContext holds the process context of an kernel event
 type PIDContext struct {
-	Pid uint32 `field:"pid,opts:gen_getters"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Pid uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
 }
 
 // NetworkDeviceContext defines a network device context
@@ -177,4 +218,14 @@ type ChangePermissionEvent struct {
 // SetAncestorFields force the process cache entry to be valid
 func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, error) {
 	return true, nil
+}
+
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return strconv.Itoa(int(pc.Pid))
+}
+
+// ParentScope returns the parent entity scope
+func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
+	return pc.Ancestor, pc.Ancestor != nil
 }

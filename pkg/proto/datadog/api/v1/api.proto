@@ -195,4 +195,7 @@ service RemoteAgent {
 
   // Gets all relevant flare files of a remote agent.
   rpc GetFlareFiles(datadog.remoteagent.GetFlareFilesRequest) returns (datadog.remoteagent.GetFlareFilesResponse);
+
+  // Gets the telemetry data of a remote agent.
+  rpc GetTelemetry(datadog.remoteagent.GetTelemetryRequest) returns (datadog.remoteagent.GetTelemetryResponse);
 }

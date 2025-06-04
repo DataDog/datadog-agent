@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux || windows
-
 package modules
 
 import (
@@ -12,20 +10,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/mux"
-	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
-	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/runner"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func init() { registerModule(Traceroute) }
 
 type traceroute struct {
 	runner *runner.Runner
@@ -38,7 +39,7 @@ var (
 )
 
 func createTracerouteModule(_ *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
-	runner, err := runner.New(deps.Telemetry)
+	runner, err := runner.New(deps.Telemetry, deps.Hostname)
 	if err != nil {
 		return &traceroute{}, err
 	}
@@ -53,12 +54,11 @@ func (t *traceroute) GetStats() map[string]interface{} {
 }
 
 func (t *traceroute) Register(httpMux *module.Router) error {
-	var runCounter = atomic.NewUint64(0)
+	var runCounter atomic.Uint64
 
 	// TODO: what other config should be passed as part of this request?
 	httpMux.HandleFunc("/traceroute/{host}", func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		id := getClientID(req)
 		cfg, err := parseParams(req)
 		if err != nil {
 			log.Errorf("invalid params for host: %s: %s", cfg.DestHostname, err)
@@ -85,8 +85,9 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 			log.Errorf("unable to write traceroute response: %s", err)
 		}
 
-		runCount := runCounter.Inc()
-		logTracerouteRequests(cfg, id, runCount, start)
+		runCount := runCounter.Add(1)
+
+		logTracerouteRequests(req.URL, runCount, start)
 	})
 
 	return nil
@@ -98,46 +99,52 @@ func (t *traceroute) RegisterGRPC(_ grpc.ServiceRegistrar) error {
 
 func (t *traceroute) Close() {}
 
-func logTracerouteRequests(cfg tracerouteutil.Config, client string, runCount uint64, start time.Time) {
-	args := []interface{}{cfg.DestHostname, client, cfg.DestPort, cfg.MaxTTL, cfg.Timeout, cfg.Protocol, runCount, time.Since(start)}
-	msg := "Got request on /traceroute/%s?client_id=%s&port=%d&maxTTL=%d&timeout=%d&protocol=%s (count: %d): retrieved traceroute in %s"
+func logTracerouteRequests(url *url.URL, runCount uint64, start time.Time) {
+	msg := fmt.Sprintf("Got request on %s?%s (count: %d): retrieved traceroute in %s", url.RawPath, url.RawQuery, runCount, time.Since(start))
 	switch {
 	case runCount <= 5, runCount%200 == 0:
-		log.Infof(msg, args...)
+		log.Info(msg)
 	default:
-		log.Debugf(msg, args...)
+		log.Debug(msg)
 	}
 }
 
 func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	vars := mux.Vars(req)
 	host := vars["host"]
-	port, err := parseUint(req, "port", 16)
+
+	query := req.URL.Query()
+
+	port, err := parseUint(query, "port", 16)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid port: %s", err)
 	}
-	maxTTL, err := parseUint(req, "max_ttl", 8)
+	maxTTL, err := parseUint(query, "max_ttl", 8)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid max_ttl: %s", err)
 	}
-	timeout, err := parseUint(req, "timeout", 64)
+	timeout, err := parseUint(query, "timeout", 64)
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
 	}
-	protocol := req.URL.Query().Get("protocol")
+	protocol := query.Get("protocol")
+	tcpMethod := query.Get("tcp_method")
+	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
 
 	return tracerouteutil.Config{
-		DestHostname: host,
-		DestPort:     uint16(port),
-		MaxTTL:       uint8(maxTTL),
-		Timeout:      time.Duration(timeout),
-		Protocol:     payload.Protocol(protocol),
+		DestHostname:              host,
+		DestPort:                  uint16(port),
+		MaxTTL:                    uint8(maxTTL),
+		Timeout:                   time.Duration(timeout),
+		Protocol:                  payload.Protocol(protocol),
+		TCPMethod:                 payload.TCPMethod(tcpMethod),
+		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
 	}, nil
 }
 
-func parseUint(req *http.Request, field string, bitSize int) (uint64, error) {
-	if req.URL.Query().Has(field) {
-		return strconv.ParseUint(req.URL.Query().Get(field), 10, bitSize)
+func parseUint(query url.Values, field string, bitSize int) (uint64, error) {
+	if query.Has(field) {
+		return strconv.ParseUint(query.Get(field), 10, bitSize)
 	}
 
 	return 0, nil

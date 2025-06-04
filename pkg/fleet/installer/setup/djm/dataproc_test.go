@@ -7,13 +7,14 @@
 package djm
 
 import (
-	"cloud.google.com/go/compute/metadata"
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+
+	"cloud.google.com/go/compute/metadata"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/stretchr/testify/assert"

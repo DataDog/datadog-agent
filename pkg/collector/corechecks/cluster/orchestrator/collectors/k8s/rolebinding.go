@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	rbacv1Informers "k8s.io/client-go/informers/rbac/v1"
@@ -44,16 +45,18 @@ func NewRoleBindingCollector(metadataAsTags utils.MetadataAsTags) *RoleBindingCo
 
 	return &RoleBindingCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      roleBindingName,
-			NodeType:                  orchestrator.K8sRoleBinding,
-			Version:                   roleBindingVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 roleBindingName,
+			Kind:                                 kubernetes.RoleBindingKind,
+			NodeType:                             orchestrator.K8sRoleBinding,
+			Version:                              roleBindingVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.RoleBindingHandlers)),
 	}
@@ -89,7 +92,7 @@ func (c *RoleBindingCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 func (c *RoleBindingCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -97,7 +100,7 @@ func (c *RoleBindingCollector) Process(rcfg *collectors.CollectorRunConfig, list
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

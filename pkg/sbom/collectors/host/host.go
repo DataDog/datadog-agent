@@ -9,13 +9,10 @@ package host
 
 import (
 	"context"
-	"fmt"
-	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
@@ -37,26 +34,45 @@ func (c *Collector) CleanCache() error {
 
 // Init initialize the host collector
 func (c *Collector) Init(cfg config.Component, wmeta option.Option[workloadmeta.Component]) error {
+	return c.initWithOpts(cfg, wmeta, sbom.ScanOptionsFromConfigForHosts(cfg))
+}
+
+func (c *Collector) initWithOpts(cfg config.Component, wmeta option.Option[workloadmeta.Component], opts sbom.ScanOptions) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}
 	c.trivyCollector = trivyCollector
-	c.opts = sbom.ScanOptionsFromConfig(cfg, false)
+	c.opts = opts
 	return nil
 }
 
 // Scan performs a scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	hostScanRequest, ok := request.(scanRequest)
-	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.HostCollector)}
-	}
-	log.Infof("host scan request [%v]", hostScanRequest.ID())
+	path := request.ID() // for host request, ID == path
+	log.Infof("host scan request [%v]", path)
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, c.opts)
+	report, err := c.DirectScan(ctx, path)
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,
 	}
+}
+
+// DirectScan performs a scan on a specific path
+func (c *Collector) DirectScan(ctx context.Context, path string) (sbom.Report, error) {
+	return c.trivyCollector.ScanFilesystem(ctx, path, c.opts, true)
+}
+
+// NewCollectorForCWS creates a new host collector, specifically for CWS
+func NewCollectorForCWS(cfg config.Component, opts sbom.ScanOptions) (*Collector, error) {
+	c := &Collector{
+		resChan: make(chan sbom.ScanResult, channelSize),
+	}
+
+	if err := c.initWithOpts(cfg, option.None[workloadmeta.Component](), opts); err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }

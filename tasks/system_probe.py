@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import glob
+import itertools
 import json
 import os
 import platform
@@ -15,12 +16,14 @@ from pathlib import Path
 from subprocess import check_output
 
 import requests
+import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.build_tags import UNIT_TEST_TAGS, add_fips_tags, get_default_build_tags
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.ciproviders.gitlab_api import ReferenceTag
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import (
@@ -53,9 +56,11 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
+    "./pkg/dyninst/...",
     "./pkg/gpu/...",
-    "./cmd/system-probe/config/...",
+    "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
+    "./pkg/networkpath/traceroute/filter/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -82,8 +87,6 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-CLANG_VERSION_RUNTIME = "12.0.1"
-CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 # system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
 # this version should be kept in sync with the one in the agent omnibus build
 LIBPCAP_VERSION = "1.10.5"
@@ -119,7 +122,6 @@ def ninja_define_ebpf_compiler(
     kernel_release=None,
     with_unit_test=False,
     arch: Arch | None = None,
-    compiler: str = 'clang',
 ):
     if arch is not None and arch.is_cross_compiling():
         # -target ARCH is important even if we're just emitting LLVM. If we're cross-compiling, clang
@@ -132,22 +134,26 @@ def ninja_define_ebpf_compiler(
     nw.variable("kheaders", get_kernel_headers_flags(kernel_release, arch=arch))
     nw.rule(
         name="ebpfclang",
-        command=f"{compiler} -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
+        command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
         depfile="$out.d",
     )
-    strip = "&& llvm-strip -g $out" if strip_object_files else ""
+
+    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g $out"
+    strip_lbb = "/opt/datadog-agent/embedded/bin/llvm-strip -w -N \"LBB*\" $out"
+    strip_part = f"&& {strip} && {strip_lbb}" if strip_object_files else ""
+
     nw.rule(
         name="llc",
-        command=f"llc -march=bpf -filetype=obj -o $out $in {strip}",
+        command=f"/opt/datadog-agent/embedded/bin/llc-bpf -march=bpf -filetype=obj -o $out $in {strip_part}",
     )
 
 
-def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None, compiler: str = "clang"):
+def ninja_define_co_re_compiler(nw: NinjaWriter, arch: Arch | None = None):
     nw.variable("ebpfcoreflags", get_co_re_build_flags(arch))
 
     nw.rule(
         name="ebpfcoreclang",
-        command=f"{compiler} -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
+        command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d -target bpf $ebpfcoreflags $flags -c $in -o $out",
         depfile="$out.d",
     )
 
@@ -356,7 +362,7 @@ def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
 def ninja_gpu_ebpf_programs(nw: NinjaWriter, co_re_build_dir: Path | str):
     gpu_headers_dir = Path("pkg/gpu/ebpf/c")
     gpu_c_dir = gpu_headers_dir / "runtime"
-    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir}"
+    gpu_flags = f"-I{gpu_headers_dir} -I{gpu_c_dir} -Ipkg/network/ebpf/c"
     gpu_programs = ["gpu"]
 
     for prog in gpu_programs:
@@ -382,6 +388,19 @@ def ninja_container_integrations_ebpf_programs(nw: NinjaWriter, co_re_build_dir)
         )
 
 
+def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
+    dir = Path("pkg/collector/corechecks/servicediscovery/c/ebpf/runtime")
+    flags = f"-I{dir} -Ipkg/network/ebpf/c"
+    programs = ["discovery-net"]
+
+    for prog in programs:
+        infile = os.path.join(dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
+
+
 def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     bc_dir = os.path.join("pkg", "ebpf", "bytecode")
     build_dir = os.path.join(bc_dir, "build")
@@ -405,6 +424,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     runtime_compiler_files = {
         "pkg/collector/corechecks/ebpf/probe/oomkill/oom_kill.go": "oom-kill",
         "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length.go": "tcp-queue-length",
+        "pkg/collector/corechecks/servicediscovery/module/network_ebpf.go": "discovery-net",
         "pkg/network/usm/compile.go": "usm",
         "pkg/network/usm/sharedlibraries/compile.go": "shared-libraries",
         "pkg/network/tracer/compile.go": "conntrack",
@@ -412,6 +432,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
         "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
+        "pkg/dyninst/compiler/compile.go": "dyninst_event",
         "pkg/gpu/compile.go": "gpu",
     }
 
@@ -494,6 +515,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/kafka/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
+                "pkg/network/ebpf/c/protocols/kafka/defs.h",
             ],
             "pkg/network/protocols/postgres/ebpf/types.go": [
                 "pkg/network/ebpf/c/protocols/postgres/types.h",
@@ -509,6 +531,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
+            ],
+            "pkg/collector/corechecks/servicediscovery/module/kern_types.go": [
+                "pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-types.h",
             ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
                 "pkg/collector/corechecks/ebpf/c/runtime/tcp-queue-length-kern-user.h",
@@ -529,13 +554,18 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
             ],
+            "pkg/dyninst/output/framing.go": [
+                "pkg/dyninst/ebpf/framing.h",
+            ],
         }
+        # TODO this uses the system clang, rather than the version-pinned copy we ship. Will this cause problems?
+        # It is only generating cgo type definitions and changes are reviewed, so risk is low
         nw.rule(
             name="godefs",
             pool="cgo_pool",
             command="cd $in_dir && "
             + "CC=clang go tool cgo -godefs -- $rel_import -fsigned-char $in_file | "
-            + "go run $script_path > $out_file",
+            + "go run $script_path $tests_file $package_name > $out_file",
         )
 
     script_path = os.path.join(os.getcwd(), "pkg", "ebpf", "cgo", "genpost.go")
@@ -544,9 +574,16 @@ def ninja_cgo_type_files(nw: NinjaWriter):
         in_base, _ = os.path.splitext(in_file)
         out_file = f"{in_base}_{go_platform}.go"
         rel_import = f"-I {os.path.relpath('pkg/network/ebpf/c', in_dir)} -I {os.path.relpath('pkg/ebpf/c', in_dir)}"
+        tests_file = ""
+        package_name = ""
+        outputs = [os.path.join(in_dir, out_file)]
+        if go_platform == "linux":
+            tests_file = f"{in_base}_{go_platform}_test"
+            package_name = os.path.basename(in_dir)
+            outputs.append(os.path.join(in_dir, f"{tests_file}.go"))
         nw.build(
             inputs=[f],
-            outputs=[os.path.join(in_dir, out_file)],
+            outputs=outputs,
             rule="godefs",
             implicit=headers + [script_path],
             variables={
@@ -555,6 +592,8 @@ def ninja_cgo_type_files(nw: NinjaWriter):
                 "out_file": out_file,
                 "script_path": script_path,
                 "rel_import": rel_import,
+                "tests_file": tests_file,
+                "package_name": package_name,
             },
         )
 
@@ -568,7 +607,6 @@ def ninja_generate(
     strip_object_files=False,
     kernel_release: str | None = None,
     with_unit_test=False,
-    ebpf_compiler='clang',
 ):
     arch = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch)
@@ -599,10 +637,8 @@ def ninja_generate(
             nw.build(inputs=[rcin], outputs=["cmd/system-probe/rsrc.syso"], rule="windres")
         else:
             gobin = get_gobin(ctx)
-            ninja_define_ebpf_compiler(
-                nw, strip_object_files, kernel_release, with_unit_test, arch=arch, compiler=ebpf_compiler
-            )
-            ninja_define_co_re_compiler(nw, arch=arch, compiler=ebpf_compiler)
+            ninja_define_ebpf_compiler(nw, strip_object_files, kernel_release, with_unit_test, arch=arch)
+            ninja_define_co_re_compiler(nw, arch=arch)
             ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_test_ebpf_programs(nw, co_re_build_dir)
             ninja_security_ebpf_programs(nw, build_dir, debug, kernel_release, arch=arch)
@@ -610,6 +646,7 @@ def ninja_generate(
             ninja_runtime_compilation_files(nw, gobin)
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_gpu_ebpf_programs(nw, co_re_build_dir)
+            ninja_discovery_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 
@@ -631,22 +668,30 @@ def build_libpcap(ctx):
     lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
     ctx.run(f"rm -rf {lib_dir}")
     with ctx.cd(dist_dir):
+        # TODO check the checksum of the download before using
         ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
     with ctx.cd(lib_dir):
-        config_opts = [
-            f"--prefix={embedded_path}",
-            "--disable-shared",
-            "--disable-largefile",
-            "--disable-instrument-functions",
-            "--disable-remote",
-            "--disable-usb",
-            "--disable-netmap",
-            "--disable-bluetooth",
-            "--disable-dbus",
-            "--disable-rdma",
-        ]
-        ctx.run(f"./configure {' '.join(config_opts)}")
-        ctx.run("make install")
+        env = {}
+        # TODO cross-compile?
+        if os.getenv('DD_CC'):
+            env['CC'] = os.getenv('DD_CC')
+        if os.getenv('DD_CXX'):
+            env['CXX'] = os.getenv('DD_CXX')
+        with environ(env):
+            config_opts = [
+                f"--prefix={embedded_path}",
+                "--disable-shared",
+                "--disable-largefile",
+                "--disable-instrument-functions",
+                "--disable-remote",
+                "--disable-usb",
+                "--disable-netmap",
+                "--disable-bluetooth",
+                "--disable-dbus",
+                "--disable-rdma",
+            ]
+            ctx.run(f"./configure {' '.join(config_opts)}")
+            ctx.run("make install")
     ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
     ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
     ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
@@ -686,9 +731,9 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
-    ebpf_compiler='clang',
     static=False,
     fips_mode=False,
+    glibc=True,
 ):
     """
     Build the system-probe
@@ -702,7 +747,6 @@ def build(
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
             bundle_ebpf=bundle_ebpf,
-            ebpf_compiler=ebpf_compiler,
         )
 
     build_sysprobe_binary(
@@ -716,6 +760,7 @@ def build(
         arch=arch,
         static=static,
         fips_mode=fips_mode,
+        glibc=glibc,
     )
 
 
@@ -743,6 +788,7 @@ def build_sysprobe_binary(
     strip_binary=False,
     fips_mode=False,
     static=False,
+    glibc=True,
 ) -> None:
     arch_obj = Arch.from_str(arch)
 
@@ -764,6 +810,9 @@ def build_sysprobe_binary(
     if static:
         build_tags.extend(["osusergo", "netgo", "static"])
         build_tags = list(set(build_tags).difference({"netcgo"}))
+
+    if not glibc:
+        build_tags = list(set(build_tags).difference({"nvml"}))
 
     if not is_windows and "pcap" in build_tags:
         build_libpcap(ctx)
@@ -795,13 +844,25 @@ def build_sysprobe_binary(
     ctx.run(cmd.format(**args), env=env)
 
 
-def get_sysprobe_buildtags(is_windows, bundle_ebpf):
-    build_tags = [NPM_TAG]
+def get_sysprobe_test_buildtags(is_windows, bundle_ebpf):
+    platform = "windows" if is_windows else "linux"
+    build_tags = get_default_build_tags(build="system-probe", platform=platform)
+
+    if not is_windows and bundle_ebpf:
+        build_tags.append(BUNDLE_TAG)
+
+    # Some flags are not supported on KMT testing, so we remove them
+    # until we have extra fixes (mainly coming from the unified build images)
+    temporarily_unsupported_build_tags = [
+        "pcap",  # libpcap headers not supported yet, specially for cross-compilation
+        "trivy",  # trivy introduces dependencies on a higher version of glibc
+    ]
+    for tag in temporarily_unsupported_build_tags:
+        if tag in build_tags:
+            build_tags.remove(tag)
+
     build_tags.extend(UNIT_TEST_TAGS)
-    if not is_windows:
-        build_tags.append(BPF_TAG)
-        if bundle_ebpf:
-            build_tags.append(BUNDLE_TAG)
+
     return build_tags
 
 
@@ -837,7 +898,7 @@ def test(
             kernel_release=kernel_release,
         )
 
-    build_tags = get_sysprobe_buildtags(is_windows, bundle_ebpf)
+    build_tags = get_sysprobe_test_buildtags(is_windows, bundle_ebpf)
 
     args = get_common_test_args(build_tags, failfast)
     args["output_params"] = f"-c -o {output_path}" if output_path else ""
@@ -951,7 +1012,21 @@ def go_package_dirs(packages, build_tags):
 
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
-    packages_arg = " ".join(packages)
+
+    # Prepend module path if the package path is relative
+    # and doesn't start with ./ (which go list handles correctly for local paths)
+    if not is_windows:
+        full_path_packages = []
+        module_path = "github.com/DataDog/datadog-agent/"
+        for pkg in packages:
+            if not pkg.startswith(".") and not pkg.startswith(module_path):
+                full_path_packages.append(module_path + pkg)
+            else:
+                full_path_packages.append(pkg)
+        packages_arg = " ".join(full_path_packages)
+    else:
+        packages_arg = " ".join(packages)
+
     cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
@@ -1052,6 +1127,7 @@ def e2e_prepare(ctx, kernel_release=None, ci=False, packages=""):
             "prefetch_file",
             "fake_server",
             "sample_service",
+            "standalone_attacher",
         ]:
             src_file_path = os.path.join(pkg, f"{gobin}.go")
             if not is_windows and os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1337,7 +1413,6 @@ def run_ninja(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
-    ebpf_compiler='clang',
 ) -> None:
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
@@ -1350,15 +1425,27 @@ def run_ninja(
         strip_object_files,
         kernel_release,
         with_unit_test,
-        ebpf_compiler=ebpf_compiler,
     )
+
+    # generate full compilation database for easy clangd integration
+    with open("compile_commands.json", "w") as compiledb:
+        ctx.run(f"ninja -f {nf_path} -t compdb", out_stream=compiledb)
+
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
     else:
-        with open("compile_commands.json", "w") as compiledb:
-            ctx.run(f"ninja -f {nf_path} -t compdb {target}", out_stream=compiledb)
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
+
+
+def get_clang_version_and_build_version() -> tuple[str, str]:
+    gitlab_ci_file = Path(__file__).parent.parent / ".gitlab-ci.yml"
+    yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
+    with open(gitlab_ci_file) as f:
+        ci_config = yaml.safe_load(f)
+
+    ci_vars = ci_config['variables']
+    return ci_vars['CLANG_LLVM_VER'], ci_vars['CLANG_BUILD_VERSION']
 
 
 def setup_runtime_clang(
@@ -1371,59 +1458,49 @@ def setup_runtime_clang(
     if arch is None:
         arch = Arch.local()
 
-    clang_bpf_path = target_dir / "clang-bpf"
-    llc_bpf_path = target_dir / "llc-bpf"
-    needs_clang_download, needs_llc_download = True, True
+    clang_version, clang_build_version = get_clang_version_and_build_version()
 
-    if not arch.is_cross_compiling() and sys.platform == "linux":
-        # We can check the version of clang and llc on the system, we have the same arch and can
-        # execute the binaries. This way we can omit the download if the binaries exist and the version
-        # matches the desired one
-        clang_res = ctx.run(f"{sudo} {clang_bpf_path} --version", warn=True)
-        if clang_res is not None and clang_res.ok:
-            clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip()
-            needs_clang_download = clang_version_str != CLANG_VERSION_RUNTIME
+    runtime_binaries = {
+        "clang-bpf": {"url_prefix": "clang", "version_line": 0, "needs_download": False},
+        "llc-bpf": {"url_prefix": "llc", "version_line": 1, "needs_download": False},
+        "llvm-strip": {"url_prefix": "llvm-strip", "version_line": 2, "needs_download": False},
+    }
 
-        llc_res = ctx.run(f"{sudo} {llc_bpf_path} --version", warn=True)
-        if llc_res is not None and llc_res.ok:
-            llc_version_str = llc_res.stdout.split("\n")[1].strip().split(" ")[2].strip()
-            needs_llc_download = llc_version_str != CLANG_VERSION_RUNTIME
-    else:
-        # If we're cross-compiling we cannot check the version of clang and llc on the system,
-        # so we download them only if they don't exist
-        needs_clang_download = not clang_bpf_path.exists()
-        needs_llc_download = not llc_bpf_path.exists()
+    for binary, meta in runtime_binaries.items():
+        binary_path = target_dir / binary
+        if not arch.is_cross_compiling() and sys.platform == "linux":
+            if not binary_path.exists() or binary_path.stat().st_size == 0:
+                print(f"'{binary}' missing")
+                runtime_binaries[binary]["needs_download"] = True
+                continue
+
+            # We can check the version of clang and llc on the system, we have the same arch and can
+            # execute the binaries. This way we can omit the download if the binaries exist and the version
+            # matches the desired one
+            res = ctx.run(f"{sudo} {binary_path} --version", warn=True, hide=True)
+            if res is not None and res.ok:
+                version_str = res.stdout.split("\n")[meta["version_line"]].strip().split(" ")[2].strip()
+                if version_str != clang_version:
+                    print(f"'{binary}' version '{version_str}' is not required version '{clang_version}'")
+                    runtime_binaries[binary]["needs_download"] = True
+        else:
+            # If we're cross-compiling we cannot check the version of clang and llc on the system,
+            # so we download them only if they don't exist
+            runtime_binaries[binary]["needs_download"] = not binary_path.exists() or binary_path.stat().st_size == 0
 
     if not target_dir.exists():
         ctx.run(f"{sudo} mkdir -p {target_dir}")
 
-    if needs_clang_download:
+    for binary, meta in runtime_binaries.items():
+        if not meta["needs_download"]:
+            continue
+
         # download correct version from dd-agent-omnibus S3 bucket
-        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION_RUNTIME}.{arch.name}"
-        ctx.run(f"{sudo} wget -q {clang_url} -O {clang_bpf_path}")
-        ctx.run(f"{sudo} chmod 0755 {clang_bpf_path}")
-
-    if needs_llc_download:
-        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION_RUNTIME}.{arch.name}"
-        ctx.run(f"{sudo} wget -q {llc_url} -O {llc_bpf_path}")
-        ctx.run(f"{sudo} chmod 0755 {llc_bpf_path}")
-
-
-def verify_system_clang_version(ctx):
-    if os.getenv('DD_SYSPROBE_SKIP_CLANG_CHECK') == "true":
-        return
-
-    clang_res = ctx.run("clang --version", warn=True)
-    clang_version_str = ""
-    if clang_res.ok:
-        clang_version_parts = clang_res.stdout.splitlines()[0].split(" ")
-        version_index = clang_version_parts.index("version")
-        clang_version_str = clang_version_parts[version_index + 1].split("-")[0]
-
-    if not clang_version_str.startswith(CLANG_VERSION_SYSTEM_PREFIX):
-        raise Exit(
-            f"unsupported clang version {clang_version_str} in use. Please install {CLANG_VERSION_SYSTEM_PREFIX}."
-        )
+        binary_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/{meta['url_prefix']}-{clang_version}.{arch.name}.{clang_build_version}"
+        binary_path = target_dir / binary
+        print(f"'{binary}' downloading...")
+        ctx.run(f"{sudo} wget -nv {binary_url} -O {binary_path}")
+        ctx.run(f"{sudo} chmod 0755 {binary_path}")
 
 
 @task
@@ -1469,21 +1546,13 @@ def build_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
-    ebpf_compiler='clang',
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
 
     if not is_windows:
-        verify_system_clang_version(ctx)
-        # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
         setup_runtime_clang(ctx)
-
-        if strip_object_files:
-            print("checking for llvm-strip...")
-            ctx.run("which llvm-strip")
-
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
@@ -1497,11 +1566,7 @@ def build_object_files(
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
         arch=arch,
-        ebpf_compiler=ebpf_compiler,
     )
-
-    if bundle_ebpf:
-        copy_bundled_ebpf_files(ctx, arch=arch)
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
@@ -1539,22 +1604,6 @@ def build_object_files(
                 ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
-def copy_bundled_ebpf_files(
-    ctx,
-    arch: str | Arch = CURRENT_ARCH,
-):
-    # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
-    # as we cannot use the go:embed directive with variables that depend on the build architecture
-    arch = Arch.from_str(arch)
-    ebpf_build_dir = get_ebpf_build_dir(arch)
-
-    # Parse the files to copy from the go:embed directive, to avoid having duplicate places
-    # where the files are listed
-    ctx.run(
-        f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
-    )
-
-
 def build_cws_object_files(
     ctx,
     major_version='7',
@@ -1564,7 +1613,6 @@ def build_cws_object_files(
     strip_object_files=False,
     with_unit_test=False,
     bundle_ebpf=False,
-    ebpf_compiler='clang',
 ):
     run_ninja(
         ctx,
@@ -1574,11 +1622,7 @@ def build_cws_object_files(
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
         with_unit_test=with_unit_test,
-        ebpf_compiler=ebpf_compiler,
     )
-
-    if bundle_ebpf:
-        copy_bundled_ebpf_files(ctx, arch=arch)
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
@@ -1876,7 +1920,10 @@ def save_test_dockers(ctx, output_dir, arch, use_crane=False):
 
     # only download images not present in preprepared vm disk
     resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker.ls')
-    docker_ls = {line for line in resp.text.split('\n') if line.strip()}
+
+    # remove the public.ecr.aws/docker/library/ prefix as we might be downloading official images
+    # from the AWS mirror instead of dockerhub to avoid rate limits
+    docker_ls = {line.removeprefix("public.ecr.aws/docker/library/") for line in resp.text.split('\n') if line.strip()}
 
     images = _test_docker_image_list()
     for image in images - docker_ls:
@@ -1914,6 +1961,10 @@ def _test_docker_image_list():
     # Temporary: GoTLS monitoring inside containers tests are flaky in the CI, so at the meantime, the tests are
     # disabled, so we can skip downloading a redundant image.
     images.remove("public.ecr.aws/b1o7r7e0/usm-team/go-httpbin:https")
+
+    # Add images used in docker run commands
+    images.add("public.ecr.aws/docker/library/alpine:3.20.3")
+
     return images
 
 
@@ -2058,3 +2109,148 @@ def build_usm_debugger(
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+
+@task
+def build_gpu_event_viewer(ctx):
+    build_dir = Path("pkg/gpu/testutil/event-viewer")
+
+    tags = get_default_build_tags("system-probe")
+    if "test" not in tags:
+        tags.append("test")
+
+    binary = build_dir / "event-viewer"
+    main_file = build_dir / "main.go"
+
+    cmd = f"go build -tags \"{','.join(tags)}\" -o {binary} {main_file}"
+
+    ctx.run(cmd)
+
+    print(f"Built {binary}")
+
+
+@task
+def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1000, namespace: str | None = None):
+    """
+    Collect GPU events from a node for a given duration.
+
+    Args:
+        output_dir (str): The directory to save the collected events.
+        duration (int): The duration of the collection in seconds.
+        node (str): The node to collect events from.
+        namespace (str | None): The namespace where the agent pod is running.
+    """
+    ns_arg = f"-n {namespace}" if namespace else ""
+    ctx.run(
+        f'kubectl {ns_arg} exec {pod_name} -c system-probe -- /bin/bash -c "curl --unix-socket \\$DD_SYSPROBE_SOCKET http://unix/gpu/debug/collect-events?count={event_count} > /tmp/gpu-events.ndjson"'
+    )
+
+    ctx.run(f"mkdir -p {output_dir}")
+    ctx.run(f"kubectl {ns_arg} cp {pod_name}:/tmp/gpu-events.ndjson -c system-probe {output_dir}/gpu-events.ndjson")
+
+
+@task
+def build_dyninst_test_programs(ctx: Context, output_root: Path = "."):
+    nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
+    with open(nf_path, "w") as nf:
+        nw = NinjaWriter(nf)
+        # NB: This mirrors the ninja setup used in the kmt.py file. The choice
+        # not to parallelize the build there at all is suspect, but we'll copy
+        # it here for now.
+        nw.pool(name="gobuild", depth=1)
+        nw.rule(
+            name="gobin",
+            command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+        )
+        ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
+    ctx.run(f"ninja -d explain -v -f {nf_path}")
+
+
+def ninja_add_dyninst_test_programs(
+    ctx: Context,
+    nw: NinjaWriter,
+    output_root: Path,
+    go_path: str,
+):
+    """
+    This function is used to add the dyninst test programs to the ninja file.
+
+    It is used to build the test programs for the dyninst test suite across
+    the relevant architectures and go versions.
+    """
+
+    dd_module = "github.com/DataDog/datadog-agent"
+    testprogs_path = "pkg/dyninst/testprogs"
+    progs_path = f"{testprogs_path}/progs"
+    progs_prefix = f"{dd_module}/{progs_path}/"
+    output_base = f"{output_root}/{testprogs_path}/binaries"
+    build_tags = ["test", "linux_bpf"]
+
+    # Find the dependencies of the test programs.
+    tags_flag = f"-tags \"{','.join(build_tags)}\""
+    list_format = "{{ .ImportPath }} {{ .Module.Main }}: {{ join .Deps \" \" }}"
+    # Run from within the progs directory so that the go list command can find
+    # the go.mod file.
+    with ctx.cd(progs_path):
+        list_cmd = f"go list -test -f '{list_format}' {tags_flag} ./..."
+        # Disable GOWORK because our testprogs go.mod isn't listed there.
+        env = {"GOWORK": "off"}
+        res = ctx.run(list_cmd, hide=True, env=env)
+    if res.return_code != 0:
+        raise Exit(message=f"Failed to list dependencies: {res.stderr}")
+    pkg_deps = {}
+    for line in res.stdout.splitlines():
+        pkg_main, deps = line.split(": ", 1)
+        pkg, main = pkg_main.split(" ", 1)
+        pkg = pkg.removeprefix(progs_prefix)
+        if bool(main):
+            deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
+            pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
+
+    # In the future, we may want to support multiple go versions.
+    go_versions = ["go1.24.3"]
+    archs = ["amd64", "arm64"]
+
+    # Avoiding cgo aids in reproducing the build environment. It's less good in
+    # some ways because it's not likely that other folks build without CGO.
+    # Eventually we're going to want a better story for how to test against a
+    # variety of go binaries.
+    for pkg, go_version, arch in itertools.product(
+        pkg_deps.keys(),
+        go_versions,
+        archs,
+    ):
+        direct = glob.glob(f"{progs_path}/{pkg}/*.go")
+        go_files = set(direct)
+        for dep in pkg_deps[pkg]:
+            dep_files = glob.glob(f"{progs_path}/{dep}/*.go")
+            dep_files = [p for p in dep_files if not p.endswith("test.go")]
+            go_files.update(os.path.abspath(p) for p in dep_files)
+        config_str = f"arch={arch},toolchain={go_version}"
+        output_path = f"{output_base}/{config_str}/{pkg}"
+        output_path = os.path.abspath(output_path)
+        pkg_path = os.path.abspath(f"./{progs_path}/{pkg}")
+        nw.build(
+            inputs=[pkg_path],
+            outputs=[output_path],
+            implicit=list(go_files),
+            rule="gobin",
+            pool="gobuild",
+            variables={
+                "go": go_path,
+                # Run from within the package directory so that the go build
+                # command finds the go.mod file.
+                "chdir": f"cd {pkg_path}",
+                "tags": tags_flag,
+                "ldflags": "-ldflags=\"-extldflags '-static'\"",
+                "env": " ".join(
+                    [
+                        "CGO_ENABLED=0",
+                        f"GOARCH={arch}",
+                        "GOOS=linux",
+                        f"GOTOOLCHAIN={go_version}",
+                        "GOWORK=off",
+                    ]
+                ),
+            },
+        )

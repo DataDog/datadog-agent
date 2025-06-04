@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -53,6 +52,6 @@ func displayVersion(_ log.Component, _ config.Component, _ secrets.Component) {
 		color.BlueString(av.GetNumberAndPre()),
 		meta,
 		color.GreenString(pkgversion.Commit),
-		color.MagentaString(serializer.AgentPayloadVersion),
+		color.MagentaString(pkgversion.AgentPayloadVersion),
 	)
 }

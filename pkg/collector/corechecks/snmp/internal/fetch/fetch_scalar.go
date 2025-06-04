@@ -7,18 +7,18 @@ package fetch
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSize int) (valuestore.ScalarResultValuesType, error) {
@@ -34,9 +34,7 @@ func fetchScalarOidsWithBatching(sess session.Session, oids []string, oidBatchSi
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch scalar oids: %s", err.Error())
 		}
-		for k, v := range results {
-			retValues[k] = v
-		}
+		maps.Copy(retValues, results)
 	}
 	return retValues, nil
 }
@@ -83,8 +81,9 @@ func retryFailedScalarOids(sess session.Session, results *gosnmp.SnmpPacket, val
 	}
 }
 
-func doFetchScalarOids(session session.Session, oids []string) (*gosnmp.SnmpPacket, error) {
+func doFetchScalarOids(session session.Session, origOids []string) (*gosnmp.SnmpPacket, error) {
 	var results *gosnmp.SnmpPacket
+	oids := slices.Clone(origOids)
 	if session.GetVersion() == gosnmp.Version1 {
 		// When using snmp v1, if one of the oids return a NoSuchName, all oids will have value of Null.
 		// The response will contain Error=NoSuchName and ErrorIndex with index of the erroneous oid.

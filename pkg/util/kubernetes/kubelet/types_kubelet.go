@@ -166,6 +166,8 @@ type EnvVar struct {
 	Name string `json:"name"`
 	// Value of the environment variable.
 	Value string `json:"value,omitempty"`
+	// Source of the environment variable.
+	ValueFrom *struct{} `json:"valueFrom,omitempty"`
 }
 
 // VolumeSpec contains fields for unmarshalling a Pod.Spec.Volumes
@@ -220,15 +222,15 @@ type Conditions struct {
 
 // ContainerStatus contains fields for unmarshalling a Pod.Status.Containers
 type ContainerStatus struct {
-	Name               string                       `json:"name"`
-	Image              string                       `json:"image"`
-	ImageID            string                       `json:"imageID"`
-	ID                 string                       `json:"containerID"`
-	Ready              bool                         `json:"ready"`
-	RestartCount       int                          `json:"restartCount"`
-	State              ContainerState               `json:"state"`
-	LastState          ContainerState               `json:"lastState"`
-	AllocatedResources []ContainerAllocatedResource `json:"allocatedResources,omitempty"`
+	Name                       string                       `json:"name"`
+	Image                      string                       `json:"image"`
+	ImageID                    string                       `json:"imageID"`
+	ID                         string                       `json:"containerID"`
+	Ready                      bool                         `json:"ready"`
+	RestartCount               int                          `json:"restartCount"`
+	State                      ContainerState               `json:"state"`
+	LastState                  ContainerState               `json:"lastState"`
+	ResolvedAllocatedResources []ContainerAllocatedResource `json:"resolvedAllocatedResources,omitempty"`
 }
 
 // ContainerAllocatedResource contains the fields for an assigned resource to a container

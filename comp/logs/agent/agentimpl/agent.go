@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -27,13 +30,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -46,7 +49,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/goroutinesdump"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -80,6 +82,7 @@ type dependencies struct {
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
+	Auditor            auditor.Component
 	WMeta              option.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
@@ -94,6 +97,7 @@ type provides struct {
 	StatusProvider statusComponent.InformationProvider
 	RCListener     rctypes.ListenerProvider
 	LogsReciever   option.Option[integrations.Component]
+	APIStreamLogs  api.AgentEndpointProvider
 }
 
 // logAgent represents the data pipeline that collects, decodes,
@@ -111,11 +115,10 @@ type logAgent struct {
 	endpoints                 *config.Endpoints
 	tracker                   *tailers.TailerTracker
 	schedulers                *schedulers.Schedulers
-	auditor                   auditor.Auditor
+	auditor                   auditor.Component
 	destinationsCtx           *client.DestinationsContext
 	pipelineProvider          pipeline.Provider
 	launchers                 *launchers.Launchers
-	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 	flarecontroller           *flareController.FlareController
 	wmeta                     option.Option[workloadmeta.Component]
@@ -139,12 +142,12 @@ func newLogsAgent(deps dependencies) provides {
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
 		logsAgent := &logAgent{
-			log:            deps.Log,
-			config:         deps.Config,
-			inventoryAgent: deps.InventoryAgent,
-			hostname:       deps.Hostname,
-			started:        atomic.NewUint32(status.StatusNotStarted),
-
+			log:                deps.Log,
+			config:             deps.Config,
+			inventoryAgent:     deps.InventoryAgent,
+			hostname:           deps.Hostname,
+			started:            atomic.NewUint32(status.StatusNotStarted),
+			auditor:            deps.Auditor,
 			sources:            sources.NewLogSources(),
 			services:           service.NewServices(),
 			tracker:            tailers.NewTailerTracker(),
@@ -174,6 +177,10 @@ func newLogsAgent(deps dependencies) provides {
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
 			RCListener:     rcListener,
 			LogsReciever:   option.New[integrations.Component](integrationsLogs),
+			APIStreamLogs: api.NewAgentEndpointProvider(streamLogsEvents(logsAgent),
+				"/stream-logs",
+				"POST",
+			),
 		}
 	}
 
@@ -407,4 +414,10 @@ func (a *logAgent) onUpdateSDS(reconfigType sds.ReconfigureOrderType, updates ma
 			})
 		}
 	}
+}
+
+func streamLogsEvents(logsAgent agent.Component) func(w http.ResponseWriter, r *http.Request) {
+	return apiutils.GetStreamFunc(func() apiutils.MessageReceiver {
+		return logsAgent.GetMessageReceiver()
+	}, "logs", "logs agent")
 }

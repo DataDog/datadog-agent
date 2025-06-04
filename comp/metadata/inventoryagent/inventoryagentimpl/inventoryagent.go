@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"strings"
@@ -21,9 +22,10 @@ import (
 	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -35,12 +37,12 @@ import (
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -92,11 +94,12 @@ type inventoryagent struct {
 
 	log          log.Component
 	conf         config.Component
+	hostnameComp hostnameinterface.Component
 	sysprobeConf option.Option[sysprobeconfig.Component]
 	m            sync.Mutex
 	data         agentMetadata
 	hostname     string
-	authToken    authtoken.Component
+	ipc          ipc.Component
 }
 
 type dependencies struct {
@@ -106,7 +109,8 @@ type dependencies struct {
 	Config         config.Component
 	SysProbeConfig option.Option[sysprobeconfig.Component]
 	Serializer     serializer.MetricSerializer
-	AuthToken      authtoken.Component
+	IPC            ipc.Component
+	Hostname       hostnameinterface.Component
 }
 
 type provides struct {
@@ -120,14 +124,15 @@ type provides struct {
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
-	hname, _ := hostname.Get(context.Background())
+	hname, _ := deps.Hostname.Get(context.Background())
 	ia := &inventoryagent{
 		conf:         deps.Config,
 		sysprobeConf: deps.SysProbeConfig,
 		log:          deps.Log,
+		hostnameComp: deps.Hostname,
 		hostname:     hname,
 		data:         make(agentMetadata),
-		authToken:    deps.AuthToken,
+		ipc:          deps.IPC,
 	}
 	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
@@ -168,7 +173,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["install_method_tool_version"] = toolVersion
 	ia.data["install_method_installer_version"] = installerVersion
 
-	data, err := hostname.GetWithProvider(context.Background())
+	data, err := ia.hostnameComp.GetWithProvider(context.Background())
 	if err == nil {
 		if data.Provider != "" && !data.FromFargate() {
 			ia.data["hostname_source"] = data.Provider
@@ -203,7 +208,7 @@ func (ia *inventoryagent) getCorrectConfig(name string, localConf model.Reader, 
 		cfg := viper.New()
 		cfg.SetConfigType("yaml")
 		if err = cfg.ReadConfig(strings.NewReader(remoteConfig)); err != nil {
-			ia.log.Error("Could not parse '%s' configuration: %s", name, err)
+			ia.log.Errorf("Could not parse '%s' configuration: %s", name, err)
 		} else {
 			return cfg
 		}
@@ -232,8 +237,6 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["config_process_dd_url"] = scrub(ia.conf.GetString("process_config.process_dd_url"))
 	ia.data["config_proxy_http"] = scrub(ia.conf.GetString("proxy.http"))
 	ia.data["config_proxy_https"] = scrub(ia.conf.GetString("proxy.https"))
-	ia.data["config_eks_fargate"] = ia.conf.GetBool("eks_fargate")
-	ia.data["feature_fips_enabled"] = ia.conf.GetBool("fips.enabled")
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
@@ -246,6 +249,21 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
+
+	// EKS Fargate
+	eksFargate := ia.conf.GetBool("eks_fargate")
+	ia.data["config_eks_fargate"] = eksFargate
+	if eksFargate {
+		ia.data["eks_fargate_cluster_name"] = ia.conf.GetString("cluster_name")
+	}
+
+	// FIPS mode
+	if val, err := fips.Enabled(); err == nil {
+		ia.data["fips_mode"] = val
+	} else {
+		ia.data["fips_mode"] = false
+		ia.log.Warnf("could not check if fips is enabled: %s", err)
+	}
 }
 
 func (ia *inventoryagent) fetchSecurityAgentMetadata() {
@@ -455,9 +473,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 	// Create a static copy of agentMetadata for the payload
 	data := make(agentMetadata)
-	for k, v := range ia.data {
-		data[k] = v
-	}
+	maps.Copy(data, ia.data)
 
 	ia.getConfigs(data)
 
@@ -475,8 +491,6 @@ func (ia *inventoryagent) Get() map[string]interface{} {
 	defer ia.m.Unlock()
 
 	data := map[string]interface{}{}
-	for k, v := range ia.data {
-		data[k] = v
-	}
+	maps.Copy(data, ia.data)
 	return data
 }

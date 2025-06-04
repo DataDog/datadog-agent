@@ -8,15 +8,17 @@
 package k8s
 
 import (
+	"k8s.io/apimachinery/pkg/labels"
+	rbacv1Informers "k8s.io/client-go/informers/rbac/v1"
+	rbacv1Listers "k8s.io/client-go/listers/rbac/v1"
+	"k8s.io/client-go/tools/cache"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"k8s.io/apimachinery/pkg/labels"
-	rbacv1Informers "k8s.io/client-go/informers/rbac/v1"
-	rbacv1Listers "k8s.io/client-go/listers/rbac/v1"
-	"k8s.io/client-go/tools/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 // NewClusterRoleCollectorVersions builds the group of collector versions.
@@ -43,16 +45,18 @@ func NewClusterRoleCollector(metadataAsTags utils.MetadataAsTags) *ClusterRoleCo
 
 	return &ClusterRoleCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      clusterRoleName,
-			NodeType:                  orchestrator.K8sClusterRole,
-			Version:                   clusterRoleVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 clusterRoleName,
+			Kind:                                 kubernetes.ClusterRoleKind,
+			NodeType:                             orchestrator.K8sClusterRole,
+			Version:                              clusterRoleVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ClusterRoleHandlers)),
 	}
@@ -88,7 +92,7 @@ func (c *ClusterRoleCollector) Run(rcfg *collectors.CollectorRunConfig) (*collec
 func (c *ClusterRoleCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -96,7 +100,7 @@ func (c *ClusterRoleCollector) Process(rcfg *collectors.CollectorRunConfig, list
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

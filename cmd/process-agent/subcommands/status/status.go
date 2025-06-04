@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"text/template"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -110,7 +110,7 @@ func writeError(log log.Component, w io.Writer, e error) {
 }
 
 func fetchStatus(statusURL string) ([]byte, error) {
-	httpClient := apiutil.GetClient(false)
+	httpClient := apiutil.GetClient()
 	body, err := apiutil.DoGet(httpClient, statusURL, apiutil.LeaveConnectionOpen)
 	if err != nil {
 		return nil, status.NewConnectionError(err)

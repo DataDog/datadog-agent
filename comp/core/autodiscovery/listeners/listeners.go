@@ -7,7 +7,7 @@
 package listeners
 
 const (
-	cloudFoundryBBSListenerName = "cloudfoundry_bbs"
+	cloudFoundryBBSListenerName = "cloudfoundry-bbs"
 	containerListenerName       = "container"
 	environmentListenerName     = "environment"
 	kubeEndpointsListenerName   = "kube_endpoints"
@@ -16,6 +16,7 @@ const (
 	snmpListenerName            = "snmp"
 	staticConfigListenerName    = "static config"
 	dbmAuroraListenerName       = "database-monitoring-aurora"
+	dbmRdsListenerName          = "database-monitoring-rds"
 )
 
 // RegisterListeners registers the available autodiscovery listerners.
@@ -30,4 +31,5 @@ func RegisterListeners(serviceListenerFactories map[string]ServiceListenerFactor
 	Register(snmpListenerName, NewSNMPListener, serviceListenerFactories)
 	Register(staticConfigListenerName, NewStaticConfigListener, serviceListenerFactories)
 	Register(dbmAuroraListenerName, NewDBMAuroraListener, serviceListenerFactories)
+	Register(dbmRdsListenerName, NewDBMRdsListener, serviceListenerFactories)
 }

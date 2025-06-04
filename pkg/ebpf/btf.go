@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const btfFlushDelay = 1 * time.Minute
@@ -114,8 +115,9 @@ func (d BTFResultMetadata) String() string {
 }
 
 type orderedBTFLoader struct {
-	userBTFPath string
-	embeddedDir string
+	userBTFPath  string
+	embeddedDir  string
+	btfOutputDir string
 
 	result         BTFResult
 	resultMetadata BTFResultMetadata
@@ -125,9 +127,10 @@ type orderedBTFLoader struct {
 
 func initBTFLoader(cfg *Config) *orderedBTFLoader {
 	btfLoader := &orderedBTFLoader{
-		userBTFPath: cfg.BTFPath,
-		embeddedDir: filepath.Join(cfg.BPFDir, "co-re", "btf"),
-		result:      BtfNotFound,
+		userBTFPath:  cfg.BTFPath,
+		embeddedDir:  filepath.Join(cfg.BPFDir, "co-re", "btf"),
+		btfOutputDir: filepath.Join(cfg.BTFOutputDir, version.AgentVersion),
+		result:       BtfNotFound,
 	}
 	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
@@ -214,7 +217,7 @@ func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
 func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir string) (*returnBTF, error) {
 	// <relative_path_in_tarball>/<kernel_version>/<kernel_version>.btf
 	btfRelativePath := filepath.Join(extractDir, filepath.Base(extractDir)+".btf")
-	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
+	extractedBtfPath := filepath.Join(b.btfOutputDir, btfRelativePath)
 	if _, err := os.Stat(extractedBtfPath); err == nil {
 		spec, err := loadBTFFrom(extractedBtfPath)
 		if err != nil {
@@ -230,7 +233,7 @@ func (b *orderedBTFLoader) checkForMinimizedBTF(extractDir string) (*returnBTF, 
 
 func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF, error) {
 	btfRelativePath := filepath.Join(extractDir, "vmlinux")
-	extractedBtfPath := filepath.Join(b.embeddedDir, btfRelativePath)
+	extractedBtfPath := filepath.Join(b.btfOutputDir, btfRelativePath)
 	if _, err := os.Stat(extractedBtfPath); err == nil {
 		spec, err := loadBTFFrom(extractedBtfPath)
 		if err != nil {
@@ -267,7 +270,7 @@ func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	}
 	// <relative_path_in_tarball>/<kernel_version>
 	extractDir := filepath.Join(filepath.Dir(btfRelativeTarballFilename), kernelVersion)
-	absExtractDir := filepath.Join(b.embeddedDir, extractDir)
+	absExtractDir := filepath.Join(b.btfOutputDir, extractDir)
 
 	// If we've previously extracted the BTF file in question, we can just load it
 	ret, err := b.checkforBTF(extractDir)
@@ -278,13 +281,13 @@ func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 
 	// The embedded BTFs are compressed twice: the individual BTFs themselves are compressed, and the collection
 	// of BTFs as a whole is also compressed.
-	// This means that we'll need to first extract the specific BTF which  we're looking for from the collection
+	// This means that we'll need to first extract the specific BTF which we're looking for from the collection
 	// tarball, and then unarchive it.
-	btfTarball := filepath.Join(b.embeddedDir, btfRelativeTarballFilename)
+	btfTarball := filepath.Join(b.btfOutputDir, btfRelativeTarballFilename)
 	b.resultMetadata.tarballUsed = btfTarball
 	if _, err := os.Stat(btfTarball); errors.Is(err, fs.ErrNotExist) {
 		collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
-		if err := archive.TarXZExtractFile(collectionTarball, btfRelativeTarballFilename, b.embeddedDir); err != nil {
+		if err := archive.TarXZExtractFile(collectionTarball, btfRelativeTarballFilename, b.btfOutputDir); err != nil {
 			return nil, fmt.Errorf("extract kernel BTF tarball from collection: %w", err)
 		}
 	}

@@ -148,8 +148,9 @@ func CreateMockTCPPacket(ipHeader *ipv4.Header, tcpLayer *layers.TCP, includeHea
 }
 
 // CreateMockIPv4Layer creates a mock IPv4 layer for testing
-func CreateMockIPv4Layer(srcIP, dstIP net.IP, protocol layers.IPProtocol) *layers.IPv4 {
+func CreateMockIPv4Layer(packetID uint16, srcIP, dstIP net.IP, protocol layers.IPProtocol) *layers.IPv4 {
 	return &layers.IPv4{
+		Id:       packetID,
 		SrcIP:    srcIP,
 		DstIP:    dstIP,
 		Version:  4,
@@ -158,7 +159,8 @@ func CreateMockIPv4Layer(srcIP, dstIP net.IP, protocol layers.IPProtocol) *layer
 }
 
 // CreateMockICMPLayer creates a mock ICMP layer for testing
-func CreateMockICMPLayer(typeCode layers.ICMPv4TypeCode) *layers.ICMPv4 {
+func CreateMockICMPLayer(respType uint8, respCode uint8) *layers.ICMPv4 {
+	typeCode := layers.CreateICMPv4TypeCode(respType, respCode)
 	return &layers.ICMPv4{
 		TypeCode: typeCode,
 	}

@@ -92,9 +92,10 @@ const (
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
 
-	// SourceLocalProcessCollector reprents processes entities detected
-	// by the LocalProcessCollector.
-	SourceLocalProcessCollector Source = "local_process_collector"
+	// SourceProcessLanguageCollector represents processes entities detected
+	// by the ProcessLanguageCollector.
+	SourceProcessLanguageCollector Source = "process_language_collector"
+	SourceProcessCollector         Source = "process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -469,14 +470,23 @@ func (c ContainerAllocatedResource) String() string {
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
-	ID    string
-	Name  string
-	Image ContainerImage
+	ID        string
+	Name      string
+	Image     ContainerImage
+	Resources ContainerResources
 }
 
 // String returns a string representation of OrchestratorContainer.
-func (o OrchestratorContainer) String(_ bool) string {
-	return fmt.Sprintln("Name:", o.Name, "ID:", o.ID)
+func (o OrchestratorContainer) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "Name:", o.Name)
+	_, _ = fmt.Fprintln(&sb, "ID:", o.ID)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Image:", o.Image.Name)
+		_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
+		_, _ = fmt.Fprint(&sb, o.Resources.String(true))
+	}
+	return sb.String()
 }
 
 // ECSContainer is a reference to a container running in ECS
@@ -550,9 +560,9 @@ type Container struct {
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
 
-	// AllocatedResources is the list of resources allocated to this pod. Requires the
+	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
-	AllocatedResources []ContainerAllocatedResource
+	ResolvedAllocatedResources []ContainerAllocatedResource
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -607,7 +617,7 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
-	for _, r := range c.AllocatedResources {
+	for _, r := range c.ResolvedAllocatedResources {
 		_, _ = fmt.Fprintln(&sb, r.String())
 	}
 
@@ -972,7 +982,8 @@ type ECSTask struct {
 	Tags                    MapTags
 	ContainerInstanceTags   MapTags
 	ClusterName             string
-	AWSAccountID            int
+	ContainerInstanceARN    string
+	AWSAccountID            string
 	Region                  string
 	AvailabilityZone        string
 	Family                  string
@@ -1189,10 +1200,21 @@ var _ Entity = &ContainerImageMetadata{}
 type Process struct {
 	EntityID // EntityID.ID is the PID
 
+	Pid          int32
 	NsPid        int32
+	Ppid         int32
+	Name         string
+	Cwd          string
+	Exe          string
+	Comm         string
+	Cmdline      []string
+	Uids         []int32
+	Gids         []int32
 	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
+	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
+	Owner *EntityID // Owner is a reference to a container in WLM
 }
 
 var _ Entity = &Process{}
@@ -1228,6 +1250,7 @@ func (p Process) String(_ bool) string {
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	// TODO: add new fields once the new wlm process collector can be enabled
 
 	return sb.String()
 }
@@ -1350,6 +1373,30 @@ func (e EventBundle) Acknowledge() {
 // the inithook for additional start-time configutation.
 type InitHelper func(context.Context, Component, config.Component) error
 
+// GPUClockType is an enum to access different clock rates of the GPU Device through the MaxClockRates array field of the GPU.
+type GPUClockType int
+
+const (
+	// GPUSM represents SM Clock, use nvml.CLOCK_SM to get the value
+	GPUSM GPUClockType = iota
+	// GPUMemory represents Memory Clock, use nvml.CLOCK_MEM to get the value
+	GPUMemory
+	// GPUCOUNT is the total number of clock types in this enum
+	GPUCOUNT
+)
+
+// GPUDeviceType is an enum to identify the type of the GPU device.
+type GPUDeviceType int
+
+const (
+	// GPUDeviceTypePhysical represents a physical GPU device.
+	GPUDeviceTypePhysical GPUDeviceType = iota
+	// GPUDeviceTypeMIG represents a MIG device.
+	GPUDeviceTypeMIG
+	// GPUDeviceTypeUnknown represents an unknown device type.
+	GPUDeviceTypeUnknown
+)
+
 // GPU represents a GPU resource.
 type GPU struct {
 	EntityID
@@ -1357,12 +1404,17 @@ type GPU struct {
 	// Vendor is the name of the manufacturer of the device (e.g., NVIDIA)
 	Vendor string
 
-	// Device is the comercial name of the device (e.g., Tesla V100) as returned
+	// Device is the commercial name of the device (e.g., Tesla V100) as returned
 	// by the device driver (NVML for NVIDIA GPUs). Note that some models might
 	// have some additional information like the memory size (e.g., Tesla
 	// A100-SXM2-80GB), the exact format of this field is vendor and device
 	// specific.
-	Device     string
+	Device string
+
+	// DriverVersion is the version of the driver used for the gpu device
+	DriverVersion string
+
+	// ActivePIDs is the list of process IDs that are using the GPU.
 	ActivePIDs []int
 
 	// Index is the index of the GPU in the host system. This is useful as sometimes
@@ -1377,32 +1429,21 @@ type GPU struct {
 	// ComputeCapability contains the compute capability version of the GPU. Optional, can be 0/0
 	ComputeCapability GPUComputeCapability
 
-	// SMCount is the number of streaming multiprocessors in the GPU. Optional, can be empty.
-	SMCount int
+	// Total number of cores available for the device,
+	// this is a number that represents number of SMs * number of cores per SM (depends on the model)
+	TotalCores int
 
-	// MigEnabled is true if the GPU supports MIG (Multi-Instance GPU) and it is enabled.
-	MigEnabled bool
-	// MigDevices is a list of MIG devices that are part of the GPU.
-	MigDevices []*MigDevice
-}
+	// TotalMemory is the total available memory for the device in bytes
+	TotalMemory uint64
 
-// MigDevice contains information about a MIG device, including the GPU instance ID, device info, attributes, and profile. Nvidia MIG allows a single physical GPU to be partitioned into multiple isolated GPU instances so that multiple workloads can run on the same GPU.
-type MigDevice struct {
-	// GPUInstanceID is the ID of the GPU instance. This is a unique identifier inside the parent GPU device.
-	GPUInstanceID int
-	// UUID is the device id retrieved from nvml in the format "MIG-XXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXX"
-	UUID string
-	Name string
-	// GPUInstanceSliceCount and MemorySizeInGb are retrieved from the profile
-	// mig 1g.10gb profile will have GPUInstanceSliceCount = 1 and MemorySizeMB = 10000
-	GPUInstanceSliceCount uint32
-	MemorySizeMB          uint64
-	// ResourceName is the resource of the profile used, e.g. "1g.10gb", "2g.20gb", etc.
-	ResourceName string
-}
+	// MaxClockRates contains the maximum clock rates for SM and Memory
+	MaxClockRates [GPUCOUNT]uint32
 
-func (m *MigDevice) String() string {
-	return fmt.Sprintf("GPU Instance ID: %d, UUID: %s, Resource: %s", m.GPUInstanceID, m.UUID, m.ResourceName)
+	// MemoryBusWidth is the width of the memory bus in bits.
+	MemoryBusWidth uint32
+
+	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
+	DeviceType GPUDeviceType
 }
 
 var _ Entity = &GPU{}
@@ -1419,7 +1460,7 @@ func (g *GPU) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge GPU with different kind %T", e)
 	}
 
-	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the soure
+	// If the source has active PIDs, remove the ones from the destination so merge() takes latest active PIDs from the source
 	if gg.ActivePIDs != nil {
 		g.ActivePIDs = nil
 	}
@@ -1444,18 +1485,21 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, g.EntityMeta.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
+	_, _ = fmt.Fprintln(&sb, "Driver Version:", g.DriverVersion)
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
 	_, _ = fmt.Fprintln(&sb, "Compute Capability:", g.ComputeCapability)
-	_, _ = fmt.Fprintln(&sb, "Streaming Multiprocessor Count:", g.SMCount)
-	if g.MigEnabled {
-		_, _ = fmt.Fprintln(&sb, "----------- MIG Device -----------")
-		_, _ = fmt.Fprintln(&sb, "MIG Enabled: true")
-		for _, migDevice := range g.MigDevices {
-			_, _ = fmt.Fprintln(&sb, migDevice.String())
-		}
+	_, _ = fmt.Fprintln(&sb, "Total Number of Cores:", g.TotalCores)
+	_, _ = fmt.Fprintln(&sb, "Device Total Memory (in bytes):", g.TotalMemory)
+	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
+	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
+	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
+
+	// Do not show "physical" device type as it's the default and redundant information
+	if g.DeviceType == GPUDeviceTypeMIG {
+		_, _ = fmt.Fprintln(&sb, "Device Type: MIG")
 	}
 
 	return sb.String()
@@ -1473,3 +1517,16 @@ type GPUComputeCapability struct {
 func (gcc GPUComputeCapability) String() string {
 	return fmt.Sprintf("%d.%d", gcc.Major, gcc.Minor)
 }
+
+// CollectorStatus is the status of collector which is used to determine if the collectors
+// are not started, starting, started (pulled once)
+type CollectorStatus uint8
+
+const (
+	// CollectorsNotStarted means workloadmeta collectors are not started
+	CollectorsNotStarted CollectorStatus = iota
+	// CollectorsStarting means workloadmeta collectors are starting
+	CollectorsStarting
+	// CollectorsInitialized means workloadmeta collectors have been at least pulled once
+	CollectorsInitialized
+)

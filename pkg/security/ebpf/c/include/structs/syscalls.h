@@ -36,6 +36,8 @@ struct syscall_cache_t {
     u8 async;
     u32 ctx_id;
     struct dentry_resolver_input_t resolver;
+    s64 retval;
+    enum TAIL_CALL_PROG_TYPE prog_type;
 
     union {
         struct {
@@ -108,16 +110,18 @@ struct syscall_cache_t {
 
         struct {
             struct file_t src_file;
-            struct path *target_path;
+            struct path *src_path;
             struct dentry *src_dentry;
             struct dentry *target_dentry;
             struct file_t target_file;
+            enum link_target_dentry_origin target_dentry_origin;
         } link;
 
         struct {
             struct dentry *dentry;
             struct file_t file;
             const char *name;
+            u64 pid_tgid;
         } xattr;
 
         struct {
@@ -209,6 +213,7 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
             u16 protocol;
+            u64 pid_tgid;
         } bind;
 
          struct {
@@ -216,6 +221,7 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
             u16 protocol;
+            u64 pid_tgid;
         } connect;
 
          struct {
@@ -237,6 +243,10 @@ struct syscall_cache_t {
         struct {
             u8 in_flight;
         } stat;
+
+        struct {
+            u32 action;
+        } sysctl;
     };
 };
 

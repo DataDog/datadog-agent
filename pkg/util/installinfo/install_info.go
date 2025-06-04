@@ -22,6 +22,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -57,7 +58,25 @@ func GetFilePath(conf model.Reader) string {
 
 // Get returns information about how the Agent was installed.
 func Get(conf model.Reader) (*InstallInfo, error) {
+	if installInfo, ok := getFromEnvVars(); ok {
+		return installInfo, nil
+	}
 	return getFromPath(GetFilePath(conf))
+}
+
+func getFromEnvVars() (*InstallInfo, bool) {
+	tool, okTool := os.LookupEnv("DD_INSTALL_INFO_TOOL")
+	toolVersion, okToolVersion := os.LookupEnv("DD_INSTALL_INFO_TOOL_VERSION")
+	installerVersion, okInstallerVersion := os.LookupEnv("DD_INSTALL_INFO_INSTALLER_VERSION")
+
+	if !okTool || !okToolVersion || !okInstallerVersion {
+		if okTool || okToolVersion || okInstallerVersion {
+			log.Warnf("install info partially set through environment, ignoring: tool %t, version %t, installer %t", okTool, okToolVersion, okInstallerVersion)
+		}
+		return nil, false
+	}
+
+	return scrubFields(&InstallInfo{Tool: tool, ToolVersion: toolVersion, InstallerVersion: installerVersion}), true
 }
 
 func getFromPath(path string) (*InstallInfo, error) {
@@ -72,7 +91,16 @@ func getFromPath(path string) (*InstallInfo, error) {
 		return nil, err
 	}
 
-	return &install.Method, nil
+	return scrubFields(&install.Method), nil
+}
+
+func scrubFields(info *InstallInfo) *InstallInfo {
+	// Errors from ScrubString are only produced by the Reader interface, but
+	// all these calls pass a string, which guarantees the Reader won't error
+	info.Tool, _ = scrubber.ScrubString(info.Tool)
+	info.ToolVersion, _ = scrubber.ScrubString(info.ToolVersion)
+	info.InstallerVersion, _ = scrubber.ScrubString(info.InstallerVersion)
+	return info
 }
 
 // LogVersionHistory loads version history file, append new entry if agent version is different than the last entry in the
@@ -109,9 +137,10 @@ func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentV
 		Version:   agentVersion,
 		Timestamp: timestamp,
 	}
-	info, err := getFromPath(installInfoFilePath)
-	if err == nil {
-		newEntry.InstallMethod = *info
+	if installInfo, ok := getFromEnvVars(); ok {
+		newEntry.InstallMethod = *installInfo
+	} else if installInfo, err := getFromPath(installInfoFilePath); err == nil {
+		newEntry.InstallMethod = *installInfo
 	} else {
 		log.Infof("Cannot read %s: %s", installInfoFilePath, err)
 	}

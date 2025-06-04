@@ -7,6 +7,7 @@
 package automultilinedetection
 
 import (
+	"encoding/json"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -20,16 +21,16 @@ const defaultMatchThreshold = 0.75
 // UserSample represents a user-defined sample for auto multi-line detection.
 type UserSample struct {
 	// Sample is a raw log message sample used to aggregate logs.
-	Sample string `mapstructure:"sample"`
+	Sample string `mapstructure:"sample" json:"sample"`
 	// MatchThreshold is the ratio of tokens that must match between the sample and the log message to consider it a match.
 	// From a user perspective, this is how similar the log has to be to the sample to be considered a match.
 	// Optional - Default value is 0.75.
-	MatchThreshold *float64 `mapstructure:"match_threshold,omitempty"`
+	MatchThreshold *float64 `mapstructure:"match_threshold,omitempty" json:"match_threshold,omitempty"`
 	// Regex is a pattern used to aggregate logs. NOTE that you can use either a sample or a regex, but not both.
-	Regex string `mapstructure:"regex,omitempty"`
+	Regex string `mapstructure:"regex,omitempty" json:"regex,omitempty"`
 	// Label is the label to apply to the log message if it matches the sample.
 	// Optional - Default value is "start_group".
-	Label *string `mapstructure:"label,omitempty"`
+	Label *string `mapstructure:"label,omitempty" json:"label,omitempty"`
 
 	// Parse fields
 	tokens         []tokens.Token
@@ -47,12 +48,18 @@ type UserSamples struct {
 func NewUserSamples(config model.Reader) *UserSamples {
 	tokenizer := NewTokenizer(0)
 	s := make([]*UserSample, 0)
-	err := structure.UnmarshalKey(config, "logs_config.auto_multi_line_detection_custom_samples", &s)
+	var err error
+	raw := config.Get("logs_config.auto_multi_line_detection_custom_samples")
+	if raw != nil {
+		if str, ok := raw.(string); ok && str != "" {
+			err = json.Unmarshal([]byte(str), &s)
+		} else {
+			err = structure.UnmarshalKey(config, "logs_config.auto_multi_line_detection_custom_samples", &s)
+		}
 
-	if err != nil {
-		log.Error("Failed to unmarshal custom samples: ", err)
-		return &UserSamples{
-			samples: []*UserSample{},
+		if err != nil {
+			log.Error("Failed to unmarshal custom samples: ", err)
+			s = make([]*UserSample, 0)
 		}
 	}
 

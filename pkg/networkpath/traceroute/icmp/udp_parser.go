@@ -25,7 +25,6 @@ type (
 		innerIPLayer  layers.IPv4
 		innerUDPLayer layers.UDP
 		innerTCPLayer layers.TCP
-		innerPayload  gopacket.Payload
 		// packetParser is parser for the ICMP segment of the packet
 		packetParser *gopacket.DecodingLayerParser
 		// innerPacketParser is necessary for ICMP packets
@@ -42,13 +41,13 @@ func NewICMPUDPParser() Parser {
 	icmpParser := &UDPParser{}
 	icmpParser.packetParser = gopacket.NewDecodingLayerParser(layers.LayerTypeICMPv4, &icmpParser.icmpLayer)
 	icmpParser.innerPacketParser = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &icmpParser.innerIPLayer, &icmpParser.innerUDPLayer)
-	// TODO: can we ignore unsupported layers?
 	icmpParser.packetParser.IgnoreUnsupported = true
+	icmpParser.innerPacketParser.IgnoreUnsupported = true
 	return icmpParser
 }
 
 // Match encapsulates to logic to both parse and match an ICMP packet
-func (p *UDPParser) Match(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) (net.IP, error) {
+func (p *UDPParser) Match(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, packetID uint16) (net.IP, error) {
 	if header.Protocol != IPProtoICMP {
 		return net.IP{}, errors.New("expected an ICMP packet")
 	}
@@ -56,7 +55,7 @@ func (p *UDPParser) Match(header *ipv4.Header, packet []byte, localIP net.IP, lo
 	if err != nil {
 		return net.IP{}, fmt.Errorf("ICMP parse error: %w", err)
 	}
-	if !icmpResponse.Matches(localIP, localPort, remoteIP, remotePort, innerIdentifier) {
+	if !icmpResponse.Matches(localIP, localPort, remoteIP, remotePort, innerIdentifier, packetID) {
 		return net.IP{}, common.MismatchError("ICMP packet doesn't match")
 	}
 
@@ -74,7 +73,6 @@ func (p *UDPParser) Parse(header *ipv4.Header, payload []byte) (*Response, error
 	p.innerIPLayer = layers.IPv4{}
 	p.innerTCPLayer = layers.TCP{}
 	p.innerUDPLayer = layers.UDP{}
-	p.innerPayload = gopacket.Payload{}
 
 	p.icmpResponse = &Response{} // ensure we get a fresh ICMPResponse each run
 	p.icmpResponse.SrcIP = header.Src
@@ -103,6 +101,7 @@ func (p *UDPParser) Parse(header *ipv4.Header, payload []byte) (*Response, error
 	p.icmpResponse.InnerDstPort = uint16(p.innerUDPLayer.DstPort)
 	// the packet's checksum is used as the identifier for UDP packets
 	p.icmpResponse.InnerIdentifier = uint32(p.innerUDPLayer.Checksum)
+	p.icmpResponse.InnerIPID = p.innerIPLayer.Id
 
 	return p.icmpResponse, nil
 }

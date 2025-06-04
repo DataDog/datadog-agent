@@ -12,12 +12,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector"
 	"go.opentelemetry.io/collector/component/componenttest"
 
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -37,10 +38,12 @@ import (
 
 // this is only used for config unmarshalling.
 func addFactories(factories otelcol.Factories) {
-	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil)
-	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil)
-	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactory()
-	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{})
+	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage())
+	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, func(context.Context) (string, error) {
+		return "hostname", nil
+	})
+	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(nil, nil)
+	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{}, false)
 }
 
 func TestGetConfDump(t *testing.T) {
@@ -57,7 +60,7 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, true)
+	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, true, false)
 	assert.NoError(t, err)
 
 	ext, ok := extension.(*ddExtension)
@@ -74,7 +77,7 @@ func TestGetConfDump(t *testing.T) {
 	}
 
 	t.Run("provided-string", func(t *testing.T) {
-		actualString, _ := ext.configStore.getProvidedConfAsString()
+		actualString := ext.configStore.getProvidedConf()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
 
@@ -87,11 +90,8 @@ func TestGetConfDump(t *testing.T) {
 	})
 
 	t.Run("provided-confmap", func(t *testing.T) {
-		actualConfmap, _ := ext.configStore.getProvidedConf()
-		// marshal to yaml and then to map to drop the types for comparison
-		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
-		assert.NoError(t, err)
-		actualStringMap, err := yamlBytesToMap(bytesConf)
+		providedConf := ext.configStore.getProvidedConf()
+		actualStringMap, err := yamlBytesToMap([]byte(providedConf))
 		assert.NoError(t, err)
 
 		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-provided-result.yaml")
@@ -119,7 +119,7 @@ func TestGetConfDump(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("enhanced-string", func(t *testing.T) {
-		actualString, _ := ext.configStore.getEnhancedConfAsString()
+		actualString := ext.configStore.getEnhancedConf()
 		actualStringMap, err := yamlBytesToMap([]byte(actualString))
 		assert.NoError(t, err)
 
@@ -132,11 +132,8 @@ func TestGetConfDump(t *testing.T) {
 	})
 
 	t.Run("enhance-confmap", func(t *testing.T) {
-		actualConfmap, _ := ext.configStore.getEnhancedConf()
-		// marshal to yaml and then to map to drop the types for comparison
-		bytesConf, err := yaml.Marshal(actualConfmap.ToStringMap())
-		assert.NoError(t, err)
-		actualStringMap, err := yamlBytesToMap(bytesConf)
+		actualConfmap := ext.configStore.getEnhancedConf()
+		actualStringMap, err := yamlBytesToMap([]byte(actualConfmap))
 		assert.NoError(t, err)
 
 		expectedMap, err := confmaptest.LoadConf("testdata/simple-dd/config-enhanced-result.yaml")

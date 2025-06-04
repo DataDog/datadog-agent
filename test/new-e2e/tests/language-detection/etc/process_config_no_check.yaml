@@ -1,4 +1,6 @@
 process_config:
+  run_in_core_agent:
+    enabled: false
   process_collection:
     enabled: false
   container_collection:

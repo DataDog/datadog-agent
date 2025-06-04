@@ -12,24 +12,24 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 )
 
 // DiagnoseMetadataAutodiscoveryConnectivity diagnoses the auto discovery connectivity
-func DiagnoseMetadataAutodiscoveryConnectivity() []diagnosis.Diagnosis {
-	if len(diagnosis.MetadataAvailCatalog) == 0 {
+func DiagnoseMetadataAutodiscoveryConnectivity() []diagnose.Diagnosis {
+	if len(diagnose.MetadataAvailCatalog) == 0 {
 		return nil
 	}
 
 	var sortedDiagnosis []string
-	for name := range diagnosis.MetadataAvailCatalog {
+	for name := range diagnose.MetadataAvailCatalog {
 		sortedDiagnosis = append(sortedDiagnosis, name)
 	}
 	sort.Strings(sortedDiagnosis)
 
-	var diagnoses []diagnosis.Diagnosis
+	var diagnoses []diagnose.Diagnosis
 	for _, name := range sortedDiagnosis {
-		err := diagnosis.MetadataAvailCatalog[name]()
+		err := diagnose.MetadataAvailCatalog[name]()
 
 		// Will always add successful diagnosis because particular environment is auto-discovered
 		// and may not exist and or configured but knowing if we can or cannot connect to it
@@ -41,8 +41,8 @@ func DiagnoseMetadataAutodiscoveryConnectivity() []diagnosis.Diagnosis {
 			diagnosisString = fmt.Sprintf("[Ignore if not applied] %s", err.Error())
 		}
 
-		diagnoses = append(diagnoses, diagnosis.Diagnosis{
-			Result:    diagnosis.DiagnosisSuccess,
+		diagnoses = append(diagnoses, diagnose.Diagnosis{
+			Status:    diagnose.DiagnosisSuccess,
 			Name:      name,
 			Diagnosis: diagnosisString,
 		})

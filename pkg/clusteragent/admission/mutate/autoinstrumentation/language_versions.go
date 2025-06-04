@@ -109,12 +109,17 @@ var supportedLanguages = []language{
 	php, // PHP only works with injection v2, no environment variables are set in any case
 }
 
-func (l language) isSupported() bool {
-	return slices.Contains(supportedLanguages, l)
+func defaultSupportedLanguagesMap() map[language]bool {
+	m := map[language]bool{}
+	for _, l := range supportedLanguages {
+		m[l] = true
+	}
+
+	return m
 }
 
-func (l language) isEnabledByDefault() bool {
-	return l != "php"
+func (l language) isSupported() bool {
+	return slices.Contains(supportedLanguages, l)
 }
 
 // defaultVersionMagicString is a magic string that indicates that the user
@@ -128,7 +133,7 @@ const defaultVersionMagicString = "default"
 var languageVersions = map[language]string{
 	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
 	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
-	python: "v2", // https://datadoghq.atlassian.net/browse/APMON-1068
+	python: "v3", // https://datadoghq.atlassian.net/browse/INPLAT-598
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
 	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128

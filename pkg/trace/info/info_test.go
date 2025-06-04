@@ -341,8 +341,6 @@ func TestInfoReceiverStats(t *testing.T) {
 	conf := testInit(t)
 	assert.NotNil(conf)
 
-	assert.NotNil(publishReceiverStats())
-
 	stats := NewReceiverStats()
 	t1 := &TagStats{
 		Tags{Lang: "python"},
@@ -438,6 +436,7 @@ func TestInfoConfig(t *testing.T) {
 	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
 
 	conf.ContainerTags = nil
+	conf.ContainerIDFromOriginInfo = nil
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
 }
@@ -450,7 +449,7 @@ func TestPublishUptime(t *testing.T) {
 }
 
 func TestPublishReceiverStats(t *testing.T) {
-	receiverStats = []TagStats{{
+	ift.receiverStats = []TagStats{{
 		Tags: Tags{
 			Lang:    "go",
 			Service: "service",
@@ -566,7 +565,7 @@ func TestPublishReceiverStats(t *testing.T) {
 }
 
 func TestPublishWatchdogInfo(t *testing.T) {
-	watchdogInfo = watchdog.Info{
+	ift.watchdogInfo = watchdog.Info{
 		CPU: watchdog.CPUInfo{UserAvg: 1.2},
 		Mem: watchdog.MemInfo{Alloc: 1000},
 	}

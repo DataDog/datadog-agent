@@ -15,7 +15,7 @@ Here is an abstract of the go.mod file format:
 
 {
     "Module": {"Path": "github.com/DataDog/datadog-agent"},
-    "Go": "1.23",
+    "Go": "1.24",
     "Require": [
         {"Path": "github.com/DataDog/datadog-agent/pkg/config/logs", "Version": "v0.51.0-rc.2"},
         {"Path": "k8s.io/kms", "Version": "v0.27.6", "Indirect": true},
@@ -110,6 +110,7 @@ class TestGoModuleSerialization(unittest.TestCase):
             'test_targets': ['.'],
             'lint_targets': ['.'],
             'should_test_condition': 'always',
+            'should_replace_internal_modules': True,
             'should_tag': True,
             'independent': True,
             'used_by_otel': True,

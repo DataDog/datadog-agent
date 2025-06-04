@@ -55,6 +55,11 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 
 	apiStatus.PoliciesStatus = a.policiesStatus
 
+	seclVariables := a.GetSECLVariables()
+	for _, seclVariable := range seclVariables {
+		apiStatus.SECLVariables = append(apiStatus.SECLVariables, seclVariable)
+	}
+
 	return apiStatus, nil
 }
 

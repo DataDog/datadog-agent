@@ -8,11 +8,11 @@ package rules
 
 import (
 	"context"
-	json "encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/rconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -72,6 +73,7 @@ type RuleEngine struct {
 type APIServer interface {
 	ApplyRuleIDs([]rules.RuleID)
 	ApplyPolicyStates([]*monitor.PolicyState)
+	GetSECLVariables() map[string]*api.SECLVariableState
 }
 
 // NewRuleEngine returns a new rule engine
@@ -173,6 +175,25 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		for range e.policyLoader.NewPolicyReady() {
 			if err := e.ReloadPolicies(); err != nil {
 				seclog.Errorf("failed to reload policies: %s", err)
+			}
+		}
+	}()
+
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+
+		ruleSetCleanupTicker := time.NewTicker(5 * time.Minute)
+		defer ruleSetCleanupTicker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ruleSetCleanupTicker.C:
+				if ruleSet := e.GetRuleSet(); ruleSet != nil {
+					ruleSet.CleanupExpiredVariables()
+				}
 			}
 		}
 	}()
@@ -334,10 +355,11 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-	report, err := e.probe.ApplyRuleSet(rs)
+	filterReport, err := e.probe.ApplyRuleSet(rs)
 	if err != nil {
 		return err
 	}
+	seclog.Debugf("Filter Report: %s", filterReport)
 
 	e.currentRuleSet.Store(rs)
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
@@ -349,9 +371,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	// reset the probe process killer state once the new ruleset is loaded
 	e.probe.OnNewRuleSetLoaded(rs)
 
-	content, _ := json.Marshal(report)
-	seclog.Debugf("Policy report: %s", content)
-
 	// set the rate limiters on sending events to the backend
 	e.rateLimiter.Apply(rs, events.AllCustomRuleIDs())
 
@@ -362,7 +381,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, policies)
+		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, policies, filterReport)
 		e.policyMonitor.SetPolicies(policies)
 	}
 
@@ -372,6 +391,51 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor.PolicyState) {
 	e.apiServer.ApplyRuleIDs(ruleIDs)
 	e.apiServer.ApplyPolicyStates(policies)
+}
+
+func (e *RuleEngine) getCommonSECLVariables(rs *rules.RuleSet) map[string]*api.SECLVariableState {
+	var seclVariables = make(map[string]*api.SECLVariableState)
+	for name, value := range rs.GetVariables() {
+		if strings.HasPrefix(name, "process.") {
+			scopedVariable := value.(eval.ScopedVariable)
+			if !scopedVariable.IsMutable() {
+				continue
+			}
+
+			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
+				entry.Retain()
+				defer entry.Release()
+
+				event := e.probe.PlatformProbe.NewEvent()
+				event.ProcessCacheEntry = entry
+				ctx := eval.NewContext(event)
+				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
+				value, found := scopedVariable.GetValue(ctx)
+				if !found {
+					return
+				}
+
+				scopedValue := fmt.Sprintf("%+v", value)
+				seclVariables[scopedName] = &api.SECLVariableState{
+					Name:  scopedName,
+					Value: scopedValue,
+				}
+			})
+		} else if strings.Contains(name, ".") { // other scopes
+			continue
+		} else { // global variables
+			value, found := value.(eval.Variable).GetValue()
+			if !found {
+				continue
+			}
+			scopedValue := fmt.Sprintf("%+v", value)
+			seclVariables[name] = &api.SECLVariableState{
+				Name:  name,
+				Value: scopedValue,
+			}
+		}
+	}
+	return seclVariables
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
@@ -418,12 +482,12 @@ func (e *RuleEngine) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, fi
 }
 
 // RuleMatch is called by the ruleset when a rule matches
-func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
+func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.Event) bool {
 	ev := event.(*model.Event)
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
 	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
-		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Def.Version))
+		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
 	if e.AutoSuppression.Suppresses(rule, ev) {
@@ -463,6 +527,9 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 			}
 		}
 	}
+
+	ev.RuleContext.Expression = rule.Expression
+	ev.RuleContext.MatchingSubExprs = ctx.GetMatchingSubExprs()
 
 	e.eventSender.SendEvent(rule, ev, extTagsCb, service)
 
@@ -590,14 +657,16 @@ func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []stri
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		if rule.Policy.IsInternal && !includeInternalPolicies {
-			continue
-		}
-		version := rule.Policy.Def.Version
-		if _, exists := cache[version]; !exists {
-			cache[version] = true
+		for _, pInfo := range rule.UsedBy {
+			if rule.Policy.IsInternal && !includeInternalPolicies {
+				continue
+			}
 
-			versions = append(versions, version)
+			version := pInfo.Version
+			if _, exists := cache[version]; !exists {
+				cache[version] = true
+				versions = append(versions, version)
+			}
 		}
 	}
 

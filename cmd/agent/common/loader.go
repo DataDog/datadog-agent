@@ -25,10 +25,12 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	return func(ctx context.Context, wm workloadmeta.Component, cfg config.Component) error {
 		// SBOM scanner needs to be called here as initialization is required prior to the
 		// catalog getting instantiated and initialized.
-		sbomScanner, err := scanner.CreateGlobalScanner(cfg, option.New(wm))
-		if err != nil {
-			return fmt.Errorf("failed to create SBOM scanner: %s", err)
-		} else if sbomScanner != nil {
+		if cfg.GetBool("sbom.host.enabled") || cfg.GetBool("sbom.container_image.enabled") {
+			sbomScanner, err := scanner.CreateGlobalScanner(cfg, option.New(wm))
+			if err != nil {
+				return fmt.Errorf("failed to create SBOM scanner: %s", err)
+			}
+
 			sbomScanner.Start(ctx)
 		}
 
@@ -45,11 +47,5 @@ func LoadComponents(_ secrets.Component, wmeta workloadmeta.Component, ac autodi
 		"",
 	}
 
-	// TODO: (components) - This is a temporary fix to start the autodiscovery component in CLI mode (agent flare and diagnose in forcelocal checks)
-	// because the autodiscovery component is not started by the agent automatically. Probably we can start it inside
-	// fx lifecycle and remove this call.
-	if !ac.IsStarted() {
-		ac.Start()
-	}
 	setupAutoDiscovery(confSearchPaths, wmeta, ac)
 }

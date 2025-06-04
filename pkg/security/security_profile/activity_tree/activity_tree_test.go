@@ -167,6 +167,7 @@ func newExecTestEventWithAncestors(lineage []model.Process) *model.Event {
 				},
 			},
 		},
+		CGroupContext: &model.CGroupContext{},
 		Exec: model.ExecEvent{
 			Process: &model.Process{},
 		},

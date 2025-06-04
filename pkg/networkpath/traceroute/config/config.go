@@ -13,7 +13,7 @@ import (
 )
 
 // Config specifies the configuration of an instance
-// of Traceroute
+// of Traceroute, on the system-probe side
 type Config struct {
 	// TODO: add common configuration
 	// Destination Hostname
@@ -28,9 +28,13 @@ type Config struct {
 	SourceContainerID string
 	// Max number of hops to try
 	MaxTTL uint8
-	// TODO: do we want to expose this?
+	// Timeout for each hop
 	Timeout time.Duration
 	// Protocol is the protocol to use
 	// for traceroute, default is UDP
 	Protocol payload.Protocol
+	// TCPMethod is the method used to run a TCP traceroute.
+	TCPMethod payload.TCPMethod
+	// TCPSynParisTracerouteMode makes TCP SYN act like paris traceroute (fixed packet ID, randomized seq)
+	TCPSynParisTracerouteMode bool
 }

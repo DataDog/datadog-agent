@@ -39,12 +39,28 @@ func (s *testInstallSuite) TestInstall() {
 	// initialize test helper
 	t := s.newTester(vm)
 
-	// create a dummy auth-token with known value to be replaced
-	tokenValue := "F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0"
 	err := vm.MkdirAll(windowsAgent.DefaultConfigRoot)
-	s.Require().NoError(err)
-	_, err = vm.WriteFile(filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"), []byte(tokenValue))
-	s.Require().NoError(err)
+	s.Require().NoErrorf(err, "could not create default config root")
+
+	// create dummy files with known value to be replaced
+	filesThatNeedToBeReplaced := []struct {
+		path    string
+		content string
+	}{
+		{
+			path:    filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"),
+			content: "F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0",
+		},
+		{
+			path:    filepath.Join(windowsAgent.DefaultConfigRoot, "ipc_cert.pem"),
+			content: "0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F0F",
+		},
+	}
+
+	for _, f := range filesThatNeedToBeReplaced {
+		_, err = vm.WriteFile(f.path, []byte(f.content))
+		s.Require().NoErrorf(err, "could not write %s", f.path)
+	}
 
 	// install the agent
 	remoteMSIPath := s.installAgentPackage(vm, s.AgentPackage)
@@ -59,18 +75,12 @@ func (s *testInstallSuite) TestInstall() {
 		s.T().FailNow()
 	}
 	s.testCodeSignatures(t, remoteMSIPath)
-	s.testAuthTokenReplacement(tokenValue)
+	for _, f := range filesThatNeedToBeReplaced {
+		newFileContent, err := vm.ReadFile(f.path)
+		s.Require().NoErrorf(err, "could not read %s", f.path)
+		s.Assert().NotEqual(strings.TrimSpace(string(newFileContent)), strings.TrimSpace(f.content))
+	}
 	s.uninstallAgentAndRunUninstallTests(t)
-}
-
-// testAuthTokenReplacement confirms that a new auth token was created.
-func (s *testInstallSuite) testAuthTokenReplacement(oldAuth string) {
-	vm := s.Env().RemoteHost
-	newAuth, err := vm.ReadFile(filepath.Join(windowsAgent.DefaultConfigRoot, "auth_token"))
-	s.Require().NoError(err)
-	stringNewAuth := strings.TrimSpace(string(newAuth))
-	oldAuth = strings.TrimSpace(oldAuth)
-	s.Assert().NotEqual(stringNewAuth, oldAuth)
 }
 
 // testCodeSignatures checks the code signatures of the installed files.

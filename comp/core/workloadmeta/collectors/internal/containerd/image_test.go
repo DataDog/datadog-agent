@@ -113,6 +113,14 @@ func TestGetLayersWithHistory(t *testing.T) {
 				Comment:    "empty5",
 			},
 		},
+		RootFS: ocispec.RootFS{
+			DiffIDs: []digest.Digest{
+				digest.FromString("abc"),
+				digest.FromString("def"),
+				digest.FromString("ghi"),
+				digest.FromString("jkl"),
+			},
+		},
 	}
 
 	manifest := ocispec.Manifest{
@@ -144,7 +152,7 @@ func TestGetLayersWithHistory(t *testing.T) {
 	assert.Equal(t, []workloadmeta.ContainerImageLayer{
 		{
 			MediaType: ocispec.MediaTypeImageLayer,
-			Digest:    digest.FromString("foo").String(),
+			Digest:    digest.FromString("abc").String(),
 			SizeBytes: 1,
 			History: &ocispec.History{
 				Comment:    "not-empty1",
@@ -165,7 +173,7 @@ func TestGetLayersWithHistory(t *testing.T) {
 		},
 		{
 			MediaType: ocispec.MediaTypeImageLayer,
-			Digest:    digest.FromString("bar").String(),
+			Digest:    digest.FromString("def").String(),
 			SizeBytes: 2,
 			History: &ocispec.History{
 				Comment:    "not-empty2",
@@ -180,7 +188,7 @@ func TestGetLayersWithHistory(t *testing.T) {
 		},
 		{
 			MediaType: ocispec.MediaTypeImageLayer,
-			Digest:    digest.FromString("baz").String(),
+			Digest:    digest.FromString("ghi").String(),
 			SizeBytes: 3,
 			History: &ocispec.History{
 				Comment:    "not-empty3",
@@ -201,7 +209,7 @@ func TestGetLayersWithHistory(t *testing.T) {
 		},
 		{
 			MediaType: ocispec.MediaTypeImageLayer,
-			Digest:    digest.FromString("bow").String(),
+			Digest:    digest.FromString("jkl").String(),
 			SizeBytes: 4,
 		},
 	}, layers)

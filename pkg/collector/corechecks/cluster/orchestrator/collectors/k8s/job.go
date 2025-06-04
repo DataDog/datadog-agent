@@ -13,6 +13,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1"
@@ -43,16 +44,18 @@ func NewJobCollector(metadataAsTags utils.MetadataAsTags) *JobCollector {
 
 	return &JobCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      jobName,
-			NodeType:                  orchestrator.K8sJob,
-			Version:                   jobVersion,
-			LabelsAsTags:              labelsAsTags,
-			AnnotationsAsTags:         annotationsAsTags,
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 jobName,
+			Kind:                                 kubernetes.JobKind,
+			NodeType:                             orchestrator.K8sJob,
+			Version:                              jobVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.JobHandlers)),
 	}
@@ -88,7 +91,7 @@ func (c *JobCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 func (c *JobCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -96,7 +99,7 @@ func (c *JobCollector) Process(rcfg *collectors.CollectorRunConfig, list interfa
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

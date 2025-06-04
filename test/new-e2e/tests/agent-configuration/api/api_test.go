@@ -538,12 +538,12 @@ hostname: ENC[hostname]`
 
 	v.T().Log("Setting up the secret resolver and the initial api key file")
 
-	secretClient := secretsutils.NewSecretClient(v.T(), v.Env().RemoteHost, rootDir)
+	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, rootDir)
 	secretClient.SetSecret("hostname", "e2e.test")
 
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			secretsutils.WithUnixSecretSetupScript(secretResolverPath, true),
+			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(config),
 		),
 	))

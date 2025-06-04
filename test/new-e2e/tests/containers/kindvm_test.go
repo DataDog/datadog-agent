@@ -28,7 +28,9 @@ func TestKindSuite(t *testing.T) {
 		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
+		awskubernetes.WithAgentOptions(
+			kubernetesagentparams.WithDualShipping(),
+		),
 	)))
 }
 

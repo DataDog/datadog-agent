@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"text/tabwriter"
 
@@ -34,7 +35,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		return nil
 	}
 
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 
 	// Set session token
 	err := util.SetAuthToken(pkgconfigsetup.Datadog())
@@ -75,7 +76,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 	if len(cr.Dangling) > 0 {
 		fmt.Fprintf(w, "=== %s configurations ===\n", color.RedString("Unassigned"))
 		for _, c := range cr.Dangling {
-			flare.PrintConfig(w, c, checkName)
+			flare.PrintClusterCheckConfig(w, c, checkName)
 		}
 		fmt.Fprintln(w, "")
 	}
@@ -102,7 +103,7 @@ func GetClusterChecks(w io.Writer, checkName string) error {
 		}
 		fmt.Fprintf(w, "\n===== Checks on %s =====\n", color.HiMagentaString(node.Name))
 		for _, c := range node.Configs {
-			flare.PrintConfig(w, c, checkName)
+			flare.PrintClusterCheckConfig(w, c, checkName)
 		}
 	}
 
@@ -121,7 +122,7 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 		color.NoColor = true
 	}
 
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 
 	// Set session token
 	if err := util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
@@ -147,17 +148,12 @@ func GetEndpointsChecks(w io.Writer, checkName string) error {
 	// Print summary of pod-backed endpointschecks
 	fmt.Fprintf(w, "\n===== %d Pod-backed Endpoints-Checks scheduled =====\n", len(cr.Configs))
 	for _, c := range cr.Configs {
-		flare.PrintConfig(w, c, checkName)
+		flare.PrintClusterCheckConfig(w, c, checkName)
 	}
 
 	return nil
 }
 
 func endpointschecksEnabled() bool {
-	for _, provider := range pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers") {
-		if provider == names.KubeEndpointsRegisterName {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(pkgconfigsetup.Datadog().GetStringSlice("extra_config_providers"), names.KubeEndpointsRegisterName)
 }

@@ -11,11 +11,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"reflect"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/proctracker"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,7 +26,7 @@ import (
 type ReaderConfigManager struct {
 	sync.Mutex
 	ConfigWriter *ConfigWriter
-	procTracker  *proctracker.ProcessTracker
+	ProcTracker  *proctracker.ProcessTracker
 
 	callback configUpdateCallback
 	configs  configsByService
@@ -34,14 +36,14 @@ type ReaderConfigManager struct {
 type configsByService = map[ditypes.ServiceName]map[ditypes.ProbeID]rcConfig
 
 // NewReaderConfigManager creates a new ReaderConfigManager
-func NewReaderConfigManager() (*ReaderConfigManager, error) {
+func NewReaderConfigManager(pm process.Subscriber) (*ReaderConfigManager, error) {
 	cm := &ReaderConfigManager{
 		callback: applyConfigUpdate,
 		state:    ditypes.NewDIProcs(),
 	}
 
-	cm.procTracker = proctracker.NewProcessTracker(cm.updateProcessInfo)
-	err := cm.procTracker.Start()
+	cm.ProcTracker = proctracker.NewProcessTracker(pm, cm.updateProcessInfo)
+	err := cm.ProcTracker.Start()
 	if err != nil {
 		return nil, err
 	}
@@ -57,30 +59,45 @@ func NewReaderConfigManager() (*ReaderConfigManager, error) {
 
 // GetProcInfos returns the process info state
 func (cm *ReaderConfigManager) GetProcInfos() ditypes.DIProcs {
-	return cm.state
+	cm.Lock()
+	defer cm.Unlock()
+	return maps.Clone(cm.state)
+}
+
+// GetProcInfo returns the process info state for a specific PID
+func (cm *ReaderConfigManager) GetProcInfo(pid ditypes.PID) *ditypes.ProcessInfo {
+	cm.Lock()
+	defer cm.Unlock()
+	return cm.state[pid]
 }
 
 // Stop causes the ReaderConfigManager to stop processing data
 func (cm *ReaderConfigManager) Stop() {
 	cm.ConfigWriter.Stop()
-	cm.procTracker.Stop()
+	cm.ProcTracker.Stop()
 }
 
 func (cm *ReaderConfigManager) update() error {
 	var updatedState = ditypes.NewDIProcs()
 	for serviceName, configsByID := range cm.configs {
-		for pid, proc := range cm.ConfigWriter.Processes {
+		for pid, proc := range cm.ConfigWriter.Processes() {
 			// If a config exists relevant to this proc
 			if proc.ServiceName == serviceName {
-				procCopy := *proc
-				updatedState[pid] = &procCopy
-				updatedState[pid].ProbesByID = convert(serviceName, configsByID)
+				updatedState[pid] = &ditypes.ProcessInfo{
+					PID:                 proc.PID,
+					ServiceName:         proc.ServiceName,
+					RuntimeID:           proc.RuntimeID,
+					BinaryPath:          proc.BinaryPath,
+					TypeMap:             proc.TypeMap,
+					ConfigurationUprobe: proc.ConfigurationUprobe,
+					ProbesByID:          convert(serviceName, configsByID),
+				}
 			}
 		}
 	}
 
 	if !reflect.DeepEqual(cm.state, updatedState) {
-		err := inspectGoBinaries(updatedState)
+		statuses, err := inspectGoBinaries(updatedState)
 		if err != nil {
 			return err
 		}
@@ -94,6 +111,11 @@ func (cm *ReaderConfigManager) update() error {
 		}
 
 		for pid, procInfo := range updatedState {
+			if !statuses[pid] {
+				log.Info("Skipped the installation/deletion of probes for pid %d - failed to analyze its binary", pid)
+				continue
+			}
+
 			if _, tracked := cm.state[pid]; !tracked {
 				for _, probe := range procInfo.GetProbes() {
 					// install all probes from new process
@@ -126,6 +148,9 @@ func (cm *ReaderConfigManager) updateProcessInfo(procs ditypes.DIProcs) {
 }
 
 func (cm *ReaderConfigManager) updateServiceConfigs(configs configsByService) {
+	cm.Lock()
+	defer cm.Unlock()
+
 	cm.configs = configs
 	err := cm.update()
 	if err != nil {
@@ -136,10 +161,11 @@ func (cm *ReaderConfigManager) updateServiceConfigs(configs configsByService) {
 // ConfigWriter handles writing configuration data
 type ConfigWriter struct {
 	io.Writer
-	updateChannel  chan ([]byte)
-	Processes      map[ditypes.PID]*ditypes.ProcessInfo
+	updateChannel  chan map[string]map[string]rcConfig
+	processes      map[ditypes.PID]*ditypes.ProcessInfo
 	configCallback ConfigWriterCallback
 	stopChannel    chan (bool)
+	mtx            sync.Mutex
 }
 
 // ConfigWriterCallback provides a callback interface for ConfigWriter
@@ -148,15 +174,47 @@ type ConfigWriterCallback func(configsByService)
 // NewConfigWriter creates a new ConfigWriter
 func NewConfigWriter(onConfigUpdate ConfigWriterCallback) *ConfigWriter {
 	return &ConfigWriter{
-		updateChannel:  make(chan []byte, 1),
+		updateChannel:  make(chan map[string]map[string]rcConfig),
 		configCallback: onConfigUpdate,
 		stopChannel:    make(chan bool),
 	}
 }
 
+// Processes returns a copy of the current processes
+func (r *ConfigWriter) Processes() map[ditypes.PID]*ditypes.ProcessInfo {
+	r.mtx.Lock()
+	procs := maps.Clone(r.processes)
+	r.mtx.Unlock()
+	return procs
+}
+
+// WriteSync accepts the incoming RC config for processing (installation/deletion/editing of probes)
+// used by Go DI testing infra
+func (r *ConfigWriter) WriteSync(p []byte) error {
+	conf, err := unmarshalToRcConfig(p)
+	if err != nil {
+		return err
+	}
+	r.configCallback(conf)
+	return nil
+}
+
 func (r *ConfigWriter) Write(p []byte) (n int, e error) {
-	r.updateChannel <- p
+	conf, err := unmarshalToRcConfig(p)
+	if err != nil {
+		return 0, err
+	}
+	r.updateChannel <- conf
 	return 0, nil
+}
+
+func unmarshalToRcConfig(p []byte) (map[string]map[string]rcConfig, error) {
+	conf := map[string]map[string]rcConfig{}
+	err := json.Unmarshal(p, &conf)
+	if err != nil {
+		return nil, log.Errorf("invalid config read from reader: %v", err)
+	}
+	return conf, nil
 }
 
 // Start initiates the ConfigWriter to start processing data
@@ -165,13 +223,7 @@ func (r *ConfigWriter) Start() error {
 	configUpdateLoop:
 		for {
 			select {
-			case rawConfigBytes := <-r.updateChannel:
-				conf := map[string]map[string]rcConfig{}
-				err := json.Unmarshal(rawConfigBytes, &conf)
-				if err != nil {
-					log.Errorf("invalid config read from reader: %v", err)
-					continue
-				}
+			case conf := <-r.updateChannel:
 				r.configCallback(conf)
 			case <-r.stopChannel:
 				break configUpdateLoop
@@ -190,17 +242,20 @@ func (r *ConfigWriter) Stop() {
 // such that it's used whenever there's an update to the state of known service processes on the machine.
 // It simply overwrites the previous state of known service processes with the new one
 func (r *ConfigWriter) UpdateProcesses(procs ditypes.DIProcs) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
 	current := procs
-	old := r.Processes
+	old := r.processes
 	if !reflect.DeepEqual(current, old) {
-		r.Processes = current
+		r.processes = current
 	}
 }
 
-func convert(service string, configsByID map[ditypes.ProbeID]rcConfig) map[ditypes.ProbeID]*ditypes.Probe {
-	probesByID := map[ditypes.ProbeID]*ditypes.Probe{}
+func convert(service string, configsByID map[ditypes.ProbeID]rcConfig) *ditypes.ProbesByID {
+	probesByID := ditypes.NewProbesByID()
 	for id, config := range configsByID {
-		probesByID[id] = config.toProbe(service)
+		probesByID.Set(id, config.toProbe(service))
 	}
 	return probesByID
 }
@@ -217,6 +272,7 @@ func (rc *rcConfig) toProbe(service string) *ditypes.Probe {
 				StringMaxSize:     ditypes.StringMaxSize,
 				SliceMaxLength:    ditypes.SliceMaxLength,
 				MaxReferenceDepth: rc.Capture.MaxReferenceDepth,
+				MaxFieldCount:     rc.Capture.MaxFieldCount,
 			},
 		},
 	}

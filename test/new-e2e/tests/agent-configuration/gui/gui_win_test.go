@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	msiparams "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
@@ -23,32 +24,37 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 )
 
+const authTokenFilePath = `C:\ProgramData\Datadog\auth_token`
+const installPath = `c:\Program Files\CustomPath\Datadog Agent`
+
+var config = fmt.Sprintf(`auth_token_file_path: %v
+cmd_port: %d
+GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
+
 type guiWindowsSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 func TestGUIWindowsSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &guiWindowsSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)))))
-}
 
-func (v *guiWindowsSuite) TestGUI() {
-	authTokenFilePath := `C:\ProgramData\Datadog\auth_token`
-
-	config := fmt.Sprintf(`auth_token_file_path: %v
-cmd_port: %d
-GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
-	// start the agent with that configuration
-	v.UpdateEnv(awshost.Provisioner(
+	e2e.Run(t, &guiWindowsSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(config),
+			agentparams.WithAdditionalInstallParameters(
+				msiparams.NewInstallParams(
+					msiparams.WithCustomInstallPath(fmt.Sprintf(`"%s"`, installPath)),
+				),
+			),
 		),
 		awshost.WithAgentClientOptions(
 			agentclientparams.WithAuthTokenPath(authTokenFilePath),
 		),
-	))
+	)))
+}
 
+func (v *guiWindowsSuite) TestGUI() {
 	// get auth token
 	v.T().Log("Getting the authentication token")
 	authtokenContent, err := v.Env().RemoteHost.ReadFile(authTokenFilePath)
@@ -65,7 +71,7 @@ GUI_port: %d`, authTokenFilePath, agentAPIPort, guiPort)
 	}, 1*time.Minute, 10*time.Second)
 
 	v.T().Log("Testing GUI static file server")
-	checkStaticFiles(v.T(), guiClient, v.Env().RemoteHost, "c:/Program Files/Datadog/Datadog Agent")
+	checkStaticFiles(v.T(), guiClient, v.Env().RemoteHost, installPath)
 
 	v.T().Log("Testing GUI ping endpoint")
 	checkPingEndpoint(v.T(), guiClient)

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 package ciscosdwan
 
 import (
@@ -200,6 +202,7 @@ collect_bgp_neighbor_states: true
 	event := []byte(`
 {
   "namespace": "test",
+  "integration": "cisco-sdwan",
   "devices": [
     {
       "id": "test:10.10.1.1",

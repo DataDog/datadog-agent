@@ -10,19 +10,18 @@ package ebpf
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	"gopkg.in/yaml.v2"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ebpfcheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -38,8 +37,9 @@ type EBPFCheckConfig struct {
 
 // EBPFCheck grabs eBPF map/program/perf buffer metrics
 type EBPFCheck struct {
-	config         *EBPFCheckConfig
-	sysProbeClient *http.Client
+	config             *EBPFCheckConfig
+	sysProbeClient     *sysprobeclient.CheckClient
+	previousMapEntries map[string]int64
 	core.CheckBase
 }
 
@@ -50,8 +50,9 @@ func Factory() option.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &EBPFCheck{
-		CheckBase: core.NewCheckBase(CheckName),
-		config:    &EBPFCheckConfig{},
+		CheckBase:          core.NewCheckBase(CheckName),
+		config:             &EBPFCheckConfig{},
+		previousMapEntries: make(map[string]int64),
 	}
 }
 
@@ -68,7 +69,7 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 	if err := m.config.Parse(config); err != nil {
 		return fmt.Errorf("ebpf check config: %s", err)
 	}
-	m.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	m.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 	return nil
 }
 
@@ -76,6 +77,9 @@ func (m *EBPFCheck) Configure(senderManager sender.SenderManager, _ uint64, conf
 func (m *EBPFCheck) Run() error {
 	stats, err := sysprobeclient.GetCheck[ebpfcheck.EBPFStats](m.sysProbeClient, sysconfig.EBPFModule)
 	if err != nil {
+		if sysprobeclient.IgnoreStartupError(err) == nil {
+			return nil
+		}
 		return fmt.Errorf("get ebpf check: %s", err)
 	}
 
@@ -95,21 +99,27 @@ func (m *EBPFCheck) Run() error {
 
 		tags := []string{
 			"map_name:" + mapStats.Name,
-			"map_type:" + mapStats.Type.String(),
+			"map_type:" + mapStats.Type,
 			"module:" + mapStats.Module,
 		}
 		sender.Gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize), "", tags)
-		sender.Gauge("ebpf.maps.max_entries", float64(mapStats.MaxEntries), "", tags)
 		if mapStats.RSS > 0 {
 			sender.Gauge("ebpf.maps.memory_rss", float64(mapStats.RSS), "", tags)
 		}
+
+		maxEntries := float64(mapStats.MaxEntries)
+		sender.Gauge("ebpf.maps.max_entries", maxEntries, "", tags)
 		if mapStats.Entries >= 0 {
-			sender.Gauge("ebpf.maps.entry_count", float64(mapStats.Entries), "", tags)
+			entries := float64(mapStats.Entries)
+			sender.Gauge("ebpf.maps.entry_count", entries, "", tags)
+			sender.Gauge("ebpf.maps.occupation", entries/maxEntries, "", tags)
+			sender.Gauge("ebpf.maps.occupation_increase", float64(mapStats.Entries-m.previousMapEntries[mapStats.Name])/maxEntries, "", tags)
+			m.previousMapEntries[mapStats.Name] = mapStats.Entries
 		}
 		moduleTotalMapMaxSize[mapStats.Module] += mapStats.MaxSize
 		moduleTotalMapRSS[mapStats.Module] += mapStats.RSS
 
-		log.Tracef("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type.String())
+		log.Tracef("ebpf check: map=%s maxsize=%d type=%s", mapStats.Name, mapStats.MaxSize, mapStats.Type)
 	}
 
 	for _, mapInfo := range stats.Maps {
@@ -147,12 +157,12 @@ func (m *EBPFCheck) Run() error {
 
 		tags := []string{
 			"program_name:" + progInfo.Name,
-			"program_type:" + progInfo.Type.String(),
+			"program_type:" + progInfo.Type,
 			"module:" + progInfo.Module,
 		}
 		var debuglogs []string
 		if log.ShouldLog(log.TraceLvl) {
-			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type.String()}
+			debuglogs = []string{"program=" + progInfo.Name, "type=" + progInfo.Type}
 		}
 
 		gauges := map[string]float64{
@@ -192,6 +202,44 @@ func (m *EBPFCheck) Run() error {
 			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
 		}
 	}
+
+	for _, kprobeStatsInfo := range stats.KprobeStats {
+		if kprobeStatsInfo.Module == "unknown" {
+			continue
+		}
+
+		tags := []string{
+			"program_name:" + kprobeStatsInfo.Name,
+			"program_type:" + kprobeStatsInfo.Type,
+			"module:" + kprobeStatsInfo.Module,
+		}
+
+		var debuglogs []string
+		if log.ShouldLog(log.TraceLvl) {
+			debuglogs = []string{"program=" + kprobeStatsInfo.Name, "type=" + kprobeStatsInfo.Type}
+		}
+
+		monos := map[string]float64{
+			"kprobe_nesting_misses":      float64(kprobeStatsInfo.KprobeMisses),
+			"kretprobe_maxactive_misses": float64(kprobeStatsInfo.KretprobeMaxActiveMisses),
+			"kprobe_hits":                float64(kprobeStatsInfo.KprobeHits),
+		}
+
+		for k, v := range monos {
+			if v == 0 {
+				continue
+			}
+			sender.MonotonicCountWithFlushFirstValue("ebpf.kprobes."+k, v, "", tags, true)
+			if log.ShouldLog(log.TraceLvl) {
+				debuglogs = append(debuglogs, fmt.Sprintf("%s=%.0f", k, v))
+			}
+		}
+
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("ebpf check: %s", strings.Join(debuglogs, " "))
+		}
+	}
+
 	if totalProgRSS > 0 {
 		sender.Gauge("ebpf.programs.memory_rss_total", float64(totalProgRSS), "", nil)
 	}

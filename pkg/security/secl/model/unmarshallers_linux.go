@@ -19,8 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -1016,7 +1014,7 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // EventUnmarshalBinary unmarshals a binary representation of itself
 func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 48 {
+	if len(data) < 56 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -1033,7 +1031,9 @@ func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, erro
 	adlc.Rate = binary.NativeEndian.Uint16(data[40:42])
 	// 2 bytes of padding
 	adlc.Paused = binary.NativeEndian.Uint32(data[44:48])
-	return 48, nil
+	adlc.CGroupFlags = containerutils.CGroupFlags(binary.NativeEndian.Uint32(data[48:52]))
+	// +4 bytes of padding
+	return 56, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -1091,18 +1091,17 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 10 {
 		return 0, ErrNotEnoughData
 	}
-
 	e.ID = binary.NativeEndian.Uint16(data[0:2])
-	e.Count = binary.NativeEndian.Uint16(data[2:4])
-	e.Type = binary.NativeEndian.Uint16(data[4:6])
-	e.Class = binary.NativeEndian.Uint16(data[6:8])
-	e.Size = binary.NativeEndian.Uint16(data[8:10])
+	e.Question.Count = binary.NativeEndian.Uint16(data[2:4])
+	e.Question.Type = binary.NativeEndian.Uint16(data[4:6])
+	e.Question.Class = binary.NativeEndian.Uint16(data[6:8])
+	e.Question.Size = binary.NativeEndian.Uint16(data[8:10])
 	var err error
-	e.Name, err = decodeDNSName(data[10:])
+	e.Question.Name, err = decodeDNSName(data[10:])
 	if err != nil {
-		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Count, e.Type, e.Size)
+		return 0, fmt.Errorf("failed to decode %s (id: %d, count: %d, type:%d, size:%d)", data[10:], e.ID, e.Question.Count, e.Question.Type, e.Question.Size)
 	}
-	if err = validateDNSName(e.Name); err != nil {
+	if err = validateDNSName(e.Question.Name); err != nil {
 		return 0, err
 	}
 	return len(data), nil
@@ -1360,68 +1359,14 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 260 {
+	const eventSize = 4 + OnDemandParsedArgsCount*OnDemandPerArgSize
+	if len(data) < eventSize {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ID = binary.NativeEndian.Uint32(data[0:4])
-	SliceToArray(data[4:260], e.Data[:])
-	return 260, nil
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
-func (e *RawPacketEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := e.NetworkContext.Device.UnmarshalBinary(data)
-	if err != nil {
-		return 0, ErrNotEnoughData
-	}
-	data = data[read:]
-
-	e.Size = binary.NativeEndian.Uint32(data)
-	data = data[4:]
-	e.Data = data
-	e.CaptureInfo.InterfaceIndex = int(e.NetworkContext.Device.IfIndex)
-	e.CaptureInfo.Length = int(e.NetworkContext.Size)
-	e.CaptureInfo.CaptureLength = len(data)
-
-	packet := gopacket.NewPacket(data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
-	if layer := packet.Layer(layers.LayerTypeIPv4); layer != nil {
-		if rl, ok := layer.(*layers.IPv4); ok {
-			e.L3Protocol = unix.ETH_P_IP
-			e.Source.IPNet = *eval.IPNetFromIP(rl.SrcIP)
-			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)
-		}
-	} else if layer := packet.Layer(layers.LayerTypeIPv6); layer != nil {
-		if rl, ok := layer.(*layers.IPv4); ok {
-			e.L3Protocol = unix.ETH_P_IPV6
-			e.Source.IPNet = *eval.IPNetFromIP(rl.SrcIP)
-			e.Destination.IPNet = *eval.IPNetFromIP(rl.DstIP)
-		}
-	}
-
-	if layer := packet.Layer(layers.LayerTypeUDP); layer != nil {
-		if rl, ok := layer.(*layers.UDP); ok {
-			e.L4Protocol = unix.IPPROTO_UDP
-			e.Source.Port = uint16(rl.SrcPort)
-			e.Destination.Port = uint16(rl.DstPort)
-		}
-	} else if layer := packet.Layer(layers.LayerTypeTCP); layer != nil {
-		if rl, ok := layer.(*layers.TCP); ok {
-			e.L4Protocol = unix.IPPROTO_TCP
-			e.Source.Port = uint16(rl.SrcPort)
-			e.Destination.Port = uint16(rl.DstPort)
-		}
-	}
-
-	if layer := packet.Layer(layers.LayerTypeTLS); layer != nil {
-		if rl, ok := layer.(*layers.TLS); ok {
-			if len(rl.AppData) > 0 {
-				e.TLSContext.Version = uint16(rl.AppData[0].Version)
-			}
-		}
-	}
-
-	return len(data), nil
+	SliceToArray(data[4:eventSize], e.Data[:])
+	return eventSize, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -1502,4 +1447,61 @@ func (e *NetworkFlowMonitorEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	return total, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 16 {
+		return 0, ErrNotEnoughData
+	}
+	var cursor int
+
+	e.Action = binary.NativeEndian.Uint32(data[0:4])
+	e.FilePosition = binary.NativeEndian.Uint32(data[4:8])
+
+	nameLen := int(binary.NativeEndian.Uint16(data[8:10]))
+	oldValueLen := int(binary.NativeEndian.Uint16(data[10:12]))
+	newValueLen := int(binary.NativeEndian.Uint16(data[12:14]))
+	flags := binary.NativeEndian.Uint16(data[14:16])
+
+	// handle truncated fields
+	e.NameTruncated = flags&(1<<0) > 0
+	e.OldValueTruncated = flags&(1<<1) > 0
+	e.ValueTruncated = flags&(1<<2) > 0
+	cursor += 16
+
+	// parse name and values
+	if nameLen+oldValueLen+newValueLen > len(data[cursor:]) {
+		return 0, ErrNotEnoughData
+	}
+
+	var err error
+	e.Name, err = UnmarshalString(data[cursor:cursor+nameLen], nameLen)
+	if err != nil {
+		return 0, err
+	}
+	e.Name = strings.TrimSpace(e.Name)
+	cursor += nameLen
+
+	e.OldValue, err = UnmarshalString(data[cursor:cursor+oldValueLen], oldValueLen)
+	if err != nil {
+		return 0, err
+	}
+	e.OldValue = strings.TrimSpace(e.OldValue)
+	cursor += oldValueLen
+
+	if e.Action == uint32(SysCtlReadAction) {
+		e.Value = e.OldValue
+	} else if e.Action == uint32(SysCtlWriteAction) {
+		e.Value, err = UnmarshalString(data[cursor:cursor+newValueLen], newValueLen)
+		if err != nil {
+			return 0, err
+		}
+		e.Value = strings.TrimSpace(e.Value)
+	}
+
+	// make sure the cursor is incremented either way
+	cursor += newValueLen
+
+	return cursor, nil
 }

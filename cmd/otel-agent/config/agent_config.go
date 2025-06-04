@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
@@ -183,8 +184,8 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	if pkgconfig.Get("apm_config.features") == nil {
 		apmConfigFeatures := []string{}
-		if pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
-			apmConfigFeatures = append(apmConfigFeatures, "enable_operation_and_resource_name_logic_v2")
+		if !pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
 		if ddc.Traces.ComputeTopLevelBySpanKind {
 			apmConfigFeatures = append(apmConfigFeatures, "enable_otlp_compute_top_level_by_span_kind")
@@ -207,32 +208,35 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 	}
 	err := confmap.NewFromStringMap(smap).Unmarshal(&pipelineConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal pipeline config %w", err)
 	}
 	return pipelineConfig, nil
 }
 
 func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 	var configs []*datadogconfig.Config
-	var err error
 	for k, v := range cfg.ToStringMap() {
 		if k != "exporters" {
 			continue
 		}
 		exporters, ok := v.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("invalid exporters config")
+			return nil, errors.New("invalid exporters config")
 		}
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
 				ddcfg := datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
-				m, ok := v.(map[string]any)
-				if !ok {
-					return nil, fmt.Errorf("invalid datadog exporter config")
+				m, err := setSiteIfEmpty(v)
+				if err != nil {
+					return nil, err
+				}
+				m, err = apiKeyItoa(m)
+				if err != nil {
+					return nil, err
 				}
 				err = confmap.NewFromStringMap(m).Unmarshal(&ddcfg)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("failed to unmarshal datadog exporter config\n%w", err)
 				}
 				if strings.Contains(ddcfg.Logs.Endpoint, "http-intake") && !strings.Contains(ddcfg.Logs.Endpoint, "agent-http-intake") {
 					// datadogconfig.Config sets logs endpoint to https://http-intake.logs.{DD_SITE} by default
@@ -256,4 +260,73 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 
 	datadogConfig := configs[0]
 	return datadogConfig, nil
+}
+
+// setSiteIfEmpty sets datadog::api::site to datadoghq.com if it is an empty string (default in helm)
+// Returns an error if the input datadog exporter config is invalid
+func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
+	if ddcfg == nil {
+		return nil, nil // OK if datadog section is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+	}
+	ddcfgMap, ok := ddcfg.(map[string]any)
+	if !ok {
+		return nil, errors.New("invalid datadog exporter config")
+	}
+	apicfg, ok := ddcfgMap["api"]
+	if !ok || apicfg == nil {
+		return ddcfgMap, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+	}
+	apicfgMap, ok := apicfg.(map[string]any)
+	if !ok {
+		return nil, errors.New("invalid datadog exporter config")
+	}
+	apiSite, ok := apicfgMap["site"]
+	if !ok || apiSite == "" {
+		apicfgMap["site"] = "datadoghq.com"
+	}
+	return ddcfgMap, nil
+}
+
+// apiKeyItoa converts datadog::api::key to a string if it is an int.
+// There is a very small chance DD_API_KEY is composed of digits only, in that case it will be treated as an int and fails confmap unmarshal.
+func apiKeyItoa(ddcfg any) (map[string]any, error) {
+	if ddcfg == nil {
+		return nil, nil // OK if datadog section is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+	}
+
+	ddcfgMap, ok := ddcfg.(map[string]any)
+	if !ok {
+		return nil, errors.New("invalid datadog exporter config")
+	}
+	apicfg, ok := ddcfgMap["api"]
+	if !ok || apicfg == nil {
+		return ddcfgMap, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+	}
+	apicfgMap, ok := apicfg.(map[string]any)
+	if !ok {
+		return nil, errors.New("invalid datadog exporter config")
+	}
+	apiKey, ok := apicfgMap["key"]
+	if !ok {
+		return ddcfgMap, nil // OK if key is not set, otel-agent will use the one from core agent
+	}
+	_, ok = apiKey.(string)
+	if ok {
+		return ddcfgMap, nil
+	}
+	var apiKeyStr string
+	switch v := apiKey.(type) {
+	case int:
+		apiKeyStr = strconv.Itoa(v)
+	case int64:
+		apiKeyStr = strconv.FormatInt(v, 10)
+	case float64:
+		apiKeyStr = strconv.FormatInt(int64(v), 10)
+	case float32:
+		apiKeyStr = strconv.FormatInt(int64(v), 10)
+	default:
+		return nil, fmt.Errorf("incorrect type of datadog::api::key %T", apiKey)
+	}
+	apicfgMap["key"] = apiKeyStr
+	return ddcfgMap, nil
 }

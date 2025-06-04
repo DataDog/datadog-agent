@@ -21,7 +21,8 @@
 #include <arpa/inet.h>
 #include <linux/un.h>
 #include <err.h>
-#include <errno.h>
+#include <limits.h>
+#include <sys/time.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -1099,6 +1100,137 @@ int test_network_flow_send_udp4(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_chmod(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a file name and a mode\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    char *end;
+    unsigned long mode = strtoul(argv[2], &end, 8);
+    if (end == argv[2]) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && mode == ULONG_MAX) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (mode > 0777) {
+        fprintf(stderr, "Invalid mode: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    if (chmod(filename, mode) < 0) {
+        perror("chmod");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_chown(int argc, char **argv) {
+    if (argc != 4) {
+        fprintf(stderr, "Please specify a file name, a user ID, and a group ID\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    char *end;
+    unsigned long owner = strtoul(argv[2], &end, 10);
+    if (end == argv[2]) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && owner == ULONG_MAX) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    } else if ((uid_t)owner != owner) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+
+    unsigned long group = strtoul(argv[3], &end, 10);
+    if (end == argv[3]) {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if (*end != '\0') {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if (errno == ERANGE && group == ULONG_MAX) {
+        fprintf(stderr, "Invalid group ID: %s\n", argv[3]);
+        return EXIT_FAILURE;
+    } else if ((gid_t)group != group) {
+        fprintf(stderr, "Invalid user ID: %s\n", argv[2]);
+        return EXIT_FAILURE;
+    }
+
+    if (chown(filename, (uid_t)owner, (gid_t)group) < 0) {
+        perror("chown");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_rename(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a source and a destination file name\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *oldpath = argv[1];
+    const char *newpath = argv[2];
+
+    if (rename(oldpath, newpath) < 0) {
+        perror("rename");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_utimes(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a file name and a time\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+
+    struct timeval times[2] = {0, 0};
+    if (utimes(filename, times) < 0) {
+        perror("utimes");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+int test_link(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "Please specify a source and a destination file name\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *oldpath = argv[1];
+    const char *newpath = argv[2];
+
+    if (link(oldpath, newpath) < 0) {
+        perror("link");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1182,6 +1314,16 @@ int main(int argc, char **argv) {
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chmod") == 0) {
+            exit_code = test_chmod(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "chown") == 0) {
+            exit_code = test_chown(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "rename") == 0) {
+            return test_rename(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "utimes") == 0) {
+            return test_utimes(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "link") == 0) {
+            return test_link(sub_argc, sub_argv);
         }
         else {
             fprintf(stderr, "Unknown command `%s`\n", cmd);

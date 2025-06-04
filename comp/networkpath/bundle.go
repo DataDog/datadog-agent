@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 )
 
-// team: Networks network-device-monitoring
+// team: Networks
 
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {

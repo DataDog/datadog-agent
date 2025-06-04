@@ -8,15 +8,17 @@ package config
 import (
 	"context"
 	"fmt"
-	"go.opentelemetry.io/collector/featuregate"
 	"io/fs"
 	"os"
 	"testing"
+
+	"go.opentelemetry.io/collector/featuregate"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -84,8 +86,8 @@ func (suite *ConfigTestSuite) TestAgentConfigDefaults() {
 		c.Get("apm_config.features"))
 }
 
-func (suite *ConfigTestSuite) TestOperationAndResourceNameV2FeatureGate() {
-	featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true)
+func (suite *ConfigTestSuite) TestDisableOperationAndResourceNameV2FeatureGate() {
+	featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", false)
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
@@ -104,7 +106,7 @@ func (suite *ConfigTestSuite) TestOperationAndResourceNameV2FeatureGate() {
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 	assert.Equal(t, false, c.Get("apm_config.receiver_enabled"))
 	assert.Equal(t, false, c.Get("otlp_config.traces.span_name_as_resource_name"))
-	assert.Equal(t, []string{"enable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"},
+	assert.Equal(t, []string{"disable_operation_and_resource_name_logic_v2", "enable_otlp_compute_top_level_by_span_kind"},
 		c.Get("apm_config.features"))
 }
 
@@ -117,6 +119,17 @@ func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars() {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
 	assert.Equal(t, "abc", c.Get("api_key"))
+}
+
+func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars_NumberAPIKey() {
+	t := suite.T()
+	fileName := "testdata/config_default_expand_envvar.yaml"
+	suite.T().Setenv("DD_API_KEY", "123456")
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+	assert.Equal(t, "123456", c.Get("api_key"))
 }
 
 func (suite *ConfigTestSuite) TestAgentConfigExpandEnvVars_Raw() {
@@ -308,6 +321,68 @@ func (suite *ConfigTestSuite) TestMultipleDDExporters() {
 	fileName := "testdata/config_multiple_dd_exporters.yaml"
 	_, err := NewConfigComponent(context.Background(), "", []string{fileName})
 	assert.EqualError(t, err, "multiple datadog exporters found")
+}
+
+func (suite *ConfigTestSuite) TestNoDDAPISection() {
+	t := suite.T()
+	fileName := "testdata/config_no_api.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestNilDDAPISection() {
+	t := suite.T()
+	fileName := "testdata/config_nil_api.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestMalformedDDAPISection() {
+	t := suite.T()
+	fileName := "testdata/config_malformed_api.yaml"
+	_, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	assert.EqualError(t, err, "invalid datadog exporter config")
+}
+
+func (suite *ConfigTestSuite) TestDDAPISiteEmpty() {
+	t := suite.T()
+	fileName := "testdata/config_site_empty.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestDDAPISiteNotSet() {
+	t := suite.T()
+	fileName := "testdata/config_site_not_set.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestDDAPISiteSet() {
+	t := suite.T()
+	fileName := "testdata/config_site_set.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "us3.datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.us3.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.us3.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.us3.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 }
 
 // TestSuite runs the CalculatorTestSuite

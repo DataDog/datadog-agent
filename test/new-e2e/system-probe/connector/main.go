@@ -139,7 +139,7 @@ func run() (err error) {
 	result := fail
 	defer func() {
 		if serr := metric.SubmitExecutionMetric(buildMetric(cinfo, failType, result)); serr != nil {
-			err = serr
+			log.Println(err)
 		}
 	}()
 

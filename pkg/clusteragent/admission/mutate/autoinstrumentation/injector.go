@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -73,6 +74,7 @@ var volumeMountETCDPreloadAppContainer = etcVolume.mount(corev1.VolumeMount{
 type injector struct {
 	image      string
 	registry   string
+	debug      bool
 	injected   bool
 	injectTime time.Time
 	opts       libRequirementOptions
@@ -125,20 +127,23 @@ func (i *injector) requirements() libRequirement {
 			volumeMountETCDPreloadAppContainer.prepended(),
 			v2VolumeMountInjector.prepended(),
 		},
-		envVars: []envVar{
-			{
-				key:     "LD_PRELOAD",
-				valFunc: joinValFunc(asAbs(injectorFilePath("launcher.preload.so")), ":"),
+		envVars: append(
+			[]envVar{
+				{
+					key:     "LD_PRELOAD",
+					valFunc: joinValFunc(asAbs(injectorFilePath("launcher.preload.so")), ":"),
+				},
+				{
+					key:     "DD_INJECT_SENDER_TYPE",
+					valFunc: identityValFunc("k8s"),
+				},
+				{
+					key:     "DD_INJECT_START_TIME",
+					valFunc: identityValFunc(strconv.FormatInt(i.injectTime.Unix(), 10)),
+				},
 			},
-			{
-				key:     "DD_INJECT_SENDER_TYPE",
-				valFunc: identityValFunc("k8s"),
-			},
-			{
-				key:     "DD_INJECT_START_TIME",
-				valFunc: identityValFunc(strconv.FormatInt(i.injectTime.Unix(), 10)),
-			},
-		},
+			i.debugEnvVars()...,
+		),
 	}
 }
 
@@ -152,6 +157,11 @@ var injectorVersionAnnotationExtractor = annotationExtractor[injectorOption]{
 var injectorImageAnnotationExtractor = annotationExtractor[injectorOption]{
 	key: "admission.datadoghq.com/apm-inject.custom-image",
 	do:  infallibleFn(injectorWithImageName),
+}
+
+var injectorDebugAnnotationExtractor = annotationExtractor[injectorOption]{
+	key: "admission.datadoghq.com/apm-inject.debug",
+	do:  infallibleFn(injectorDebug),
 }
 
 func injectorWithLibRequirementOptions(opts libRequirementOptions) injectorOption {
@@ -172,7 +182,21 @@ func injectorWithImageTag(tag string) injectorOption {
 	}
 }
 
-func newInjector(startTime time.Time, registry, imageTag string, opts ...injectorOption) *injector {
+func injectorDebug(boolean string) injectorOption {
+	var debug bool
+	var err error
+	if boolean != "" {
+		debug, err = strconv.ParseBool(boolean)
+		if err != nil {
+			log.Errorf("parse admission.datadoghq.com/apm-inject.debug: %s", err)
+		}
+	}
+	return func(i *injector) {
+		i.debug = debug
+	}
+}
+
+func newInjector(startTime time.Time, registry string, opts ...injectorOption) *injector {
 	i := &injector{
 		registry:   registry,
 		injectTime: startTime,
@@ -180,11 +204,6 @@ func newInjector(startTime time.Time, registry, imageTag string, opts ...injecto
 
 	for _, opt := range opts {
 		opt(i)
-	}
-
-	// if the options didn't override the image, we set it.
-	if i.image == "" {
-		injectorWithImageTag(imageTag)(i)
 	}
 
 	return i
@@ -207,4 +226,26 @@ func (i *injector) podMutator(v version) podMutator {
 		i.injected = true
 		return nil
 	})
+}
+
+var debugEnvVars = []envVar{
+	{
+		key:     "DD_APM_INSTRUMENTATION_DEBUG",
+		valFunc: trueValFunc(),
+	},
+	{
+		key:     "DD_TRACE_STARTUP_LOGS",
+		valFunc: trueValFunc(),
+	},
+	{
+		key:     "DD_TRACE_DEBUG",
+		valFunc: trueValFunc(),
+	},
+}
+
+func (i *injector) debugEnvVars() []envVar {
+	if i.debug {
+		return debugEnvVars
+	}
+	return nil
 }

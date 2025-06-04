@@ -23,6 +23,7 @@ import (
 // which is the default parser when other metadata endpoints are not available.
 func TestPullWithV1Parser(t *testing.T) {
 	entityID := "task1"
+	containerID := "someID"
 	tags := map[string]string{"foo": "bar"}
 
 	tests := []struct {
@@ -55,7 +56,7 @@ func TestPullWithV1Parser(t *testing.T) {
 						{
 							Arn: entityID,
 							Containers: []v1.Container{
-								{DockerID: "foo"},
+								{DockerID: containerID},
 							},
 						},
 					}, nil
@@ -83,6 +84,13 @@ func TestPullWithV1Parser(t *testing.T) {
 
 			taskTags := c.resourceTags[entityID].tags
 			assert.Equal(t, taskTags, test.expectedTags)
+
+			// This is only needed because of the workaround about the empty
+			// runtime documented in the parseTaskContainers function. Remove
+			// this when the workaround is no longer needed.
+			storedContainer, err := c.store.GetContainer(containerID)
+			require.NoError(t, err)
+			assert.Empty(t, storedContainer.Runtime)
 		})
 	}
 

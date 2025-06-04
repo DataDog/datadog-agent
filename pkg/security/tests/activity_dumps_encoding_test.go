@@ -23,8 +23,8 @@ import (
 var v1testdata []byte
 
 func getTestDataActivityDump(tb testing.TB) *dump.ActivityDump {
-	ad := dump.NewEmptyActivityDump(nil)
-	if err := ad.DecodeFromReader(bytes.NewReader(v1testdata), config.Protobuf); err != nil {
+	ad := dump.NewEmptyActivityDump(nil, false, 0, nil, nil)
+	if err := ad.Profile.DecodeFromReader(bytes.NewReader(v1testdata), config.Protobuf); err != nil {
 		tb.Fatal(err)
 	}
 	return ad
@@ -48,13 +48,13 @@ func runEncoding(b *testing.B, encode func(ad *dump.ActivityDump) (*bytes.Buffer
 
 func BenchmarkProtobufEncoding(b *testing.B) {
 	runEncoding(b, func(ad *dump.ActivityDump) (*bytes.Buffer, error) {
-		return ad.EncodeProtobuf()
+		return ad.Profile.EncodeSecDumpProtobuf()
 	})
 }
 
 func BenchmarkProtoJSONEncoding(b *testing.B) {
 	runEncoding(b, func(ad *dump.ActivityDump) (*bytes.Buffer, error) {
-		return ad.EncodeJSON("")
+		return ad.Profile.EncodeJSON("")
 	})
 }
 
@@ -63,7 +63,7 @@ func TestProtobufDecoding(t *testing.T) {
 
 	ad := getTestDataActivityDump(t)
 
-	out, err := ad.EncodeProtobuf()
+	out, err := ad.Profile.EncodeSecDumpProtobuf()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestProtobufDecoding(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	newOut, err := decoded.EncodeProtobuf()
+	newOut, err := decoded.Profile.EncodeSecDumpProtobuf()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,8 +84,8 @@ func TestProtobufDecoding(t *testing.T) {
 }
 
 func decodeAD(buffer *bytes.Buffer) (*dump.ActivityDump, error) {
-	decoded := dump.NewEmptyActivityDump(nil)
-	if err := decoded.DecodeProtobuf(bytes.NewReader(buffer.Bytes())); err != nil {
+	decoded := dump.NewEmptyActivityDump(nil, false, 0, nil, nil)
+	if err := decoded.Profile.DecodeSecDumpProtobuf(bytes.NewReader(buffer.Bytes())); err != nil {
 		return nil, err
 	}
 	return decoded, nil

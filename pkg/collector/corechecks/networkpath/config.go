@@ -40,7 +40,10 @@ type InstanceConfig struct {
 
 	DestPort uint16 `yaml:"port"`
 
-	Protocol string `yaml:"protocol"`
+	Protocol  string `yaml:"protocol"`
+	TCPMethod string `yaml:"tcp_method"`
+	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
+	TCPSynParisTracerouteMode bool `yaml:"tcp_syn_paris_traceroute_mode"`
 
 	SourceService      string `yaml:"source_service"`
 	DestinationService string `yaml:"destination_service"`
@@ -57,16 +60,19 @@ type InstanceConfig struct {
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
-	DestHostname          string
-	DestPort              uint16
-	SourceService         string
-	DestinationService    string
-	MaxTTL                uint8
-	Protocol              payload.Protocol
-	Timeout               time.Duration
-	MinCollectionInterval time.Duration
-	Tags                  []string
-	Namespace             string
+	DestHostname       string
+	DestPort           uint16
+	SourceService      string
+	DestinationService string
+	MaxTTL             uint8
+	Protocol           payload.Protocol
+	TCPMethod          payload.TCPMethod
+	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
+	TCPSynParisTracerouteMode bool
+	Timeout                   time.Duration
+	MinCollectionInterval     time.Duration
+	Tags                      []string
+	Namespace                 string
 }
 
 // NewCheckConfig builds a new check config
@@ -91,6 +97,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.SourceService = instance.SourceService
 	c.DestinationService = instance.DestinationService
 	c.Protocol = payload.Protocol(strings.ToUpper(instance.Protocol))
+	c.TCPMethod = payload.MakeTCPMethod(instance.TCPMethod)
+	c.TCPSynParisTracerouteMode = instance.TCPSynParisTracerouteMode
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,

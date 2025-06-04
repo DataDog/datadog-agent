@@ -56,6 +56,16 @@ func TestShowMetadataInventoryAgentCommand(t *testing.T) {
 		})
 }
 
+func TestShowHostGpuCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "host-gpu"},
+		printPayload,
+		func(_ core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
+		})
+}
+
 func TestShowMetadataInventoryHostCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
@@ -134,4 +144,13 @@ func TestShowAgentTelemetryCommand(t *testing.T) {
 		func(payload payloadName) {
 			require.Equal(t, payloadName("agent-telemetry"), payload)
 		})
+}
+
+func TestShowFullAgentTelemetryCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "agent-full-telemetry"},
+		printAgentFullTelemetry,
+		func() {},
+	)
 }

@@ -97,18 +97,36 @@ if (!collectionLimit) {
 }
 if ({{.Arg1}} == *collectionLimit) {
     log_debug("collection limit for {{.CollectionIdentifier}} exceeded: %d", *collectionLimit);
-    goto {{.Label}};
+    goto label__{{.Label}};
 }
 `
 
 var labelTemplateText = `
-{{.Label}}:
+label__{{.Label}}:
 `
 
 var commentText = `
-// {{.Label}}
+// label__{{.Label}}
 `
 
 var printStatementText = `
-log_debug("{{.Label}}", "{{.CollectionIdentifier}}");
+log_debug("label__{{.Label}}", "{{.CollectionIdentifier}}");
+`
+
+var setParameterIndexText = `
+bpf_printk("Setting param index %d to %d", {{.Arg1}}, context.output_offset);
+event->base.param_indicies[{{.Arg1}}] = context.output_offset;
+`
+
+// This causes a compiler error which is used in testing
+var compilerErrorText = `
+!@#$%^
+`
+
+// This causes a verifier error which is used in testing
+var verifierErrorText = `
+for (int i=0; i==0;) {
+    i++;
+    i--;
+}
 `

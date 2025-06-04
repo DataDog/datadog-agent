@@ -244,6 +244,11 @@ func (k *KubeASCheck) Run() error {
 			return err
 		}
 
+		err = apiserver.InitializeGlobalResourceTypeCache(k.ac.Cl.Discovery())
+		if err != nil {
+			log.Errorf("Could not initialize the global resource type cache: %s", err)
+		}
+
 		// We detect OpenShift presence for quota collection
 		if k.instance.CollectOShiftQuotas {
 			k.oshiftAPILevel = k.ac.DetectOpenShiftAPILevel()

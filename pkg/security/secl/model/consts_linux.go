@@ -838,6 +838,13 @@ var (
 		"PIPE_BUF_FLAG_WHOLE":     PipeBufFlagWhole,
 		"PIPE_BUF_FLAG_LOSS":      PipeBufFlagLoss,
 	}
+
+	// SysCtlActionConstants is the list of available actions for sysctl events
+	// generate_constants:SysCtl Actions,SysCtl Actions are the supported actions for the sysctl event.
+	SysCtlActionConstants = map[string]SysCtlAction{
+		"SYSCTL_READ":  SysCtlReadAction,
+		"SYSCTL_WRITE": SysCtlWriteAction,
+	}
 )
 
 func initVMConstants() {
@@ -977,6 +984,13 @@ func initSignalConstants() {
 
 	for k, v := range SignalConstants {
 		signalStrings[v] = k
+	}
+}
+
+func initSysCtlActionConstants() {
+	for k, v := range SysCtlActionConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		sysctlActionStrings[uint32(v)] = k
 	}
 }
 
@@ -1869,4 +1883,21 @@ var (
 	mmapFlagStrings           = map[uint64]string{}
 	signalStrings             = map[int]string{}
 	pipeBufFlagStrings        = map[int]string{}
+	sysctlActionStrings       = map[uint32]string{}
+)
+
+// SysCtlAction is used to define the action of a sysctl event
+type SysCtlAction uint32
+
+func (t SysCtlAction) String() string {
+	return sysctlActionStrings[uint32(t)]
+}
+
+const (
+	// SysCtlUnknownAction sysctl action type
+	SysCtlUnknownAction SysCtlAction = iota
+	// SysCtlReadAction sysctl action type
+	SysCtlReadAction
+	// SysCtlWriteAction sysctl action type
+	SysCtlWriteAction
 )

@@ -8,6 +8,7 @@
 package kubernetesresourceparsers
 
 import (
+	"maps"
 	"reflect"
 	"testing"
 
@@ -75,8 +76,6 @@ func Test_filterMapStringKey(t *testing.T) {
 
 func copyMap(in map[string]string) map[string]string {
 	out := make(map[string]string, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
+	maps.Copy(out, in)
 	return out
 }

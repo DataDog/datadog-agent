@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package check contains the interface for the check.
 package check
 
 import (
@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // Check is an interface for types capable to run checks
@@ -29,6 +29,9 @@ type Check interface {
 	Cancel()
 	// String provides a printable version of the check name
 	String() string
+	// Loader returns the name of the check loader
+	// This is used in tags so should match the tag value format constraints (eg. lowercase, no spaces)
+	Loader() string
 	// Configure configures the check
 	Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error
 	// Interval returns the interval time for the check
@@ -50,7 +53,9 @@ type Check interface {
 	// InstanceConfig returns the instance configuration of the check
 	InstanceConfig() string
 	// GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
-	GetDiagnoses() ([]diagnosis.Diagnosis, error)
+	GetDiagnoses() ([]diagnose.Diagnosis, error)
+	// IsHASupported returns if the check is compatible with High Availability
+	IsHASupported() bool
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check

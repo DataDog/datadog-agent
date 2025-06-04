@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix wrong computation of the init container resources in the autoinstrumentation webhook.

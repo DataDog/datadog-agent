@@ -14,6 +14,10 @@ import (
 )
 
 // GetConnection returns the connection for the request
-func GetConnection(r *http.Request) net.Conn {
-	return r.Context().Value(grpccontext.ConnContextKey).(net.Conn)
+func GetConnection(r *http.Request) (net.Conn, bool) {
+	value := r.Context().Value(grpccontext.ConnContextKey)
+	if value == nil {
+		return nil, false
+	}
+	return value.(net.Conn), true
 }

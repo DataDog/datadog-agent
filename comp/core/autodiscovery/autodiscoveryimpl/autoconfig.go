@@ -11,12 +11,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sort"
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
+	"github.com/cenkalti/backoff"
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -80,7 +81,6 @@ type AutoConfig struct {
 	cfgMgr                   configManager
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
 	providerCatalog          map[string]providers.ConfigProviderFactory
-	started                  bool
 	wmeta                    option.Option[workloadmeta.Component]
 	taggerComp               tagger.Component
 	logs                     logComp.Component
@@ -89,10 +89,16 @@ type AutoConfig struct {
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
 	m sync.RWMutex
-
-	// ranOnce is set to 1 once the AutoConfig has been executed
-	ranOnce *atomic.Bool
 }
+
+const (
+	// wmetaCheckInitialInterval is the initial interval to check if wmeta is ready
+	wmetaCheckInitialInterval = 20 * time.Millisecond
+	// wmetaCheckMaxInterval is the maximum interval to check if wmeta is ready
+	wmetaCheckMaxInterval = 1 * time.Second
+	// wmetaCheckMaxElapsedTime is the maximum time to wait for wmeta being ready
+	wmetaCheckMaxElapsedTime = 10 * time.Second
+)
 
 type provides struct {
 	fx.Out
@@ -100,7 +106,6 @@ type provides struct {
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
 	Endpoint       api.AgentEndpointProvider
-	EndpointRaw    api.AgentEndpointProvider
 	FlareProvider  flaretypes.Provider
 }
 
@@ -136,14 +141,43 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
+	schController := scheduler.NewController()
+	// Non-blocking start of the scheduler controller
+	go func() {
+		retries := 0
+		expBackoff := backoff.NewExponentialBackOff()
+		expBackoff.InitialInterval = wmetaCheckInitialInterval
+		expBackoff.MaxInterval = wmetaCheckMaxInterval
+		expBackoff.MaxElapsedTime = wmetaCheckMaxElapsedTime
+		err := backoff.Retry(func() error {
+			instance, found := deps.WMeta.Get()
+			if found {
+				if instance.IsInitialized() {
+					deps.Log.Infof("Workloadmeta collectors are ready, starting autodiscovery scheduler controller")
+					schController.Start()
+					return nil
+				}
+				retries++
+				deps.Log.Debugf("Workloadmeta collectors are not ready, will possibly retry")
+				return errors.New("workloadmeta not initialized")
+			}
+			schController.Start()
+			return nil
+		}, expBackoff)
+		if err != nil {
+			deps.Log.Errorf("Workloadmeta collectors are not ready after %d retries: %s, starting check scheduler controller anyway.", retries, err)
+			schController.Start()
+		}
+	}()
+
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			ac.Start()
+			ac.start()
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
-			ac.Stop()
+			ac.stop()
 			return nil
 		},
 	})
@@ -164,10 +198,8 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
 		schedulerController:      schedulerController,
-		ranOnce:                  atomic.NewBool(false),
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
-		started:                  false,
 		wmeta:                    wmeta,
 		taggerComp:               taggerComp,
 		logs:                     logs,
@@ -180,21 +212,16 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 // It waits for service events to trigger template resolution and
 // checks the tags on existing services are up to date.
 func (ac *AutoConfig) serviceListening() {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	for {
 		select {
 		case <-ac.listenerStop:
 			ac.healthListening.Deregister() //nolint:errcheck
-			cancel()
 			return
-		case healthDeadline := <-ac.healthListening.C:
-			cancel()
-			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
+		case <-ac.healthListening.C: // To be considered healthy
 		case svc := <-ac.newService:
-			ac.processNewService(ctx, svc)
+			ac.processNewService(svc)
 		case svc := <-ac.delService:
-			ac.processDelService(ctx, svc)
+			ac.processDelService(svc)
 		}
 	}
 }
@@ -220,99 +247,103 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 
 // GetConfigCheck returns scrubbed information from all configuration providers
 func (ac *AutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
-	var response integration.ConfigCheckResponse
-
-	configSlice := ac.LoadedConfigs()
-	sort.Slice(configSlice, func(i, j int) bool {
-		return configSlice[i].Name < configSlice[j].Name
-	})
-
-	scrubbedConfigs := ac.scrubConfigs(configSlice)
-
-	response.Configs = scrubbedConfigs
-
-	response.ResolveWarnings = GetResolveWarnings()
-	response.ConfigErrors = GetConfigErrors()
-
-	unresolved := ac.GetUnresolvedTemplates()
-	scrubbedUnresolved := make(map[string][]integration.Config, len(unresolved))
-
-	for ids, configs := range unresolved {
-		scrubbedUnresolved[ids] = ac.scrubConfigs(configs)
-	}
-
-	response.Unresolved = scrubbedUnresolved
-
-	return response
+	return ac.buildConfigCheckResponse(true)
 }
 
 // getRawConfigCheck returns information from all configuration providers
 func (ac *AutoConfig) getRawConfigCheck() integration.ConfigCheckResponse {
+	return ac.buildConfigCheckResponse(false)
+}
+
+// buildConfigCheckResponse is a helper to build the ConfigCheckResponse for both scrubbed and raw configs.
+func (ac *AutoConfig) buildConfigCheckResponse(scrub bool) integration.ConfigCheckResponse {
 	var response integration.ConfigCheckResponse
 
-	configSlice := ac.LoadedConfigs()
+	configSlice := ac.GetAllConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
 
-	response.Configs = configSlice
+	configResponses := make([]integration.ConfigResponse, len(configSlice))
 
+	for i, config := range configSlice {
+		instanceIDs := make([]string, len(config.Instances))
+		for j, instance := range config.Instances {
+			instanceIDs[j] = string(checkid.BuildID(config.Name, config.FastDigest(), instance, config.InitConfig))
+		}
+
+		if scrub {
+			config = ac.scrubConfig(config)
+		}
+
+		configResponses[i] = integration.ConfigResponse{
+			Config:      config,
+			InstanceIDs: instanceIDs,
+		}
+	}
+
+	response.Configs = configResponses
 	response.ResolveWarnings = GetResolveWarnings()
 	response.ConfigErrors = GetConfigErrors()
-	response.Unresolved = ac.GetUnresolvedTemplates()
+
+	if scrub {
+		unresolved := ac.getUnresolvedConfigs()
+		scrubbedUnresolved := make(map[string]integration.Config, len(unresolved))
+		for id, config := range unresolved {
+			scrubbedUnresolved[id] = ac.scrubConfig(config)
+		}
+		response.Unresolved = scrubbedUnresolved
+	} else {
+		response.Unresolved = ac.getUnresolvedConfigs()
+	}
 
 	return response
 }
 
-func (ac *AutoConfig) scrubConfigs(configs []integration.Config) []integration.Config {
-	scrubbedConfigs := make([]integration.Config, len(configs))
-
-	for i, c := range configs {
-		scrubbedInstances := make([]integration.Data, len(c.Instances))
-		for instanceIndex, inst := range c.Instances {
-			subbedData, err := scrubData(inst)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from config: %s", err)
-				continue
-			}
-			scrubbedInstances[instanceIndex] = subbedData
+func (ac *AutoConfig) scrubConfig(config integration.Config) integration.Config {
+	scrubbedConfig := config
+	scrubbedInstances := make([]integration.Data, len(config.Instances))
+	for instanceIndex, inst := range config.Instances {
+		scrubbedData, err := scrubData(inst)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from config: %s", err)
+			continue
 		}
-		c.Instances = scrubbedInstances
+		scrubbedInstances[instanceIndex] = scrubbedData
+	}
+	scrubbedConfig.Instances = scrubbedInstances
 
-		if len(c.InitConfig) > 0 {
-			subbedData, err := scrubData(c.InitConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
-				c.InitConfig = []byte{}
-			} else {
-				c.InitConfig = subbedData
-			}
+	if len(config.InitConfig) > 0 {
+		scrubbedData, err := scrubData(config.InitConfig)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from init config: %s", err)
+			scrubbedConfig.InitConfig = []byte{}
+		} else {
+			scrubbedConfig.InitConfig = scrubbedData
 		}
-
-		if len(c.MetricConfig) > 0 {
-			subbedData, err := scrubData(c.MetricConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
-				c.MetricConfig = []byte{}
-			} else {
-				c.MetricConfig = subbedData
-			}
-		}
-
-		if len(c.LogsConfig) > 0 {
-			subbedData, err := scrubData(c.LogsConfig)
-			if err != nil {
-				ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
-				c.LogsConfig = []byte{}
-			} else {
-				c.LogsConfig = subbedData
-			}
-		}
-
-		scrubbedConfigs[i] = c
 	}
 
-	return scrubbedConfigs
+	if len(config.MetricConfig) > 0 {
+		scrubbedData, err := scrubData(config.MetricConfig)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from metric config: %s", err)
+			scrubbedConfig.MetricConfig = []byte{}
+		} else {
+			scrubbedConfig.MetricConfig = scrubbedData
+		}
+	}
+
+	if len(config.LogsConfig) > 0 {
+		scrubbedData, err := scrubData(config.LogsConfig)
+		if err != nil {
+			ac.logs.Warnf("error scrubbing secrets from logs config: %s", err)
+			scrubbedConfig.LogsConfig = []byte{}
+		} else {
+			scrubbedConfig.LogsConfig = scrubbedData
+		}
+	}
+
+	return scrubbedConfig
 }
 
 func scrubData(data []byte) ([]byte, error) {
@@ -334,27 +365,19 @@ func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 	return nil
 }
 
-// Start will listen to the service channels before anything is sent to them
-// Usually, Start and Stop methods should not be in the component interface as it should be handled using Lifecycle hooks.
-// We make exceptions here because we need to disable it at runtime.
-func (ac *AutoConfig) Start() {
+// start will listen to the service channels before anything is sent to them
+func (ac *AutoConfig) start() {
 	listeners.RegisterListeners(ac.serviceListenerFactories)
 	providers.RegisterProviders(ac.providerCatalog)
 	setupAcErrors()
-	ac.started = true
 	// Start the service listener
 	go ac.serviceListening()
 }
 
-// IsStarted returns true if the AutoConfig has been started.
-func (ac *AutoConfig) IsStarted() bool {
-	return ac.started
-}
-
-// Stop just shuts down AutoConfig in a clean way.
+// stop just shuts down AutoConfig in a clean way.
 // AutoConfig is not supposed to be restarted, so this is expected
 // to be called only once at program exit.
-func (ac *AutoConfig) Stop() {
+func (ac *AutoConfig) stop() {
 	// stop polled config providers without holding ac.m
 	for _, pd := range ac.getConfigPollers() {
 		pd.stop()
@@ -419,22 +442,6 @@ func (ac *AutoConfig) LoadAndRun(ctx context.Context) {
 			}
 		}
 	}
-
-	ac.ranOnce.Store(true)
-}
-
-// ForceRanOnceFlag sets the ranOnce flag.  This is used for testing other
-// components that depend on this value.
-func (ac *AutoConfig) ForceRanOnceFlag() {
-	ac.ranOnce.Store(true)
-}
-
-// HasRunOnce returns true if the AutoConfig has ran once.
-func (ac *AutoConfig) HasRunOnce() bool {
-	if ac == nil {
-		return false
-	}
-	return ac.ranOnce.Load()
 }
 
 // GetAllConfigs returns all resolved and non-template configs known to
@@ -588,41 +595,10 @@ func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
 	ac.deleteMappingsOfCheckIDsWithSecrets(changes.Unschedule)
 }
 
-// MapOverLoadedConfigs calls the given function with the map of all
-// loaded configs (those that would be returned from LoadedConfigs).
-//
-// This is done with the config store locked, so callers should perform minimal
-// work within f.
-func (ac *AutoConfig) MapOverLoadedConfigs(f func(map[string]integration.Config)) {
-	if ac == nil || ac.store == nil {
-		log.Error("AutoConfig store not initialized")
-		f(map[string]integration.Config{})
-		return
-	}
-	ac.cfgMgr.mapOverLoadedConfigs(f)
-}
-
-// LoadedConfigs returns a slice of all loaded configs.  Loaded configs are non-template
-// configs, either as received from a config provider or as resolved from a template and
-// a service.  They do not include service configs.
-//
-// The returned slice is freshly created and will not be modified after return.
-func (ac *AutoConfig) LoadedConfigs() []integration.Config {
-	var configs []integration.Config
-	ac.cfgMgr.mapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-		configs = make([]integration.Config, 0, len(loadedConfigs))
-		for _, c := range loadedConfigs {
-			configs = append(configs, c)
-		}
-	})
-
-	return configs
-}
-
-// GetUnresolvedTemplates returns all templates in the cache, in their unresolved
+// getUnresolvedConfigs returns all the active configs, in their unresolved
 // state.
-func (ac *AutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
-	return ac.store.templateCache.getUnresolvedTemplates()
+func (ac *AutoConfig) getUnresolvedConfigs() map[string]integration.Config {
+	return ac.cfgMgr.getActiveConfigs()
 }
 
 // GetIDOfCheckWithEncryptedSecrets returns the ID that a checkID had before
@@ -639,21 +615,14 @@ func (ac *AutoConfig) GetProviderCatalog() map[string]providers.ConfigProviderFa
 
 // processNewService takes a service, tries to match it against templates and
 // triggers scheduling events if it finds a valid config for it.
-func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Service) {
-	// get all the templates matching service identifiers
-	ADIdentifiers, err := svc.GetADIdentifiers(ctx)
-	if err != nil {
-		log.Errorf("Failed to get AD identifiers for service %s, it will not be monitored - %s", svc.GetServiceID(), err)
-		return
-	}
-
-	changes := ac.cfgMgr.processNewService(ADIdentifiers, svc)
+func (ac *AutoConfig) processNewService(svc listeners.Service) {
+	changes := ac.cfgMgr.processNewService(svc)
 	ac.applyChanges(changes)
 }
 
 // processDelService takes a service, stops its associated checks, and updates the cache
-func (ac *AutoConfig) processDelService(ctx context.Context, svc listeners.Service) {
-	changes := ac.cfgMgr.processDelService(ctx, svc)
+func (ac *AutoConfig) processDelService(svc listeners.Service) {
+	changes := ac.cfgMgr.processDelService(svc)
 	ac.applyChanges(changes)
 }
 

@@ -51,7 +51,6 @@ func TestFromEnv(t *testing.T) {
 				envAPIKey:                                     "123456",
 				envSite:                                       "datadoghq.eu",
 				envRemoteUpdates:                              "true",
-				envRemotePolicies:                             "true",
 				envMirror:                                     "https://mirror.example.com",
 				envRegistryURL:                                "registry.example.com",
 				envRegistryAuth:                               "auth",
@@ -84,7 +83,6 @@ func TestFromEnv(t *testing.T) {
 				Site:                 "datadoghq.eu",
 				Mirror:               "https://mirror.example.com",
 				RemoteUpdates:        true,
-				RemotePolicies:       true,
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
 				RegistryUsername:     "username",
@@ -118,7 +116,9 @@ func TestFromEnv(t *testing.T) {
 					"dotnet": "latest",
 					"ruby":   "1.2",
 				},
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
@@ -218,7 +218,6 @@ func TestToEnv(t *testing.T) {
 				APIKey:               "123456",
 				Site:                 "datadoghq.eu",
 				RemoteUpdates:        true,
-				RemotePolicies:       true,
 				Mirror:               "https://mirror.example.com",
 				RegistryOverride:     "registry.example.com",
 				RegistryAuthOverride: "auth",
@@ -263,7 +262,6 @@ func TestToEnv(t *testing.T) {
 				"DD_API_KEY=123456",
 				"DD_SITE=datadoghq.eu",
 				"DD_REMOTE_UPDATES=true",
-				"DD_REMOTE_POLICIES=true",
 				"DD_INSTALLER_MIRROR=https://mirror.example.com",
 				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH=auth",
@@ -309,7 +307,9 @@ func TestAgentUserVars(t *testing.T) {
 			name:    "not set",
 			envVars: map[string]string{},
 			expected: &Env{
-				AgentUserName: "",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "",
+				},
 			},
 		},
 		{
@@ -318,7 +318,9 @@ func TestAgentUserVars(t *testing.T) {
 				envAgentUserName: "customuser",
 			},
 			expected: &Env{
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 			},
 		},
 		{
@@ -327,7 +329,9 @@ func TestAgentUserVars(t *testing.T) {
 				envAgentUserNameCompat: "customuser",
 			},
 			expected: &Env{
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 			},
 		},
 		{
@@ -337,7 +341,9 @@ func TestAgentUserVars(t *testing.T) {
 				envAgentUserNameCompat: "otheruser",
 			},
 			expected: &Env{
-				AgentUserName: "customuser",
+				MsiParams: MsiParamsEnv{
+					AgentUserName: "customuser",
+				},
 			},
 		},
 	}
@@ -349,7 +355,7 @@ func TestAgentUserVars(t *testing.T) {
 				defer os.Unsetenv(key)
 			}
 			result := FromEnv()
-			assert.Equal(t, tt.expected.AgentUserName, result.AgentUserName)
+			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
 		})
 	}
 }

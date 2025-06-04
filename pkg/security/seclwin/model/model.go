@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/netip"
 	"reflect"
-	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -26,29 +25,7 @@ type Model struct {
 	ExtraValidateFieldFnc func(field eval.Field, fieldValue eval.FieldValue) error
 }
 
-var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
 var containerContextZero ContainerContext
-
-// NewEvent returns a new Event
-func (m *Model) NewEvent() eval.Event {
-	return &Event{
-		BaseEvent: BaseEvent{
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
-		},
-	}
-}
-
-// NewDefaultEventWithType returns a new Event for the given type
-func (m *Model) NewDefaultEventWithType(kind EventType) eval.Event {
-	return &Event{
-		BaseEvent: BaseEvent{
-			Type:             uint32(kind),
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-		},
-	}
-}
 
 // Releasable represents an object than can be released
 type Releasable struct {
@@ -79,6 +56,16 @@ type ContainerContext struct {
 	Runtime     string                     `field:"runtime,handler:ResolveContainerRuntime"` // SECLDoc[runtime] Definition:`Runtime managing the container`
 }
 
+// Hash returns a unique key for the entity
+func (c *ContainerContext) Hash() string {
+	return string(c.ContainerID)
+}
+
+// ParentScope returns the parent entity scope
+func (c *ContainerContext) ParentScope() (eval.VariableScope, bool) {
+	return nil, false
+}
+
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
 	Name           string                     `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
@@ -90,9 +77,9 @@ type SecurityProfileContext struct {
 
 // IPPortContext is used to hold an IP and Port
 type IPPortContext struct {
-	IPNet            net.IPNet `field:"ip"`                                  // SECLDoc[ip] Definition:`IP address`
-	Port             uint16    `field:"port"`                                // SECLDoc[port] Definition:`Port number`
-	IsPublic         bool      `field:"is_public,handler:ResolveIsIPPublic"` // SECLDoc[is_public] Definition:`Whether the IP address belongs to a public network`
+	IPNet            net.IPNet `field:"ip"`                                               // SECLDoc[ip] Definition:`IP address`
+	Port             uint16    `field:"port"`                                             // SECLDoc[port] Definition:`Port number`
+	IsPublic         bool      `field:"is_public,handler:ResolveIsIPPublic,opts:skip_ad"` // SECLDoc[is_public] Definition:`Whether the IP address belongs to a public network`
 	IsPublicResolved bool      `field:"-"`
 }
 
@@ -128,6 +115,12 @@ type SpanContext struct {
 	TraceID utils.TraceID `field:"-"`
 }
 
+// RuleContext defines a rule context
+type RuleContext struct {
+	Expression       string                `field:"-"`
+	MatchingSubExprs eval.MatchingSubExprs `field:"-"`
+}
+
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
 	ID            string         `field:"-"`
@@ -136,13 +129,15 @@ type BaseEvent struct {
 	TimestampRaw  uint64         `field:"event.timestamp,handler:ResolveEventTimestamp"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
 	Timestamp     time.Time      `field:"timestamp,opts:getters_only|gen_getters,handler:ResolveEventTime"`
 	Rules         []*MatchedRule `field:"-"`
+	RuleContext   RuleContext    `field:"-"`
 	ActionReports []ActionReport `field:"-"`
 	Os            string         `field:"event.os"`                                                      // SECLDoc[event.os] Definition:`Operating system of the event`
 	Origin        string         `field:"event.origin"`                                                  // SECLDoc[event.origin] Definition:`Origin of the event`
 	Service       string         `field:"event.service,handler:ResolveService,opts:skip_ad|gen_getters"` // SECLDoc[event.service] Definition:`Service associated with the event`
 	Hostname      string         `field:"event.hostname,handler:ResolveHostname"`                        // SECLDoc[event.hostname] Definition:`Hostname associated with the event`
+	RuleTags      []string       `field:"event.rule.tags"`                                               // SECLDoc[event.rule.tags] Definition:`Tags associated with the rule that's used to evaluate the event`
 
-	// context shared with all events
+	// context shared with all event types
 	ProcessContext         *ProcessContext        `field:"process"`
 	ContainerContext       *ContainerContext      `field:"container"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
@@ -188,26 +183,9 @@ func initMember(member reflect.Value, deja map[string]bool) {
 	}
 }
 
-// NewFakeEvent returns a new event using the default field handlers
-func NewFakeEvent() *Event {
-	return &Event{
-		BaseEvent: BaseEvent{
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
-		},
-	}
-}
-
 // Init initialize the event
 func (e *Event) Init() {
 	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
-}
-
-// Zero the event
-func (e *Event) Zero() {
-	*e = eventZero
-	*e.BaseEvent.ContainerContext = containerContextZero
 }
 
 // IsSavedByActivityDumps return whether saved by AD
@@ -281,21 +259,6 @@ func (e *Event) GetActionReports() []ActionReport {
 // GetWorkloadID returns an ID that represents the workload
 func (e *Event) GetWorkloadID() string {
 	return e.SecurityProfileContext.Name
-}
-
-// Retain the event
-func (e *Event) Retain() Event {
-	if e.ProcessCacheEntry != nil {
-		e.ProcessCacheEntry.Retain()
-	}
-	return *e
-}
-
-// Release the event
-func (e *Event) Release() {
-	if e.ProcessCacheEntry != nil {
-		e.ProcessCacheEntry.Release()
-	}
 }
 
 // ResolveProcessCacheEntry uses the field handler
@@ -489,8 +452,8 @@ func (pc *ProcessCacheEntry) callReleaseCallbacks() {
 
 // Release decrement and eventually release the entry
 func (pc *ProcessCacheEntry) Release() {
-	pc.refCount--
-	if pc.refCount > 0 {
+	if pc.refCount > 1 {
+		pc.refCount--
 		return
 	}
 
@@ -576,6 +539,11 @@ type ProcessContext struct {
 	Ancestor *ProcessCacheEntry `field:"ancestors,iterator:ProcessAncestorsIterator,check:IsNotKworker"`
 }
 
+// HasResponse returns whether the DNS event has a response
+func (de *DNSEvent) HasResponse() bool {
+	return de.Response != nil
+}
+
 // ExitEvent represents a process exit event
 type ExitEvent struct {
 	*Process
@@ -583,19 +551,30 @@ type ExitEvent struct {
 	Code  uint32 `field:"code,opts:gen_getters"` // SECLDoc[code] Definition:`Exit code of the process or number of the signal that caused the process to terminate`
 }
 
-// DNSEvent represents a DNS event
+// DNSQuestion represents the dns question
+type DNSQuestion struct {
+	Name  string `field:"name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`the queried domain name`
+	Type  uint16 `field:"type"`                                                   // SECLDoc[type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"class"`                                                  // SECLDoc[class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"length"`                                                 // SECLDoc[length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"count"`                                                  // SECLDoc[count] Definition:`the total count of questions in the DNS request`
+}
+
+// DNSEvent represents a DNS request event
 type DNSEvent struct {
-	ID    uint16 `field:"id"`                                                              // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
-	Name  string `field:"question.name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[question.name] Definition:`the queried domain name`
-	Type  uint16 `field:"question.type"`                                                   // SECLDoc[question.type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"question.class"`                                                  // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"question.length"`                                                 // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+	ID       uint16       `field:"id"` // SECLDoc[id] Definition:`[Experimental] the DNS request ID`
+	Question DNSQuestion  `field:"question"`
+	Response *DNSResponse `field:"response,check:HasResponse"`
+}
+
+// DNSResponse represents a DNS response event
+type DNSResponse struct {
+	ResponseCode uint8 `field:"code"` // SECLDoc[code] Definition:`Response code of the DNS response according to RFC 1035` Constants:`DNS Responses`
 }
 
 // Matches returns true if the two DNS events matches
 func (de *DNSEvent) Matches(new *DNSEvent) bool {
-	return de.Name == new.Name && de.Type == new.Type && de.Class == new.Class
+	return de.Question.Name == new.Question.Name && de.Question.Type == new.Question.Type && de.Question.Class == new.Question.Class
 }
 
 // IMDSEvent represents an IMDS event
@@ -635,7 +614,10 @@ type BaseExtraFieldHandlers interface {
 }
 
 // ResolveProcessCacheEntry stub implementation
-func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(_ *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(ev *Event, _ func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool) {
+	if ev.ProcessCacheEntry != nil {
+		return ev.ProcessCacheEntry, true
+	}
 	return nil, false
 }
 
