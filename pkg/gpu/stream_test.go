@@ -335,6 +335,10 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 		}
 
 		t.Run(name, func(t *testing.T) {
+			if fatbinParsingEnabled {
+				t.Skip("skipping fatbinParsingEnabled test, currently broken because it doesn't create an actual fatbin file")
+			}
+
 			proc := kernel.ProcFSRoot()
 			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))

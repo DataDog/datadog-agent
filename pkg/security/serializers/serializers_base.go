@@ -33,6 +33,17 @@ type ContainerContextSerializer struct {
 	Variables Variables `json:"variables,omitempty"`
 }
 
+// CGroupContextSerializer serializes a cgroup context to JSON
+// easyjson:json
+type CGroupContextSerializer struct {
+	// CGroup ID
+	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
+}
+
 // Variables serializes the variable values
 // easyjson:json
 type Variables map[string]interface{}
