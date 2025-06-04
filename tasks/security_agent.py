@@ -709,6 +709,7 @@ def go_generate_check(ctx):
         [gen_mocks],
     ]
     failing_tasks = []
+    previous_dirty = set()
 
     for task_entry in tasks:
         task, args = task_entry[0], task_entry[1:]
@@ -718,13 +719,16 @@ def go_generate_check(ctx):
         # we flush to ensure correct separation between steps
         sys.stdout.flush()
         sys.stderr.flush()
-        dirty_files = get_git_dirty_files()
+        dirty_files = [f for f in get_git_dirty_files() if f not in previous_dirty]
         if dirty_files:
             failing_tasks.append(FailingTask(task.__name__, dirty_files))
 
+        previous_dirty.update(dirty_files)
+
     if failing_tasks:
         for ft in failing_tasks:
-            print(f"Task `{ft.name}` resulted in dirty files, please re-run it:")
+            task = ft.name.replace("_", "-")
+            print(f"Task `dda inv {task}` resulted in dirty files, please re-run it:")
             for file in ft.dirty_files:
                 print(f"* {file}")
         raise Exit(code=1)

@@ -296,7 +296,7 @@ new-e2e-language-detection:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-packages:
@@ -464,7 +464,7 @@ new-e2e-process:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/process
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator:

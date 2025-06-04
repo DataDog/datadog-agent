@@ -73,6 +73,7 @@ from tasks.system_probe import (
     get_sysprobe_test_buildtags,
     get_test_timeout,
     go_package_dirs,
+    ninja_add_dyninst_test_programs,
     ninja_generate,
     setup_runtime_clang,
 )
@@ -1032,6 +1033,12 @@ def kmt_sysprobe_prepare(
         ninja_define_rules(nw)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
+        ninja_add_dyninst_test_programs(
+            ctx,
+            nw,
+            kmt_paths.sysprobe_tests,
+            go_path,
+        )
 
         build_tags = get_sysprobe_test_buildtags(False, False)
         for pkg in target_packages:
