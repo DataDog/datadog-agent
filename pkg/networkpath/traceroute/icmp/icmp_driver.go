@@ -15,7 +15,6 @@ import (
 	"golang.org/x/net/ipv4"
 	"net/netip"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/google/gopacket/layers"
@@ -37,7 +36,6 @@ type icmpDriver struct {
 	params    Params
 	echoID    uint16
 	isIPV6    bool
-	mu        *sync.Mutex
 }
 
 func newICMPDriver(params Params, localAddr netip.Addr) (*icmpDriver, error) {
@@ -62,7 +60,6 @@ func newICMPDriver(params Params, localAddr netip.Addr) (*icmpDriver, error) {
 		params:    params,
 		echoID:    uint16(os.Getpid() & 0xffff),
 		isIPV6:    localAddr.Is6(),
-		mu:        &sync.Mutex{},
 	}
 	return retval, nil
 }
@@ -101,9 +98,6 @@ func (s *icmpDriver) SendProbe(ttl uint8) error {
 	log.TraceFunc(func() string {
 		return fmt.Sprintf("sending packet: %s\n", hex.EncodeToString(packet))
 	})
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	//syscall.RawConn.Write in Go is not guaranteed to be thread-safe.
 	err = s.sink.WriteTo(packet, s.params.Target)
 	if err != nil {
 		return fmt.Errorf("icmpDriver failed to WriteToIP: %w", err)
