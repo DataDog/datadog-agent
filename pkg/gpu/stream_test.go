@@ -380,6 +380,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 				data := []byte(kernName)
 				//create a dummy file because AddKernelCacheEntry expects a file to exist to get the file stats for verification
 				err = os.WriteFile(filePath, data, 0644)
+				require.NoError(t, err)
 
 				cuda.AddKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
 			}
