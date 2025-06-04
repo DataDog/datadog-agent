@@ -106,10 +106,10 @@ class TrinoMCPServer {
       } else if (this.config.auth.type === 'datadog') {
         // For Datadog auth, we'll use custom headers
         clientConfig.extraHeaders = {};
-        
+
         let ddAuthJWT = this.config.dd_auth_jwt;
         let ddAccessToken = this.config.dd_access_token;
-        
+
         // Generate fresh tokens if dynamic tokens enabled
         if (this.config.use_dynamic_tokens || !ddAuthJWT || !ddAccessToken) {
           console.error('Generating fresh tokens...');
@@ -121,41 +121,41 @@ class TrinoMCPServer {
             // Fall back to static tokens if available
           }
         }
-        
+
         // Add access token as Authorization header
         if (ddAccessToken) {
           clientConfig.extraHeaders['Authorization'] = `Bearer ${ddAccessToken}`;
         }
-        
+
         // Add extra credentials as headers
         if (this.config.dd_org_id) {
-          clientConfig.extraHeaders['X-Trino-Extra-Credential'] = 
-            clientConfig.extraHeaders['X-Trino-Extra-Credential'] 
+          clientConfig.extraHeaders['X-Trino-Extra-Credential'] =
+            clientConfig.extraHeaders['X-Trino-Extra-Credential']
               ? `${clientConfig.extraHeaders['X-Trino-Extra-Credential']}, orgId=${this.config.dd_org_id}`
               : `orgId=${this.config.dd_org_id}`;
         }
-        
+
         if (this.config.dd_client_id) {
-          clientConfig.extraHeaders['X-Trino-Extra-Credential'] = 
-            clientConfig.extraHeaders['X-Trino-Extra-Credential'] 
+          clientConfig.extraHeaders['X-Trino-Extra-Credential'] =
+            clientConfig.extraHeaders['X-Trino-Extra-Credential']
               ? `${clientConfig.extraHeaders['X-Trino-Extra-Credential']}, clientId=${this.config.dd_client_id}`
               : `clientId=${this.config.dd_client_id}`;
         }
-        
+
         if (this.config.dd_user_uuid) {
-          clientConfig.extraHeaders['X-Trino-Extra-Credential'] = 
-            clientConfig.extraHeaders['X-Trino-Extra-Credential'] 
+          clientConfig.extraHeaders['X-Trino-Extra-Credential'] =
+            clientConfig.extraHeaders['X-Trino-Extra-Credential']
               ? `${clientConfig.extraHeaders['X-Trino-Extra-Credential']}, userUuid=${this.config.dd_user_uuid}`
               : `userUuid=${this.config.dd_user_uuid}`;
         }
-        
+
         if (ddAuthJWT) {
-          clientConfig.extraHeaders['X-Trino-Extra-Credential'] = 
-            clientConfig.extraHeaders['X-Trino-Extra-Credential'] 
+          clientConfig.extraHeaders['X-Trino-Extra-Credential'] =
+            clientConfig.extraHeaders['X-Trino-Extra-Credential']
               ? `${clientConfig.extraHeaders['X-Trino-Extra-Credential']}, ddAuthJWT=${ddAuthJWT}`
               : `ddAuthJWT=${ddAuthJWT}`;
         }
-        
+
         // Add client tags
         if (this.config.dd_org_id) {
           clientConfig.extraHeaders['X-Trino-Client-Tags'] = `org_id=${this.config.dd_org_id}`;
@@ -234,6 +234,115 @@ class TrinoMCPServer {
               required: [],
             },
           },
+          {
+            name: 'query_metrics_summary',
+            description: 'Get a summary of metrics data using Datadog metrics query syntax',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                metric_name: {
+                  type: 'string',
+                  description: 'Specific metric name to query (e.g., "system.cpu.user", "nginx.requests")',
+                },
+                time_range: {
+                  type: 'string',
+                  description: 'Time range like "1h", "24h", "7d" (default: "1h")',
+                  default: '1h',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of results to return',
+                  default: 10,
+                },
+              },
+              required: [],
+            },
+          },
+          {
+            name: 'query_metrics_by_service',
+            description: 'Get metrics data grouped by service using Datadog metrics',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                service_name: {
+                  type: 'string',
+                  description: 'Filter by specific service name (e.g., "web-frontend", "api-backend")',
+                },
+                metric_type: {
+                  type: 'string',
+                  description: 'Not used with squire.timeseries.metrics - kept for compatibility',
+                },
+                time_range: {
+                  type: 'string',
+                  description: 'Time range like "1h", "24h", "7d" (default: "1h")',
+                  default: '1h',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of results to return',
+                  default: 10,
+                },
+              },
+              required: [],
+            },
+          },
+          {
+            name: 'query_dbm_metrics',
+            description: 'Get Database Monitoring (DBM) metrics using Datadog metrics query syntax',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query_filter: {
+                  type: 'string',
+                  description: 'Not applicable for metrics queries - kept for compatibility',
+                },
+                database_type: {
+                  type: 'string',
+                  description: 'Database type for metrics: postgresql, mysql, oracle, sqlserver (default: postgresql)',
+                },
+                time_range: {
+                  type: 'string',
+                  description: 'Time range like "1h", "24h", "7d" (default: "1h")',
+                  default: '1h',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of results to return',
+                  default: 10,
+                },
+              },
+              required: [],
+            },
+          },
+          {
+            name: 'query_custom_metrics',
+            description: 'Execute custom Datadog metrics queries using the full squire.timeseries.metrics syntax',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                metrics_query: {
+                  type: 'string',
+                  description: 'Datadog metrics query (e.g., "avg:system.cpu.user{host:web01}", "count:nginx.requests{*} by {service}")',
+                },
+                time_range: {
+                  type: 'string',
+                  description: 'Time range like "1h", "24h", "7d" (default: "1h")',
+                  default: '1h',
+                },
+                unnest_timeseries: {
+                  type: 'boolean',
+                  description: 'Whether to unnest timeseries data (default: true)',
+                  default: true,
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of rows to return (default: 100)',
+                  default: 100,
+                },
+              },
+              required: ['metrics_query'],
+            },
+          },
         ] satisfies Tool[],
       };
     });
@@ -251,6 +360,14 @@ class TrinoMCPServer {
             return await this.handleNetflowTalkers(args);
           case 'get_available_tracks':
             return await this.handleGetTracks(args);
+          case 'query_metrics_summary':
+            return await this.handleMetricsSummary(args);
+          case 'query_metrics_by_service':
+            return await this.handleMetricsByService(args);
+          case 'query_dbm_metrics':
+            return await this.handleDBMMetrics(args);
+          case 'query_custom_metrics':
+            return await this.handleCustomMetrics(args);
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -274,7 +391,7 @@ class TrinoMCPServer {
     const { query, limit = 1000 } = args;
 
     const limitedQuery = this.addLimitToQuery(query, limit);
-    
+
     const iter = await client.query(limitedQuery);
 
     const rows = [];
@@ -289,8 +406,8 @@ class TrinoMCPServer {
         {
           type: 'text',
           text: `Query executed successfully. Returned ${rows.length} rows.\n\n` +
-                `Query: ${limitedQuery}\n\n` +
-                `Results:\n${JSON.stringify(rows, null, 2)}`,
+            `Query: ${limitedQuery}\n\n` +
+            `Results:\n${JSON.stringify(rows, null, 2)}`,
         },
       ],
     };
@@ -323,7 +440,7 @@ LIMIT ${limit}`;
     const { limit = 10, group_by = 'both' } = args;
 
     let query = '';
-    
+
     if (group_by === 'source_ip') {
       query = `
 SELECT 
@@ -390,9 +507,200 @@ ORDER BY track_name`;
     return await this.handleTrinoQuery({ query, limit: 100 });
   }
 
+  private async handleMetricsSummary(args: any) {
+    const { metric_name, time_range = '1h', limit = 10 } = args;
+
+    // Convert time_range to seconds for MIN_TIMESTAMP
+    const timeRangeToSeconds = (range: string): number => {
+      const num = parseInt(range.slice(0, -1));
+      const unit = range.slice(-1);
+      switch (unit) {
+        case 'h': return num * 3600;
+        case 'd': return num * 86400;
+        case 'm': return num * 60;
+        default: return 3600; // Default 1 hour
+      }
+    };
+
+    const minTimestamp = -timeRangeToSeconds(time_range);
+
+    // Build metrics query - if no specific metric, get top metrics by volume
+    let metricsQuery = metric_name
+      ? `${metric_name}{*}`
+      : `*{*} by {__name__}`;
+
+    const query = `
+SELECT 
+  metric,
+  scope,
+  host,
+  service,
+  COUNT(*) as data_points,
+  AVG(value) as avg_value,
+  MIN(value) as min_value,
+  MAX(value) as max_value
+FROM TABLE(
+  squire.timeseries.metrics(
+    QUERY => '${metricsQuery}',
+    MIN_TIMESTAMP => ${minTimestamp},
+    MAX_TIMESTAMP => 0,
+    UNNEST_TIMESERIES => true
+  )
+)
+WHERE metric IS NOT NULL
+GROUP BY metric, scope, host, service
+ORDER BY data_points DESC
+LIMIT ${limit}`;
+
+    return await this.handleTrinoQuery({ query });
+  }
+
+  private async handleMetricsByService(args: any) {
+    const { service_name, metric_type, time_range = '1h', limit = 10 } = args;
+
+    // Convert time_range to seconds
+    const timeRangeToSeconds = (range: string): number => {
+      const num = parseInt(range.slice(0, -1));
+      const unit = range.slice(-1);
+      switch (unit) {
+        case 'h': return num * 3600;
+        case 'd': return num * 86400;
+        case 'm': return num * 60;
+        default: return 3600;
+      }
+    };
+
+    const minTimestamp = -timeRangeToSeconds(time_range);
+
+    // Build metrics query with service filter
+    let metricsQuery = '*{*}';
+    if (service_name) {
+      metricsQuery = `*{service:${service_name}}`;
+    }
+
+    // Add grouping by service and metric name
+    metricsQuery += ' by {service,__name__}';
+
+    const query = `
+SELECT 
+  service,
+  metric,
+  COUNT(*) as data_points,
+  COUNT(DISTINCT host) as unique_hosts,
+  AVG(value) as avg_value,
+  MIN(value) as min_value,
+  MAX(value) as max_value
+FROM TABLE(
+  squire.timeseries.metrics(
+    QUERY => '${metricsQuery}',
+    MIN_TIMESTAMP => ${minTimestamp},
+    MAX_TIMESTAMP => 0,
+    UNNEST_TIMESERIES => true
+  )
+)
+WHERE service IS NOT NULL AND metric IS NOT NULL
+${service_name ? `AND service = '${service_name}'` : ''}
+GROUP BY service, metric
+ORDER BY data_points DESC
+LIMIT ${limit}`;
+
+    return await this.handleTrinoQuery({ query });
+  }
+
+  private async handleDBMMetrics(args: any) {
+    const { query_filter, database_type, time_range = '1h', limit = 10 } = args;
+
+    // Convert time_range to seconds
+    const timeRangeToSeconds = (range: string): number => {
+      const num = parseInt(range.slice(0, -1));
+      const unit = range.slice(-1);
+      switch (unit) {
+        case 'h': return num * 3600;
+        case 'd': return num * 86400;
+        case 'm': return num * 60;
+        default: return 3600;
+      }
+    };
+
+    const minTimestamp = -timeRangeToSeconds(time_range);
+
+    // Build DBM-specific metrics query
+    let metricsQuery = 'postgresql.queries.*{*}'; // Default to PostgreSQL queries
+    if (database_type) {
+      metricsQuery = `${database_type}.queries.*{*}`;
+    }
+
+    // Group by service and database
+    metricsQuery += ' by {service,db}';
+
+    const query = `
+SELECT 
+  service,
+  db as database_name,
+  metric,
+  COUNT(*) as data_points,
+  AVG(value) as avg_value,
+  MAX(value) as max_value
+FROM TABLE(
+  squire.timeseries.metrics(
+    QUERY => '${metricsQuery}',
+    MIN_TIMESTAMP => ${minTimestamp},
+    MAX_TIMESTAMP => 0,
+    UNNEST_TIMESERIES => true
+  )
+)
+WHERE service IS NOT NULL AND db IS NOT NULL
+GROUP BY service, db, metric
+ORDER BY avg_value DESC
+LIMIT ${limit}`;
+
+    return await this.handleTrinoQuery({ query });
+  }
+
+  private async handleCustomMetrics(args: any) {
+    const { metrics_query, time_range = '1h', unnest_timeseries = true, limit = 100 } = args;
+
+    // Convert time_range to seconds
+    const timeRangeToSeconds = (range: string): number => {
+      const num = parseInt(range.slice(0, -1));
+      const unit = range.slice(-1);
+      switch (unit) {
+        case 'h': return num * 3600;
+        case 'd': return num * 86400;
+        case 'm': return num * 60;
+        default: return 3600;
+      }
+    };
+
+    const minTimestamp = -timeRangeToSeconds(time_range);
+
+    const query = `
+SELECT 
+  metric,
+  scope,
+  host,
+  service,
+  value,
+  timestamp
+FROM TABLE(
+  squire.timeseries.metrics(
+    QUERY => '${metrics_query}',
+    MIN_TIMESTAMP => ${minTimestamp},
+    MAX_TIMESTAMP => 0,
+    UNNEST_TIMESERIES => ${unnest_timeseries}
+  )
+)
+WHERE metric IS NOT NULL
+GROUP BY metric, scope, host, service, value, timestamp
+ORDER BY timestamp DESC
+LIMIT ${limit}`;
+
+    return await this.handleTrinoQuery({ query });
+  }
+
   private addLimitToQuery(query: string, limit: number): string {
     const upperQuery = query.toUpperCase().trim();
-    
+
     // If query already has LIMIT, don't add another one
     if (upperQuery.includes('LIMIT')) {
       return query;

@@ -107,28 +107,34 @@ node test_trino.js
 #### `list_all_tracks.js` - Track Discovery Utility
 Comprehensive discovery script to explore available data tracks in the Event Platform.
 
-**What it does:**
-- Lists all tables in eventplatform.system
-- Queries the tracks table directly
-- Lists all schemas in eventplatform catalog
-- Tests common track names for data availability
-- Supports dynamic token generation
-
-**How to run:**
+**What it tests**: Discovers and queries all available tracks in the event platform
+**How to run**:
 ```bash
-cd trino-mcp-server/test
-# With environment variables
-source ../env.datadog && USE_DYNAMIC_TOKENS=true node list_all_tracks.js
-
-# Or with inline environment (recommended)
-TRINO_SERVER=trino-gateway.us1.staging.dog TRINO_CATALOG=eventplatform TRINO_SCHEMA=system TRINO_USER=jim.wilson TRINO_AUTH_TYPE=datadog DD_ORG_ID=2 DD_CLIENT_ID=trino-cli DD_USER_UUID=your-uuid DD_DATACENTER=us1.staging.dog USE_DYNAMIC_TOKENS=true node list_all_tracks.js
+cd test/
+source ../env.datadog
+node list_all_tracks.js
 ```
+**Features**:
+- ✅ Dynamic token support (newly added)
+- ✅ Track discovery and enumeration
+- ✅ Sample data querying for each track
+- ✅ Track-specific query patterns
+- ⚠️ Currently finds 0 records for all tracks (investigating time-based differences)
 
-**Features:**
-- Multiple discovery approaches
-- Dynamic token generation 
-- Error handling for non-existent tracks
-- Debug output for troubleshooting
+### `test_metrics.js`
+**What it tests**: Datadog metrics querying using squire.timeseries.metrics() function
+**How to run**:
+```bash
+cd test/
+source ../env.datadog
+node test_metrics.js
+```
+**Features**:
+- ✅ Dynamic token support
+- ✅ Custom metrics queries with Datadog query syntax
+- ✅ Metrics summary and service-based grouping
+- ✅ Tests both UNNEST_TIMESERIES=true and false
+- ✅ Includes example from documentation (trino.client.query.duration)
 
 ## Environment Variables
 
