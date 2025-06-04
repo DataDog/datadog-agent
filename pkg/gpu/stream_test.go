@@ -8,6 +8,9 @@
 package gpu
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
