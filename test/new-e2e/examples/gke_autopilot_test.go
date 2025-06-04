@@ -30,7 +30,7 @@ func TestGKEAutopilotSuite(t *testing.T) {
 	e2e.Run(t, &gkeAutopilotSuite{}, e2e.WithProvisioner(gcpkubernetes.GKEProvisioner(gcpkubernetes.WithGKEOptions(gke.WithAutopilot()), gcpkubernetes.WithAgentOptions(kubernetesagentparams.WithGKEAutopilot()))))
 }
 
-func (v *gkeAutopilotSuite) TestGKE() {
+func (v *gkeAutopilotSuite) TestGKEAutopilot() {
 	v.T().Log("Running GKE test")
 	res, _ := v.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.TODO(), v1.ListOptions{})
 	var clusterAgent corev1.Pod
@@ -43,6 +43,10 @@ func (v *gkeAutopilotSuite) TestGKE() {
 		}
 	}
 	assert.True(v.T(), containsClusterAgent, "Cluster Agent not found")
+
+	metrics, err := v.Env().FakeIntake.Client().GetMetricNames()
+	require.NoError(v.T(), err, "Failed to get metric names from fake intake")
+	v.T().Log("Metrics received from fake intake:", metrics)
 
 	stdout, stderr, err := v.Env().KubernetesCluster.KubernetesClient.
 		PodExec("datadog", clusterAgent.Name, "cluster-agent", []string{"ls"})
