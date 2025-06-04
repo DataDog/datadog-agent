@@ -87,23 +87,21 @@ USE_DYNAMIC_TOKENS=true
 **Option 2: Cursor Configuration**
 ```json
 {
-  "mcp": {
-    "servers": {
-      "trino": {
-        "command": "node",
-        "args": ["/path/to/trino-mcp-server/dist/index.js"],
-        "env": {
-          "TRINO_SERVER": "trino-gateway.us1.staging.dog",
-          "TRINO_CATALOG": "eventplatform",
-          "TRINO_SCHEMA": "system", 
-          "TRINO_USER": "your-username",
-          "TRINO_AUTH_TYPE": "datadog",
-          "DD_ORG_ID": "2",
-          "DD_CLIENT_ID": "trino-cli",
-          "DD_USER_UUID": "your-uuid",
-          "DD_DATACENTER": "us1.staging.dog",
-          "USE_DYNAMIC_TOKENS": "true"
-        }
+  "mcpServers": {
+    "trino-netflow": {
+      "command": "node",
+      "args": ["/path/to/trino-mcp-server/dist/index.js"],
+      "env": {
+        "TRINO_SERVER": "trino-gateway.us1.staging.dog",
+        "TRINO_CATALOG": "eventplatform",
+        "TRINO_SCHEMA": "system",
+        "TRINO_USER": "your-username",
+        "TRINO_AUTH_TYPE": "datadog",
+        "DD_ORG_ID": "2",
+        "DD_CLIENT_ID": "trino-cli",
+        "DD_USER_UUID": "your-uuid",
+        "DD_DATACENTER": "us1.staging.dog",
+        "USE_DYNAMIC_TOKENS": "true"
       }
     }
   }
@@ -140,17 +138,20 @@ If dynamic token generation fails:
 
    ```json
    {
-     "mcp": {
-       "servers": {
-         "trino": {
-           "command": "node",
-           "args": ["/path/to/trino-mcp-server/dist/index.js"],
-           "env": {
-             "TRINO_SERVER": "your-trino-server:8080",
-             "TRINO_CATALOG": "eventplatform",
-             "TRINO_SCHEMA": "system",
-             "TRINO_USER": "your-username"
-           }
+     "mcpServers": {
+       "trino-netflow": {
+         "command": "node",
+         "args": ["/path/to/trino-mcp-server/dist/index.js"],
+         "env": {
+           "TRINO_SERVER": "trino-gateway.us1.staging.dog",
+           "TRINO_CATALOG": "eventplatform",
+           "TRINO_SCHEMA": "system",
+           "TRINO_USER": "your-username",
+           "TRINO_AUTH_TYPE": "datadog",
+           "DD_ORG_ID": "2",
+           "DD_CLIENT_ID": "trino-cli",
+           "DD_USER_UUID": "your-uuid",
+           "DD_DATACENTER": "us1.staging.dog"
          }
        }
      }
