@@ -1411,6 +1411,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode sysctl event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.SetSockOptEventType:
+		if _, err = event.SetSockOpt.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	}
 
 	// resolve the container context

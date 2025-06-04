@@ -518,4 +518,15 @@ struct sysctl_event_t {
     char sysctl_buffer[MAX_SYSCTL_BUFFER_LEN];
 };
 
+struct setsockopt_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+
+    int level;
+    int optname;
+};
+
 #endif
