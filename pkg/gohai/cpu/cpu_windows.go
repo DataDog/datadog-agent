@@ -48,22 +48,22 @@ type systemInfo struct {
 
 // cpuInfo holds CPU information
 type cpuInfo struct {
-	corecount           int
-	logicalcount        int
-	pkgcount            int
-	numaNodeCount       int
-	relationGroups      int
-	maxProcsInGroups    int
-	activeProcsInGroups int
-	l1CacheSize         uint64
-	l2CacheSize         uint64
-	l3CacheSize         uint64
-	VendorID            string
-	ModelName           string
-	Mhz                 float64
-	Family              string
-	Model               string
-	Stepping            string
+	corecount           int     // total number of cores
+	logicalcount        int     // number of logical CPUS
+	pkgcount            int     // number of packages (physical CPUS)
+	numaNodeCount       int     // number of NUMA nodes
+	relationGroups      int     // number of relation groups
+	maxProcsInGroups    int     // maximum number of processors in a relation group
+	activeProcsInGroups int     // active processors in a relation group
+	l1CacheSize         uint64  // layer 1 cache size
+	l2CacheSize         uint64  // layer 2 cache size
+	l3CacheSize         uint64  // layer 3 cache size
+	vendorID            string  // vendor ID
+	modelName           string  // model name
+	clockMhz            float64 // CPU clock speed
+	family              string  // CPU family
+	model               string  // CPU model
+	stepping            string  // CPU stepping
 }
 
 func extract(caption, field string) string {
@@ -108,19 +108,27 @@ func getCPUInfo() *Info {
 	defer k.Close()
 
 	if mhz, _, err := k.GetIntegerValue("~MHz"); err == nil {
-		cInfo.Mhz = float64(mhz)
+		cInfo.clockMhz = float64(mhz)
+	} else {
+		log.Errorf("failed to get MHz from registry: %v", err)
 	}
 
 	if name, _, err := k.GetStringValue("ProcessorNameString"); err == nil {
-		cInfo.ModelName = name
+		cInfo.modelName = name
+	} else {
+		log.Errorf("failed to get ModelName from registry: %v", err)
 	}
 
 	if vendor, _, err := k.GetStringValue("VendorIdentifier"); err == nil {
-		cInfo.VendorID = vendor
+		cInfo.vendorID = vendor
+	} else {
+		log.Errorf("failed to get VendorIdentifier from registry: %v", err)
 	}
 
 	if identifier, _, err := k.GetStringValue("Identifier"); err == nil {
-		cInfo.Family = extract(identifier, "Family")
+		cInfo.family = extract(identifier, "Family")
+	} else {
+		log.Errorf("failed to get Identifier from registry: %v", err)
 	}
 
 	// Get system info for model and stepping
@@ -130,19 +138,19 @@ func getCPUInfo() *Info {
 	//nolint:errcheck
 	gsi.Call(uintptr(unsafe.Pointer(&si)))
 
-	cInfo.Model = strconv.Itoa(int((si.wProcessorRevision >> 8) & 0xFF))
-	cInfo.Stepping = strconv.Itoa(int(si.wProcessorRevision & 0xFF))
+	cInfo.model = strconv.Itoa(int((si.wProcessorRevision >> 8) & 0xFF))
+	cInfo.stepping = strconv.Itoa(int(si.wProcessorRevision & 0xFF))
 
 	// Convert to Info struct
 	info := &Info{
-		VendorID:             utils.NewValue(cInfo.VendorID),
-		ModelName:            utils.NewValue(cInfo.ModelName),
+		VendorID:             utils.NewValue(cInfo.vendorID),
+		ModelName:            utils.NewValue(cInfo.modelName),
 		CPUCores:             utils.NewValue(uint64(cInfo.corecount)),
 		CPULogicalProcessors: utils.NewValue(uint64(cInfo.logicalcount)),
-		Mhz:                  utils.NewValue(cInfo.Mhz),
-		Family:               utils.NewValue(cInfo.Family),
-		Model:                utils.NewValue(cInfo.Model),
-		Stepping:             utils.NewValue(cInfo.Stepping),
+		Mhz:                  utils.NewValue(cInfo.clockMhz),
+		Family:               utils.NewValue(cInfo.family),
+		Model:                utils.NewValue(cInfo.model),
+		Stepping:             utils.NewValue(cInfo.stepping),
 		CPUPkgs:              utils.NewValue(uint64(cInfo.pkgcount)),
 		CPUNumaNodes:         utils.NewValue(uint64(cInfo.numaNodeCount)),
 		CacheSizeL1Bytes:     utils.NewValue(cInfo.l1CacheSize),

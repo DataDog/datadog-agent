@@ -18,9 +18,13 @@ int computeCoresAndProcessors(CPU_INFO* cpuInfo) {
     memset(cpuInfo, 0, sizeof(CPU_INFO));
 
     // First call to get required buffer size
+    // NOTE: The following call always return failure because the intention is to
+    // get the buffer size so we provide NULL as the buffer. The error we need to
+    // check is ERROR_INSUFFICIENT_BUFFER. Any other error will trigger a return.
     GetLogicalProcessorInformationEx(RelationAll, NULL, &buflen);
-    if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
-        return GetLastError();
+    DWORD err = GetLastError();
+    if (err != ERROR_INSUFFICIENT_BUFFER) {
+        return err;
     }
 
     buffer = (SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*)malloc(buflen);
@@ -82,6 +86,10 @@ int computeCoresAndProcessors(CPU_INFO* cpuInfo) {
                     cpuInfo->maxProcsInGroups += ptr->Group.GroupInfo[i].MaximumProcessorCount;
                     cpuInfo->activeProcsInGroups += ptr->Group.GroupInfo[i].ActiveProcessorCount;
                 }
+                break;
+
+            default:
+                // NOTE: ignore other relationships
                 break;
         }
 
