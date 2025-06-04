@@ -21,17 +21,7 @@ const defaultMatchThreshold = 0.75
 
 // UserSample represents a user-defined sample for auto multi-line detection.
 type UserSample struct {
-	// Sample is a raw log message sample used to aggregate logs.
-	Sample string `mapstructure:"sample" json:"sample"`
-	// MatchThreshold is the ratio of tokens that must match between the sample and the log message to consider it a match.
-	// From a user perspective, this is how similar the log has to be to the sample to be considered a match.
-	// Optional - Default value is 0.75.
-	MatchThreshold *float64 `mapstructure:"match_threshold,omitempty" json:"match_threshold,omitempty"`
-	// Regex is a pattern used to aggregate logs. NOTE that you can use either a sample or a regex, but not both.
-	Regex string `mapstructure:"regex,omitempty" json:"regex,omitempty"`
-	// Label is the label to apply to the log message if it matches the sample.
-	// Optional - Default value is "start_group".
-	Label *string `mapstructure:"label,omitempty" json:"label,omitempty"`
+	config.AutoMultilineSample
 
 	// Parse fields
 	tokens         []tokens.Token
@@ -46,7 +36,7 @@ type UserSamples struct {
 }
 
 // NewUserSamples creates a new UserSamples instance.
-func NewUserSamples(config model.Reader, sourceSamples []*config.AutoMultilineSample) *UserSamples {
+func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSample) *UserSamples {
 	tokenizer := NewTokenizer(0)
 	s := make([]*UserSample, 0)
 	var err error
@@ -55,19 +45,22 @@ func NewUserSamples(config model.Reader, sourceSamples []*config.AutoMultilineSa
 		for _, sample := range sourceSamples {
 			log.Debugf("Adding source user sample: %+v", sample)
 			s = append(s, &UserSample{
-				Sample:         sample.Sample,
-				Label:          sample.Label,
-				Regex:          sample.Regex,
-				MatchThreshold: sample.MatchThreshold,
+				AutoMultilineSample: *sample,
 			})
 		}
 	} else {
-		rawMainSamples := config.Get("logs_config.auto_multi_line_detection_custom_samples")
+		rawMainSamples := cfgRdr.Get("logs_config.auto_multi_line_detection_custom_samples")
 		if rawMainSamples != nil {
 			if str, ok := rawMainSamples.(string); ok && str != "" {
 				err = json.Unmarshal([]byte(str), &s)
 			} else {
-				err = structure.UnmarshalKey(config, "logs_config.auto_multi_line_detection_custom_samples", &s)
+				var rawUserSamples []config.AutoMultilineSample
+				err = structure.UnmarshalKey(cfgRdr, "logs_config.auto_multi_line_detection_custom_samples", &rawUserSamples)
+				for _, rawSample := range rawUserSamples {
+					s = append(s, &UserSample{
+						AutoMultilineSample: rawSample,
+					})
+				}
 			}
 
 			if err != nil {
@@ -76,12 +69,14 @@ func NewUserSamples(config model.Reader, sourceSamples []*config.AutoMultilineSa
 			}
 		}
 
-		legacyAdditionalPatterns := config.GetStringSlice("logs_config.auto_multi_line_extra_patterns")
+		legacyAdditionalPatterns := cfgRdr.GetStringSlice("logs_config.auto_multi_line_extra_patterns")
 		if len(legacyAdditionalPatterns) > 0 {
 			log.Warn("Found deprecated logs_config.auto_multi_line_extra_patterns converting to logs_config.auto_multi_line_detection_custom_samples")
 			for _, pattern := range legacyAdditionalPatterns {
 				s = append(s, &UserSample{
-					Regex: pattern,
+					AutoMultilineSample: config.AutoMultilineSample{
+						Regex: pattern,
+					},
 				})
 			}
 		}

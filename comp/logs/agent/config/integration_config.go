@@ -130,6 +130,22 @@ type SourceAutoMultiLineOptions struct {
 	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
 }
 
+// AutoMultilineSample defines a sample used to create auto multiline detection
+// rules
+type AutoMultilineSample struct {
+	// Sample is a raw log message sample used to aggregate logs.
+	Sample string `mapstructure:"sample" json:"sample" yaml:"sample"`
+	// MatchThreshold is the ratio of tokens that must match between the sample and the log message to consider it a match.
+	// From a user perspective, this is how similar the log has to be to the sample to be considered a match.
+	// Optional - Default value is 0.75.
+	MatchThreshold *float64 `mapstructure:"match_threshold,omitempty" json:"match_threshold,omitempty"`
+	// Regex is a pattern used to aggregate logs. NOTE that you can use either a sample or a regex, but not both.
+	Regex string `mapstructure:"regex,omitempty" json:"regex,omitempty"`
+	// Label is the label to apply to the log message if it matches the sample.
+	// Optional - Default value is "start_group".
+	Label *string `mapstructure:"label,omitempty" json:"label,omitempty"`
+}
+
 // StringSliceField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
 type StringSliceField []string
 
