@@ -2,15 +2,13 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-package examples
+package containers
 
 import (
 	"context"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/gcp/gke"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -22,15 +20,15 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 )
 
-type gkeAutopilotSuite struct {
+type gkeSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-func TestGKEAutopilotSuite(t *testing.T) {
-	e2e.Run(t, &gkeAutopilotSuite{}, e2e.WithProvisioner(gcpkubernetes.GKEProvisioner(gcpkubernetes.WithGKEOptions(gke.WithAutopilot()), gcpkubernetes.WithAgentOptions(kubernetesagentparams.WithGKEAutopilot()))))
+func TestGKESuite(t *testing.T) {
+	e2e.Run(t, &gkeSuite{}, e2e.WithProvisioner(gcpkubernetes.GKEProvisioner()))
 }
 
-func (v *gkeAutopilotSuite) TestGKEAutopilot() {
+func (v *gkeSuite) TestGKE() {
 	v.T().Log("Running GKE test")
 	res, _ := v.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(context.TODO(), v1.ListOptions{})
 	var clusterAgent corev1.Pod

@@ -42,6 +42,10 @@ func (v *gkeSuite) TestGKE() {
 	}
 	assert.True(v.T(), containsClusterAgent, "Cluster Agent not found")
 
+	metrics, err := v.Env().FakeIntake.Client().GetMetricNames()
+	require.NoError(v.T(), err, "Failed to get metric names from fake intake")
+	v.T().Log("Metrics received from fake intake:", metrics)
+
 	stdout, stderr, err := v.Env().KubernetesCluster.KubernetesClient.
 		PodExec("datadog", clusterAgent.Name, "cluster-agent", []string{"ls"})
 	require.NoError(v.T(), err)
