@@ -27,11 +27,12 @@ func init() {
 // successfully on linux/{amd64,arm64}. This test assumes the test will be executed on such hosts.
 func TestAWSLambadaHostSupport(t *testing.T) {
 	err := wafHealth()
-	// This package is only supports AWS Lambda targets, which is on Linux on amd64 or arm64.
 	if runtime.GOOS == "linux" && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
+		// This package is only supports AWS Lambda targets (linux/{amd64,arm64}).
+		// Ensure libddwaf load properly on such hosts.
 		require.NoError(t, err)
 	} else {
-		require.Error(t, err)
+		t.Skip() // The current host is not representative of the AWS Lambda host environments
 	}
 }
 
