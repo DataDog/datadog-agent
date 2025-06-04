@@ -16,35 +16,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
 const registryHive = "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0"
-
-// systemInfo contains information about the current computer system.
-// This includes the architecture and type of the processor, the number
-// of processors in the system, the page size, and other such information.
-// see https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/ns-sysinfoapi-system_info
-//
-//nolint:revive
-type systemInfo struct {
-	wProcessorArchitecture  uint16
-	wReserved               uint16
-	dwPageSize              uint32
-	lpMinApplicationAddress *uint32
-	lpMaxApplicationAddress *uint32
-	dwActiveProcessorMask   uintptr
-	dwNumberOfProcessors    uint32
-	dwProcessorType         uint32
-	dwAllocationGranularity uint32
-	wProcessorLevel         uint16
-	wProcessorRevision      uint16
-}
 
 // cpuInfo holds CPU information
 type cpuInfo struct {
@@ -132,14 +110,15 @@ func getCPUInfo() *Info {
 	}
 
 	// Get system info for model and stepping
-	var si systemInfo
-	var mod = windows.NewLazyDLL("kernel32.dll")
-	var gsi = mod.NewProc("GetSystemInfo")
-	//nolint:errcheck
-	gsi.Call(uintptr(unsafe.Pointer(&si)))
+	var cSysInfo C.SYSTEM_INFO
+	ret = C.getSystemInfo(&cSysInfo)
+	if ret != 0 {
+		log.Errorf("failed to get system information, error code: %d", ret)
+		return &Info{}
+	}
 
-	cInfo.model = strconv.Itoa(int((si.wProcessorRevision >> 8) & 0xFF))
-	cInfo.stepping = strconv.Itoa(int(si.wProcessorRevision & 0xFF))
+	cInfo.model = strconv.Itoa(int((cSysInfo.wProcessorRevision >> 8) & 0xFF))
+	cInfo.stepping = strconv.Itoa(int(cSysInfo.wProcessorRevision & 0xFF))
 
 	// Convert to Info struct
 	info := &Info{

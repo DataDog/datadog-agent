@@ -3,8 +3,23 @@
 // Copyright 2025-present Datadog, Inc.
 
 #include "cpu_windows.h"
-#include <windows.h>
-#include <stdio.h>
+
+inline void getCacheSize(SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX* ptr, CPU_INFO* cpuInfo) {
+    switch (ptr->Cache.Level) {
+        case 1:
+            cpuInfo->l1CacheSize += ptr->Cache.CacheSize;
+            break;
+        case 2:
+            cpuInfo->l2CacheSize += ptr->Cache.CacheSize;
+            break;
+        case 3:
+            cpuInfo->l3CacheSize += ptr->Cache.CacheSize;
+            break;
+        default:
+            // ignore, but this should not happen
+            break;
+    }
+}
 
 // computeCoresAndProcessors gets CPU information using Windows API
 int computeCoresAndProcessors(CPU_INFO* cpuInfo) {
@@ -49,12 +64,7 @@ int computeCoresAndProcessors(CPU_INFO* cpuInfo) {
                 for (WORD i = 0; i < ptr->Processor.GroupCount; i++) {
                     GROUP_AFFINITY* groupAffinity = &ptr->Processor.GroupMask[i];
                     ULONG64 mask = groupAffinity->Mask;
-                    while (mask) {
-                        if (mask & 1) {
-                            cpuInfo->logicalcount++;
-                        }
-                        mask >>= 1;
-                    }
+                    cpuInfo->logicalcount += (int)__popcnt64(mask);
                 }
                 break;
 
@@ -63,17 +73,7 @@ int computeCoresAndProcessors(CPU_INFO* cpuInfo) {
                 break;
 
             case RelationCache:
-                switch (ptr->Cache.Level) {
-                    case 1:
-                        cpuInfo->l1CacheSize += ptr->Cache.CacheSize;
-                        break;
-                    case 2:
-                        cpuInfo->l2CacheSize += ptr->Cache.CacheSize;
-                        break;
-                    case 3:
-                        cpuInfo->l3CacheSize += ptr->Cache.CacheSize;
-                        break;
-                }
+                getCacheSize(ptr, cpuInfo);
                 break;
 
             case RelationProcessorPackage:
@@ -97,5 +97,12 @@ int computeCoresAndProcessors(CPU_INFO* cpuInfo) {
     }
 
     free(buffer);
+    return 0;
+}
+
+// getSystemInfo: gets system information using Windows API
+int getSystemInfo(SYSTEM_INFO* sysInfo) {
+    memset(sysInfo, 0, sizeof(SYSTEM_INFO));
+    GetSystemInfo(sysInfo);
     return 0;
 } 
