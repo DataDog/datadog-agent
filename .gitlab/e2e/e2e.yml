@@ -183,15 +183,6 @@ new-e2e-containers-eks:
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
 
-new-e2e-examples-gke:
-  rules:
-    - !reference [ .on_e2e_main_release_or_rc ]
-    - !reference [.manual]
-  variables:
-    TARGETS: ./examples
-    TEAM: container-ecosystems
-    EXTRA_PARAMS: --run TestGKE --skip TestGKEAutopilot
-
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
   rules:
