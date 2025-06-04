@@ -216,7 +216,36 @@ Get a pre-built summary of NetFlow data by exporter and domain.
 - "Get NetFlow data for exporter 192.168.1.1"
 - "Show top domains by bytes for exporter 10.0.0.1"
 
-### 3. `get_available_tracks`
+### 3. `query_logs`
+Query logs from the event platform with advanced filtering and search capabilities.
+
+**Parameters:**
+- `query` (optional): Log search query using Datadog log query syntax (default: "message:*")
+- `columns` (optional): Array of columns to retrieve (default: ["message", "timestamp", "env"])
+- `time_range` (optional): Time range like "1h", "24h", "7d" (default: "1h")
+- `limit` (optional): Maximum number of results (default: 100)
+- `env_filter` (optional): Array of environments to filter by (e.g., ["staging", "prod"])
+
+**Example usage in Cursor:**
+- "Show me recent logs from the trino service"
+- "Get error logs from the last hour"
+- "Find logs containing 'timeout' in the message"
+
+### 4. `query_logs_summary`
+Get aggregated log data grouped by various dimensions like service, environment, or source.
+
+**Parameters:**
+- `group_by` (optional): Field to group by (default: "env")
+- `query` (optional): Log search query filter (default: "message:*")
+- `time_range` (optional): Time range like "1h", "24h", "7d" (default: "1h")
+- `limit` (optional): Maximum number of results (default: 10)
+
+**Example usage in Cursor:**
+- "Show me log counts by environment"
+- "Get log summary grouped by service"
+- "Show error log distribution by source"
+
+### 5. `get_available_tracks`
 List available tracks in the event platform.
 
 ## Usage Examples
@@ -289,6 +318,82 @@ FROM TABLE(
 )
 GROUP BY "@ip.protocol"  
 ORDER BY flow_count DESC
+```
+
+### Log Query Examples
+
+Here are some useful log queries you can run:
+
+### Basic Log Search
+```sql
+SELECT message, timestamp, env, "@duration" 
+FROM 
+  table(eventplatform.system.track(
+    TRACK => 'logs', 
+    QUERY => 'message:* @source:trino-cli -host:i-0d74ad54b5ba16e02',
+    COLUMNS => ARRAY['message','timestamp', 'env', '@duration'],
+    OUTPUT_TYPES => ARRAY['varchar', 'int', 'varchar', 'double'], 
+    MIN_TIMESTAMP => -3600, 
+    MAX_TIMESTAMP => 0
+  )) 
+WHERE event_timestamp_truncate(timestamp, 10) != 1699522067990 AND env IN ('staging', 'prod')
+LIMIT 10
+```
+
+### Error Log Analysis
+```sql
+SELECT message, timestamp, env, "@source"
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => 'status:error OR message:*exception* OR message:*error*',
+    COLUMNS => ARRAY['message', 'timestamp', 'env', '@source'],
+    OUTPUT_TYPES => ARRAY['varchar', 'int', 'varchar', 'varchar'],
+    MIN_TIMESTAMP => -3600,
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE env IN ('staging', 'prod')
+ORDER BY timestamp DESC
+LIMIT 20
+```
+
+### Log Volume by Service
+```sql
+SELECT "@source" as service, COUNT(*) as log_count, env
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => 'message:*',
+    COLUMNS => ARRAY['@source', 'env'],
+    OUTPUT_TYPES => ARRAY['varchar', 'varchar'],
+    MIN_TIMESTAMP => -3600,
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE "@source" IS NOT NULL
+GROUP BY "@source", env
+ORDER BY log_count DESC
+LIMIT 15
+```
+
+### Performance Log Analysis
+```sql
+SELECT "@source", env, AVG(CAST("@duration" AS double)) as avg_duration
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => '@duration:>0',
+    COLUMNS => ARRAY['@source', 'env', '@duration'],
+    OUTPUT_TYPES => ARRAY['varchar', 'varchar', 'double'],
+    MIN_TIMESTAMP => -3600,
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE "@duration" IS NOT NULL AND "@source" IS NOT NULL
+GROUP BY "@source", env
+ORDER BY avg_duration DESC
+LIMIT 10
 ```
 
 ## Development

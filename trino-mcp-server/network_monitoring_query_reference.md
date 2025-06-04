@@ -204,6 +204,111 @@ select * from TABLE(squire.timeseries.metrics(
 ))
 ```
 
+Query: `max:snmp.ifBandwidthOutUsage.rate{device_ip:10.100.70.140} by {interface}`
+
+---
+
+## Log Queries
+
+### Core Log Data Structure
+- **Track**: `logs`
+- **Key Fields**: 
+  - `message`, `timestamp`, `env`, `@source`
+  - `@duration`, `@level`, `host`, `service`
+
+### 1. Basic Log Search
+```sql
+-- Get recent logs with specific filters
+SELECT message, timestamp, env, "@duration" 
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs', 
+    QUERY => 'message:* @source:trino-cli -host:excluded-host',
+    COLUMNS => ARRAY['message','timestamp', 'env', '@duration'],
+    OUTPUT_TYPES => ARRAY['varchar', 'int', 'varchar', 'double'], 
+    MIN_TIMESTAMP => -3600, 
+    MAX_TIMESTAMP => 0
+  )
+) 
+WHERE env IN ('staging', 'prod')
+ORDER BY timestamp DESC
+LIMIT 20
+```
+
+### 2. Error Log Analysis
+```sql
+-- Find error logs across services
+SELECT message, timestamp, env, "@source"
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => 'status:error OR message:*exception* OR message:*error*',
+    COLUMNS => ARRAY['message', 'timestamp', 'env', '@source'],
+    OUTPUT_TYPES => ARRAY['varchar', 'int', 'varchar', 'varchar'],
+    MIN_TIMESTAMP => -3600,
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE env IN ('staging', 'prod')
+ORDER BY timestamp DESC
+LIMIT 50
+```
+
+### 3. Service-Specific Log Volume
+```sql
+-- Get log counts by service and environment
+SELECT "@source" as service, COUNT(*) as log_count, env
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => 'message:*',
+    COLUMNS => ARRAY['@source', 'env'],
+    OUTPUT_TYPES => ARRAY['varchar', 'varchar'],
+    MIN_TIMESTAMP => -3600,
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE "@source" IS NOT NULL
+GROUP BY "@source", env
+ORDER BY log_count DESC
+LIMIT 15
+```
+
+### 4. Performance Analysis
+```sql
+-- Analyze log durations by service
+SELECT "@source", env, 
+       AVG(CAST("@duration" AS double)) as avg_duration,
+       MAX(CAST("@duration" AS double)) as max_duration,
+       COUNT(*) as log_count
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => '@duration:>0',
+    COLUMNS => ARRAY['@source', 'env', '@duration'],
+    OUTPUT_TYPES => ARRAY['varchar', 'varchar', 'double'],
+    MIN_TIMESTAMP => -3600,
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE "@duration" IS NOT NULL AND "@source" IS NOT NULL
+GROUP BY "@source", env
+ORDER BY avg_duration DESC
+LIMIT 10
+```
+
+### MCP Server Functions for Logs
+- **`query_logs`**: Flexible log search with custom columns and filters
+- **`query_logs_summary`**: Aggregated log data grouped by dimensions
+
+### Log Query Syntax Examples
+- **Basic search**: `message:*` (all logs)
+- **Service filter**: `@source:trino-cli`
+- **Exclude hosts**: `-host:excluded-hostname`
+- **Error filtering**: `status:error OR message:*exception*`
+- **Duration filter**: `@duration:>1000` (logs with duration > 1000ms)
+- **Environment**: Use WHERE clause: `env IN ('staging', 'prod')`
+
 ---
 
 ## Common Parameters and Time Windows

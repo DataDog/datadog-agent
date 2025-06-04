@@ -355,6 +355,72 @@ class TrinoMCPServer {
               required: ['metrics_query'],
             },
           },
+          {
+            name: 'query_logs',
+            description: 'Query logs from the event platform with filtering and search capabilities',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'Log search query using Datadog log query syntax (e.g., "message:* @source:trino-cli -host:excluded-host")',
+                  default: 'message:*',
+                },
+                columns: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Columns to retrieve (e.g., ["message", "timestamp", "env", "@duration"])',
+                  default: ['message', 'timestamp', 'env'],
+                },
+                time_range: {
+                  type: 'string',
+                  description: 'Time range like "1h", "24h", "7d" (default: "1h")',
+                  default: '1h',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of results to return',
+                  default: 100,
+                },
+                env_filter: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Filter by environment (e.g., ["staging", "prod"])',
+                },
+              },
+              required: [],
+            },
+          },
+          {
+            name: 'query_logs_summary',
+            description: 'Get a summary of log data grouped by service, environment, or other dimensions',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                group_by: {
+                  type: 'string',
+                  description: 'Field to group by (e.g., "env", "service", "@source")',
+                  default: 'env',
+                },
+                query: {
+                  type: 'string',
+                  description: 'Log search query filter',
+                  default: 'message:*',
+                },
+                time_range: {
+                  type: 'string',
+                  description: 'Time range like "1h", "24h", "7d" (default: "1h")',
+                  default: '1h',
+                },
+                limit: {
+                  type: 'number',
+                  description: 'Maximum number of results to return',
+                  default: 10,
+                },
+              },
+              required: [],
+            },
+          },
         ] satisfies Tool[],
       };
     });
@@ -380,6 +446,10 @@ class TrinoMCPServer {
             return await this.handleDBMMetrics(args);
           case 'query_custom_metrics':
             return await this.handleCustomMetrics(args);
+          case 'query_logs':
+            return await this.handleLogsQuery(args);
+          case 'query_logs_summary':
+            return await this.handleLogsSummary(args);
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -748,6 +818,106 @@ ORDER BY timestamp DESC
 LIMIT ${limit}`;
 
     return await this.handleTrinoQuery({ query });
+  }
+
+  private async handleLogsQuery(args: any) {
+    const {
+      query = 'message:*',
+      columns = ['message', 'timestamp', 'env'],
+      time_range = '1h',
+      limit = 100,
+      env_filter
+    } = args;
+
+    // Convert time_range to seconds
+    const timeRangeToSeconds = (range: string): number => {
+      const num = parseInt(range.slice(0, -1));
+      const unit = range.slice(-1);
+      switch (unit) {
+        case 'h': return num * 3600;
+        case 'd': return num * 86400;
+        case 'm': return num * 60;
+        default: return 3600;
+      }
+    };
+
+    const minTimestamp = -timeRangeToSeconds(time_range);
+
+    // Build columns array and output types array
+    const columnsArray = columns.map((col: string) => `'${col}'`).join(', ');
+    const outputTypesArray = columns.map(() => "'varchar'").join(', ');
+
+    // Build the base SQL query
+    let sqlQuery = `
+SELECT ${columns.map((col: string) => `"${col}"`).join(', ')}
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => '${query}',
+    COLUMNS => ARRAY[${columnsArray}],
+    OUTPUT_TYPES => ARRAY[${outputTypesArray}],
+    MIN_TIMESTAMP => ${minTimestamp},
+    MAX_TIMESTAMP => 0
+  )
+)`;
+
+    // Add environment filter if specified
+    if (env_filter && env_filter.length > 0) {
+      const envConditions = env_filter.map((env: string) => `'${env}'`).join(', ');
+      sqlQuery += `\nWHERE "env" IN (${envConditions})`;
+    }
+
+    // Add ordering and limit
+    sqlQuery += `\nORDER BY "timestamp" DESC`;
+
+    return await this.handleTrinoQuery({ query: sqlQuery, limit });
+  }
+
+  private async handleLogsSummary(args: any) {
+    const {
+      group_by = 'env',
+      query = 'message:*',
+      time_range = '1h',
+      limit = 10
+    } = args;
+
+    // Convert time_range to seconds
+    const timeRangeToSeconds = (range: string): number => {
+      const num = parseInt(range.slice(0, -1));
+      const unit = range.slice(-1);
+      switch (unit) {
+        case 'h': return num * 3600;
+        case 'd': return num * 86400;
+        case 'm': return num * 60;
+        default: return 3600;
+      }
+    };
+
+    const minTimestamp = -timeRangeToSeconds(time_range);
+
+    const sqlQuery = `
+SELECT 
+  "${group_by}" as grouping_field,
+  COUNT(*) as log_count,
+  COUNT(DISTINCT "timestamp") as unique_timestamps,
+  MIN("timestamp") as earliest_log,
+  MAX("timestamp") as latest_log
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => '${query}',
+    COLUMNS => ARRAY['${group_by}', 'timestamp'],
+    OUTPUT_TYPES => ARRAY['varchar', 'int'],
+    MIN_TIMESTAMP => ${minTimestamp},
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE "${group_by}" IS NOT NULL
+GROUP BY "${group_by}"
+ORDER BY log_count DESC
+LIMIT ${limit}`;
+
+    return await this.handleTrinoQuery({ query: sqlQuery });
   }
 
   private addLimitToQuery(query: string, limit: number): string {
