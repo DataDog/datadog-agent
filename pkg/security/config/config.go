@@ -205,6 +205,8 @@ type RuntimeSecurityConfig struct {
 	LogPatterns []string
 	// LogTags tags to be used by the logger for trace level
 	LogTags []string
+	// EnvAsTags convert envs to tags
+	EnvAsTags []string
 	// HostServiceName string
 	HostServiceName string
 	// OnDemandEnabled defines whether the on-demand probes should be enabled
@@ -508,6 +510,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		LogPatterns: pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_patterns"),
 		LogTags:     pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.log_tags"),
+		EnvAsTags:   pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.env_as_tags"),
 
 		// custom events
 		InternalMonitoringEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.internal_monitoring.enabled"),
