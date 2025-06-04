@@ -49,9 +49,7 @@ needs-rules:
     - trigger_distribution
     - trigger_distribution_on_failure
     - installer_trigger_auto_staging_release
-    - installer_trigger_auto_staging_release_on_failure
     - installer_trigger_manual_prod_release
-    - installer_trigger_manual_prod_release_on_failure
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
