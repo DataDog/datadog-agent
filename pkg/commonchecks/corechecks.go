@@ -119,6 +119,6 @@ func RegisterChecks(store workloadmeta.Component, tagger tagger.Component, cfg c
 	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
-	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory())
+	corecheckLoader.RegisterCheck(servicediscovery.CheckName, servicediscovery.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 }
