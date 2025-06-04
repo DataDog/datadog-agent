@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "restore": {
+    "/Users/aj.stuyvenberg/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/csharp.csproj": {}
+  },
+  "projects": {
+    "/Users/aj.stuyvenberg/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/csharp.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/Users/aj.stuyvenberg/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/csharp.csproj",
+        "projectName": "aws-csharp",
+        "projectPath": "/Users/aj.stuyvenberg/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/csharp.csproj",
+        "packagesPath": "/Users/aj.stuyvenberg/.nuget/packages/",
+        "outputPath": "/Users/aj.stuyvenberg/go/src/github.com/DataDog/datadog-agent/test/integration/serverless/src/csharp-tests/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/Users/aj.stuyvenberg/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net6.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net6.0": {
+            "targetAlias": "net6.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net6.0": {
+          "targetAlias": "net6.0",
+          "dependencies": {
+            "Amazon.Lambda.APIGatewayEvents": {
+              "target": "Package",
+              "version": "[2.1.0, )"
+            },
+            "Amazon.Lambda.Core": {
+              "target": "Package",
+              "version": "[2.1.0, )"
+            },
+            "Amazon.Lambda.Serialization.SystemTextJson": {
+              "target": "Package",
+              "version": "[2.0.1, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[6.0.20, 6.0.20]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[6.0.20, 6.0.20]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/7.0.306/RuntimeIdentifierGraph.json"
+        }
+      },
+      "runtimes": {
+        "linux-x64": {
+          "#import": []
+        }
+      }
+    }
+  }
+}
