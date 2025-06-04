@@ -1,7 +1,6 @@
 import unittest
 import os
 import tempfile
-
 from post import post
 
 class TestPost(unittest.TestCase):
@@ -36,15 +35,6 @@ class TestPost(unittest.TestCase):
         post_file = os.path.join(storage_location, '.post_python_installed_packages.txt')
         diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
 
-        # The file flag is only for Linux / Unix environments.
-        if os.name != 'nt':
-            skip_file = "/etc/datadog-agent/skip_install_python_third_party_deps"
-
-            # Create empty skip file
-            with open(skip_file, 'w', encoding='utf-8') as f:
-                pass
-
-
         # Create empty post file
         with open(post_file, 'w', encoding='utf-8') as f:
             pass
@@ -52,8 +42,6 @@ class TestPost(unittest.TestCase):
         # Create empty diff file
         with open(diff_file, 'w', encoding='utf-8') as f:
             pass
-
-
 
         result = post(install_directory, storage_location, skip_flag=False)
 
@@ -69,7 +57,6 @@ class TestPost(unittest.TestCase):
         # Cleanup
         os.remove(post_file)
         os.remove(diff_file)
-        os.remove(skip_file)
 
         # running rmdir verifies that the directory is empty
         os.rmdir(install_directory)
