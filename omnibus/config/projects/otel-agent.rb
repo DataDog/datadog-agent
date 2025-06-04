@@ -92,10 +92,12 @@ debug_path ".debug"  # the strip symbols will be in here
 # Packaging
 # ------------------------------------
 
-runtime_dependency "datadog-agent (= 1:#{build_version}-1)"
-
 if debian_target?
+  runtime_dependency "datadog-agent (= 1:#{build_version}-1)"
   runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
+elsif redhat_target?
+  safe_version = Omnibus::Packager::RPM::safe_version(build_version)
+  runtime_dependency "datadog-agent = 1:#{safe_version}-1"
 end
 
 # .deb specific flags
@@ -113,6 +115,26 @@ package :deb do
     signing_passphrase "#{ENV['DEB_SIGNING_PASSPHRASE']}"
     if ENV.has_key?('DEB_GPG_KEY_NAME') and not ENV['DEB_GPG_KEY_NAME'].empty?
       gpg_key_name "#{ENV['DEB_GPG_KEY_NAME']}"
+    end
+  end
+end
+
+# .rpm specific flags
+package :rpm do
+  skip_packager !do_package
+  vendor 'Datadog <package@datadoghq.com>'
+  epoch 1
+  dist_tag ''
+  license 'Apache License Version 2.0'
+  category 'System Environment/Daemons'
+  priority 'extra'
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
+  compression_algo "xz"
+  if ENV.has_key?('RPM_SIGNING_PASSPHRASE') and not ENV['RPM_SIGNING_PASSPHRASE'].empty?
+    signing_passphrase "#{ENV['RPM_SIGNING_PASSPHRASE']}"
+    if ENV.has_key?('RPM_GPG_KEY_NAME') and not ENV['RPM_GPG_KEY_NAME'].empty?
+      gpg_key_name "#{ENV['RPM_GPG_KEY_NAME']}"
     end
   end
 end
