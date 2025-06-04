@@ -385,7 +385,7 @@ func Test_linuxImpl(t *testing.T) {
 			defer ctrl.Finish()
 
 			// check and mocks setup
-			check := newCheck()
+			check := newCheck(nil, nil)
 
 			mSender := mocksender.NewMockSender(check.ID())
 			mSender.SetupAcceptAll()

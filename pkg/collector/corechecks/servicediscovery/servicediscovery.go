@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -29,25 +31,27 @@ const (
 	// CheckName is the name of the check.
 	CheckName = "service_discovery"
 
-	refreshInterval = 1 * time.Minute
+	refreshInterval = 5 * time.Second
 )
 
 type osImpl interface {
 	DiscoverServices() (*model.ServicesResponse, error)
 }
 
-var newOSImpl func() (osImpl, error)
+var newOSImpl func(store workloadmeta.Component, tagger tagger.Component) (osImpl, error)
 
 // Check reports discovered services.
 type Check struct {
 	corechecks.CheckBase
+	wmeta                    workloadmeta.Component
+	tagger                   tagger.Component
 	os                       osImpl
 	sender                   *telemetrySender
 	metricDiscoveredServices telemetry.Gauge
 }
 
 // Factory creates a new check factory
-func Factory() option.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
 	// Since service_discovery is enabled by default, we want to prevent returning an error in Configure() for platforms
 	// where the check is not implemented. Instead of that, we return an empty check.
 	if newOSImpl == nil {
@@ -55,14 +59,15 @@ func Factory() option.Option[func() check.Check] {
 	}
 
 	return option.New(func() check.Check {
-		return newCheck()
+		return newCheck(store, tagger)
 	})
 }
 
-// TODO: add metastore param
-func newCheck() *Check {
+func newCheck(store workloadmeta.Component, tagger tagger.Component) *Check {
 	return &Check{
 		CheckBase: corechecks.NewCheckBase(CheckName),
+		wmeta:     store,
+		tagger:    tagger,
 	}
 }
 
@@ -84,7 +89,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 	}
 	c.sender = newTelemetrySender(s)
 
-	c.os, err = newOSImpl()
+	c.os, err = newOSImpl(c.wmeta, c.tagger)
 	if err != nil {
 		return err
 	}
