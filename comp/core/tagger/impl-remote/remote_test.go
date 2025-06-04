@@ -28,7 +28,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
 
 // TestNewComponent tests that the Remote Tagger can be instantiated and started.
@@ -41,13 +40,6 @@ func TestNewComponent(t *testing.T) {
 		t.Skip("Skipping test on macOS runners with an existing Agent.")
 	}
 
-	ipcComp := ipcmock.New(t)
-
-	// Start a mock gRPC server.
-	grpcServer, err := grpc.NewMockGrpcSecureServer("5001", ipcComp.GetAuthToken(), ipcComp.GetTLSServerConfig())
-	require.NoError(t, err)
-	defer grpcServer.Stop()
-
 	// Instantiate the component.
 	req := Requires{
 		Lc:     compdef.NewTestLifecycle(t),
@@ -57,9 +49,9 @@ func TestNewComponent(t *testing.T) {
 			RemoteTarget: func(config.Component) (string, error) { return ":5001", nil },
 		},
 		Telemetry: nooptelemetry.GetCompatComponent(),
-		IPC:       ipcComp,
+		IPC:       ipcmock.New(t),
 	}
-	_, err = NewComponent(req)
+	_, err := NewComponent(req)
 	require.NoError(t, err)
 }
 
