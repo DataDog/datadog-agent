@@ -142,7 +142,7 @@ func (c *NetworkCheck) Run() error {
 	} else {
 		for _, protocol := range protocols {
 			if _, ok := counters[protocol]; ok {
-				submitProtocolMetrics(sender, counters[protocol])
+				c.submitProtocolMetrics(sender, counters[protocol])
 			}
 		}
 	}
@@ -360,7 +360,7 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 	return result
 }
 
-func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCountersStat) {
+func (c *NetworkCheck) submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCountersStat) {
 	if protocolMapping, ok := protocolsMetricsMapping[protocolStats.Protocol]; ok {
 		for rawMetricName, metricName := range protocolMapping {
 			if metricValue, ok := protocolStats.Stats[rawMetricName]; ok {

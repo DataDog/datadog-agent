@@ -261,14 +261,14 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) error {
 		DwOutRsts:      tcp4Stats.DwOutRsts + tcp6Stats.DwOutRsts,
 		DwNumConns:     tcp4Stats.DwNumConns + tcp6Stats.DwNumConns,
 	}
-	submitMetricsFromStruct(sender, "system.net.tcp", tcpAllStats, tcpStatsMapping)
-	submitMetricsFromStruct(sender, "system.net.tcp4", tcp4Stats, tcpStatsMapping)
-	submitMetricsFromStruct(sender, "system.net.tcp6", tcp6Stats, tcpStatsMapping)
+	c.submitMetricsFromStruct(sender, "system.net.tcp", tcpAllStats, tcpStatsMapping)
+	c.submitMetricsFromStruct(sender, "system.net.tcp4", tcp4Stats, tcpStatsMapping)
+	c.submitMetricsFromStruct(sender, "system.net.tcp6", tcp6Stats, tcpStatsMapping)
 
 	return nil
 }
 
-func submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTcpStats, tcpStatsMapping map[string]string) {
+func (c *NetworkCheck) submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTcpStats, tcpStatsMapping map[string]string) {
 	s := reflect.ValueOf(tcpStats).Elem()
 	sType := s.Type()
 	for i := 0; i < s.NumField(); i++ {
