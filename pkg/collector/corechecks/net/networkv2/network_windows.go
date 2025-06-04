@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -63,6 +64,8 @@ type NetworkCheck struct {
 }
 
 type networkInstanceConfig struct {
+	CollectRateMetrics       bool     `yaml:"collect_rate_metrics"`
+	CollectCountMetrics      bool     `yaml:"collect_count_metrics"`
 	CollectConnectionState   bool     `yaml:"collect_connection_state"`
 	CollectConnectionQueues  bool     `yaml:"collect_connection_queues"`
 	ExcludedInterfaces       []string `yaml:"excluded_interfaces"`
@@ -98,6 +101,7 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 	return net.Connections(kind)
 }
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 func (n defaultNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
 	return getTcpStats(kind)
 }
@@ -204,7 +208,8 @@ func getTcpStats(protocolName string) (*mibTcpStats, error) {
 		inet = AF_INET6
 	}
 	tcpStats := &mibTcpStats{}
-	r0, _, _ := syscall.SyscallN(procGetTcpStatisticsEx.Addr(), uintptr(unsafe.Pointer(tcpStats)), uintptr(inet), 0)
+	// the syscall will always populate the struct on success
+	r0, _, _ := procGetTcpStatisticsEx.Call(uintptr(unsafe.Pointer(tcpStats)), uintptr(inet))
 	if r0 != 0 {
 		err := syscall.Errno(r0)
 		return nil, err
@@ -219,13 +224,13 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) error {
 		"DwPassiveOpens": ".passive_opens",
 		"DwAttemptFails": ".attempt_fails",
 		"DwEstabResets":  ".established_resets",
-		"DwCurrEstab":    ".current_established",
+		"DwCurrEstab":    ".current_established", // Gauge
 		"DwInSegs":       ".in_segs",
 		"DwOutSegs":      ".out_segs",
 		"DwRetransSegs":  ".retrans_segs",
 		"DwInErrs":       ".in_errors",
 		"DwOutRsts":      ".out_resets",
-		"DwNumConns":     ".connections",
+		"DwNumConns":     ".connections", // Gauge
 	}
 
 	tcp4Stats, err := c.net.TcpStats("tcp4")
@@ -239,33 +244,26 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) error {
 	}
 
 	// Create tcp metrics that are a sum of tcp4 and tcp6 metrics
-	if !reflect.ValueOf(tcp4Stats).IsZero() && !reflect.ValueOf(tcp6Stats).IsZero() {
-		tcpAllStats := &mibTcpStats{
-			DwRtoAlgorithm: tcp4Stats.DwRtoAlgorithm + tcp6Stats.DwRtoAlgorithm,
-			DwRtoMin:       tcp4Stats.DwRtoMin + tcp6Stats.DwRtoMin,
-			DwRtoMax:       tcp4Stats.DwRtoMax + tcp6Stats.DwRtoMax,
-			DwMaxConn:      tcp4Stats.DwMaxConn + tcp6Stats.DwMaxConn,
-			DwActiveOpens:  tcp4Stats.DwActiveOpens + tcp6Stats.DwActiveOpens,
-			DwPassiveOpens: tcp4Stats.DwPassiveOpens + tcp6Stats.DwPassiveOpens,
-			DwAttemptFails: tcp4Stats.DwAttemptFails + tcp6Stats.DwAttemptFails,
-			DwEstabResets:  tcp4Stats.DwEstabResets + tcp6Stats.DwEstabResets,
-			DwCurrEstab:    tcp4Stats.DwCurrEstab + tcp6Stats.DwCurrEstab,
-			DwInSegs:       tcp4Stats.DwInSegs + tcp6Stats.DwInSegs,
-			DwOutSegs:      tcp4Stats.DwOutSegs + tcp6Stats.DwOutSegs,
-			DwRetransSegs:  tcp4Stats.DwRetransSegs + tcp6Stats.DwRetransSegs,
-			DwInErrs:       tcp4Stats.DwInErrs + tcp6Stats.DwInErrs,
-			DwOutRsts:      tcp4Stats.DwOutRsts + tcp6Stats.DwOutRsts,
-			DwNumConns:     tcp4Stats.DwNumConns + tcp6Stats.DwNumConns,
-		}
-		submitMetricsFromStruct(sender, "system.net.tcp", tcpAllStats, tcpStatsMapping)
+	tcpAllStats := &mibTcpStats{
+		DwRtoAlgorithm: tcp4Stats.DwRtoAlgorithm + tcp6Stats.DwRtoAlgorithm,
+		DwRtoMin:       tcp4Stats.DwRtoMin + tcp6Stats.DwRtoMin,
+		DwRtoMax:       tcp4Stats.DwRtoMax + tcp6Stats.DwRtoMax,
+		DwMaxConn:      tcp4Stats.DwMaxConn + tcp6Stats.DwMaxConn,
+		DwActiveOpens:  tcp4Stats.DwActiveOpens + tcp6Stats.DwActiveOpens,
+		DwPassiveOpens: tcp4Stats.DwPassiveOpens + tcp6Stats.DwPassiveOpens,
+		DwAttemptFails: tcp4Stats.DwAttemptFails + tcp6Stats.DwAttemptFails,
+		DwEstabResets:  tcp4Stats.DwEstabResets + tcp6Stats.DwEstabResets,
+		DwCurrEstab:    tcp4Stats.DwCurrEstab + tcp6Stats.DwCurrEstab,
+		DwInSegs:       tcp4Stats.DwInSegs + tcp6Stats.DwInSegs,
+		DwOutSegs:      tcp4Stats.DwOutSegs + tcp6Stats.DwOutSegs,
+		DwRetransSegs:  tcp4Stats.DwRetransSegs + tcp6Stats.DwRetransSegs,
+		DwInErrs:       tcp4Stats.DwInErrs + tcp6Stats.DwInErrs,
+		DwOutRsts:      tcp4Stats.DwOutRsts + tcp6Stats.DwOutRsts,
+		DwNumConns:     tcp4Stats.DwNumConns + tcp6Stats.DwNumConns,
 	}
-
-	if !reflect.ValueOf(tcp4Stats).IsZero() {
-		submitMetricsFromStruct(sender, "system.net.tcp4", tcp4Stats, tcpStatsMapping)
-	}
-	if !reflect.ValueOf(tcp6Stats).IsZero() {
-		submitMetricsFromStruct(sender, "system.net.tcp6", tcp6Stats, tcpStatsMapping)
-	}
+	submitMetricsFromStruct(sender, "system.net.tcp", tcpAllStats, tcpStatsMapping)
+	submitMetricsFromStruct(sender, "system.net.tcp4", tcp4Stats, tcpStatsMapping)
+	submitMetricsFromStruct(sender, "system.net.tcp6", tcp6Stats, tcpStatsMapping)
 
 	return nil
 }
@@ -280,17 +278,19 @@ func submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats
 		if strings.HasSuffix(metricName, ".connections") || strings.HasSuffix(metricName, ".current_established") {
 			sender.Gauge(metricName, float64(metricValue), "", nil)
 		} else {
-			sender.Rate(metricName, float64(metricValue), "", nil)
-			sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+			if c.config.instance.CollectRateMetrics {
+				sender.Rate(metricName, float64(metricValue), "", nil)
+			}
+			if c.config.instance.CollectCountMetrics {
+				sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+			}
 		}
 	}
 }
 
 func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
-	for _, excludedDevice := range c.config.instance.ExcludedInterfaces {
-		if deviceName == excludedDevice {
-			return true
-		}
+	if slices.Contains(c.config.instance.ExcludedInterfaces, deviceName) {
+		return true
 	}
 	if c.config.instance.ExcludedInterfacePattern != nil {
 		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)
@@ -299,7 +299,7 @@ func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
 }
 
 func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat) {
-	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name), fmt.Sprintf("device_name:%s", interfaceIO.Name)}
+	tags := []string{fmt.Sprintf("device:%s", interfaceIO.Name)}
 	sender.Rate("system.net.bytes_rcvd", float64(interfaceIO.BytesRecv), "", tags)
 	sender.Rate("system.net.bytes_sent", float64(interfaceIO.BytesSent), "", tags)
 	sender.Rate("system.net.packets_in.count", float64(interfaceIO.PacketsRecv), "", tags)

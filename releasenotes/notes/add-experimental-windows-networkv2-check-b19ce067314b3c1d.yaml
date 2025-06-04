@@ -8,6 +8,6 @@
 ---
 features:
   - |
-    Add a networkv2 check that is a port of the Windows Python network check to
-    Go. This version is disabled by default but can be enabled with ``use_networkv2_check``
+    Add a port of the Windows integrations-core Python network check to Go. This
+    version is disabled by default but can be enabled with ``use_networkv2_check``
     in your configuration.

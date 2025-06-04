@@ -60,6 +60,8 @@ type NetworkCheck struct {
 }
 
 type networkInstanceConfig struct {
+	CollectRateMetrics        bool     `yaml:"collect_rate_metrics"`
+	CollectCountMetrics       bool     `yaml:"collect_count_metrics"`
 	CollectConnectionState    bool     `yaml:"collect_connection_state"`
 	CollectConnectionQueues   bool     `yaml:"collect_connection_queues"`
 	ExcludedInterfaces        []string `yaml:"excluded_interfaces"`
@@ -176,10 +178,8 @@ func (c *NetworkCheck) Run() error {
 }
 
 func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
-	for _, excludedDevice := range c.config.instance.ExcludedInterfaces {
-		if deviceName == excludedDevice {
-			return true
-		}
+	if slices.Contains(c.config.instance.ExcludedInterfaces, deviceName) {
+		return true
 	}
 	if c.config.instance.ExcludedInterfacePattern != nil {
 		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)
@@ -364,8 +364,12 @@ func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCounters
 	if protocolMapping, ok := protocolsMetricsMapping[protocolStats.Protocol]; ok {
 		for rawMetricName, metricName := range protocolMapping {
 			if metricValue, ok := protocolStats.Stats[rawMetricName]; ok {
-				sender.Rate(metricName, float64(metricValue), "", nil)
-				sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+				if c.config.instance.CollectRateMetrics {
+					sender.Rate(metricName, float64(metricValue), "", nil)
+				}
+				if c.config.instance.CollectCountMetrics {
+					sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+				}
 			}
 		}
 	}
