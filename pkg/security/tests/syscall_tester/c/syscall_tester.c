@@ -223,16 +223,42 @@ int setrlimit_nproc() {
     return EXIT_SUCCESS;
 }
 
-int setrlimit_stack() {
-    struct rlimit rlim;
-    rlim.rlim_cur = 8192 * 1024;   // 8MB soft limit
-    rlim.rlim_max = 16384 * 1024;  // 16MB hard limit
-    
-    if (setrlimit(RLIMIT_STACK, &rlim) < 0) {
-        perror("setrlimit RLIMIT_STACK");
+int setrlimit_stack(void) {
+    struct rlimit64 rlim;
+    rlim.rlim_cur = 8192 * 1024;   // 8 MB soft limit
+    rlim.rlim_max = 16384 * 1024;  // 16 MB hard limit
+
+    pid_t dummy_pid = fork();
+    if (dummy_pid < 0) {
+        perror("fork");
         return EXIT_FAILURE;
     }
-    
+
+    if (dummy_pid == 0) {
+        // ── Child process: just sleep and then exit.
+        sleep(30);
+        printf("Child process exiting\n");
+        return EXIT_SUCCESS;
+    }
+
+    // ── Parent process only reaches this point, with dummy_pid = child's PID > 0
+    pid_t target_pid = dummy_pid;  // Guaranteed non‐zero
+    fprintf(stderr, "prlimit64 RLIMIT_STACK on PID %d\n",
+                target_pid);
+    if (prlimit64(target_pid, RLIMIT_STACK, &rlim, NULL) < 0) {
+        fprintf(stderr, "prlimit64 RLIMIT_STACK on PID %d failed: %s\n",
+                target_pid, strerror(errno));
+        kill(target_pid, SIGTERM);
+        waitpid(target_pid, NULL, 0);
+        return EXIT_FAILURE;
+    }
+    fprintf(stderr, "prlimit64 RLIMIT_STACK on PID %d OK",
+            target_pid);
+
+    // Optionally: verify or sleep a bit, then clean up the child
+    // (Here we just reap it immediately.)
+    kill(target_pid, SIGTERM);
+    waitpid(target_pid, NULL, 0);
     return EXIT_SUCCESS;
 }
 

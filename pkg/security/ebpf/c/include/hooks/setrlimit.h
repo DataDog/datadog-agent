@@ -17,9 +17,7 @@ static const int important_resources[] = {
     RLIMIT_CORE
 };
 
-HOOK_SYSCALL_ENTRY2(setrlimit,
-                    unsigned int, resource,
-                    const struct rlimit __user *, new_rlim)
+static __always_inline int handle_setrlimit_common(unsigned int resource, const struct rlimit __user *new_rlim, u32 target_pid)
 {
     bool is_important = false;
     for (int i = 0; i < ARRAY_SIZE(important_resources); i++) {
@@ -42,19 +40,23 @@ HOOK_SYSCALL_ENTRY2(setrlimit,
         .type        = EVENT_SETRLIMIT,
         .setrlimit = {
             .resource     = resource,
-            .rlim_cur     = rlim.rlim_cur,
-            .rlim_max     = rlim.rlim_max,
-            .pid          = bpf_get_current_pid_tgid() >> 32,
+            .pid          = target_pid,
         }
     };
     cache_syscall(&cache);
     return 0;
 }
 
+HOOK_SYSCALL_ENTRY2(setrlimit,
+                    unsigned int, resource,
+                    const struct rlimit __user *, new_rlim)
+{
+    return handle_setrlimit_common(resource, new_rlim, 0);
+}
+
 HOOK_ENTRY("security_task_setrlimit")
 int hook_security_task_setrlimit(ctx_t *ctx)
 {
-    struct task_struct   *tsk      = (struct task_struct *)CTX_PARM1(ctx);
     unsigned int          resource = (unsigned int)CTX_PARM2(ctx);
     const struct rlimit  *new_rlim = (const struct rlimit *)CTX_PARM3(ctx);
 
@@ -74,7 +76,6 @@ int hook_security_task_setrlimit(ctx_t *ctx)
 
     cache->setrlimit.rlim_cur = rlim.rlim_cur;
     cache->setrlimit.rlim_max = rlim.rlim_max;
-    cache->setrlimit.pid      = get_root_nr_from_task_struct(tsk);
     
     return 0;
 }
@@ -87,11 +88,21 @@ sys_setrlimit_ret(void *ctx, int ret)
         return 0;
     }
 
+    if (ret != 0 && ret != -EPERM) {
+        return 0;
+    }
+
+    if (cache->setrlimit.pid == 0) {
+       u32 fallback = bpf_get_current_pid_tgid() >> 32;
+       cache->setrlimit.pid = fallback;
+   }
+
     struct setrlimit_event_t evt = {
         .syscall.retval = ret,
         .resource = cache->setrlimit.resource,
         .rlim_cur = cache->setrlimit.rlim_cur,
         .rlim_max = cache->setrlimit.rlim_max,
+        .target = cache->setrlimit.pid,
     };
 
     struct proc_cache_t *pc = fill_process_context(&evt.process);
@@ -121,35 +132,8 @@ HOOK_SYSCALL_ENTRY4(prlimit64,
     if (new_limit == NULL) {
         return 0;
     }
-
-    bool is_important = false;
-    for (int i = 0; i < ARRAY_SIZE(important_resources); i++) {
-        if (resource == important_resources[i]) {
-            is_important = true;
-            break;
-        }
-    }
-    if (!is_important &&
-        !pid_rate_limiter_allow(SETRLIMIT_RATE_LIMITER, 1)) {
-        return 0;
-    }
-
-    struct rlimit rlim;
-    if (bpf_probe_read_user(&rlim, sizeof(rlim), new_limit) < 0) {
-        return 0;
-    }
-
-    struct syscall_cache_t cache = {
-        .type        = EVENT_SETRLIMIT,
-        .setrlimit = {
-            .resource     = resource,
-            .rlim_cur     = rlim.rlim_cur,
-            .rlim_max     = rlim.rlim_max,
-            .pid          = bpf_get_current_pid_tgid() >> 32,
-        }
-    };
-    cache_syscall(&cache);
-    return 0;
+    
+    return handle_setrlimit_common(resource, new_limit, pid == 0 ? 0 : (u32)pid);
 }
 
 HOOK_SYSCALL_EXIT(prlimit64) {

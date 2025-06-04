@@ -1596,7 +1596,7 @@
     },
     {
       "name": "chmod",
-      "definition": "A file's permissions were changed",
+      "definition": "A file’s permissions were changed",
       "type": "File",
       "from_agent_version": "7.27",
       "experimental": false,
@@ -1730,7 +1730,7 @@
     },
     {
       "name": "chown",
-      "definition": "A file's owner was changed",
+      "definition": "A file’s owner was changed",
       "type": "File",
       "from_agent_version": "7.27",
       "experimental": false,
@@ -5776,13 +5776,18 @@
         },
         {
           "name": "setrlimit.rlim_cur",
-          "definition": "Soft limit value",
+          "definition": "Current (soft) limit value",
           "property_doc_link": "setrlimit-rlim_cur-doc"
         },
         {
           "name": "setrlimit.rlim_max",
-          "definition": "Hard limit value",
+          "definition": "Maximum (hard) limit value",
           "property_doc_link": "setrlimit-rlim_max-doc"
+        },
+        {
+          "name": "setrlimit.target",
+          "definition": "Target process ID for the limit change",
+          "property_doc_link": "setrlimit-target-doc"
         }
       ]
     },
@@ -11057,15 +11062,15 @@
       "prefixes": [
         "setrlimit"
       ],
-      "constants": "",
-      "constants_link": "",
+      "constants": "Resource limit types",
+      "constants_link": "resource-limit-types",
       "examples": []
     },
     {
       "name": "setrlimit.rlim_cur",
       "link": "setrlimit-rlim_cur-doc",
       "type": "int",
-      "definition": "Soft limit value",
+      "definition": "Current (soft) limit value",
       "prefixes": [
         "setrlimit"
       ],
@@ -11077,7 +11082,19 @@
       "name": "setrlimit.rlim_max",
       "link": "setrlimit-rlim_max-doc",
       "type": "int",
-      "definition": "Hard limit value",
+      "definition": "Maximum (hard) limit value",
+      "prefixes": [
+        "setrlimit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setrlimit.target",
+      "link": "setrlimit-target-doc",
+      "type": "int",
+      "definition": "Target process ID for the limit change",
       "prefixes": [
         "setrlimit"
       ],

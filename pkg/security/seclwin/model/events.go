@@ -113,6 +113,8 @@ const (
 	StatEventType
 	// SysCtlEventType sysctl event
 	SysCtlEventType
+	// SetrlimitEventType setrlimit event
+	SetrlimitEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -273,6 +275,8 @@ func (t EventType) String() string {
 		return "cgroup_write"
 	case SysCtlEventType:
 		return "sysctl"
+	case SetrlimitEventType:
+		return "setrlimit"
 	case FullDNSResponseEventType:
 		return "dns_response"
 	default:

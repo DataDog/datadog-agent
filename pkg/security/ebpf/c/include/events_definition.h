@@ -517,13 +517,14 @@ struct sysctl_event_t {
 };
 
 struct setrlimit_event_t {
-    struct kevent_t event;
-    struct process_context_t process;
-    struct span_context_t span;
+    struct kevent_t event;              
+    struct process_context_t process;    
+    struct span_context_t span;        
     struct container_context_t container;
     struct syscall_t syscall;
 
     int resource;
+    u32 target;
     u64 rlim_cur;
     u64 rlim_max;
 };

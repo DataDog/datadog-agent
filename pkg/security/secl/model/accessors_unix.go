@@ -16550,6 +16550,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setuid.euid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -23543,6 +23554,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.retval",
 		"setrlimit.rlim_cur",
 		"setrlimit.rlim_max",
+		"setrlimit.target",
 		"setuid.euid",
 		"setuid.euser",
 		"setuid.fsuid",
@@ -26121,6 +26133,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "setrlimit.rlim_cur":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setrlimit.rlim_max":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target":
 		return "setrlimit", reflect.Int, "int", nil
 	case "setuid.euid":
 		return "setuid", reflect.Int, "int", nil
@@ -38367,6 +38381,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "setrlimit.rlim_max"}
 		}
 		ev.Setrlimit.RlimMax = uint64(rv)
+		return nil
+	case "setrlimit.target":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target"}
+		}
+		ev.Setrlimit.Target = uint32(rv)
 		return nil
 	case "setuid.euid":
 		rv, ok := value.(int)

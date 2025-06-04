@@ -86,8 +86,8 @@ type Event struct {
 	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events
-	Chmod       ChmodEvent     `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
-	Chown       ChownEvent     `field:"chown" event:"chown"`             // [7.27] [File] A file's owner was changed
+	Chmod       ChmodEvent     `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
+	Chown       ChownEvent     `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
 	Open        OpenEvent      `field:"open" event:"open"`               // [7.27] [File] A file was opened
 	Mkdir       MkdirEvent     `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
 	Rmdir       RmdirEvent     `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
@@ -972,7 +972,8 @@ type SysCtlEvent struct {
 // SetrlimitEvent represents a setrlimit event
 type SetrlimitEvent struct {
 	SyscallEvent
-	Resource int    `field:"resource"` // SECLDoc[resource] Definition:`Resource type being limited`
-	RlimCur  uint64 `field:"rlim_cur"` // SECLDoc[rlim_cur] Definition:`Soft limit value`
-	RlimMax  uint64 `field:"rlim_max"` // SECLDoc[rlim_max] Definition:`Hard limit value`
+	Resource int    `field:"resource"` // SECLDoc[resource] Definition:`Resource type being limited` Constants:`Resource limit types`
+	RlimCur  uint64 `field:"rlim_cur"` // SECLDoc[rlim_cur] Definition:`Current (soft) limit value`
+	RlimMax  uint64 `field:"rlim_max"` // SECLDoc[rlim_max] Definition:`Maximum (hard) limit value`
+	Target   uint32 `field:"target"`   // SECLDoc[target] Definition:`Target process ID for the limit change`
 }
