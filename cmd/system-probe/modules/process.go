@@ -93,13 +93,15 @@ func (t *process) statsHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 // serviceHandler handles requests for service information for given processes
-func (t *process) serviceHandler(w http.ResponseWriter, req *http.Request) {
+func (t *process) serviceHandler(_ http.ResponseWriter, _ *http.Request) {
 	// TODO: Add implementation for this handler
+	return
 }
 
 // networkHandler handles requests for network stats for given processes
-func (t *process) networkHandler(w http.ResponseWriter, req *http.Request) {
+func (t *process) networkHandler(_ http.ResponseWriter, _ *http.Request) {
 	// TODO: Add implementation for this handler
+	return
 }
 
 // Close cleans up the underlying probe object
