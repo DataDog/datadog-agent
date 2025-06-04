@@ -157,6 +157,7 @@ func TestConfiguration(t *testing.T) {
 	check := NetworkCheck{}
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
+collect_count_metrics: true
 excluded_interfaces:
     - eth0
     - lo0
@@ -383,6 +384,7 @@ func TestNetworkCheck(t *testing.T) {
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
+collect_count_metrics: true
 collect_ethtool_stats: true
 `)
 

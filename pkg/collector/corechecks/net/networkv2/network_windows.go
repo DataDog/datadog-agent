@@ -346,7 +346,10 @@ func Factory(cfg config.Component) option.Option[func() check.Check] {
 
 func newCheck(_ config.Component) check.Check {
 	return &NetworkCheck{
-		net:       defaultNetworkStats{},
 		CheckBase: core.NewCheckBase(CheckName),
+		net:       defaultNetworkStats{},
+		config: networkInstanceConfig{
+			CollectRateMetrics: true,
+		},
 	}
 }

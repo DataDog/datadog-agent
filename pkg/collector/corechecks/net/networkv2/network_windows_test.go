@@ -296,6 +296,7 @@ func TestNetworkCheck(t *testing.T) {
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
+collect_count_metrics: true
 `)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
