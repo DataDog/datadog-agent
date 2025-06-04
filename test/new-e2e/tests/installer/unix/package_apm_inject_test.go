@@ -92,7 +92,7 @@ func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 	// Broken /etc/docker/daemon.json syntax
 	s.host.SetBrokenDockerConfig()
 	defer s.host.RemoveBrokenDockerConfig()
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	_ = s.RunInstallScriptWithError("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
 	s.assertLDPreloadNotInstrumented()
