@@ -89,6 +89,7 @@ build do
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "#{output_config_dir}/etc/datadog-agent", :force=>true
+            move "#{install_dir}/etc/datadog-agent/application_monitoring.yaml.example", "#{output_config_dir}/etc/datadog-agent"
             unless heroku_target?
               if sysprobe_enabled?
                 move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "#{output_config_dir}/etc/datadog-agent"

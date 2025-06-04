@@ -11,18 +11,18 @@ import (
 	"context"
 	"math"
 	"net"
+	"os"
 	"time"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"github.com/vishvananda/netns"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -53,7 +53,7 @@ var gatewayLookupTelemetry = struct {
 type gatewayLookup struct {
 	rootNetNs   netns.NsHandle
 	routeCache  RouteCache
-	subnetCache *simplelru.LRU[int, interface{}] // interface index to subnet cache
+	subnetCache *simplelru.LRU[int, any] // interface index to subnet cache
 }
 
 type cloudProvider interface {
@@ -68,7 +68,7 @@ var Cloud cloudProvider
 
 func init() {
 	Cloud = &cloudProviderImpl{}
-	SubnetForHwAddrFunc = ec2SubnetForHardwareAddr
+	SubnetForHwAddrFunc = awsSubnetForHardwareAddr
 }
 
 func gwLookupEnabled() bool {
@@ -106,7 +106,7 @@ func NewGatewayLookup(rootNsLookup nsLookupFunc, maxRouteCacheSize uint32, telem
 		log.Warnf("using truncated route cache size of %d instead of %d", routeCacheSize, defaultMaxRouteCacheSize)
 	}
 
-	gl.subnetCache, _ = simplelru.NewLRU[int, interface{}](int(routeCacheSize), nil)
+	gl.subnetCache, _ = simplelru.NewLRU[int, any](int(routeCacheSize), nil)
 	gl.routeCache = NewRouteCache(telemetryComp, int(routeCacheSize), router)
 	return gl
 }
@@ -140,11 +140,9 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 	if !ok {
 		gatewayLookupTelemetry.subnetCacheMisses.Inc()
 
-		var s Subnet
-		var err error
-		err = netnsutil.WithNS(g.rootNetNs, func() error {
-			var ifi *net.Interface
-			ifi, err = net.InterfaceByIndex(r.IfIndex)
+		via := &Via{}
+		err := netnsutil.WithNS(g.rootNetNs, func() error {
+			ifi, err := net.InterfaceByIndex(r.IfIndex)
 			if err != nil {
 				log.Debugf("error getting interface for interface index %d: %s", r.IfIndex, err)
 				// negative cache for 1 minute
@@ -160,13 +158,15 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 				return err
 			}
 
+			via.Interface.HardwareAddr = ifi.HardwareAddr.String()
+
 			gatewayLookupTelemetry.subnetLookups.Inc()
-			if s, err = SubnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
+			if via.Subnet, err = SubnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
 				log.Debugf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 
 				// cache an empty result so that we don't keep hitting the
 				// ec2 metadata endpoint for this interface
-				if errors.IsTimeout(err) {
+				if os.IsTimeout(err) {
 					// retry after a minute if we timed out
 					g.subnetCache.Add(r.IfIndex, time.Now().Add(time.Minute))
 					gatewayLookupTelemetry.subnetLookupErrors.Inc("timeout")
@@ -185,7 +185,6 @@ func (g *gatewayLookup) LookupWithIPs(source util.Address, dest util.Address, ne
 			return nil
 		}
 
-		via := &Via{Subnet: s}
 		g.subnetCache.Add(r.IfIndex, via)
 		gatewayLookupTelemetry.subnetCacheSize.Inc()
 		v = via
@@ -220,7 +219,12 @@ func (g *gatewayLookup) purge() {
 	gatewayLookupTelemetry.subnetCacheSize.Set(0)
 }
 
-func ec2SubnetForHardwareAddr(hwAddr net.HardwareAddr) (Subnet, error) {
+func awsSubnetForHardwareAddr(hwAddr net.HardwareAddr) (Subnet, error) {
+	if fargate.IsFargateInstance() {
+		// we will just report the mac address
+		return Subnet{}, nil
+	}
+
 	snet, err := ec2.GetSubnetForHardwareAddr(context.TODO(), hwAddr)
 	if err != nil {
 		return Subnet{}, err

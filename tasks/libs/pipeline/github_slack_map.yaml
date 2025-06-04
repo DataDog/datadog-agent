@@ -27,7 +27,7 @@
 '@datadog/container-ecosystems': '#agent-onboarding'
 '@datadog/container-autoscaling': '#container-autoscaling'
 '@datadog/container-integrations': '#container-integrations'
-'@datadog/container-intake': '#process-agent-ops'
+'@datadog/container-experiences': '#process-agent-ops'
 '@datadog/container-platform': '#container-platform'
 '@datadog/database-monitoring': '#database-monitoring'
 '@datadog/debugger': '#debugger-ops-prod'

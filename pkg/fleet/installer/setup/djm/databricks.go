@@ -25,7 +25,7 @@ import (
 const (
 	databricksInjectorVersion   = "0.40.0-1"
 	databricksJavaTracerVersion = "1.49.0-1"
-	databricksAgentVersion      = "7.63.3-1"
+	databricksAgentVersion      = "7.66.0-1"
 	fetchTimeoutDuration        = 5 * time.Second
 )
 

@@ -313,6 +313,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
+	// If false, the core check will be skipped.
+	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
+	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
+
 	// If true, then the go loader will be prioritized over the python loader.
 	config.BindEnvAndSetDefault("prioritize_go_check_loader", false)
 
@@ -828,6 +832,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
+
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
 
 	// Declare other keys that don't have a default/env var.

@@ -34,7 +34,7 @@ func TestApproverAncestors1(t *testing.T) {
 		t.Fatal("no capabilities for open")
 	}
 
-	approvers, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestApproverAncestors2(t *testing.T) {
 	if !exists {
 		t.Fatal("no capabilities for open")
 	}
-	approvers, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestApproverGlob(t *testing.T) {
 	if !exists {
 		t.Fatal("no capabilities for open")
 	}
-	approvers, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestApproverFlags(t *testing.T) {
 	if !exists {
 		t.Fatal("no capabilities for open")
 	}
-	approvers, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestApproverWildcardBasename(t *testing.T) {
 	if !exists {
 		t.Fatal("no capabilities for open")
 	}
-	approvers, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestApproverAUIDRange(t *testing.T) {
 		if !exists {
 			t.Fatal("no capabilities for open")
 		}
-		approvers, _, err := rs.GetEventTypeApprovers("open", capabilities)
+		approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
 		if err != nil {
 			t.Fatal(err)
 		}

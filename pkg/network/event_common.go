@@ -288,6 +288,9 @@ type Via = networkpayload.Via
 // Subnet stores info about a subnet
 type Subnet = networkpayload.Subnet
 
+// Interface has information about a network interface
+type Interface = networkpayload.Interface
+
 // IPTranslation can be associated with a connection to show the connection is NAT'd
 type IPTranslation struct {
 	ReplSrcIP   util.Address
