@@ -57,21 +57,15 @@ func TestECSFargateTestSuite(t *testing.T) {
 func (s *ECSFargateSuite) TestProcessCheck() {
 	t := s.T()
 
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
 		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 	}, 5*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
 
 type ECSFargateCoreAgentSuite struct {
@@ -96,20 +90,14 @@ func TestECSFargateCoreAgentTestSuite(t *testing.T) {
 func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
 
-	// Flush fake intake to remove any payloads which may have
-	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
-
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
 		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		// Wait for two payloads, as processes must be detected in two check runs to be returned
-		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
+		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		requireProcessNotCollected(c, payloads, "process-agent")
+		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 	}, 5*time.Minute, 10*time.Second)
-
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	requireProcessNotCollected(t, payloads, "process-agent")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
 }
