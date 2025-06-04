@@ -185,7 +185,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 	for k, v := range testData.Variables {
 		switch v := v.(type) {
 		case string:
-			variables[k] = eval.NewScopedStringVariable(func(ctx *eval.Context) (string, bool) {
+			variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context) (string, bool) {
 				return v, true
 			}, nil)
 		case json.Number:
@@ -193,11 +193,11 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
 			}
-			variables[k] = eval.NewScopedIntVariable(func(ctx *eval.Context) (int, bool) {
+			variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context) (int, bool) {
 				return int(value), true
 			}, nil)
 		case bool:
-			variables[k] = eval.NewScopedBoolVariable(func(ctx *eval.Context) (bool, bool) {
+			variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context) (bool, bool) {
 				return v, true
 			}, nil)
 		default:
