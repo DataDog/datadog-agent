@@ -63,8 +63,8 @@ func NewSinkUnix(addr netip.Addr) (Sink, error) {
 }
 
 // WriteTo writes the given packet (buffer starts at the IP layer) to addrPort.
-func (p *sinkUnix) WriteTo(buf []byte, addr netip.Addr) error {
-	sa, err := getSockAddr(addr)
+func (p *sinkUnix) WriteTo(buf []byte, addr netip.AddrPort) error {
+	sa, err := getSockAddr(addr.Addr())
 	if err != nil {
 		return err
 	}

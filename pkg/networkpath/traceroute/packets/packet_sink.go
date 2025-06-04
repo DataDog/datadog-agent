@@ -13,7 +13,7 @@ import (
 type Sink interface {
 	// WriteTo writes the given packet (buffer starts at the IP layer) to addrPort.
 	// (the port is required for compatibility with Windows)
-	WriteTo(buf []byte, addr netip.Addr) error
+	WriteTo(buf []byte, addr netip.AddrPort) error
 	// Close closes the socket
 	Close() error
 }
