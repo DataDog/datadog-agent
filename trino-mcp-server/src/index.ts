@@ -88,7 +88,7 @@ class TrinoMCPServer {
     return ConfigSchema.parse(cleanEnvVars);
   }
 
-  private async getTrinoClient(): Promise<any> {
+  private async getTrinoClient(forceRefreshTokens = false): Promise<any> {
     // Always create fresh client to get latest tokens
     const clientConfig: any = {
       server: `https://${this.config.server}`,
@@ -110,15 +110,27 @@ class TrinoMCPServer {
         let ddAuthJWT = this.config.dd_auth_jwt;
         let ddAccessToken = this.config.dd_access_token;
 
-        // Generate fresh tokens if dynamic tokens enabled
-        if (this.config.use_dynamic_tokens || !ddAuthJWT || !ddAccessToken) {
+        // Generate fresh tokens if dynamic tokens enabled, tokens missing, or forced refresh
+        if (this.config.use_dynamic_tokens || !ddAuthJWT || !ddAccessToken || forceRefreshTokens) {
           console.error('Generating fresh tokens...');
           try {
-            ddAuthJWT = execSync(`ddauth obo -d ${this.config.dd_datacenter} | grep dd-auth-jwt | cut -d' ' -f2`, { encoding: 'utf8' }).trim();
-            ddAccessToken = execSync(`ddtool auth token --datacenter ${this.config.dd_datacenter} apm-trino`, { encoding: 'utf8' }).trim();
+            const jwtResult = execSync(`ddauth obo -d ${this.config.dd_datacenter} | grep dd-auth-jwt | cut -d' ' -f2`, { encoding: 'utf8' }).trim();
+            const accessTokenResult = execSync(`ddtool auth token --datacenter ${this.config.dd_datacenter} apm-trino`, { encoding: 'utf8' }).trim();
+
+            if (jwtResult && accessTokenResult) {
+              ddAuthJWT = jwtResult;
+              ddAccessToken = accessTokenResult;
+              console.error('Fresh tokens generated successfully');
+            } else {
+              throw new Error('Token generation returned empty results');
+            }
           } catch (error) {
             console.error('Failed to generate fresh tokens:', error);
             // Fall back to static tokens if available
+            if (!ddAuthJWT || !ddAccessToken) {
+              throw new Error('Token generation failed and no fallback tokens available');
+            }
+            console.error('Using fallback tokens from configuration');
           }
         }
 
@@ -386,31 +398,71 @@ class TrinoMCPServer {
     });
   }
 
-  private async handleTrinoQuery(args: any) {
-    const client = await this.getTrinoClient();
-    const { query, limit = 1000 } = args;
+  private async handleTrinoQuery(args: any, retryWithFreshTokens = true) {
+    try {
+      const client = await this.getTrinoClient();
+      const { query, limit = 1000 } = args;
 
-    const limitedQuery = this.addLimitToQuery(query, limit);
+      const limitedQuery = this.addLimitToQuery(query, limit);
 
-    const iter = await client.query(limitedQuery);
+      const iter = await client.query(limitedQuery);
 
-    const rows = [];
-    for await (const queryResult of iter) {
-      if (queryResult.data) {
-        rows.push(...queryResult.data);
+      const rows = [];
+      for await (const queryResult of iter) {
+        if (queryResult.data) {
+          rows.push(...queryResult.data);
+        }
       }
-    }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Query executed successfully. Returned ${rows.length} rows.\n\n` +
-            `Query: ${limitedQuery}\n\n` +
-            `Results:\n${JSON.stringify(rows, null, 2)}`,
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Query executed successfully. Returned ${rows.length} rows.\n\n` +
+              `Query: ${limitedQuery}\n\n` +
+              `Results:\n${JSON.stringify(rows, null, 2)}`,
+          },
+        ],
+      };
+    } catch (error: any) {
+      // Check if it's a 401 error and we haven't already retried
+      if (retryWithFreshTokens && error.message && (
+        error.message.includes('401') ||
+        error.message.includes('status code 401') ||
+        error.message.includes('Unauthorized')
+      )) {
+        console.error('Received 401 error, retrying with fresh tokens...');
+        try {
+          // Get a new client with force-refreshed tokens
+          const client = await this.getTrinoClient(true);
+          const { query, limit = 1000 } = args;
+          const limitedQuery = this.addLimitToQuery(query, limit);
+
+          const iter = await client.query(limitedQuery);
+          const rows = [];
+          for await (const queryResult of iter) {
+            if (queryResult.data) {
+              rows.push(...queryResult.data);
+            }
+          }
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Query executed successfully (after token refresh). Returned ${rows.length} rows.\n\n` +
+                  `Query: ${limitedQuery}\n\n` +
+                  `Results:\n${JSON.stringify(rows, null, 2)}`,
+              },
+            ],
+          };
+        } catch (retryError) {
+          console.error('Retry with fresh tokens also failed:', retryError);
+          throw retryError;
+        }
+      }
+      throw error;
+    }
   }
 
   private async handleNetflowSummary(args: any) {
