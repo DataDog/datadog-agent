@@ -8,7 +8,7 @@ Probes:
       Events:
         - ID: 1
           Type: 39 EventRootType ProbeEvent
-          InjectionPCs: ["0x491c8a"]
+          InjectionPCs: [654924]
           Condition: null
       Snapshot: false
     - ID: c
@@ -19,67 +19,35 @@ Probes:
       Events:
         - ID: 2
           Type: 40 EventRootType ProbeEvent
-          InjectionPCs: ["0x491cf3"]
-          Condition: null
-      Snapshot: false
-    - ID: d
-      Kind: ProbeKindLog
-      Version: 0
-      Tags: []
-      Subprogram: {subprogram: 3}
-      Events:
-        - ID: 3
-          Type: 41 EventRootType ProbeEvent
-          InjectionPCs: ["0x491e2a"]
+          InjectionPCs: [655040]
           Condition: null
       Snapshot: false
 Subprograms:
     - ID: 1
       Name: main.mapArg
-      OutOfLinePCRanges: [0x491c80..0x491cd6]
+      OutOfLinePCRanges: [0x9fe40..0x9feb0]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 1 GoMapType map[string]int
           Locations:
-            - Range: 0x491c80..0x491cad
+            - Range: 0x9fe40..0x9fe78
               Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []
     - ID: 2
       Name: main.bigMapArg
-      OutOfLinePCRanges: [0x491ce0..0x491d9b]
+      OutOfLinePCRanges: [0x9feb0..0x9ff70]
       InlinePCRanges: []
       Variables:
         - Name: m
           Type: 19 GoMapType map[string]main.bigStruct
           Locations:
-            - Range: 0x491ce0..0x491d13
+            - Range: 0x9feb0..0x9fee8
               Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
-            - Range: 0x491d13..0x491d9b
-              Pieces: [{Size: 0, InReg: false, StackOffset: 8, Register: 0}]
-          IsParameter: true
-          IsReturn: false
-      Lines: []
-    - ID: 3
-      Name: main.stringArg
-      OutOfLinePCRanges: [0x491e20..0x491e91]
-      InlinePCRanges: []
-      Variables:
-        - Name: s
-          Type: 17 GoStringHeaderType string
-          Locations:
-            - Range: 0x491e20..0x491e3e
-              Pieces:
-                - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 0
-                - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 3
+            - Range: 0x9fee8..0x9ff70
+              Pieces: [{Size: 0, InReg: false, StackOffset: 16, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []
@@ -87,7 +55,7 @@ Types:
     - __kind: GoMapType
       ID: 1
       Name: map[string]int
-      GoRuntimeType: 63488
+      GoRuntimeType: 63328
       GoKind: 21
       HeaderType: 3 GoSwissMapHeaderType map<string,int>
     - __kind: PointerType
@@ -131,13 +99,13 @@ Types:
       ID: 4
       Name: uint64
       ByteSize: 8
-      GoRuntimeType: 39488
+      GoRuntimeType: 39424
       GoKind: 11
     - __kind: BaseType
       ID: 5
       Name: uintptr
       ByteSize: 8
-      GoRuntimeType: 39680
+      GoRuntimeType: 39616
       GoKind: 12
     - __kind: PointerType
       ID: 6
@@ -177,19 +145,19 @@ Types:
       ID: 9
       Name: uint16
       ByteSize: 2
-      GoRuntimeType: 39232
+      GoRuntimeType: 39168
       GoKind: 9
     - __kind: BaseType
       ID: 10
       Name: uint8
       ByteSize: 1
-      GoRuntimeType: 39104
+      GoRuntimeType: 39040
       GoKind: 8
     - __kind: BaseType
       ID: 11
       Name: int
       ByteSize: 8
-      GoRuntimeType: 39552
+      GoRuntimeType: 39488
       GoKind: 2
     - __kind: GoSwissMapGroupsType
       ID: 12
@@ -214,7 +182,7 @@ Types:
       ID: 14
       Name: noalg.map.group[string]int
       ByteSize: 200
-      GoRuntimeType: 70496
+      GoRuntimeType: 70336
       GoKind: 25
       Fields:
         - Name: ctrl
@@ -227,7 +195,7 @@ Types:
       ID: 15
       Name: noalg.[8]struct { key string; elem int }
       ByteSize: 192
-      GoRuntimeType: 43552
+      GoRuntimeType: 43488
       GoKind: 17
       Count: 8
       HasCount: true
@@ -236,7 +204,7 @@ Types:
       ID: 16
       Name: noalg.struct { key string; elem int }
       ByteSize: 24
-      GoRuntimeType: 70368
+      GoRuntimeType: 70208
       GoKind: 25
       Fields:
         - Name: key
@@ -249,7 +217,7 @@ Types:
       ID: 17
       Name: string
       ByteSize: 16
-      GoRuntimeType: 38976
+      GoRuntimeType: 38912
       GoKind: 24
       Fields:
         - Name: str
@@ -263,13 +231,13 @@ Types:
       ID: 18
       Name: '*uint8'
       ByteSize: 8
-      GoRuntimeType: 26976
+      GoRuntimeType: 26912
       GoKind: 22
       Pointee: 10 BaseType uint8
     - __kind: GoMapType
       ID: 19
       Name: map[string]main.bigStruct
-      GoRuntimeType: 63616
+      GoRuntimeType: 63456
       GoKind: 21
       HeaderType: 21 GoSwissMapHeaderType map<string,main.bigStruct>
     - __kind: PointerType
@@ -366,7 +334,7 @@ Types:
       ID: 27
       Name: noalg.map.group[string]main.bigStruct
       ByteSize: 200
-      GoRuntimeType: 70752
+      GoRuntimeType: 70592
       GoKind: 25
       Fields:
         - Name: ctrl
@@ -379,7 +347,7 @@ Types:
       ID: 28
       Name: noalg.[8]struct { key string; elem *main.bigStruct }
       ByteSize: 192
-      GoRuntimeType: 43744
+      GoRuntimeType: 43680
       GoKind: 17
       Count: 8
       HasCount: true
@@ -388,7 +356,7 @@ Types:
       ID: 29
       Name: noalg.struct { key string; elem *main.bigStruct }
       ByteSize: 24
-      GoRuntimeType: 70624
+      GoRuntimeType: 70464
       GoKind: 25
       Fields:
         - Name: key
@@ -401,14 +369,14 @@ Types:
       ID: 30
       Name: '*main.bigStruct'
       ByteSize: 8
-      GoRuntimeType: 25568
+      GoRuntimeType: 25504
       GoKind: 22
       Pointee: 31 StructureType main.bigStruct
     - __kind: StructureType
       ID: 31
       Name: main.bigStruct
       ByteSize: 184
-      GoRuntimeType: 112384
+      GoRuntimeType: 112224
       GoKind: 25
       Fields:
         - Name: Field1
@@ -439,7 +407,7 @@ Types:
       ID: 32
       Name: '[128]uint8'
       ByteSize: 128
-      GoRuntimeType: 43648
+      GoRuntimeType: 43584
       GoKind: 17
       Count: 128
       HasCount: true
@@ -498,19 +466,4 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: m}
                   Offset: 0
                   ByteSize: 0
-    - __kind: EventRootType
-      ID: 41
-      Name: ProbeEvent
-      ByteSize: 17
-      PresenseBitsetSize: 1
-      Expressions:
-        - Name: s
-          Offset: 1
-          Expression:
-            Type: 17 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 3, index: 0, name: s}
-                  Offset: 0
-                  ByteSize: 16
-MaxTypeID: 41
+MaxTypeID: 40
