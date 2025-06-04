@@ -56,6 +56,34 @@ DD_DATACENTER=us1.staging.dog
 
 **Note:** Tests and scripts use `source env.datadog` to load these environment variables.
 
+### How to Obtain Your User UUID
+
+The `DD_USER_UUID` is required for Datadog authentication. You can obtain your userUUID from Datadog's API:
+
+1. **Navigate to the Datadog API endpoint** for your environment:
+   - **Staging**: https://dd.datad0g.com/api/v2/current_user
+   - **Production**: https://app.datadoghq.com/api/v2/current_user
+
+2. **Copy the `data.id` attribute** from the JSON response
+   
+3. **Add it to your `env.datadog` file** as `DD_USER_UUID`
+
+**Example API Response:**
+```json
+{
+  "data": {
+    "id": "12345678-1234-1234-1234-123456789abc",
+    "type": "users",
+    "attributes": {
+      "name": "Your Name",
+      "email": "your.email@company.com"
+    }
+  }
+}
+```
+
+In this example, your `DD_USER_UUID` would be: `12345678-1234-1234-1234-123456789abc`
+
 ## Dynamic Token Authentication
 
 The Trino MCP server supports **dynamic token generation** for Datadog authentication, which automatically refreshes expired tokens without manual intervention.
