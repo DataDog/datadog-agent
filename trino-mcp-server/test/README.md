@@ -102,6 +102,34 @@ source ../env.datadog
 node test_trino.js
 ```
 
+### Utility Scripts
+
+#### `list_all_tracks.js` - Track Discovery Utility
+Comprehensive discovery script to explore available data tracks in the Event Platform.
+
+**What it does:**
+- Lists all tables in eventplatform.system
+- Queries the tracks table directly
+- Lists all schemas in eventplatform catalog
+- Tests common track names for data availability
+- Supports dynamic token generation
+
+**How to run:**
+```bash
+cd trino-mcp-server/test
+# With environment variables
+source ../env.datadog && USE_DYNAMIC_TOKENS=true node list_all_tracks.js
+
+# Or with inline environment (recommended)
+TRINO_SERVER=trino-gateway.us1.staging.dog TRINO_CATALOG=eventplatform TRINO_SCHEMA=system TRINO_USER=jim.wilson TRINO_AUTH_TYPE=datadog DD_ORG_ID=2 DD_CLIENT_ID=trino-cli DD_USER_UUID=your-uuid DD_DATACENTER=us1.staging.dog USE_DYNAMIC_TOKENS=true node list_all_tracks.js
+```
+
+**Features:**
+- Multiple discovery approaches
+- Dynamic token generation 
+- Error handling for non-existent tracks
+- Debug output for troubleshooting
+
 ## Environment Variables
 
 Most tests require these environment variables (see `../env.example`):
@@ -145,6 +173,10 @@ echo -e "\n" + "="*50 + "\n"
 
 echo "Running Basic Trino Test..."
 node test_trino.js
+echo -e "\n" + "="*50 + "\n"
+
+echo "Running Track Discovery Utility..."
+USE_DYNAMIC_TOKENS=true node list_all_tracks.js
 ```
 
 ## Troubleshooting

@@ -115,11 +115,6 @@ Thumbs.db
 *.swo
 *~
 
-# Test files we created during development
-test_*.js
-debug_*.js
-list_all_tracks.js
-
 # Backup files
 *.bak
 *.backup
