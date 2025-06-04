@@ -253,7 +253,7 @@ def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml")
         custom_context: A custom context to test the gitlab ci file with.
     """
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx, input_file=input_file)
+    configs = get_all_gitlab_ci_configurations(ctx, input_file=input_file, resolve_only_includes=True)
 
     for config_filename, config_object in configs.items():
         with gitlab_section(f"Testing {config_filename}", echo=True):
