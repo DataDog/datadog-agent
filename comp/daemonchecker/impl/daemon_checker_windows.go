@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package daemon
+package daemoncheckerimpl
 
 import (
 	"golang.org/x/sys/windows"
@@ -13,12 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-// NewDaemonChecker creates a new DaemonChecker instance
-func NewDaemonChecker() Checker {
-	return &daemonCheckerImpl{}
-}
-
-func (c *daemonCheckerImpl) IsRunning() (bool, error) {
+func (c *checkerImpl) IsRunning() (bool, error) {
 	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
 	if err != nil {
 		return false, err

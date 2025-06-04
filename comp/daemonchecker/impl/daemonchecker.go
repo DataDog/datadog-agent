@@ -8,7 +8,6 @@ package daemoncheckerimpl
 
 import (
 	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
-	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 )
 
 // Requires defines the dependencies for the daemonchecker component
@@ -20,9 +19,11 @@ type Provides struct {
 	Comp daemonchecker.Component
 }
 
+type checkerImpl struct{}
+
 // NewComponent creates a new daemonchecker component
 func NewComponent(_ Requires) (Provides, error) {
 	return Provides{
-		Comp: daemon.NewDaemonChecker(),
+		Comp: &checkerImpl{},
 	}, nil
 }

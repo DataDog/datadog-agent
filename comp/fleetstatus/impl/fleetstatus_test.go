@@ -13,9 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
 	daemoncheckerMock "github.com/DataDog/datadog-agent/comp/daemonchecker/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func TestFleetStatus(t *testing.T) {
@@ -28,12 +26,10 @@ func TestFleetStatus(t *testing.T) {
 		{
 			name:                "remote updates disabled",
 			remoteUpdatesConfig: false,
-			installerRunning:    true,
 		},
 		{
-			name:                "installer not running",
+			name:                "remote updates enabled",
 			remoteUpdatesConfig: true,
-			installerRunning:    false,
 		},
 	}
 
@@ -43,7 +39,7 @@ func TestFleetStatus(t *testing.T) {
 				"fleetAutomationStatus": map[string]interface{}{
 					"remoteManagementEnabled": tt.remoteUpdatesConfig,
 					"remoteConfigEnabled":     false,
-					"installerRunning":        tt.installerRunning,
+					"installerRunning":        true,
 					"fleetAutomationEnabled":  false,
 				},
 			}
@@ -51,16 +47,11 @@ func TestFleetStatus(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetWithoutSource("remote_updates", tt.remoteUpdatesConfig)
 
-			var daemonCheckerOption option.Option[daemonchecker.Component]
-			if tt.installerRunning {
-				daemonCheckerOption = option.New(daemoncheckerMock.Mock(t))
-			} else {
-				daemonCheckerOption = option.None[daemonchecker.Component]()
-			}
+			daemonChecker := daemoncheckerMock.Mock(t)
 
 			provides := NewComponent(Requires{
 				Config:        cfg,
-				DaemonChecker: daemonCheckerOption,
+				DaemonChecker: daemonChecker,
 			})
 			statusProvider := provides.Status.Provider
 

@@ -6,11 +6,9 @@
 // Package daemonchecker retrieves the running status of the installer daemon
 package daemonchecker
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/daemon"
-
 // team: fleet
 
 // Component is the component type.
 type Component interface {
-	daemon.Checker
+	IsRunning() (bool, error)
 }

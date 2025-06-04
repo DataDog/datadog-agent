@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package daemon
+package daemoncheckerimpl
 
 import (
 	"net"
@@ -15,12 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
-// NewDaemonChecker creates a new DaemonChecker instance
-func NewDaemonChecker() Checker {
-	return &daemonCheckerImpl{}
-}
+const (
+	socketName = "installer.sock"
+)
 
-func (c *daemonCheckerImpl) IsRunning() (bool, error) {
+func (c *checkerImpl) IsRunning() (bool, error) {
 	conn, err := net.DialTimeout("unix", filepath.Join(paths.RunPath, socketName), 100*time.Millisecond)
 	if err != nil {
 		return false, nil

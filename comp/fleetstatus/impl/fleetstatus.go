@@ -14,14 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires defines the dependencies for the fleetstatus component
 type Requires struct {
-	Config config.Component
-
-	DaemonChecker option.Option[daemonchecker.Component]
+	Config        config.Component
+	DaemonChecker daemonchecker.Component
 }
 
 // Provides defines the output of the fleetstatus component
@@ -36,10 +34,9 @@ type statusProvider struct {
 
 // NewComponent creates a new fleetstatus component
 func NewComponent(reqs Requires) Provides {
-	daemonChecker, _ := reqs.DaemonChecker.Get()
 	sp := &statusProvider{
 		Config:        reqs.Config,
-		DaemonChecker: daemonChecker,
+		DaemonChecker: reqs.DaemonChecker,
 	}
 
 	return Provides{
@@ -50,10 +47,11 @@ func NewComponent(reqs Requires) Provides {
 //go:embed status_templates
 var templatesFS embed.FS
 
-func (sp statusProvider) getStatusInfo() map[string]interface{} {
+func (sp statusProvider) getStatusInfo(html bool) map[string]interface{} {
 	stats := make(map[string]interface{})
 
 	sp.populateStatus(stats)
+	stats["HTML"] = html
 
 	return stats
 }
@@ -77,12 +75,12 @@ func (sp statusProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 // Text renders the text output
 func (sp statusProvider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "fleetstatus.tmpl", buffer, sp.getStatusInfo())
+	return status.RenderText(templatesFS, "fleetstatus.tmpl", buffer, sp.getStatusInfo(false))
 }
 
 // HTML renders the html output
 func (sp statusProvider) HTML(_ bool, buffer io.Writer) error {
-	return status.RenderHTML(templatesFS, "fleetstatusHTML.tmpl", buffer, sp.getStatusInfo())
+	return status.RenderHTML(templatesFS, "fleetstatus.tmpl", buffer, sp.getStatusInfo(true))
 }
 
 func (sp statusProvider) populateStatus(stats map[string]interface{}) {
@@ -91,15 +89,12 @@ func (sp statusProvider) populateStatus(stats map[string]interface{}) {
 	remoteManagementEnabled := isRemoteManagementEnabled(sp.Config)
 	remoteConfigEnabled := isRemoteConfigEnabled()
 	isInstallerRunning := false
-	if sp.DaemonChecker != nil {
-		isInstallerRunning, _ = sp.DaemonChecker.IsRunning()
-	}
+	isInstallerRunning, _ = sp.DaemonChecker.IsRunning()
 
 	status["remoteManagementEnabled"] = remoteManagementEnabled
 	status["remoteConfigEnabled"] = remoteConfigEnabled
 	status["installerRunning"] = isInstallerRunning
 	status["fleetAutomationEnabled"] = remoteManagementEnabled && remoteConfigEnabled && isInstallerRunning
-
 	stats["fleetAutomationStatus"] = status
 }
 
