@@ -26,35 +26,30 @@ var _ Sink = &sinkUnix{}
 
 // NewSinkUnix returns a new sinkUnix implementing packet sink
 func NewSinkUnix(addr netip.Addr) (Sink, error) {
-	var domain, protocol int
-
-	if addr.Is4() {
+	var domain int
+	var level int
+	switch {
+	case addr.Is4():
 		domain = unix.AF_INET
-		protocol = unix.IPPROTO_RAW
-	} else if addr.Is6() {
+		level = unix.IPPROTO_IP
+	case addr.Is6():
 		domain = unix.AF_INET6
-		protocol = unix.IPPROTO_RAW
-	} else {
+		level = unix.IPPROTO_IPV6
+	default:
 		return nil, fmt.Errorf("SinkUnix supports only IPv4 or IPv6 addresses")
 	}
 
-	fd, err := unix.Socket(domain, unix.SOCK_RAW|unix.SOCK_NONBLOCK, protocol)
+	fd, err := unix.Socket(domain, unix.SOCK_RAW|unix.SOCK_NONBLOCK, unix.IPPROTO_RAW)
 	if err != nil {
-		return nil, fmt.Errorf("NewSinkUnix failed to create socket: %w", err)
+		return nil, fmt.Errorf("failed to create raw socket: %w", err)
 	}
-	if addr.Is4() {
-		err = unix.SetsockoptInt(fd, unix.IPPROTO_IP, unix.IP_HDRINCL, 1)
-		if err != nil {
-			unix.Close(fd)
-			return nil, fmt.Errorf("failed to set IP_HDRINCL: %w", err)
-		}
-	} else {
-		err = unix.SetsockoptInt(fd, unix.IPPROTO_IPV6, unix.IPV6_HDRINCL, 1)
-		if err != nil {
-			unix.Close(fd)
-			return nil, fmt.Errorf("failed to set IPV6_HDRINCL: %w", err)
-		}
+
+	err = unix.SetsockoptInt(fd, level, unix.IP_HDRINCL, 1)
+	if err != nil {
+		unix.Close(fd)
+		return nil, fmt.Errorf("failed to set header include option: %w", err)
 	}
+
 	sock := os.NewFile(uintptr(fd), "")
 	rawConn, err := sock.SyscallConn()
 	if err != nil {
