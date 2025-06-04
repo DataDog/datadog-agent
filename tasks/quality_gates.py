@@ -89,7 +89,7 @@ def display_pr_comment(
             body_error_footer += f"|{gate_name}|{gate['error_type']}|{error_message}|\n"
             with_error = True
 
-    body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+    body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! Feel free to check the `debug_static_quality_gates` manual gitlab job to compare what this PR introduced for a specific gate.\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
     body_info += "\n</details>\n"
     body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{body_error + body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 
@@ -304,9 +304,15 @@ def debug_specific_quality_gate(ctx, gate_name):
             code=0,
             message="Please ensure to set the GATE_NAME variable inside of the manual job execution gitlab page when executing this debug job.",
         )
+    nightly_run = False
+    branch = os.environ["CI_COMMIT_BRANCH"]
+
+    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
+    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
+        nightly_run = True
 
     quality_gates_module = __import__("tasks.static_quality_gates", fromlist=[gate_name])
-    gate_inputs = {"ctx": ctx}
+    gate_inputs = {"ctx": ctx, "nightly": nightly_run}
     try:
         gate_module = getattr(quality_gates_module, gate_name)
     except AttributeError as e:
