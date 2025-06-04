@@ -184,17 +184,14 @@ new-e2e-containers-eks:
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-containers-gke:
-  extends: .new_e2e_template_needs_container_deploy
+  extends: .new_e2e_template_needs_deb_x64
   rules:
-    - !reference [.on_container_or_e2e_changes]
+    - !reference [.on_rc_or_e2e_changes]
     - !reference [.manual]
-  needs:
-    - !reference [.new_e2e_template_needs_container_deploy, needs]
   variables:
     TARGETS: ./tests/containers
-    TEAM: container-integrations
+    TEAM: container-ecosystems
     EXTRA_PARAMS: --run TestGKESuite
-    E2E_PRE_INITIALIZED: "true"
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
