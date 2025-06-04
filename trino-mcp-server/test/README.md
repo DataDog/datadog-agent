@@ -30,6 +30,7 @@ This directory contains various test scripts for the Trino MCP server and NetFlo
 Tests the MCP server's JSON-RPC interface and available tools.
 
 **What it tests:**
+- Available tracks discovery
 - NetFlow summary queries
 - NetFlow talkers (top source IPs)
 - NetFlow talkers (source and destination)
