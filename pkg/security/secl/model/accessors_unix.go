@@ -50,8 +50,8 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("rmdir"),
 		eval.EventType("selinux"),
 		eval.EventType("setgid"),
-		eval.EventType("setsockopt"),
 		eval.EventType("setrlimit"),
+		eval.EventType("setsockopt"),
 		eval.EventType("setuid"),
 		eval.EventType("setxattr"),
 		eval.EventType("signal"),
@@ -16551,6 +16551,61 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.resource":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Resource
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.rlim_cur":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.RlimCur)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.rlim_max":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.RlimMax)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setsockopt.level":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -23577,6 +23632,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setgid.fsgroup",
 		"setgid.gid",
 		"setgid.group",
+		"setrlimit.resource",
+		"setrlimit.retval",
+		"setrlimit.rlim_cur",
+		"setrlimit.rlim_max",
+		"setrlimit.target",
 		"setsockopt.level",
 		"setsockopt.optname",
 		"setsockopt.retval",
@@ -26159,6 +26219,16 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setgid", reflect.Int, "int", nil
 	case "setgid.group":
 		return "setgid", reflect.String, "string", nil
+	case "setrlimit.resource":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.retval":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.rlim_cur":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.rlim_max":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target":
+		return "setrlimit", reflect.Int, "int", nil
 	case "setsockopt.level":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.optname":
@@ -38410,6 +38480,41 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "setgid.group"}
 		}
 		ev.SetGID.Group = rv
+		return nil
+	case "setrlimit.resource":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.resource"}
+		}
+		ev.Setrlimit.Resource = int(rv)
+		return nil
+	case "setrlimit.retval":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.retval"}
+		}
+		ev.Setrlimit.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "setrlimit.rlim_cur":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.rlim_cur"}
+		}
+		ev.Setrlimit.RlimCur = uint64(rv)
+		return nil
+	case "setrlimit.rlim_max":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.rlim_max"}
+		}
+		ev.Setrlimit.RlimMax = uint64(rv)
+		return nil
+	case "setrlimit.target":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target"}
+		}
+		ev.Setrlimit.Target = uint32(rv)
 		return nil
 	case "setsockopt.level":
 		rv, ok := value.(int)

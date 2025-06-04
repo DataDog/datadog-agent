@@ -56,6 +56,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `rmdir` | File | A directory was removed | 7.27 |
 | `selinux` | Kernel | An SELinux operation was run | 7.30 |
 | `setgid` | Process | A process changed its effective gid | 7.27 |
+| `setrlimit` | Process | A setrlimit command was executed | 7.36 |
 | `setsockopt` | Network | A setsockopt was executed | 7.68 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
@@ -1418,6 +1419,18 @@ A process changed its effective gid
 | [`setgid.gid`](#setgid-gid-doc) | New GID of the process |
 | [`setgid.group`](#setgid-group-doc) | New group of the process |
 
+### Event `setrlimit`
+
+A setrlimit command was executed
+
+| Property | Definition |
+| -------- | ------------- |
+| [`setrlimit.resource`](#setrlimit-resource-doc) | Resource type being limited |
+| [`setrlimit.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`setrlimit.rlim_cur`](#setrlimit-rlim_cur-doc) | Current (soft) limit value |
+| [`setrlimit.rlim_max`](#setrlimit-rlim_max-doc) | Maximum (hard) limit value |
+| [`setrlimit.target`](#setrlimit-target-doc) | Target process ID for the limit change |
+
 ### Event `setsockopt`
 
 A setsockopt was executed
@@ -2498,8 +2511,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 25 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 26 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -3385,6 +3398,37 @@ Definition: New GID of the process
 Type: string
 
 Definition: New group of the process
+
+
+
+### `setrlimit.resource` {#setrlimit-resource-doc}
+Type: int
+
+Definition: Resource type being limited
+
+
+Constants: [Resource limit types](#resource-limit-types)
+
+
+
+### `setrlimit.rlim_cur` {#setrlimit-rlim_cur-doc}
+Type: int
+
+Definition: Current (soft) limit value
+
+
+
+### `setrlimit.rlim_max` {#setrlimit-rlim_max-doc}
+Type: int
+
+Definition: Maximum (hard) limit value
+
+
+
+### `setrlimit.target` {#setrlimit-target-doc}
+Type: int
+
+Definition: Target process ID for the limit change
 
 
 
@@ -4632,6 +4676,28 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_SET_SYSCALL` | arm |
 | `PTRACE_PEEKMTETAGS` | arm64 |
 | `PTRACE_POKEMTETAGS` | arm64 |
+
+### `Resource limit types` {#resource-limit-types}
+Resource limit types are the supported resource types for setrlimit syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `RLIMIT_CPU` | all |
+| `RLIMIT_FSIZE` | all |
+| `RLIMIT_DATA` | all |
+| `RLIMIT_STACK` | all |
+| `RLIMIT_CORE` | all |
+| `RLIMIT_RSS` | all |
+| `RLIMIT_NPROC` | all |
+| `RLIMIT_NOFILE` | all |
+| `RLIMIT_MEMLOCK` | all |
+| `RLIMIT_AS` | all |
+| `RLIMIT_LOCKS` | all |
+| `RLIMIT_SIGPENDING` | all |
+| `RLIMIT_MSGQUEUE` | all |
+| `RLIMIT_NICE` | all |
+| `RLIMIT_RTPRIO` | all |
+| `RLIMIT_RTTIME` | all |
 
 ### `SetSockopt Levels` {#setsockopt-levels}
 SetSockopt Levels are the supported levels for the setsockopt event.
