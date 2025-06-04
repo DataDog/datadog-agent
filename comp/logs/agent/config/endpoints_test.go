@@ -30,35 +30,35 @@ func (suite *EndpointsTestSuite) SetupTest() {
 func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {
 	suite.Equal("agent-intake.logs.datadoghq.com.", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Equal("agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("site", "datadoghq.com")
 	suite.Equal("agent-intake.logs.datadoghq.com.", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Equal("agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("site", "datadoghq.eu")
 	suite.Equal("agent-intake.logs.datadoghq.eu.", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Equal("agent-intake.logs.datadoghq.eu.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("logs_config.dd_url", "lambda.logs.datadoghq.co.jp")
 	suite.Equal("lambda.logs.datadoghq.co.jp", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Equal("lambda.logs.datadoghq.co.jp", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "azure.logs.datadoghq.co.uk:1234")
 	suite.Equal("azure.logs.datadoghq.co.uk:1234", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.logs_dd_url"))
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Equal("azure.logs.datadoghq.co.uk", endpoints.Main.Host)
 	suite.Equal(1234, endpoints.Main.Port)
 }
@@ -73,7 +73,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.config.SetWithoutSource("logs_config.socks5_proxy_address", "boz:1234")
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
 	suite.Equal("agent-intake.logs.datadoghq.com.", endpoint.Host)
@@ -84,7 +84,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 
 	suite.config.SetWithoutSource("logs_config.use_port_443", true)
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
 	suite.Equal("agent-443-intake.logs.datadoghq.com", endpoint.Host)
@@ -96,7 +96,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "host:1234")
 	suite.config.SetWithoutSource("logs_config.logs_no_ssl", true)
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
 	suite.Equal("host", endpoint.Host)
@@ -108,7 +108,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", ":1234")
 	suite.config.SetWithoutSource("logs_config.logs_no_ssl", false)
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
 	suite.Equal("", endpoint.Host)
@@ -126,7 +126,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.config.SetWithoutSource("logs_config.use_http", true)
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.True(endpoints.UseHTTP)
 	suite.Equal(endpoints.BatchWait, 5*time.Second)
 
@@ -144,7 +144,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.config.SetWithoutSource("logs_config.use_compression", true)
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.True(endpoints.UseHTTP)
 
 	endpoint = endpoints.Main
@@ -164,7 +164,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.config.SetWithoutSource("logs_config.zstd_compression_level", zstdCompressionLevel)
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.True(endpoints.UseHTTP)
 
 	endpoint = endpoints.Main
@@ -182,7 +182,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.config.SetWithoutSource("logs_config.batch_wait", 9)
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.True(endpoints.UseHTTP)
 	suite.Equal(endpoints.BatchWait, 9*time.Second)
 
@@ -200,7 +200,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidProxyCo
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "foo:1234")
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.True(endpoints.UseHTTP)
 
 	endpoint = endpoints.Main
@@ -216,7 +216,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidProxyCon
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "foo")
 
 	_, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.NotNil(err)
+	suite.Error(err)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidOverride() {
@@ -227,7 +227,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFailWithInvalidOverride
 	for _, url := range invalidURLs {
 		suite.config.SetWithoutSource("logs_config.logs_dd_url", url)
 		_, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-		suite.NotNil(err)
+		suite.Error(err)
 	}
 }
 
@@ -238,7 +238,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 	for _, batchWait := range invalidBatchWaits {
 		suite.config.SetWithoutSource("logs_config.batch_wait", batchWait)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.Equal(endpoints.BatchWait, pkgconfigsetup.DefaultBatchWait*time.Second)
 	}
 }
@@ -247,13 +247,12 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWhenMigratingToAgentV6() {
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "")
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Equal("agent-intake.logs.datadoghq.com.", endpoints.Main.Host)
 	suite.Equal(10516, endpoints.Main.Port)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConnectivity() {
-
 	resetHTTPConfigValuesToFalse := func() {
 		suite.config.SetWithoutSource("logs_config.use_tcp", "false")
 		suite.config.SetWithoutSource("logs_config.force_use_tcp", "false")
@@ -267,10 +266,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetWithoutSource("logs_config.use_http", "true")
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.True(endpoints.UseHTTP)
 		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.True(endpoints.UseHTTP)
 	})
 
@@ -278,10 +277,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetWithoutSource("logs_config.force_use_http", "true")
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.True(endpoints.UseHTTP)
 		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.True(endpoints.UseHTTP)
 	})
 
@@ -289,10 +288,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetWithoutSource("logs_config.use_tcp", "true")
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.False(endpoints.UseHTTP)
 		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.False(endpoints.UseHTTP)
 	})
 
@@ -300,20 +299,20 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetWithoutSource("logs_config.force_use_tcp", "true")
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.False(endpoints.UseHTTP)
 		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.False(endpoints.UseHTTP)
 	})
 
 	suite.Run("When (force_)use_http & (force_)use_tcp are false create HTTP endpoints if HTTP connectivity is successful", func() {
 		defer resetHTTPConfigValuesToFalse()
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.True(endpoints.UseHTTP)
 		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.False(endpoints.UseHTTP)
 	})
 
@@ -321,10 +320,10 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 		defer resetHTTPConfigValuesToFalse()
 		suite.config.SetWithoutSource("logs_config.socks5_proxy_address", "my-address")
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.False(endpoints.UseHTTP)
 		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.False(endpoints.UseHTTP)
 		suite.config.SetWithoutSource("logs_config.socks5_proxy_address", "")
 	})
@@ -340,12 +339,28 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 			},
 		})
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.False(endpoints.UseHTTP)
 		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-		suite.Nil(err)
+		suite.NoError(err)
 		suite.False(endpoints.UseHTTP)
 	})
+}
+
+func TestAdditionalEndpointsFromEnv(t *testing.T) {
+	t.Setenv("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS", "[{\"host\": \"foo\", \"api_key\": \"1234\", \"use_compression\": true}]")
+	cfg := config.NewMock(t)
+
+	endpoints, err := BuildEndpoints(cfg, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+	assert.NoError(t, err)
+	assert.Len(t, endpoints.Endpoints, 2)
+
+	additionalEndpoints := endpoints.Endpoints[1]
+	assert.Equal(t, "foo", additionalEndpoints.Host)
+	assert.Equal(t, "1234", additionalEndpoints.apiKey.Load())
+	assert.Equal(t, "logs_config.additional_endpoints", additionalEndpoints.configSettingPath)
+	assert.Equal(t, true, additionalEndpoints.isAdditionalEndpoint)
+	assert.Equal(t, true, additionalEndpoints.UseCompression)
 }
 
 func (suite *EndpointsTestSuite) TestIsSetAndNotEmpty() {
@@ -363,7 +378,7 @@ func (suite *EndpointsTestSuite) TestDefaultApiKey() {
 	assert.Equal(suite.T(), "wassupkey", apiKey)
 	assert.Equal(suite.T(), "api_key", path)
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Equal("wassupkey", endpoints.Main.GetAPIKey())
 }
 
@@ -375,7 +390,7 @@ func (suite *EndpointsTestSuite) TestOverrideApiKey() {
 	assert.Equal(suite.T(), "wassuplogskey", apiKey)
 	assert.Equal(suite.T(), "logs_config.api_key", path)
 	endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Equal("wassuplogskey", endpoints.Main.GetAPIKey())
 }
 
@@ -396,7 +411,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 	})
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Len(endpoints.Endpoints, 2)
 
 	endpoint = endpoints.Endpoints[1]
@@ -406,7 +421,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 
 	suite.config.SetWithoutSource("logs_config.use_http", true)
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Len(endpoints.Endpoints, 2)
 
 	endpoint = endpoints.Endpoints[1]
@@ -446,7 +461,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsMappedCorrectly() {
 	})
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.Len(endpoints.GetUnReliableEndpoints(), 2)
 	suite.Len(endpoints.GetReliableEndpoints(), 2)
@@ -522,7 +537,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLTCPMainEndpointTru
 	})
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.False(endpoints.Endpoints[1].UseSSL())
 	suite.True(endpoints.Endpoints[2].UseSSL())
@@ -556,7 +571,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLTCPMainEndpointFal
 	})
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.True(endpoints.Endpoints[1].UseSSL())
 	suite.True(endpoints.Endpoints[2].UseSSL())
@@ -591,7 +606,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLHTTPMainEndpointTr
 	})
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.False(endpoints.Endpoints[1].UseSSL())
 	suite.True(endpoints.Endpoints[2].UseSSL())
@@ -626,7 +641,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpointsUseSSLHTTPMainEndpointFa
 	})
 
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
-	suite.Nil(err)
+	suite.NoError(err)
 	suite.Len(endpoints.Endpoints, 4)
 	suite.False(endpoints.Endpoints[1].UseSSL())
 	suite.True(endpoints.Endpoints[2].UseSSL())
@@ -934,7 +949,7 @@ func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
 				logsConfig,
 				"", "", "", "",
 			)
-			suite.Nil(err)
+			suite.NoError(err)
 			suite.Equal(tt.expectedMain.CompressionKind, endpoints.Main.CompressionKind)
 			suite.Equal(tt.expectedMain.CompressionLevel, endpoints.Main.CompressionLevel)
 		})
