@@ -189,7 +189,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopExperiment(consts.AgentPackage)
+		s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.AssertSuccessfulConfigStopExperiment()
 	})
 }
@@ -225,7 +225,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopExperiment(consts.AgentPackage)
+		s.Installer().StopConfigExperiment(consts.AgentPackage)
 		s.AssertSuccessfulConfigStopExperiment()
 	})
 }
