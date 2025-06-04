@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -22,9 +23,22 @@ func init() {
 	os.Setenv("DD_APPSEC_WAF_TIMEOUT", "1m")
 }
 
+// TestAWSLambadaHostSupport ensures the AWS Lamba host is supported by checking that libddwaf loads
+// successfully on linux/{amd64,arm64}. This test assumes the test will be executed on such hosts.
+func TestAWSLambadaHostSupport(t *testing.T) {
+	err := wafHealth()
+	// This package is only supports AWS Lambda targets, which is on Linux on amd64 or arm64.
+	if runtime.GOOS == "linux" && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
+		require.NoError(t, err)
+	} else {
+		require.Error(t, err)
+	}
+}
+
 func TestNew(t *testing.T) {
-	// The serverless agent host should be always supported by appsec (Linux), error is unexpected
-	require.NoError(t, wafHealth())
+	if err := wafHealth(); err != nil {
+		t.Skip("host not supported by appsec", err)
+	}
 
 	for _, appsecEnabled := range []bool{true, false} {
 		appsecEnabledStr := strconv.FormatBool(appsecEnabled)
