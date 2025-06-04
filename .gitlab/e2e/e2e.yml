@@ -186,6 +186,7 @@ new-e2e-containers-eks:
 new-e2e-examples-gke:
   extends: .new_e2e_template_needs_container_deploy
   rules:
+    - !reference [ .on_container_or_e2e_changes ]
     - !reference [.manual]
   needs:
     - !reference [.new_e2e_template_needs_container_deploy, needs]
