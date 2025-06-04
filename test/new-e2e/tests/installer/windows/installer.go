@@ -28,8 +28,8 @@ import (
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
-// InstallerRunner represents an interface for the Datadog Installer
-type InstallerRunner interface {
+// DatadogInstallerRunner represents an interface for the Datadog Installer
+type DatadogInstallerRunner interface {
 	Version() (string, error)
 	SetBinaryPath(path string)
 	SetCatalog(newCatalog Catalog) (string, error)
@@ -636,10 +636,9 @@ func (d *DatadogInstallerGA) StartExperiment(packageName string, packageVersion 
 		}
 		if strings.HasPrefix(ver, "7.65.") {
 			return d.StartInstallerExperiment(consts.AgentPackage, packageVersion)
-		} else {
-			out, err := d.DatadogInstaller.StartExperiment(packageName, packageVersion)
-			return out, ignoreEOF(err)
 		}
+		out, err := d.DatadogInstaller.StartExperiment(packageName, packageVersion)
+		return out, ignoreEOF(err)
 	}
 	return d.DatadogInstaller.StartExperiment(packageName, packageVersion)
 }
