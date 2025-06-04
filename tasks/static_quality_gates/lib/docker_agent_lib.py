@@ -107,15 +107,19 @@ def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent"
                 "orange",
             )
         )
-    image_suffixes = "-7" if flavor == "agent" else "" + "-jmx" if jmx else "" + image_suffix if image_suffix else ""
+    image_suffixes = "-7" if flavor == "agent" else ""
+    image_suffixes += "-jmx" if jmx else ""
+    image_suffixes += image_suffix if image_suffix else ""
     print(f"Image suffixes : {image_suffixes}")
     if flavor != "dogstatsd" and is_nightly_run:
         flavor += "-nightly"
     url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
     print(f"Constructed URL: {url}")
+    current_dir = os.getcwd()
     with tempfile.TemporaryDirectory() as tempdir:
         os.chdir(tempdir)
         # Fetch the on wire and on disk size of the image from the url
         image_on_wire_size, image_on_disk_size = get_image_url_size(ctx, metric_handler, gate_name, url)
         # Check if the docker image is within acceptable bounds
         check_image_size(image_on_wire_size, image_on_disk_size, max_on_wire_size, max_on_disk_size)
+    os.chdir(current_dir)
