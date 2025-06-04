@@ -23,7 +23,7 @@ def post(install_directory, storage_location, skip_flag=False):
 
             # if skip_flag is True no need check for the file flag
             if not skip_flag:
-                if os.path.exists(flag_path):
+                if os.name != "nt" and os.path.exists(flag_path):
                     persist_third_party_integration = False
 
             if persist_third_party_integration:
