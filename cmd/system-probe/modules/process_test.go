@@ -18,7 +18,6 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
@@ -55,6 +54,7 @@ func TestStatsHandler(t *testing.T) {
 
 	req, err := http.NewRequest("GET", "/stats", bytes.NewReader(reqBody))
 	require.NoError(t, err)
+	req.Header.Set("Content-Type", encoding.ContentTypeProtobuf)
 
 	m.statsHandler(rec, req)
 
