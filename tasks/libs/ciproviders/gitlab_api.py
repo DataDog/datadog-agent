@@ -960,12 +960,9 @@ def resolve_gitlab_ci_configuration(
         git_ref: From which git ref to read the input config file. No effect if input config is passed as a dict.
     """
 
-    if isinstance(input_config_or_file, str):
-        # Read includes
-        input_config = read_includes(ctx, input_config_or_file, return_config=True, git_ref=git_ref)
-        assert input_config
-    else:
-        input_config = input_config_or_file
+    # Read includes
+    input_config = read_includes(ctx, input_config_or_file, return_config=True, git_ref=git_ref)
+    assert input_config
 
     if resolve_only_includes:
         return input_config
