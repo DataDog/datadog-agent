@@ -34,7 +34,7 @@ class TestPost(unittest.TestCase):
         storage_location = tempfile.mkdtemp()
         post_file = os.path.join(storage_location, '.post_python_installed_packages.txt')
         diff_file = os.path.join(storage_location, '.diff_python_installed_packages.txt')
-        skip_file = os.path.join(storage_location, '.skip_install_python_third_party_deps')
+        skip_file = os.path.join("/etc/datadog-agent", '.skip_install_python_third_party_deps')
 
 
         # Create empty post file

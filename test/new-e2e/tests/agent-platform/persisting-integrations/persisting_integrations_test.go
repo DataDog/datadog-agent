@@ -159,11 +159,11 @@ func (is *persistingIntegrationsSuite) InstallNVMLIntegration(VMclient *common.T
 }
 
 func (is *persistingIntegrationsSuite) EnableSkipInstallThirdPartyDepsFlag(VMclient *common.TestClient) string {
-	return VMclient.Host.MustExecute("sudo touch /opt/datadog-agent/.skip_install_python_third_party_deps")
+	return VMclient.Host.MustExecute("sudo touch /etc/datadog-agent/.skip_install_python_third_party_deps")
 }
 
 func (is *persistingIntegrationsSuite) DisableSkipInstallThirdPartyDepsFlag(VMclient *common.TestClient) (string, error) {
-	return VMclient.Host.Execute("sudo rm -f /opt/datadog-agent/.skip_install_python_third_party_deps")
+	return VMclient.Host.Execute("sudo rm -f /etc/datadog-agent/.skip_install_python_third_party_deps")
 }
 
 func (is *persistingIntegrationsSuite) SetupAgentStartVersion(VMclient *common.TestClient) string {
