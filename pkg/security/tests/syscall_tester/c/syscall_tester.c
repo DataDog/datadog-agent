@@ -793,6 +793,53 @@ int test_connect_af_inet6(int argc, char** argv) {
     return EXIT_SUCCESS;
 }
 
+int test_connect_af_unix(int argc, char** argv) {
+    if (argc != 3) {
+        fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
+        fprintf(stderr, "Arg1: the path of the UNIX socket to connect to\n");
+        fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        return EXIT_FAILURE;
+    }
+
+    char *proto = argv[2];
+    int s;
+    if (!strcmp(proto, "tcp")) {
+        s = socket(AF_UNIX, SOCK_STREAM, 0);
+    } else if (!strcmp(proto, "udp")) {
+        s = socket(AF_UNIX, SOCK_DGRAM, 0);
+    } else {
+        fprintf(stderr, "Please specify an option in the list: tcp, udp\n");
+        return EXIT_FAILURE;
+    }
+
+    if (s < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+
+    char *socket_path = argv[1];
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+
+    if (strlen(socket_path) >= sizeof(addr.sun_path)) {
+        close(s);
+        fprintf(stderr, "Path too long for AF_UNIX socket\n");
+        return EXIT_FAILURE;
+    }
+    strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path) - 1);
+
+    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(s);
+        perror("Failed to connect to AF_UNIX socket");
+        return EXIT_FAILURE;
+    }
+
+    close(s);
+    return EXIT_SUCCESS;
+}
+
+
 int test_connect(int argc, char** argv) {
     if (argc <= 1) {
         fprintf(stderr, "Please specify an addr_type\n");
@@ -804,6 +851,8 @@ int test_connect(int argc, char** argv) {
         return test_connect_af_inet(argc - 1, argv + 1);
     } else if  (!strcmp(addr_family, "AF_INET6")) {
         return test_connect_af_inet6(argc - 1, argv + 1);
+    } else if (!strcmp(addr_family, "AF_UNIX")) {
+        return test_connect_af_unix(argc - 1, argv + 1);
     }
     fprintf(stderr, "Specified %s addr_type is not a valid one, try: AF_INET or AF_INET6 \n", addr_family);
     return EXIT_FAILURE;
