@@ -952,6 +952,47 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(4, "enqueue: slice len %d", len)
   } break;
 
+  case SM_OP_PROCESS_SLICE_DATA_PREP: {
+    if (sm->di_0.length == 0) {
+      // Nothing to do for an empty slice.
+      sm_return(sm);
+      break;
+    }
+
+    // We need to iterate over the slice data, push the length on the data stack to control the loop.
+    sm_data_stack_push(sm, sm->di_0.length);
+  } break;
+
+  case SM_OP_PROCESS_ARRAY_DATA_PREP: {
+    uint32_t array_len = sm_read_program_uint32(sm);
+    // We need to iterate over the slice data, push the length on the data stack to control the loop.
+    sm_data_stack_push(sm, array_len);
+    LOG(4, "array data prep: %d", array_len);
+  } break;
+
+  case SM_OP_PROCESS_SLICE_DATA_REPEAT: {
+    uint32_t elem_byte_len = sm_read_program_uint32(sm);
+    sm->offset += elem_byte_len;
+    if (sm->data_stack_pointer == 0) {
+      LOG(2, "unexpected empty data stack during slice iteration");
+      return 1;
+    }
+    if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
+      LOG(2, "unexpected full data stack during slice iteration");
+      return 1;
+    }
+    uint32_t* remaining =  &sm->data_stack[sm->data_stack_pointer-1];
+    LOG(4, "remaining: %d", *remaining);
+    if (*remaining <= elem_byte_len) {
+      // End of the slice.
+      sm_data_stack_pop(sm);
+      break;
+    }
+    *remaining -= elem_byte_len;
+    // Jump back to a call instruction that directly preceedes this one.
+    sm->pc -= 5 + 5;
+  } break;
+
   case SM_OP_PROCESS_STRING: {
     type_t string_data_type = (type_t)sm_read_program_uint32(sm);
     LOG(4, "processing string @0x%llx", sm->offset);
