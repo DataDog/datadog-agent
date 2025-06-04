@@ -380,10 +380,10 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 `
 
 	aptDefaultKeysOverrideTemplate := `
-  datadog_apt_default_keys:
-	# XXX key name must be kept in sync with "datadog_apt_key_current_name" in the role
-    - key: "DATADOG_APT_KEY_CURRENT"
-      value: https://%s/DATADOG_APT_KEY_CURRENT.public
+	datadog_apt_default_keys:
+		# XXX key name must be kept in sync with "datadog_apt_key_current_name" in the role
+		- key: "DATADOG_APT_KEY_CURRENT"
+		value: https://%s/DATADOG_APT_KEY_CURRENT.public
 `
 
 	defaultRepoEnv := map[string]string{
