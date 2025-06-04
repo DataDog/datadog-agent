@@ -384,6 +384,7 @@ func (r *HTTPReceiver) Stop() error {
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
 	defer cancel()
 	if err := r.server.Shutdown(ctx); err != nil {
+		log.Warnf("Error shutting down HTTPReceiver: %v", err)
 		return err
 	}
 	r.wg.Wait()
@@ -679,6 +680,8 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ProcessTags:            ptags,
 		ContainerTags:          ctags,
 	}
+	r.wg.Add(1) // This wait group ensures Stop() does not close the r.out channel before we return (to prevent a panic)
+	defer r.wg.Done()
 	r.out <- payload
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
@@ -21,7 +22,7 @@ type EventWrapper struct {
 	*EbpfEvent
 
 	keyNameSet bool
-	keyName    string
+	keyName    *intern.StringValue
 	commandSet bool
 	command    CommandType
 }
@@ -55,9 +56,9 @@ func getFragment(e *EbpfTx) []byte {
 }
 
 // KeyName returns the key name of the key.
-func (e *EventWrapper) KeyName() string {
+func (e *EventWrapper) KeyName() *intern.StringValue {
 	if !e.keyNameSet {
-		e.keyName = string(getFragment(&e.Tx))
+		e.keyName = Interner.Get(getFragment(&e.Tx))
 		e.keyNameSet = true
 	}
 	return e.keyName
@@ -94,7 +95,7 @@ func (e *EventWrapper) String() string {
 	if e.Tx.Truncated {
 		truncatedPath = " (truncated)"
 	}
-	output.WriteString(fmt.Sprintf(template, e.CommandType(), e.KeyName(), truncatedPath, e.RequestLatency()))
+	output.WriteString(fmt.Sprintf(template, e.CommandType(), e.KeyName().Get(), truncatedPath, e.RequestLatency()))
 	return output.String()
 }
 

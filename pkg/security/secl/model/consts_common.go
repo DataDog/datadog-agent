@@ -516,6 +516,8 @@ func initConstants() {
 	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
 	initSysCtlActionConstants()
+	initSetSockOptLevelConstants()
+	initSetSockOptOptNameConstants()
 	initRlimitConstants()
 }
 

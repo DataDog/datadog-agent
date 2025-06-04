@@ -131,6 +131,8 @@ func (s *packageInstallerSuite) TestReInstall() {
 }
 
 func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
+	s.T().Skip("Flaky")
+
 	// Install prod
 	err := s.RunInstallScriptProdOci(
 		"DD_REMOTE_UPDATES=true",

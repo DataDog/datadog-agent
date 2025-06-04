@@ -50,6 +50,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("rmdir"),
 		eval.EventType("selinux"),
 		eval.EventType("setgid"),
+		eval.EventType("setsockopt"),
 		eval.EventType("setrlimit"),
 		eval.EventType("setuid"),
 		eval.EventType("setxattr"),
@@ -106,10 +107,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.Accept.Hostnames
+				return ev.FieldHandlers.ResolveAcceptHostnames(ev, &ev.Accept)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "accept.addr.ip":
@@ -1255,10 +1256,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.Connect.Hostnames
+				return ev.FieldHandlers.ResolveConnectHostnames(ev, &ev.Connect)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "connect.addr.ip":
@@ -5665,6 +5666,50 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.FieldHandlers.ResolveOnDemandArg4Uint(ev, &ev.OnDemand))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ondemand.arg5.str":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOnDemandArg5Str(ev, &ev.OnDemand)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ondemand.arg5.uint":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveOnDemandArg5Uint(ev, &ev.OnDemand))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ondemand.arg6.str":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveOnDemandArg6Str(ev, &ev.OnDemand)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ondemand.arg6.uint":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveOnDemandArg6Uint(ev, &ev.OnDemand))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -16506,56 +16551,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "setrlimit.resource":
+	case "setsockopt.level":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.Setrlimit.Resource
+				return int(ev.SetSockOpt.Level)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
-	case "setrlimit.retval":
+	case "setsockopt.optname":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Setrlimit.SyscallEvent.Retval)
+				return int(ev.SetSockOpt.OptName)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
-	case "setrlimit.rlim_cur":
+	case "setsockopt.retval":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.Setrlimit.RlimCur)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "setrlimit.rlim_max":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.Setrlimit.RlimMax)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "setrlimit.target":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.Setrlimit.Target)
+				return int(ev.SetSockOpt.SyscallEvent.Retval)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -22916,6 +22939,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"ondemand.arg3.uint",
 		"ondemand.arg4.str",
 		"ondemand.arg4.uint",
+		"ondemand.arg5.str",
+		"ondemand.arg5.uint",
+		"ondemand.arg6.str",
+		"ondemand.arg6.uint",
 		"ondemand.name",
 		"open.file.change_time",
 		"open.file.destination.mode",
@@ -23550,11 +23577,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setgid.fsgroup",
 		"setgid.gid",
 		"setgid.group",
-		"setrlimit.resource",
-		"setrlimit.retval",
-		"setrlimit.rlim_cur",
-		"setrlimit.rlim_max",
-		"setrlimit.target",
+		"setsockopt.level",
+		"setsockopt.optname",
+		"setsockopt.retval",
 		"setuid.euid",
 		"setuid.euser",
 		"setuid.fsuid",
@@ -24858,6 +24883,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ondemand", reflect.String, "string", nil
 	case "ondemand.arg4.uint":
 		return "ondemand", reflect.Int, "int", nil
+	case "ondemand.arg5.str":
+		return "ondemand", reflect.String, "string", nil
+	case "ondemand.arg5.uint":
+		return "ondemand", reflect.Int, "int", nil
+	case "ondemand.arg6.str":
+		return "ondemand", reflect.String, "string", nil
+	case "ondemand.arg6.uint":
+		return "ondemand", reflect.Int, "int", nil
 	case "ondemand.name":
 		return "ondemand", reflect.String, "string", nil
 	case "open.file.change_time":
@@ -26126,16 +26159,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setgid", reflect.Int, "int", nil
 	case "setgid.group":
 		return "setgid", reflect.String, "string", nil
-	case "setrlimit.resource":
-		return "setrlimit", reflect.Int, "int", nil
-	case "setrlimit.retval":
-		return "setrlimit", reflect.Int, "int", nil
-	case "setrlimit.rlim_cur":
-		return "setrlimit", reflect.Int, "int", nil
-	case "setrlimit.rlim_max":
-		return "setrlimit", reflect.Int, "int", nil
-	case "setrlimit.target":
-		return "setrlimit", reflect.Int, "int", nil
+	case "setsockopt.level":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.optname":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.retval":
+		return "setsockopt", reflect.Int, "int", nil
 	case "setuid.euid":
 		return "setuid", reflect.Int, "int", nil
 	case "setuid.euser":
@@ -30915,6 +30944,34 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg4.uint"}
 		}
 		ev.OnDemand.Arg4Uint = uint64(rv)
+		return nil
+	case "ondemand.arg5.str":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg5.str"}
+		}
+		ev.OnDemand.Arg5Str = rv
+		return nil
+	case "ondemand.arg5.uint":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg5.uint"}
+		}
+		ev.OnDemand.Arg5Uint = uint64(rv)
+		return nil
+	case "ondemand.arg6.str":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg6.str"}
+		}
+		ev.OnDemand.Arg6Str = rv
+		return nil
+	case "ondemand.arg6.uint":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ondemand.arg6.uint"}
+		}
+		ev.OnDemand.Arg6Uint = uint64(rv)
 		return nil
 	case "ondemand.name":
 		rv, ok := value.(string)
@@ -38354,40 +38411,26 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.SetGID.Group = rv
 		return nil
-	case "setrlimit.resource":
+	case "setsockopt.level":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setrlimit.resource"}
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.level"}
 		}
-		ev.Setrlimit.Resource = int(rv)
+		ev.SetSockOpt.Level = uint32(rv)
 		return nil
-	case "setrlimit.retval":
+	case "setsockopt.optname":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setrlimit.retval"}
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.optname"}
 		}
-		ev.Setrlimit.SyscallEvent.Retval = int64(rv)
+		ev.SetSockOpt.OptName = uint32(rv)
 		return nil
-	case "setrlimit.rlim_cur":
+	case "setsockopt.retval":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setrlimit.rlim_cur"}
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.retval"}
 		}
-		ev.Setrlimit.RlimCur = uint64(rv)
-		return nil
-	case "setrlimit.rlim_max":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setrlimit.rlim_max"}
-		}
-		ev.Setrlimit.RlimMax = uint64(rv)
-		return nil
-	case "setrlimit.target":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target"}
-		}
-		ev.Setrlimit.Target = uint32(rv)
+		ev.SetSockOpt.SyscallEvent.Retval = int64(rv)
 		return nil
 	case "setuid.euid":
 		rv, ok := value.(int)

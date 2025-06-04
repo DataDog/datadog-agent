@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import getpass
 import io
 import itertools
@@ -10,6 +11,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from collections.abc import Callable, Iterable
@@ -17,13 +19,14 @@ from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import gitlab
 import yaml
 from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import selftest as selftests
 from tasks.kernel_matrix_testing import stacks, vmconfig
-from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline, get_test_results_from_tarfile
+from tasks.kernel_matrix_testing.ci import KMTPipeline, KMTTestRunJob, get_test_results_from_tarfile
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import update_rootfs
@@ -46,12 +49,18 @@ from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import (
+    get_gitlab_job_dependencies,
+    get_gitlab_repo,
+    post_process_gitlab_ci_configuration,
+    resolve_gitlab_ci_configuration,
+)
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
-from tasks.libs.pipeline.tools import loop_status
+from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
+from tasks.libs.types.types import JobDependency
 from tasks.security_agent import build_functional_tests
 from tasks.system_probe import (
     BPF_TAG,
@@ -65,6 +74,7 @@ from tasks.system_probe import (
     get_sysprobe_test_buildtags,
     get_test_timeout,
     go_package_dirs,
+    ninja_add_dyninst_test_programs,
     ninja_generate,
     setup_runtime_clang,
 )
@@ -204,9 +214,10 @@ def gen_config_from_ci_pipeline(
         raise Exit("Pipeline ID must be provided")
 
     info(f"[+] retrieving all CI jobs for pipeline {pipeline}")
-    setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
+    kmt_pipeline = KMTPipeline(pipeline)
+    kmt_pipeline.retrieve_jobs()
 
-    for job in setup_jobs:
+    for job in kmt_pipeline.setup_jobs:
         if (vcpu is None or memory is None) and job.status == "success":
             info(f"[+] retrieving vmconfig from job {job.name}")
             for vmset in job.vmconfig["vmsets"]:
@@ -223,7 +234,7 @@ def gen_config_from_ci_pipeline(
     failed_packages: set[str] = set()
     failed_tests: set[str] = set()
     successful_tests: set[str] = set()
-    for test_job in test_jobs:
+    for test_job in kmt_pipeline.test_jobs:
         if test_job.status == "failed" and job.component == vmconfig_template:
             vm_arch = test_job.arch
             if use_local_if_possible and vm_arch == local_arch:
@@ -358,18 +369,28 @@ def ls(_, distro=True, custom=False):
 
 @task(
     help={
-        "lite": "If set, then do not download any VM images locally",
-        "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>. This parameter is required unless --lite or --all-images is specified.",
-        "all-images": "Download all available VM images for the current architecture. This is equivalent to the previous default behavior.",
+        "remote-setup-only": "If set, then KMT will only allow remote VMs.",
+        "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+        "all-images": "Download all available VM images for the current architecture.",
     }
 )
-def init(ctx: Context, lite=False, images: str | None = None, all_images=False):
-    if not lite and not all_images and images is None:
-        raise Exit(
-            "The --images parameter is required unless --lite or --all-images is specified. Use 'dda inv kmt.ls' to see available images."
-        )
+def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False):
+    if not remote_setup_only and not all_images and images is None:
+        if (
+            ask(
+                "[!] No VM images will be downloaded because no `--images' specified and `--all-images` is false. Continue anyway [y/N]? "
+            )
+            != "y"
+        ):
+            raise Exit(
+                "The `--images` parameter is required unless `--all-images` is specified. Use 'dda inv kmt.ls' to see available images."
+            )
+
+    if not remote_setup_only and not all_images:
+        info("[+] Use `dda inv kmt.update-resources --images=<list>` to download specific images for local use.")
+
     try:
-        init_kernel_matrix_testing_system(ctx, lite, images, all_images)
+        init_kernel_matrix_testing_system(ctx, images, all_images, remote_setup_only)
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
@@ -476,6 +497,16 @@ def update_resources(
     ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None
 ):
     kmt_os = get_kmt_os()
+
+    cm = ConfigManager()
+    setup = cm.config.get("setup")
+    if setup is None:
+        raise Exit("KMT setup information not recorded. Please run `dda inv kmt.init` to generate it.")
+
+    if setup == "remote":
+        raise Exit(
+            "KMT is initialized as remote-only. In this mode local VMs are not allowed. Run `dda inv kmt.init` to re-initialize with support for local VMs"
+        )
 
     warn("Updating resource dependencies will delete all running stacks.")
     if ask("are you sure you want to continue? (y/n)").lower() != "y":
@@ -1003,6 +1034,12 @@ def kmt_sysprobe_prepare(
         ninja_define_rules(nw)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
+        ninja_add_dyninst_test_programs(
+            ctx,
+            nw,
+            kmt_paths.sysprobe_tests,
+            go_path,
+        )
 
         build_tags = get_sysprobe_test_buildtags(False, False)
         for pkg in target_packages:
@@ -1056,6 +1093,7 @@ def kmt_sysprobe_prepare(
                 "prefetch_file",
                 "fake_server",
                 "sample_service",
+                "standalone_attacher",
             ]:
                 src_file_path = os.path.join(pkg, f"{gobin}.go")
                 if os.path.isdir(pkg) and os.path.isfile(src_file_path):
@@ -1068,7 +1106,7 @@ def kmt_sysprobe_prepare(
                         variables={
                             "go": go_path,
                             "chdir": "true",
-                            "tags": "-tags=\"test\"",
+                            "tags": "-tags=\"test,linux_bpf\"",
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
                             "env": env_str,
                         },
@@ -1727,10 +1765,11 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
     info(
         f"[+] retrieving all CI jobs for pipeline {pipeline} ({pipeline_data.web_url}), {pipeline_data.status}, created {pipeline_data.created_at} last updated {pipeline_data.updated_at}"
     )
-    setup_jobs, test_jobs = get_all_jobs_for_pipeline(pipeline)
+    kmt_pipeline = KMTPipeline(pipeline)
+    kmt_pipeline.retrieve_jobs()
 
-    failed_setup_jobs = [j for j in setup_jobs if j.status == "failed"]
-    failed_jobs = [j for j in test_jobs if j.status == "failed"]
+    failed_setup_jobs = [j for j in kmt_pipeline.setup_jobs if j.status == "failed"]
+    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == "failed"]
     failreasons: dict[str, str] = {}
     ok = "✅"
     testfail = "❌"
@@ -1786,7 +1825,7 @@ def explain_ci_failure(ctx: Context, pipeline: str | None = None):
 
         # Build the distro table with all jobs for this component and vmset, to correctly
         # differentiate between skipped and ok jobs
-        for test_job in test_jobs:
+        for test_job in kmt_pipeline.test_jobs:
             if test_job.component != component or test_job.vmset != vmset:
                 continue
 
@@ -2170,18 +2209,18 @@ def tag_ci_job(ctx: Context):
 def wait_for_setup_job(ctx: Context, pipeline_id: int, arch: str | Arch, component: Component, timeout_sec: int = 3600):
     """Wait for the setup job to finish corresponding to the given pipeline, arch and component"""
     arch = Arch.from_str(arch)
-    setup_jobs, _ = get_all_jobs_for_pipeline(pipeline_id)
-    matching_jobs = [j for j in setup_jobs if j.arch == arch.kmt_arch and j.component == component]
+    kmt_pipeline = KMTPipeline(pipeline_id)
+    kmt_pipeline.retrieve_jobs()
+    matching_jobs = [j for j in kmt_pipeline.setup_jobs if j.arch == arch.kmt_arch and j.component == component]
     if len(matching_jobs) != 1:
         raise Exit(f"Search for setup_job for {arch} {component} failed: result = {matching_jobs}")
 
     setup_job = matching_jobs[0]
-    finished_status = {"failed", "success", "canceled", "skipped"}
 
     def _check_status(_):
         setup_job.refresh()
         info(f"[+] Status for job {setup_job.name}: {setup_job.status}")
-        return setup_job.status.lower() in finished_status, None
+        return setup_job.status.has_finished(), None
 
     loop_status(_check_status, timeout_sec=timeout_sec)
     info(f"[+] Setup job {setup_job.name} finished with status {setup_job.status}")
@@ -2276,11 +2315,41 @@ def install_ddagent(
         "commit": "The commit to download the complexity data for",
         "dest_path": "The path to save the complexity data to",
         "keep_compressed_archives": "Keep the compressed archives after extracting the data. Useful for testing, as it replicates the exact state of the artifacts in CI",
+        "download_all_jobs": "Download the complexity data for all jobs instead of just the ones that are marked as dependencies for the notify_ebpf_complexity_changes_job. This will make the download take far longer.",
+        "gitlab_config_file": "Path to the fully parsed/resolved Gitlab CI configuration file. If not provided, we will try to resolve the current one using the API",
     }
 )
-def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, keep_compressed_archives: bool = False):
+def download_complexity_data(
+    ctx: Context,
+    commit: str,
+    dest_path: str | Path,
+    keep_compressed_archives: bool = False,
+    download_all_jobs: bool = False,
+    gitlab_config_file: str | None = None,
+):
     gitlab = get_gitlab_repo()
     dest_path = Path(dest_path)
+    deps: list[JobDependency] = []
+
+    if not download_all_jobs:
+        print("Parsing .gitlab-ci.yml file to understand the dependencies for notify_ebpf_complexity_changes")
+
+        if gitlab_config_file is None:
+            gitlab_ci_file = os.fspath(Path(__file__).parent.parent / ".gitlab-ci.yml")
+            gitlab_config = resolve_gitlab_ci_configuration(ctx, gitlab_ci_file)
+            gitlab_config = post_process_gitlab_ci_configuration(
+                gitlab_config, filter_jobs="notify_ebpf_complexity_changes"
+            )
+        else:
+            with open(gitlab_config_file) as f:
+                parsed_file = yaml.safe_load(f)
+
+            if ".gitlab-ci.yml" not in parsed_file:
+                raise Exit(f"Could not find .gitlab-ci.yml in {gitlab_config_file}")
+            gitlab_config = parsed_file[".gitlab-ci.yml"]
+
+        deps = get_gitlab_job_dependencies(gitlab_config, "notify_ebpf_complexity_changes")
+        print(f"Dependencies for notify_ebpf_complexity_changes: {deps}")
 
     # We can't get all the pipelines associated with a commit directly, so we get it by the commit statuses
     commit_statuses = gitlab.commits.get(commit, lazy=True).statuses.list(all=True)
@@ -2293,13 +2362,26 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
             print(f"Ignoring pipeline {pipeline_id} with source {pipeline.source}, only using push/api pipelines")
             continue
 
-        _, test_jobs = get_all_jobs_for_pipeline(pipeline_id)
-        for job in test_jobs:
+        kmt_pipeline = KMTPipeline(pipeline_id)
+        kmt_pipeline.retrieve_jobs()
+        for job in kmt_pipeline.test_jobs:
+            if not download_all_jobs and not any(dep.matches(job.name) for dep in deps):
+                print(f"Ignoring job {job.name} because it is not a dependency of notify_ebpf_complexity_changes")
+                continue
+
             complexity_name = f"verifier-complexity-{job.arch}-{job.distro}-{job.component}"
             complexity_data_fname = f"test/new-e2e/tests/{complexity_name}.tar.gz"
+            download_start_time = time.time()
             data = job.artifact_file_binary(complexity_data_fname, ignore_not_found=True)
+            download_end_time = time.time()
+            download_end_tstamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            time_msg = (
+                f"Download took {download_end_time - download_start_time} seconds, finished at {download_end_tstamp}"
+            )
             if data is None:
-                print(f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found")
+                print(
+                    f"Complexity data not found for {job.name} - filename {complexity_data_fname} not found ({time_msg})"
+                )
                 continue
 
             if keep_compressed_archives:
@@ -2310,7 +2392,10 @@ def download_complexity_data(ctx: Context, commit: str, dest_path: str | Path, k
             job_folder = dest_path / complexity_name
             job_folder.mkdir(parents=True, exist_ok=True)
             tar.extractall(dest_path / job_folder)
-            print(f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname}")
+            time_msg += f", extracted in {time.time() - download_end_time} seconds"
+            print(
+                f"Extracted complexity data for {job.name} successfully, filename {complexity_data_fname} ({time_msg})"
+            )
 
 
 @task
@@ -2321,3 +2406,69 @@ def flare(ctx: Context, dest_folder: Path | str | None = None, keep_uncompressed
 
     with tempfile.TemporaryDirectory() as tmpdir:
         flare_kmt_os(ctx, Path(tmpdir), dest_folder, keep_uncompressed_files)
+
+
+@task(help={"component": "The component to retry. If not provided, all components will be retried."})
+def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None = None):
+    """Retries all failed KMT tests in the given pipeline"""
+    info(f"[+] Retrieving jobs for pipeline {pipeline_id}")
+    kmt_pipeline = KMTPipeline(pipeline_id)
+    kmt_pipeline.retrieve_jobs()
+
+    jobs_to_retry: list[KMTTestRunJob] = []
+    failed_jobs = [j for j in kmt_pipeline.test_jobs if j.status == GitlabJobStatus.FAILED and not j.is_retried]
+    if len(failed_jobs) == 0:
+        info(f"[+] No failed tests found in pipeline {pipeline_id}. Checking dependency failures")
+
+        # Skipped tests can be skipped because of failed setup/dependency upload jobs, so check
+        # those too
+        skipped_jobs = [j for j in kmt_pipeline.test_jobs if j.status == GitlabJobStatus.SKIPPED]
+        for test in skipped_jobs:
+            if test.has_failed_dependencies:
+                jobs_to_retry.append(test)
+    else:
+        jobs_to_retry = failed_jobs
+
+    if component is not None:
+        jobs_to_retry = [j for j in jobs_to_retry if j.component == component]
+
+    if len(jobs_to_retry) == 0:
+        info(f"[+] No test jobs to retry in pipeline {pipeline_id}")
+        return
+
+    info(
+        f"[+] Found {len(jobs_to_retry)} candidates to retry in pipeline {pipeline_id}(https://gitlab.ddbuild.io/DataDog/datadog-agent/-/pipelines/{pipeline_id}):"
+    )
+    for job in jobs_to_retry:
+        info(f"[+] {job.name} (status: {job.status})")
+
+        if job.kmt_subpipeline is None:
+            raise Exit(f"[-] Job {job.name} has no associated subpipeline")
+
+    warn("[!] Retrying KMT tests means re-creating some metal instances. This is not free and will take a while.")
+    warn(
+        "[!] KMT jobs already re-try failed tests internally. Please only retry failed test jobs if you think this was an infra issue. Don't retry to try and fix flaky tests."
+    )
+    if ask("Do you still want to retry the failed tests? [y/N] ").lower() != "y":
+        info("[-] Aborting")
+        return
+
+    subpipelines_to_retry = {job.kmt_subpipeline for job in jobs_to_retry if job.kmt_subpipeline is not None}
+
+    retried_jobs: list[int] = []
+    for subpipeline in subpipelines_to_retry:
+        info(f"[+] Retrying dependencies for {subpipeline.name}")
+        retried_jobs += subpipeline.retry_setup_and_dependency_upload()
+
+    info("[+] All dependency jobs scheduled, retrying test jobs")
+
+    for job in jobs_to_retry:
+        info(f"[+] Retrying {job.name}")
+
+        try:
+            retried_jobs.append(job.retry())
+        except gitlab.exceptions.GitlabJobRetryError as e:
+            info(f"[-] Failed to retry job {job.name}: {e}")
+            continue
+
+    info(f"[+] All jobs retried, job IDs: {retried_jobs}")

@@ -56,7 +56,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `rmdir` | File | A directory was removed | 7.27 |
 | `selinux` | Kernel | An SELinux operation was run | 7.30 |
 | `setgid` | Process | A process changed its effective gid | 7.27 |
-| `setrlimit` | Process | A setrlimit command was executed | 7.36 |
+| `setsockopt` | Network | A setsockopt was executed | 7.68 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
 | `setxattr` | File | Set exteneded attributes | 7.27 |
 | `signal` | Process | A signal was sent | 7.35 |
@@ -1418,17 +1418,15 @@ A process changed its effective gid
 | [`setgid.gid`](#setgid-gid-doc) | New GID of the process |
 | [`setgid.group`](#setgid-group-doc) | New group of the process |
 
-### Event `setrlimit`
+### Event `setsockopt`
 
-A setrlimit command was executed
+A setsockopt was executed
 
 | Property | Definition |
 | -------- | ------------- |
-| [`setrlimit.resource`](#setrlimit-resource-doc) | Resource type being limited |
-| [`setrlimit.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`setrlimit.rlim_cur`](#setrlimit-rlim_cur-doc) | Current (soft) limit value |
-| [`setrlimit.rlim_max`](#setrlimit-rlim_max-doc) | Maximum (hard) limit value |
-| [`setrlimit.target`](#setrlimit-target-doc) | Target process ID for the limit change |
+| [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
+| [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
+| [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `setuid`
 
@@ -2501,7 +2499,7 @@ Type: int
 Definition: Return value of the syscall
 
 `*.retval` has 25 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -3390,34 +3388,17 @@ Definition: New group of the process
 
 
 
-### `setrlimit.resource` {#setrlimit-resource-doc}
+### `setsockopt.level` {#setsockopt-level-doc}
 Type: int
 
-Definition: Resource type being limited
-
-
-Constants: [Resource limit types](#resource-limit-types)
+Definition: Socket level
 
 
 
-### `setrlimit.rlim_cur` {#setrlimit-rlim_cur-doc}
+### `setsockopt.optname` {#setsockopt-optname-doc}
 Type: int
 
-Definition: Current (soft) limit value
-
-
-
-### `setrlimit.rlim_max` {#setrlimit-rlim_max-doc}
-Type: int
-
-Definition: Maximum (hard) limit value
-
-
-
-### `setrlimit.target` {#setrlimit-target-doc}
-Type: int
-
-Definition: Target process ID for the limit change
+Definition: Socket option name
 
 
 
@@ -4652,27 +4633,239 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_PEEKMTETAGS` | arm64 |
 | `PTRACE_POKEMTETAGS` | arm64 |
 
-### `Resource limit types` {#resource-limit-types}
-Resource limit types are the supported resource types for setrlimit syscall.
+### `SetSockopt Levels` {#setsockopt-levels}
+SetSockopt Levels are the supported levels for the setsockopt event.
 
 | Name | Architectures |
 | ---- |---------------|
-| `RLIMIT_CPU` | all |
-| `RLIMIT_FSIZE` | all |
-| `RLIMIT_DATA` | all |
-| `RLIMIT_STACK` | all |
-| `RLIMIT_CORE` | all |
-| `RLIMIT_RSS` | all |
-| `RLIMIT_NPROC` | all |
-| `RLIMIT_NOFILE` | all |
-| `RLIMIT_MEMLOCK` | all |
-| `RLIMIT_AS` | all |
-| `RLIMIT_LOCKS` | all |
-| `RLIMIT_SIGPENDING` | all |
-| `RLIMIT_MSGQUEUE` | all |
-| `RLIMIT_NICE` | all |
-| `RLIMIT_RTPRIO` | all |
-| `RLIMIT_RTTIME` | all |
+| `IPPROTO_IP` | all |
+| `SOL_SOCKET` | all |
+| `IPPROTO_TCP` | all |
+| `IPPROTO_UDP` | all |
+| `IPPROTO_IPV6` | all |
+| `IPPROTO_ICMPV6` | all |
+
+### `SetSockopt Options` {#setsockopt-options}
+SetSockopt Options are the supported options for the setsockopt event.
+
+| Name | Architectures |
+| ---- |---------------|
+| `IP_TOS` | all |
+| `IP_TTL` | all |
+| `IP_HDRINCL` | all |
+| `IP_OPTIONS` | all |
+| `IP_ROUTER_ALERT` | all |
+| `IP_RECVOPTS` | all |
+| `IP_RETOPTS` | all |
+| `IP_PKTINFO` | all |
+| `IP_PKTOPTIONS` | all |
+| `IP_MTU_DISCOVER` | all |
+| `IP_RECVERR` | all |
+| `IP_RECVTTL` | all |
+| `IP_RECVTOS` | all |
+| `IP_MTU` | all |
+| `IP_FREEBIND` | all |
+| `IP_IPSEC_POLICY` | all |
+| `IP_XFRM_POLICY` | all |
+| `IP_PASSSEC` | all |
+| `IP_TRANSPARENT` | all |
+| `IP_ORIGDSTADDR` | all |
+| `IP_MINTTL` | all |
+| `IP_NODEFRAG` | all |
+| `IP_CHECKSUM` | all |
+| `IP_BIND_ADDRESS_NO_PORT` | all |
+| `IP_RECVFRAGSIZE` | all |
+| `IP_RECVERR_RFC4884` | all |
+| `IP_MULTICAST_IF` | all |
+| `IP_MULTICAST_TTL` | all |
+| `IP_MULTICAST_LOOP` | all |
+| `IP_ADD_MEMBERSHIP` | all |
+| `IP_DROP_MEMBERSHIP` | all |
+| `IP_UNBLOCK_SOURCE` | all |
+| `IP_BLOCK_SOURCE` | all |
+| `IP_ADD_SOURCE_MEMBERSHIP` | all |
+| `IP_DROP_SOURCE_MEMBERSHIP` | all |
+| `IP_MSFILTER` | all |
+| `MCAST_JOIN_GROUP` | all |
+| `MCAST_BLOCK_SOURCE` | all |
+| `MCAST_UNBLOCK_SOURCE` | all |
+| `MCAST_LEAVE_GROUP` | all |
+| `MCAST_JOIN_SOURCE_GROUP` | all |
+| `MCAST_LEAVE_SOURCE_GROUP` | all |
+| `MCAST_MSFILTER` | all |
+| `IP_MULTICAST_ALL` | all |
+| `IP_UNICAST_IF` | all |
+| `SO_DEBUG` | all |
+| `SO_REUSEADDR` | all |
+| `SO_TYPE` | all |
+| `SO_ERROR` | all |
+| `SO_DONTROUTE` | all |
+| `SO_BROADCAST` | all |
+| `SO_SNDBUF` | all |
+| `SO_RCVBUF` | all |
+| `SO_KEEPALIVE` | all |
+| `SO_OOBINLINE` | all |
+| `SO_NO_CHECK` | all |
+| `SO_PRIORITY` | all |
+| `SO_LINGER` | all |
+| `SO_BSDCOMPAT` | all |
+| `SO_REUSEPORT` | all |
+| `SO_PASSCRED` | all |
+| `SO_PEERCRED` | all |
+| `SO_RCVLOWAT` | all |
+| `SO_SNDLOWAT` | all |
+| `SO_RCVTIMEO_OLD` | all |
+| `SO_SNDTIMEO_OLD` | all |
+| `SO_SECURITY_AUTHENTICATION` | all |
+| `SO_SECURITY_ENCRYPTION_TRANSPORT` | all |
+| `SO_SECURITY_ENCRYPTION_NETWORK` | all |
+| `SO_BINDTODEVICE` | all |
+| `SO_ATTACH_FILTER` | all |
+| `SO_DETACH_FILTER` | all |
+| `SO_PEERNAME` | all |
+| `SO_TIMESTAMP_OLD` | all |
+| `SO_ACCEPTCONN` | all |
+| `SO_PEERSEC` | all |
+| `SO_SNDBUFFORCE` | all |
+| `SO_RCVBUFFORCE` | all |
+| `SO_PASSSEC` | all |
+| `SO_TIMESTAMPNS_OLD` | all |
+| `SO_MARK` | all |
+| `SO_TIMESTAMPING_OLD` | all |
+| `SO_PROTOCOL` | all |
+| `SO_DOMAIN` | all |
+| `SO_RXQ_OVFL` | all |
+| `SO_WIFI_STATUS` | all |
+| `SO_PEEK_OFF` | all |
+| `SO_NOFCS` | all |
+| `SO_LOCK_FILTER` | all |
+| `SO_SELECT_ERR_QUEUE` | all |
+| `SO_BUSY_POLL` | all |
+| `SO_MAX_PACING_RATE` | all |
+| `SO_BPF_EXTENSIONS` | all |
+| `SO_INCOMING_CPU` | all |
+| `SO_ATTACH_BPF` | all |
+| `SO_ATTACH_REUSEPORT_CBPF` | all |
+| `SO_ATTACH_REUSEPORT_EBPF` | all |
+| `SO_CNX_ADVICE` | all |
+| `SCM_TIMESTAMPING_OPT_STATS` | all |
+| `SO_MEMINFO` | all |
+| `SO_INCOMING_NAPI_ID` | all |
+| `SO_COOKIE` | all |
+| `SCM_TIMESTAMPING_PKTINFO` | all |
+| `SO_PEERGROUPS` | all |
+| `SO_ZEROCOPY` | all |
+| `SO_TXTIME` | all |
+| `SO_BINDTOIFINDEX` | all |
+| `SO_TIMESTAMP_NEW` | all |
+| `SO_TIMESTAMPNS_NEW` | all |
+| `SO_TIMESTAMPING_NEW` | all |
+| `SO_RCVTIMEO_NEW` | all |
+| `SO_SNDTIMEO_NEW` | all |
+| `SO_DETACH_REUSEPORT_BPF` | all |
+| `SO_PREFER_BUSY_POLL` | all |
+| `SO_BUSY_POLL_BUDGET` | all |
+| `SO_NETNS_COOKIE` | all |
+| `SO_BUF_LOCK` | all |
+| `SO_RESERVE_MEM` | all |
+| `SO_TXREHASH` | all |
+| `SO_RCVMARK` | all |
+| `SO_PASSPIDFD` | all |
+| `SO_PEERPIDFD` | all |
+| `SO_DEVMEM_LINEAR` | all |
+| `SO_DEVMEM_DMABUF` | all |
+| `SO_DEVMEM_DONTNEED` | all |
+| `SCM_TS_OPT_ID` | all |
+| `SO_RCVPRIORITY` | all |
+| `TCP_NODELAY` | all |
+| `TCP_MAXSEG` | all |
+| `TCP_CORK` | all |
+| `TCP_KEEPIDLE` | all |
+| `TCP_KEEPINTVL` | all |
+| `TCP_KEEPCNT` | all |
+| `TCP_SYNCNT` | all |
+| `TCP_LINGER2` | all |
+| `TCP_DEFER_ACCEPT` | all |
+| `TCP_WINDOW_CLAMP` | all |
+| `TCP_INFO` | all |
+| `TCP_QUICKACK` | all |
+| `TCP_CONGESTION` | all |
+| `TCP_MD5SIG` | all |
+| `TCP_THIN_LINEAR_TIMEOUTS` | all |
+| `TCP_THIN_DUPACK` | all |
+| `TCP_USER_TIMEOUT` | all |
+| `TCP_REPAIR` | all |
+| `TCP_REPAIR_QUEUE` | all |
+| `TCP_QUEUE_SEQ` | all |
+| `TCP_REPAIR_OPTIONS` | all |
+| `TCP_FASTOPEN` | all |
+| `TCP_TIMESTAMP` | all |
+| `TCP_NOTSENT_LOWAT` | all |
+| `TCP_CC_INFO` | all |
+| `TCP_SAVE_SYN` | all |
+| `TCP_SAVED_SYN` | all |
+| `TCP_REPAIR_WINDOW` | all |
+| `TCP_FASTOPEN_CONNECT` | all |
+| `TCP_ULP` | all |
+| `TCP_MD5SIG_EXT` | all |
+| `TCP_FASTOPEN_KEY` | all |
+| `TCP_FASTOPEN_NO_COOKIE` | all |
+| `TCP_ZEROCOPY_RECEIVE` | all |
+| `TCP_INQ` | all |
+| `TCP_TX_DELAY` | all |
+| `IPV6_ADDRFORM` | all |
+| `IPV6_2292PKTINFO` | all |
+| `IPV6_2292HOPOPTS` | all |
+| `IPV6_2292DSTOPTS` | all |
+| `IPV6_2292RTHDR` | all |
+| `IPV6_2292PKTOPTIONS` | all |
+| `IPV6_2292HOPLIMIT` | all |
+| `IPV6_FLOWINFO` | all |
+| `IPV6_UNICAST_HOPS` | all |
+| `IPV6_MULTICAST_IF` | all |
+| `IPV6_MULTICAST_HOPS` | all |
+| `IPV6_MULTICAST_LOOP` | all |
+| `IPV6_ADD_MEMBERSHIP` | all |
+| `IPV6_DROP_MEMBERSHIP` | all |
+| `IPV6_ROUTER_ALERT` | all |
+| `IPV6_MTU_DISCOVER` | all |
+| `IPV6_MTU` | all |
+| `IPV6_RECVERR` | all |
+| `IPV6_V6ONLY` | all |
+| `IPV6_JOIN_ANYCAST` | all |
+| `IPV6_LEAVE_ANYCAST` | all |
+| `IPV6_MULTICAST_ALL` | all |
+| `IPV6_ROUTER_ALERT_ISOLATE` | all |
+| `IPV6_RECVERR_RFC4884` | all |
+| `IPV6_FLOWLABEL_MGR` | all |
+| `IPV6_FLOWINFO_SEND` | all |
+| `IPV6_IPSEC_POLICY` | all |
+| `IPV6_XFRM_POLICY` | all |
+| `IPV6_HDRINCL` | all |
+| `IPV6_RECVPKTINFO` | all |
+| `IPV6_PKTINFO` | all |
+| `IPV6_RECVHOPLIMIT` | all |
+| `IPV6_HOPLIMIT` | all |
+| `IPV6_RECVHOPOPTS` | all |
+| `IPV6_HOPOPTS` | all |
+| `IPV6_RTHDRDSTOPTS` | all |
+| `IPV6_RECVRTHDR` | all |
+| `IPV6_RTHDR` | all |
+| `IPV6_RECVDSTOPTS` | all |
+| `IPV6_DSTOPTS` | all |
+| `IPV6_RECVPATHMTU` | all |
+| `IPV6_PATHMTU` | all |
+| `IPV6_DONTFRAG` | all |
+| `IPV6_RECVTCLASS` | all |
+| `IPV6_TCLASS` | all |
+| `IPV6_AUTOFLOWLABEL` | all |
+| `IPV6_ADDR_PREFERENCES` | all |
+| `IPV6_MINHOPCOUNT` | all |
+| `IPV6_ORIGDSTADDR` | all |
+| `IPV6_TRANSPARENT` | all |
+| `IPV6_UNICAST_IF` | all |
+| `IPV6_RECVFRAGSIZE` | all |
+| `IPV6_FREEBIND` | all |
 
 ### `Signal constants` {#signal-constants}
 Signal constants are the supported signals for the kill syscall.

@@ -2,6 +2,204 @@
 Release Notes
 =============
 
+.. _Release Notes_7.66.1:
+
+7.66.1
+======
+
+.. _Release Notes_7.66.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-06-03
+
+- Please refer to the `7.66.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7661>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.66.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue parsing pod list from kubelet when the `InPlacePodVerticalScaling`
+  feature gate is enabled on the cluster.
+
+
+.. _Release Notes_7.66.0:
+
+7.66.0
+======
+
+.. _Release Notes_7.66.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-05-22
+
+- Please refer to the `7.66.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7660>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.66.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- If you use a custom Agent username and password on Windows with an Active
+  Directory domain account and you want to remotely upgrade the Agent using
+  Fleet Automation then you must provide the ``DDAGENTUSER_PASSWORD``
+  option when upgrading to 7.66 or later. For more information see the features release notes.
+
+
+.. _Release Notes_7.66.0_New Features:
+
+New Features
+------------
+
+- Added a new WLAN check that monitors the Wi-Fi interface on the host system.
+  This check is only available for macOS systems.
+
+- Fleet Automation now supports remote upgrades when using a custom Agent username and password on Windows.
+  
+  Windows stores the password as an encrypted LSA local private data object that is only accessible
+  to local Administrators. Windows Service Manager stores service account passwords in the same location.
+  For more information, see the Microsoft documentation on
+  [Storing Private Data](https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data)
+  and
+  [Private Data Objects](https://learn.microsoft.com/en-us/windows/win32/secmgmt/private-data-object).
+  
+  Uninstalling the Agent removes the encrypted password from the LSA.
+  
+  To avoid providing and manually managing the account password, consider using a
+  [Group Managed Service Account (gMSA)](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/group-managed-service-accounts/group-managed-service-accounts/group-managed-service-accounts-overview).
+  For more information, see [Installing the Agent with a gMSA account](https://docs.datadoghq.com/agent/basic_agent_usage/windows/?tab=installationinactivedirectorydomains).
+
+- Adds support for persisting of non-core integrations during Agent upgrades on Windows platforms. To disable,
+  set the INSTALL_PYTHON_THIRD_PARTY_DEPS="0" property during the installation of the MSI.
+
+- adds the ability for the Agent to tail logs via the kubelet's API.
+
+- Support multiple authentication methods for a subnet in network devices autodiscovery.
+
+- Use cdpCacheSecondaryMgmtAddr and cdpCacheAddress for CDP topology links in case cdpCachePrimaryMgmtAddr is empty or of an unsupported type.
+
+- Enable language detection via tracers metadata
+
+
+.. _Release Notes_7.66.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a build option (`--glibc`, enabled by default) to build the Agent on `glibc` environment.
+  On the other libc environments like `musl`, the Agent should be built with `--no-glibc` option.
+  The option enables system-probe gpu module and corechecks gpu collector using
+  `github.com/NVIDIA/go-nvml` which depends on a glibc-extended definition.
+
+- OpenTelemetry instrumentation scope attributes are now converted into span
+  attributes.
+
+- Utilize distributed senders and rtt fairness algorithms to improve logs pipeline throughput and fairness.
+
+- Adds ``|`` separator to the DogstatsD debug table (from ``agent dogstatsd-stats``) when not requesting JSON output. This allows the table to render properly in markdown format.
+
+- Get the k8s cluster name from an AKS node label if present
+
+- APM: Improve debug logging for ignore_resources configuration by showing what rule resulted in a trace being ignored.
+
+- Added a new feature flag `disable_operation_and_resource_name_logic_v2` in DD_APM_FEATURES that replaces `enable_operation_and_resource_name_logic_v2`. The new operation name logic for OTLP is now opt-out instead of opt-in.
+
+- Added an option for the Oracle integration to template the database instance identifier.
+
+- The Oracle integration now supports the `empty_default_hostname` option to omit `host` from metrics
+
+- Added the exclude_hostname option to the Oracle integration
+
+- The OTLP receiver gRPC server in the trace agent now respects the config `otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib` or env var `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB`.
+
+- added new expvar "submission_error_count" on process endpoint to be shown during user status checks
+
+- Reduce the memory footprint of the logs pipeline by eliminating unnecessary fields in the log payload.
+
+- The Windows Agent MSI now sets the Agent account password to the
+  provided ``DDAGENTUSER_PASSWORD`` value when it is a local account.
+  Previously, if the provided password did not match the account password,
+  the Agent would fail to start.
+
+
+.. _Release Notes_7.66.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Addressed a bug in the cluster-agent API that prevented tag extraction for annotations from working due to client
+  side filtering. The fix was implemented in both the node-agent and the cluster-agent. Now, node-agent clients
+  specify the annotations filter when querying the cluster-agent.
+
+- APM: Fix an issue where `apm_config.ignore_resources` only removes the root
+  span instead of discarding the whole trace when using OTLP ingestion.
+
+- When using OTLP ingest with metrics, the instrumentation_scope_metadata_as_tags option now
+  outputs the `instrumentation_scope` tag instead of the deprecated `instrumentation_library` tag.
+
+- Prevents the index out of range error caused when trying to match 
+  inspect layer digests to history layers on some images.
+
+- Fix clusterchecks dispatching on the Cloud Foundry Cluster Agent
+
+- Fixed an issue in the KSM check where, when using ``pod_collection_mode:
+  node_kubelet``, the Agent reported incorrect values for the
+  ``kubernetes_state.container.status_report.count.waiting`` metric.
+
+- Fixes a bug that Agent OTLP ingestion fails to start when the config `otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib` or env var `DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_MAX_RECV_MSG_SIZE_MIB` is set to a string.
+
+- Process Agent files are added to the flare archive instead of
+  displaying "no session token provided".
+
+
+.. _Release Notes_7.66.0_Other Notes:
+
+Other Notes
+-----------
+
+- Add a new Agent telemetry tag ``auth`` to the API telemetry metrics.
+  This tag is used to evaluate the impact of reworking the authentication system for inter-process communication.
+
+- Add a new metric counter to the Agent telemetry for status rendering errors.
+  This is used to detect potential issues with an ongoing change in the status rendering.
+
+
+.. _Release Notes_7.65.2:
+
+7.65.2
+======
+
+.. _Release Notes_7.65.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-05-13
+
+- Please refer to the `7.65.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7652>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.65.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- (datadog-fips-agent)  Ensure the post-install script always rebuilds fipsmodule.cnf in case the embedded OpenSSL is updated.
+
+- The embedded OpenSSL on Windows no longer links against zlib (which wasn't included),
+  preventing errors related to accidentally loading a version of zlib installed on the
+  host.
+
+- On Windows, restarting the ``datadogagent`` service now also restarts the ``Datadog Installer``
+  service to ensure configuration changes take effect.
+
+
 .. _Release Notes_7.65.1:
 
 7.65.1

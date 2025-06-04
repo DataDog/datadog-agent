@@ -113,7 +113,7 @@ Secrets handle resolved:
 - 'pass3':
 	used in 'test2' configuration in entry 'instances/0/password'
 
-'secret_refresh interval' is disabled
+'secret_refresh_interval' is disabled
 `
 
 	assert.Equal(t, expectedResult, buffer.String())
@@ -158,7 +158,7 @@ Secrets handle resolved:
 - 'pass3':
 	used in 'test2' configuration in entry 'instances/0/password'
 
-'secret_refresh interval' is disabled
+'secret_refresh_interval' is disabled
 `
 
 	assert.Equal(t, expectedResult, buffer.String())

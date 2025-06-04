@@ -1,4 +1,6 @@
+import re
 import subprocess
+from dataclasses import dataclass
 from enum import Enum
 
 from gitlab.v4.objects import ProjectJob
@@ -105,3 +107,52 @@ class PermissionCheck(Enum):
 
     REPO = 'repo'
     TEAM = 'team'
+
+
+@dataclass
+class JobDependency:
+    job_name: str  #: The name of the job
+
+    # For dependences that only require a subset of the tags of parallel jobs.
+    # The data is represent as a list of possible tag name + tag values pairs.
+    tags: list[list[tuple[str, set[str]]]]
+
+    def matches(self, job_name: str) -> bool:
+        job_name_parts = job_name.split(": ", maxsplit=1)
+        base_job_name = job_name_parts[0]
+
+        if base_job_name != self.job_name:
+            return False
+
+        # Check if we have to match tags
+        if len(self.tags) == 0:
+            return True
+
+        # We want tags but the job name doesn't have any, so it can't match
+        if len(job_name_parts) == 1:
+            return False
+
+        # Parse the job tags
+        match = re.search(r"\[([^\]]+)\]", job_name_parts[1])
+        if match is None:
+            raise RuntimeError(f"Invalid job name {job_name}, cannot parse parallel variables")
+
+        job_tags = [x.strip() for x in match.group(1).split(",")]
+
+        # Check if the job tags match any possible combination of the dependency tags
+        for tagset in self.tags:
+            if self._match_tagset(tagset, job_tags):
+                return True
+
+        return False
+
+    def _match_tagset(self, tagset: list[tuple[str, set[str]]], job_tags: list[str]) -> bool:
+        if len(job_tags) < len(tagset):
+            return False  # Not enough tags to match
+
+        for wanted, value in zip(tagset, job_tags, strict=False):
+            wanted_values = wanted[1]
+            if value not in wanted_values:
+                return False
+
+        return True

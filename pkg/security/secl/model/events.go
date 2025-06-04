@@ -115,6 +115,8 @@ const (
 	SysCtlEventType
 	// SetrlimitEventType setrlimit event
 	SetrlimitEventType
+	// SetSockOptEventType is sent when a socket option is set
+	SetSockOptEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -279,6 +281,8 @@ func (t EventType) String() string {
 		return "setrlimit"
 	case FullDNSResponseEventType:
 		return "dns_response"
+	case SetSockOptEventType:
+		return "setsockopt"
 	default:
 		return "unknown"
 	}

@@ -21,23 +21,25 @@ var (
 	}
 )
 
-func initVMConstants()               {}
-func initBPFCmdConstants()           {}
-func initBPFHelperFuncConstants()    {}
-func initBPFMapTypeConstants()       {}
-func initBPFProgramTypeConstants()   {}
-func initBPFAttachTypeConstants()    {}
-func initPipeBufFlagConstants()      {}
-func initOpenConstants()             {}
-func initFileModeConstants()         {}
-func initInodeModeConstants()        {}
-func initUnlinkConstanst()           {}
-func initKernelCapabilityConstants() {}
-func initPtraceConstants()           {}
-func initProtConstansts()            {}
-func initMMapFlagsConstants()        {}
-func initSignalConstants()           {}
-func initBPFMapNamesConstants()      {}
-func initAUIDConstants()             {}
-func initSysCtlActionConstants()     {}
-func initRlimitConstants()           {}
+func initVMConstants()                {}
+func initBPFCmdConstants()            {}
+func initBPFHelperFuncConstants()     {}
+func initBPFMapTypeConstants()        {}
+func initBPFProgramTypeConstants()    {}
+func initBPFAttachTypeConstants()     {}
+func initPipeBufFlagConstants()       {}
+func initOpenConstants()              {}
+func initFileModeConstants()          {}
+func initInodeModeConstants()         {}
+func initUnlinkConstanst()            {}
+func initKernelCapabilityConstants()  {}
+func initPtraceConstants()            {}
+func initProtConstansts()             {}
+func initMMapFlagsConstants()         {}
+func initSignalConstants()            {}
+func initBPFMapNamesConstants()       {}
+func initAUIDConstants()              {}
+func initSysCtlActionConstants()      {}
+func initSetSockOptLevelConstants()   {}
+func initSetSockOptOptNameConstants() {}
+func initRlimitConstants()            {}

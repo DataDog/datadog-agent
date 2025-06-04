@@ -64,6 +64,7 @@ const (
 	MetricSourceJenkins
 	MetricSourceGPU
 	MetricSourceWlan
+	MetricSourceWindowsCertificateStore
 
 	// Python Checks
 	MetricSourceZenohRouter
@@ -1096,6 +1097,8 @@ func (ms MetricSource) String() string {
 		return "google_cloud_run_runtime"
 	case MetricSourceWlan:
 		return "wlan"
+	case MetricSourceWindowsCertificateStore:
+		return "windows_certificate"
 	default:
 		return "<unknown>"
 	}
@@ -1754,6 +1757,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOpenTelemetryCollectorCouchdbReceiver
 	case "wlan":
 		return MetricSourceWlan
+	case "windows_certificate":
+		return MetricSourceWindowsCertificateStore
 	default:
 		return MetricSourceUnknown
 	}

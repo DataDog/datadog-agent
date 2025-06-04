@@ -39,7 +39,7 @@ func inspectGoBinaries(configEvent ditypes.DIProcs) (map[ditypes.PID]bool, error
 	}
 
 	if !inspectedAtLeastOneBinary {
-		return statuses, fmt.Errorf("failed to inspect all tracked go binaries")
+		return statuses, fmt.Errorf("failed to inspect all tracked go binaries (%d)", len(configEvent))
 	}
 
 	return statuses, nil

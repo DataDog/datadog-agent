@@ -51,13 +51,13 @@ func (c *Check) Run() error {
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
 	cfg := config.Config{
-		DestHostname:            c.config.DestHostname,
-		DestPort:                c.config.DestPort,
-		MaxTTL:                  c.config.MaxTTL,
-		Timeout:                 c.config.Timeout,
-		Protocol:                c.config.Protocol,
-		TCPMethod:               c.config.TCPMethod,
-		TCPSynCompatibilityMode: c.config.TCPSynCompatibilityMode,
+		DestHostname:              c.config.DestHostname,
+		DestPort:                  c.config.DestPort,
+		MaxTTL:                    c.config.MaxTTL,
+		Timeout:                   c.config.Timeout,
+		Protocol:                  c.config.Protocol,
+		TCPMethod:                 c.config.TCPMethod,
+		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
 	}
 
 	tr, err := traceroute.New(cfg, c.telemetryComp)

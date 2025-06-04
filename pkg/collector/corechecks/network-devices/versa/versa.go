@@ -129,6 +129,7 @@ func (v *VersaCheck) Run() error {
 	for ip, tags := range directorDeviceTags {
 		deviceTags[ip] = append(deviceTags[ip], tags...)
 	}
+	v.metricsSender.SetDeviceTagsMap(deviceTags)
 
 	// Temporarily commenting out the SLA metrics collection until Versa Analytics auth is sorted out
 	//if *v.config.CollectSLAMetrics {
@@ -154,6 +155,11 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendDeviceMetrics(appliances)
 		v.metricsSender.SendUptimeMetrics(uptimes)
 		v.metricsSender.SendDeviceStatusMetrics(deviceStatus)
+
+		// Director metrics
+		v.metricsSender.SendDirectorDeviceMetrics(directorStatus)
+		v.metricsSender.SendDirectorUptimeMetrics(directorStatus)
+		v.metricsSender.SendDirectorStatus(directorStatus)
 	}
 
 	// Commit

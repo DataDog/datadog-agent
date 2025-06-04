@@ -45,11 +45,10 @@ func TestPrintConfigCheck(t *testing.T) {
 		ResolveWarnings: map[string][]string{
 			"some_identifier": {"some_warning"},
 		},
-		Unresolved: map[string][]integration.Config{
+		Unresolved: map[string]integration.Config{
 			"unresolved_config": {
-				{
-					Instances: []integration.Data{integration.Data("{unresolved:sad}")},
-				},
+				ADIdentifiers: []string{"unresolved_config"},
+				Instances:     []integration.Data{integration.Data("{unresolved:sad}")},
 			},
 		},
 	}
@@ -86,10 +85,9 @@ Log Config:
 some_identifier
 * some_warning
 
-=== Unresolved Configs ===
+=== Collected configs (matched and unmatched) ===
 
 Auto-discovery IDs: unresolved_config
-Templates:
 check_name: ""
 init_config: null
 instances:

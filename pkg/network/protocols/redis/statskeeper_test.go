@@ -63,7 +63,7 @@ func TestProcessRedisTransactions(t *testing.T) {
 	assert.Equal(t, 0, len(sk.stats))
 	assert.Equal(t, numOfKeys, len(stats))
 	for key, stats := range stats {
-		assert.Equal(t, keyPrefix, key.KeyName[:len(keyPrefix)])
+		assert.Equal(t, keyPrefix, key.KeyName.Get()[:len(keyPrefix)])
 		errors := []bool{false, true}
 		for i, isErr := range errors {
 			s := stats.ErrorToStats[isErr]

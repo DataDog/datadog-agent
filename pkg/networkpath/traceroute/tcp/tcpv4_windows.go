@@ -137,7 +137,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		Target:     t.Target,
 		DstPort:    t.DestPort,
 		Hops:       hops,
-		Tags:       []string{"tcp_method:syn", fmt.Sprintf("compatibility_mode:%t", t.CompatibilityMode)},
+		Tags:       []string{"tcp_method:syn", fmt.Sprintf("paris_traceroute_mode_enabled:%t", t.ParisTracerouteMode)},
 	}, nil
 }
 

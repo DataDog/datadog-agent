@@ -191,7 +191,6 @@ new-e2e-remote-config:
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
-    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -296,7 +295,7 @@ new-e2e-language-detection:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-packages:
@@ -464,7 +463,7 @@ new-e2e-process:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/process
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator:
@@ -843,8 +842,10 @@ new-e2e-gpu:
     - agent_deb-x64-a7                  # agent 7 debian package
   parallel:
     matrix:
-      - EXTRA_PARAMS: "--run TestGPUHostSuite"
-      - EXTRA_PARAMS: "--run TestGPUK8sSuite"
+      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu2204'
+      - EXTRA_PARAMS: '--run TestGPUK8sSuiteUbuntu2204'
+      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver510'
+      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver430' # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
 
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64

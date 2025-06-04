@@ -7,23 +7,17 @@
 
 package module
 
+import "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
+
 type nopNetworkCollector struct{}
 
-func newNetworkCollector(_ *discoveryConfig) (networkCollector, error) {
+func newNetworkCollector(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
 	return &nopNetworkCollector{}, nil
 }
 
-func (c *nopNetworkCollector) close() {
+func (c *nopNetworkCollector) Close() {
 }
 
-func (c *nopNetworkCollector) addPid(_ uint32) error {
-	return nil
-}
-
-func (c *nopNetworkCollector) removePid(_ uint32) error {
-	return nil
-}
-
-func (c *nopNetworkCollector) getStats(_ uint32) (NetworkStats, error) {
-	return NetworkStats{}, nil
+func (c *nopNetworkCollector) GetStats(_ core.PidSet) (map[uint32]core.NetworkStats, error) {
+	return nil, nil
 }

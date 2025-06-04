@@ -90,6 +90,8 @@ const (
 
 	fetchAPIKey   = 1
 	produceAPIKey = 0
+
+	redisProtocolVersion = 3
 )
 
 func httpSupported() bool {
@@ -1612,7 +1614,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 	}
 
 	redisTeardown := func(_ *testing.T, ctx testContext) {
-		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS)
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
 			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
@@ -1635,7 +1636,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1659,7 +1661,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Set(timedContext, "key", "value", time.Minute)
@@ -1686,7 +1689,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1729,7 +1733,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *tracer.Tracer, clien
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(_ *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
+				client, err := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS, redisProtocolVersion)
+				require.NoError(t, err)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -2555,6 +2560,76 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 	}, 10*time.Second, 1*time.Second)
 }
 
+func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
+	serverAddress := net.JoinHostPort(localhost, redisPort)
+	require.NoError(t, redis.RunServer(t, localhost, redisPort, false))
+
+	client, err := redis.NewClient(serverAddress, &net.Dialer{}, false, redisProtocolVersion)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+		require.NoError(t, client.FlushDB(timedContext).Err())
+		require.NoError(t, client.Close())
+	})
+
+	timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	keyName := "key"
+	require.NoError(t, client.Set(timedContext, keyName, "value", time.Minute).Err())
+
+	timedContext2, cancel2 := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel2()
+	for i := 0; i < 2; i++ {
+		res := client.Get(timedContext2, keyName)
+		val, err := res.Result()
+		require.NoError(t, err)
+		require.Equal(t, "value", val)
+	}
+
+	var getRequestStats, setRequestStats *redis.RequestStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		requests := conns.USMData.Redis
+		if len(requests) == 0 {
+			require.True(ct, len(requests) > 0, "no requests")
+		}
+
+		for key, stats := range requests {
+			if getRequestStats != nil && setRequestStats != nil {
+				break
+			}
+
+			if key.KeyName.Get() == keyName && key.Command == redis.GetCommand {
+				getRequestStats = stats
+				continue
+			}
+			if key.KeyName.Get() == keyName && key.Command == redis.SetCommand {
+				setRequestStats = stats
+				continue
+			}
+		}
+
+		require.NotNil(ct, getRequestStats)
+		require.Len(ct, getRequestStats.ErrorToStats, 1)
+		require.Contains(ct, getRequestStats.ErrorToStats, false)
+		require.NotContains(ct, getRequestStats.ErrorToStats, true)
+		require.Equal(ct, 2, getRequestStats.ErrorToStats[false].Count)
+		require.NotNil(ct, getRequestStats.ErrorToStats[false].Latencies)
+		require.NotZero(ct, getRequestStats.ErrorToStats[false].FirstLatencySample)
+
+		require.NotNil(ct, setRequestStats)
+		require.Len(ct, setRequestStats.ErrorToStats, 1)
+		require.Contains(ct, setRequestStats.ErrorToStats, false)
+		require.NotContains(ct, setRequestStats.ErrorToStats, true)
+		require.Equal(ct, 1, setRequestStats.ErrorToStats[false].Count)
+		require.Nil(ct, setRequestStats.ErrorToStats[false].Latencies)
+		require.NotZero(ct, setRequestStats.ErrorToStats[false].FirstLatencySample)
+	}, 10*time.Second, 1*time.Second)
+}
+
 func (s *USMSuite) TestVerifySketches() {
 	t := s.T()
 	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
@@ -2564,6 +2639,7 @@ func (s *USMSuite) TestVerifySketches() {
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
+	cfg.EnableRedisMonitoring = true
 
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
@@ -2589,6 +2665,10 @@ func (s *USMSuite) TestVerifySketches() {
 		{
 			name:     "postgres",
 			testFunc: testPostgresSketches,
+		},
+		{
+			name:     "redis",
+			testFunc: testRedisSketches,
 		},
 	}
 	for _, tt := range tests {

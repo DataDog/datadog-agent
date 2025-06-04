@@ -37,15 +37,15 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	compcore "github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
@@ -79,7 +79,7 @@ type testDiscoveryModule struct {
 	url              string
 	mockWmeta        workloadmetamock.Mock
 	mockTagger       taggermock.Mock
-	mockTimeProvider *servicediscovery.Mocktimer
+	mockTimeProvider *MocktimeProvider
 }
 
 // setProcessContainer creates mock process and container entities in workloadmeta for testing.
@@ -105,18 +105,18 @@ func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCo
 	mockCtrl := gomock.NewController(t)
 
 	mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
+		compcore.MockBundle(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 
 	mux := gorillamux.NewRouter()
 
 	discovery := newDiscoveryWithNetwork(mockWmeta, mockTagger, mTimeProvider, getNetworkCollector)
-	discovery.config.cpuUsageUpdateDelay = time.Second
-	discovery.config.networkStatsPeriod = time.Second
+	discovery.config.CPUUsageUpdateDelay = time.Second
+	discovery.config.NetworkStatsPeriod = time.Second
 	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
 	t.Cleanup(discovery.Close)
 
@@ -136,14 +136,14 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	return setupDiscoveryModuleWithNetwork(t, newNetworkCollector)
 }
 
-func getServicesWithParams(t require.TestingT, url string, params *params) *model.ServicesResponse {
+func getServicesWithParams(t require.TestingT, url string, params *core.Params) *model.ServicesResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathCheck
 	req, err := http.NewRequest(http.MethodGet, location, nil)
 	require.NoError(t, err)
 
 	if params != nil {
 		qp := req.URL.Query()
-		params.updateQuery(qp)
+		params.UpdateQuery(qp)
 		req.URL.RawQuery = qp.Encode()
 	}
 
@@ -442,7 +442,6 @@ func TestServiceName(t *testing.T) {
 
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(collect, "foo_bar", startEvent.DDService)
-		assert.Equal(collect, startEvent.DDService, startEvent.Name)
 		assert.Equal(collect, "sleep", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), startEvent.GeneratedNameSource)
 		assert.False(collect, startEvent.DDServiceInjected)
@@ -483,7 +482,6 @@ func TestServiceLifetime(t *testing.T) {
 	checkService := func(t assert.TestingT, service *model.Service, expectedTime time.Time) {
 		// Non-ASCII character removed due to normalization.
 		assert.Equal(t, "foo_bar", service.DDService)
-		assert.Equal(t, service.DDService, service.Name)
 		assert.Equal(t, "sleep", service.GeneratedName)
 		assert.Equal(t, string(usm.CommandLine), service.GeneratedNameSource)
 		assert.False(t, service.DDServiceInjected)
@@ -531,7 +529,7 @@ func TestServiceLifetime(t *testing.T) {
 				return mockedTime
 			}
 
-			return mockedTime.Add(heartbeatTime)
+			return mockedTime.Add(core.HeartbeatTime)
 		}).AnyTimes()
 
 		cmd, cancel := startService()
@@ -549,7 +547,7 @@ func TestServiceLifetime(t *testing.T) {
 		resp := getServices(t, discovery.url)
 		heartbeatEvent := findService(pid, resp.HeartbeatServices)
 		require.NotNilf(t, heartbeatEvent, "could not find heartbeat event for pid %v", pid)
-		checkService(t, heartbeatEvent, mockedTime.Add(heartbeatTime))
+		checkService(t, heartbeatEvent, mockedTime.Add(core.HeartbeatTime))
 	})
 }
 
@@ -805,7 +803,6 @@ func TestNodeDocker(t *testing.T) {
 		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, "test_nodejs-https-server", startEvent.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), startEvent.GeneratedNameSource)
-		assert.Equal(collect, startEvent.GeneratedName, startEvent.Name)
 		assert.Equal(collect, "provided", startEvent.APMInstrumentation)
 		assert.Equal(collect, "web_service", startEvent.Type)
 		assertStat(collect, *startEvent)
@@ -993,7 +990,6 @@ func TestDocker(t *testing.T) {
 	require.NotNilf(t, startEvent, "could not find start event for pid %v", pid1111)
 	require.Contains(t, startEvent.Ports, uint16(1234))
 	require.Contains(t, startEvent.ContainerID, "dummyCID")
-	require.Contains(t, startEvent.Name, "http.server")
 	require.Contains(t, startEvent.GeneratedName, "http.server")
 	require.Contains(t, startEvent.GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, startEvent.ContainerServiceName, "foo_from_app_tag")
@@ -1007,9 +1003,9 @@ func TestDocker(t *testing.T) {
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
 }
 
-func newDiscoveryNetwork(t testing.TB, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
+func newDiscoveryNetwork(t testing.TB, tp core.TimeProvider, getNetworkCollector networkCollectorFactory) *discovery {
 	mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
+		compcore.MockBundle(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1018,8 +1014,8 @@ func newDiscoveryNetwork(t testing.TB, tp timeProvider, getNetworkCollector netw
 	return newDiscoveryWithNetwork(mockWmeta, mockTagger, tp, getNetworkCollector)
 }
 
-func newDiscovery(t testing.TB, tp timeProvider) *discovery {
-	return newDiscoveryNetwork(t, tp, func(_ *discoveryConfig) (networkCollector, error) {
+func newDiscovery(t testing.TB, tp core.TimeProvider) *discovery {
+	return newDiscoveryNetwork(t, tp, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
 		return nil, nil
 	})
 }
@@ -1028,9 +1024,9 @@ func newDiscovery(t testing.TB, tp timeProvider) *discovery {
 func TestCache(t *testing.T) {
 	var err error
 
-	discovery := newDiscoveryNetwork(t, realTime{}, newNetworkCollector)
+	discovery := newDiscoveryNetwork(t, core.RealTime{}, newNetworkCollector)
 	// Reduce update time to make sure we exercise network stats code paths.
-	discovery.config.networkStatsPeriod = 1 * time.Millisecond
+	discovery.core.Config.NetworkStatsPeriod = 1 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -1057,19 +1053,19 @@ func TestCache(t *testing.T) {
 	f.Close()
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		_, err = discovery.getServices(defaultParams())
+		_, err = discovery.getServices(core.DefaultParams())
 		require.NoError(collect, err)
 
 		for _, cmd := range cmds {
 			pid := int32(cmd.Process.Pid)
-			assert.Contains(collect, discovery.cache, pid)
+			assert.Contains(collect, discovery.core.Cache, pid)
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Equal(t, serviceNames[i], discovery.cache[pid].ddServiceName)
-		require.False(t, discovery.cache[pid].ddServiceInjected)
+		require.Equal(t, serviceNames[i], discovery.core.Cache[pid].DDService)
+		require.False(t, discovery.core.Cache[pid].DDServiceInjected)
 	}
 
 	cancel()
@@ -1077,27 +1073,27 @@ func TestCache(t *testing.T) {
 		cmd.Wait()
 	}
 
-	_, err = discovery.getServices(defaultParams())
+	_, err = discovery.getServices(core.DefaultParams())
 	require.NoError(t, err)
 
 	for _, cmd := range cmds {
 		pid := cmd.Process.Pid
-		require.NotContains(t, discovery.cache, int32(pid))
+		require.NotContains(t, discovery.core.Cache, int32(pid))
 	}
 
 	// Add some PIDs to noPortTries to verify it gets cleaned up
 	discovery.noPortTries[int32(1)] = 0
 
 	discovery.Close()
-	require.Empty(t, discovery.cache)
+	require.Empty(t, discovery.core.Cache)
 	require.Empty(t, discovery.noPortTries)
-	require.Empty(t, discovery.runningServices)
+	require.Empty(t, discovery.core.RunningServices)
 
 	// Calling getServices after Close is weird but it can happen in practice
 	// due to the way system-probe shuts down, so make sure it doesn't panic.
-	_, err = discovery.getServices(defaultParams())
+	_, err = discovery.getServices(core.DefaultParams())
 	require.NoError(t, err)
-	_, err = discovery.getServices(defaultParams())
+	_, err = discovery.getServices(core.DefaultParams())
 	require.NoError(t, err)
 }
 
@@ -1115,11 +1111,11 @@ func TestMaxPortCheck(t *testing.T) {
 
 	selfPid := os.Getpid()
 
-	params := defaultParams()
-	params.heartbeatTime = 0
+	params := core.DefaultParams()
+	params.HeartbeatTime = 0
 
 	mockCtrl := gomock.NewController(t)
-	mTimeProvider := servicediscovery.NewMocktimer(mockCtrl)
+	mTimeProvider := NewMocktimeProvider(mockCtrl)
 	mTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 	discovery := newDiscovery(t, mTimeProvider)
 
@@ -1140,7 +1136,7 @@ func TestMaxPortCheck(t *testing.T) {
 
 	discovery.mux.RLock()
 	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
-	require.Contains(t, discovery.ignorePids, pid, "process should be in ignorePids")
+	require.Contains(t, discovery.core.IgnorePids, pid, "process should be in ignorePids")
 	discovery.mux.RUnlock()
 
 	err = cmd.Process.Kill()
@@ -1154,141 +1150,8 @@ func TestMaxPortCheck(t *testing.T) {
 
 	discovery.mux.RLock()
 	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
-	require.NotContains(t, discovery.ignorePids, pid, "process should not be in ignorePids")
+	require.NotContains(t, discovery.core.IgnorePids, pid, "process should not be in ignorePids")
 	discovery.mux.RUnlock()
-}
-
-func TestTagsPriority(t *testing.T) {
-	cases := []struct {
-		name                string
-		tags                []string
-		expectedTagName     string
-		expectedServiceName string
-	}{
-		{
-			"nil tag list",
-			nil,
-			"",
-			"",
-		},
-		{
-			"empty tag list",
-			[]string{},
-			"",
-			"",
-		},
-		{
-			"no useful tags",
-			[]string{"foo:bar"},
-			"",
-			"",
-		},
-		{
-			"malformed tag",
-			[]string{"foobar"},
-			"",
-			"",
-		},
-		{
-			"service tag",
-			[]string{"service:foo"},
-			"service",
-			"foo",
-		},
-		{
-			"app tag",
-			[]string{"app:foo"},
-			"app",
-			"foo",
-		},
-		{
-			"short_image tag",
-			[]string{"short_image:foo"},
-			"short_image",
-			"foo",
-		},
-		{
-			"kube_container_name tag",
-			[]string{"kube_container_name:foo"},
-			"kube_container_name",
-			"foo",
-		},
-		{
-			"kube_deployment tag",
-			[]string{"kube_deployment:foo"},
-			"kube_deployment",
-			"foo",
-		},
-		{
-			"kube_service tag",
-			[]string{"kube_service:foo"},
-			"kube_service",
-			"foo",
-		},
-		{
-			"multiple tags",
-			[]string{
-				"foo:bar",
-				"baz:biz",
-				"service:my_service",
-				"malformed",
-			},
-			"service",
-			"my_service",
-		},
-		{
-			"empty value",
-			[]string{
-				"service:",
-				"app:foo",
-			},
-			"app",
-			"foo",
-		},
-		{
-			"multiple tags with priority",
-			[]string{
-				"foo:bar",
-				"short_image:my_image",
-				"baz:biz",
-				"service:my_service",
-				"malformed",
-			},
-			"service",
-			"my_service",
-		},
-		{
-			"all priority tags",
-			[]string{
-				"kube_service:my_kube_service",
-				"kube_deployment:my_kube_deployment",
-				"kube_container_name:my_kube_container_name",
-				"short_iamge:my_short_image",
-				"app:my_app",
-				"service:my_service",
-			},
-			"service",
-			"my_service",
-		},
-		{
-			"multiple tags",
-			[]string{
-				"service:foo",
-				"service:bar",
-				"other:tag",
-			},
-			"service",
-			"bar",
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			tagName, name := getServiceNameFromContainerTags(c.tags)
-			require.Equalf(t, c.expectedServiceName, name, "got wrong service name from container tags")
-			require.Equalf(t, c.expectedTagName, tagName, "got wrong tag name for service naming")
-		})
-	}
 }
 
 // addSockets adds only listening sockets to a map to be used for later looksups.
@@ -1439,8 +1302,8 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self))
 		require.NoError(t, err)
-		require.Equal(t, language.CPlusPlus, info.language)
-		require.Equal(t, apm.Provided, info.apmInstrumentation)
+		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
+		require.Equal(t, apm.Provided, apm.Instrumentation(info.APMInstrumentation))
 	})
 
 	t.Run("invalid metadata", func(t *testing.T) {
@@ -1448,7 +1311,7 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self))
 		require.NoError(t, err)
-		require.Equal(t, apm.None, info.apmInstrumentation)
+		require.Equal(t, apm.None, apm.Instrumentation(info.APMInstrumentation))
 	})
 }
 
@@ -1484,4 +1347,97 @@ func TestStateEndpoint(t *testing.T) {
 	require.NotNil(t, state.PotentialServices)
 	require.NotNil(t, state.RunningServices)
 	require.NotNil(t, state.IgnorePids)
+}
+
+func TestNetworkStatsEndpoint(t *testing.T) {
+	tests := []struct {
+		name           string
+		pids           string
+		networkEnabled bool
+		expectedCode   int
+		expectedBody   *model.NetworkStatsResponse
+	}{
+		{
+			name:           "network stats disabled",
+			pids:           "123",
+			networkEnabled: false,
+			expectedCode:   http.StatusServiceUnavailable,
+		},
+		{
+			name:           "missing pids parameter",
+			pids:           "",
+			networkEnabled: true,
+			expectedCode:   http.StatusBadRequest,
+		},
+		{
+			name:           "invalid pid format",
+			pids:           "abc",
+			networkEnabled: true,
+			expectedCode:   http.StatusBadRequest,
+		},
+		{
+			name:           "valid pids",
+			pids:           "123,456",
+			networkEnabled: true,
+			expectedCode:   http.StatusOK,
+			expectedBody: &model.NetworkStatsResponse{
+				Stats: map[int]model.NetworkStats{
+					123: {
+						RxBytes: 1000,
+						TxBytes: 2000,
+					},
+					456: {
+						RxBytes: 3000,
+						TxBytes: 4000,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a mock network collector
+			mockCtrl := gomock.NewController(t)
+			defer mockCtrl.Finish()
+
+			mockNetwork := core.NewMockNetworkCollector(mockCtrl)
+			if tt.networkEnabled {
+				// Only expect getStats to be called for valid pids
+				if tt.expectedCode == http.StatusOK {
+					mockNetwork.EXPECT().
+						GetStats(core.PidSet{123: {}, 456: {}}).
+						Return(map[uint32]core.NetworkStats{
+							123: {Rx: 1000, Tx: 2000},
+							456: {Rx: 3000, Tx: 4000},
+						}, nil)
+				}
+				mockNetwork.EXPECT().Close().AnyTimes()
+			}
+
+			// Setup discovery module with mock network collector
+			module := setupDiscoveryModuleWithNetwork(t, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
+				if tt.networkEnabled {
+					return mockNetwork, nil
+				}
+				return nil, fmt.Errorf("network stats collection is not enabled")
+			})
+
+			// Make request to network stats endpoint
+			url := fmt.Sprintf("%s/%s/network-stats?pids=%s", module.url, config.DiscoveryModule, tt.pids)
+			resp, err := http.Get(url)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			// Check response
+			assert.Equal(t, tt.expectedCode, resp.StatusCode)
+
+			if tt.expectedCode == http.StatusOK {
+				var body model.NetworkStatsResponse
+				err := json.NewDecoder(resp.Body).Decode(&body)
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedBody, &body)
+			}
+		})
+	}
 }
