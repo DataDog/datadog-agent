@@ -178,7 +178,7 @@ type ICMPInfo struct {
 	// IPPair is the source/dest IPs from the IP layer
 	IPPair IPPair
 	// ICMPType is the kind of ICMP packet (e.g. TTL exceeded)
-	ICMPType layers.ICMPv4TypeCode
+	Type uint8
 	// ICMPPair is the source/dest IPs from the wrapped IP payload
 	ICMPPair IPPair
 	// Payload is the payload from within the wrapped IP packet, typically containing the first 8 bytes of TCP/UDP.
@@ -201,7 +201,7 @@ func (p *FrameParser) GetICMPInfo() (ICMPInfo, error) {
 
 		icmpInfo := ICMPInfo{
 			IPPair:   ipPair,
-			ICMPType: p.ICMP4.TypeCode,
+			Type:     p.ICMP4.TypeCode.Type(),
 			ICMPPair: getIPv4Pair(&innerPkt),
 			Payload:  slices.Clone(innerPkt.Payload),
 		}
@@ -214,8 +214,8 @@ func (p *FrameParser) GetICMPInfo() (ICMPInfo, error) {
 		}
 
 		icmpInfo := ICMPInfo{
-			IPPair: ipPair,
-			//ICMPType: p.ICMP6.TypeCode,
+			IPPair:   ipPair,
+			Type:     p.ICMP6.TypeCode.Type(),
 			ICMPPair: getIPv6Pair(&innerPkt),
 			Payload:  slices.Clone(innerPkt.Payload),
 		}

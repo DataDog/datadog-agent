@@ -67,36 +67,15 @@ func NewSinkUnix(addr netip.Addr) (Sink, error) {
 	}, nil
 }
 
-func (s *sinkUnix) Control(fn func(fd uintptr) error) error {
-	var ctrlErr error
-	err := s.rawConn.Control(func(fd uintptr) {
-		ctrlErr = fn(fd)
-	})
-	if err != nil {
-		return fmt.Errorf("rawConn control error: %w", err)
-	}
-	return ctrlErr
-}
-
 // WriteTo writes the given packet (buffer starts at the IP layer) to addrPort.
 func (p *sinkUnix) WriteTo(buf []byte, addr netip.Addr) error {
-	var sa unix.Sockaddr
-	if addr.Is4() {
-		sa4 := &unix.SockaddrInet4{}
-		b := addr.As4()
-		copy(sa4.Addr[:], b[:])
-		sa = sa4
-	} else if addr.Is6() {
-		sa6 := &unix.SockaddrInet6{}
-		b := addr.As16()
-		copy(sa6.Addr[:], b[:])
-		sa = sa6
-	} else {
-		return fmt.Errorf("invalid IP address")
+	sa, err := getSockAddr(addr)
+	if err != nil {
+		return err
 	}
 
 	var sendtoErr error
-	err := p.rawConn.Write(func(fd uintptr) (done bool) {
+	err = p.rawConn.Write(func(fd uintptr) (done bool) {
 		err := unix.Sendto(int(fd), buf, 0, sa)
 		if err == nil {
 			return true
@@ -106,6 +85,23 @@ func (p *sinkUnix) WriteTo(buf []byte, addr netip.Addr) error {
 	})
 
 	return errors.Join(sendtoErr, err)
+}
+
+func getSockAddr(addr netip.Addr) (unix.Sockaddr, error) {
+	switch {
+	case addr.Is4():
+		var sa4 unix.SockaddrInet4
+		b := addr.As4()
+		copy(sa4.Addr[:], b[:])
+		return &sa4, nil
+	case addr.Is6():
+		var sa6 unix.SockaddrInet6
+		b := addr.As16()
+		copy(sa6.Addr[:], b[:])
+		return &sa6, nil
+	default:
+		return nil, fmt.Errorf("invalid IP address")
+	}
 }
 
 // Close closes the socket

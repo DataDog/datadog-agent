@@ -11,7 +11,6 @@ import (
 
 // Sink is an interface which sends IP packets
 type Sink interface {
-	Control(fn func(fd uintptr) error) error
 	// WriteTo writes the given packet (buffer starts at the IP layer) to addrPort.
 	// (the port is required for compatibility with Windows)
 	WriteTo(buf []byte, addr netip.Addr) error

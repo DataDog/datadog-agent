@@ -8,6 +8,7 @@ package icmp
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/google/gopacket"
 	"golang.org/x/net/icmp"
@@ -102,17 +103,7 @@ func (s *icmpDriver) SendProbe(ttl uint8) error {
 	})
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	//if err := s.sink.Control(func(fd uintptr) error {
-	//	if s.isIPV6 {
-	//		// Set IPv6 Hop Limit
-	//		return unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_UNICAST_HOPS, int(ttl))
-	//	} else {
-	//		// Set IPv4 TTL
-	//		return unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_TTL, int(ttl))
-	//	}
-	//}); err != nil {
-	//	return fmt.Errorf("icmpDriver failed to WriteToIP: %w", err)
-	//}
+	//syscall.RawConn.Write in Go is not guaranteed to be thread-safe.
 	err = s.sink.WriteTo(packet, s.params.Target)
 	if err != nil {
 		return fmt.Errorf("icmpDriver failed to WriteToIP: %w", err)
@@ -124,12 +115,9 @@ func (s *icmpDriver) ReceiveProbe(timeout time.Duration) (*common.ProbeResponse,
 	if err != nil {
 		return nil, fmt.Errorf("icmpDriver failed to SetReadDeadline: %w", err)
 	}
-
-	err = packets.ReadAndParse(s.source, s.buffer, s.parser)
-	if err != nil {
+	if err := packets.ReadAndParse(s.source, s.buffer, s.parser); err != nil {
 		return nil, err
 	}
-
 	return s.handleProbeLayers(s.parser)
 }
 
@@ -202,41 +190,9 @@ func (s *icmpDriver) handleProbeLayers(parser *packets.FrameParser) (*common.Pro
 		t := parser.ICMP6.TypeCode.Type()
 		switch t {
 		case layers.ICMPv6TypeTimeExceeded:
-			//icmpInfo, err := parser.GetICMPInfo()
-			//if err != nil {
-			//	return nil, &common.BadPacketError{Err: fmt.Errorf("icmpDriver failed to get ICMP info: %w", err)}
-			//}
-			//fmt.Println("icmpDriver got a TimeExceeded", icmpInfo)
-			payload := parser.ICMP6.Payload
-			var embedded []byte
-			switch {
-			case len(payload) > 4 && payload[4]>>4 == 6:
-				// Strip 4-byte prefix and parse IPv6 from offset 4
-				embedded = payload[4:]
-
-			case len(payload) > 8 && payload[0] == 0x03 && payload[1] == 0x00 && payload[8]>>4 == 6:
-				// ICMPv6 Time Exceeded + embedded IPv6
-				embedded = payload[8:]
-
-			case len(payload) > 0 && payload[0]>>4 == 6:
-				// Raw IPv6 packet (no prefix, no ICMPv6 wrapper)
-				embedded = payload
-
-			default:
-				return nil, fmt.Errorf("Embedded packet is not a valid IPv6 header")
-			}
-			var (
-				ip6  layers.IPv6
-				icmp layers.ICMPv6
-				echo layers.ICMPv6Echo
-			)
-
-			parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &ip6, &icmp, &echo)
-			decoded := []gopacket.LayerType{}
-
-			err = parser.DecodeLayers(embedded, &decoded)
+			echo, err := extractEchoRequest(parser)
 			if err != nil {
-				return nil, fmt.Errorf("Embedded decode error:", err)
+				return nil, &common.BadPacketError{Err: fmt.Errorf("icmpDriver failed to get echo request: %w", err)}
 			}
 			if echo.Identifier != s.echoID {
 				return nil, &common.BadPacketError{Err: fmt.Errorf("mismatched echo ID")}
@@ -253,32 +209,81 @@ func (s *icmpDriver) handleProbeLayers(parser *packets.FrameParser) (*common.Pro
 			}, nil
 		case layers.ICMPv6TypeEchoReply:
 			payload := parser.ICMP6.Payload
-			if len(payload) >= 4 {
-				id := binary.BigEndian.Uint16(payload[0:2])
-				seq := binary.BigEndian.Uint16(payload[2:4])
-				if id != s.echoID {
-					return nil, &common.BadPacketError{Err: fmt.Errorf("mismatched echo ID")}
-				}
-				rtt, err := s.getRTTFromRelSeq(uint8(seq))
-				if err != nil {
-					return nil, &common.BadPacketError{Err: fmt.Errorf("icmpDriver failed to get RTT: %w", err)}
-				}
-				return &common.ProbeResponse{
-					TTL:    uint8(seq),
-					IP:     ipPair.SrcAddr,
-					RTT:    rtt,
-					IsDest: false,
-				}, nil
-			} else {
+			if len(payload) < 4 {
 				return nil, errPacketDidNotMatchTraceroute
 			}
-			return nil, errPacketDidNotMatchTraceroute
+			id := binary.BigEndian.Uint16(payload[0:2])
+			seq := binary.BigEndian.Uint16(payload[2:4])
+			if id != s.echoID {
+				return nil, &common.BadPacketError{Err: fmt.Errorf("mismatched echo ID")}
+			}
+			rtt, err := s.getRTTFromRelSeq(uint8(seq))
+			if err != nil {
+				return nil, &common.BadPacketError{Err: fmt.Errorf("icmpDriver failed to get RTT: %w", err)}
+			}
+			return &common.ProbeResponse{
+				TTL:    uint8(seq),
+				IP:     ipPair.SrcAddr,
+				RTT:    rtt,
+				IsDest: true,
+			}, nil
 		default:
 			return nil, errPacketDidNotMatchTraceroute
 		}
-
 	default:
 		return nil, errPacketDidNotMatchTraceroute
+	}
+}
+
+func extractEchoRequest(parser *packets.FrameParser) (*layers.ICMPv6Echo, error) {
+	embedded, err := extractEmbeddedIPv6(parser.ICMP6.Payload)
+	if err != nil {
+		return nil, &common.BadPacketError{Err: fmt.Errorf("icmpDriver failed to parse ipv6 header: %w", err)}
+	}
+	parser.ICMP6.Payload = embedded
+	icmpInfo, err := parser.GetICMPInfo()
+	if err != nil {
+		return nil, &common.BadPacketError{Err: fmt.Errorf("icmpDriver failed to get ICMP info: %w", err)}
+	}
+	var icmp6 layers.ICMPv6
+	var echo layers.ICMPv6Echo
+	dparser := gopacket.NewDecodingLayerParser(
+		layers.LayerTypeICMPv6,
+		&icmp6, &echo,
+	)
+	decoded := []gopacket.LayerType{}
+	err = dparser.DecodeLayers(icmpInfo.Payload, &decoded)
+	if err != nil {
+		return nil, &common.BadPacketError{Err: fmt.Errorf("icmpDriver failed to decode ICMPv6 info payload: %w", err)}
+	}
+	var unsupportedErr gopacket.UnsupportedLayerType
+	if errors.As(err, &unsupportedErr) {
+		// there are extra layers beyond TLS, ignore those too
+		err = nil
+	}
+	if err != nil {
+		return nil, &common.BadPacketError{Err: fmt.Errorf("icmpDriver failed to get echo request: %w", err)}
+	}
+	return &echo, nil
+}
+
+func extractEmbeddedIPv6(payload []byte) ([]byte, error) {
+	switch {
+	// Handle ICMPv6 error messages (Dest Unreachable, Packet Too Big, Time Exceeded, Parameter Problem)
+	case len(payload) >= 8 && (payload[0] == 0x01 || payload[0] == 0x02 || payload[0] == 0x03 || payload[0] == 0x04):
+		// Embedded IPv6 packet starts at offset 8
+		if payload[8]>>4 == 6 {
+			return payload[8:], nil
+		}
+		return nil, fmt.Errorf("embedded packet at offset 8 is not IPv6")
+	// Handle TUN headers: skip 4-byte prefix if IPv6 follows
+	case len(payload) >= 5 && payload[4]>>4 == 6:
+		return payload[4:], nil
+	// Direct IPv6 payload
+	case len(payload) > 0 && payload[0]>>4 == 6:
+		return payload, nil
+	default:
+		return nil, fmt.Errorf("cannot locate IPv6 header in payload")
 	}
 }
 
