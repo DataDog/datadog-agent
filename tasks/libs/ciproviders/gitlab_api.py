@@ -772,8 +772,10 @@ def print_gitlab_ci_configuration(yml: dict, sort_jobs: bool):
 def test_gitlab_configuration(entry_point: str, config_object: dict, context=None):
     agent = get_gitlab_repo()
     # Apply the new variables from context
+    # Important to DISABLE CLEAN AND FILTERING - the config at this point is minimally resolved (only includes)
+    # Thus, removing anything like `extends` and dotted jobs will render the config invalid
     config_object = post_process_gitlab_ci_configuration(
-        config_object, variable_overrides=context, keep_special_objects=True
+        config_object, variable_overrides=context, do_filtering=False, clean=False
     )
     config_dump = yaml.safe_dump(config_object)
     res = agent.ci_lint.create({"content": config_dump, "dry_run": True, "include_jobs": True})
@@ -840,7 +842,7 @@ def get_all_gitlab_ci_configurations(
     input_file: str = '.gitlab-ci.yml',
     resolve_only_includes: bool = False,
     git_ref: str | None = None,
-    postprocess_options: dict[str, Any] | Literal['False'] | None = None,
+    postprocess_options: dict[str, Any] | Literal[False] | None = None,
 ) -> dict[str, dict]:
     """Returns all possible gitlab CI entrypoints and corresponding fully-resolved configurations, rooted at the input file.
     This is useful when the CI contains 'trigger jobs', which launch new, independent pipelines.
