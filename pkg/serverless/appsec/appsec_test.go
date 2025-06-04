@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"testing"
 
-	waf "github.com/DataDog/go-libddwaf/v3"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,6 +21,9 @@ func init() {
 }
 
 func TestNew(t *testing.T) {
+	// The serverless agent host should be always supported by appsec (Linux), error is unexpected
+	require.NoError(t, wafHealth())
+
 	for _, appsecEnabled := range []bool{true, false} {
 		appsecEnabledStr := strconv.FormatBool(appsecEnabled)
 		t.Run(fmt.Sprintf("DD_SERVERLESS_APPSEC_ENABLED=%s", appsecEnabledStr), func(t *testing.T) {
@@ -31,18 +32,8 @@ func TestNew(t *testing.T) {
 			if stop != nil {
 				defer stop(context.Background())
 			}
-			if err := wafHealth(); err != nil {
-				if ok, _ := waf.SupportsTarget(); ok {
-					// host should be supported by appsec, error is unexpected
-					require.NoError(t, err)
-				} else {
-					// host not supported by appsec
-					require.Error(t, err)
-				}
-				return
-			}
-
 			require.NoError(t, err)
+
 			if appsecEnabled {
 				require.NotNil(t, lp)
 			} else {
