@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/safchain/ethtool"
 )
@@ -145,7 +144,7 @@ func (m *MockSS) NetstatCommand() error {
 	return errors.New("forced to use netstat")
 }
 
-func createTestNetworkCheck(mockNetStats fakeNetworkStats) check.Check {
+func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
 	return &NetworkCheck{
 		net: mockNetStats,
 		config: networkConfig{
