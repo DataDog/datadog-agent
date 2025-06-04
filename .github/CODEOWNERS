@@ -227,7 +227,7 @@
 /cmd/cws-instrumentation/               @DataDog/agent-security
 /cmd/dogstatsd/                         @DataDog/agent-metric-pipelines
 /cmd/otel-agent/                        @DataDog/opentelemetry-agent
-/cmd/process-agent/                     @DataDog/container-intake
+/cmd/process-agent/                     @DataDog/container-experiences
 /cmd/serverless/                        @DataDog/serverless @Datadog/serverless-aws
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/sbomgen/                           @DataDog/agent-security
@@ -235,12 +235,12 @@
 /cmd/system-probe/modules/usm*          @DataDog/universal-service-monitoring
 /cmd/system-probe/modules/network_tracer*   @DataDog/Networks
 /cmd/system-probe/modules/oom_kill_probe*   @DataDog/container-integrations
-/cmd/system-probe/modules/process*      @DataDog/container-intake
+/cmd/system-probe/modules/process*      @DataDog/container-experiences
 /cmd/system-probe/modules/eventmonitor* @DataDog/agent-security
 /cmd/system-probe/modules/tcp_queue_tracer* @DataDog/container-integrations
 /cmd/system-probe/modules/traceroute*   @Datadog/Networks
 /cmd/system-probe/modules/ping*         @DataDog/ndm-core
-/cmd/system-probe/modules/language_detection* @DataDog/container-intake @DataDog/agent-discovery
+/cmd/system-probe/modules/language_detection* @DataDog/container-experiences @DataDog/agent-discovery
 /cmd/system-probe/modules/dynamic_instrumentation* @DataDog/debugger-go
 /cmd/system-probe/windows_resources/    @DataDog/windows-agent
 /cmd/system-probe/main_windows*.go      @DataDog/windows-agent
@@ -311,7 +311,7 @@
 /comp/netflow @DataDog/ndm-integrations
 /comp/networkpath @DataDog/Networks
 /comp/otelcol @DataDog/opentelemetry-agent
-/comp/process @DataDog/container-intake
+/comp/process @DataDog/container-experiences
 /comp/remote-config @DataDog/remote-config
 /comp/snmptraps @DataDog/ndm-core
 /comp/systray @DataDog/windows-agent
@@ -426,7 +426,7 @@
 /pkg/collector/corechecks/ebpf/c/runtime/ebpf*        @DataDog/ebpf-platform
 /pkg/collector/corechecks/embed/                   @Datadog/agent-delivery
 /pkg/collector/corechecks/embed/apm/               @DataDog/agent-apm
-/pkg/collector/corechecks/embed/process/           @DataDog/container-intake
+/pkg/collector/corechecks/embed/process/           @DataDog/container-experiences
 /pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
 /pkg/collector/corechecks/network-devices/         @DataDog/ndm-integrations
 /pkg/collector/corechecks/orchestrator/   @DataDog/container-app
@@ -450,7 +450,7 @@
 /pkg/config/autodiscovery/              @DataDog/container-integrations @DataDog/container-platform @DataDog/agent-configuration
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-platform @DataDog/agent-configuration
 /pkg/config/setup                            @DataDog/agent-configuration
-/pkg/config/setup/process*.go                 @DataDog/container-intake @DataDog/agent-configuration
+/pkg/config/setup/process*.go                 @DataDog/container-experiences @DataDog/agent-configuration
 /pkg/config/setup/system_probe.go               @DataDog/ebpf-platform @DataDog/agent-configuration
 /pkg/config/setup/system_probe_cws.go           @DataDog/agent-security @DataDog/agent-configuration
 /pkg/config/setup/system_probe_cws_notwin.go    @DataDog/agent-security @DataDog/agent-configuration
@@ -478,8 +478,8 @@
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
 /pkg/proto/                             @DataDog/agent-runtimes
-/pkg/proto/datadog/languagedetection    @DataDog/container-intake
-/pkg/proto/datadog/process              @DataDog/container-intake
+/pkg/proto/datadog/languagedetection    @DataDog/container-experiences
+/pkg/proto/datadog/process              @DataDog/container-experiences
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
@@ -527,7 +527,7 @@
 /pkg/util/testutil/patternscanner.go    @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
-/pkg/languagedetection                  @DataDog/container-intake @DataDog/agent-discovery
+/pkg/languagedetection                  @DataDog/container-experiences @DataDog/agent-discovery
 /pkg/linters/                           @DataDog/agent-devx
 /pkg/linters/components/                @DataDog/agent-runtimes
 /pkg/logs/                              @DataDog/agent-log-pipelines
@@ -543,18 +543,18 @@
 /pkg/logs/processor                     @DataDog/agent-log-pipelines
 /pkg/logs/sds                           @DataDog/agent-log-pipelines
 /pkg/logs/sender                        @DataDog/agent-log-pipelines
-/pkg/process/                           @DataDog/container-intake
+/pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/Networks
 /pkg/process/checks/net*.go             @DataDog/Networks
-/pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/container-intake @DataDog/Networks
-/pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/container-intake @DataDog/Networks @DataDog/windows-agent
+/pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/container-experiences @DataDog/Networks
+/pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/container-experiences @DataDog/Networks @DataDog/windows-agent
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
 /pkg/process/net/                       @DataDog/universal-service-monitoring @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
 /pkg/proto/pbgo/trace                   @DataDog/agent-apm
 /pkg/proto/pbgo/languagedetection       @DataDog/agent-apm
-/pkg/proto/pbgo/process                 @DataDog/container-intake
+/pkg/proto/pbgo/process                 @DataDog/container-experiences
 /pkg/proto/pbgo/core                    @DataDog/agent-runtimes
 /pkg/proto/pbgo/core/remoteconfig.pb.go       @DataDog/remote-config
 /pkg/proto/pbgo/core/remoteconfig_gen.go      @DataDog/remote-config
@@ -630,7 +630,7 @@
 /tasks/devcontainer.py                  @DataDog/agent-devx @DataDog/container-platform
 /tasks/skaffold.py                      @DataDog/agent-devx @DataDog/container-platform
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing @DataDog/agent-devx
-/tasks/process_agent.py                 @DataDog/container-intake
+/tasks/process_agent.py                 @DataDog/container-experiences
 /tasks/system_probe.py                  @DataDog/ebpf-platform
 /tasks/ebpf.py                          @DataDog/ebpf-platform
 /tasks/kmt.py                           @DataDog/ebpf-platform
@@ -690,7 +690,7 @@
 /test/new-e2e/tests/discovery                 @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance           @DataDog/agent-runtimes
 /test/new-e2e/tests/ha-agent                  @DataDog/ndm-core
-/test/new-e2e/tests/language-detection        @DataDog/container-intake
+/test/new-e2e/tests/language-detection        @DataDog/container-experiences
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
 /test/new-e2e/tests/netpath                   @DataDog/Networks @DataDog/windows-agent
@@ -698,7 +698,7 @@
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/Networks @DataDog/windows-agent
 /test/new-e2e/tests/orchestrator              @DataDog/container-app
 /test/new-e2e/tests/otel                      @DataDog/opentelemetry-agent
-/test/new-e2e/tests/process                   @DataDog/container-intake
+/test/new-e2e/tests/process                   @DataDog/container-experiences
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-agent
 /test/new-e2e/tests/security-agent-functional     @DataDog/windows-agent @DataDog/agent-security
 /test/new-e2e/tests/cws                       @DataDog/agent-security

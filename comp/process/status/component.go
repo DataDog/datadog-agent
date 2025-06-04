@@ -6,7 +6,7 @@
 // Package status implements the core status component information provider interface
 package status
 
-// team: container-intake
+// team: container-experiences
 
 // Component is the status interface.
 type Component interface {

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixes multiline stacktraces being split up into separate logs when serverless-init is installed in-process.

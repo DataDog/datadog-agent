@@ -16,6 +16,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
@@ -59,7 +60,9 @@ func runFile(t *testing.T, path string) {
 	require.NoError(t, err)
 	testFile, err := deserializeTestFile(yamlFile)
 	require.NoError(t, err)
-	for _, cfg := range testprogs.CommonConfigs {
+	cfgs := testprogs.GetCommonConfigs(t)
+	assert.NotEmpty(t, cfgs)
+	for _, cfg := range cfgs {
 		t.Run(cfg.String(), func(t *testing.T) {
 			runTest(t, cfg, outDir, testFile)
 		})
@@ -72,8 +75,7 @@ func runTest(
 	outDir string,
 	testFile *testFile,
 ) {
-	binPath, err := testprogs.GetBinary(testFile.binary, cfg)
-	require.NoError(t, err)
+	binPath := testprogs.GetBinary(t, testFile.binary, cfg)
 	elfFile, err := safeelf.Open(binPath)
 	require.NoError(t, err)
 	obj, err := object.NewElfObject(elfFile)

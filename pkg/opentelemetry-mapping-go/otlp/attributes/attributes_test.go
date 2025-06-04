@@ -16,8 +16,9 @@ package attributes
 
 import (
 	"fmt"
-	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"testing"
+
+	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -26,21 +27,21 @@ import (
 
 func TestTagsFromAttributes(t *testing.T) {
 	attributeMap := map[string]interface{}{
-		string(semconv127.ProcessExecutableNameKey):  "otelcol",
-		string(semconv127.ProcessExecutablePathKey):  "/usr/bin/cmd/otelcol",
-		string(semconv127.ProcessCommandKey):         "cmd/otelcol",
-		string(semconv127.ProcessCommandLineKey):     "cmd/otelcol --config=\"/path/to/config.yaml\"",
-		string(semconv127.ProcessPIDKey):             1,
-		string(semconv127.ProcessOwnerKey):           "root",
-		string(semconv127.OSTypeKey):                 "linux",
-		string(semconv127.K8SDaemonSetNameKey):       "daemon_set_name",
-		string(semconv127.AWSECSClusterARNKey):       "cluster_arn",
-		string(semconv127.ContainerRuntimeKey):       "cro",
-		"tags.datadoghq.com/service":                 "service_name",
-		string(conventions.DeploymentEnvironmentKey): "prod",
-		string(semconv127.ContainerNameKey):          "custom",
-		"datadog.container.tag.custom.team":          "otel",
-		"kube_cronjob":                               "cron",
+		string(semconv127.ProcessExecutableNameKey):     "otelcol",
+		string(semconv127.ProcessExecutablePathKey):     "/usr/bin/cmd/otelcol",
+		string(semconv127.ProcessCommandKey):            "cmd/otelcol",
+		string(semconv127.ProcessCommandLineKey):        "cmd/otelcol --config=\"/path/to/config.yaml\"",
+		string(semconv127.ProcessPIDKey):                1,
+		string(semconv127.ProcessOwnerKey):              "root",
+		string(semconv127.OSTypeKey):                    "linux",
+		string(semconv127.K8SDaemonSetNameKey):          "daemon_set_name",
+		string(semconv127.AWSECSClusterARNKey):          "cluster_arn",
+		string(semconv127.ContainerRuntimeKey):          "cro",
+		"tags.datadoghq.com/service":                    "service_name",
+		string(semconv127.DeploymentEnvironmentNameKey): "prod",
+		string(semconv127.ContainerNameKey):             "custom",
+		"datadog.container.tag.custom.team":             "otel",
+		"kube_cronjob":                                  "cron",
 	}
 	attrs := pcommon.NewMap()
 	attrs.FromRaw(attributeMap)
@@ -194,8 +195,8 @@ func TestOriginIDFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					string(semconv127.ContainerIDKey): "container_id_goes_here",
-					string(semconv127.K8SPodUIDKey):   "k8s_pod_uid_goes_here",
+					string(conventions.ContainerIDKey): "container_id_goes_here",
+					string(conventions.K8SPodUIDKey):   "k8s_pod_uid_goes_here",
 				})
 				return attributes
 			}(),
@@ -206,7 +207,7 @@ func TestOriginIDFromAttributes(t *testing.T) {
 			attrs: func() pcommon.Map {
 				attributes := pcommon.NewMap()
 				attributes.FromRaw(map[string]interface{}{
-					string(semconv127.ContainerIDKey): "container_id_goes_here",
+					string(conventions.ContainerIDKey): "container_id_goes_here",
 				})
 				return attributes
 			}(),

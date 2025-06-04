@@ -1661,6 +1661,25 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
+        "SetSockOptEvent": {
+            "properties": {
+                "level": {
+                    "type": "integer",
+                    "description": "Level at which the option is defined"
+                },
+                "optname": {
+                    "type": "integer",
+                    "description": "Name of the option being set"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "level",
+                "optname"
+            ],
+            "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+        },
         "SignalEvent": {
             "properties": {
                 "type": {
@@ -1840,6 +1859,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/SyscallArgs"
                 },
                 "rmdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "setsockopt": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -2021,6 +2043,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "sysctl": {
             "$ref": "#/$defs/SysCtlEvent"
+        },
+        "setsockopt": {
+            "$ref": "#/$defs/SetSockOptEvent"
         }
     },
     "additionalProperties": false,
@@ -2067,6 +2092,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `packet` | $ref | Please see [RawPacket](#rawpacket) |
 | `network_flow_monitor` | $ref | Please see [NetworkFlowMonitor](#networkflowmonitor) |
 | `sysctl` | $ref | Please see [SysCtlEvent](#sysctlevent) |
+| `setsockopt` | $ref | Please see [SetSockOptEvent](#setsockoptevent) |
 
 ## `AWSIMDSEvent`
 
@@ -4530,6 +4556,38 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `event_type_state` | State of the event type in this profile |
 
 
+## `SetSockOptEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "level": {
+            "type": "integer",
+            "description": "Level at which the option is defined"
+        },
+        "optname": {
+            "type": "integer",
+            "description": "Name of the option being set"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "level",
+        "optname"
+    ],
+    "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `level` | Level at which the option is defined |
+| `optname` | Name of the option being set |
+
+
 ## `SignalEvent`
 
 
@@ -4795,6 +4853,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/SyscallArgs"
         },
         "rmdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "setsockopt": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },
