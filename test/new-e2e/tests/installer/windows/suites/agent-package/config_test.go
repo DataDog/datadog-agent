@@ -79,9 +79,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	}
 
 	// Start config experiment, block until services stop
-	s.waitForDaemonToStop(func() {
-		s.Installer().StartConfigExperiment(consts.AgentPackage, config)
-		// Cannot check for error here, since the daemon restarts and kills the connection
+	s.WaitForDaemonToStop(func() {
+		_, err := s.Installer().StartConfigExperiment(consts.AgentPackage, config)
+		s.Require().NoError(err, "daemon should stop cleanly")
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Wait for watchdog to restart the services with the stable config
@@ -93,7 +93,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopConfigExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should stop cleanly")
 		s.AssertSuccessfulConfigStopExperiment()
 	})
 }
@@ -189,7 +190,8 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopConfigExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
 		s.AssertSuccessfulConfigStopExperiment()
 	})
 }
@@ -218,28 +220,33 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	s.mustStartConfigExperiment(config)
 
 	// wait for the timeout
-	s.waitForDaemonToStop(func() {}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	s.WaitForDaemonToStop(func() {}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Assert
 	s.AssertSuccessfulConfigStopExperiment()
 
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
-		s.Installer().StopConfigExperiment(consts.AgentPackage)
+		_, err := s.Installer().StopConfigExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should respond to request")
 		s.AssertSuccessfulConfigStopExperiment()
 	})
 }
 
 func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows.ConfigExperiment) {
-	s.Installer().StartConfigExperiment(consts.AgentPackage, config)
-	// Cannot check for error here, since the daemon restarts and kills the connection
+	s.WaitForDaemonToStop(func() {
+		_, err := s.Installer().StartConfigExperiment(consts.AgentPackage, config)
+		s.Require().NoError(err, "daemon should stop cleanly")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	s.AssertSuccessfulConfigStartExperiment(config.ID)
 }
 
 func (s *testAgentConfigSuite) mustPromoteConfigExperiment(config installerwindows.ConfigExperiment) {
-	s.Installer().PromoteConfigExperiment(consts.AgentPackage)
-	// Cannot check for error here, since the daemon restarts and kills the connection
+	s.WaitForDaemonToStop(func() {
+		_, err := s.Installer().PromoteConfigExperiment(consts.AgentPackage)
+		s.Require().NoError(err, "daemon should stop cleanly")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
 }
