@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/uuid"
 )
 
@@ -111,12 +110,5 @@ func (k *KafkaTopicIDToNameKey) String() string {
 		topicUUID = uuid.Nil
 	}
 
-	return fmt.Sprintf(
-		"[%v:%d ⇄ %v:%d] %s",
-		util.FromLowHigh(k.Tup.Saddr_l, k.Tup.Saddr_h),
-		k.Tup.Sport,
-		util.FromLowHigh(k.Tup.Daddr_l, k.Tup.Daddr_h),
-		k.Tup.Dport,
-		topicUUID.String(),
-	)
+	return topicUUID.String()
 }

@@ -1067,18 +1067,16 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 kafka_topic_id_to_name_key_t key;
                 bpf_memset(&key, 0, sizeof(key));
                 bpf_memcpy(&key.topic_id, topic_id, sizeof(topic_id));
-                bpf_memcpy(&key.tup, tup, sizeof(*tup));
 
                 kafka_topic_id_to_name_value_t value;
                 bpf_memset(&value, 0, sizeof(value));
                 bpf_memcpy(&value.topic_name, topic_name, sizeof(value.topic_name));
                 value.topic_name_size = topic_name_size;
 
-                // Flip the tuple for the request tup.
-                flip_tuple(&key.tup);
                 bpf_map_update_elem(&kafka_topic_id_to_name, &key, &value, BPF_ANY); // BPF_ANY?
 
-                log_debug("GUY update kafka_topic_id_to_name topic name size %d, topic_name %s", topic_name_size, topic_name);
+                log_debug("GUY updating topic_id_to_name: %s, uuid: %02x%02x", topic_name,
+                          topic_id[0], topic_id[1]);
             }
 
             offset += sizeof(u8); // Skip bool is_internal
@@ -1846,7 +1844,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     kafka_header.correlation_id = bpf_ntohl(kafka_header.correlation_id);
     kafka_header.client_id_size = bpf_ntohs(kafka_header.client_id_size);
 
-    log_debug("GUY kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
+    log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
@@ -1963,40 +1961,32 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
             // Exit if the topic ID is not a valid UUID v4.
             if (!(IS_UUID_V4(topic_id))) {
-                log_debug("GUY topic id %02x%02x%02x is not a valid UUID v4", topic_id[0], topic_id[1], topic_id[2]);
                 return false;
             }
 
             kafka_topic_id_to_name_key_t key;
             bpf_memset(&key, 0, sizeof(key));
             bpf_memcpy(&key.topic_id, topic_id, sizeof(topic_id));
-            bpf_memcpy(&key.tup, tup, sizeof(*tup));
-
-            kafka_topic_id_to_name_value_t* topic_name_result = bpf_map_lookup_elem(&kafka_topic_id_to_name, &key);
+            kafka_topic_id_to_name_value_t *topic_name_result = bpf_map_lookup_elem(&kafka_topic_id_to_name, &key);
             if (topic_name_result == NULL) {
-                // ERROR
-                log_debug("GUY tup src_l:%llu,src_h:%llu", key.tup.saddr_l, key.tup.saddr_h);
-                log_debug("GUY tup dst_l:%llu, dst_h:%llu", key.tup.daddr_l, key.tup.daddr_h);
-                log_debug("GUY tup sport:%u, dport:%u", key.tup.sport, key.tup.dport);
                 log_debug("GUY map lookup failed for topic_id %02x%02x%02x", topic_id[0], topic_id[1], topic_id[2]);
                 return false;
             }
 
+            // Check is only for the verifier, as we only populate the map with valid values.
             if (topic_name_result->topic_name_size <= 0 || topic_name_result->topic_name_size > TOPIC_NAME_MAX_STRING_SIZE) {
                 log_debug("GUY topic name size %u is invalid", topic_name_result->topic_name_size);
                 return false;
             }
 
-            bpf_memset(kafka_transaction->topic_name, 0, sizeof(kafka_transaction->topic_name));
-            bpf_memcpy(kafka_transaction->topic_name, topic_name_result->topic_name, sizeof(kafka_transaction->topic_name));
+            extra_debug("topic_name_size: %u", topic_name_result->topic_name_size);
+            update_topic_name_size_telemetry(kafka_tel, topic_name_result->topic_name_size);
             kafka_transaction->topic_name_size = topic_name_result->topic_name_size;
 
-            // Update telemetry with the topic name size
-            log_debug("GUY topic_name_size: %u", topic_name_result->topic_name_size);
-            log_debug("GUY topic_name: %s", kafka_transaction->topic_name);
-            update_topic_name_size_telemetry(kafka_tel, topic_name_result->topic_name_size);
+            bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+            bpf_memcpy(kafka_transaction->topic_name, topic_name_result->topic_name, sizeof(kafka_transaction->topic_name));
 
-            CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, TOPIC_NAME_MAX_STRING_SIZE, kafka_transaction->topic_name);
+            CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_result->topic_name_size, kafka_transaction->topic_name);
         } else {
             s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
             if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
@@ -2106,6 +2096,8 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     // Flip the tuple for the response path.
     flip_tuple(&key.tuple);
     bpf_map_update_elem(&kafka_in_flight, &key, &transaction, BPF_NOEXIST);
+    log_debug("GUY kafka: Added request with api_key %d api_version %d",
+              kafka_header.api_key, kafka_header.api_version);
     return true;
 }
 

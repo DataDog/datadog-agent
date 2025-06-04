@@ -78,6 +78,5 @@ type RawKernelTelemetry struct {
 }
 
 type KafkaTopicIDToNameKey struct {
-	Tup ConnTuple
-	Id  [16]uint8
+	Id [16]uint8
 }

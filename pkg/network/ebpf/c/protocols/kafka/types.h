@@ -46,7 +46,6 @@ typedef struct kafka_transaction_key_t {
 } kafka_transaction_key_t;
 
 typedef struct kafka_topic_id_to_name_key_t {
-    conn_tuple_t tup;
     __u8 topic_id[16];
 } kafka_topic_id_to_name_key_t;
 
