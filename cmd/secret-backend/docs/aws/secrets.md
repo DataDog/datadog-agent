@@ -6,7 +6,7 @@
 
 ### IAM Permission Policy (if using an Instance Profile)
 
-Create a similar IAM Permission Policy as the example below to allow resources (EC2, ECS, etc. instances) to access your specified secrets. Please refer to [AWS SSM official documentation](https://docs.aws.amazon.com/secretsmanager/) for more details on allowing resources to access secrets. 
+Create a similar IAM Permission Policy as the example below to allow resources (EC2, ECS, etc. instances) to access your specified secrets. Please refer to the [AWS Secrets Manager official documentation](https://docs.aws.amazon.com/secretsmanager/) for more details on allowing resources to access secrets. 
 
 ```json
 {
