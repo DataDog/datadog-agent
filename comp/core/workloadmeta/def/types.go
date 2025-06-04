@@ -1213,7 +1213,8 @@ type Process struct {
 	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
-	// TODO: add future fields for privileged/service discovery data
+	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
+	Owner *EntityID // Owner is a reference to a container in WLM
 }
 
 var _ Entity = &Process{}
@@ -1249,6 +1250,7 @@ func (p Process) String(_ bool) string {
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	// TODO: add new fields once the new wlm process collector can be enabled
 
 	return sb.String()
 }
