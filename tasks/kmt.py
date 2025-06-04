@@ -50,9 +50,10 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
-    get_gitlab_ci_configuration,
     get_gitlab_job_dependencies,
     get_gitlab_repo,
+    post_process_gitlab_ci_configuration,
+    resolve_gitlab_ci_configuration,
 )
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
@@ -2335,7 +2336,10 @@ def download_complexity_data(
 
         if gitlab_config_file is None:
             gitlab_ci_file = os.fspath(Path(__file__).parent.parent / ".gitlab-ci.yml")
-            gitlab_config = get_gitlab_ci_configuration(ctx, gitlab_ci_file, job="notify_ebpf_complexity_changes")
+            gitlab_config = resolve_gitlab_ci_configuration(ctx, gitlab_ci_file)
+            gitlab_config = post_process_gitlab_ci_configuration(
+                gitlab_config, filter_jobs="notify_ebpf_complexity_changes"
+            )
         else:
             with open(gitlab_config_file) as f:
                 parsed_file = yaml.safe_load(f)
