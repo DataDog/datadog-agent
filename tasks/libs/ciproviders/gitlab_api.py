@@ -819,22 +819,27 @@ def post_process_gitlab_ci_configuration(
         keep_special_objects: Will keep special objects (not jobs) in the configuration (variables, stages, etc.).
         expand_matrix: Will expand matrix jobs into multiple jobs.
     """
+    # Make sure to deepcopy the input config object before modifying it
+    # Otherwise this can have weird side effects when testing different config objects
+    # Ex: multiple contexts in the `gitlab-ci` task
+    processed_config = deepcopy(config)
+
     # Apply filtering
     if do_filtering or filter_jobs or keep_special_objects:
-        config = filter_gitlab_ci_configuration(config, filter_jobs, keep_special_objects)
+        processed_config = filter_gitlab_ci_configuration(processed_config, filter_jobs, keep_special_objects)
 
     if clean:
-        config = clean_gitlab_ci_configuration(config)
+        processed_config = clean_gitlab_ci_configuration(processed_config)
 
     # Expand matrix jobs
     if expand_matrix:
-        config = expand_matrix_jobs(config)
+        processed_config = expand_matrix_jobs(processed_config)
 
     # Override some variables with a dedicated context
     if variable_overrides:
-        config.get('variables', {}).update(variable_overrides)
+        processed_config.get('variables', {}).update(variable_overrides)
 
-    return config
+    return processed_config
 
 
 def get_all_gitlab_ci_configurations(
