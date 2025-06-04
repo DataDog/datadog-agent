@@ -191,7 +191,6 @@ new-e2e-remote-config:
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
-    ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_windows_x64
