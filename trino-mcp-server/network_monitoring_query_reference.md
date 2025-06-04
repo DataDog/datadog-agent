@@ -208,6 +208,111 @@ Query: `max:snmp.ifBandwidthOutUsage.rate{device_ip:10.100.70.140} by {interface
 
 ---
 
+## SNMP Trap Queries
+
+### Core SNMP Trap Data Structure
+- **Track**: `logs`
+- **Key Fields**: 
+  - `snmp_device`, `snmp_trap_oid`, `message`, `timestamp`, `status`
+  - Log entries with `source:snmp-traps` contain SNMP trap data
+
+### 1. Device-Specific SNMP Traps
+```sql
+-- Get SNMP traps for a specific device
+SELECT "message", "timestamp", "env", "status", "snmp_trap_oid", "snmp_device"
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => 'source:snmp-traps snmp_device:10.100.70.140',
+    COLUMNS => ARRAY['message', 'timestamp', 'env', 'status', 'snmp_trap_oid', 'snmp_device'],
+    OUTPUT_TYPES => ARRAY['varchar', 'varchar', 'varchar', 'varchar', 'varchar', 'varchar'],
+    MIN_TIMESTAMP => -86400,
+    MAX_TIMESTAMP => 0
+  )
+)
+ORDER BY "timestamp" DESC
+LIMIT 50
+```
+
+### 2. SNMP Trap Summary by Status
+```sql
+-- Get trap counts by status level for a device
+SELECT status, COUNT(*) as trap_count
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => 'snmp_device:10.100.70.140',
+    COLUMNS => ARRAY['status', 'snmp_device'],
+    OUTPUT_TYPES => ARRAY['varchar', 'varchar'],
+    MIN_TIMESTAMP => -86400,
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE status IS NOT NULL
+GROUP BY status
+ORDER BY trap_count DESC
+```
+
+### 3. Recent SNMP Traps (Any Device)
+```sql
+-- Get recent SNMP traps from all devices
+SELECT "snmp_device", "status", "timestamp", "snmp_trap_oid"
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => 'source:snmp-traps',
+    COLUMNS => ARRAY['snmp_device', 'status', 'timestamp', 'snmp_trap_oid'],
+    OUTPUT_TYPES => ARRAY['varchar', 'varchar', 'varchar', 'varchar'],
+    MIN_TIMESTAMP => -3600,
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE "snmp_device" IS NOT NULL
+ORDER BY "timestamp" DESC
+LIMIT 20
+```
+
+### 4. SNMP Trap Frequency Analysis
+```sql
+-- Analyze trap frequency per device (useful for identifying problematic devices)
+SELECT "snmp_device", 
+       COUNT(*) as total_traps,
+       COUNT(CASE WHEN status = 'error' THEN 1 END) as error_traps,
+       COUNT(CASE WHEN status = 'warn' THEN 1 END) as warning_traps
+FROM TABLE(
+  eventplatform.system.track(
+    TRACK => 'logs',
+    QUERY => 'source:snmp-traps',
+    COLUMNS => ARRAY['snmp_device', 'status'],
+    OUTPUT_TYPES => ARRAY['varchar', 'varchar'],
+    MIN_TIMESTAMP => -86400,
+    MAX_TIMESTAMP => 0
+  )
+)
+WHERE "snmp_device" IS NOT NULL
+GROUP BY "snmp_device"
+ORDER BY total_traps DESC
+LIMIT 15
+```
+
+### SNMP Trap Query Syntax
+- **Device filter**: `snmp_device:10.100.70.140`
+- **Source filter**: `source:snmp-traps` (identifies SNMP trap logs)
+- **Combined filter**: `source:snmp-traps snmp_device:10.100.70.140`
+- **Status levels**: Common values include `warn`, `error`, `info`
+
+### MCP Tool Functions for SNMP Traps
+- Use **`mcp_trino-netflow_query_logs`** function with appropriate query filters
+- SNMP traps appear as log entries, not as separate metrics
+
+### Troubleshooting SNMP Traps
+1. **High frequency traps** (every ~10 seconds) often indicate device issues
+2. **Mix of warn/error status** suggests ongoing problems requiring attention
+3. **Missing message content** may require different column selection or query approach
+4. **Use broader time windows** (24h) for trap analysis as they may be intermittent
+
+---
+
 ## Log Queries
 
 ### Core Log Data Structure
