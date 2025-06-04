@@ -606,6 +606,16 @@ func TestAgentUpgradesFromGA(t *testing.T) {
 	)
 }
 
+// BeforeTest wraps the installer in the DatadogInstallerGA type to handle the special cases for 7.65.x
+func (s *testAgentUpgradeFromGASuite) BeforeTest(suiteName, testName string) {
+	s.BaseSuite.BeforeTest(suiteName, testName)
+
+	// Wrap the installer in the InstallerGA type to handle the special cases for 7.65.x
+	s.SetInstaller(&installerwindows.DatadogInstallerGA{
+		DatadogInstaller: s.Installer().(*installerwindows.DatadogInstaller),
+	})
+}
+
 // createStableAgent provides AgentVersionManager for the 7.65.0 Agent release to the suite
 func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.AgentVersionManager, error) {
 	previousVersion := "7.65.0-rc.10"

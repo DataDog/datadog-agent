@@ -39,7 +39,7 @@ import (
 //	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	installer          *DatadogInstaller
+	installer          InstallerRunner
 	installScriptImpl  InstallScriptRunner
 	currentAgent       *AgentVersionManager
 	stableAgent        *AgentVersionManager
@@ -48,7 +48,7 @@ type BaseSuite struct {
 }
 
 // Installer The Datadog Installer for testing.
-func (s *BaseSuite) Installer() *DatadogInstaller {
+func (s *BaseSuite) Installer() InstallerRunner {
 	return s.installer
 }
 
@@ -62,6 +62,12 @@ func (s *BaseSuite) InstallScript() InstallScriptRunner {
 // Use this in your test suite's SetupSuite to override the default implementation.
 func (s *BaseSuite) SetInstallScriptImpl(impl InstallScriptRunner) {
 	s.installScriptImpl = impl
+}
+
+// SetInstaller sets a custom installer implementation.
+// Use this in your test suite's SetupSuite to override the default implementation.
+func (s *BaseSuite) SetInstaller(impl InstallerRunner) {
+	s.installer = impl
 }
 
 // Require instantiates a suiteAssertions for the current suite.
