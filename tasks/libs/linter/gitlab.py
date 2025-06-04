@@ -77,7 +77,6 @@ def get_gitlab_ci_lintable_jobs(ctx, diff_file=None, config_file=None, only_name
         A (jobs, full_config) tuple.
         `jobs` is itself a tuple of (job_name: str, job_contents: dict). If `only_names` is True, it will be a simple list of all the job names.
         `full_config` is a gitlabci config object, of the same structure as returned by `get_all_gitlab_ci_configurations`
-
     """
     # Dict of entrypoint -> config object, of the format returned by `get_all_gitlab_ci_configurations`
     configs: dict[str, dict]

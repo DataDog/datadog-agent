@@ -252,7 +252,7 @@ def print_ci(
     keep_special_objects: bool = False,
     expand_matrix: bool = False,
     git_ref: str | None = None,
-    partial_resolve: bool = True,
+    resolve_only_includes: bool = True,
 ):
     """Prints the full gitlab ci configuration.
 
@@ -261,7 +261,7 @@ def print_ci(
         clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
         keep_special_objects: If True, do not filter out special objects (variables, stages etc.)
         expand_matrix: Will expand matrix jobs into multiple jobs
-        partial_resolve:
+        resolve_only_includes:
             Whether to skip the gitlab `/lint` endpoint when resolving configs.
             In this case, only `include`s will be resolved, not `extend`s or `!reference`s
         git_ref: If provided, use this git reference to fetch the configuration
@@ -270,7 +270,7 @@ def print_ci(
         This requires a full api token access level to the repository
     """
 
-    yml = resolve_gitlab_ci_configuration(ctx, input_file, partial_resolve=partial_resolve, git_ref=git_ref)
+    yml = resolve_gitlab_ci_configuration(ctx, input_file, resolve_only_includes=resolve_only_includes, git_ref=git_ref)
 
     yml = post_process_gitlab_ci_configuration(
         yml,
