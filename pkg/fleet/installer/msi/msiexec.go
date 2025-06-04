@@ -11,6 +11,7 @@ package msi
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/sys/windows"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -23,9 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
-const (
+var (
 	msiexecPath = `C:\Windows\System32\msiexec.exe`
 )
+
+func init() {
+	system32, err := windows.KnownFolderPath(windows.FOLDERID_System, 0)
+	if err == nil {
+		msiexecPath = filepath.Join(system32, "msiexec.exe")
+	}
+}
 
 type msiexecArgs struct {
 	// target should be either a full path to a MSI, an URL to a MSI or a product code.
