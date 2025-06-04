@@ -32,7 +32,7 @@ Subprograms:
           Type: 1 GoMapType map[string]int
           Locations:
             - Range: 0x9fe40..0x9fe78
-              Location: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
+              Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []
@@ -45,9 +45,9 @@ Subprograms:
           Type: 19 GoMapType map[string]main.bigStruct
           Locations:
             - Range: 0x9feb0..0x9fee8
-              Location: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
+              Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
             - Range: 0x9fee8..0x9ff70
-              Location: [{Size: 0, InReg: false, StackOffset: 16, Register: 0}]
+              Pieces: [{Size: 0, InReg: false, StackOffset: 16, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []
@@ -226,7 +226,7 @@ Types:
         - Name: len
           Offset: 8
           Type: 11 BaseType int
-      StringData: 35 GoStringDataType string.str
+      Data: 35 GoStringDataType string.str
     - __kind: PointerType
       ID: 18
       Name: '*uint8'
@@ -439,27 +439,31 @@ Types:
     - __kind: EventRootType
       ID: 39
       Name: ProbeEvent
+      ByteSize: 1
+      PresenseBitsetSize: 1
       Expressions:
         - Name: m
-          Offset: 0
+          Offset: 1
           Expression:
             Type: 1 GoMapType map[string]int
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 1, index: 0, name: m}
                   Offset: 0
-                  Size: 0
+                  ByteSize: 0
     - __kind: EventRootType
       ID: 40
       Name: ProbeEvent
+      ByteSize: 1
+      PresenseBitsetSize: 1
       Expressions:
         - Name: m
-          Offset: 0
+          Offset: 1
           Expression:
             Type: 19 GoMapType map[string]main.bigStruct
             Operations:
                 - __kind: LocationOp
                   Variable: {subprogram: 2, index: 0, name: m}
                   Offset: 0
-                  Size: 0
+                  ByteSize: 0
 MaxTypeID: 40

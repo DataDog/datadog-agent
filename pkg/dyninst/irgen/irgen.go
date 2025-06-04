@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/obgect"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
 )
 
@@ -95,6 +95,14 @@ func GenerateIR(
 	if err := completeGoTypes(v.typeCatalog); err != nil {
 		return nil, err
 	}
+
+	// Rewrite the variable types to use the complete types.
+	for _, subprogram := range v.subprograms {
+		for _, variable := range subprogram.Variables {
+			variable.Type = v.typeCatalog.typesByID[variable.Type.GetID()]
+		}
+	}
+
 	if err := populateEventsRootExpressions(
 		v.probes, v.typeCatalog,
 	); err != nil {
@@ -302,7 +310,7 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 	strField.Type = strDataPtrType
 	tc.typesByID[st.ID] = &ir.GoStringHeaderType{
 		StructureType: st,
-		StringData:    strDataType,
+		Data:          strDataType,
 	}
 
 	return nil
@@ -337,7 +345,7 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	tc.typesByID[arrayDataPtrType.ID] = arrayDataPtrType
 	tc.typesByID[st.ID] = &ir.GoSliceHeaderType{
 		StructureType: st,
-		ArrayType:     arrayDataType,
+		Data:          arrayDataType,
 	}
 	return nil
 }
@@ -346,7 +354,6 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 	for _, probe := range probes {
 		for _, event := range probe.Events {
 			id := typeCatalog.idAlloc.next()
-			byteSize := uint64(0)
 			var expressions []*ir.RootExpression
 			for _, variable := range probe.Subprogram.Variables {
 				if !variable.IsParameter || variable.IsReturn {
@@ -355,20 +362,25 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 				variableSize := variable.Type.GetByteSize()
 				expr := &ir.RootExpression{
 					Name:   variable.Name,
-					Offset: int(byteSize),
+					Offset: uint32(0),
 					Expression: ir.Expression{
 						Type: variable.Type,
 						Operations: []ir.Op{
 							&ir.LocationOp{
 								Variable: variable,
 								Offset:   0,
-								Size:     uint32(variableSize),
+								ByteSize: uint32(variableSize),
 							},
 						},
 					},
 				}
 				expressions = append(expressions, expr)
-				byteSize += uint64(variableSize)
+			}
+			presenceBitsetSize := uint32((len(expressions) + 7) / 8)
+			byteSize := uint64(presenceBitsetSize)
+			for _, e := range expressions {
+				e.Offset = uint32(byteSize)
+				byteSize += uint64(e.Expression.Type.GetByteSize())
 			}
 			if byteSize > math.MaxUint32 {
 				return fmt.Errorf(
@@ -384,7 +396,7 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 					ByteSize: uint32(byteSize),
 				},
 				// TODO: Populate the presence bitset size and expressions.
-				PresenseBitsetSize: 0,
+				PresenseBitsetSize: presenceBitsetSize,
 				Expressions:        expressions,
 			}
 			typeCatalog.typesByID[event.Type.ID] = event.Type
@@ -807,9 +819,13 @@ func computeLocations(
 			if err != nil {
 				return nil, err
 			}
+			// Workaround for delve not returning sizes.
+			if len(locationPieces) == 1 {
+				locationPieces[0].Size = totalSize
+			}
 			locations = append(locations, ir.Location{
-				Range:    ir.PCRange{entry.LowPC, entry.HighPC},
-				Location: locationPieces,
+				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
+				Pieces: locationPieces,
 			})
 		}
 
@@ -826,10 +842,14 @@ func computeLocations(
 		if err != nil {
 			return nil, err
 		}
+		// Workaround for delve not returning sizes.
+		if len(locationPieces) == 1 {
+			locationPieces[0].Size = totalSize
+		}
 		for _, r := range v.ranges {
 			locations = append(locations, ir.Location{
-				Range:    r,
-				Location: locationPieces,
+				Range:  r,
+				Pieces: locationPieces,
 			})
 		}
 	default:
