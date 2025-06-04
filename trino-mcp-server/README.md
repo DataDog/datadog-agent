@@ -26,27 +26,112 @@ A Model Context Protocol (MCP) server that provides Trino/Presto query capabilit
 
 4. **Configure environment variables:**
    ```bash
-   cp env.example .env
-   # Edit .env with your Trino server details
+   # Copy and configure the Datadog-specific environment file
+   cp env.datadog.example env.datadog  # if you don't have env.datadog yet
+   # Edit env.datadog with your Trino server details and Datadog credentials
    ```
 
 ## Configuration
 
-Set up your Trino connection by creating a `.env` file or setting environment variables:
+Set up your Trino connection by configuring the `env.datadog` file with your Datadog-specific settings:
 
 ```bash
-# Required
-TRINO_SERVER=your-trino-server:8080
+# Required - Trino Server Configuration
+TRINO_SERVER=trino-gateway.us1.staging.dog
 TRINO_CATALOG=eventplatform
 TRINO_SCHEMA=system
 TRINO_USER=your-username
 
-# Optional - Authentication
-TRINO_AUTH_TYPE=basic|jwt
-TRINO_AUTH_USERNAME=your-username
-TRINO_AUTH_PASSWORD=your-password
-TRINO_AUTH_TOKEN=your-jwt-token
+# Required - Datadog Authentication
+TRINO_AUTH_TYPE=datadog
+DD_ORG_ID=2
+DD_CLIENT_ID=trino-cli
+DD_USER_UUID=your-uuid
+DD_DATACENTER=us1.staging.dog
+
+# Token refresh commands (for when tokens expire):
+# DD_AUTH_JWT: ddauth obo -d us1.staging.dog | grep dd-auth-jwt | cut -d' ' -f2
+# DD_ACCESS_TOKEN: ddtool auth token --datacenter us1.staging.dog apm-trino
 ```
+
+**Note:** Tests and scripts use `source env.datadog` to load these environment variables.
+
+## Dynamic Token Authentication
+
+The Trino MCP server supports **dynamic token generation** for Datadog authentication, which automatically refreshes expired tokens without manual intervention.
+
+### How Dynamic Tokens Work
+
+When `USE_DYNAMIC_TOKENS=true` is set, the server will:
+
+1. **Check existing tokens** - If `DD_AUTH_JWT` and `DD_ACCESS_TOKEN` are missing or expired
+2. **Generate fresh tokens** - Automatically run these commands:
+   ```bash
+   # Generate fresh JWT token
+   ddauth obo -d $DD_DATACENTER | grep dd-auth-jwt | cut -d' ' -f2
+   
+   # Generate fresh access token  
+   ddtool auth token --datacenter $DD_DATACENTER apm-trino
+   ```
+3. **Use fresh tokens** - Apply the new tokens for authentication
+4. **Fallback gracefully** - If token generation fails, fall back to static tokens from environment
+
+### Enabling Dynamic Tokens
+
+**Option 1: Environment Variable**
+```bash
+# In your env.datadog file
+USE_DYNAMIC_TOKENS=true
+```
+
+**Option 2: Cursor Configuration**
+```json
+{
+  "mcp": {
+    "servers": {
+      "trino": {
+        "command": "node",
+        "args": ["/path/to/trino-mcp-server/dist/index.js"],
+        "env": {
+          "TRINO_SERVER": "trino-gateway.us1.staging.dog",
+          "TRINO_CATALOG": "eventplatform",
+          "TRINO_SCHEMA": "system", 
+          "TRINO_USER": "your-username",
+          "TRINO_AUTH_TYPE": "datadog",
+          "DD_ORG_ID": "2",
+          "DD_CLIENT_ID": "trino-cli",
+          "DD_USER_UUID": "your-uuid",
+          "DD_DATACENTER": "us1.staging.dog",
+          "USE_DYNAMIC_TOKENS": "true"
+        }
+      }
+    }
+  }
+}
+```
+
+### Prerequisites for Dynamic Tokens
+
+To use dynamic tokens, you must have these tools installed and configured:
+
+- **`ddauth`** - Datadog authentication CLI tool
+- **`ddtool`** - Datadog development tools
+- **Valid Datadog credentials** - Must be logged in and have appropriate permissions
+
+### Benefits
+
+- ✅ **No manual token refresh** - Tokens are generated automatically
+- ✅ **Always current** - Fresh tokens every query/connection  
+- ✅ **Secure** - No static long-lived tokens in configuration
+- ✅ **Fallback support** - Works with static tokens as backup
+
+### Troubleshooting Dynamic Tokens
+
+If dynamic token generation fails:
+1. **Check tool installation**: Ensure `ddauth` and `ddtool` are in your PATH
+2. **Verify authentication**: Run `ddauth login` to re-authenticate  
+3. **Check datacenter**: Ensure `DD_DATACENTER` matches your environment
+4. **Fallback mode**: Set static tokens in `env.datadog` as backup
 
 ## Setting up with Cursor
 

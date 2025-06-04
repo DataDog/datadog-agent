@@ -6,7 +6,7 @@ This directory contains various test scripts for the Trino MCP server and NetFlo
 
 1. **Environment Setup**: Copy and configure your environment variables:
    ```bash
-   cp ../env.example ../env.datadog
+   # If you don't have env.datadog yet, create it with your Datadog credentials
    # Edit env.datadog with your credentials
    ```
 
@@ -132,7 +132,7 @@ TRINO_SERVER=trino-gateway.us1.staging.dog TRINO_CATALOG=eventplatform TRINO_SCH
 
 ## Environment Variables
 
-Most tests require these environment variables (see `../env.example`):
+Most tests require these environment variables (configured in `../env.datadog`):
 
 ```bash
 TRINO_SERVER=trino-gateway.us1.staging.dog
@@ -147,6 +147,73 @@ DD_DATACENTER=us1.staging.dog
 DD_AUTH_JWT=your-jwt-token
 DD_ACCESS_TOKEN=your-access-token
 ```
+
+## Dynamic Token Authentication
+
+Several test scripts support **dynamic token generation** to automatically refresh Datadog authentication tokens.
+
+### How It Works in Tests
+
+When `USE_DYNAMIC_TOKENS=true` is set, test scripts will:
+
+1. **Check for existing tokens** - Look for `DD_AUTH_JWT` and `DD_ACCESS_TOKEN` in environment
+2. **Generate fresh tokens automatically** if tokens are missing or when dynamic mode is enabled:
+   ```bash
+   # Generate fresh JWT token  
+   ddauth obo -d $DD_DATACENTER | grep dd-auth-jwt | cut -d' ' -f2
+   
+   # Generate fresh access token
+   ddtool auth token --datacenter $DD_DATACENTER apm-trino
+   ```
+3. **Use fresh tokens** for authentication
+4. **Fall back to static tokens** if generation fails
+
+### Tests Supporting Dynamic Tokens
+
+- ✅ `test_mcp_tools.js` - Uses dynamic tokens for MCP server testing
+- ✅ `list_all_tracks.js` - Supports both static and dynamic token modes
+- ❌ Direct Trino tests (`test_trino.js`, `test_netflow.js`) - Use static tokens only
+
+### Usage Examples
+
+**With dynamic tokens (recommended):**
+```bash
+cd trino-mcp-server/test
+
+# Option 1: Set environment variable
+USE_DYNAMIC_TOKENS=true node test_mcp_tools.js
+
+# Option 2: Inline with other environment variables  
+source ../env.datadog && USE_DYNAMIC_TOKENS=true node list_all_tracks.js
+
+# Option 3: Full inline setup
+TRINO_SERVER=trino-gateway.us1.staging.dog TRINO_CATALOG=eventplatform TRINO_SCHEMA=system TRINO_USER=jim.wilson TRINO_AUTH_TYPE=datadog DD_ORG_ID=2 DD_CLIENT_ID=trino-cli DD_USER_UUID=your-uuid DD_DATACENTER=us1.staging.dog USE_DYNAMIC_TOKENS=true node list_all_tracks.js
+```
+
+**With static tokens:**
+```bash
+cd trino-mcp-server/test
+
+# Load static tokens from env.datadog
+source ../env.datadog
+node test_trino.js
+```
+
+### Prerequisites
+
+To use dynamic tokens in tests, ensure you have:
+
+- **`ddauth`** CLI tool installed and configured
+- **`ddtool`** CLI tool installed  
+- **Valid Datadog authentication** - Run `ddauth login` if needed
+- **Correct datacenter** - Set `DD_DATACENTER` to match your environment
+
+### Benefits of Dynamic Tokens
+
+- ✅ **Never expire** - Fresh tokens generated each run
+- ✅ **No manual maintenance** - No need to update `env.datadog` when tokens expire  
+- ✅ **More secure** - No long-lived static tokens in files
+- ✅ **Reliable testing** - Tests won't fail due to expired tokens
 
 ## Running All Tests
 
