@@ -37,7 +37,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	compcore "github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -45,6 +45,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
@@ -104,7 +105,7 @@ func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCo
 	mockCtrl := gomock.NewController(t)
 
 	mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
+		compcore.MockBundle(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -114,8 +115,8 @@ func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCo
 	mux := gorillamux.NewRouter()
 
 	discovery := newDiscoveryWithNetwork(mockWmeta, mockTagger, mTimeProvider, getNetworkCollector)
-	discovery.config.cpuUsageUpdateDelay = time.Second
-	discovery.config.networkStatsPeriod = time.Second
+	discovery.config.CPUUsageUpdateDelay = time.Second
+	discovery.config.NetworkStatsPeriod = time.Second
 	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
 	t.Cleanup(discovery.Close)
 
@@ -137,13 +138,13 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 
 // makeRequest wraps the request to the discovery module, setting the query params if provided,
 // and returning the response as the given type.
-func makeRequest[T any](t require.TestingT, url string, params *params) *T {
+func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err, "failed to create request")
 
 	if params != nil {
 		qp := req.URL.Query()
-		params.updateQuery(qp)
+		params.UpdateQuery(qp)
 		req.URL.RawQuery = qp.Encode()
 	}
 
@@ -173,7 +174,7 @@ func getRunningPids(t require.TestingT) []int {
 }
 
 // getCheckWithParams call the /discovery/check endpoint with the given params.
-func getCheckWithParams(t require.TestingT, url string, params *params) *model.ServicesResponse {
+func getCheckWithParams(t require.TestingT, url string, params *core.Params) *model.ServicesResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathCheck
 	return makeRequest[model.ServicesResponse](t, location, params)
 }
@@ -550,7 +551,7 @@ func TestServiceLifetime(t *testing.T) {
 				return mockedTime
 			}
 
-			return mockedTime.Add(heartbeatTime)
+			return mockedTime.Add(core.HeartbeatTime)
 		}).AnyTimes()
 
 		cmd, cancel := startService()
@@ -568,7 +569,7 @@ func TestServiceLifetime(t *testing.T) {
 		resp := getCheckServices(t, discovery.url)
 		heartbeatEvent := findService(pid, resp.HeartbeatServices)
 		require.NotNilf(t, heartbeatEvent, "could not find heartbeat event for pid %v", pid)
-		checkService(t, heartbeatEvent, mockedTime.Add(heartbeatTime))
+		checkService(t, heartbeatEvent, mockedTime.Add(core.HeartbeatTime))
 	})
 }
 
@@ -1024,9 +1025,9 @@ func TestDocker(t *testing.T) {
 	require.Equal(t, startEvent.LastHeartbeat, mockedTime.Unix())
 }
 
-func newDiscoveryNetwork(t testing.TB, tp timeProvider, getNetworkCollector networkCollectorFactory) *discovery {
+func newDiscoveryNetwork(t testing.TB, tp core.TimeProvider, getNetworkCollector networkCollectorFactory) *discovery {
 	mockWmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		core.MockBundle(),
+		compcore.MockBundle(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -1035,8 +1036,8 @@ func newDiscoveryNetwork(t testing.TB, tp timeProvider, getNetworkCollector netw
 	return newDiscoveryWithNetwork(mockWmeta, mockTagger, tp, getNetworkCollector)
 }
 
-func newDiscovery(t testing.TB, tp timeProvider) *discovery {
-	return newDiscoveryNetwork(t, tp, func(_ *discoveryConfig) (networkCollector, error) {
+func newDiscovery(t testing.TB, tp core.TimeProvider) *discovery {
+	return newDiscoveryNetwork(t, tp, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
 		return nil, nil
 	})
 }
@@ -1045,9 +1046,9 @@ func newDiscovery(t testing.TB, tp timeProvider) *discovery {
 func TestCache(t *testing.T) {
 	var err error
 
-	discovery := newDiscoveryNetwork(t, realTime{}, newNetworkCollector)
+	discovery := newDiscoveryNetwork(t, core.RealTime{}, newNetworkCollector)
 	// Reduce update time to make sure we exercise network stats code paths.
-	discovery.config.networkStatsPeriod = 1 * time.Millisecond
+	discovery.core.Config.NetworkStatsPeriod = 1 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() { cancel() })
@@ -1074,19 +1075,19 @@ func TestCache(t *testing.T) {
 	f.Close()
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		_, err = discovery.getCheckServices(defaultParams())
+		_, err = discovery.getCheckServices(core.DefaultParams())
 		require.NoError(collect, err)
 
 		for _, cmd := range cmds {
 			pid := int32(cmd.Process.Pid)
-			assert.Contains(collect, discovery.cache, pid)
+			assert.Contains(collect, discovery.core.Cache, pid)
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
 	for i, cmd := range cmds {
 		pid := int32(cmd.Process.Pid)
-		require.Equal(t, serviceNames[i], discovery.cache[pid].DDService)
-		require.False(t, discovery.cache[pid].DDServiceInjected)
+		require.Equal(t, serviceNames[i], discovery.core.Cache[pid].DDService)
+		require.False(t, discovery.core.Cache[pid].DDServiceInjected)
 	}
 
 	cancel()
@@ -1094,27 +1095,27 @@ func TestCache(t *testing.T) {
 		cmd.Wait()
 	}
 
-	_, err = discovery.getCheckServices(defaultParams())
+	_, err = discovery.getCheckServices(core.DefaultParams())
 	require.NoError(t, err)
 
 	for _, cmd := range cmds {
 		pid := cmd.Process.Pid
-		require.NotContains(t, discovery.cache, int32(pid))
+		require.NotContains(t, discovery.core.Cache, int32(pid))
 	}
 
 	// Add some PIDs to noPortTries to verify it gets cleaned up
 	discovery.noPortTries[int32(1)] = 0
 
 	discovery.Close()
-	require.Empty(t, discovery.cache)
+	require.Empty(t, discovery.core.Cache)
 	require.Empty(t, discovery.noPortTries)
-	require.Empty(t, discovery.runningServices)
+	require.Empty(t, discovery.core.RunningServices)
 
-	// Calling getServices after Close is weird but it can happen in practice
+	// Calling getCheckServices after Close is weird but it can happen in practice
 	// due to the way system-probe shuts down, so make sure it doesn't panic.
-	_, err = discovery.getCheckServices(defaultParams())
+	_, err = discovery.getCheckServices(core.DefaultParams())
 	require.NoError(t, err)
-	_, err = discovery.getCheckServices(defaultParams())
+	_, err = discovery.getCheckServices(core.DefaultParams())
 	require.NoError(t, err)
 }
 
@@ -1132,8 +1133,8 @@ func TestMaxPortCheck(t *testing.T) {
 
 	selfPid := os.Getpid()
 
-	params := defaultParams()
-	params.heartbeatTime = 0
+	params := core.DefaultParams()
+	params.HeartbeatTime = 0
 
 	mockCtrl := gomock.NewController(t)
 	mTimeProvider := NewMocktimeProvider(mockCtrl)
@@ -1157,7 +1158,7 @@ func TestMaxPortCheck(t *testing.T) {
 
 	discovery.mux.RLock()
 	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
-	require.Contains(t, discovery.ignorePids, pid, "process should be in ignorePids")
+	require.Contains(t, discovery.core.IgnorePids, pid, "process should be in ignorePids")
 	discovery.mux.RUnlock()
 
 	err = cmd.Process.Kill()
@@ -1171,141 +1172,8 @@ func TestMaxPortCheck(t *testing.T) {
 
 	discovery.mux.RLock()
 	require.NotContains(t, discovery.noPortTries, pid, "process should be removed from noPortTries")
-	require.NotContains(t, discovery.ignorePids, pid, "process should not be in ignorePids")
+	require.NotContains(t, discovery.core.IgnorePids, pid, "process should not be in ignorePids")
 	discovery.mux.RUnlock()
-}
-
-func TestTagsPriority(t *testing.T) {
-	cases := []struct {
-		name                string
-		tags                []string
-		expectedTagName     string
-		expectedServiceName string
-	}{
-		{
-			"nil tag list",
-			nil,
-			"",
-			"",
-		},
-		{
-			"empty tag list",
-			[]string{},
-			"",
-			"",
-		},
-		{
-			"no useful tags",
-			[]string{"foo:bar"},
-			"",
-			"",
-		},
-		{
-			"malformed tag",
-			[]string{"foobar"},
-			"",
-			"",
-		},
-		{
-			"service tag",
-			[]string{"service:foo"},
-			"service",
-			"foo",
-		},
-		{
-			"app tag",
-			[]string{"app:foo"},
-			"app",
-			"foo",
-		},
-		{
-			"short_image tag",
-			[]string{"short_image:foo"},
-			"short_image",
-			"foo",
-		},
-		{
-			"kube_container_name tag",
-			[]string{"kube_container_name:foo"},
-			"kube_container_name",
-			"foo",
-		},
-		{
-			"kube_deployment tag",
-			[]string{"kube_deployment:foo"},
-			"kube_deployment",
-			"foo",
-		},
-		{
-			"kube_service tag",
-			[]string{"kube_service:foo"},
-			"kube_service",
-			"foo",
-		},
-		{
-			"multiple tags",
-			[]string{
-				"foo:bar",
-				"baz:biz",
-				"service:my_service",
-				"malformed",
-			},
-			"service",
-			"my_service",
-		},
-		{
-			"empty value",
-			[]string{
-				"service:",
-				"app:foo",
-			},
-			"app",
-			"foo",
-		},
-		{
-			"multiple tags with priority",
-			[]string{
-				"foo:bar",
-				"short_image:my_image",
-				"baz:biz",
-				"service:my_service",
-				"malformed",
-			},
-			"service",
-			"my_service",
-		},
-		{
-			"all priority tags",
-			[]string{
-				"kube_service:my_kube_service",
-				"kube_deployment:my_kube_deployment",
-				"kube_container_name:my_kube_container_name",
-				"short_iamge:my_short_image",
-				"app:my_app",
-				"service:my_service",
-			},
-			"service",
-			"my_service",
-		},
-		{
-			"multiple tags",
-			[]string{
-				"service:foo",
-				"service:bar",
-				"other:tag",
-			},
-			"service",
-			"bar",
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			tagName, name := getServiceNameFromContainerTags(c.tags)
-			require.Equalf(t, c.expectedServiceName, name, "got wrong service name from container tags")
-			require.Equalf(t, c.expectedTagName, tagName, "got wrong tag name for service naming")
-		})
-	}
 }
 
 // addSockets adds only listening sockets to a map to be used for later looksups.
@@ -1555,22 +1423,22 @@ func TestNetworkStatsEndpoint(t *testing.T) {
 			mockCtrl := gomock.NewController(t)
 			defer mockCtrl.Finish()
 
-			mockNetwork := NewMocknetworkCollector(mockCtrl)
+			mockNetwork := core.NewMockNetworkCollector(mockCtrl)
 			if tt.networkEnabled {
 				// Only expect getStats to be called for valid pids
 				if tt.expectedCode == http.StatusOK {
 					mockNetwork.EXPECT().
-						getStats(pidSet{123: {}, 456: {}}).
-						Return(map[uint32]NetworkStats{
+						GetStats(core.PidSet{123: {}, 456: {}}).
+						Return(map[uint32]core.NetworkStats{
 							123: {Rx: 1000, Tx: 2000},
 							456: {Rx: 3000, Tx: 4000},
 						}, nil)
 				}
-				mockNetwork.EXPECT().close().AnyTimes()
+				mockNetwork.EXPECT().Close().AnyTimes()
 			}
 
 			// Setup discovery module with mock network collector
-			module := setupDiscoveryModuleWithNetwork(t, func(_ *discoveryConfig) (networkCollector, error) {
+			module := setupDiscoveryModuleWithNetwork(t, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
 				if tt.networkEnabled {
 					return mockNetwork, nil
 				}

@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package module
+// Package core provides the core functionality for service discovery.
+package core
 
 import (
 	"fmt"
@@ -15,28 +16,32 @@ import (
 
 const (
 	heartbeatParam = "heartbeat"
-	heartbeatTime  = 15 * time.Minute
+	// HeartbeatTime defines the interval for heartbeat updates.
+	HeartbeatTime = 15 * time.Minute
 
 	pidsParam = "pids"
 )
 
-type params struct {
-	heartbeatTime time.Duration
-	pids          []int
+// Params represents the parameters for service discovery requests.
+type Params struct {
+	HeartbeatTime time.Duration
+	Pids          []int
 }
 
-func defaultParams() params {
-	return params{
-		heartbeatTime: heartbeatTime,
+// DefaultParams returns a new Params instance with default values.
+func DefaultParams() Params {
+	return Params{
+		HeartbeatTime: HeartbeatTime,
 	}
 }
 
-func (params params) updateQuery(query url.Values) {
-	query.Set(heartbeatParam, strconv.Itoa(int(params.heartbeatTime.Seconds())))
+// UpdateQuery updates the URL query parameters with the current Params values.
+func (params Params) UpdateQuery(query url.Values) {
+	query.Set(heartbeatParam, strconv.Itoa(int(params.HeartbeatTime.Seconds())))
 
-	if len(params.pids) > 0 {
-		pidsStr := make([]string, len(params.pids))
-		for i, pid := range params.pids {
+	if len(params.Pids) > 0 {
+		pidsStr := make([]string, len(params.Pids))
+		for i, pid := range params.Pids {
 			pidsStr[i] = strconv.Itoa(pid)
 		}
 		query.Set(pidsParam, strings.Join(pidsStr, ","))
@@ -55,7 +60,7 @@ func parseDuration(raw string) (time.Duration, error) {
 func parseHeartbeat(query url.Values) (time.Duration, error) {
 	raw := query.Get(heartbeatParam)
 	if raw == "" {
-		return heartbeatTime, nil
+		return HeartbeatTime, nil
 	}
 
 	heartbeat, err := parseDuration(raw)
@@ -87,20 +92,21 @@ func parsePids(query url.Values) ([]int, error) {
 	return pids, nil
 }
 
-func parseParams(query url.Values) (params, error) {
-	params := defaultParams()
+// ParseParams parses URL query parameters into a Params struct.
+func ParseParams(query url.Values) (Params, error) {
+	params := DefaultParams()
 
 	heartbeat, err := parseHeartbeat(query)
 	if err != nil {
 		return params, err
 	}
-	params.heartbeatTime = heartbeat
+	params.HeartbeatTime = heartbeat
 
 	pids, err := parsePids(query)
 	if err != nil {
 		return params, err
 	}
-	params.pids = pids
+	params.Pids = pids
 
 	return params, nil
 }

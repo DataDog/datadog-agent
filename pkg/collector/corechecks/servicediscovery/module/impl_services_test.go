@@ -30,6 +30,7 @@ import (
 	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
@@ -46,8 +47,8 @@ import (
 // to get the list of running pids and use them as the pids query param.
 func getServices(t require.TestingT, url string) *model.ServicesEndpointResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathServices
-	params := &params{
-		pids: getRunningPids(t),
+	params := &core.Params{
+		Pids: getRunningPids(t),
 	}
 
 	return makeRequest[model.ServicesEndpointResponse](t, location, params)
