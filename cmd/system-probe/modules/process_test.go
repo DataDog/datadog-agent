@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
+	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	processProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -46,24 +47,25 @@ func TestStatsHandler(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 
-	reqProto := processProto.ProcessStatRequest{
+	reqProto := &processProto.ProcessStatRequest{
 		Pids: []int32{1},
 	}
-	reqBytes, err := proto.Marshal(&reqProto)
+	reqBody, err := reqEncoding.GetMarshaler(encoding.ContentTypeProtobuf).Marshal(reqProto)
 	require.NoError(t, err)
 
-	req, err := http.NewRequest("GET", "/stats", bytes.NewReader(reqBytes))
+	req, err := http.NewRequest("GET", "/stats", bytes.NewReader(reqBody))
 	require.NoError(t, err)
 
 	m.statsHandler(rec, req)
 
-	resBody := rec.Result().Body
+	resp := rec.Result()
+	resBody := resp.Body
 	defer resBody.Close()
 
 	resBytes, err := io.ReadAll(resBody)
 	require.NoError(t, err)
 
-	contentType := rec.Result().Header.Get("Content-type")
+	contentType := resp.Header.Get("Content-type")
 	results, err := encoding.GetUnmarshaler(contentType).Unmarshal(resBytes)
 	require.NoError(t, err)
 
