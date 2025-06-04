@@ -206,7 +206,10 @@ func wafHealth() error {
 // canExtractSchemas checks that API Security is enabled
 // and that sampling rate allows schema extraction for a specific monitoring instance
 func (a *AppSec) canExtractSchemas() bool {
-	return a.cfg.APISec.Enabled && a.cfg.APISec.SampleRate >= rand.Float64()
+	return a.cfg.APISec.Enabled &&
+		//nolint:staticcheck // SA1019 we will migrate to the new APISec sampler at a later point.
+		a.cfg.APISec.SampleRate >=
+			rand.Float64()
 }
 
 func init() {
