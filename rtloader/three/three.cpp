@@ -85,6 +85,14 @@ bool Three::init()
 
     // Configure Python executable if provided
     if (!_pythonExe.empty()) {
+        // Set the program name
+        status = PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe.c_str());
+        if (PyStatus_Exception(status)) {
+            setError("Failed to set program name" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
+            PyConfig_Clear(&_config);
+            return false;
+        }
+        
         // Set the executable path
         status = PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str());
         if (PyStatus_Exception(status)) {
