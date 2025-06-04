@@ -12,8 +12,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/cilium/ebpf/rlimit"
-
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -39,9 +37,7 @@ func coreLoader(cfg *Config) (*coreAssetLoader, error) {
 
 	core.Lock()
 	defer core.Unlock()
-	if err := rlimit.RemoveMemlock(); err != nil {
-		return nil, fmt.Errorf("rlimit memlock: %w", err)
-	}
+
 	core.loader = &coreAssetLoader{
 		coreDir:   filepath.Join(cfg.BPFDir, "co-re"),
 		btfLoader: initBTFLoader(cfg),
