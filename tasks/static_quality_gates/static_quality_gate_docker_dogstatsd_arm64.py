@@ -1,4 +1,7 @@
-from tasks.static_quality_gates.lib.docker_agent_lib import generic_docker_agent_quality_gate
+from tasks.static_quality_gates.lib.docker_agent_lib import (
+    generic_debug_docker_agent_quality_gate,
+    generic_docker_agent_quality_gate,
+)
 
 
 def entrypoint(**kwargs):
@@ -8,4 +11,4 @@ def entrypoint(**kwargs):
 
 
 def debug_entrypoint(**kwargs):
-    raise NotImplementedError()
+    generic_debug_docker_agent_quality_gate(arch="arm64", flavor="dogstatsd", **kwargs)

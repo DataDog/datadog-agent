@@ -1,7 +1,12 @@
 import os
 import sys
 
+from invoke import Exit
+
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
+from tasks.libs.common.diff import diff as _diff
+from tasks.libs.common.git import get_common_ancestor
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_byte_input
 
 
@@ -116,15 +121,25 @@ def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent"
     check_image_size(image_on_wire_size, image_on_disk_size, max_on_wire_size, max_on_disk_size)
 
 
+def get_ancestor_pipeline_id(ancestor_sha):
+    repo = get_gitlab_repo("DataDog/datadog-agent")
+    pipeline_list = repo.pipelines.list(sha=ancestor_sha)
+    if not len(pipeline_list):
+        raise Exit(code=1, message="Ancestor commit has no pipeline attached.")
+    return pipeline_list[0].get_id()
+
+
 def get_images_content_diff(ctx, url_1, url_2):
-    ctx.run("mkdir image1 image2")
+    ctx.run("mkdir image1 image2 image1/out/ image2/out/")
     # Pull images locally to get on disk size
     ctx.run(f"crane pull {url_1} image1/output.tar")
     ctx.run(f"crane pull {url_2} image2/output.tar")
     # The downloaded image contains some metadata files and another tar.gz file.
     for src_folder in ["image1", "image2"]:
         ctx.run(f"cd {src_folder} && tar -xf output.tar")
-        image_content = ctx.run("tar -tvf " + f"{src_folder}/output.tar" +" | awk -F' ' '{print $3; print $6}'", hide=True).stdout.splitlines()
+        image_content = ctx.run(
+            "tar -tvf " + f"{src_folder}/output.tar" + " | awk -F' ' '{print $3; print $6}'", hide=True
+        ).stdout.splitlines()
         image_tar_gz = []
         print(f"On disk content for {src_folder}:")
         for k, line in enumerate(image_content):
@@ -135,12 +150,14 @@ def get_images_content_diff(ctx, url_1, url_2):
                 print(f"  - {line}")
         if image_tar_gz:
             for image in image_tar_gz:
-                ctx.run(f"tar -xf {image} --to-stdout | wc -c", hide=True).stdout)
+                ctx.run(f"tar -tvf {image} -C {src_folder}/out", hide=True)
         else:
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
+    # Compare both image content
+    _diff("image1/out", "image2/out")
 
 
-def generic_debug_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent", image_suffix="", **kwargs):
+def generic_debug_docker_agent_quality_gate(arch, jmx=False, flavor="agent", image_suffix="", **kwargs):
     arguments = argument_extractor(
         kwargs,
         ctx=None,
@@ -158,11 +175,14 @@ def generic_debug_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="
                 "orange",
             )
         )
-    image_suffixes = "-7" if flavor == "agent" else "" + "-jmx" if jmx else "" + image_suffix if image_suffix else ""
+    image_suffixes = "-7" if flavor == "agent" else ""
+    image_suffixes += "-jmx" if jmx else ""
+    image_suffixes += image_suffix if image_suffix else ""
     if flavor != "dogstatsd" and is_nightly_run:
         flavor += "-nightly"
-    url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
-    # Fetch the on wire and on disk size of the image from the url
-    image_on_wire_size, image_on_disk_size = get_image_url_size(ctx, metric_handler, gate_name, url)
-    # Check if the docker image is within acceptable bounds
-    check_image_size(image_on_wire_size, image_on_disk_size, max_on_wire_size, max_on_disk_size)
+    ancestor_sha = get_common_ancestor(ctx, "HEAD")
+    pipeline_2_id = get_ancestor_pipeline_id(ancestor_sha)
+    url_1 = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
+    url_2 = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_2_id}-{ancestor_sha[:8]}{image_suffixes}-{arch}"
+
+    get_images_content_diff(url_1, url_2)
