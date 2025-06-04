@@ -379,6 +379,13 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
     datadog_site: "datadoghq.com"
 `
 
+	aptDefaultKeysOverrideTemplate := `
+  datadog_apt_default_keys:
+	# XXX key name must be kept in sync with "datadog_apt_key_current_name" in the role
+    - key: "DATADOG_APT_KEY_CURRENT"
+      value: https://%s/DATADOG_APT_KEY_CURRENT.public
+`
+
 	defaultRepoEnv := map[string]string{
 		// APT
 		"TESTING_APT_KEY":          "/usr/share/keyrings/datadog-archive-keyring.gpg",
@@ -422,8 +429,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 			playbookStringSuffix += fmt.Sprintf("    datadog_apm_inject_version: %s\n", value)
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		case "TESTING_KEYS_URL":
-			playbookStringSuffix += fmt.Sprintf("    datadog_apt_key_url_new: https://%s/DATADOG_APT_KEY_CURRENT.public\n", value)
-			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
+			playbookStringSuffix += fmt.Sprintf(aptDefaultKeysOverrideTemplate, value)
 		default:
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		}
