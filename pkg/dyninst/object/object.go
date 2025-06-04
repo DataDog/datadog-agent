@@ -11,6 +11,7 @@ package object
 
 import (
 	"debug/dwarf"
+	"debug/elf"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 )
@@ -20,6 +21,8 @@ type Architecture = bininspect.GoArch
 
 // File is an interface that represents an object file.
 type File interface {
+	// TextSectionHeader returns the section header for the text section.
+	TextSectionHeader() (*elf.SectionHeader, error)
 	// Access to the DWARF sections.
 	DwarfSections() *DebugSections
 	// Access to the DWARF data.

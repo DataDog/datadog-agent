@@ -123,7 +123,7 @@ func TestCompileBPFProgram(t *testing.T) {
 		t.Fatalf("Failed to compile BPF program: %v", err)
 	}
 
-	spec, err := ebpf.LoadCollectionSpecFromReader(obj)
+	spec, err := ebpf.LoadCollectionSpecFromReader(obj.Obj)
 	if err != nil {
 		t.Fatalf("Failed to load ebpf spec: %v", err)
 	}

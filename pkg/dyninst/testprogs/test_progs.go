@@ -28,7 +28,6 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
-	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -120,13 +119,9 @@ func initStateFromBinaries(
 	haveSources bool,
 	progsSrcDir string,
 ) (state, error) {
-	buildInfo, ok := debug.ReadBuildInfo()
-	if !ok {
-		return state{}, fmt.Errorf("failed to read build info")
-	}
 	pkgPath := strings.TrimPrefix(
 		reflect.TypeOf(Config{}).PkgPath(),
-		buildInfo.Main.Path+"/",
+		"github.com/DataDog/datadog-agent/",
 	)
 	const maxDirectoryDepth = 10
 	binariesDir := path.Join(".", pkgPath, "binaries")

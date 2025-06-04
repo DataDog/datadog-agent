@@ -9,6 +9,7 @@ package object
 
 import (
 	"debug/dwarf"
+	"debug/elf"
 	"errors"
 	"fmt"
 	"strings"
@@ -34,6 +35,16 @@ type ElfFile struct {
 	// Maps the compile unit entry offset to the version of the DWARF spec
 	// that was used to parse it.
 	unitVersions map[dwarf.Offset]uint8
+}
+
+// TextSectionHeader implements File.
+func (e *ElfFile) TextSectionHeader() (*elf.SectionHeader, error) {
+	for _, s := range e.Sections {
+		if s.Name == ".text" {
+			return &s.SectionHeader, nil
+		}
+	}
+	return nil, fmt.Errorf("text section not found")
 }
 
 // Architecture implements File.
