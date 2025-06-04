@@ -113,6 +113,8 @@ const (
 	StatEventType
 	// SysCtlEventType sysctl event
 	SysCtlEventType
+	// SetSockOptEventType is sent when a socket option is set
+	SetSockOptEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -275,6 +277,8 @@ func (t EventType) String() string {
 		return "sysctl"
 	case FullDNSResponseEventType:
 		return "dns_response"
+	case SetSockOptEventType:
+		return "setsockopt"
 	default:
 		return "unknown"
 	}

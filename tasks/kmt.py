@@ -50,9 +50,10 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
-    get_gitlab_ci_configuration,
     get_gitlab_job_dependencies,
     get_gitlab_repo,
+    post_process_gitlab_ci_configuration,
+    resolve_gitlab_ci_configuration,
 )
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
@@ -73,6 +74,7 @@ from tasks.system_probe import (
     get_sysprobe_test_buildtags,
     get_test_timeout,
     go_package_dirs,
+    ninja_add_dyninst_test_programs,
     ninja_generate,
     setup_runtime_clang,
 )
@@ -367,18 +369,28 @@ def ls(_, distro=True, custom=False):
 
 @task(
     help={
-        "lite": "If set, then do not download any VM images locally",
-        "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>. This parameter is required unless --lite or --all-images is specified.",
-        "all-images": "Download all available VM images for the current architecture. This is equivalent to the previous default behavior.",
+        "remote-setup-only": "If set, then KMT will only allow remote VMs.",
+        "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+        "all-images": "Download all available VM images for the current architecture.",
     }
 )
-def init(ctx: Context, lite=False, images: str | None = None, all_images=False):
-    if not lite and not all_images and images is None:
-        raise Exit(
-            "The --images parameter is required unless --lite or --all-images is specified. Use 'dda inv kmt.ls' to see available images."
-        )
+def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False):
+    if not remote_setup_only and not all_images and images is None:
+        if (
+            ask(
+                "[!] No VM images will be downloaded because no `--images' specified and `--all-images` is false. Continue anyway [y/N]? "
+            )
+            != "y"
+        ):
+            raise Exit(
+                "The `--images` parameter is required unless `--all-images` is specified. Use 'dda inv kmt.ls' to see available images."
+            )
+
+    if not remote_setup_only and not all_images:
+        info("[+] Use `dda inv kmt.update-resources --images=<list>` to download specific images for local use.")
+
     try:
-        init_kernel_matrix_testing_system(ctx, lite, images, all_images)
+        init_kernel_matrix_testing_system(ctx, images, all_images, remote_setup_only)
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
@@ -485,6 +497,16 @@ def update_resources(
     ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None
 ):
     kmt_os = get_kmt_os()
+
+    cm = ConfigManager()
+    setup = cm.config.get("setup")
+    if setup is None:
+        raise Exit("KMT setup information not recorded. Please run `dda inv kmt.init` to generate it.")
+
+    if setup == "remote":
+        raise Exit(
+            "KMT is initialized as remote-only. In this mode local VMs are not allowed. Run `dda inv kmt.init` to re-initialize with support for local VMs"
+        )
 
     warn("Updating resource dependencies will delete all running stacks.")
     if ask("are you sure you want to continue? (y/n)").lower() != "y":
@@ -1012,6 +1034,12 @@ def kmt_sysprobe_prepare(
         ninja_define_rules(nw)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
+        ninja_add_dyninst_test_programs(
+            ctx,
+            nw,
+            kmt_paths.sysprobe_tests,
+            go_path,
+        )
 
         build_tags = get_sysprobe_test_buildtags(False, False)
         for pkg in target_packages:
@@ -2308,7 +2336,10 @@ def download_complexity_data(
 
         if gitlab_config_file is None:
             gitlab_ci_file = os.fspath(Path(__file__).parent.parent / ".gitlab-ci.yml")
-            gitlab_config = get_gitlab_ci_configuration(ctx, gitlab_ci_file, job="notify_ebpf_complexity_changes")
+            gitlab_config = resolve_gitlab_ci_configuration(ctx, gitlab_ci_file)
+            gitlab_config = post_process_gitlab_ci_configuration(
+                gitlab_config, filter_jobs="notify_ebpf_complexity_changes"
+            )
         else:
             with open(gitlab_config_file) as f:
                 parsed_file = yaml.safe_load(f)
