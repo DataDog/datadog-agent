@@ -206,11 +206,10 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 
 // ResolveContainerRuntime retrieves the container runtime managing the container
 func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.ContainerContext) string {
-	if ev.CGroupContext.CGroupFlags != 0 && ev.ContainerContext.ContainerID != "" {
-		return getContainerRuntime(ev.CGroupContext.CGroupFlags)
+	if ev.ContainerContext.Runtime == "" && ev.CGroupContext.CGroupFlags != 0 {
+		ev.ContainerContext.Runtime = getContainerRuntime(ev.CGroupContext.CGroupFlags)
 	}
-
-	return ""
+	return ev.ContainerContext.Runtime
 }
 
 // getContainerRuntime returns the container runtime managing the cgroup
