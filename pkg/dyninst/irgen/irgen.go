@@ -856,6 +856,8 @@ func computeLocations(
 		if len(locationPieces) == 1 {
 			locationPieces[0].Size = totalSize
 		}
+		// BUG: This should take into consideration the ranges of the current
+		// block, not necessarily the ranges of the subprogram.
 		for _, r := range v.ranges {
 			locations = append(locations, ir.Location{
 				Range:  r,
