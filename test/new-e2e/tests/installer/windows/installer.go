@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	agentVersion "github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
@@ -186,25 +185,6 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", catalog))
 }
 
-// executeWithEOFWorkaround executes a command and handles EOF errors for versions < 7.68
-//
-// We can remove this workaround when we bump last stable to 7.68 or later
-func (d *DatadogInstaller) executeWithEOFWorkaround(cmd string) (string, error) {
-	ver, err := d.Version()
-	if err != nil {
-		return "", err
-	}
-	version, err := agentVersion.New(ver, "")
-	if err != nil {
-		return "", err
-	}
-	if version.Major == 7 && version.Minor < 68 {
-		out, err := d.execute(cmd)
-		return out, ignoreEOF(err)
-	}
-	return d.execute(cmd)
-}
-
 // ignoreEOF ignores EOF errors
 //
 // Prior to 7.68, the daemon kills the connection for daemon commands that restart the daemon.
@@ -218,9 +198,6 @@ func ignoreEOF(err error) error {
 
 // StartExperiment will use the Datadog Installer service to start an experiment.
 func (d *DatadogInstaller) StartExperiment(packageName string, packageVersion string) (string, error) {
-	if packageName == consts.AgentPackage {
-		return d.executeWithEOFWorkaround(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
-	}
 	return d.execute(fmt.Sprintf("daemon start-experiment '%s' '%s'", packageName, packageVersion))
 }
 
@@ -231,9 +208,6 @@ func (d *DatadogInstaller) PromoteExperiment(packageName string) (string, error)
 
 // StopExperiment will use the Datadog Installer service to stop an experiment.
 func (d *DatadogInstaller) StopExperiment(packageName string) (string, error) {
-	if packageName == consts.AgentPackage {
-		return d.executeWithEOFWorkaround(fmt.Sprintf("daemon stop-experiment '%s'", packageName))
-	}
 	return d.execute(fmt.Sprintf("daemon stop-experiment '%s'", packageName))
 }
 
