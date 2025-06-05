@@ -86,9 +86,7 @@ func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
 		net: mockNetStats,
 		config: networkConfig{
 			instance: networkInstanceConfig{
-				CollectRateMetrics:        true,
-				WhitelistConntrackMetrics: []string{"max", "count"},
-				UseSudoConntrack:          true,
+				CollectRateMetrics: true,
 			},
 		},
 	}
