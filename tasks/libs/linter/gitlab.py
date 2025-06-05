@@ -62,6 +62,31 @@ def gitlabci_lint_task_template(
     print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
 
 
+def gitlabci_run_sublinter_helper(
+    sublinter: Callable,
+    failures: list[GitlabLintFailure],
+    fail_fast: bool,
+    info_message: str,
+    success_message: str,
+    *args,
+    **kwargs,
+):
+    """Helper function used in `full_gitlab_ci` to run a 'sublinter' (i.e. a linting task) and handle any failures."""
+    print(f'[{color_message("INFO", Color.BLUE)}] {info_message}')
+    try:
+        sublinter(*args, **kwargs)
+    except (GitlabLintFailure, MultiGitlabLintFailure) as e:
+        if isinstance(e, MultiGitlabLintFailure):
+            failures.extend(e.failures)
+        else:
+            failures.append(e)
+
+        if fail_fast and e.level == FailureLevel.ERROR:
+            print(e.pretty_print())
+            sys.exit(e.exit_code)
+    print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
+
+
 def lint_and_test_gitlab_ci_config(
     configs: dict[str, dict],
     test="all",
