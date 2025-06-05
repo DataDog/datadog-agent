@@ -44,8 +44,10 @@ func GetSharedMetricsFilters() [][]ContainerFilter {
 	return flist
 }
 
+// Scope defines the scope of the filters.
 type Scope string
 
+// Predefined scopes for the filters.
 const (
 	GlobalFilter  Scope = "GlobalFilter"
 	MetricsFilter Scope = "MetricsFilter"

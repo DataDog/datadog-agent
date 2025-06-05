@@ -22,12 +22,13 @@ type CELProgram struct {
 	Exclude cel.Program
 }
 
-// Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
-func (p CELProgram) Evaluate(key filterdef.ResourceType, val map[string]any) (filterdef.Result, []error) {
-	var errs []error
+var _ FilterProgram = &CELProgram{}
 
+// Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
+func (p CELProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []error) {
+	var errs []error
 	if p.Include != nil {
-		out, _, err := p.Include.Eval(map[string]any{string(key): val})
+		out, _, err := p.Include.Eval(map[string]any{string(entity.Type()): entity.Serialize()})
 		if err == nil {
 			res, ok := out.Value().(bool)
 			if ok {
@@ -43,7 +44,7 @@ func (p CELProgram) Evaluate(key filterdef.ResourceType, val map[string]any) (fi
 	}
 
 	if p.Exclude != nil {
-		out, _, err := p.Exclude.Eval(map[string]any{string(key): val})
+		out, _, err := p.Exclude.Eval(map[string]any{string(entity.Type()): entity.Serialize()})
 		if err == nil {
 			res, ok := out.Value().(bool)
 			if ok {

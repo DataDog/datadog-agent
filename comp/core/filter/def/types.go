@@ -6,6 +6,7 @@
 package filter
 
 import (
+	typedef "github.com/DataDog/datadog-agent/comp/core/filter/def/proto"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -21,8 +22,8 @@ const (
 
 // Filterable is an interface that defines a method to convert an object to a map.
 type Filterable interface {
-	// ToMap converts the object to a map. The map is used to evaluate the program's rules
-	ToMap() map[string]any
+	// Serialize converts the object into a filterable object.
+	Serialize() any
 	// Type returns the resource type of the object.
 	Type() ResourceType
 }
@@ -40,41 +41,44 @@ const (
 // Container Definition
 //
 
-// Container represents a container object.
+// Container represents a filterable container object.
 type Container struct {
-	ID    string
-	Name  string
-	Image string
+	*typedef.FilterContainer
 	Owner Filterable
 }
 
 // CreateContainer creates a Filterable Container object from a workloadmeta.Container and an owner.
-func CreateContainer(container workloadmeta.Container, owner Filterable) Container {
-	return Container{
-		ID:    container.ID,
+func CreateContainer(container workloadmeta.Container, owner Filterable) *Container {
+	c := &typedef.FilterContainer{
+		Id:    container.ID,
 		Name:  container.Name,
-		Image: container.Image.Name,
-		Owner: owner,
+		Image: container.Image.RawName,
+	}
+
+	if owner != nil {
+		switch o := owner.(type) {
+		case *Pod:
+			c.Owner = &typedef.FilterContainer_Pod{
+				Pod: o.ToProto(),
+			}
+		}
+	}
+
+	return &Container{
+		FilterContainer: c,
+		Owner:           owner,
 	}
 }
 
 var _ Filterable = &Container{}
 
-// ToMap converts the Container object to a map.
-func (c Container) ToMap() map[string]any {
-	m := map[string]any{
-		"id":    c.ID,
-		"name":  c.Name,
-		"image": c.Image,
-	}
-	if c.Owner != nil {
-		m[string(c.Owner.Type())] = c.Owner.ToMap()
-	}
-	return m
+// Serialize converts the Container object to a map.
+func (c *Container) Serialize() any {
+	return c.FilterContainer
 }
 
 // Type returns the resource type of the container.
-func (c Container) Type() ResourceType {
+func (c *Container) Type() ResourceType {
 	return ContainerType
 }
 
@@ -99,36 +103,40 @@ const (
 
 // Pod represents a pod object.
 type Pod struct {
-	ID          string
-	Name        string
-	Namespace   string
-	Annotations map[string]string
+	*typedef.FilterPod
 }
 
 // CreatePod creates a Filterable Pod object from a workloadmeta.KubernetesPod.
-func CreatePod(pod workloadmeta.KubernetesPod) Pod {
-	return Pod{
-		ID:          pod.ID,
-		Name:        pod.Name,
-		Namespace:   pod.Namespace,
-		Annotations: pod.Annotations,
+func CreatePod(pod workloadmeta.KubernetesPod) *Pod {
+	return &Pod{
+		FilterPod: &typedef.FilterPod{
+			Id:          pod.ID,
+			Name:        pod.Name,
+			Namespace:   pod.Namespace,
+			Annotations: pod.Annotations,
+		},
 	}
 }
 
 var _ Filterable = &Pod{}
 
-// ToMap converts the Pod object to a map.
-func (p Pod) ToMap() map[string]any {
-	return map[string]any{
-		"id":          p.ID,
-		"name":        p.Name,
-		"namespace":   p.Namespace,
-		"annotations": p.Annotations,
+// Serialize converts the Pod object to a map.
+func (p *Pod) Serialize() any {
+	return p.ToProto()
+}
+
+// ToProto converts the Pod object to a protobuf representation.
+func (p *Pod) ToProto() *typedef.FilterPod {
+	return &typedef.FilterPod{
+		Id:          p.Id,
+		Name:        p.Name,
+		Namespace:   p.Namespace,
+		Annotations: p.Annotations,
 	}
 }
 
 // Type returns the resource type of the pod.
-func (p Pod) Type() ResourceType {
+func (p *Pod) Type() ResourceType {
 	return PodType
 }
 
