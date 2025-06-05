@@ -13,8 +13,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/pkg/apm/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
@@ -28,6 +31,10 @@ type MetricsStore struct {
 	// metrics is a map indexed by Kubernetes object id, containing a slice of
 	// metric families, containing a slice of metrics.
 	metrics map[types.UID][]DDMetricsFam
+
+	// tags is a ap indexed by kubernets object id.
+	tags map[types.UID]map[string]string
+
 	// generateMetricsFunc generates metrics based on a given Kubernetes object
 	// and returns them grouped by metric family.
 	generateMetricsFunc func(interface{}) []metric.FamilyInterface
@@ -38,6 +45,7 @@ type MetricsStore struct {
 // DDMetric represents the data we care about for a context.
 type DDMetric struct {
 	Labels map[string]string
+	Tags   map[string]string
 	Val    float64
 }
 
@@ -54,6 +62,7 @@ func NewMetricsStore(generateFunc func(interface{}) []metric.FamilyInterface, mt
 		MetricsType:         mt,
 		generateMetricsFunc: generateFunc,
 		metrics:             map[types.UID][]DDMetricsFam{},
+		tags:                map[types.UID]map[string]string{},
 	}
 }
 
@@ -74,6 +83,42 @@ func (d *DDMetricsFam) extract(f metric.Family) {
 	}
 }
 
+func (s *MetricsStore) extractTagsFromInstrumentationTarget(pod *corev1.Pod) map[string]string {
+	tags, err := instrumentation.ExtractTagsFromPodMeta(pod.ObjectMeta)
+	if err != nil {
+		log.Warnf("error extracting tags: %v", err)
+		return nil
+	}
+
+	return tags.AsMap()
+}
+
+func (s *MetricsStore) createDDMetrics(obj interface{}) ([]DDMetricsFam, map[string]string) {
+	metricsForUID := s.generateMetricsFunc(obj)
+	convertedMetricsForUID := make([]DDMetricsFam, len(metricsForUID))
+
+	for i, f := range metricsForUID {
+		metricConvertedList := DDMetricsFam{
+			// Used to build a map to easily identify
+			// the Object associated with the metrics
+			Type: s.MetricsType,
+		}
+		f.Inspect(metricConvertedList.extract)
+		convertedMetricsForUID[i] = metricConvertedList
+	}
+
+	var tags map[string]string
+	switch v := obj.(type) {
+	case *corev1.Pod:
+		tags = s.extractTagsFromInstrumentationTarget(v)
+	case *appsv1.Deployment:
+		log.Debugf("createDDMetrics::deployment type=%s", s.MetricsType)
+		// ???
+	}
+
+	return convertedMetricsForUID, tags
+}
+
 // Add inserts adds to the MetricsStore by calling the metrics generator functions and
 // adding the generated metrics to the metrics map that underlies the MetricStore.
 // Implementing k8s.io/client-go/tools/cache.Store interface
@@ -83,22 +128,32 @@ func (s *MetricsStore) Add(obj interface{}) error {
 		return err
 	}
 
-	metricsForUID := s.generateMetricsFunc(obj)
-	convertedMetricsForUID := make([]DDMetricsFam, len(metricsForUID))
-	for i, f := range metricsForUID {
-		metricConvertedList := DDMetricsFam{
-			// Used to build a map to easily identify the Object associated with the metrics
-			Type: s.MetricsType,
-		}
-		f.Inspect(metricConvertedList.extract)
-		convertedMetricsForUID[i] = metricConvertedList
-	}
-	// We need to keep the store with UID as a key to handle the lifecycle of the objects and the metrics attached.
-	s.mutex.Lock()
-	s.metrics[o.GetUID()] = convertedMetricsForUID
-	s.mutex.Unlock()
+	id := o.GetUID()
+	metrics, newTags := s.createDDMetrics(obj)
 
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.metrics[id] = metrics
+
+	tags := s.mergedTagsForID(id, newTags)
+	s.tags[id] = tags
 	return nil
+}
+
+// mergedTagsForID should be called within an acquired lock.
+// This does not do writing its own.
+func (s *MetricsStore) mergedTagsForID(id types.UID, newTags map[string]string) map[string]string {
+	tags, tagsSet := s.tags[id]
+	if !tagsSet {
+		tags = newTags
+	} else {
+		for k, v := range newTags {
+			tags[k] = v
+		}
+	}
+
+	return tags
 }
 
 func buildTags(metrics *metric.Metric) (map[string]string, error) {
@@ -114,7 +169,6 @@ func buildTags(metrics *metric.Metric) (map[string]string, error) {
 
 // Update updates the existing entry in the MetricsStore by overriding it.
 func (s *MetricsStore) Update(obj interface{}) error {
-	// TODO: For now, just call Add, in the future one could check if the resource version changed?
 	return s.Add(obj)
 }
 
@@ -158,6 +212,7 @@ func (s *MetricsStore) GetByKey(_ string) (item interface{}, exists bool, err er
 func (s *MetricsStore) Replace(list []interface{}, _ string) error {
 	s.mutex.Lock()
 	s.metrics = map[types.UID][]DDMetricsFam{}
+	s.tags = map[types.UID]map[string]string{}
 	s.mutex.Unlock()
 
 	for _, o := range list {
@@ -196,8 +251,8 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 	defer s.mutex.RUnlock()
 
 	mRes := make(map[string][]DDMetricsFam)
-
-	for _, metricFamList := range s.metrics {
+	for id, metricFamList := range s.metrics {
+		tags := s.tags[id]
 		for _, metricFam := range metricFamList {
 			if !familyFilter(metricFam) {
 				continue
@@ -210,6 +265,7 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 				resMetric = append(resMetric, DDMetric{
 					Val:    metric.Val,
 					Labels: metric.Labels,
+					Tags:   tags,
 				})
 			}
 			mRes[metricFam.Name] = append(mRes[metricFam.Name], DDMetricsFam{
@@ -219,5 +275,6 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 			})
 		}
 	}
+
 	return mRes
 }

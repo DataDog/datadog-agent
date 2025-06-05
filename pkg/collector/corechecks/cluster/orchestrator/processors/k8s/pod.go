@@ -144,7 +144,14 @@ func (h *PodHandlers) BuildMessageBody(ctx processors.ProcessorContext, resource
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *PodHandlers) ExtractResource(ctx processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.Pod)
-	return k8sTransformers.ExtractPod(ctx, r)
+	return k8sTransformers.ExtractPod(ctx, r, func(p *corev1.Pod) []string {
+		tags, err := h.tagProvider.GetTags(p, taggertypes.HighCardinality)
+		if err != nil {
+			log.Debugf("Could not retrieve tags for pod: %s", err.Error())
+			return nil
+		}
+		return tags
+	})
 }
 
 // ResourceList is a handler called to convert a list passed as a generic

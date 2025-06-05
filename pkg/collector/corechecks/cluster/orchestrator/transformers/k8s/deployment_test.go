@@ -156,7 +156,8 @@ func TestExtractDeployment(t *testing.T) {
 				Metadata:             &model.Metadata{},
 				ReplicasDesired:      1,
 				ResourceRequirements: getExpectedModelResourceRequirements(),
-			}},
+			},
+		},
 		"partial deploy": {
 			input: appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
@@ -229,7 +230,7 @@ func TestExtractDeployment(t *testing.T) {
 				LabelsAsTags:      tc.labelsAsTags,
 				AnnotationsAsTags: tc.annotationsAsTags,
 			}
-			actual := ExtractDeployment(pctx, &tc.input)
+			actual := ExtractDeployment(pctx, &tc.input, nil)
 			sort.Strings(actual.Tags)
 			sort.Strings(tc.expected.Tags)
 			assert.Equal(t, &tc.expected, actual)

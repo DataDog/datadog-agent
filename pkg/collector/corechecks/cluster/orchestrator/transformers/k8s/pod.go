@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
@@ -33,7 +34,8 @@ const (
 
 // ExtractPod returns the protobuf model corresponding to a Kubernetes Pod
 // resource.
-func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod) *model.Pod {
+func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod, tagProvider func(p *corev1.Pod) []string) *model.Pod {
+	log.Debug("extracing pod %s/%s", p.GetNamespace(), p.GetName())
 	podModel := model.Pod{
 		Metadata: extractMetadata(&p.ObjectMeta),
 	}
@@ -85,6 +87,16 @@ func ExtractPod(ctx processors.ProcessorContext, p *corev1.Pod) *model.Pod {
 	}
 
 	pctx := ctx.(*processors.K8sProcessorContext)
+
+	var providedTags []string
+	if tagProvider != nil {
+		providedTags = tagProvider(p)
+	}
+	if len(providedTags) > 0 {
+		log.Debugf("with more provided tags: %+v", providedTags)
+		podModel.Tags = append(podModel.Tags, providedTags...)
+	}
+
 	podModel.Tags = append(podModel.Tags, transformers.RetrieveMetadataTags(p.ObjectMeta.Labels, p.ObjectMeta.Annotations, pctx.LabelsAsTags, pctx.AnnotationsAsTags)...)
 
 	return &podModel
@@ -150,6 +162,7 @@ func convertNodeSelectorRequirements(requirements []corev1.NodeSelectorRequireme
 func ExtractPodTemplateResourceRequirements(template corev1.PodTemplateSpec) []*model.ResourceRequirements {
 	return extractPodResourceRequirements(template.Spec.Containers, template.Spec.InitContainers)
 }
+
 func extractPodResourceRequirements(containers []corev1.Container, initContainers []corev1.Container) []*model.ResourceRequirements {
 	var resReq []*model.ResourceRequirements
 	for _, c := range containers {

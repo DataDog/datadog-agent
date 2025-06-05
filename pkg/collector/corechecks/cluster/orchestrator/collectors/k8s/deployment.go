@@ -8,6 +8,10 @@
 package k8s
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -22,9 +26,14 @@ import (
 )
 
 // NewDeploymentCollectorVersions builds the group of collector versions.
-func NewDeploymentCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
+func NewDeploymentCollectorVersions(
+	cfg config.Component,
+	store workloadmeta.Component,
+	tagger tagger.Component,
+	metadataAsTags utils.MetadataAsTags,
+) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewDeploymentCollector(metadataAsTags),
+		NewDeploymentCollector(cfg, store, tagger, metadataAsTags),
 	)
 }
 
@@ -38,7 +47,7 @@ type DeploymentCollector struct {
 
 // NewDeploymentCollector creates a new collector for the Kubernetes Deployment
 // resource.
-func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentCollector {
+func NewDeploymentCollector(_ config.Component, _ workloadmeta.Component, tagger tagger.Component, metadataAsTags utils.MetadataAsTags) *DeploymentCollector {
 	resourceType := getResourceType(deploymentName, deploymentVersion)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
@@ -58,7 +67,7 @@ func NewDeploymentCollector(metadataAsTags utils.MetadataAsTags) *DeploymentColl
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,
 		},
-		processor: processors.NewProcessor(new(k8sProcessors.DeploymentHandlers)),
+		processor: processors.NewProcessor(k8sProcessors.NewDeploymentHandlers(tagger)),
 	}
 }
 

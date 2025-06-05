@@ -705,22 +705,29 @@ var GetRunningContainers EntityFilterFunc[*Container] = func(container *Containe
 type KubernetesPod struct {
 	EntityID
 	EntityMeta
-	Owners                     []KubernetesPodOwner
-	PersistentVolumeClaimNames []string
-	InitContainers             []OrchestratorContainer
-	Containers                 []OrchestratorContainer
-	Ready                      bool
-	Phase                      string
-	IP                         string
-	PriorityClass              string
-	QOSClass                   string
-	GPUVendorList              []string
-	RuntimeClass               string
-	KubeServices               []string
-	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string
-	FinishedAt                 time.Time
-	SecurityContext            *PodSecurityContext
+	Owners                                 []KubernetesPodOwner
+	PersistentVolumeClaimNames             []string
+	InitContainers                         []OrchestratorContainer
+	Containers                             []OrchestratorContainer
+	Ready                                  bool
+	Phase                                  string
+	IP                                     string
+	PriorityClass                          string
+	QOSClass                               string
+	GPUVendorList                          []string
+	RuntimeClass                           string
+	KubeServices                           []string
+	NamespaceLabels                        map[string]string
+	NamespaceAnnotations                   map[string]string
+	FinishedAt                             time.Time
+	SecurityContext                        *PodSecurityContext
+	EvaluatedInstrumentationWorkloadTarget *InstrumentationWorkloadTarget
+}
+
+// InstrumentationWorkloadTarget is data we've extracted based on autoinstrumentation
+// configuration for USTs.
+type InstrumentationWorkloadTarget struct {
+	Env, Service, Version string
 }
 
 // GetID implements Entity#GetID.
@@ -772,6 +779,13 @@ func (p KubernetesPod) String(verbose bool) string {
 		for _, c := range p.Containers {
 			_, _ = fmt.Fprint(&sb, c.String(verbose))
 		}
+	}
+
+	if t := p.EvaluatedInstrumentationWorkloadTarget; t != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- Instrumentation Workload Target -----------")
+		_, _ = fmt.Fprintln(&sb, "Service:", t.Service)
+		_, _ = fmt.Fprintln(&sb, "Env:", t.Env)
+		_, _ = fmt.Fprintln(&sb, "Version:", t.Version)
 	}
 
 	_, _ = fmt.Fprintln(&sb, "----------- Pod Info -----------")

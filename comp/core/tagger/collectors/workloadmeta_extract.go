@@ -329,6 +329,33 @@ func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *tag
 	}
 }
 
+func (c *WorkloadMetaCollector) setTagsFromPodInstrumentationTarget(
+	target *workloadmeta.InstrumentationWorkloadTarget,
+	tagList *taglist.TagList,
+) bool {
+	if target == nil {
+		return false
+	}
+
+	var added bool
+	if target.Service != "" {
+		tagList.AddStandard(tags.Service, target.Service)
+		added = true
+	}
+
+	if target.Version != "" {
+		tagList.AddStandard(tags.Version, target.Version)
+		added = true
+	}
+
+	if target.Env != "" {
+		tagList.AddStandard(tags.Env, target.Env)
+		added = true
+	}
+
+	return added
+}
+
 func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) *types.TagInfo {
 	tagList.AddOrchestrator(tags.KubePod, pod.Name)
 	tagList.AddLow(tags.KubeNamespace, pod.Namespace)
@@ -338,6 +365,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	tagList.AddLow(tags.KubeRuntimeClass, pod.RuntimeClass)
 
 	c.extractTagsFromPodLabels(pod, tagList)
+	_ = c.setTagsFromPodInstrumentationTarget(pod.EvaluatedInstrumentationWorkloadTarget, tagList)
 
 	// pod labels as tags
 	for name, value := range pod.Labels {
@@ -424,12 +452,62 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	return tagInfo
 }
 
+// kubePodOwnerTags attempts to get data about the owner of the given pod
+// and propagates these tags to the pod.
+func (c *WorkloadMetaCollector) kubePodOwnerTags(pod *workloadmeta.KubernetesPod) []*types.TagInfo {
+	target := pod.EvaluatedInstrumentationWorkloadTarget
+	if target == nil {
+		return nil
+	}
+
+	var deploymentName string
+Loop:
+	for _, owner := range pod.Owners {
+		switch owner.Kind {
+		case kubernetes.DeploymentKind:
+			deploymentName = owner.Name
+			break Loop
+		case kubernetes.ReplicaSetKind:
+			deploymentName = kubernetes.ParseDeploymentForReplicaSet(owner.Name)
+			break Loop
+		}
+	}
+
+	if deploymentName == "" {
+		return nil
+	}
+
+	tagsList := taglist.NewTagList()
+	if !c.setTagsFromPodInstrumentationTarget(target, tagsList) {
+		return nil
+	}
+
+	deploymentID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesDeployment,
+		ID:   pod.Namespace + "/" + deploymentName,
+	}
+
+	c.registerChild(pod.EntityID, deploymentID)
+	lTags, oTags, hTags, sTags := tagsList.Compute()
+
+	return []*types.TagInfo{
+		{
+			Source:               podSource,
+			LowCardTags:          lTags,
+			OrchestratorCardTags: oTags,
+			HighCardTags:         hTags,
+			StandardTags:         sTags,
+			EntityID:             common.BuildTaggerEntityID(deploymentID),
+		},
+	}
+}
+
 func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.TagInfo {
 	pod := ev.Entity.(*workloadmeta.KubernetesPod)
 	tagList := taglist.NewTagList()
-	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList)}
-
-	c.extractTagsFromPodLabels(pod, tagList)
+	tagInfos := []*types.TagInfo{
+		c.extractTagsFromPodEntity(pod, tagList),
+	}
 
 	for _, podContainer := range pod.GetAllContainers() {
 		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tagList.Copy())
@@ -440,6 +518,8 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 
 		tagInfos = append(tagInfos, cTagInfo)
 	}
+
+	tagInfos = append(tagInfos, c.kubePodOwnerTags(pod)...)
 
 	return tagInfos
 }
@@ -614,7 +694,6 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 	}
 
 	low, orch, high, standard := tagList.Compute()
-
 	if len(low)+len(orch)+len(high)+len(standard) == 0 {
 		return nil
 	}

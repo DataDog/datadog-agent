@@ -687,14 +687,16 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				// Some metrics can be aggregated and consumed as-is or by a transformer.
 				// So, let’s continue the processing.
 			}
+
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.hostnameAndTags(m.Labels, m.Tags, labelJoiner, lMapperOverride)
 					transform(sender, metricFamily.Name, m, hostname, tagList, now)
 				}
 				continue
 			}
+
 			metricPrefix := ksmMetricPrefix
 			if strings.HasPrefix(metricFamily.Name, "kube_customresource_") {
 				metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
@@ -702,14 +704,16 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.hostnameAndTags(m.Labels, m.Tags, labelJoiner, lMapperOverride)
 					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
 			}
+
 			if _, found := k.metricAggregators[metricFamily.Name]; found {
 				continue
 			}
+
 			if k.metadataMetricsRegex.MatchString(metricFamily.Name) {
 				// metadata metrics are only used by the check for label joins
 				// they shouldn't be forwarded to Datadog
@@ -720,6 +724,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
 		}
 	}
+
 	for _, aggregator := range k.metricAggregators {
 		aggregator.flush(sender, k, labelJoiner)
 	}
@@ -728,13 +733,13 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 // hostnameAndTags returns the tags and the hostname for a metric based on the metric labels and the check configuration.
 //
 // This function must always return a "fresh" slice of tags, that will not be accessed after return.
-func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
+func (k *KSMCheck) hostnameAndTags(labels, tags map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
 	hostname := ""
 
 	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
 
 	// generate a dedicated tags slice
-	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
+	tagList := make([]string, 0, len(labels)+len(labelsToAdd)+len(tags))
 
 	ownerKind, ownerName := "", ""
 	for key, value := range labels {
@@ -776,8 +781,12 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		}
 	}
 
-	if owners := ownerTags(ownerKind, ownerName); len(owners) != 0 {
-		tagList = append(tagList, owners...)
+	for key, value := range tags {
+		tagList = append(tagList, fmtTag(key, value))
+	}
+
+	for _, kv := range ownerTags(ownerKind, ownerName) {
+		tagList = append(tagList, fmtTag(kv[0], kv[1]))
 	}
 
 	return hostname, tagList
@@ -1069,7 +1078,7 @@ func mergeLabelsOrAnnotationAsTags(extra, instanceMap map[string]map[string]stri
 	}
 
 	for resource, mapping := range extra {
-		var singularName = resource
+		singularName := resource
 		var err error
 		if shouldTransformResource {
 			// modify the resource name to the singular form of the resource
@@ -1162,10 +1171,14 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 	return deniedMetrics
 }
 
+func fmtTag(k, v string) string {
+	return fmt.Sprintf("%s:%s", k, v)
+}
+
 // ownerTags returns kube_<kind> tags based on given kind and name.
 // If the owner is a replicaset, it tries to get the kube_deployment tag in addition to kube_replica_set.
 // If the owner is a job, it tries to get the kube_cronjob tag in addition to kube_job.
-func ownerTags(kind, name string) []string {
+func ownerTags(kind, name string) [][2]string {
 	if kind == "" || name == "" {
 		return nil
 	}
@@ -1175,16 +1188,17 @@ func ownerTags(kind, name string) []string {
 		return nil
 	}
 
-	tagFormat := "%s:%s"
-	tagList := []string{fmt.Sprintf(tagFormat, tagKey, name)}
+	tagList := [][2]string{
+		{tagKey, name},
+	}
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeCronjob, cronjob))
+			return append(tagList, [2]string{tags.KubeCronjob, cronjob})
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeDeployment, deployment))
+			return append(tagList, [2]string{tags.KubeDeployment, deployment})
 		}
 	}
 
