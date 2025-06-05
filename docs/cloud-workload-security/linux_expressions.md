@@ -1424,9 +1424,11 @@ A setsockopt was executed
 
 | Property | Definition |
 | -------- | ------------- |
+| [`setsockopt.filter_code`](#setsockopt-filter_code-doc) | Socket filter code |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
 
 ### Event `setuid`
 
@@ -3388,6 +3390,13 @@ Definition: New group of the process
 
 
 
+### `setsockopt.filter_code` {#setsockopt-filter_code-doc}
+Type: int
+
+Definition: Socket filter code
+
+
+
 ### `setsockopt.level` {#setsockopt-level-doc}
 Type: int
 
@@ -3399,6 +3408,13 @@ Definition: Socket level
 Type: int
 
 Definition: Socket option name
+
+
+
+### `setsockopt.socket_type` {#setsockopt-socket_type-doc}
+Type: int
+
+Definition: Socket type
 
 
 

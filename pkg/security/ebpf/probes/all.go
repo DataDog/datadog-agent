@@ -113,7 +113,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, GetOnDemandProbes()...)
 	allProbes = append(allProbes, GetPerfEventProbes()...)
 	allProbes = append(allProbes, getSysCtlProbes(cgroup2MountPoint)...)
-
+	allProbes = append(allProbes, getSetSockOptProbe(fentry)...)
 	allProbes = append(allProbes,
 		&manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -133,7 +133,6 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 		},
 	)
 	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "newfstatat")
-	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsockopt")
 
 	return allProbes
 }

@@ -16550,6 +16550,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setsockopt.filter_code":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetSockOpt.Filter_code)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setsockopt.level":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -16578,6 +16589,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.SetSockOpt.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.socket_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetSockOpt.Socket_type)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -23576,9 +23598,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setgid.fsgroup",
 		"setgid.gid",
 		"setgid.group",
+		"setsockopt.filter_code",
 		"setsockopt.level",
 		"setsockopt.optname",
 		"setsockopt.retval",
+		"setsockopt.socket_type",
 		"setuid.euid",
 		"setuid.euser",
 		"setuid.fsuid",
@@ -26158,11 +26182,15 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setgid", reflect.Int, "int", nil
 	case "setgid.group":
 		return "setgid", reflect.String, "string", nil
+	case "setsockopt.filter_code":
+		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.level":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.optname":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.retval":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.socket_type":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setuid.euid":
 		return "setuid", reflect.Int, "int", nil
@@ -38410,6 +38438,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.SetGID.Group = rv
 		return nil
+	case "setsockopt.filter_code":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.filter_code"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setsockopt.filter_code"}
+		}
+		ev.SetSockOpt.Filter_code = uint16(rv)
+		return nil
 	case "setsockopt.level":
 		rv, ok := value.(int)
 		if !ok {
@@ -38430,6 +38468,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "setsockopt.retval"}
 		}
 		ev.SetSockOpt.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "setsockopt.socket_type":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.socket_type"}
+		}
+		ev.SetSockOpt.Socket_type = uint32(rv)
 		return nil
 	case "setuid.euid":
 		rv, ok := value.(int)

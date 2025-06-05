@@ -5765,6 +5765,11 @@
       "experimental": false,
       "properties": [
         {
+          "name": "setsockopt.filter_code",
+          "definition": "Socket filter code",
+          "property_doc_link": "setsockopt-filter_code-doc"
+        },
+        {
           "name": "setsockopt.level",
           "definition": "Socket level",
           "property_doc_link": "setsockopt-level-doc"
@@ -5778,6 +5783,11 @@
           "name": "setsockopt.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "setsockopt.socket_type",
+          "definition": "Socket type",
+          "property_doc_link": "setsockopt-socket_type-doc"
         }
       ]
     },
@@ -11045,6 +11055,18 @@
       "examples": []
     },
     {
+      "name": "setsockopt.filter_code",
+      "link": "setsockopt-filter_code-doc",
+      "type": "int",
+      "definition": "Socket filter code",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "setsockopt.level",
       "link": "setsockopt-level-doc",
       "type": "int",
@@ -11061,6 +11083,18 @@
       "link": "setsockopt-optname-doc",
       "type": "int",
       "definition": "Socket option name",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.socket_type",
+      "link": "setsockopt-socket_type-doc",
+      "type": "int",
+      "definition": "Socket type",
       "prefixes": [
         "setsockopt"
       ],
