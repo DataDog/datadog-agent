@@ -1548,6 +1548,12 @@ core,github.com/open-policy-agent/opa/v1/types,Apache-2.0,Copyright 2016 The OPA
 core,github.com/open-policy-agent/opa/v1/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/util/decoding,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/version,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/common,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/plogutil,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/pmetricutil,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector/internal/ptraceutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector/internal/cache,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors

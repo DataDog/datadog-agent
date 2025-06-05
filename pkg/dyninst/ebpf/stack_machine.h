@@ -258,6 +258,7 @@ sm_chase_pointer(global_ctx_t* ctx, data_item_header_t data_item) {
   if (!get_type_info((type_t)data_item.type, &info)) {
     return true;
   }
+  LOG(4, "chase: :%d !%d >%x", data_item.type, info->byte_len, info->enqueue_pc);
   if (info->byte_len == 0) {
     return true;
   }
@@ -614,42 +615,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // }
   } break;
 
-  case SM_OP_ENQUEUE_SLICE_HEADER: {
-    // Note that this hard-codes the offsets of the array and len fields of a
-    // slice header.
-    type_t array_type = (type_t)sm_read_program_uint32(sm);
-    uint32_t elem_byte_len = sm_read_program_uint32(sm);
-    if (!scratch_buf_bounds_check(&sm->offset, 16)) {
-      return 1;
-    }
-    int64_t len = *(int64_t*)(&(*buf)[sm->offset + 8]);
-    if (len > 0) {
-      if (!sm_record_pointer(ctx, array_type,
-                             *(target_ptr_t*)&((*buf)[sm->offset]),
-                             len * elem_byte_len)) {
-        LOG(3, "enqueue: failed slice chase");
-      }
-    }
-    LOG(4, "enqueue: slice len %d", len)
-  } break;
-
-  case SM_OP_ENQUEUE_STRING_HEADER: {
-    // Note that this hard-codes the offsets of the array and len fields of a
-    // slice header.
-    type_t string_data_type = (type_t)sm_read_program_uint32(sm);
-    if (!scratch_buf_bounds_check(&sm->offset, 16)) {
-      return false;
-    }
-    int64_t len = *(int64_t*)(&(*buf)[sm->offset + 8]);
-    target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
-    if (len > 0) {
-      if (!sm_record_pointer(ctx, string_data_type, addr, len)) {
-        LOG(3, "enqueue: failed string chase");
-      }
-    }
-    LOG(4, "enqueue: string len %d %llx", len, addr)
-  } break;
-
   case SM_OP_ENQUEUE_GO_HMAP_HEADER: {
     // https://github.com/golang/go/blob/8d04110c/src/runtime/map.go#L105
     const uint8_t same_size_grow = 8;
@@ -810,17 +775,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->offset += sm_read_program_uint32(sm);
   } break;
 
-  case SM_OP_DEREFERENCE_CFA_OFFSET: {
-    int32_t cfa_offset = sm_read_program_uint32(sm);
-    uint32_t data_len = sm_read_program_uint32(sm);
-    uint32_t bias = sm_read_program_uint32(sm);
-    target_ptr_t addr =
-        (target_ptr_t)((int64_t)(sm->frame_data.fp) + 16 + cfa_offset + bias);
-    if (!scratch_buf_dereference(buf, sm->offset, data_len, addr)) {
-      return 1;
-    }
-  } break;
-
   case SM_OP_EXPR_PREPARE: {
     sm->expr_results_end_offset = scratch_buf_len(buf);
     sm->offset = sm->expr_results_end_offset;
@@ -841,6 +795,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     copy_data(buf, sm->offset, sm->expr_results_offset + result_offset,
               byte_len);
 
+    LOG(4, "copy data 0x%llx->0x%llx !%u", sm->offset, sm->expr_results_offset + result_offset, byte_len);
+
     // Set the presence bit.
     sm->buf_offset_0 = sm->expr_results_offset + bit_offset / 8;
     bit_offset %= 8;
@@ -857,9 +813,22 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     scratch_buf_set_len(buf, sm->expr_results_end_offset);
   } break;
 
+
+  case SM_OP_DEREFERENCE_CFA_OFFSET: {
+    int32_t cfa_offset = sm_read_program_uint32(sm);
+    uint32_t data_len = sm_read_program_uint32(sm);
+    uint32_t output_offset = sm_read_program_uint32(sm);
+    target_ptr_t addr =
+        (target_ptr_t)((int64_t)(sm->frame_data.fp) + 16 + cfa_offset);
+    if (!scratch_buf_dereference(buf, sm->offset + output_offset, data_len, addr)) {
+      return 1;
+    }
+  } break;
+
   case SM_OP_EXPR_READ_REGISTER: {
     uint8_t regnum = sm_read_program_uint8(sm);
     uint8_t byte_size = sm_read_program_uint8(sm);
+    buf_offset_t output_offset = sm->offset + sm_read_program_uint32(sm);
     struct pt_regs* regs = ctx->regs;
     if (!regs) {
       LOG(2, "enqueue: missing regs");
@@ -893,34 +862,35 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
     switch (byte_size) {
     case 1:
-      if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      if (!scratch_buf_bounds_check(&output_offset, 1)) {
         return 1;
       }
-      *(uint8_t*)(&(*buf)[sm->offset]) = sm->value_0;
+      *(uint8_t*)(&(*buf)[output_offset]) = sm->value_0;
       break;
     case 2:
-      if (!scratch_buf_bounds_check(&sm->offset, 2)) {
+      if (!scratch_buf_bounds_check(&output_offset, 2)) {
         return 1;
       }
-      *(uint16_t*)(&(*buf)[sm->offset]) = sm->value_0;
+      *(uint16_t*)(&(*buf)[output_offset]) = sm->value_0;
       break;
     case 4:
-      if (!scratch_buf_bounds_check(&sm->offset, 4)) {
+      if (!scratch_buf_bounds_check(&output_offset, 4)) {
         return 1;
       }
-      *(uint32_t*)(&(*buf)[sm->offset]) = sm->value_0;
+      *(uint32_t*)(&(*buf)[output_offset]) = sm->value_0;
       break;
     case 8:
-      if (!scratch_buf_bounds_check(&sm->offset, 8)) {
+      if (!scratch_buf_bounds_check(&output_offset, 8)) {
         return 1;
       }
-      *(uint64_t*)(&(*buf)[sm->offset]) = sm->value_0;
+      *(uint64_t*)(&(*buf)[output_offset]) = sm->value_0;
+      LOG(4, "read %llx", sm->value_0);
       break;
     default:
       LOG(1, "unexpected copy register byte size %d", (int)byte_size);
       return 1;
     }
-    LOG(5, "recorded scratch@%lld < [register expr]", sm->offset);
+    LOG(5, "recorded scratch@0x%llx < [register expr]", sm->offset);
   } break;
 
   case SM_OP_DEREFERENCE_PTR: {
@@ -962,6 +932,42 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     if (!sm_record_pointer(ctx, elem_type, addr, ENQUEUE_LEN_SENTINEL)) {
       LOG(3, "enqueue: failed pointer chase");
     }
+  } break;
+
+  case SM_OP_PROCESS_SLICE: {
+    type_t slice_data_type = (type_t)sm_read_program_uint32(sm);
+    uint32_t elem_byte_len = sm_read_program_uint32(sm);
+    if (!scratch_buf_bounds_check(&sm->offset, 16)) {
+      return 1;
+    }
+    // Note that this hard-codes the offsets of the array and len fields of a
+    // slice header.
+    target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
+    int64_t len = *(int64_t*)(&(*buf)[sm->offset + 8]);
+    if (len > 0) {
+      if (!sm_record_pointer(ctx, slice_data_type, addr, len * elem_byte_len)) {
+        LOG(3, "enqueue: failed slice chase");
+      }
+    }
+    LOG(4, "enqueue: slice len %d", len)
+  } break;
+
+  case SM_OP_PROCESS_STRING: {
+    type_t string_data_type = (type_t)sm_read_program_uint32(sm);
+    LOG(4, "processing string @0x%llx", sm->offset);
+    if (!scratch_buf_bounds_check(&sm->offset, 16)) {
+      return false;
+    }
+    // Note that this hard-codes the offsets of the pointer and len fields of a
+    // slice header.
+    target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
+    int64_t len = *(int64_t*)(&(*buf)[sm->offset + 8]);
+    if (len > 0) {
+      if (!sm_record_pointer(ctx, string_data_type, addr, len)) {
+        LOG(3, "enqueue: failed string chase");
+      }
+    }
+    LOG(4, "enqueue: string len @%llx !%lld", addr, len)
   } break;
 
   // case SM_OP_PREPARE_POINTEE_DATA: {

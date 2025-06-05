@@ -572,26 +572,25 @@ func TestClientGetConfigsProvidesEmptyResponseForExpiredSignature(t *testing.T) 
 	uptaneClient.On("TimestampExpires").Return(time.Now().Add(-1*time.Hour), nil)
 	uptaneClient.On("UnsafeTargetsMeta").Return([]byte{}, nil)
 
+	// The key here is that if we've never initialized the TUF repository, we shouldn't be sending any sort of expired message
+	// because the expired message check requires the TUF repository have Director Meta data.
+	//
+	// Checks in this state should look like the version of the client is unchanged (both will report 0 as the director targets meta, because
+	// no such file exists).
 	service.clients.seen(client)
-	// We don't flush the cache until we've seen at least one update from the backend
-	newConfig, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	response, err := service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
-	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_OK, newConfig.ConfigStatus)
+	assert.Len(t, response.ClientConfigs, 0)
+	assert.Len(t, response.TargetFiles, 0)
+	assert.Len(t, response.Roots, 0)
+	assert.Len(t, response.Targets, 0)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_OK, response.ConfigStatus)
 
-	clock.Set(time.Now().Add(2 * time.Hour))
-	newConfig, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
-	assert.NoError(t, err)
-	assert.Nil(t, newConfig.TargetFiles)
-	assert.Nil(t, newConfig.ClientConfigs)
-	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
-
-	clock.Set(time.Now().Add(20 * time.Minute))
+	// If the repository is initialized, we should now return the expired message
 	service.firstUpdate = false
-	newConfig, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
+	response, err = service.ClientGetConfigs(context.Background(), &pbgo.ClientGetConfigsRequest{Client: client})
 	assert.NoError(t, err)
-	assert.Nil(t, newConfig.TargetFiles)
-	assert.Nil(t, newConfig.ClientConfigs)
-	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, newConfig.ConfigStatus)
+	assert.Equal(t, pbgo.ConfigStatus_CONFIG_STATUS_EXPIRED, response.ConfigStatus)
 }
 
 func TestService(t *testing.T) {

@@ -64,7 +64,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, diagnoseComponent, dcametadataComp)
+	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, diagnoseComponent, dcametadataComp, ipc)
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter, w)

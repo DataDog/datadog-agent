@@ -55,18 +55,22 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ExprDereferenceCfaOp:
-		bytes := make([]byte, 0, 8)
+		bytes := make([]byte, 0, 12)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Offset)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.OutputOffset)
 		return staticInstruction{
 			name:  "SM_OP_EXPR_DEREFERENCE_CFA",
 			bytes: bytes,
 		}
 
 	case ExprReadRegisterOp:
+		bytes := make([]byte, 0, 6)
+		bytes = append(bytes, op.Register, op.Size)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.OutputOffset)
 		return staticInstruction{
 			name:  "SM_OP_EXPR_READ_REGISTER",
-			bytes: []byte{op.Register, op.Size},
+			bytes: bytes,
 		}
 
 	case ExprDereferencePtrOp:
@@ -97,9 +101,12 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ProcessSliceOp:
+		bytes := make([]byte, 0, 8)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.SliceData.GetID()))
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.SliceData.Element.GetByteSize())
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_SLICE",
-			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.SliceData.GetID())),
+			bytes: bytes,
 		}
 
 	case ProcessSliceDataPrepOp:
@@ -117,7 +124,7 @@ func makeInstruction(op Op) codeFragment {
 	case ProcessStringOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_STRING",
-			bytes: []byte{},
+			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.StringData.GetID())),
 		}
 
 	case ProcessGoEmptyInterfaceOp:
