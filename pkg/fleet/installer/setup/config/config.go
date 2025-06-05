@@ -144,6 +144,8 @@ type DatadogConfig struct {
 	Installer            DatadogConfigInstaller     `yaml:"installer,omitempty"`
 	DDURL                string                     `yaml:"dd_url,omitempty"`
 	LogsConfig           LogsConfig                 `yaml:"logs_config,omitempty"`
+	CollectGPUTags       bool                       `yaml:"collect_gpu_tags,omitempty"`
+	EnableNVMLDetection  bool                       `yaml:"enable_nvml_detection,omitempty"`
 }
 
 // DatadogConfigProxy represents the configuration for the proxy
