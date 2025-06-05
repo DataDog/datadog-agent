@@ -168,9 +168,97 @@ func TestCreatedProcessesCollection(t *testing.T) {
 	pid2 := int32(9999)
 	proc2 := createTestJavaProcess2(pid2, creationTime2)
 
-	creationTime3 := time.Now().Add(time.Second * 2).Unix()
-	pid3 := int32(2323)
+	creationTime3 := time.Now().Add(time.Second).Unix()
+	pid3 := int32(3333)
 	proc3 := createTestUnknownProcess3(pid3, creationTime3)
+
+	for _, tc := range []struct {
+		description        string
+		configOverrides    map[string]interface{}
+		processesToCollect map[int32]*procutil.Process
+		expectedProcesses  map[int32]*workloadmeta.Process
+	}{
+		{
+			description:     "single new python process",
+			configOverrides: map[string]interface{}{},
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				proc1.Pid: workloadmetaProcess(proc1, &languagemodels.Language{
+					Name: languagemodels.Python,
+				}, nil),
+			},
+		},
+		{
+			description:     "multiple new processes",
+			configOverrides: map[string]interface{}{},
+			processesToCollect: map[int32]*procutil.Process{
+				proc1.Pid: proc1,
+				proc2.Pid: proc2,
+				proc3.Pid: proc3,
+			},
+			expectedProcesses: map[int32]*workloadmeta.Process{
+				proc1.Pid: workloadmetaProcess(proc1, &languagemodels.Language{
+					Name: languagemodels.Python,
+				}, nil),
+				proc2.Pid: workloadmetaProcess(proc2, &languagemodels.Language{
+					Name: languagemodels.Java,
+				}, nil),
+				proc3.Pid: workloadmetaProcess(proc3, &languagemodels.Language{
+					Name: languagemodels.Unknown,
+				}, nil),
+			},
+		},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			c := setUpCollectorTest(t, tc.configOverrides)
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
+			// by default disabled
+			c.collector.containerProvider = c.mockContainerProvider
+			c.collector.store = c.mockStore
+			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.stream(ctx)
+
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Times(1)
+			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+			// update clock to trigger processing
+			c.mockClock.Add(collectionInterval)
+
+			assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+				for pid, expectedProc := range tc.expectedProcesses {
+					actualProc, err := c.mockStore.GetProcess(pid)
+					assert.NoError(cT, err)
+					assert.Equal(cT, expectedProc, actualProc)
+				}
+			}, time.Second, time.Millisecond*100)
+		})
+	}
+}
+
+// TestCreatedProcessesCollectionWithContainers tests the collector capturing new processes with container data
+func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
+	collectionInterval := time.Second * 10
+
+	creationTime1 := time.Now().Unix()
+	pid1 := int32(1234)
+	proc1 := createTestPythonProcess1(pid1, creationTime1)
+
+	creationTime2 := time.Now().Add(time.Second).Unix()
+	pid2 := int32(9999)
+	proc2 := createTestJavaProcess2(pid2, creationTime2)
+
+	creationTime3 := time.Now().Add(time.Second * 2).Unix()
+	pid3 := int32(3333)
+	proc3 := createTestJavaProcess2(pid3, creationTime3)
+
+	creationTime4 := time.Now().Add(time.Second * 3).Unix()
+	pid4 := int32(4444)
+	proc4 := createTestUnknownProcess3(pid4, creationTime4)
 
 	for _, tc := range []struct {
 		description        string
@@ -180,51 +268,7 @@ func TestCreatedProcessesCollection(t *testing.T) {
 		expectedProcesses  map[int32]*workloadmeta.Process
 	}{
 		{
-			description:     "single new process with unknown language",
-			configOverrides: map[string]interface{}{},
-			processesToCollect: map[int32]*procutil.Process{
-				proc3.Pid: proc3,
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc3.Pid: workloadmetaProcess(proc3,
-					&languagemodels.Language{
-						Name: languagemodels.Unknown,
-					}, nil),
-			},
-		},
-		{
-			description:     "single new process with python",
-			configOverrides: map[string]interface{}{},
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1,
-					&languagemodels.Language{
-						Name: languagemodels.Python,
-					}, nil),
-			},
-		},
-		{
-			description:     "multiple new processes with python + java",
-			configOverrides: map[string]interface{}{},
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1,
-					&languagemodels.Language{
-						Name: languagemodels.Python,
-					}, nil),
-				proc2.Pid: workloadmetaProcess(proc2,
-					&languagemodels.Language{
-						Name: languagemodels.Java,
-					}, nil),
-			},
-		},
-		{
-			description:     "single new process with python + container",
+			description:     "single new python process in a container",
 			configOverrides: map[string]interface{}{},
 			processesToCollect: map[int32]*procutil.Process{
 				proc1.Pid: proc1,
@@ -244,15 +288,19 @@ func TestCreatedProcessesCollection(t *testing.T) {
 			},
 		},
 		{
-			description:     "multiple new processes with python, java, containers",
+			description:     "multiple new processes in containers",
 			configOverrides: map[string]interface{}{},
 			processesToCollect: map[int32]*procutil.Process{
 				proc1.Pid: proc1,
 				proc2.Pid: proc2,
+				proc3.Pid: proc3,
+				proc4.Pid: proc4,
 			},
 			pidToCidToCollect: map[int]string{
 				int(proc1.Pid): "some_container_id1",
 				int(proc2.Pid): "some_container_id2",
+				int(proc3.Pid): "some_container_id2",
+				int(proc4.Pid): "some_container_id4",
 			},
 			expectedProcesses: map[int32]*workloadmeta.Process{
 				proc1.Pid: workloadmetaProcess(proc1,
@@ -271,25 +319,7 @@ func TestCreatedProcessesCollection(t *testing.T) {
 						Kind: workloadmeta.KindContainer,
 						ID:   "some_container_id2",
 					}),
-			},
-		},
-		{
-			description:     "multiple new processes with python, java, some containers",
-			configOverrides: map[string]interface{}{},
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-			},
-			pidToCidToCollect: map[int]string{
-				int(proc2.Pid): "some_container_id2",
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1,
-					&languagemodels.Language{
-						Name: languagemodels.Python,
-					},
-					nil),
-				proc2.Pid: workloadmetaProcess(proc2,
+				proc3.Pid: workloadmetaProcess(proc3,
 					&languagemodels.Language{
 						Name: languagemodels.Java,
 					},
@@ -297,65 +327,13 @@ func TestCreatedProcessesCollection(t *testing.T) {
 						Kind: workloadmeta.KindContainer,
 						ID:   "some_container_id2",
 					}),
-			},
-		},
-		{
-			description:     "multiple new processes with python, java, same container",
-			configOverrides: map[string]interface{}{},
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-			},
-			pidToCidToCollect: map[int]string{
-				int(proc1.Pid): "some_container_id",
-				int(proc2.Pid): "some_container_id",
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1,
+				proc4.Pid: workloadmetaProcess(proc4,
 					&languagemodels.Language{
-						Name: languagemodels.Python,
+						Name: languagemodels.Unknown,
 					},
 					&workloadmeta.EntityID{
 						Kind: workloadmeta.KindContainer,
-						ID:   "some_container_id",
-					}),
-				proc2.Pid: workloadmetaProcess(proc2,
-					&languagemodels.Language{
-						Name: languagemodels.Java,
-					},
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "some_container_id",
-					}),
-			},
-		},
-		{
-			description:     "multiple new processes with unknown language + containers",
-			configOverrides: map[string]interface{}{},
-			processesToCollect: map[int32]*procutil.Process{
-				proc1.Pid: proc1,
-				proc2.Pid: proc2,
-			},
-			pidToCidToCollect: map[int]string{
-				int(proc1.Pid): "some_container_id",
-				int(proc2.Pid): "some_container_id",
-			},
-			expectedProcesses: map[int32]*workloadmeta.Process{
-				proc1.Pid: workloadmetaProcess(proc1,
-					&languagemodels.Language{
-						Name: languagemodels.Python,
-					},
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "some_container_id",
-					}),
-				proc2.Pid: workloadmetaProcess(proc2,
-					&languagemodels.Language{
-						Name: languagemodels.Java,
-					},
-					&workloadmeta.EntityID{
-						Kind: workloadmeta.KindContainer,
-						ID:   "some_container_id",
+						ID:   "some_container_id4",
 					}),
 			},
 		},

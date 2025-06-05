@@ -179,6 +179,14 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 	return newProcs
 }
 
+func (c *collector) detectLanguages(processes []*procutil.Process, systemProbeConfig pkgconfigmodel.Reader) []*languagemodels.Language {
+	languageInterfaceProcs := make([]languagemodels.Process, len(processes))
+	for i, proc := range processes {
+		languageInterfaceProcs[i] = languagemodels.Process(proc)
+	}
+	return languagedetection.DetectLanguage(languageInterfaceProcs, c.systemProbeConfig)
+}
+
 // collect captures all the required process data for the process check
 func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker) {
 	// TODO: implement the full collection logic for the process collector. Once collection is done, submit events.
@@ -201,11 +209,7 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 
 			// categorize the processes into events for workloadmeta
 			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-			languageInterfaceProcs := make([]languagemodels.Process, len(createdProcs))
-			for i, proc := range createdProcs {
-				languageInterfaceProcs[i] = languagemodels.Process(proc)
-			}
-			languages := languagedetection.DetectLanguage(languageInterfaceProcs, c.systemProbeConfig)
+			languages := c.detectLanguages(createdProcs, c.systemProbeConfig)
 			wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
 
 			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
