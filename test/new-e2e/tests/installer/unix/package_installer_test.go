@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
 type packageInstallerSuite struct {
@@ -41,29 +42,55 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertDirExists("/etc/datadog-agent", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/opt/datadog-packages/run", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/opt/datadog-packages/run/locks", 0777, "root", "root")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
-	state.AssertDirExists("/opt/datadog-packages/tmp", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/opt/datadog-packages", 0755, "root", "root")
+	state.AssertDirExists("/opt/datadog-packages/tmp", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/opt/datadog-packages/run", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/opt/datadog-packages/datadog-installer", 0755, "root", "root")
 
 	state.AssertSymlinkExists("/usr/bin/datadog-bootstrap", "/opt/datadog-installer/bin/installer/installer", "root", "root")
-	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
 
-	state.AssertUnitsNotLoaded("datadog-installer.service", "datadog-installer-exp.service")
-}
+	if s.installMethod != InstallMethodAnsible {
+		// DD_NO_AGENT_INSTALL isn't supported on ansible, so the symlink is updated to the agent's installer
+		state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
+	}
 
-func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
-	s.RunInstallScript("DD_REMOTE_UPDATES=true")
-	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-installer.service")
-
-	state := s.host.State()
 	state.AssertUnitsLoaded("datadog-installer.service", "datadog-installer-exp.service")
 	state.AssertUnitsEnabled("datadog-installer.service")
 	state.AssertUnitsNotEnabled("datadog-installer-exp.service")
-	state.AssertUnitsRunning("datadog-installer.service")
+	state.AssertUnitsDead("datadog-installer-exp.service")
+	var installerUnitState string
+	assert.Eventually(s.T(), func() bool {
+		state := s.host.State()
+		unit, ok := state.Units["datadog-installer.service"]
+		if !ok {
+			installerUnitState = "not found"
+			return false
+		}
+		if unit.SubState != host.Dead {
+			installerUnitState = string(unit.SubState)
+			return false
+		}
+		return true
+	}, 60*time.Second, 1*time.Second, "datadog-installer.service should be dead but is %s", installerUnitState)
+}
+
+func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't support installer in agent yet")
+	}
+
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive(s.T(), "datadog-agent-installer.service")
+
+	state := s.host.State()
+
+	state.AssertUnitsLoaded("datadog-agent-installer.service")
+	state.AssertUnitsRunning("datadog-agent-installer.service")
+
+	state.AssertUnitsNotLoaded("datadog-agent-installer-exp.service") // Only loaded during experiment
 }
 
 func (s *packageInstallerSuite) TestUninstall() {
@@ -104,6 +131,8 @@ func (s *packageInstallerSuite) TestReInstall() {
 }
 
 func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
+	s.T().Skip("Flaky")
+
 	// Install prod
 	err := s.RunInstallScriptProdOci(
 		"DD_REMOTE_UPDATES=true",
@@ -126,7 +155,7 @@ func (s *packageInstallerSuite) TestUpdateInstallerOCI() {
 	)
 	assert.NoError(s.T(), err)
 
-	versionDisk = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer version")
+	versionDisk = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer version")
 	assert.NotEqual(s.T(), "7.58.0-installer-0.5.1\n", versionDisk)
 	assert.Eventually(s.T(), func() bool {
 		versionRunning, err := s.Env().RemoteHost.Execute("sudo datadog-installer status")

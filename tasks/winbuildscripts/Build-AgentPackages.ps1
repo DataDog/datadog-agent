@@ -5,11 +5,13 @@ Builds the Datadog Agent packages for Windows. Builds everything with omnibus an
 .DESCRIPTION
 This script builds the Datadog Agent packages for Windows, with options to configure the build environment.
 
-.PARAMETER ReleaseVersion
-Specifies the release version of the build. Default is the value of the environment variable RELEASE_VERSION.
-
 .PARAMETER Flavor
 Specifies the flavor of the agent. Default is the value of the environment variable AGENT_FLAVOR.
+
+.PARAMETER BuildUpgrade
+Specifies whether to build the upgrade package. Default is false.
+
+Use this options to build an aditional MSI for testing upgrading the MSI.
 
 .PARAMETER BuildOutOfSource
 Specifies whether to build out of source. Default is $false.
@@ -37,8 +39,8 @@ param(
     [bool] $BuildOutOfSource = $false,
     [nullable[bool]] $CheckGoVersion,
     [bool] $InstallDeps = $true,
-    [string] $ReleaseVersion = $env:RELEASE_VERSION,
-    [string] $Flavor = $env:AGENT_FLAVOR
+    [string] $Flavor = $env:AGENT_FLAVOR,
+    [bool] $BuildUpgrade = $false
 )
 
 . "$PSScriptRoot\common.ps1"
@@ -51,11 +53,6 @@ Invoke-BuildScript `
     $inv_args = @(
         "--skip-deps"
     )
-    if ($ReleaseVersion) {
-        $inv_args += "--release-version"
-        $inv_args += $ReleaseVersion
-        $env:RELEASE_VERSION=$ReleaseVersion
-    }
 
     if ($Flavor) {
         $inv_args += "--flavor"
@@ -63,8 +60,12 @@ Invoke-BuildScript `
         $env:AGENT_FLAVOR=$Flavor
     }
 
-    Write-Host "inv -e winbuild.agent-package $inv_args"
-    inv -e winbuild.agent-package @inv_args
+    if ($BuildUpgrade) {
+        $inv_args += "--build-upgrade"
+    }
+
+    Write-Host "dda inv -- -e winbuild.agent-package $inv_args"
+    dda inv -- -e winbuild.agent-package @inv_args
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build the agent package"
         exit 1

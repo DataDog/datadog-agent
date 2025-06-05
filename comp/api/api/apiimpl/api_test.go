@@ -10,44 +10,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 
-	// component dependencies
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"golang.org/x/net/http2"
+
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
+	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 
 	// package dependencies
-
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	// third-party dependencies
 	dto "github.com/prometheus/client_model/go"
@@ -62,45 +43,44 @@ type testdeps struct {
 
 	API       api.Component
 	Telemetry telemetry.Mock
+	IPC       ipc.Component
 }
 
-func getTestAPIServer(t *testing.T, params config.MockParams) testdeps {
+func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) testdeps {
 	return fxutil.Test[testdeps](
 		t,
 		Module(),
 		fx.Replace(params),
-		hostnameimpl.MockModule(),
-		dogstatsdServer.MockModule(),
-		replaymock.MockModule(),
-		secretsimpl.MockModule(),
-		demultiplexerimpl.MockModule(),
-		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
-		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-		createandfetchimpl.Module(),
-		fx.Supply(context.Background()),
-		taggermock.Module(),
-		fx.Provide(func(mock taggermock.Mock) tagger.Component {
-			return mock
-		}),
-		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
-		autodiscoveryimpl.MockModule(),
-		fx.Provide(func(mock autodiscovery.Mock) autodiscovery.Component {
-			return mock
-		}),
-		fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
-		fx.Supply(optional.NewNoneOption[collector.Component]()),
-		pidmapimpl.Module(),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
 			return api.AgentEndpointProvider{
 				Provider: nil,
 			}
 		}),
-		fx.Provide(func() remoteagentregistry.Component { return nil }),
 		telemetryimpl.MockModule(),
 		config.MockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		grpcNonefx.Module(),
+		fx.Options(fxOptions...),
+	)
+}
+
+func testAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
+	return fxutil.TestApp[testdeps](
+		Module(),
+		fx.Replace(params),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Supply(context.Background()),
+		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
+		fx.Provide(func() api.AgentEndpointProvider {
+			return api.AgentEndpointProvider{
+				Provider: nil,
+			}
+		}),
+		telemetryimpl.MockModule(),
+		config.MockModule(),
+		grpcNonefx.Module(),
+		fx.Options(fxOptions...),
 	)
 }
 
@@ -111,7 +91,7 @@ func TestStartServer(t *testing.T) {
 		"agent_ipc.port": 0,
 	}}
 
-	getTestAPIServer(t, cfgOverride)
+	getAPIServer(t, cfgOverride)
 }
 
 func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
@@ -124,24 +104,12 @@ func hasLabelValue(labels []*dto.LabelPair, name string, value string) bool {
 }
 
 func TestStartBothServersWithObservability(t *testing.T) {
-	authToken, err := os.CreateTemp("", "auth_token")
-	require.NoError(t, err)
-	defer os.Remove(authToken.Name())
-
-	authTokenValue := strings.Repeat("a", 64)
-	_, err = io.WriteString(authToken, authTokenValue)
-	require.NoError(t, err)
-
-	err = authToken.Close()
-	require.NoError(t, err)
-
 	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port":             0,
-		"agent_ipc.port":       56789,
-		"auth_token_file_path": authToken.Name(),
+		"cmd_port":       0,
+		"agent_ipc.port": 56789,
 	}}
 
-	deps := getTestAPIServer(t, cfgOverride)
+	deps := getAPIServer(t, cfgOverride)
 
 	registry := deps.Telemetry.GetRegistry()
 
@@ -166,7 +134,7 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			resp, err := util.GetClient(false).Do(req)
+			resp, err := util.GetClient().Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -203,4 +171,159 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			assert.True(t, hasLabelValue(metric.GetLabel(), "path", "/this_does_not_exist"))
 		})
 	}
+}
+
+type s struct {
+	body string
+}
+
+func (s *s) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(s.body))
+}
+
+type grpcServer struct {
+	grpcServer bool
+	gateway    bool
+}
+
+func (grpc *grpcServer) BuildServer() http.Handler {
+	if grpc.grpcServer {
+		return &s{
+			body: "GRPC SERVER OK",
+		}
+	}
+	return nil
+}
+
+func (grpc *grpcServer) BuildGatewayMux(string) (http.Handler, error) {
+	if grpc.gateway {
+		return &s{
+			body: "GRPC GATEWAY OK",
+		}, nil
+	}
+
+	return nil, fmt.Errorf("error")
+}
+
+func TestStartServerWithGrpcServer(t *testing.T) {
+	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+		"cmd_port": 0,
+		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
+		"agent_ipc.port": 0,
+	}}
+
+	deps := getAPIServer(t, cfgOverride, fx.Options(
+		fx.Replace(
+			fx.Annotate(&grpcServer{
+				grpcServer: true,
+				gateway:    true,
+			}, fx.As(new(grpc.Component))),
+		)))
+
+	addr := deps.API.CMDServerAddress().String()
+
+	url := fmt.Sprintf("https://%s", addr)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+
+	resp, err := util.GetClient().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	content, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	t.Log(string(content))
+
+	// test the gateway is monted at the root
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "GRPC GATEWAY OK", string(content))
+
+	req, err = http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/grpc")
+
+	transport := &http.Transport{
+		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
+	}
+
+	http2.ConfigureTransport(transport)
+	http2Client := &http.Client{
+		Transport: transport,
+	}
+
+	resp, err = http2Client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	content, err = io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	t.Log(string(content))
+
+	// test the api routes grpc request to the grpc server
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "GRPC SERVER OK", string(content))
+}
+
+func TestStartServerWithGrpcServerFailGateway(t *testing.T) {
+	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+		"cmd_port": 0,
+		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
+		"agent_ipc.port": 0,
+	}}
+
+	_, _, errApp := testAPIServer(t, cfgOverride, fx.Options(
+		fx.Replace(
+			fx.Annotate(&grpcServer{
+				grpcServer: true,
+				gateway:    false,
+			}, fx.As(new(grpc.Component))),
+		)))
+
+	assert.Error(t, errApp)
+}
+
+func TestStartServerWithoutGrpcServer(t *testing.T) {
+	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
+		"cmd_port": 0,
+		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
+		"agent_ipc.port": 0,
+	}}
+
+	deps := getAPIServer(t, cfgOverride, fx.Options(
+		fx.Replace(
+			fx.Annotate(&grpcServer{
+				grpcServer: false,
+				gateway:    true,
+			}, fx.As(new(grpc.Component))),
+		)))
+
+	addr := deps.API.CMDServerAddress().String()
+
+	url := fmt.Sprintf("https://%s", addr)
+
+	// test the api routes does not routes grpc request to the grpc server
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/grpc")
+
+	transport := &http.Transport{
+		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
+	}
+
+	http2.ConfigureTransport(transport)
+	http2Client := &http.Client{
+		Transport: transport,
+	}
+
+	resp, err := http2Client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	content, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	t.Log(string(content))
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "GRPC GATEWAY OK", string(content))
 }

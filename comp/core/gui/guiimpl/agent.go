@@ -22,20 +22,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // Adds the specific handlers for /agent/ endpoints
-func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component, config config.Component, startTimestamp int64) {
+func agentHandler(r *mux.Router, flare flare.Component, statusComponent status.Component, config config.Component, hostname hostnameinterface.Component, startTimestamp int64) {
 	r.HandleFunc("/ping", func(w http.ResponseWriter, _ *http.Request) { ping(w, startTimestamp) }).Methods("POST")
 	r.HandleFunc("/status/{type}", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("POST")
 	r.HandleFunc("/version", http.HandlerFunc(getVersion)).Methods("POST")
-	r.HandleFunc("/hostname", http.HandlerFunc(getHostname)).Methods("POST")
+	r.HandleFunc("/hostname", http.HandlerFunc(getHostname(hostname))).Methods("POST")
 	r.HandleFunc("/log/{flip}", func(w http.ResponseWriter, r *http.Request) { getLog(w, r, config) }).Methods("POST")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flare) }).Methods("POST")
 	r.HandleFunc("/restart", http.HandlerFunc(restartAgent)).Methods("POST")
@@ -91,17 +91,19 @@ func getVersion(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Sends the agent's hostname
-func getHostname(w http.ResponseWriter, r *http.Request) {
-	hname, e := hostname.Get(r.Context())
-	if e != nil {
-		log.Errorf("Error getting hostname: %s", e.Error())
-		w.Write([]byte("Error: " + e.Error()))
-		return
-	}
+func getHostname(hostname hostnameinterface.Component) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		hname, e := hostname.Get(r.Context())
+		if e != nil {
+			log.Errorf("Error getting hostname: %s", e.Error())
+			w.Write([]byte("Error: " + e.Error()))
+			return
+		}
 
-	res, _ := json.Marshal(hname)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(res)
+		res, _ := json.Marshal(hname)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(res)
+	}
 }
 
 // Sends the log file (agent.log)
@@ -120,7 +122,7 @@ func getLog(w http.ResponseWriter, r *http.Request, config configmodel.Reader) {
 	}
 	escapedLogFileContents := html.EscapeString(string(logFileContents))
 
-	html := strings.Replace(escapedLogFileContents, "\n", "<br>", -1)
+	html := strings.ReplaceAll(escapedLogFileContents, "\n", "<br>")
 
 	if flip {
 		// Reverse the order so that the bottom of the file is read first
@@ -148,8 +150,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flare flare.Component) {
 		w.Write([]byte("Invalid CaseID (must be a number)"))
 		return
 	}
-
-	filePath, e := flare.Create(nil, 0, nil)
+	filePath, e := flare.Create(nil, 0, nil, []byte{})
 	if e != nil {
 		w.Write([]byte("Error creating flare zipfile: " + e.Error()))
 		log.Errorf("Error creating flare zipfile: %s", e.Error())

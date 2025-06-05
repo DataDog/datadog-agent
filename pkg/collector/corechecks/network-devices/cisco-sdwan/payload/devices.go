@@ -34,8 +34,7 @@ func GetDevicesMetadata(namespace string, devices []client.Device) []devicemetad
 func GetDevicesTags(namespace string, devices []client.Device) map[string][]string {
 	deviceTags := make(map[string][]string)
 	for _, device := range devices {
-		deviceTags[device.SystemIP] = buildDeviceTags(namespace, device)
-		deviceTags[device.SystemIP] = append(deviceTags[device.SystemIP], fmt.Sprintf("%s:%s", DeviceUserTagResourcePrefix, buildDeviceID(namespace, device)))
+		deviceTags[device.SystemIP] = append(buildDeviceTags(namespace, device), fmt.Sprintf("%s:%s", DeviceUserTagResourcePrefix, buildDeviceID(namespace, device)))
 	}
 	return deviceTags
 }

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -26,6 +27,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/zstd"
 )
 
 const (
@@ -34,6 +36,9 @@ const (
 	telemetryHostnameEndpointPrefix = "instrumentation-telemetry-intake."
 	telemetryIntakeTrackType        = "agenttelemetry"
 	telemetryPath                   = "/api/v2/apmtelemetry"
+
+	metricPayloadType = "agent-metrics"
+	batchPayloadType  = "message-batch"
 
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
@@ -44,7 +49,9 @@ const (
 type sender interface {
 	startSession(cancelCtx context.Context) *senderSession
 	flushSession(ss *senderSession) error
+
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric)
+	sendEventPayload(ss *senderSession, eventInfo *Event, eventPayload map[string]interface{})
 }
 
 type client interface {
@@ -57,7 +64,9 @@ type senderImpl struct {
 	cfgComp config.Reader
 	logComp log.Component
 
-	client client
+	compress         bool
+	compressionLevel int
+	client           client
 
 	endpoints *logconfig.Endpoints
 
@@ -108,7 +117,13 @@ type payloadInfo struct {
 type senderSession struct {
 	cancelCtx       context.Context
 	payloadTemplate Payload
-	metricPayloads  []*AgentMetricsPayload
+
+	// metric payloads
+	metricPayloads []*AgentMetricsPayload
+
+	// event payload
+	eventInfo    *Event
+	eventPayload map[string]interface{}
 }
 
 // BatchPayloadWrapper exported so it can be turned into json
@@ -133,8 +148,13 @@ type MetricPayload struct {
 	Type    string                 `json:"type"`
 	Tags    map[string]interface{} `json:"tags,omitempty"`
 	Buckets map[string]uint64      `json:"buckets,omitempty"`
+	P75     *float64               `json:"p75,omitempty"`
+	P95     *float64               `json:"p95,omitempty"`
+	P99     *float64               `json:"p99,omitempty"`
 }
 
+// -------------------
+// Utilities
 func httpClientFactory(cfg config.Reader, timeout time.Duration) func() *http.Client {
 	return func() *http.Client {
 		return &http.Client{
@@ -207,9 +227,12 @@ func newSenderImpl(
 		cfgComp: cfgComp,
 		logComp: logComp,
 
-		client:       client,
-		endpoints:    endpoints,
-		agentVersion: agentVersion.GetNumberAndPre(),
+		compress:         cfgComp.GetBool("agent_telemetry.use_compression"),
+		compressionLevel: cfgComp.GetInt("agent_telemetry.compression_level"),
+		client:           client,
+		endpoints:        endpoints,
+		agentVersion:     agentVersion.GetNumberAndPre(),
+
 		// pre-fill parts of payload which are not changing during run-time
 		payloadTemplate: Payload{
 			APIVersion: "v2",
@@ -253,7 +276,52 @@ func (s *senderImpl) addMetricPayload(
 		for _, bucket := range histogram.GetBucket() {
 			boundNameRaw := fmt.Sprintf("%v", bucket.GetUpperBound())
 			boundName := strings.ReplaceAll(boundNameRaw, ".", "_")
+
 			payload.Buckets[boundName] = bucket.GetCumulativeCount()
+		}
+		payload.Buckets["+Inf"] = histogram.GetSampleCount()
+
+		// Calculate fixed 75, 95 and 99 precentiles. Percentile calculation finds
+		// a bucket which, with all preceding buckets, contains that percentile item.
+		// For convenience, percentile values are not the bucket number but its
+		// upper-bound. If a percentile belongs to the implicit "+inf" bucket, which
+		// has no explicit upper-bound, we will use the last bucket upper bound times 2.
+		// The upper-bound of the "+Inf" bucket is defined as 2x of the preceding
+		// bucket boundary, but it is totally arbitrary. In the future we may use a
+		// configuration value to set it up.
+		var totalCount uint64
+		for _, bucket := range histogram.GetBucket() {
+			totalCount += bucket.GetCumulativeCount()
+		}
+		totalCount += histogram.GetSampleCount()
+		p75 := uint64(math.Floor(float64(totalCount) * 0.75))
+		p95 := uint64(math.Floor(float64(totalCount) * 0.95))
+		p99 := uint64(math.Floor(float64(totalCount) * 0.99))
+		var curCount uint64
+		for _, bucket := range histogram.GetBucket() {
+			curCount += bucket.GetCumulativeCount()
+			if payload.P75 == nil && curCount >= p75 {
+				p75Value := bucket.GetUpperBound()
+				payload.P75 = &p75Value
+			}
+			if payload.P95 == nil && curCount >= p95 {
+				p95Value := bucket.GetUpperBound()
+				payload.P95 = &p95Value
+			}
+			if payload.P99 == nil && curCount >= p99 {
+				p99Value := bucket.GetUpperBound()
+				payload.P99 = &p99Value
+			}
+		}
+		maxUpperBound := 2 * (histogram.GetBucket()[len(histogram.GetBucket())-1].GetUpperBound())
+		if payload.P75 == nil {
+			payload.P75 = &maxUpperBound
+		}
+		if payload.P95 == nil {
+			payload.P95 = &maxUpperBound
+		}
+		if payload.P99 == nil {
+			payload.P99 = &maxUpperBound
 		}
 	}
 
@@ -276,44 +344,76 @@ func (s *senderImpl) startSession(cancelCtx context.Context) *senderSession {
 	}
 }
 
+func (ss *senderSession) payloadCount() int {
+	payloadCount := len(ss.metricPayloads)
+	if ss.eventPayload != nil {
+		payloadCount++
+	}
+	return payloadCount
+}
+
 func (ss *senderSession) flush() Payload {
 	defer func() {
-		// Clear the payloads
+		// Clear payloads when done
 		ss.metricPayloads = nil
+		ss.eventInfo = nil
+		ss.eventPayload = nil
 	}()
 
 	// Create a payload with a single message or batch of messages
 	payload := ss.payloadTemplate
 	payload.EventTime = time.Now().Unix()
-	if len(ss.metricPayloads) == 1 {
-		// Single payload will be sent directly using the request type of the payload
-		mp := ss.metricPayloads[0]
-		payload.RequestType = "agent-metrics"
-		payload.Payload = payloadInfo{"agent-metrics", mp}.payload
-		return payload
+
+	// Create top-level event payload if needed
+	var eventWrapPayload map[string]interface{}
+	if ss.eventPayload != nil {
+		eventWrapPayload = make(map[string]interface{})
+		eventWrapPayload["message"] = ss.eventInfo.Message
+		eventWrapPayload[ss.eventInfo.PayloadKey] = ss.eventPayload
 	}
 
-	// Batch up multiple payloads into single "batch" payload type
-	batch := make([]BatchPayloadWrapper, 0)
-	for _, mp := range ss.metricPayloads {
-		batch = append(batch,
-			BatchPayloadWrapper{
-				RequestType: "agent-metrics",
-				Payload:     payloadInfo{"agent-metrics", mp}.payload,
-			})
+	if ss.payloadCount() == 1 {
+		// Either metric or event payload (single payload will be sent directly using the request type of the payload)
+		if len(ss.metricPayloads) == 1 {
+			mp := ss.metricPayloads[0]
+			payload.RequestType = metricPayloadType
+			payload.Payload = mp
+		} else {
+			payload.RequestType = ss.eventInfo.RequestType
+			payload.Payload = eventWrapPayload
+		}
+	} else {
+		// Batch up multiple payloads into single "batch" payload type
+		batch := make([]BatchPayloadWrapper, 0)
+		for _, mp := range ss.metricPayloads {
+			batch = append(batch,
+				BatchPayloadWrapper{
+					RequestType: metricPayloadType,
+					Payload:     payloadInfo{metricPayloadType, mp}.payload,
+				})
+		}
+		// add event payload if present
+		if ss.eventPayload != nil {
+			batch = append(batch,
+				BatchPayloadWrapper{
+					RequestType: ss.eventInfo.RequestType,
+					Payload:     eventWrapPayload,
+				})
+		}
+		payload.RequestType = batchPayloadType
+		payload.Payload = batch
 	}
-	payload.RequestType = "message-batch"
-	payload.Payload = batch
+
 	return payload
 }
 
 func (s *senderImpl) flushSession(ss *senderSession) error {
 	// There is nothing to do if there are no payloads
-	if len(ss.metricPayloads) == 0 {
+	if ss.payloadCount() == 0 {
 		return nil
 	}
 
-	s.logComp.Infof("Flushing Agent Telemetery session with %d payloads", len(ss.metricPayloads))
+	s.logComp.Debugf("Flushing Agent Telemetery session with %d payloads", ss.payloadCount())
 
 	payloads := ss.flush()
 	payloadJSON, err := json.Marshal(payloads)
@@ -321,9 +421,23 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		return fmt.Errorf("failed to marshal agent telemetry payload: %w", err)
 	}
 
-	reqBody, err := scrubber.ScrubJSON(payloadJSON)
+	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
 	if err != nil {
 		return fmt.Errorf("failed to scrubl agent telemetry payload: %w", err)
+	}
+
+	// Try to compress the payload if needed
+	reqBody := reqBodyRaw
+	compressed := false
+	if s.compress {
+		// In case of failed to compress continue with uncompress body
+		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
+		if errTemp == nil {
+			compressed = true
+			reqBody = reqBodyCompressed
+		} else {
+			s.logComp.Errorf("Failed to compress agent telemetry payload: %v", errTemp)
+		}
 	}
 
 	// Send the payload to all endpoints
@@ -337,7 +451,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 			errs = errors.Join(errs, err)
 			continue
 		}
-		s.addHeaders(req, reqType, ep.GetAPIKey(), bodyLen)
+		s.addHeaders(req, reqType, ep.GetAPIKey(), bodyLen, compressed)
 		resp, err := s.client.Do(req.WithContext(ss.cancelCtx))
 		if err != nil {
 			errs = errors.Join(errs, err)
@@ -351,9 +465,9 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 
 		// Log return status (and URL if unsuccessful)
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			s.logComp.Debugf("Telemetery enpoint response status: %s, status code: %d", resp.Status, resp.StatusCode)
+			s.logComp.Debugf("Telemetery enpoint response status:%s, request type:%s, status code:%d", resp.Status, reqType, resp.StatusCode)
 		} else {
-			s.logComp.Debugf("Telemetery enpoint response status: %s, status code: %d, url: %s", resp.Status, resp.StatusCode, url)
+			s.logComp.Debugf("Telemetery enpoint response status:%s, request type:%s, status code:%d, url:%s", resp.Status, reqType, resp.StatusCode, url)
 		}
 	}
 
@@ -387,7 +501,13 @@ func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agent
 	}
 }
 
-func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen string) {
+func (s *senderImpl) sendEventPayload(ss *senderSession, eventInfo *Event, eventPayload map[string]interface{}) {
+	ss.eventInfo = eventInfo
+	ss.eventPayload = eventPayload
+	ss.eventPayload["agent_metadata"] = s.metadataPayloadTemplate
+}
+
+func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen string, compressed bool) {
 	req.Header.Add("DD-Api-Key", apikey)
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Content-Length", bodylen)
@@ -397,4 +517,8 @@ func (s *senderImpl) addHeaders(req *http.Request, requesttype, apikey, bodylen 
 	req.Header.Add("DD-Telemetry-Product-Version", s.agentVersion)
 	// Not clear how to acquire that. Appears that EVP adds it automatically
 	req.Header.Add("datadog-container-id", "")
+
+	if compressed {
+		req.Header.Set("Content-Encoding", "zstd")
+	}
 }

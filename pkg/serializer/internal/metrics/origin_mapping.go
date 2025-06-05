@@ -9,8 +9,38 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+func metricSourceToOriginProduct(ms metrics.MetricSource) int32 {
+	const serieMetadataOriginOriginProductServerlessType = 1
+	const serieMetadataOriginOriginProductAgentType = 10
+	const serieMetadataOriginOriginProductDatadogExporterType = 19
+	const serieMetadataOriginOriginProductGPU = 38 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L277
+	if ms >= metrics.MetricSourceOpenTelemetryCollectorUnknown && ms <= metrics.MetricSourceOpenTelemetryCollectorCouchdbReceiver {
+		return serieMetadataOriginOriginProductDatadogExporterType
+	}
+	if ms == metrics.MetricSourceGPU {
+		return serieMetadataOriginOriginProductGPU
+	}
+	switch ms {
+	case metrics.MetricSourceServerless,
+		metrics.MetricSourceAwsLambdaCustom,
+		metrics.MetricSourceAwsLambdaEnhanced,
+		metrics.MetricSourceAwsLambdaRuntime,
+		metrics.MetricSourceAzureContainerAppCustom,
+		metrics.MetricSourceAzureContainerAppEnhanced,
+		metrics.MetricSourceAzureContainerAppRuntime,
+		metrics.MetricSourceAzureAppServiceCustom,
+		metrics.MetricSourceAzureAppServiceEnhanced,
+		metrics.MetricSourceAzureAppServiceRuntime,
+		metrics.MetricSourceGoogleCloudRunCustom,
+		metrics.MetricSourceGoogleCloudRunEnhanced,
+		metrics.MetricSourceGoogleCloudRunRuntime:
+		return serieMetadataOriginOriginProductServerlessType
+	}
+	return serieMetadataOriginOriginProductAgentType
+}
+
 func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
-	// These constants map to specific fields in the 'OriginCategory' enum in origin.proto
+	// These constants map to specific fields in the 'OriginSubproduct' enum in origin.proto
 	switch ms {
 	case metrics.MetricSourceUnknown:
 		return 0
@@ -64,6 +94,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceDisk,
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
+		metrics.MetricSourceWlan,
+		metrics.MetricSourceWindowsCertificateStore,
 		// Plugins and non-checks
 		metrics.MetricSourceCloudFoundry,
 		metrics.MetricSourceJenkins,
@@ -297,6 +329,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceVarnish,
 		metrics.MetricSourceVault,
 		metrics.MetricSourceVertica,
+		metrics.MetricSourceVelero,
 		metrics.MetricSourceVllm,
 		metrics.MetricSourceVoltdb,
 		metrics.MetricSourceVsphere,
@@ -309,8 +342,39 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAwsNeuron,
 		metrics.MetricSourceNvidiaNim,
 		metrics.MetricSourceQuarkus,
-		metrics.MetricSourceMilvus:
+		metrics.MetricSourceMilvus,
+		metrics.MetricSourceCelery,
+		metrics.MetricSourceInfiniband,
+		metrics.MetricSourceAnecdote,
+		metrics.MetricSourceSonatypeNexus,
+		metrics.MetricSourceSilverstripeCMS,
+		metrics.MetricSourceAltairPBSPro,
+		metrics.MetricSourceFalco,
+		metrics.MetricSourceKrakenD,
+		metrics.MetricSourceKuma,
+		metrics.MetricSourceLiteLLM,
+		metrics.MetricSourceLustre,
+		metrics.MetricSourceProxmox,
+		metrics.MetricSourceResilience4j:
 		return 11 // integrationMetrics
+	case metrics.MetricSourceGPU:
+		return 72 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L427
+	case metrics.MetricSourceAzureAppServiceCustom,
+		metrics.MetricSourceAzureAppServiceEnhanced,
+		metrics.MetricSourceAzureAppServiceRuntime:
+		return 35
+	case metrics.MetricSourceGoogleCloudRunCustom,
+		metrics.MetricSourceGoogleCloudRunEnhanced,
+		metrics.MetricSourceGoogleCloudRunRuntime:
+		return 36
+	case metrics.MetricSourceAzureContainerAppCustom,
+		metrics.MetricSourceAzureContainerAppEnhanced,
+		metrics.MetricSourceAzureContainerAppRuntime:
+		return 37
+	case metrics.MetricSourceAwsLambdaCustom,
+		metrics.MetricSourceAwsLambdaEnhanced,
+		metrics.MetricSourceAwsLambdaRuntime:
+		return 38
 	default:
 		return 0
 	}
@@ -431,6 +495,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 65
 	case metrics.MetricSourceGoExpvar:
 		return 66
+	case metrics.MetricSourceGPU:
+		return 466
 	case metrics.MetricSourceGunicorn:
 		return 67
 	case metrics.MetricSourceHaproxy:
@@ -711,6 +777,100 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 203
 	case metrics.MetricSourceInternal:
 		return 212
+	case metrics.MetricSourceSilverstripeCMS:
+		return 468
+	case metrics.MetricSourceSonatypeNexus:
+		return 469
+	case metrics.MetricSourceAnecdote:
+		return 470
+
+	case metrics.MetricSourceOpenTelemetryCollectorUnknown:
+		return 0
+	case metrics.MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
+		return 217
+	case metrics.MetricSourceOpenTelemetryCollectorElasticsearchReceiver:
+		return 218
+	case metrics.MetricSourceOpenTelemetryCollectorExpvarReceiver:
+		return 219
+	case metrics.MetricSourceOpenTelemetryCollectorFilestatsReceiver:
+		return 220
+	case metrics.MetricSourceOpenTelemetryCollectorFlinkmetricsReceiver:
+		return 221
+	case metrics.MetricSourceOpenTelemetryCollectorGitproviderReceiver:
+		return 222
+	case metrics.MetricSourceOpenTelemetryCollectorHaproxyReceiver:
+		return 223
+	case metrics.MetricSourceOpenTelemetryCollectorHostmetricsReceiver:
+		return 224
+	case metrics.MetricSourceOpenTelemetryCollectorHttpcheckReceiver:
+		return 225
+	case metrics.MetricSourceOpenTelemetryCollectorIisReceiver:
+		return 226
+	case metrics.MetricSourceOpenTelemetryCollectorK8sclusterReceiver:
+		return 227
+	case metrics.MetricSourceOpenTelemetryCollectorKafkametricsReceiver:
+		return 228
+	case metrics.MetricSourceOpenTelemetryCollectorKubeletstatsReceiver:
+		return 229
+	case metrics.MetricSourceOpenTelemetryCollectorMemcachedReceiver:
+		return 230
+	case metrics.MetricSourceOpenTelemetryCollectorMongodbatlasReceiver:
+		return 231
+	case metrics.MetricSourceOpenTelemetryCollectorMongodbReceiver:
+		return 232
+	case metrics.MetricSourceOpenTelemetryCollectorMysqlReceiver:
+		return 233
+	case metrics.MetricSourceOpenTelemetryCollectorNginxReceiver:
+		return 234
+	case metrics.MetricSourceOpenTelemetryCollectorNsxtReceiver:
+		return 235
+	case metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver:
+		return 236
+	case metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
+		return 237
+	case metrics.MetricSourceOpenTelemetryCollectorPrometheusReceiver:
+		return 238
+	case metrics.MetricSourceOpenTelemetryCollectorRabbitmqReceiver:
+		return 239
+	case metrics.MetricSourceOpenTelemetryCollectorRedisReceiver:
+		return 240
+	case metrics.MetricSourceOpenTelemetryCollectorRiakReceiver:
+		return 241
+	case metrics.MetricSourceOpenTelemetryCollectorSaphanaReceiver:
+		return 242
+	case metrics.MetricSourceOpenTelemetryCollectorSnmpReceiver:
+		return 243
+	case metrics.MetricSourceOpenTelemetryCollectorSnowflakeReceiver:
+		return 244
+	case metrics.MetricSourceOpenTelemetryCollectorSplunkenterpriseReceiver:
+		return 245
+	case metrics.MetricSourceOpenTelemetryCollectorSqlserverReceiver:
+		return 246
+	case metrics.MetricSourceOpenTelemetryCollectorSshcheckReceiver:
+		return 247
+	case metrics.MetricSourceOpenTelemetryCollectorStatsdReceiver:
+		return 248
+	case metrics.MetricSourceOpenTelemetryCollectorVcenterReceiver:
+		return 249
+	case metrics.MetricSourceOpenTelemetryCollectorZookeeperReceiver:
+		return 250
+	case metrics.MetricSourceOpenTelemetryCollectorActiveDirectorydsReceiver:
+		return 251
+	case metrics.MetricSourceOpenTelemetryCollectorAerospikeReceiver:
+		return 252
+	case metrics.MetricSourceOpenTelemetryCollectorApacheReceiver:
+		return 253
+	case metrics.MetricSourceOpenTelemetryCollectorApachesparkReceiver:
+		return 254
+	case metrics.MetricSourceOpenTelemetryCollectorAzuremonitorReceiver:
+		return 255
+	case metrics.MetricSourceOpenTelemetryCollectorBigipReceiver:
+		return 256
+	case metrics.MetricSourceOpenTelemetryCollectorChronyReceiver:
+		return 257
+	case metrics.MetricSourceOpenTelemetryCollectorCouchdbReceiver:
+		return 258
+
 	case metrics.MetricSourceArgoRollouts:
 		return 314
 	case metrics.MetricSourceArgoWorkflows:
@@ -905,6 +1065,47 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 426
 	case metrics.MetricSourceQuarkus:
 		return 427
+	case metrics.MetricSourceVelero:
+		return 458
+	case metrics.MetricSourceCelery:
+		return 464
+	case metrics.MetricSourceInfiniband:
+		return 465
+	case metrics.MetricSourceAwsLambdaCustom,
+		metrics.MetricSourceAzureContainerAppCustom,
+		metrics.MetricSourceAzureAppServiceCustom,
+		metrics.MetricSourceGoogleCloudRunCustom:
+		return 472
+	case metrics.MetricSourceAwsLambdaEnhanced,
+		metrics.MetricSourceAzureContainerAppEnhanced,
+		metrics.MetricSourceAzureAppServiceEnhanced,
+		metrics.MetricSourceGoogleCloudRunEnhanced:
+		return 473
+	case metrics.MetricSourceAwsLambdaRuntime,
+		metrics.MetricSourceAzureContainerAppRuntime,
+		metrics.MetricSourceAzureAppServiceRuntime,
+		metrics.MetricSourceGoogleCloudRunRuntime:
+		return 474
+	case metrics.MetricSourceWlan:
+		return 475
+	case metrics.MetricSourceAltairPBSPro:
+		return 476
+	case metrics.MetricSourceFalco:
+		return 477
+	case metrics.MetricSourceKrakenD:
+		return 478
+	case metrics.MetricSourceKuma:
+		return 479
+	case metrics.MetricSourceLiteLLM:
+		return 480
+	case metrics.MetricSourceLustre:
+		return 481
+	case metrics.MetricSourceProxmox:
+		return 482
+	case metrics.MetricSourceResilience4j:
+		return 483
+	case metrics.MetricSourceWindowsCertificateStore:
+		return 484
 	default:
 		return 0
 	}

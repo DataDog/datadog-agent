@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -171,7 +171,7 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := taggerMock.SetupFakeTagger(t)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils(fakeTagger))
 			if err != nil {
@@ -239,7 +239,7 @@ func TestProvider_DisableProvider(t *testing.T) {
 	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	err = commontesting.StorePopulatedFromFile(store, "../../testdata/pods.json", common.NewPodUtils(fakeTagger))
 	if err != nil {

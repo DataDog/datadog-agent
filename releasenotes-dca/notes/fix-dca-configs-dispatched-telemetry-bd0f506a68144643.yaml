@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixes an issue with the
+    ``datadog.cluster_agent.cluster_checks.configs_dispatched`` metric emitted
+    by the Cluster Agent telemetry. The metric values could become inaccurate
+    after the Cluster Agent loses and then regains leader status.

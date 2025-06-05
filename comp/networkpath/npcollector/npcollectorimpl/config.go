@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 type collectorConfigs struct {
@@ -18,17 +20,19 @@ type collectorConfigs struct {
 	maxTTL                       int
 	pathtestInputChanSize        int
 	pathtestProcessingChanSize   int
-	pathtestContextsLimit        int
-	pathtestTTL                  time.Duration
-	pathtestInterval             time.Duration
+	storeConfig                  pathteststore.Config
 	flushInterval                time.Duration
 	reverseDNSEnabled            bool
 	reverseDNSTimeout            time.Duration
+	disableIntraVPCCollection    bool
 	networkDevicesNamespace      string
+	sourceExcludedConns          map[string][]string
+	destExcludedConns            map[string][]string
+	tcpMethod                    payload.TCPMethod
+	tcpSynParisTracerouteMode    bool
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
-
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
@@ -36,13 +40,22 @@ func newConfig(agentConfig config.Component) *collectorConfigs {
 		maxTTL:                       agentConfig.GetInt("network_path.collector.max_ttl"),
 		pathtestInputChanSize:        agentConfig.GetInt("network_path.collector.input_chan_size"),
 		pathtestProcessingChanSize:   agentConfig.GetInt("network_path.collector.processing_chan_size"),
-		pathtestContextsLimit:        agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
-		pathtestTTL:                  agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
-		pathtestInterval:             agentConfig.GetDuration("network_path.collector.pathtest_interval"),
-		flushInterval:                agentConfig.GetDuration("network_path.collector.flush_interval"),
-		reverseDNSEnabled:            agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),
-		reverseDNSTimeout:            agentConfig.GetDuration("network_path.collector.reverse_dns_enrichment.timeout") * time.Millisecond,
-		networkDevicesNamespace:      agentConfig.GetString("network_devices.namespace"),
+		storeConfig: pathteststore.Config{
+			ContextsLimit:    agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
+			TTL:              agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
+			Interval:         agentConfig.GetDuration("network_path.collector.pathtest_interval"),
+			MaxPerMinute:     agentConfig.GetInt("network_path.collector.pathtest_max_per_minute"),
+			MaxBurstDuration: agentConfig.GetDuration("network_path.collector.pathtest_max_burst_duration"),
+		},
+		flushInterval:             agentConfig.GetDuration("network_path.collector.flush_interval"),
+		reverseDNSEnabled:         agentConfig.GetBool("network_path.collector.reverse_dns_enrichment.enabled"),
+		reverseDNSTimeout:         agentConfig.GetDuration("network_path.collector.reverse_dns_enrichment.timeout") * time.Millisecond,
+		disableIntraVPCCollection: agentConfig.GetBool("network_path.collector.disable_intra_vpc_collection"),
+		sourceExcludedConns:       agentConfig.GetStringMapStringSlice("network_path.collector.source_excludes"),
+		destExcludedConns:         agentConfig.GetStringMapStringSlice("network_path.collector.dest_excludes"),
+		tcpMethod:                 payload.MakeTCPMethod(agentConfig.GetString("network_path.collector.tcp_method")),
+		tcpSynParisTracerouteMode: agentConfig.GetBool("network_path.collector.tcp_syn_paris_traceroute_mode"),
+		networkDevicesNamespace:   agentConfig.GetString("network_devices.namespace"),
 	}
 }
 

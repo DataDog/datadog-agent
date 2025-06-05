@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	activitydump "github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 )
 
 func TestActivityDumpsThreatScore(t *testing.T) {
@@ -42,7 +42,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		},
 		{
 			ID:         "tag_rule_threat_score_dns",
-			Expression: `dns.question.name == "foo.bar" && process.file.name == "nslookup"`,
+			Expression: `dns.question.name == "one.one.one.one" && process.file.name == "nslookup"`,
 			Tags:       map[string]string{"threat_score": "9"},
 			Version:    "4.5.6",
 		},
@@ -85,7 +85,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	}
 
 	t.Run("activity-dump-tag-rule-file", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -100,14 +100,14 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		tempPathParts := strings.Split(filePath, "/")
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes("touch")
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("touch")
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}
@@ -136,34 +136,34 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	})
 
 	t.Run("activity-dump-tag-rule-dns", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer dockerInstance.stop()
 
 		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes("nslookup")
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("nslookup")
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}
 			node := nodes[0]
 
 			for dnsName, dnsReq := range node.DNSNames {
-				if dnsName == "foo.bar" {
+				if dnsName == "one.one.one.one" {
 					if len(dnsReq.MatchedRules) != 1 ||
 						dnsReq.MatchedRules[0].RuleID != "tag_rule_threat_score_dns" ||
 						dnsReq.MatchedRules[0].RuleVersion != "4.5.6" {
@@ -177,7 +177,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	})
 
 	t.Run("activity-dump-tag-rule-bind", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -191,13 +191,13 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil || len(nodes) != 1 {
 				t.Fatal("Uniq node not found in activity dump")
 			}
@@ -222,7 +222,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 	})
 
 	t.Run("activity-dump-tag-rule-process", func(t *testing.T) {
-		dockerInstance, dump, err := test.StartADockerGetDump()
+		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -236,13 +236,13 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
 
-		err = test.StopActivityDump(dump.Name)
+		err = test.StopActivityDump(ad.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
-			nodes := ad.ActivityTree.FindMatchingRootNodes(syscallTester)
+		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
+			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes(syscallTester)
 			if nodes == nil {
 				t.Fatal("Node not found in activity dump")
 			}

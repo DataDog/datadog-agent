@@ -4,7 +4,7 @@ Exposes a catch-all API for Datadog Agent POST requests.
 
 ## Requirements
 
-- [Golang 1.23](https://go.dev/dl/)
+- [Golang 1.24](https://go.dev/dl/)
 
 ## How to run
 
@@ -51,7 +51,7 @@ The `fakeintake` container is built by the `datadog-agent` CI and available at h
 ### Build fakeintake server and CLI
 
 ```bash
-inv fakeintake.build
+dda inv fakeintake.build
 ```
 
 ### 🐳 Docker, locally

@@ -8,12 +8,16 @@
 package serializers
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -25,6 +29,17 @@ type ContainerContextSerializer struct {
 	ID string `json:"id,omitempty"`
 	// Creation time of the container
 	CreatedAt *utils.EasyjsonTime `json:"created_at,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
+}
+
+// CGroupContextSerializer serializes a cgroup context to JSON
+// easyjson:json
+type CGroupContextSerializer struct {
+	// CGroup ID
+	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
 }
@@ -63,6 +78,8 @@ type EventContextSerializer struct {
 	MatchedRules []MatchedRuleSerializer `json:"matched_rules,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
+	// RuleContext rule context
+	RuleContext RuleContext `json:"rule_context,omitempty"`
 }
 
 // ProcessContextSerializer serializes a process context to JSON
@@ -115,6 +132,8 @@ type NetworkContextSerializer struct {
 	Destination IPPortSerializer `json:"destination"`
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
+	// network_direction indicates if the packet was captured on ingress or egress
+	NetworkDirection string `json:"network_direction"`
 }
 
 // AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
@@ -181,8 +200,19 @@ type DNSQuestionSerializer struct {
 type DNSEventSerializer struct {
 	// id is the unique identifier of the DNS request
 	ID uint16 `json:"id"`
+	// is_query if true means it's a question, if false is a response
+	Query bool `json:"is_query"`
 	// question is a DNS question for the DNS request
 	Question DNSQuestionSerializer `json:"question"`
+	// response is a DNS response for the DNS request
+	Response *DNSResponseEventSerializer `json:"response"`
+}
+
+// DNSResponseEventSerializer serializes a DNS response event to JSON
+// easyjson:json
+type DNSResponseEventSerializer struct {
+	// RCode is the response code present in the response
+	RCode uint8 `json:"code"`
 }
 
 // ExitEventSerializer serializes an exit event to JSON
@@ -192,6 +222,21 @@ type ExitEventSerializer struct {
 	Cause string `json:"cause"`
 	// Exit code of the process or number of the signal that caused the process to terminate
 	Code uint32 `json:"code"`
+}
+
+// MatchingSubExpr serializes matching sub expression to JSON
+// easyjson:json
+type MatchingSubExpr struct {
+	Offset int    `json:"offset"`
+	Length int    `json:"length"`
+	Value  string `json:"value"`
+}
+
+// RuleContext serializes rule context to JSON
+// easyjson:json
+type RuleContext struct {
+	MatchingSubExprs []MatchingSubExpr `json:"matching_subexprs,omitempty"`
+	Expression       string            `json:"expression,omitempty"`
 }
 
 // BaseEventSerializer serializes an event to JSON
@@ -220,6 +265,65 @@ type RawPacketSerializer struct {
 	TLSContext *TLSContextSerializer `json:"tls,omitempty"`
 }
 
+// NetworkStatsSerializer defines a new network stats serializer
+// easyjson:json
+type NetworkStatsSerializer struct {
+	// data_size is the total count of bytes sent or received
+	DataSize uint64 `json:"data_size,omitempty"`
+	// packet_count is the total count of packets sent or received
+	PacketCount uint64 `json:"packet_count,omitempty"`
+}
+
+// FlowSerializer defines a new flow serializer
+// easyjson:json
+type FlowSerializer struct {
+	// l3_protocol is the layer 3 protocol name
+	L3Protocol string `json:"l3_protocol"`
+	// l4_protocol is the layer 4 protocol name
+	L4Protocol string `json:"l4_protocol"`
+	// source is the emitter of the network event
+	Source IPPortSerializer `json:"source"`
+	// destination is the receiver of the network event
+	Destination IPPortSerializer `json:"destination"`
+
+	// ingress holds the network statistics for ingress traffic
+	Ingress *NetworkStatsSerializer `json:"ingress,omitempty"`
+	// egress holds the network statistics for egress traffic
+	Egress *NetworkStatsSerializer `json:"egress,omitempty"`
+}
+
+// NetworkFlowMonitorSerializer defines a network monitor event serializer
+// easyjson:json
+type NetworkFlowMonitorSerializer struct {
+	// device is the network device on which the event was captured
+	Device *NetworkDeviceSerializer `json:"device,omitempty"`
+	// flows is the list of flows with network statistics that were captured
+	Flows []*FlowSerializer `json:"flows,omitempty"`
+}
+
+// SysCtlEventSerializer defines a sysctl event serializer
+// easyjson:json
+type SysCtlEventSerializer struct {
+	// Proc contains the /proc system control parameters and their values
+	Proc map[string]interface{} `json:"proc,omitempty"`
+	// action performed on the system control parameter
+	Action string `json:"action,omitempty"`
+	// file_position is the position in the sysctl control parameter file at which the action occurred
+	FilePosition uint32 `json:"file_position,omitempty"`
+	// name is the name of the system control parameter
+	Name string `json:"name,omitempty"`
+	// name_truncated indicates if the name field is truncated
+	NameTruncated bool `json:"name_truncated,omitempty"`
+	// value is the new and/or current value for the system control parameter depending on the action type
+	Value string `json:"value,omitempty"`
+	// value_truncated indicates if the value field is truncated
+	ValueTruncated bool `json:"value_truncated,omitempty"`
+	// old_value is the old value of the system control parameter
+	OldValue string `json:"old_value,omitempty"`
+	// old_value_truncated indicates if the old_value field is truncated
+	OldValueTruncated bool `json:"old_value_truncated,omitempty"`
+}
+
 func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	mrs := MatchedRuleSerializer{
 		ID:            r.RuleID,
@@ -238,16 +342,25 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 
 // nolint: deadcode, unused
 func newDNSEventSerializer(d *model.DNSEvent) *DNSEventSerializer {
-	return &DNSEventSerializer{
-		ID: d.ID,
+	ret := &DNSEventSerializer{
+		ID:    d.ID,
+		Query: !d.HasResponse(),
 		Question: DNSQuestionSerializer{
-			Class: model.QClass(d.Class).String(),
-			Type:  model.QType(d.Type).String(),
-			Name:  d.Name,
-			Size:  d.Size,
-			Count: d.Count,
+			Class: model.QClass(d.Question.Class).String(),
+			Type:  model.QType(d.Question.Type).String(),
+			Name:  d.Question.Name,
+			Size:  d.Question.Size,
+			Count: d.Question.Count,
 		},
 	}
+
+	if d.HasResponse() {
+		ret.Response = &DNSResponseEventSerializer{
+			RCode: d.Response.ResponseCode,
+		}
+	}
+
+	return ret
 }
 
 // nolint: deadcode, unused
@@ -303,27 +416,28 @@ func newIPPortFamilySerializer(c *model.IPPortContext, family string) IPPortFami
 
 func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 	return &ExitEventSerializer{
-		Cause: model.ExitCause(e.Exit.Cause).String(),
+		Cause: sharedconsts.ExitCause(e.Exit.Cause).String(),
 		Code:  e.Exit.Code,
 	}
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
 
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
-			Name:      eventType.String(),
-			Variables: newVariablesContext(event, opts, ""),
+			Name:        eventType.String(),
+			Variables:   newVariablesContext(event, rule, ""),
+			RuleContext: newRuleContext(event, rule),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 	if s.ProcessContextSerializer != nil {
-		s.ProcessContextSerializer.Variables = newVariablesContext(event, opts, "process.")
+		s.ProcessContextSerializer.Variables = newVariablesContext(event, rule, "process.")
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
@@ -347,10 +461,31 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 	return s
 }
 
-func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variables Variables) {
-	if opts != nil && opts.VariableStore != nil {
-		store := opts.VariableStore
+func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
+	if rule == nil {
+		return RuleContext{}
+	}
+
+	ruleContext := RuleContext{
+		Expression: rule.Expression,
+	}
+
+	for _, valuePos := range e.RuleContext.MatchingSubExprs.GetMatchingValuePos(rule.Expression) {
+		subExpr := MatchingSubExpr{
+			Offset: valuePos.Offset,
+			Length: valuePos.Length,
+			Value:  fmt.Sprintf("%v", valuePos.Value),
+		}
+		ruleContext.MatchingSubExprs = append(ruleContext.MatchingSubExprs, subExpr)
+	}
+	return ruleContext
+}
+
+func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (variables Variables) {
+	if rule != nil && rule.Opts.VariableStore != nil {
+		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
+			// do not serialize hardcoded variables like process.pid
 			if _, found := model.SECLVariables[name]; found {
 				continue
 			}
@@ -361,6 +496,11 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 
 			if (prefix != "" && !strings.HasPrefix(name, prefix)) ||
 				(prefix == "" && strings.Contains(name, ".")) {
+				continue
+			}
+
+			// Skip private variables
+			if variable.GetVariableOpts().Private {
 				continue
 			}
 
@@ -393,4 +533,28 @@ func newVariablesContext(e *model.Event, opts *eval.Opts, prefix string) (variab
 		}
 	}
 	return variables
+}
+
+// EventStringerWrapper an event stringer wrapper
+type EventStringerWrapper struct {
+	Event interface{} // can be model.Event or events.CustomEvent
+}
+
+func (e EventStringerWrapper) String() string {
+	var (
+		data []byte
+		err  error
+	)
+	switch evt := e.Event.(type) {
+	case *model.Event:
+		data, err = MarshalEvent(evt, nil)
+	case *events.CustomEvent:
+		data, err = MarshalCustomEvent(evt)
+	default:
+		return "event can't be wrapped, not supported"
+	}
+	if err != nil {
+		return fmt.Sprintf("unable to marshal event: %s", err)
+	}
+	return string(data)
 }

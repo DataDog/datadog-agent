@@ -14,27 +14,29 @@
 static __attribute__((always_inline)) void bump_path_id(u32 mount_id) {
     u32 key = mount_id % PATH_ID_MAP_SIZE;
 
-    u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
-    if (prev_id) {
-        __sync_fetch_and_add(prev_id, 1);
+    u32 *id = bpf_map_lookup_elem(&path_id, &key);
+    if (id) {
+        __sync_fetch_and_add(id, 1);
     }
 }
 
 static __attribute__((always_inline)) u32 get_path_id(u32 mount_id, int invalidate) {
     u32 key = mount_id % PATH_ID_MAP_SIZE;
 
-    u32 *prev_id = bpf_map_lookup_elem(&path_id, &key);
-    if (!prev_id) {
+    u32 *id = bpf_map_lookup_elem(&path_id, &key);
+    if (!id) {
         return 0;
     }
+
+    u32 id_value = *id;
 
     // need to invalidate the current path id for event which may change the association inode/name like
     // unlink, rename, rmdir.
     if (invalidate) {
-        __sync_fetch_and_add(prev_id, 1);
+        __sync_fetch_and_add(id, 1);
     }
 
-    return *prev_id;
+    return id_value;
 }
 
 static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int invalidate) {
@@ -97,6 +99,13 @@ static __attribute__((always_inline)) void umounted(struct pt_regs *ctx, u32 mou
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
 }
 
+static __attribute__((always_inline)) void set_file_layer(struct dentry *dentry, struct file_t *file) {
+    if (is_overlayfs(dentry)) {
+        u32 flags = get_overlayfs_layer(dentry);
+        file->flags |= flags;
+    }
+}
+
 void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file_t *file) {
     struct inode *d_inode = get_dentry_inode(dentry);
 
@@ -153,6 +162,9 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
     bpf_probe_read(&file->metadata.mtime.tv_nsec, sizeof(file->metadata.mtime.tv_nsec), &d_inode->i_mtime_nsec);
 #endif
 	}
+
+    // set again the layer here as after update a file will be moved to the upper layer
+    set_file_layer(dentry, file);
 }
 
 #define get_dentry_key_path(dentry, path)                                  \
@@ -171,7 +183,7 @@ static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry,
     }
 
     if (is_overlayfs(dentry)) {
-        set_overlayfs_ino(dentry, &file->path_key.ino, &file->flags);
+        set_overlayfs_inode(dentry, file);
     }
 }
 

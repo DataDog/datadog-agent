@@ -11,16 +11,16 @@ import (
 	"errors"
 	"fmt"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
@@ -32,9 +32,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -58,6 +58,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -150,40 +151,25 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provide statsd client module
 		compstatsd.Module(),
-
-		// Provide authtoken module
-		fetchonlyimpl.Module(),
+		fx.Provide(func(config config.Component, statsd compstatsd.Component) (ddgostatsd.ClientInterface, error) {
+			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+		}),
 
 		// Provide configsync module
-		configsyncimpl.Module(),
+		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 
 		// Provide autoexit module
 		autoexitimpl.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
-		wmcatalog.GetCatalog(),
+		wmcatalogremote.GetCatalog(),
 
 		// Provide workloadmeta module
-		workloadmetafx.ModuleWithProvider(func(c config.Component) workloadmeta.Params {
-			var catalog workloadmeta.AgentType
-
-			if c.GetBool("process_config.remote_workloadmeta") {
-				catalog = workloadmeta.Remote
-			} else {
-				catalog = workloadmeta.ProcessAgent
-			}
-
-			return workloadmeta.Params{AgentType: catalog}
+		workloadmetafx.Module(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
 		}),
 
-		dualTaggerfx.Module(tagger.DualParams{
-			UseRemote: func(c config.Component) bool {
-				return c.GetBool("process_config.remote_tagger") ||
-					// If the agent is running in ECS or ECS Fargate and the ECS task collection is enabled, use the remote tagger
-					// as remote tagger can return more tags than the local tagger.
-					((env.IsECS() || env.IsECSFargate()) && c.GetBool("ecs_task_collection_enabled"))
-			},
-		}, tagger.Params{}, tagger.RemoteParams{
+		remoteTaggerfx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 			},
@@ -214,7 +200,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			_ expvars.Component,
 			_ apiserver.Component,
 			cfg config.Component,
-			_ configsync.Component,
 			// TODO: This is needed by the container-provider which is not currently a component.
 			// We should ensure the tagger is a dependency when converting to a component.
 			_ tagger.Component,
@@ -240,6 +225,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			}
 		}),
 		settingsimpl.Module(),
+		ipcfx.ModuleReadWrite(),
 	)
 
 	err := app.Start(ctx)

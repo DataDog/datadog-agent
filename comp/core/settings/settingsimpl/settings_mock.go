@@ -31,12 +31,16 @@ type MockProvides struct {
 	Comp settings.Component
 }
 
-type mock struct{}
+type mock struct {
+	rtSettings map[string]interface{}
+}
 
 func newMock() MockProvides {
-	m := mock{}
+	m := mock{
+		rtSettings: map[string]interface{}{},
+	}
 	return MockProvides{
-		Comp: m,
+		Comp: &m,
 	}
 }
 
@@ -46,12 +50,17 @@ func (m mock) RuntimeSettings() map[string]settings.RuntimeSetting {
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
-func (m mock) GetRuntimeSetting(string) (interface{}, error) {
+func (m mock) GetRuntimeSetting(key string) (interface{}, error) {
+	v, found := m.rtSettings[key]
+	if found {
+		return v, nil
+	}
 	return nil, nil
 }
 
 // SetRuntimeSetting changes the value of a runtime configurable setting
-func (m mock) SetRuntimeSetting(string, interface{}, model.Source) error {
+func (m *mock) SetRuntimeSetting(key string, v interface{}, _ model.Source) error {
+	m.rtSettings[key] = v
 	return nil
 }
 

@@ -9,10 +9,10 @@
 package sysprobe
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
 // SystemProbeConfig fetch the configuration from the system-probe process by querying its API

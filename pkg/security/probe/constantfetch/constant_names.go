@@ -9,8 +9,9 @@ package constantfetch
 
 // Struct sizes
 const (
-	SizeOfInode = "sizeof_inode"
-	SizeOfUPID  = "sizeof_upid"
+	SizeOfInode      = "sizeof_inode"
+	SizeOfUPID       = "sizeof_upid"
+	SizeOfPipeBuffer = "sizeof_pipe_buffer"
 )
 
 // Offset names in the format "OffsetName[Struct Name]Struct[Field Name]"
@@ -30,6 +31,18 @@ const (
 	OffsetNameFileFpath                 = "file_f_path_offset"
 	OffsetNameDentryDSb                 = "dentry_d_sb_offset"
 	OffsetNameMountMntID                = "mount_id_offset"
+	OffsetNameSbDev                     = "sb_dev_offset"
+	OffsetNameDentryDInode              = "dentry_d_inode_offset"
+	OffsetNamePathDentry                = "path_dentry_offset"
+	OffsetNameInodeSuperblock           = "inode_sb_offset"
+	OffsetNamePathMnt                   = "path_mnt_offset"
+	OffsetNameMountMntMountpoint        = "mount_mnt_mountpoint_offset"
+	OffsetNameMountpointDentry          = "mountpoint_dentry_offset"
+	OffsetNameVfsmountMntFlags          = "vfsmount_mnt_flags_offset"
+	OffsetNameVfsmountMntRoot           = "vfsmount_mnt_root_offset"
+	OffsetNameVfsmountMntSb             = "vfsmount_mnt_sb_offset"
+	OffsetNameSuperblockSType           = "super_block_s_type_offset"
+	OffsetNameDentryDName               = "dentry_d_name_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"
@@ -78,6 +91,7 @@ const (
 	OffsetNamePipeInodeInfoStructBuffers  = "pipe_inode_info_buffers_offset"   // kernels < 5.5
 	OffsetNamePipeInodeInfoStructHead     = "pipe_inode_info_head_offset"      // kernels >= 5.5
 	OffsetNamePipeInodeInfoStructRingsize = "pipe_inode_info_ring_size_offset" // kernels >= 5.5
+	OffsetNamePipeBufferStructFlags       = "pipe_buffer_flags_offset"
 
 	// network related constants
 	OffsetNameNetDeviceStructIfIndex    = "net_device_ifindex_offset"
@@ -89,10 +103,15 @@ const (
 	OffsetNameSocketStructSK            = "socket_sock_offset"
 	OffsetNameNFConnStructCTNet         = "nf_conn_ct_net_offset"
 	OffsetNameSockCommonStructSKCFamily = "sock_common_skc_family_offset"
+	OffsetNameSockCommonStructSKCNum    = "sock_common_skc_num_offset"
 	OffsetNameFlowI4StructSADDR         = "flowi4_saddr_offset"
 	OffsetNameFlowI6StructSADDR         = "flowi6_saddr_offset"
 	OffsetNameFlowI4StructULI           = "flowi4_uli_offset"
 	OffsetNameFlowI6StructULI           = "flowi6_uli_offset"
+
+	// TODO: needed for l4_protocol resolution, see network/flow.h
+	OffsetNameFlowI4StructProto = "flowi4_proto_offset"
+	OffsetNameFlowI6StructProto = "flowi6_proto_offset"
 
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"

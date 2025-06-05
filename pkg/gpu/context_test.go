@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux_bpf && nvml
 
 package gpu
 
@@ -16,15 +16,32 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func TestFilterDevicesForContainer(t *testing.T) {
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), kernel.ProcFSRoot(), wmetaMock)
-	require.NotNil(t, sysCtx)
+func getTestSystemContext(t *testing.T, extraOpts ...systemContextOption) *systemContext {
+	opts := []systemContextOption{
+		withProcRoot(kernel.ProcFSRoot()),
+		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
+		withTelemetry(testutil.GetTelemetryMock(t)),
+	}
+
+	opts = append(opts, extraOpts...) // Allow overriding the default options
+
+	sysCtx, err := getSystemContext(opts...)
 	require.NoError(t, err)
+	require.NotNil(t, sysCtx)
+	return sysCtx
+}
+
+func TestFilterDevicesForContainer(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	sysCtx := getTestSystemContext(t, withWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
 	containerID := "abcdef"
@@ -38,12 +55,24 @@ func TestFilterDevicesForContainer(t *testing.T) {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: containerID,
 		},
-		AllocatedResources: []workloadmeta.ContainerAllocatedResource{
+		ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 			{
-				Name: nvidiaResourceName,
+				Name: string(gpuutil.GpuNvidiaGeneric),
 				ID:   gpuUUID,
 			},
 		},
+	}
+
+	containerIDNoGpu := "abcdef2"
+	containerNoGpu := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerIDNoGpu,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: containerIDNoGpu,
+		},
+		ResolvedAllocatedResources: nil,
 	}
 
 	wmetaMock.Set(container)
@@ -51,23 +80,41 @@ func TestFilterDevicesForContainer(t *testing.T) {
 	require.NoError(t, err, "container should be found in the store")
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
+	wmetaMock.Set(containerNoGpu)
+	storeContainer, err = wmetaMock.GetContainer(containerIDNoGpu)
+	require.NoError(t, err, "container should be found in the store")
+	require.NotNil(t, storeContainer, "container should be found in the store")
+
 	t.Run("NoContainer", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "")
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), "")
 		require.NoError(t, err)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices) // With no container, all devices should be returned
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()) // With no container, all devices should be returned
 	})
 
 	t.Run("NonExistentContainer", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, "non-existent-at-all")
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), "non-existent-at-all")
 		require.NoError(t, err)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices) // If we can't find the container, all devices should be returned
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()) // If we can't find the container, all devices should be returned
 	})
 
 	t.Run("ContainerWithGPU", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.gpuDevices, containerID)
+		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), containerID)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
-		testutil.RequireDeviceListsEqual(t, filtered, sysCtx.gpuDevices[deviceIndex:deviceIndex+1])
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()[deviceIndex:deviceIndex+1])
+	})
+
+	t.Run("ContainerWithNoGPUs", func(t *testing.T) {
+		_, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), containerIDNoGpu)
+		require.Error(t, err, "expected an error when filtering a container with no GPUs")
+	})
+
+	t.Run("ContainerWithNoGPUsButOnlyOneDeviceInSystem", func(t *testing.T) {
+		sysDevices := sysCtx.deviceCache.All()[:1]
+		filtered, err := sysCtx.filterDevicesForContainer(sysDevices, containerIDNoGpu)
+		require.NoError(t, err)
+		require.Len(t, filtered, 1)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysDevices)
 	})
 }
 
@@ -91,10 +138,10 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 		{Pid: uint32(pidNoContainerButEnv), Env: map[string]string{"CUDA_VISIBLE_DEVICES": envVisibleDevicesValue}},
 	})
 
+	// MIG makes the device selection more complex, so we disable it for these tests
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx, err := getSystemContext(testutil.GetBasicNvmlMock(), procFs, wmetaMock)
-	require.NotNil(t, sysCtx)
-	require.NoError(t, err)
+	sysCtx := getTestSystemContext(t, withProcRoot(procFs), withWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
 	containerID := "abcdef"
@@ -112,10 +159,10 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	for _, idx := range containerDeviceIndexes {
 		gpuUUID := testutil.GPUUUIDs[idx]
 		resource := workloadmeta.ContainerAllocatedResource{
-			Name: nvidiaResourceName,
+			Name: string(gpuutil.GpuNvidiaGeneric),
 			ID:   gpuUUID,
 		}
-		container.AllocatedResources = append(container.AllocatedResources, resource)
+		container.ResolvedAllocatedResources = append(container.ResolvedAllocatedResources, resource)
 	}
 
 	wmetaMock.Set(container)
@@ -167,9 +214,9 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			}
 
 			for i, idx := range c.expectedDeviceIdx {
-				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, c.containerID)
+				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, func() string { return c.containerID })
 				require.NoError(t, err)
-				testutil.RequireDevicesEqual(t, sysCtx.gpuDevices[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
+				nvmltestutil.RequireDevicesEqual(t, sysCtx.deviceCache.All()[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
 			}
 		})
 	}

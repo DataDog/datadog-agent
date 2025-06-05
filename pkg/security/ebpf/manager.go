@@ -15,10 +15,10 @@ import (
 )
 
 // NewDefaultOptions returns a new instance of the default runtime security manager options
-func NewDefaultOptions() manager.Options {
+func NewDefaultOptions(kretprobeMaxActive int) manager.Options {
 	return manager.Options{
 		// DefaultKProbeMaxActive is the maximum number of active kretprobe at a given time
-		DefaultKProbeMaxActive: 512,
+		DefaultKProbeMaxActive: kretprobeMaxActive,
 
 		DefaultPerfRingBufferSize: probes.EventsPerfRingBufferSize,
 
@@ -27,10 +27,9 @@ func NewDefaultOptions() manager.Options {
 }
 
 // NewRuntimeSecurityManager returns a new instance of the runtime security module manager
-func NewRuntimeSecurityManager(supportsRingBuffers, useFentry bool) *manager.Manager {
+func NewRuntimeSecurityManager(supportsRingBuffers bool) *manager.Manager {
 	manager := &manager.Manager{
-		Probes: probes.AllProbes(useFentry),
-		Maps:   probes.AllMaps(),
+		Maps: probes.AllMaps(),
 	}
 	if supportsRingBuffers {
 		manager.RingBuffers = probes.AllRingBuffers()

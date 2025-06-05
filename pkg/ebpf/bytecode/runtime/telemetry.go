@@ -8,19 +8,22 @@
 package runtime
 
 import (
-	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/DataDog/nikos/types"
 
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+var rcTelemetry = struct {
+	success telemetry.Counter
+	error   telemetry.Counter
+}{
+	success: telemetry.NewCounter("ebpf__runtime_compilation__compile", "success", []string{"platform", "platform_version", "kernel", "arch", "asset", "result"}, "counter of runtime compilation compile successes"),
+	error:   telemetry.NewCounter("ebpf__runtime_compilation__compile", "error", []string{"platform", "platform_version", "kernel", "arch", "asset", "result"}, "counter of runtime compilation compile errors"),
+}
 
 // CompilationResult enumerates runtime compilation success & failure modes
 type CompilationResult int
@@ -30,9 +33,9 @@ const (
 	compilationSuccess
 	kernelVersionErr
 	verificationError
-	outputDirErr
+	_
 	outputFileErr
-	newCompilerErr //nolint:deadcode,unused
+	_
 	compilationErr
 	resultReadErr
 	headerFetchErr
@@ -54,7 +57,7 @@ func newCompilationTelemetry() CompilationTelemetry {
 	}
 }
 
-// CompilationEnabled returns whether or not runtime compilation has been enabled
+// CompilationEnabled returns whether runtime compilation has been enabled
 func (tm *CompilationTelemetry) CompilationEnabled() bool {
 	return tm.compilationEnabled
 }
@@ -70,46 +73,44 @@ func (tm *CompilationTelemetry) CompilationDurationNS() int64 {
 }
 
 // SubmitTelemetry sends telemetry using the provided statsd client
-func (tm *CompilationTelemetry) SubmitTelemetry(filename string, statsdClient statsd.ClientInterface) {
-	if !tm.compilationEnabled {
+func (tm *CompilationTelemetry) SubmitTelemetry(filename string) {
+	if !tm.compilationEnabled || tm.compilationResult == notAttempted {
 		return
 	}
 
-	var platform string
-	if target, err := types.NewTarget(); err == nil {
-		// Prefer platform information from nikos over platform info from the host package, since this
-		// is what kernel header downloading uses
-		platform = strings.ToLower(target.Distro.Display)
-	} else {
-		log.Warnf("failed to retrieve host platform information from nikos: %s", err)
-		platform, err = kernel.Platform()
-		if err != nil {
-			log.Warnf("failed to retrieve host platform information: %s", err)
-			return
-		}
+	platform, err := kernel.Platform()
+	if err != nil {
+		log.Warnf("failed to retrieve host platform information: %s", err)
+		return
+	}
+	platformVersion, err := kernel.PlatformVersion()
+	if err != nil {
+		log.Warnf("failed to get platform version: %s", err)
+		return
+	}
+	kernelVersion, err := kernel.Release()
+	if err != nil {
+		log.Warnf("failed to get kernel version: %s", err)
+		return
+	}
+	arch, err := kernel.Machine()
+	if err != nil {
+		log.Warnf("failed to get kernel architecture: %s", err)
+		return
 	}
 
 	tags := []string{
-		fmt.Sprintf("asset:%s", filename),
-		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("platform:%s", platform),
+		platform,
+		platformVersion,
+		kernelVersion,
+		arch,
+		filename,
+		model.RuntimeCompilationResult(tm.compilationResult).String(),
 	}
 
-	if tm.compilationResult != notAttempted {
-		var resultTag string
-		if tm.compilationResult == compilationSuccess || tm.compilationResult == compiledOutputFound {
-			resultTag = "success"
-		} else {
-			resultTag = "failure"
-		}
-
-		rcTags := append(tags,
-			fmt.Sprintf("result:%s", resultTag),
-			fmt.Sprintf("reason:%s", model.RuntimeCompilationResult(tm.compilationResult).String()),
-		)
-
-		if err := statsdClient.Count("datadog.system_probe.runtime_compilation.attempted", 1.0, rcTags, 1.0); err != nil && !errors.Is(err, statsd.ErrNoClient) {
-			log.Warnf("error submitting runtime compilation metric to statsd: %s", err)
-		}
+	if tm.compilationResult == compilationSuccess || tm.compilationResult == compiledOutputFound {
+		rcTelemetry.success.Inc(tags...)
+	} else {
+		rcTelemetry.error.Inc(tags...)
 	}
 }

@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/run"
+	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands/status"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
 	"go.opentelemetry.io/collector/featuregate"
 )
@@ -27,6 +28,11 @@ import (
 const (
 	// loggerName is the application logger identifier
 	loggerName = "OTELCOL"
+)
+
+var (
+	// BYOC indicates whether the otel agent was built via byoc
+	BYOC string
 )
 
 // MakeRootCommand is the root command for the otel-agent
@@ -37,6 +43,7 @@ func MakeRootCommand() *cobra.Command {
 	globalParams := subcommands.GlobalParams{
 		ConfigName: "datadog-otel",
 		LoggerName: loggerName,
+		BYOC:       strings.EqualFold(BYOC, "true"),
 	}
 
 	return makeCommands(&globalParams)
@@ -49,6 +56,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 	commands := []*cobra.Command{
 		run.MakeCommand(globalConfGetter),
 		version.MakeCommand("otel-agent"),
+		status.MakeCommand(globalConfGetter),
 	}
 
 	otelAgentCmd := *commands[0] // root cmd is `run()`; indexed at 0
@@ -73,7 +81,8 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		true, // show env variable value in usage
 	)
 
-	if err := ef.Parse(os.Args[1:]); err != nil {
+	// There may be other env vars in addition to the ones in envflag.NewEnvFlag. Do not panic if those env vars do not have a help message (flag.ErrHelp)
+	if err := ef.Parse(os.Args[1:]); err != nil && err != flag.ErrHelp {
 		panic(err)
 	}
 
@@ -82,7 +91,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 
 const configFlag = "config"
 const coreConfigFlag = "core-config"
-const syncDelayFlag = "sync-delay"
+const syncDelayFlag = "sync-delay" // TODO: Change this to sync-on-init-timeout
 const syncTimeoutFlag = "sync-to"
 
 func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.FlagSet {
@@ -90,8 +99,8 @@ func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.Flag
 	flagSet.Var(cfgs, configFlag, "Locations to the config file(s), note that only a"+
 		" single location can be set per flag entry e.g. `--config=file:/path/to/first --config=file:path/to/second`.")
 	flagSet.StringVar(&cfgs.CoreConfPath, coreConfigFlag, "", "Location to the Datadog Agent config file.")
-	flagSet.DurationVar(&cfgs.SyncDelay, syncDelayFlag, 0, "Delay before first config sync.")
-	flagSet.DurationVar(&cfgs.SyncTimeout, syncTimeoutFlag, 3*time.Second, "Timeout for sync requests.")
+	flagSet.DurationVar(&cfgs.SyncOnInitTimeout, syncDelayFlag, 0, "How long should config sync retry at initialization before failing.")
+	flagSet.DurationVar(&cfgs.SyncTimeout, syncTimeoutFlag, 3*time.Second, "Timeout for config sync requests.")
 
 	flagSet.Func("set",
 		"Set arbitrary component config property. The component has to be defined in the config file and the flag"+
@@ -106,6 +115,10 @@ func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.Flag
 			return nil
 		})
 
+	err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true)
+	if err != nil {
+		panic(err)
+	}
 	reg.RegisterFlags(flagSet)
 	return flagSet
 }

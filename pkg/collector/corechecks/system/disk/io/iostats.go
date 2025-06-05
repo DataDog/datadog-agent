@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package io implements the io check.
 package io
 
 import (
@@ -16,14 +16,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
 	// SectorSize is used here to substitute non-exporeted from github.com/shirou/gopsutil/v4/disk package constant named "sectorSize"
 	SectorSize = 512
 	kB         = (1 << 10)
-	CheckName  = "io"
+	// CheckName is the name of the io check.
+	CheckName = "io"
 )
 
 // Configure the IOstats check
@@ -64,8 +65,8 @@ func (c *IOCheck) commonConfigure(senderManager sender.SenderManager, data integ
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
+func Factory() option.Option[func() check.Check] {
+	return option.New(newCheck)
 }
 
 func newCheck() check.Check {

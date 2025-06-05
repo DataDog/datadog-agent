@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	tagutil "github.com/DataDog/datadog-agent/pkg/util/tags"
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -52,7 +52,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		metricsConfigMap["apm_stats_receiver_addr"] = fmt.Sprintf("http://localhost:%s/v0.6/stats", coreconfig.Datadog().GetString("apm_config.receiver_port"))
 	}
 
-	tags := strings.Join(util.GetStaticTagsSlice(context.TODO(), cfg), ",")
+	tags := strings.Join(tagutil.GetStaticTagsSlice(context.TODO(), cfg), ",")
 	if tags != "" {
 		metricsConfigMap["tags"] = tags
 	}
@@ -79,7 +79,7 @@ func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool
 	// so to get properly type map we need to decode it twice
 
 	// We need to start with default config to get the corrent default values
-	cf := serializerexporter.NewFactory(nil, nil, nil, nil, nil).CreateDefaultConfig()
+	cf := serializerexporter.NewFactoryForAgent(nil, nil, nil).CreateDefaultConfig()
 
 	x := cf.(*serializerexporter.ExporterConfig).Metrics
 	if strict {

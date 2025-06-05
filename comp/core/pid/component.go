@@ -7,7 +7,7 @@
 // doesn't exist or doesn't contain a PID for a running process.
 package pid
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Component is the component type.
 type Component interface{}

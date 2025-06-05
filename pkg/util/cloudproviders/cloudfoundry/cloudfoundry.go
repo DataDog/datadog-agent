@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	netutil "github.com/DataDog/datadog-agent/pkg/util/net"
 )
 
 var (
@@ -22,7 +22,7 @@ var (
 )
 
 // Define alias in order to mock in the tests
-var getFqdn = util.Fqdn
+var getFqdn = netutil.Fqdn
 
 // GetHostAliases returns the host aliases from Cloud Foundry
 //

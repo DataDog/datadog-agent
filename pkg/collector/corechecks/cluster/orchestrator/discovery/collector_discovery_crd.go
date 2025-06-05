@@ -116,6 +116,9 @@ func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersi
 	if resource == "clusters" {
 		return d.isSupportClusterCollector(collector, collectorInventory)
 	}
+	if resource == "terminated-pods" {
+		return d.isSupportTerminatedPodCollector(collector, collectorInventory)
+	}
 
 	return d.isSupportCollector(collector)
 }
@@ -136,6 +139,19 @@ func (d *DiscoveryCollector) isSupportClusterCollector(collector collectors.K8sC
 		return nil, fmt.Errorf("failed to discover cluster resource %w", err)
 	}
 	_, err = d.isSupportCollector(nodeCollector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover resource %s", collector.Metadata().Name)
+	}
+	return collector, nil
+
+}
+
+func (d *DiscoveryCollector) isSupportTerminatedPodCollector(collector collectors.K8sCollector, collectorInventory *inventory.CollectorInventory) (collectors.K8sCollector, error) {
+	podCollector, err := collectorInventory.CollectorForDefaultVersion("pods")
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover pod resource %w", err)
+	}
+	_, err = d.isSupportCollector(podCollector)
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover resource %s", collector.Metadata().Name)
 	}

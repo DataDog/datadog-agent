@@ -1,9 +1,12 @@
 #ifndef _HOOKS_NETWORK_DNS_H_
 #define _HOOKS_NETWORK_DNS_H_
 
-#include "helpers/dns.h"
-#include "helpers/network.h"
+#include "helpers/network/dns.h"
+#include "helpers/network/parser.h"
+#include "helpers/network/router.h"
 #include "perf_ring.h"
+
+#define DNS_ENTRY_TIMEOUT_NS SEC_TO_NS(1)
 
 __attribute__((always_inline)) int parse_dns_request(struct __sk_buff *skb, struct packet_t *pkt, struct dns_event_t *evt) {
     u16 qname_length = 0;
@@ -58,8 +61,7 @@ __attribute__((always_inline)) int is_dns_request_parsing_done(struct __sk_buff 
     return 1;
 }
 
-SEC("classifier/dns_request")
-int classifier_dns_request(struct __sk_buff *skb) {
+TAIL_CALL_CLASSIFIER_FNC(dns_request, struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
@@ -86,8 +88,7 @@ int classifier_dns_request(struct __sk_buff *skb) {
     return ACT_OK;
 }
 
-SEC("classifier/dns_request_parser")
-int classifier_dns_request_parser(struct __sk_buff *skb) {
+TAIL_CALL_CLASSIFIER_FNC(dns_request_parser, struct __sk_buff *skb) {
     struct packet_t *pkt = get_packet();
     if (pkt == NULL) {
         // should never happen
@@ -117,6 +118,122 @@ int classifier_dns_request_parser(struct __sk_buff *skb) {
 
     if (!is_dns_request_parsing_done(skb, pkt)) {
         bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST_PARSER);
+    }
+
+    return ACT_OK;
+}
+
+TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
+    struct packet_t *pkt = get_packet();
+    if (pkt == NULL) {
+        // should never happen
+        return ACT_OK;
+    }
+
+    union dns_responses_t * map_elem = reset_dns_response_event(skb, pkt);
+    if (map_elem == NULL) {
+        // should never happen
+        return ACT_OK;
+    }
+
+    int len = pkt->payload_len;
+
+    if (len > DNS_RECEIVE_MAX_LENGTH) {
+        return ACT_OK;
+    }
+
+    if(len <= sizeof(struct dnshdr)) {
+        // Reject if less than the minimum size
+        return ACT_OK;
+    }
+
+    struct dns_flags_as_bits_and_pieces_t flags;
+    if (bpf_skb_load_bytes(skb, pkt->offset + 2, &flags, sizeof(flags)) < 0) {
+        return ACT_OK;
+    }
+
+    if(!flags.qr || flags.tc) {
+        // Stop processing if it's not a query response or if the message is truncated
+        return ACT_OK;
+    }
+
+    uint16_t header_id;
+    bool send_packet_with_context = false;
+    long err;
+
+    struct bpf_map_def *buffer = select_buffer(&fb_dns_stats, &bb_dns_stats, DNS_FILTERED_KEY);
+    if (buffer == NULL) {
+        // Should never happen
+        return ACT_OK;
+    }
+
+    const u32 key = 0;
+    struct dns_receiver_stats_t *stats = bpf_map_lookup_elem(buffer, &key);
+    if (stats == NULL) {
+        // Should never happen
+        return ACT_OK;
+    }
+
+    u16 should_discard = (get_dns_rcode_discarder_mask() >> flags.rcode) & 1;
+    if(should_discard) {
+        __sync_fetch_and_add(&stats->discarded_dns_packets, 1);
+        if (flags.rcode != 0) {
+            return ACT_OK;
+        }
+        // Even if there's a discarder, we still send packets with rcode=0 without context information for the DNS resolver
+        err = bpf_skb_load_bytes(skb, pkt->offset, &map_elem->short_dns_response.header, sizeof(struct dnshdr));
+        header_id = map_elem->short_dns_response.header.id;
+    } else {
+        send_packet_with_context = true;
+        fill_network_process_context_from_pkt(&map_elem->full_dns_response.process, pkt);
+        fill_network_context(&map_elem->full_dns_response.network, skb, pkt);
+        err = bpf_skb_load_bytes(skb, pkt->offset, &map_elem->full_dns_response.header, sizeof(struct dnshdr));
+        header_id = map_elem->full_dns_response.header.id;
+    }
+
+    if (err < 0) {
+        return ACT_OK;
+    }
+
+    pkt->offset += sizeof(struct dnshdr);
+
+    u64 current_timestamp = bpf_ktime_get_ns();
+    struct dns_responses_sent_to_userspace_lru_entry_t* lru_entry = bpf_map_lookup_elem(&dns_responses_sent_to_userspace, &header_id);
+
+    if (lru_entry != NULL && lru_entry->timestamp + DNS_ENTRY_TIMEOUT_NS > current_timestamp) {
+        if (len == lru_entry->packet_size) {
+            __sync_fetch_and_add(&stats->filtered_dns_packets, 1);
+            return ACT_OK;
+        }
+
+        __sync_fetch_and_add(&stats->same_id_different_size, 1);
+    }
+
+    struct dns_responses_sent_to_userspace_lru_entry_t entry;
+    entry.timestamp = current_timestamp;
+    entry.packet_size = (u64)len;
+    bpf_map_update_elem(&dns_responses_sent_to_userspace, &header_id, &entry, BPF_ANY);
+
+    int remaining_bytes = len - sizeof(struct dnshdr);
+
+    if (remaining_bytes <= 0 || pkt->offset <= 0 || remaining_bytes >= DNS_RECEIVE_MAX_LENGTH) {
+        return ACT_OK;
+    }
+
+    if (send_packet_with_context) {
+        err = bpf_skb_load_bytes(skb, pkt->offset, (void*)map_elem->full_dns_response.data, remaining_bytes);
+    } else {
+        err = bpf_skb_load_bytes(skb, pkt->offset, (void*)map_elem->short_dns_response.data, remaining_bytes);
+    }
+
+    if (err < 0) {
+        return ACT_OK;
+    }
+
+    if (send_packet_with_context) {
+        send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_FULL, &map_elem->full_dns_response, offsetof(struct full_dns_response_event_t, data) + remaining_bytes);
+    } else {
+        send_event_with_size_ptr(skb, EVENT_DNS_RESPONSE_SHORT, &map_elem->short_dns_response, offsetof(struct short_dns_response_event_t, data) + remaining_bytes);
     }
 
     return ACT_OK;

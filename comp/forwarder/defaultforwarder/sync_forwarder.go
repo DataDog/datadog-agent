@@ -14,6 +14,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -27,16 +28,20 @@ type SyncForwarder struct {
 }
 
 // NewSyncForwarder returns a new synchronous forwarder.
-func NewSyncForwarder(config config.Component, log log.Component, keysPerDomain map[string][]string, timeout time.Duration) *SyncForwarder {
+func NewSyncForwarder(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys, timeout time.Duration) (*SyncForwarder, error) {
+	options, err := NewOptions(config, log, keysPerDomain)
+	if err != nil {
+		return nil, err
+	}
 	return &SyncForwarder{
 		config:           config,
 		log:              log,
-		defaultForwarder: NewDefaultForwarder(config, log, NewOptions(config, log, keysPerDomain)),
+		defaultForwarder: NewDefaultForwarder(config, log, options),
 		client: &http.Client{
 			Timeout:   timeout,
 			Transport: utilhttp.CreateHTTPTransport(config),
 		},
-	}
+	}, nil
 }
 
 // Start starts the sync forwarder: nothing to do.

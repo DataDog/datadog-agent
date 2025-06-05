@@ -7,7 +7,7 @@
 
 package eventplatformreceiver
 
-// team: agent-metrics-logs
+// team: agent-log-pipelines
 
 // Mock is the component type.
 type Mock interface {

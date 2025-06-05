@@ -6,7 +6,10 @@
 // Package flavor defines the various flavors of the agent
 package flavor
 
-import pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
 
 const (
 	// DefaultAgent is the default Agent flavor
@@ -29,6 +32,8 @@ const (
 	TraceAgent = "trace_agent"
 	// OTelAgent is the OpenTelemetry Collector flavor
 	OTelAgent = "otel_agent"
+	// SystemProbe is the System Probe flavor
+	SystemProbe = "system_probe"
 )
 
 var agentFlavors = map[string]string{
@@ -42,6 +47,7 @@ var agentFlavors = map[string]string{
 	ProcessAgent:    "Process Agent",
 	TraceAgent:      "Trace Agent",
 	OTelAgent:       "OpenTelemetry Collector",
+	SystemProbe:     "System Probe",
 }
 
 const unknownAgent = "Unknown Agent"
@@ -53,7 +59,7 @@ func SetFlavor(flavor string) {
 	agentFlavor = flavor
 
 	if agentFlavor == IotAgent {
-		pkgconfigsetup.Datadog().SetDefault("iot_host", true)
+		pkgconfigsetup.Datadog().Set("iot_host", true, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
 

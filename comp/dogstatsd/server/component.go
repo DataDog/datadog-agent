@@ -13,15 +13,12 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-metrics-logs
+// team: agent-metric-pipelines
 
 // Component is the component type.
 type Component interface {
 	// IsRunning returns true if the server is running
 	IsRunning() bool
-
-	// UdsListenerRunning returns true if the uds listener is running
-	UdsListenerRunning() bool
 
 	// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
 	ServerlessFlush(time.Duration)
@@ -31,6 +28,9 @@ type Component interface {
 
 	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
 	UDPLocalAddr() string
+
+	// SetBlocklist sets the blocklist to apply when parsing metrics from the DogStatsD listener.
+	SetBlocklist([]string, bool)
 }
 
 // Mock implements mock-specific methods.

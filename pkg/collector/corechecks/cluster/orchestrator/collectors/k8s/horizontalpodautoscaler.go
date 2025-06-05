@@ -11,7 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	v2Informers "k8s.io/client-go/informers/autoscaling/v2"
 	v2Listers "k8s.io/client-go/listers/autoscaling/v2"
@@ -21,9 +23,9 @@ import (
 )
 
 // NewHorizontalPodAutoscalerCollectorVersions builds the group of collector versions.
-func NewHorizontalPodAutoscalerCollectorVersions() collectors.CollectorVersions {
+func NewHorizontalPodAutoscalerCollectorVersions(metadataAsTags utils.MetadataAsTags) collectors.CollectorVersions {
 	return collectors.NewCollectorVersions(
-		NewHorizontalPodAutoscalerCollector(),
+		NewHorizontalPodAutoscalerCollector(metadataAsTags),
 	)
 }
 
@@ -37,17 +39,25 @@ type HorizontalPodAutoscalerCollector struct {
 
 // NewHorizontalPodAutoscalerCollector creates a new collector for the Kubernetes
 // HorizontalPodAutoscaler resource.
-func NewHorizontalPodAutoscalerCollector() *HorizontalPodAutoscalerCollector {
+func NewHorizontalPodAutoscalerCollector(metadataAsTags utils.MetadataAsTags) *HorizontalPodAutoscalerCollector {
+	resourceType := getResourceType(hpaName, hpaVersion)
+	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
+	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
+
 	return &HorizontalPodAutoscalerCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:          true,
-			IsStable:                  true,
-			IsMetadataProducer:        true,
-			IsManifestProducer:        true,
-			SupportsManifestBuffering: true,
-			Name:                      "horizontalpodautoscalers",
-			NodeType:                  orchestrator.K8sHorizontalPodAutoscaler,
-			Version:                   "autoscaling/v2",
+			IsDefaultVersion:                     true,
+			IsStable:                             true,
+			IsMetadataProducer:                   true,
+			IsManifestProducer:                   true,
+			SupportsManifestBuffering:            true,
+			Name:                                 hpaName,
+			Kind:                                 kubernetes.HorizontalPodAutoscalerKind,
+			NodeType:                             orchestrator.K8sHorizontalPodAutoscaler,
+			Version:                              hpaVersion,
+			LabelsAsTags:                         labelsAsTags,
+			AnnotationsAsTags:                    annotationsAsTags,
+			SupportsTerminatedResourceCollection: true,
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.HorizontalPodAutoscalerHandlers)),
 	}
@@ -76,9 +86,14 @@ func (c *HorizontalPodAutoscalerCollector) Run(rcfg *collectors.CollectorRunConf
 		return nil, collectors.NewListingError(err)
 	}
 
+	return c.Process(rcfg, list)
+}
+
+// Process is used to process the list of resources and return the result.
+func (c *HorizontalPodAutoscalerCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -86,7 +101,7 @@ func (c *HorizontalPodAutoscalerCollector) Run(rcfg *collectors.CollectorRunConf
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(list),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -289,10 +289,6 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 	const serieMetadataOriginOriginService = 6
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
-	const serieMetadataOriginOriginProductAgentType = 10
-	//                 |----|  'Origin' message
-	//                       |-----------| 'OriginProduct' enum
-	//                                    |-------| 'Agent' enum value
 
 	addToPayload := func() error {
 		err := pb.compressor.AddItem(pb.buf.Bytes())
@@ -409,7 +405,7 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 						return err
 					}
 				}
-				err = ps.Int32(serieMetadataOriginOriginProduct, serieMetadataOriginOriginProductAgentType)
+				err = ps.Int32(serieMetadataOriginOriginProduct, metricSourceToOriginProduct(serie.Source))
 				if err != nil {
 					return err
 				}
@@ -503,19 +499,36 @@ func (pb *PayloadsBuilder) finishPayload() error {
 // MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
 // FIXME(maxime): to be removed when v2 endpoints are available
 func (series *IterableSeries) MarshalJSON() ([]byte, error) {
-	// use an alias to avoid infinite recursion while serializing a Series
-	type SeriesAlias Series
+	type SeriesWithMetadata struct {
+		*metrics.Serie
+		Metadata metrics.Metadata `json:"metadata,omitempty"`
+	}
 
-	seriesAlias := make(SeriesAlias, 0)
+	seriesWithMetadata := make([]SeriesWithMetadata, 0)
 	for series.MoveNext() {
 		serie := series.source.Current()
 		serie.PopulateDeviceField()
 		serie.PopulateResources()
-		seriesAlias = append(seriesAlias, serie)
+
+		serieWithMetadata := SeriesWithMetadata{
+			Serie: serie,
+		}
+
+		if serie.Source != 0 {
+			serieWithMetadata.Metadata = metrics.Metadata{
+				Origin: metrics.Origin{
+					OriginProduct:       metricSourceToOriginProduct(serie.Source),
+					OriginSubProduct:    metricSourceToOriginCategory(serie.Source),
+					OriginProductDetail: metricSourceToOriginService(serie.Source),
+				},
+			}
+		}
+
+		seriesWithMetadata = append(seriesWithMetadata, serieWithMetadata)
 	}
 
-	data := map[string][]*metrics.Serie{
-		"series": seriesAlias,
+	data := map[string][]SeriesWithMetadata{
+		"series": seriesWithMetadata,
 	}
 	reqBody := &bytes.Buffer{}
 	err := json.NewEncoder(reqBody).Encode(data)

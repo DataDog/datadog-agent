@@ -150,7 +150,7 @@ deploy_packages_dmg-x64-a7:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   needs: ["agent_dmg-x64-a7"]
   before_script:
@@ -163,12 +163,12 @@ deploy_staging_dsd:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   needs: ["build_dogstatsd-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/dogstatsd/dogstatsd ./dogstatsd
-    - PACKAGE_VERSION=$(inv agent.version --url-safe) || exit $?
+    - PACKAGE_VERSION=$(dda inv agent.version --url-safe) || exit $?
     - $S3_CP_CMD ./dogstatsd $S3_DSD6_URI/linux/dogstatsd-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # deploy iot-agent x64 binary to staging bucket
@@ -176,12 +176,12 @@ deploy_staging_iot_agent:
   rules:
     !reference [.on_deploy]
   stage: deploy_packages
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
   tags: ["arch:amd64"]
   needs: ["build_iot_agent-binary_x64"]
   script:
     - $S3_CP_CMD $S3_ARTIFACTS_URI/iot/agent ./agent
-    - PACKAGE_VERSION=$(inv agent.version --url-safe) || exit $?
+    - PACKAGE_VERSION=$(dda inv agent.version --url-safe) || exit $?
     - $S3_CP_CMD ./agent $S3_DSD6_URI/linux/iot/agent-$PACKAGE_VERSION --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
 
 # Datadog Installer

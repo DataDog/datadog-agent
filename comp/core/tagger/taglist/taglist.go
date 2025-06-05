@@ -8,7 +8,9 @@ package taglist
 
 import (
 	"fmt"
+	"maps"
 	"strings"
+	"unique"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -40,12 +42,18 @@ func addTags(target map[string]bool, name string, value string, splits map[strin
 	}
 	sep, ok := splits[name]
 	if !ok {
-		target[fmt.Sprintf("%s:%s", name, value)] = true
+		// Some tags may have the same values across different entities. This is
+		// common for tags like "kube_namespace", "pod_phase", "env",
+		// "kube_qos", etc. Using the unique package helps optimize memory usage
+		// in such cases.
+		key := unique.Make(fmt.Sprintf("%s:%s", name, value))
+		target[key.Value()] = true
 		return
 	}
 
 	for _, elt := range strings.Split(value, sep) {
-		target[fmt.Sprintf("%s:%s", name, elt)] = true
+		key := unique.Make(fmt.Sprintf("%s:%s", name, elt))
+		target[key.Value()] = true
 	}
 }
 
@@ -117,8 +125,6 @@ func (l *TagList) Copy() *TagList {
 
 func deepCopyMap(in map[string]bool) map[string]bool {
 	out := make(map[string]bool, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
+	maps.Copy(out, in)
 	return out
 }

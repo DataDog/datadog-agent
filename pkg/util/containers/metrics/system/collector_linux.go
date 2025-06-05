@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	systemutils "github.com/DataDog/datadog-agent/pkg/util/system"
 )
@@ -37,7 +37,7 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: systemCollectorID,
-		Constructor: func(cache *provider.Cache, wlm optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+		Constructor: func(cache *provider.Cache, wlm option.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 			return newSystemCollector(cache, wlm)
 		},
 	})
@@ -52,7 +52,7 @@ type systemCollector struct {
 	hostCgroupNamespace bool
 }
 
-func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+func newSystemCollector(cache *provider.Cache, wlm option.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
 	var err error
 	var hostPrefix string
 	var collectorMetadata provider.CollectorMetadata

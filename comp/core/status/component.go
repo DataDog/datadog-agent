@@ -12,7 +12,7 @@ import (
 	"go.uber.org/fx"
 )
 
-// team: agent-shared-components
+// team: agent-configuration
 
 // CollectorSection stores the collector section name
 const CollectorSection string = "collector"

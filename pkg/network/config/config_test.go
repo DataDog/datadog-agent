@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
 // variables for testing config options
@@ -1362,6 +1362,56 @@ func TestUSMEventStream(t *testing.T) {
 		cfg := New()
 
 		assert.False(t, cfg.EnableUSMEventStream)
+	})
+}
+
+func TestUSMKernelBufferPages(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, cfg.USMKernelBufferPages, 16)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.kernel_buffer_pages", 109)
+		cfg := New()
+
+		assert.Equal(t, cfg.USMKernelBufferPages, 109)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_KERNEL_BUFFER_PAGES", "109")
+		cfg := New()
+
+		assert.Equal(t, cfg.USMKernelBufferPages, 109)
+	})
+}
+
+func TestUSMDataChannelSize(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, cfg.USMDataChannelSize, 100)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.data_channel_size", 109)
+		cfg := New()
+
+		assert.Equal(t, cfg.USMDataChannelSize, 109)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DATA_CHANNEL_SIZE", "109")
+		cfg := New()
+
+		assert.Equal(t, cfg.USMDataChannelSize, 109)
 	})
 }
 

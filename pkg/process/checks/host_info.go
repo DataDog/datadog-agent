@@ -8,6 +8,7 @@ package checks
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,19 +18,17 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// for testing purposes
-var coreAgentGetHostname = hostname.Get
 
 // HostInfo describes details of host information shared between various checks
 type HostInfo struct {
@@ -40,13 +39,13 @@ type HostInfo struct {
 }
 
 // CollectHostInfo collects host information
-func CollectHostInfo(config pkgconfigmodel.Reader) (*HostInfo, error) {
+func CollectHostInfo(config pkgconfigmodel.Reader, hostnameComp hostnameinterface.Component) (*HostInfo, error) {
 	sysInfo, err := CollectSystemInfo()
 	if err != nil {
 		return nil, err
 	}
 
-	hostName, err := resolveHostName(config)
+	hostName, err := resolveHostName(config, hostnameComp)
 	if err != nil {
 		return nil, err
 	}
@@ -58,10 +57,10 @@ func CollectHostInfo(config pkgconfigmodel.Reader) (*HostInfo, error) {
 	}, nil
 }
 
-func resolveHostName(config pkgconfigmodel.Reader) (string, error) {
+func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostnameinterface.Component) (string, error) {
 	// use the common agent hostname utility when not running in the process-agent
 	if flavor.GetFlavor() != flavor.ProcessAgent {
-		hostName, err := coreAgentGetHostname(context.TODO())
+		hostName, err := hostnameComp.Get(context.TODO())
 		if err != nil {
 			return "", fmt.Errorf("error while getting hostname: %v", err)
 		}
@@ -99,7 +98,7 @@ func getHostname(ctx context.Context, ddAgentBin string, grpcConnectionTimeout t
 	}
 
 	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
-	hostname, err := getHostnameFromGRPC(ctx, ddgrpc.GetDDAgentClient, grpcConnectionTimeout)
+	hostname, err := getHostnameFromGRPC(ctx, ddgrpc.GetDDAgentClient, util.GetTLSClientConfig, grpcConnectionTimeout)
 	if err == nil {
 		return hostname, nil
 	}
@@ -144,7 +143,7 @@ func getHostnameFromCmd(ddAgentBin string, cmdFn cmdFunc) (string, error) {
 }
 
 // getHostnameFromGRPC retrieves the hostname from the main datadog agent via GRPC
-func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Context, address, port string, opts ...grpc.DialOption) (pb.AgentClient, error), grpcConnectionTimeout time.Duration) (string, error) {
+func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Context, address, port string, tlsConfig func() *tls.Config, opts ...grpc.DialOption) (pb.AgentClient, error), tlsConfigGetter func() *tls.Config, grpcConnectionTimeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, grpcConnectionTimeout)
 	defer cancel()
 
@@ -153,7 +152,7 @@ func getHostnameFromGRPC(ctx context.Context, grpcClientFn func(ctx context.Cont
 		return "", err
 	}
 
-	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, pkgconfigsetup.GetIPCPort())
+	ddAgentClient, err := grpcClientFn(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), tlsConfigGetter)
 	if err != nil {
 		return "", fmt.Errorf("cannot connect to datadog agent via grpc: %w", err)
 	}

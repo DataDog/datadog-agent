@@ -11,12 +11,11 @@ import (
 	"os"
 	"testing"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 )
@@ -190,7 +189,8 @@ func Test_convertIOStats(t *testing.T) {
 	assert.Nil(t, err)
 	defer os.Remove(dir + "/diskstats")
 
-	pkgconfigsetup.Datadog().SetWithoutSource("container_proc_root", dir)
+	cfg := mock.New(t)
+	cfg.SetWithoutSource("container_proc_root", dir)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -228,13 +228,13 @@ func Test_convetrPIDStats(t *testing.T) {
 func Test_computeCPULimit(t *testing.T) {
 	tests := []struct {
 		name          string
-		spec          *types.ContainerJSON
+		spec          *container.InspectResponse
 		expectedLimit float64
 	}{
 		{
 			name: "No CPU Limit",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{},
 				},
 			},
@@ -242,8 +242,8 @@ func Test_computeCPULimit(t *testing.T) {
 		},
 		{
 			name: "Nano CPUs",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{
 						Resources: container.Resources{
 							NanoCPUs: 5000000000,
@@ -255,8 +255,8 @@ func Test_computeCPULimit(t *testing.T) {
 		},
 		{
 			name: "CFS Quotas with period",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{
 						Resources: container.Resources{
 							CPUPeriod: 10000,
@@ -269,8 +269,8 @@ func Test_computeCPULimit(t *testing.T) {
 		},
 		{
 			name: "CFS Quotas without period",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{
 						Resources: container.Resources{
 							CPUQuota: 5000,
@@ -282,8 +282,8 @@ func Test_computeCPULimit(t *testing.T) {
 		},
 		{
 			name: "CPU Set",
-			spec: &types.ContainerJSON{
-				ContainerJSONBase: &types.ContainerJSONBase{
+			spec: &container.InspectResponse{
+				ContainerJSONBase: &container.ContainerJSONBase{
 					HostConfig: &container.HostConfig{
 						Resources: container.Resources{
 							CpusetCpus: "0-2",

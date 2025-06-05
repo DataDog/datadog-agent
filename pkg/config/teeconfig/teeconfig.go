@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/viper"
+	"github.com/mitchellh/mapstructure"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,6 +44,12 @@ func NewTeeConfig(baseline, compare model.Config) model.Config {
 func (t *teeConfig) OnUpdate(callback model.NotificationReceiver) {
 	t.baseline.OnUpdate(callback)
 	t.compare.OnUpdate(callback)
+}
+
+// SetTestOnlyDynamicSchema allows more flexible usage of the config, should only be used by tests
+func (t *teeConfig) SetTestOnlyDynamicSchema(allow bool) {
+	t.baseline.SetTestOnlyDynamicSchema(allow)
+	t.compare.SetTestOnlyDynamicSchema(allow)
 }
 
 // Set wraps Viper for concurrent access
@@ -135,6 +141,14 @@ func (t *teeConfig) IsSet(key string) bool {
 	if base != compare {
 		log.Warnf("difference in config: IsSet(%s) -> base[%s]: %v | compare[%s]: %v | from %s", key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(1))
 	}
+	return base
+}
+
+// IsConfigured returns true if a settings is configured by the user (ie: the value doesn't comes from the defaults)
+func (t *teeConfig) IsConfigured(key string) bool {
+	base := t.baseline.IsConfigured(key)
+	compare := t.compare.IsConfigured(key)
+	t.compareResult(key, "IsConfigured", base, compare)
 	return base
 }
 
@@ -333,7 +347,7 @@ func (t *teeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 }
 
 // UnmarshalKey wraps Viper for concurrent access
-func (t *teeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
+func (t *teeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error {
 	return t.baseline.UnmarshalKey(key, rawVal, opts...)
 }
 
@@ -492,8 +506,8 @@ func (t *teeConfig) Object() model.Reader {
 }
 
 // Stringify stringifies the config
-func (t *teeConfig) Stringify(source model.Source) string {
-	return t.baseline.Stringify(source)
+func (t *teeConfig) Stringify(source model.Source, opts ...model.StringifyOption) string {
+	return t.baseline.Stringify(source, opts...)
 }
 
 func (t *teeConfig) GetProxies() *model.Proxy {

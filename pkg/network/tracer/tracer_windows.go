@@ -21,6 +21,8 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -28,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	driver "github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
+	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,8 +57,8 @@ type Tracer struct {
 	timerInterval int
 
 	// Connections for the tracer to exclude
-	sourceExcludes []*network.ConnectionFilter
-	destExcludes   []*network.ConnectionFilter
+	sourceExcludes []*filter.ConnectionFilter
+	destExcludes   []*filter.ConnectionFilter
 
 	// polling loop for connection event
 	closedEventLoop sync.WaitGroup
@@ -67,7 +70,7 @@ type Tracer struct {
 }
 
 // NewTracer returns an initialized tracer struct
-func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, error) {
+func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.ClientInterface) (*Tracer, error) {
 	if err := driver.Start(); err != nil {
 		return nil, fmt.Errorf("error starting driver: %s", err)
 	}
@@ -75,7 +78,7 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
-		return nil, fmt.Errorf("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
+		return nil, errors.New("The Windows driver was not installed, reinstall the Datadog Agent with network performance monitoring enabled")
 	} else if err != nil {
 		return nil, fmt.Errorf("could not create windows driver controller: %v", err)
 	}
@@ -115,8 +118,8 @@ func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, e
 		closedBuffer:         network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:           reverseDNS,
 		usmMonitor:           newUSMMonitor(config, di.GetHandle()),
-		sourceExcludes:       network.ParseConnectionFilters(config.ExcludedSourceConnections),
-		destExcludes:         network.ParseConnectionFilters(config.ExcludedDestinationConnections),
+		sourceExcludes:       filter.ParseConnectionFilters(config.ExcludedSourceConnections),
+		destExcludes:         filter.ParseConnectionFilters(config.ExcludedDestinationConnections),
 		hStopClosedLoopEvent: stopEvent,
 	}
 	if config.EnableProcessEventMonitoring {
@@ -195,7 +198,7 @@ func (t *Tracer) Stop() {
 }
 
 // GetActiveConnections returns all active connections
-func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
+func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, func(), error) {
 	t.connLock.Lock()
 	defer t.connLock.Unlock()
 
@@ -208,13 +211,13 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving open connections from driver: %w", err)
+		return nil, nil, fmt.Errorf("error retrieving open connections from driver: %w", err)
 	}
 	_, err = t.driverInterface.GetClosedConnectionStats(t.closedBuffer, func(c *network.ConnectionStats) bool {
 		return !t.shouldSkipConnection(c)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
+		return nil, nil, fmt.Errorf("error retrieving closed connections from driver: %w", err)
 	}
 	activeConnStats := buffer.Connections()
 	closedConnStats := t.closedBuffer.Connections()
@@ -247,8 +250,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry())
-	conns.HTTP = delta.HTTP
-	return conns, nil
+	conns.USMData = delta.USMData
+	return conns, func() {}, nil
 }
 
 // RegisterClient registers the client

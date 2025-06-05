@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PROC) Fix revive linter
+// Package parser parses service metadata
 package parser
 
 import (
@@ -37,7 +37,7 @@ func NewDockerProxy() *DockerProxy {
 	}
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
+// Extract the process metadata from the processes
 func (d *DockerProxy) Extract(processes map[int32]*procutil.Process) {
 	proxyByPID := make(map[int32]*proxy)
 	proxyByTarget := make(map[model.ContainerAddr]*proxy)

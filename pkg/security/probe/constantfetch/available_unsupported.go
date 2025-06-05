@@ -42,3 +42,8 @@ func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
 func GetHasVFSRenameStructArgs() (bool, error) {
 	return false, errors.New("unsupported BTF request")
 }
+
+// GetBTFFunctionArgCount not available
+func GetBTFFunctionArgCount(_ string) (int, error) {
+	return 0, errors.New("unsupported BTF request")
+}

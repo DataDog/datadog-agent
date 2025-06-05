@@ -23,11 +23,6 @@ type Conntrack interface {
 	// Exists checks if a connection exists in the conntrack
 	// table based on matches to `conn.Origin` or `conn.Reply`.
 	Exists(conn *Con) (bool, error)
-	// Dump dumps the conntrack table.
-	Dump() ([]Con, error)
-	// Get gets the conntrack record for a connection. Similar to
-	// Exists, but returns the full connection information.
-	Get(conn *Con) (Con, error)
 	// Close closes the conntrack object
 	Close() error
 }
@@ -105,14 +100,6 @@ func (c *conntrack) Exists(conn *Con) (bool, error) {
 	}
 
 	return false, fmt.Errorf("no replies received from netlink call")
-}
-
-func (c *conntrack) Dump() ([]Con, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *conntrack) Get(_ *Con) (Con, error) {
-	return Con{}, fmt.Errorf("not implemented")
 }
 
 func (c *conntrack) Close() error {

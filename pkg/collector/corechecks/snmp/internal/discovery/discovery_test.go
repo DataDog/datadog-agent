@@ -7,6 +7,7 @@ package discovery
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"net"
 	"testing"
 	"time"
@@ -57,6 +58,7 @@ func TestDiscovery(t *testing.T) {
 		DiscoveryInterval:  3600,
 		DiscoveryWorkers:   1,
 		IgnoredIPAddresses: map[string]bool{"192.168.0.5": true},
+		ProfileProvider:    profile.StaticProvider(nil),
 	}
 	discovery := NewDiscovery(checkConfig, sessionFactory, config)
 	discovery.Start()
@@ -107,6 +109,7 @@ func TestDiscoveryCache(t *testing.T) {
 		CommunityString:   "public",
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  1,
+		ProfileProvider:   profile.StaticProvider(nil),
 	}
 	discovery := NewDiscovery(checkConfig, sessionFactory, config)
 	discovery.Start()
@@ -139,6 +142,7 @@ func TestDiscoveryCache(t *testing.T) {
 		CommunityString:   "public",
 		DiscoveryInterval: 3600,
 		DiscoveryWorkers:  0, // no workers, the devices will be loaded from cache
+		ProfileProvider:   profile.StaticProvider(nil),
 	}
 	discovery2 := NewDiscovery(checkConfig, sessionFactory, config)
 	discovery2.Start()
@@ -181,6 +185,7 @@ func TestDiscoveryTicker(t *testing.T) {
 		CommunityString:   "public",
 		DiscoveryInterval: 1,
 		DiscoveryWorkers:  1,
+		ProfileProvider:   profile.StaticProvider(nil),
 	}
 	discovery := NewDiscovery(checkConfig, sessionFactory, config)
 	discovery.Start()
@@ -200,6 +205,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 		CommunityString:   "public",
 		DiscoveryInterval: 1,
 		DiscoveryWorkers:  1,
+		ProfileProvider:   profile.StaticProvider(nil),
 	}
 	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
 	assert.Nil(t, err)
@@ -319,6 +325,7 @@ func TestDiscovery_createDevice(t *testing.T) {
 		DiscoveryWorkers:         1,
 		DiscoveryAllowedFailures: 3,
 		Namespace:                "default",
+		ProfileProvider:          profile.StaticProvider(nil),
 	}
 	discovery := NewDiscovery(checkConfig, session.NewMockSession, config)
 	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)

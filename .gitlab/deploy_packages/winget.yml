@@ -6,7 +6,7 @@ publish_winget_7_x64:
   dependencies: []
   rules: !reference [.on_deploy_stable_or_beta_repo_branch_manual]
   stage: deploy_packages
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  extends: .windows_docker_default
   variables:
     ARCH: "x64"
   before_script:
@@ -23,7 +23,7 @@ publish_winget_7_x64:
       -v "$(Get-Location):c:\mnt"
       -e WINGET_GITHUB_ACCESS_TOKEN=${wingetPat}
       -e GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}
-      registry.ddbuild.io/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
+      ${WINBUILDIMAGE}
       Powershell
       -C "C:\mnt\tasks\winbuildscripts\Update-Winget.ps1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }

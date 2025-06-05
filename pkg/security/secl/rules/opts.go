@@ -13,8 +13,10 @@ import (
 )
 
 // VariableProvider is the interface implemented by SECL variable providers
+// (Should be named VariableValueProvider)
 type VariableProvider interface {
-	GetVariable(name string, value interface{}, opts eval.VariableOpts) (eval.VariableValue, error)
+	NewSECLVariable(name string, value interface{}, opts eval.VariableOpts) (eval.SECLVariable, error)
+	CleanupExpiredVariables()
 }
 
 // VariableProviderFactory describes a function called to instantiate a variable provider
@@ -25,13 +27,14 @@ type RuleActionPerformedCb func(r *Rule, action *ActionDefinition)
 
 // Opts defines rules set options
 type Opts struct {
-	SupportedDiscarders      map[eval.Field]bool
-	SupportedMultiDiscarders []*MultiDiscarder
-	ReservedRuleIDs          []RuleID
-	EventTypeEnabled         map[eval.EventType]bool
-	StateScopes              map[Scope]VariableProviderFactory
-	Logger                   log.Logger
-	ruleActionPerformedCb    RuleActionPerformedCb
+	SupportedDiscarders        map[eval.Field]bool
+	SupportedMultiDiscarders   []*MultiDiscarder
+	ExcludedRuleFromDiscarders map[eval.RuleID]bool
+	ReservedRuleIDs            []RuleID
+	EventTypeEnabled           map[eval.EventType]bool
+	StateScopes                map[Scope]VariableProviderFactory
+	Logger                     log.Logger
+	ruleActionPerformedCb      RuleActionPerformedCb
 }
 
 // WithSupportedDiscarders set supported discarders
@@ -43,6 +46,12 @@ func (o *Opts) WithSupportedDiscarders(discarders map[eval.Field]bool) *Opts {
 // WithSupportedMultiDiscarder set supported multi discarders
 func (o *Opts) WithSupportedMultiDiscarder(discarders []*MultiDiscarder) *Opts {
 	o.SupportedMultiDiscarders = discarders
+	return o
+}
+
+// WithExcludedRuleFromDiscarders set excluded rule from discarders
+func (o *Opts) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool) *Opts {
+	o.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
 	return o
 }
 
@@ -81,18 +90,7 @@ func NewRuleOpts(eventTypeEnabled map[eval.EventType]bool) *Opts {
 	var ruleOpts Opts
 	ruleOpts.
 		WithEventTypeEnabled(eventTypeEnabled).
-		WithStateScopes(map[Scope]VariableProviderFactory{
-			"process": func() VariableProvider {
-				return eval.NewScopedVariables(func(ctx *eval.Context) eval.ScopedVariable {
-					return ctx.Event.(*model.Event).ProcessCacheEntry
-				})
-			},
-			"container": func() VariableProvider {
-				return eval.NewScopedVariables(func(ctx *eval.Context) eval.ScopedVariable {
-					return ctx.Event.(*model.Event).ContainerContext
-				})
-			},
-		})
+		WithStateScopes(getStateScopes())
 
 	return &ruleOpts
 }

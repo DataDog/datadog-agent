@@ -12,10 +12,10 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"golang.org/x/exp/slices"
 )
 
 // ProcessNode holds the activity of a process

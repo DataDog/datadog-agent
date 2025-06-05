@@ -9,10 +9,33 @@
 package model
 
 import (
+	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
+
+// NewEvent returns a new Event
+func (m *Model) NewEvent() eval.Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+	}
+}
+
+// NewFakeEvent returns a new event using the default field handlers
+func NewFakeEvent() *Event {
+	return &Event{
+		BaseEvent: BaseEvent{
+			FieldHandlers:    &FakeFieldHandlers{},
+			ContainerContext: &ContainerContext{},
+			Os:               runtime.GOOS,
+		},
+	}
+}
 
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
@@ -25,6 +48,17 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 
 // Event represents an event sent from the kernel
 // genaccessors
+// gengetter: GetContainerId
+// gengetter: GetContainerId
+// gengetter: GetEventService
+// gengetter: GetExecFilePath
+// gengetter: GetExitCode
+// gengetter: GetProcessEnvp
+// gengetter: GetProcessExecTime
+// gengetter: GetProcessExitTime
+// gengetter: GetProcessPid
+// gengetter: GetProcessPpid
+// gengetter: GetTimestamp
 type Event struct {
 	BaseEvent
 
@@ -47,11 +81,19 @@ type Event struct {
 	ChangePermission ChangePermissionEvent `field:"change_permission" event:"change_permission" ` // [7.55] [Registry] A permission change was made
 }
 
+var eventZero = Event{BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+
+// Zero the event
+func (e *Event) Zero() {
+	*e = eventZero
+	*e.BaseEvent.ContainerContext = containerContextZero
+}
+
 // FileEvent is the common file event type
 type FileEvent struct {
-	FileObject  uint64 `field:"-"`                                                                                  // handle numeric value
-	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"eval.WindowsPathCmp"`         // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
-	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
+	FileObject  uint64 `field:"-"`                                                                                      // handle numeric value
+	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length|gen_getters" op_override:"eval.WindowsPathCmp"` // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
+	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"`     // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
 }
 
 // FimFileEvent is the common file event type
@@ -76,8 +118,8 @@ type Process struct {
 
 	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
-	ExitTime time.Time `field:"exit_time,opts:getters_only"`
-	ExecTime time.Time `field:"exec_time,opts:getters_only"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only|gen_getters"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only|gen_getters"`
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
@@ -96,8 +138,7 @@ type Process struct {
 	Envp []string `field:"envp,handler:ResolveProcessEnvp,weight:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
-	Variables               eval.Variables `field:"-"`
-	ScrubbedCmdLineResolved bool           `field:"-"`
+	ScrubbedCmdLineResolved bool `field:"-"`
 }
 
 // ExecEvent represents a exec event
@@ -172,4 +213,19 @@ type ChangePermissionEvent struct {
 	ObjectType string `field:"type"`                                        // SECLDoc[type] Definition:`Type of the object of which permission was changed`
 	OldSd      string `field:"old_sd,handler:ResolveOldSecurityDescriptor"` // SECLDoc[old_sd] Definition:`Original Security Descriptor of the object of which permission was changed`
 	NewSd      string `field:"new_sd,handler:ResolveNewSecurityDescriptor"` // SECLDoc[new_sd] Definition:`New Security Descriptor of the object of which permission was changed`
+}
+
+// SetAncestorFields force the process cache entry to be valid
+func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, error) {
+	return true, nil
+}
+
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return strconv.Itoa(int(pc.Pid))
+}
+
+// ParentScope returns the parent entity scope
+func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
+	return pc.Ancestor, pc.Ancestor != nil
 }

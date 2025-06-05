@@ -13,11 +13,12 @@ func _() {
 	_ = x[CGroupManagerPodman-3]
 	_ = x[CGroupManagerCRI-4]
 	_ = x[CGroupManagerSystemd-5]
+	_ = x[CGroupManagerECS-6]
 }
 
-const _CGroupManager_name = "dockercri-opodmancontainerdsystemd"
+const _CGroupManager_name = "dockercri-opodmancontainerdsystemdecs"
 
-var _CGroupManager_index = [...]uint8{0, 6, 11, 17, 27, 34}
+var _CGroupManager_index = [...]uint8{0, 6, 11, 17, 27, 34, 37}
 
 func (i CGroupManager) String() string {
 	i -= 1

@@ -10,7 +10,7 @@ import (
 	"context"
 )
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 // Data contains hostname and the hostname provider
 type Data struct {

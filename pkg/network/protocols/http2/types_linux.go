@@ -4,8 +4,10 @@
 package http2
 
 const (
-	maxHTTP2Path     = 0xa0
-	http2PathBuckets = 0x7
+	maxHTTP2Path        = 0xa0
+	PathBucketsCount    = 0x7
+	MaxTelemetryPathLen = 0x78
+	PathBucketSize      = 0xa
 
 	HTTP2TerminatedBatchSize = 0x55
 
@@ -83,6 +85,7 @@ type HTTP2Telemetry struct {
 	Literal_value_exceeds_frame      uint64
 	Exceeding_max_interesting_frames uint64
 	Exceeding_max_frames_to_filter   uint64
+	Continuation_frames              uint64
 	Path_size_bucket                 [8]uint64
 }
 type HTTP2IncompleteFrameEntry struct {

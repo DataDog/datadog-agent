@@ -7,8 +7,11 @@ package integrationsimpl
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
 func TestNewComponent(t *testing.T) {
@@ -28,4 +31,26 @@ func TestSendandSubscribe(t *testing.T) {
 	log := <-comp.Subscribe()
 	assert.Equal(t, "test log", log.Log)
 	assert.Equal(t, "integration1", log.IntegrationID)
+}
+
+// TestReceiveEmptyConfig ensures that ReceiveIntegration doesn't send an empty
+// configuration to subscribers
+func TestReceiveEmptyConfig(t *testing.T) {
+	logsIntegration := NewLogsIntegration()
+	integrationChan := logsIntegration.SubscribeIntegration()
+
+	mockConf := &integration.Config{}
+	mockConf.Provider = "container"
+	mockConf.LogsConfig = integration.Data(``)
+
+	go func() {
+		logsIntegration.RegisterIntegration("12345", *mockConf)
+	}()
+
+	select {
+	case msg := <-integrationChan:
+		assert.Fail(t, "Expected channel to not receive logs, instead got:", msg)
+	case <-time.After(100 * time.Millisecond):
+		assert.True(t, true, "Channel remained empty.")
+	}
 }

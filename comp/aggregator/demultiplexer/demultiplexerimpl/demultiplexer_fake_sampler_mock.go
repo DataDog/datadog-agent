@@ -16,7 +16,8 @@ import (
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	compression "github.com/DataDog/datadog-agent/comp/serializer/compression/def"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -33,10 +34,11 @@ func FakeSamplerMockModule() fxutil.Module {
 
 type fakeSamplerMockDependencies struct {
 	fx.In
-	Lc         fx.Lifecycle
-	Log        log.Component
-	Hostname   hostname.Component
-	Compressor compression.Component
+	Lc                 fx.Lifecycle
+	Log                log.Component
+	Hostname           hostname.Component
+	LogsCompression    logscompression.Component
+	MetricsCompression metricscompression.Component
 }
 
 type fakeSamplerMock struct {
@@ -56,7 +58,7 @@ func (f *fakeSamplerMock) Stop(flush bool) {
 }
 
 func newFakeSamplerMock(deps fakeSamplerMockDependencies) demultiplexerComp.FakeSamplerMock {
-	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Hostname, deps.Compressor, time.Hour)
+	demux := initTestAgentDemultiplexerWithFlushInterval(deps.Log, deps.Hostname, deps.LogsCompression, deps.MetricsCompression, time.Hour)
 	mock := &fakeSamplerMock{
 		TestAgentDemultiplexer: demux,
 	}

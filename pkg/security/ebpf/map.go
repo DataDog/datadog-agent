@@ -5,6 +5,8 @@
 
 //go:build linux
 
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/model/bpf_maps_generator -runtime-path ../../security/ebpf/c/include/maps.h -output ../../security/secl/model/consts_map_names_linux.go -pkg-name model
+
 // Package ebpf holds ebpf related files
 package ebpf
 
@@ -161,4 +163,13 @@ var (
 	BufferSelectorDiscarderMonitorKey = Uint32MapItem(2)
 	// BufferSelectorApproverMonitorKey is the key used to select the active approver monitor buffer key
 	BufferSelectorApproverMonitorKey = Uint32MapItem(3)
+	// BufferSelectorDNSResponseFilteredMonitorKey is the key used to select the filtered DNS responses
+	BufferSelectorDNSResponseFilteredMonitorKey = Uint32MapItem(4)
 )
+
+// Map is the interface for all eBPF maps
+type Map interface {
+	LookupBytes(interface{}) ([]byte, error)
+	Put(interface{}, interface{}) error
+	Delete(interface{}) error
+}

@@ -26,7 +26,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -1240,6 +1241,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Tags:       []string{"cold_start:true"},
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.duration",
@@ -1248,6 +1250,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Tags:       []string{"cold_start:true"},
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
@@ -1256,6 +1259,7 @@ func TestRuntimeMetricsMatchLogs(t *testing.T) {
 		Tags:       []string{"cold_start:true"},
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
 	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
@@ -1326,6 +1330,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.duration",
@@ -1334,6 +1339,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
@@ -1342,6 +1348,7 @@ func TestRuntimeMetricsMatchLogsProactiveInit(t *testing.T) {
 		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 13dee504-0d50-4c86-8d82-efd20693afc9\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
 	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
@@ -1428,6 +1435,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
 		SampleRate: 1,
 		Timestamp:  runtimeMetricTimestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	assert.Equal(t, generatedMetrics[7], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.duration",
@@ -1436,6 +1444,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	assert.Equal(t, generatedMetrics[9], metrics.MetricSample{
 		Name:       "aws.lambda.enhanced.post_runtime_duration",
@@ -1444,6 +1453,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 		Tags:       []string{"cold_start:false", "proactive_initialization:true"},
 		SampleRate: 1,
 		Timestamp:  postRuntimeMetricTimestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	expectedStringRecord := fmt.Sprintf("REPORT RequestId: 1a2b3c\tDuration: %.2f ms\tRuntime Duration: %.2f ms\tPost Runtime Duration: %.2f ms\tBilled Duration: 0 ms\tMemory Size: 0 MB\tMax Memory Used: 0 MB", durationMs, runtimeDurationMs, postRuntimeDurationMs)
 	assert.Equal(t, reportMessage.stringRecord, expectedStringRecord)
@@ -1475,5 +1485,5 @@ func TestMultipleStartLogCollection(t *testing.T) {
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
-	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), compressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
+	return fxutil.Test[demultiplexer.FakeSamplerMock](t, fx.Provide(func() log.Component { return logmock.New(t) }), logscompressionmock.MockModule(), metricscompressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }

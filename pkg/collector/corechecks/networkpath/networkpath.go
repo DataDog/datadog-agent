@@ -23,11 +23,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // CheckName defines the name of the
@@ -52,11 +51,13 @@ func (c *Check) Run() error {
 	metricSender := metricsender.NewMetricSenderAgent(senderInstance)
 
 	cfg := config.Config{
-		DestHostname: c.config.DestHostname,
-		DestPort:     c.config.DestPort,
-		MaxTTL:       c.config.MaxTTL,
-		Timeout:      c.config.Timeout,
-		Protocol:     c.config.Protocol,
+		DestHostname:              c.config.DestHostname,
+		DestPort:                  c.config.DestPort,
+		MaxTTL:                    c.config.MaxTTL,
+		Timeout:                   c.config.Timeout,
+		Protocol:                  c.config.Protocol,
+		TCPMethod:                 c.config.TCPMethod,
+		TCPSynParisTracerouteMode: c.config.TCPSynParisTracerouteMode,
 	}
 
 	tr, err := traceroute.New(cfg, c.telemetryComp)
@@ -73,7 +74,7 @@ func (c *Check) Run() error {
 	// Add tags to path
 	path.Source.Service = c.config.SourceService
 	path.Destination.Service = c.config.DestinationService
-	path.Tags = c.config.Tags
+	path.Tags = append(path.Tags, c.config.Tags...)
 
 	// Perform reverse DNS lookup
 	path.Destination.ReverseDNSHostname = traceroute.GetHostname(path.Destination.IPAddress)
@@ -139,9 +140,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	return nil
 }
 
+// IsHASupported returns true if the check supports HA
+func (c *Check) IsHASupported() bool {
+	return true
+}
+
 // Factory creates a new check factory
-func Factory(telemetry telemetryComp.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(telemetry telemetryComp.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return &Check{
 			CheckBase:     core.NewCheckBase(CheckName),
 			telemetryComp: telemetry,

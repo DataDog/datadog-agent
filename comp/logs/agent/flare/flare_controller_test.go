@@ -25,7 +25,7 @@ func TestFillFlare(t *testing.T) {
 
 	fc.SetAllFiles([]string{file.Name()})
 
-	fc.FillFlare(f.Fb)
+	fc.FillFlare(f)
 	f.AssertFileExists("logs_file_permissions.log")
 	f.AssertFileContent(file.Name()+" "+fi.Mode().String(), "logs_file_permissions.log")
 }
@@ -46,7 +46,7 @@ func TestNonexistantFile(t *testing.T) {
 	name := "file.log"
 
 	fc.SetAllFiles([]string{name})
-	fc.FillFlare(f.Fb)
+	fc.FillFlare(f)
 
 	fi, err := os.Stat(name)
 	if fi != nil {

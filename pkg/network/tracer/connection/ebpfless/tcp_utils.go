@@ -16,10 +16,27 @@ import (
 
 	"github.com/google/gopacket/layers"
 
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const ebpflessModuleName = "ebpfless_network_tracer"
+
+// PCAPTuple represents a unique key for an ebpfless tracer connection.
+// It represents a network.ConnectionTuple with only the fields that are available
+// via packet capture: PID and Direction are zeroed out.
+type PCAPTuple network.ConnectionTuple
+
+func connDirectionFromPktType(pktType uint8) network.ConnectionDirection {
+	switch pktType {
+	case unix.PACKET_HOST:
+		return network.INCOMING
+	case unix.PACKET_OUTGOING:
+		return network.OUTGOING
+	default:
+		return network.UNKNOWN
+	}
+}
 
 // ProcessResult represents what the ebpfless tracer should do with ConnectionStats after processing a packet
 type ProcessResult uint8
@@ -38,6 +55,11 @@ const (
 	// map is full. This connection should be removed from the tracer as well.
 	ProcessResultMapFull
 )
+
+// ShouldPersist returns whether this result has actionable data that can be persisted into the tracer
+func (r ProcessResult) ShouldPersist() bool {
+	return r == ProcessResultStoreConn || r == ProcessResultCloseConn
+}
 
 var statsTelemetry = struct {
 	expiredPendingConns     telemetry.Counter

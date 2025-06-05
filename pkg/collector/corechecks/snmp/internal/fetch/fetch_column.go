@@ -7,36 +7,28 @@ package fetch
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 
 	"github.com/gosnmp/gosnmp"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOidsWithBatching(sess session.Session, oids []string, oidBatchSize int, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 
-	columnOids := getOidsMapKeys(oids)
-	sort.Strings(columnOids) // sorting ColumnOids to make them deterministic for testing purpose
-	batches, err := common.CreateStringBatches(columnOids, oidBatchSize)
+	batches, err := common.CreateStringBatches(oids, oidBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
 	}
 
 	for _, batchColumnOids := range batches {
-		oidsToFetch := make(map[string]string, len(batchColumnOids))
-		for _, oid := range batchColumnOids {
-			oidsToFetch[oid] = oids[oid]
-		}
-
-		results, err := fetchColumnOids(sess, oidsToFetch, bulkMaxRepetitions, fetchStrategy)
+		results, err := fetchColumnOids(sess, batchColumnOids, bulkMaxRepetitions, fetchStrategy)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch column oids: %s", err)
 		}
@@ -46,21 +38,23 @@ func fetchColumnOidsWithBatching(sess session.Session, oids map[string]string, o
 				retValues[columnOid] = instanceOids
 				continue
 			}
-			for oid, value := range instanceOids {
-				retValues[columnOid][oid] = value
-			}
+			maps.Copy(retValues[columnOid], instanceOids)
 		}
 	}
 	return retValues, nil
 }
 
-// fetchColumnOids has an `oids` argument representing a `map[string]string`,
-// the key of the map is the column oid, and the value is the oid used to fetch the next value for the column.
-// The value oid might be equal to column oid or a row oid of the same column.
-func fetchColumnOids(sess session.Session, oids map[string]string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+// fetchColumnOids fetches all values for each specified column OID.
+// bulkMaxRepetitions is the number of entries to request per OID per SNMP
+// request when fetchStrategy = useGetBulk; it is ignored when fetchStrategy is
+// useGetNext.
+func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	alreadyProcessedOids := make(map[string]bool)
-	curOids := oids
+	curOids := make(map[string]string, len(oids))
+	for _, oid := range oids {
+		curOids[oid] = oid
+	}
 	for {
 		if len(curOids) == 0 {
 			break
@@ -130,14 +124,4 @@ func updateColumnResultValues(valuesToUpdate valuestore.ColumnResultValuesType, 
 			valuesToUpdate[columnOid][oid] = value
 		}
 	}
-}
-
-func getOidsMapKeys(oidsMap map[string]string) []string {
-	keys := make([]string, len(oidsMap))
-	i := 0
-	for k := range oidsMap {
-		keys[i] = k
-		i++
-	}
-	return keys
 }

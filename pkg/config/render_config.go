@@ -50,7 +50,7 @@ type context struct {
 	SNMP                             bool
 	SecurityModule                   bool
 	SecurityAgent                    bool
-	SBOM							 bool // enables CSM Vulnerability Management
+	SBOM                             bool // enables CSM Vulnerability Management
 	NetworkModule                    bool // Sub-module of System Probe
 	UniversalServiceMonitoringModule bool // Sub-module of System Probe
 	DataStreamsModule                bool // Sub-module of System Probe
@@ -60,6 +60,7 @@ type context struct {
 	OTLP                             bool
 	APMInjection                     bool
 	NetworkPath                      bool
+	ApplicationMonitoring            bool
 }
 
 func mkContext(buildType string) context {
@@ -88,7 +89,7 @@ func mkContext(buildType string) context {
 		Kubelet:           true,
 		KubeApiServer:     true, // TODO: remove when phasing out from node-agent
 		Compliance:        true,
-		SBOM:			   true,
+		SBOM:              true,
 		SNMP:              true,
 		PrometheusScrape:  true,
 		OTLP:              true,
@@ -163,6 +164,11 @@ func mkContext(buildType string) context {
 		return context{
 			OS:           runtime.GOOS,
 			APMInjection: true,
+		}
+	case "application-monitoring":
+		return context{
+			OS:                    runtime.GOOS,
+			ApplicationMonitoring: true,
 		}
 	}
 

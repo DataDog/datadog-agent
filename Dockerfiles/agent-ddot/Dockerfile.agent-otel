@@ -1,0 +1,84 @@
+ARG AGENT_REPO=datadog/agent-dev
+ARG AGENT_VERSION=nightly-full-main-jmx
+ARG AGENT_BRANCH=main
+# Use the Ubuntu Slim AMD64 base image
+FROM ubuntu:24.04 AS builder
+
+# Set environment variables
+ARG AGENT_REPO
+ARG AGENT_VERSION
+ARG AGENT_BRANCH
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set the working directory
+WORKDIR /workspace
+
+# Update and install necessary packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    software-properties-common \
+    build-essential \
+    git \
+    python3 \
+    python3-pip \
+    python3-venv \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# We can't get tarballs for dev branches, so we can't just pull the tarball from github.
+# Instead we make a treeless clone at the reference provided, and build from the repo.
+# We also have to use the repo clone because some invoke tasks rely on git coommands unavailable
+# in repo tarball archives. For the same reason a shallow clone will also not work.
+RUN git clone --branch ${AGENT_BRANCH} --filter=tree:0 https://github.com/DataDog/datadog-agent.git datadog-agent-${AGENT_BRANCH}
+
+# Set the working directory to the source code
+WORKDIR /workspace/datadog-agent-${AGENT_BRANCH}
+
+# Install Go based on architecture
+RUN GO_VERSION=$(cat .go-version) && \
+    ARCH=$(dpkg --print-architecture) && \
+    if [ "$ARCH" = "amd64" ]; then \
+    GO_ARCH="linux-amd64"; \
+    elif [ "$ARCH" = "arm64" ]; then \
+    GO_ARCH="linux-arm64"; \
+    else \
+    echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    curl -OL https://golang.org/dl/go${GO_VERSION}.$GO_ARCH.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.$GO_ARCH.tar.gz && \
+    rm go${GO_VERSION}.$GO_ARCH.tar.gz
+
+# Set up Go environment
+ENV PATH="/usr/local/go/bin:${PATH}"
+RUN mkdir /go
+ENV GOPATH=/go
+
+# Verify installations
+RUN go version && \
+    python3 --version && \
+    curl --version
+
+# Create and activate virtual environment, then install requirements
+RUN python3 -m venv venv && \
+    . venv/bin/activate && \
+    pip install --upgrade pip && \
+    pip install dda && \
+    dda self dep sync -f legacy-tasks
+
+# Copy the manifest file
+COPY manifest.yaml /workspace/datadog-agent-${AGENT_BRANCH}/comp/otelcol/collector-contrib/impl/manifest.yaml
+
+# Generate the files
+RUN . venv/bin/activate && dda inv collector.generate
+
+# Build the OTel agent
+RUN . venv/bin/activate && dda inv otel-agent.build --byoc
+
+
+# Use the final Datadog agent image
+FROM ${AGENT_REPO}:${AGENT_VERSION}
+ARG AGENT_BRANCH
+# Copy the built OTel agent from the builder stage
+COPY --from=builder /workspace/datadog-agent-${AGENT_BRANCH}/bin/otel-agent/otel-agent /opt/datadog-agent/embedded/bin/otel-agent

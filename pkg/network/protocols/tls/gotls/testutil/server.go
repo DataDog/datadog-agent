@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package testutil
 
 import (
@@ -26,12 +28,13 @@ func RunServer(t testing.TB, serverPort string) error {
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("go-httpbin listening on https://0.0.0.0:8080"), globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
-	dockerCfg := dockerutils.NewComposeConfig("https-gotls",
-		dockerutils.DefaultTimeout,
-		dockerutils.DefaultRetries,
-		scanner,
-		env,
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"https-gotls",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
 		dir+"/../testdata/docker-compose.yml")
 	return dockerutils.Run(t, dockerCfg)
-
 }

@@ -6,6 +6,6 @@
 // Package multiple uses multiple implementations
 package multiple
 
-// team: agent-shared-components
+// team: agent-runtimes
 
 type Component interface{}

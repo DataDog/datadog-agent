@@ -33,4 +33,6 @@ const (
 	Podman Feature = "podman"
 	// PodResources socket present
 	PodResources Feature = "podresources"
+	// NVML library present for GPU detection
+	NVML Feature = "nvml"
 )

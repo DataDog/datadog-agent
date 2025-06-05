@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 )
 
 func mockSenderEvents(t *testing.T, m *mocksender.MockSender) []*event {
@@ -44,9 +45,7 @@ func Test_telemetrySender(t *testing.T) {
 	mSender := mocksender.NewMockSender("test-servicediscovery")
 	mSender.SetupAcceptAll()
 
-	mTimer := NewMocktimer(ctrl)
 	now := time.Date(2024, 5, 13, 0, 0, 0, 0, time.UTC)
-	mTimer.EXPECT().Now().Return(now).AnyTimes()
 
 	host := "test-host"
 	_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
@@ -54,34 +53,38 @@ func Test_telemetrySender(t *testing.T) {
 	ts := newTelemetrySender(mSender)
 	ts.hostname = mHostname
 
-	svc := serviceInfo{
-		service: model.Service{
-			PID:                        99,
-			CommandLine:                []string{"test-service", "--args"},
-			Ports:                      []uint16{80, 8080},
-			StartTimeMilli:             uint64(now.Add(-20 * time.Minute).UnixMilli()),
-			RSS:                        500 * 1024 * 1024,
-			GeneratedName:              "generated-name",
-			GeneratedNameSource:        "generated-name-source",
-			ContainerServiceName:       "container-service-name",
-			ContainerServiceNameSource: "service",
-			DDService:                  "dd-service",
-			DDServiceInjected:          true,
-			CPUCores:                   1.5,
-			ContainerID:                "abcd",
+	service := model.Service{
+		PID:                        99,
+		GeneratedName:              "generated-name",
+		GeneratedNameSource:        "generated-name-source",
+		AdditionalGeneratedNames:   []string{"additional0", "additional1"},
+		ContainerServiceName:       "container-service-name",
+		ContainerServiceNameSource: "service",
+		DDService:                  "dd-service",
+		DDServiceInjected:          true,
+		TracerMetadata: []tracermetadata.TracerMetadata{
+			{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
+			{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 		},
-		meta: ServiceMetadata{
-			Name:               "test-service",
-			Language:           "jvm",
-			Type:               "web_service",
-			APMInstrumentation: "injected",
-		},
-		LastHeartbeat: now,
+		Ports:              []uint16{80, 8080},
+		APMInstrumentation: "injected",
+		Language:           "jvm",
+		Type:               "web_service",
+		RSS:                500 * 1024 * 1024,
+		CommandLine:        []string{"test-service", "--args"},
+		StartTimeMilli:     uint64(now.Add(-20 * time.Minute).UnixMilli()),
+		CPUCores:           1.5,
+		ContainerID:        "abcd",
+		LastHeartbeat:      now.Unix(),
+		RxBytes:            1000,
+		TxBytes:            2000,
+		RxBps:              10.5,
+		TxBps:              20.3,
 	}
 
-	ts.sendStartServiceEvent(svc)
-	ts.sendHeartbeatServiceEvent(svc)
-	ts.sendEndServiceEvent(svc)
+	ts.sendStartServiceEvent(service)
+	ts.sendHeartbeatServiceEvent(service)
+	ts.sendEndServiceEvent(service)
 
 	wantEvents := []*event{
 		{
@@ -89,27 +92,35 @@ func Test_telemetrySender(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name",
 				GeneratedServiceNameSource: "generated-name-source",
+				AdditionalGeneratedNames:   []string{"additional0", "additional1"},
 				ContainerServiceName:       "container-service-name",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
 				ServiceNameSource:          "injected",
-				HostName:                   "test-host",
-				Env:                        "",
-				ServiceLanguage:            "jvm",
-				ServiceType:                "web_service",
-				StartTime:                  1715557200,
-				StartTimeMilli:             1715557200 * 1000,
-				LastSeen:                   1715558400,
-				APMInstrumentation:         "injected",
-				Ports:                      []uint16{80, 8080},
-				PID:                        99,
-				CommandLine:                []string{"test-service", "--args"},
-				RSSMemory:                  500 * 1024 * 1024,
-				CPUCores:                   1.5,
-				ContainerID:                "abcd",
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
+					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
+				},
+				HostName:           "test-host",
+				Env:                "",
+				ServiceLanguage:    "jvm",
+				ServiceType:        "web_service",
+				StartTime:          1715557200,
+				StartTimeMilli:     1715557200 * 1000,
+				LastSeen:           1715558400,
+				APMInstrumentation: "injected",
+				Ports:              []uint16{80, 8080},
+				PID:                99,
+				CommandLine:        []string{"test-service", "--args"},
+				RSSMemory:          500 * 1024 * 1024,
+				CPUCores:           1.5,
+				ContainerID:        "abcd",
+				RxBytes:            1000,
+				TxBytes:            2000,
+				RxBps:              10.5,
+				TxBps:              20.3,
 			},
 		},
 		{
@@ -117,27 +128,35 @@ func Test_telemetrySender(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name",
 				GeneratedServiceNameSource: "generated-name-source",
+				AdditionalGeneratedNames:   []string{"additional0", "additional1"},
 				ContainerServiceName:       "container-service-name",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
 				ServiceNameSource:          "injected",
-				HostName:                   "test-host",
-				Env:                        "",
-				ServiceLanguage:            "jvm",
-				ServiceType:                "web_service",
-				StartTime:                  1715557200,
-				StartTimeMilli:             1715557200 * 1000,
-				LastSeen:                   1715558400,
-				APMInstrumentation:         "injected",
-				Ports:                      []uint16{80, 8080},
-				PID:                        99,
-				CommandLine:                []string{"test-service", "--args"},
-				RSSMemory:                  500 * 1024 * 1024,
-				CPUCores:                   1.5,
-				ContainerID:                "abcd",
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
+					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
+				},
+				HostName:           "test-host",
+				Env:                "",
+				ServiceLanguage:    "jvm",
+				ServiceType:        "web_service",
+				StartTime:          1715557200,
+				StartTimeMilli:     1715557200 * 1000,
+				LastSeen:           1715558400,
+				APMInstrumentation: "injected",
+				Ports:              []uint16{80, 8080},
+				PID:                99,
+				CommandLine:        []string{"test-service", "--args"},
+				RSSMemory:          500 * 1024 * 1024,
+				CPUCores:           1.5,
+				ContainerID:        "abcd",
+				RxBytes:            1000,
+				TxBytes:            2000,
+				RxBps:              10.5,
+				TxBps:              20.3,
 			},
 		},
 		{
@@ -145,27 +164,35 @@ func Test_telemetrySender(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name",
 				GeneratedServiceNameSource: "generated-name-source",
+				AdditionalGeneratedNames:   []string{"additional0", "additional1"},
 				ContainerServiceName:       "container-service-name",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service",
 				ServiceNameSource:          "injected",
-				HostName:                   "test-host",
-				Env:                        "",
-				ServiceLanguage:            "jvm",
-				ServiceType:                "web_service",
-				StartTime:                  1715557200,
-				StartTimeMilli:             1715557200 * 1000,
-				LastSeen:                   1715558400,
-				APMInstrumentation:         "injected",
-				Ports:                      []uint16{80, 8080},
-				PID:                        99,
-				CommandLine:                []string{"test-service", "--args"},
-				RSSMemory:                  500 * 1024 * 1024,
-				CPUCores:                   1.5,
-				ContainerID:                "abcd",
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
+					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
+				},
+				HostName:           "test-host",
+				Env:                "",
+				ServiceLanguage:    "jvm",
+				ServiceType:        "web_service",
+				StartTime:          1715557200,
+				StartTimeMilli:     1715557200 * 1000,
+				LastSeen:           1715558400,
+				APMInstrumentation: "injected",
+				Ports:              []uint16{80, 8080},
+				PID:                99,
+				CommandLine:        []string{"test-service", "--args"},
+				RSSMemory:          500 * 1024 * 1024,
+				CPUCores:           1.5,
+				ContainerID:        "abcd",
+				RxBytes:            1000,
+				TxBytes:            2000,
+				RxBps:              10.5,
+				TxBps:              20.3,
 			},
 		},
 	}
@@ -184,9 +211,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	mSender := mocksender.NewMockSender("test-servicediscovery")
 	mSender.SetupAcceptAll()
 
-	mTimer := NewMocktimer(ctrl)
 	now := time.Date(2024, 5, 13, 0, 0, 0, 0, time.UTC)
-	mTimer.EXPECT().Now().Return(now).AnyTimes()
 
 	host := "test-host"
 	_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
@@ -194,30 +219,29 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	ts := newTelemetrySender(mSender)
 	ts.hostname = mHostname
 
-	svc := serviceInfo{
-		service: model.Service{
-			PID:                        55,
-			CommandLine:                []string{"foo", "--option"},
-			StartTimeMilli:             uint64(now.Add(-20 * time.Minute).UnixMilli()),
-			GeneratedName:              "generated-name2",
-			GeneratedNameSource:        "generated-name-source2",
-			ContainerServiceName:       "container-service-name2",
-			ContainerServiceNameSource: "service",
-			DDService:                  "dd-service-provided",
-			ContainerID:                "abcd",
+	service := model.Service{
+		PID:                        55,
+		GeneratedName:              "generated-name2",
+		GeneratedNameSource:        "generated-name-source2",
+		ContainerServiceName:       "container-service-name2",
+		ContainerServiceNameSource: "service",
+		DDService:                  "dd-service-provided",
+		TracerMetadata: []tracermetadata.TracerMetadata{
+			{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
+			{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
 		},
-		meta: ServiceMetadata{
-			Name:               "test-service",
-			Language:           "jvm",
-			Type:               "web_service",
-			APMInstrumentation: "injected",
-		},
-		LastHeartbeat: now,
+		APMInstrumentation: "injected",
+		Language:           "jvm",
+		Type:               "web_service",
+		CommandLine:        []string{"foo", "--option"},
+		StartTimeMilli:     uint64(now.Add(-20 * time.Minute).UnixMilli()),
+		ContainerID:        "abcd",
+		LastHeartbeat:      now.Unix(),
 	}
 
-	ts.sendStartServiceEvent(svc)
-	ts.sendHeartbeatServiceEvent(svc)
-	ts.sendEndServiceEvent(svc)
+	ts.sendStartServiceEvent(service)
+	ts.sendHeartbeatServiceEvent(service)
+	ts.sendEndServiceEvent(service)
 
 	wantEvents := []*event{
 		{
@@ -225,24 +249,27 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name2",
 				GeneratedServiceNameSource: "generated-name-source2",
 				ContainerServiceName:       "container-service-name2",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service-provided",
 				ServiceNameSource:          "provided",
-				HostName:                   "test-host",
-				Env:                        "",
-				ServiceLanguage:            "jvm",
-				ServiceType:                "web_service",
-				StartTime:                  1715557200,
-				StartTimeMilli:             1715557200 * 1000,
-				LastSeen:                   1715558400,
-				APMInstrumentation:         "injected",
-				PID:                        55,
-				CommandLine:                []string{"foo", "--option"},
-				ContainerID:                "abcd",
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
+					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
+				},
+				HostName:           "test-host",
+				Env:                "",
+				ServiceLanguage:    "jvm",
+				ServiceType:        "web_service",
+				StartTime:          1715557200,
+				StartTimeMilli:     1715557200 * 1000,
+				LastSeen:           1715558400,
+				APMInstrumentation: "injected",
+				PID:                55,
+				CommandLine:        []string{"foo", "--option"},
+				ContainerID:        "abcd",
 			},
 		},
 		{
@@ -250,24 +277,27 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name2",
 				GeneratedServiceNameSource: "generated-name-source2",
 				ContainerServiceName:       "container-service-name2",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service-provided",
 				ServiceNameSource:          "provided",
-				HostName:                   "test-host",
-				Env:                        "",
-				ServiceLanguage:            "jvm",
-				ServiceType:                "web_service",
-				StartTime:                  1715557200,
-				StartTimeMilli:             1715557200 * 1000,
-				LastSeen:                   1715558400,
-				APMInstrumentation:         "injected",
-				PID:                        55,
-				CommandLine:                []string{"foo", "--option"},
-				ContainerID:                "abcd",
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
+					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
+				},
+				HostName:           "test-host",
+				Env:                "",
+				ServiceLanguage:    "jvm",
+				ServiceType:        "web_service",
+				StartTime:          1715557200,
+				StartTimeMilli:     1715557200 * 1000,
+				LastSeen:           1715558400,
+				APMInstrumentation: "injected",
+				PID:                55,
+				CommandLine:        []string{"foo", "--option"},
+				ContainerID:        "abcd",
 			},
 		},
 		{
@@ -275,24 +305,27 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			APIVersion:  "v2",
 			Payload: &eventPayload{
 				NamingSchemaVersion:        "1",
-				ServiceName:                "test-service",
 				GeneratedServiceName:       "generated-name2",
 				GeneratedServiceNameSource: "generated-name-source2",
 				ContainerServiceName:       "container-service-name2",
 				ContainerServiceNameSource: "service",
 				DDService:                  "dd-service-provided",
 				ServiceNameSource:          "provided",
-				HostName:                   "test-host",
-				Env:                        "",
-				ServiceLanguage:            "jvm",
-				ServiceType:                "web_service",
-				StartTime:                  1715557200,
-				StartTimeMilli:             1715557200 * 1000,
-				LastSeen:                   1715558400,
-				APMInstrumentation:         "injected",
-				PID:                        55,
-				CommandLine:                []string{"foo", "--option"},
-				ContainerID:                "abcd",
+				TracerMetadata: []tracermetadata.TracerMetadata{
+					{ServiceName: "tracer-service-1", RuntimeID: "runtime-id-1"},
+					{ServiceName: "tracer-service-2", RuntimeID: "runtime-id-2"},
+				},
+				HostName:           "test-host",
+				Env:                "",
+				ServiceLanguage:    "jvm",
+				ServiceType:        "web_service",
+				StartTime:          1715557200,
+				StartTimeMilli:     1715557200 * 1000,
+				LastSeen:           1715558400,
+				APMInstrumentation: "injected",
+				PID:                55,
+				CommandLine:        []string{"foo", "--option"},
+				ContainerID:        "abcd",
 			},
 		},
 	}

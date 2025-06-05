@@ -16,7 +16,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -117,7 +117,7 @@ func (m *MockJournal) GetCursor() (string, error) {
 func TestIdentifier(t *testing.T) {
 	var tailer *Tailer
 	var source *sources.LogSource
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// expect default identifier
 	source = sources.NewLogSource("", &config.LogsConfig{})
@@ -136,7 +136,7 @@ func TestShouldDropEntry(t *testing.T) {
 	var source *sources.LogSource
 	var tailer *Tailer
 	var err error
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// expect only the specified service units or matching entries to be dropped
 	source = sources.NewLogSource("", &config.LogsConfig{ExcludeSystemUnits: []string{"foo", "bar"}, ExcludeUserUnits: []string{"baz", "qux"}, ExcludeMatches: []string{"quux=quuz"}})
@@ -286,7 +286,7 @@ func TestShouldDropEntry(t *testing.T) {
 
 func TestApplicationName(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailer := NewTailer(source, nil, nil, true, fakeTagger)
 
 	assert.Equal(t, "foo", tailer.getApplicationName(
@@ -331,7 +331,7 @@ func TestApplicationName(t *testing.T) {
 
 func TestContent(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailer := NewTailer(source, nil, nil, true, fakeTagger)
 
 	_, marshaled := tailer.getContent(
@@ -363,7 +363,7 @@ func TestContent(t *testing.T) {
 
 func TestSeverity(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailer := NewTailer(source, nil, nil, true, fakeTagger)
 
 	priorityValues := []string{"0", "1", "2", "3", "4", "5", "6", "7", "foo"}
@@ -381,7 +381,7 @@ func TestSeverity(t *testing.T) {
 
 func TestApplicationNameShouldBeDockerForContainerEntries(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailer := NewTailer(source, nil, nil, true, fakeTagger)
 
 	assert.Equal(t, "docker", tailer.getApplicationName(
@@ -400,7 +400,7 @@ func TestApplicationNameShouldBeShortImageForContainerEntries(t *testing.T) {
 	containerID := "bar"
 
 	source := sources.NewLogSource("", &config.LogsConfig{ContainerMode: true})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailer := NewTailer(source, nil, nil, true, fakeTagger)
 
 	assert.Equal(t, "testImage", tailer.getApplicationName(
@@ -423,7 +423,7 @@ func TestApplicationNameShouldBeDockerWhenTagNotFound(t *testing.T) {
 	containerID := "bar2"
 
 	source := sources.NewLogSource("", &config.LogsConfig{ContainerMode: true})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailer := NewTailer(source, nil, nil, true, fakeTagger)
 
 	assert.Equal(t, "docker", tailer.getApplicationName(
@@ -449,7 +449,7 @@ func TestWrongTypeFromCache(t *testing.T) {
 	cache.Cache.Set(getImageCacheKey(containerID), 10, 30*time.Second)
 
 	source := sources.NewLogSource("", &config.LogsConfig{ContainerMode: true})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailer := NewTailer(source, nil, nil, true, fakeTagger)
 
 	assert.Equal(t, "testImage", tailer.getApplicationName(
@@ -493,7 +493,7 @@ func TestTailingMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockJournal := &MockJournal{m: m}
 			source := sources.NewLogSource("", tt.config)
-			fakeTagger := mock.SetupFakeTagger(t)
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			tailer := NewTailer(source, nil, mockJournal, true, fakeTagger)
 			tailer.Start(tt.cursor)
 
@@ -518,7 +518,7 @@ func TestTailerCanTailJournal(t *testing.T) {
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}}
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, true, fakeTagger)
 
 	mockJournal.entries = append(mockJournal.entries, &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "foobar"}})
@@ -539,7 +539,7 @@ func TestTailerWithStructuredMessage(t *testing.T) {
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}}
 	source := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, false, fakeTagger)
 	mockJournal.entries = append(mockJournal.entries, &sdjournal.JournalEntry{Fields: map[string]string{
 		sdjournal.SD_JOURNAL_FIELD_MESSAGE: "foobar",
@@ -564,7 +564,7 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 
 	mockJournalV1 := &MockJournal{m: &sync.Mutex{}}
 	sourceV1 := sources.NewLogSource("", &config.LogsConfig{})
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	tailerV1 := NewTailer(sourceV1, make(chan *message.Message, 1), mockJournalV1, true, fakeTagger)
 	mockJournalV1.entries = append(mockJournalV1.entries, &sdjournal.JournalEntry{Fields: map[string]string{
 		sdjournal.SD_JOURNAL_FIELD_MESSAGE: "journald log message content",
@@ -604,7 +604,7 @@ func TestExpectedTagDuration(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	tags := []string{"tag1:value1"}
-	fakeTagger := mock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	mockConfig.SetWithoutSource("tags", tags)
 	defer mockConfig.SetWithoutSource("tags", nil)

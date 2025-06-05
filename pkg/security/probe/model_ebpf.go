@@ -35,7 +35,7 @@ func NewEBPFModel(probe *EBPFProbe) *model.Model {
 				if probe.isRawPacketNotSupported() {
 					return fmt.Errorf("%s is not available on this kernel version", field)
 				}
-				if _, err := rawpacket.BPFFilterToInsts(0, value.Value.(string), rawpacket.DefaultProgOpts); err != nil {
+				if _, err := rawpacket.BPFFilterToInsts(0, value.Value.(string), rawpacket.DefaultProgOpts()); err != nil {
 					return err
 				}
 			}

@@ -29,6 +29,8 @@ type ciProfile struct {
 	ciUniqueID string
 }
 
+var _ Profile = ciProfile{}
+
 // NewCIProfile creates a new CI profile
 func NewCIProfile() (Profile, error) {
 	ciSecretPrefix := os.Getenv("CI_SECRET_PREFIX")

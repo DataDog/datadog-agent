@@ -44,16 +44,16 @@ func ParseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error)
 		return []*MetricSeries{}, nil
 	}
 
-	enflated, err := enflate(payload.Data, payload.Encoding)
+	inflated, err := inflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err
 	}
 	metricsPayload := new(metricspb.MetricPayload)
 
 	if payload.ContentType == "application/json" {
-		err = json.Unmarshal(enflated, metricsPayload)
+		err = json.Unmarshal(inflated, metricsPayload)
 	} else {
-		err = metricsPayload.Unmarshal(enflated)
+		err = metricsPayload.Unmarshal(inflated)
 	}
 
 	if err != nil {

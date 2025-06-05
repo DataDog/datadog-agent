@@ -89,7 +89,7 @@ func NewServiceExtractor(enabled, useWindowsServiceName, useImprovedAlgorithm bo
 	}
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
+// Extract the process metadata from the processes
 func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	if !d.enabled {
 		return
@@ -117,7 +117,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	d.serviceByPID = serviceByPID
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
+// GetServiceContext returns the service context for the PID
 func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if !d.enabled {
 		return nil

@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -34,7 +35,7 @@ var (
 	platform              = flag.String("platform", "", "platform to test")
 	cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
 	architecture          = flag.String("arch", "x86_64", "architecture to test (x86_64, arm64))")
-	flavor                = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-proxy, datadog-heroku-agent)")
+	flavor                = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-agent, datadog-fips-proxy, datadog-heroku-agent)")
 	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")
 )
 
@@ -124,6 +125,8 @@ func (is *installScriptSuite) TestInstallAgent() {
 		is.IotAgentTest()
 	case "datadog-dogstatsd":
 		is.DogstatsdAgentTest()
+	case "datadog-fips-agent":
+		is.AgentTest("datadog-fips-agent")
 	}
 }
 
@@ -158,8 +161,11 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 		common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion2)
 	}
 	common.SetAgentPythonMajorVersion(is.T(), client, "3")
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckAgentPython(is.T(), client, common.ExpectedPythonVersion3)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckApmEnabled(is.T(), client)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	common.CheckApmDisabled(is.T(), client)
 	if flavor == "datadog-agent" {
 		common.CheckSystemProbeBehavior(is.T(), client)

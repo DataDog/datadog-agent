@@ -40,7 +40,7 @@ var replaceIns = asm.Mov.Imm(asm.R0, 0)
 // conditionally select eBPF helpers. This should be regarded as a last resort
 // when the aforementioned options don't apply (prebuilt artifacts, for
 // example).
-func NewHelperCallRemover(helpers ...asm.BuiltinFunc) Modifier {
+func NewHelperCallRemover(helpers ...asm.BuiltinFunc) ModifierBeforeInit {
 	return &helperCallRemover{
 		helpers: helpers,
 	}
@@ -78,10 +78,6 @@ func (h *helperCallRemover) BeforeInit(m *manager.Manager, _ names.ModuleName, _
 		return nil
 	})
 
-	return nil
-}
-
-func (h *helperCallRemover) AfterInit(*manager.Manager, names.ModuleName, *manager.Options) error {
 	return nil
 }
 

@@ -51,8 +51,9 @@ func (c *measuredCache) statsLoop() {
 }
 
 type cacheOptions struct {
-	On     bool
-	Statsd StatsClient
+	On      bool
+	Statsd  StatsClient
+	MaxSize int64
 }
 
 // newMeasuredCache returns a new measuredCache.
@@ -62,17 +63,12 @@ func newMeasuredCache(opts cacheOptions) *measuredCache {
 		return &measuredCache{}
 	}
 	cfg := &ristretto.Config{
-		// We know that the maximum allowed resource length is 5K. This means that
-		// in 5MB we can store a minimum of 1000 queries.
-		MaxCost: 5000000,
-
-		// An appromixated worst-case scenario when the cache is filled with small
-		// queries averaged as being of length 11 ("LOCK TABLES"), we would be able
-		// to fit 476K of them into 5MB of cost.
-		//
-		// We average it to 500K and multiply 10x as the documentation recommends.
-		NumCounters: 500000 * 10,
-
+		MaxCost: opts.MaxSize,
+		// Assuming the minimum query size is 10 bytes , the maximum number of queries
+		// that can be stored is calculated as opts.MaxSize / (10 + 320).
+		// The 320 bytes is the fixed size of the ObfuscatedQuery struct which is stored in the cache.
+		// Multiplying this maximum number by 10 (opts.MaxSize / 330 * 10) as per the ristretto documentation.
+		NumCounters: int64(opts.MaxSize / 330 * 10),
 		BufferItems: 64,   // default recommended value
 		Metrics:     true, // enable hit/miss counters
 	}

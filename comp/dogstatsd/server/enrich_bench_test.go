@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -34,7 +35,7 @@ func BenchmarkExtractTagsMetadata(b *testing.B) {
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				tags, _, _, _ = extractTagsMetadata(baseTags, "", []byte{}, "", conf)
+				tags, _, _, _ = extractTagsMetadata(baseTags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", conf)
 			}
 		})
 	}
@@ -51,7 +52,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 
 	b.Run("none", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			enrichMetricSample(out, sample, "", "", conf)
+			enrichMetricSample(out, sample, "", 0, "", conf, nil)
 		}
 	})
 
@@ -61,11 +62,11 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 	}
 
 	for i := 1; i <= 512; i *= 2 {
-		conf.metricBlocklist = newBlocklist(list[:i], false)
+		blocklist := newBlocklist(list[:i], false)
 		b.Run(fmt.Sprintf("%d-exact", i),
 			func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					enrichMetricSample(out, sample, "", "", conf)
+					enrichMetricSample(out, sample, "", 0, "", conf, &blocklist)
 				}
 			})
 	}

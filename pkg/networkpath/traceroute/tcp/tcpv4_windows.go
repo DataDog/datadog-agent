@@ -8,91 +8,41 @@ package tcp
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"time"
 
 	"golang.org/x/sys/windows"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/icmp"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/winconn"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	sendTo = windows.Sendto
-)
-
-type winrawsocket struct {
-	s windows.Handle
-}
-
-func (w *winrawsocket) close() {
-	if w.s != windows.InvalidHandle {
-		windows.Closesocket(w.s) // nolint: errcheck
-	}
-	w.s = windows.InvalidHandle
-}
-
-func (t *TCPv4) sendRawPacket(w *winrawsocket, payload []byte) error {
-
-	dst := t.Target.To4()
-	sa := &windows.SockaddrInet4{
-		Port: int(t.DestPort),
-		Addr: [4]byte{dst[0], dst[1], dst[2], dst[3]},
-	}
-	if err := sendTo(w.s, payload, 0, sa); err != nil {
-		return fmt.Errorf("failed to send packet: %w", err)
-	}
-	return nil
-}
-
-func createRawSocket() (*winrawsocket, error) {
-	s, err := windows.Socket(windows.AF_INET, windows.SOCK_RAW, windows.IPPROTO_IP)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create raw socket: %w", err)
-	}
-	on := int(1)
-	err = windows.SetsockoptInt(s, windows.IPPROTO_IP, windows.IP_HDRINCL, on)
-	if err != nil {
-		windows.Closesocket(s) // nolint: errcheck
-		return nil, fmt.Errorf("failed to set IP_HDRINCL: %w", err)
-	}
-
-	err = windows.SetsockoptInt(s, windows.SOL_SOCKET, windows.SO_RCVTIMEO, 100)
-	if err != nil {
-		windows.Closesocket(s) // nolint: errcheck
-		return nil, fmt.Errorf("failed to set SO_RCVTIMEO: %w", err)
-	}
-	return &winrawsocket{s: s}, nil
-}
-
-// TracerouteSequential runs a traceroute sequentially where a packet is
+// TracerouteSequentialSocket runs a traceroute sequentially where a packet is
 // sent and we wait for a response before sending the next packet
-func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
+// This method uses socket options to set the TTL and get the hop IP
+func (t *TCPv4) TracerouteSequentialSocket() (*common.Results, error) {
 	log.Debugf("Running traceroute to %+v", t)
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
-	//
-	// TODO: do this once for the probe and hang on to the
-	// listener until we decide to close the probe
-	addr, err := common.LocalAddrForHost(t.Target, t.DestPort)
+	addr, conn, err := common.LocalAddrForHost(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
+	defer conn.Close()
 	t.srcIP = addr.IP
 	t.srcPort = addr.AddrPort().Port()
-
-	rs, err := createRawSocket()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create raw socket: %w", err)
-	}
-	defer rs.close()
 
 	hops := make([]*common.Hop, 0, int(t.MaxTTL-t.MinTTL)+1)
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		seqNumber := rand.Uint32()
-		hop, err := t.sendAndReceive(rs, i, seqNumber, t.Timeout)
+		s, err := winconn.NewConn()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create raw socket: %w", err)
+		}
+		hop, err := t.sendAndReceiveSocket(s, i, t.Timeout)
+		s.Close()
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
@@ -111,24 +61,107 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 		Target:     t.Target,
 		DstPort:    t.DestPort,
 		Hops:       hops,
+		Tags:       []string{"tcp_method:syn_socket"},
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout time.Duration) (*common.Hop, error) {
-	_, buffer, _, err := createRawTCPSynBuffer(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl)
+func (t *TCPv4) sendAndReceiveSocket(s winconn.ConnWrapper, ttl int, timeout time.Duration) (*common.Hop, error) {
+	// set the TTL
+	err := s.SetTTL(ttl)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set TTL: %w", err)
+	}
+
+	start := time.Now() // TODO: is this the best place to start?
+	hopIP, end, icmpType, icmpCode, err := s.GetHop(timeout, t.Target, t.DestPort)
+	if err != nil {
+		log.Errorf("failed to get hop: %s", err.Error())
+		return nil, fmt.Errorf("failed to get hop: %w", err)
+	}
+
+	rtt := time.Duration(0)
+	if !hopIP.Equal(net.IP{}) {
+		rtt = end.Sub(start)
+	}
+
+	return &common.Hop{
+		IP:       hopIP,
+		Port:     0, // TODO: fix this
+		ICMPType: icmpType,
+		ICMPCode: icmpCode,
+		RTT:      rtt,
+		IsDest:   hopIP.Equal(t.Target),
+	}, nil
+}
+
+// TracerouteSequential runs a traceroute sequentially where a packet is
+// sent and we wait for a response before sending the next packet
+func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
+	log.Debugf("Running traceroute to %+v", t)
+	// Get local address for the interface that connects to this
+	// host and store in in the probe
+	addr, conn, err := common.LocalAddrForHost(t.Target, t.DestPort)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get local address for target: %w", err)
+	}
+	defer conn.Close()
+	t.srcIP = addr.IP
+	t.srcPort = addr.AddrPort().Port()
+
+	rs, err := winconn.NewRawConn()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create raw socket: %w", err)
+	}
+	defer rs.Close()
+
+	hops := make([]*common.Hop, 0, int(t.MaxTTL-t.MinTTL)+1)
+
+	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
+		seqNumber, packetID := t.nextSeqNumAndPacketID()
+		hop, err := t.sendAndReceive(rs, i, seqNumber, packetID, t.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("failed to run traceroute: %w", err)
+		}
+		hops = append(hops, hop)
+		log.Tracef("Discovered hop: %+v", hop)
+		// if we've reached our destination,
+		// we're done
+		if hop.IsDest {
+			break
+		}
+	}
+
+	return &common.Results{
+		Source:     t.srcIP,
+		SourcePort: t.srcPort,
+		Target:     t.Target,
+		DstPort:    t.DestPort,
+		Hops:       hops,
+		Tags:       []string{"tcp_method:syn", fmt.Sprintf("paris_traceroute_mode_enabled:%t", t.ParisTracerouteMode)},
+	}, nil
+}
+
+func (t *TCPv4) sendAndReceive(rs winconn.RawConnWrapper, ttl int, seqNum uint32, packetID uint16, timeout time.Duration) (*common.Hop, error) {
+	_, buffer, _, err := t.createRawTCPSynBuffer(packetID, seqNum, ttl)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
 	}
 
-	err = t.sendRawPacket(rs, buffer)
+	err = rs.SendRawPacket(t.Target, t.DestPort, buffer)
 	if err != nil {
 		log.Errorf("failed to send TCP packet: %s", err.Error())
 		return nil, err
 	}
 
+	icmpParser := icmp.NewICMPTCPParser()
+	tcpParser := newParser()
+	matcherFuncs := map[int]common.MatcherFunc{
+		windows.IPPROTO_ICMP: icmpParser.Match,
+		windows.IPPROTO_TCP:  tcpParser.MatchTCP,
+	}
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, hopPort, icmpType, end, err := rs.listenPackets(timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	hopIP, end, err := rs.ListenPackets(timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, packetID, matcherFuncs)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
@@ -141,8 +174,8 @@ func (t *TCPv4) sendAndReceive(rs *winrawsocket, ttl int, seqNum uint32, timeout
 
 	return &common.Hop{
 		IP:       hopIP,
-		Port:     hopPort,
-		ICMPType: icmpType,
+		Port:     0, // TODO: fix this
+		ICMPType: 0, // TODO: fix this
 		RTT:      rtt,
 		IsDest:   hopIP.Equal(t.Target),
 	}, nil

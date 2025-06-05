@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Process Agent files are added to the flare archive instead of
+    displaying "no session token provided".

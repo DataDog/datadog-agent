@@ -94,3 +94,13 @@ func GetHasVFSRenameStructArgs() (bool, error) {
 
 	return false, nil
 }
+
+// GetBTFFunctionArgCount returns the number of arguments of a BTF function
+func GetBTFFunctionArgCount(funcName string) (int, error) {
+	proto, err := getBTFFuncProto(funcName)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(proto.Params), nil
+}

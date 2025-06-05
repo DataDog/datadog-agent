@@ -11,10 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -22,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -35,10 +32,13 @@ import (
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // This is a copy of the serverDeps struct, but without the server field.
@@ -52,8 +52,9 @@ type depsWithoutServer struct {
 	Replay        replay.Component
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
+	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
+	Hostname      hostnameinterface.Component
 }
 
 type serverDeps struct {
@@ -65,7 +66,7 @@ type serverDeps struct {
 	Replay        replay.Component
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
-	WMeta         optional.Option[workloadmeta.Component]
+	WMeta         option.Option[workloadmeta.Component]
 	Telemetry     telemetry.Component
 	Server        Component
 }
@@ -82,10 +83,12 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 			Overrides: overrides,
 		}),
 		replaymock.MockModule(),
-		compressionmock.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		logscompression.MockModule(),
+		metricscompression.MockModule(),
+
 		Module(Params{Serverless: false}),
 	))
 }
@@ -98,7 +101,8 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
 		replaymock.MockModule(),
-		compressionmock.MockModule(),
+		metricscompression.MockModule(),
+		logscompression.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
@@ -117,13 +121,14 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
-		compressionmock.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		metricscompression.MockModule(),
+		logscompression.MockModule(),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
 	return deps, s
 }

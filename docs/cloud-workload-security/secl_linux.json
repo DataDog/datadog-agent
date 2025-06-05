@@ -24,12 +24,12 @@
         },
         {
           "name": "cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -71,6 +71,11 @@
           "name": "event.os",
           "definition": "Operating system of the event",
           "property_doc_link": "event-os-doc"
+        },
+        {
+          "name": "event.rule.tags",
+          "definition": "Tags associated with the rule that's used to evaluate the event",
+          "property_doc_link": "event-rule-tags-doc"
         },
         {
           "name": "event.service",
@@ -144,12 +149,12 @@
         },
         {
           "name": "process.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -559,12 +564,12 @@
         },
         {
           "name": "process.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -924,12 +929,12 @@
         },
         {
           "name": "process.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "process.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -1316,6 +1321,45 @@
           "name": "process.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        }
+      ]
+    },
+    {
+      "name": "accept",
+      "definition": "An accept was executed",
+      "type": "Network",
+      "from_agent_version": "7.63",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "accept.addr.family",
+          "definition": "Address family",
+          "property_doc_link": "accept-addr-family-doc"
+        },
+        {
+          "name": "accept.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "accept-addr-hostname-doc"
+        },
+        {
+          "name": "accept.addr.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "accept.addr.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "accept.addr.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "accept.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
         }
       ]
     },
@@ -1846,6 +1890,11 @@
           "property_doc_link": "connect-addr-family-doc"
         },
         {
+          "name": "connect.addr.hostname",
+          "definition": "Address hostname (if available)",
+          "property_doc_link": "connect-addr-hostname-doc"
+        },
+        {
           "name": "connect.addr.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -1915,6 +1964,11 @@
           "property_doc_link": "dns-question-type-doc"
         },
         {
+          "name": "dns.response.code",
+          "definition": "Response code of the DNS response according to RFC 1035",
+          "property_doc_link": "dns-response-code-doc"
+        },
+        {
           "name": "network.destination.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -1945,6 +1999,11 @@
           "property_doc_link": "common-networkcontext-l4_protocol-doc"
         },
         {
+          "name": "network.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
+        },
+        {
           "name": "network.size",
           "definition": "Size in bytes of the network packet",
           "property_doc_link": "common-networkcontext-size-doc"
@@ -1968,7 +2027,7 @@
     },
     {
       "name": "exec",
-      "definition": "A process was executed or forked",
+      "definition": "A process was executed (does not trigger on fork syscalls).",
       "type": "Process",
       "from_agent_version": "7.27",
       "experimental": false,
@@ -2035,12 +2094,12 @@
         },
         {
           "name": "exec.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "exec.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -2464,12 +2523,12 @@
         },
         {
           "name": "exit.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "exit.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -2895,6 +2954,11 @@
           "name": "network.l4_protocol",
           "definition": "L4 protocol of the network packet",
           "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "network.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
         },
         {
           "name": "network.size",
@@ -3402,6 +3466,16 @@
           "name": "mkdir.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "mkdir.syscall.mode",
+          "definition": "Mode of the new directory",
+          "property_doc_link": "mkdir-syscall-mode-doc"
+        },
+        {
+          "name": "mkdir.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "mkdir-syscall-path-doc"
         }
       ]
     },
@@ -3603,6 +3677,85 @@
       ]
     },
     {
+      "name": "network_flow_monitor",
+      "definition": "A network monitor event was sent",
+      "type": "Network",
+      "from_agent_version": "7.63",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "network_flow_monitor.device.ifname",
+          "definition": "Interface ifname",
+          "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.destination.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.destination.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.destination.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.egress.data_size",
+          "definition": "Amount of data transmitted or received",
+          "property_doc_link": "common-networkstats-data_size-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.egress.packet_count",
+          "definition": "Count of network packets transmitted or received",
+          "property_doc_link": "common-networkstats-packet_count-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.ingress.data_size",
+          "definition": "Amount of data transmitted or received",
+          "property_doc_link": "common-networkstats-data_size-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.ingress.packet_count",
+          "definition": "Count of network packets transmitted or received",
+          "property_doc_link": "common-networkstats-packet_count-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.l3_protocol",
+          "definition": "L3 protocol of the network packet",
+          "property_doc_link": "network_flow_monitor-flows-l3_protocol-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.l4_protocol",
+          "definition": "L4 protocol of the network packet",
+          "property_doc_link": "network_flow_monitor-flows-l4_protocol-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.source.ip",
+          "definition": "IP address",
+          "property_doc_link": "common-ipportcontext-ip-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.source.is_public",
+          "definition": "Whether the IP address belongs to a public network",
+          "property_doc_link": "common-ipportcontext-is_public-doc"
+        },
+        {
+          "name": "network_flow_monitor.flows.source.port",
+          "definition": "Port number",
+          "property_doc_link": "common-ipportcontext-port-doc"
+        }
+      ]
+    },
+    {
       "name": "open",
       "definition": "A file was opened",
       "type": "File",
@@ -3743,7 +3896,7 @@
     },
     {
       "name": "packet",
-      "definition": "A raw network packet captured",
+      "definition": "A raw network packet was captured",
       "type": "Network",
       "from_agent_version": "7.60",
       "experimental": false,
@@ -3782,6 +3935,11 @@
           "name": "packet.l4_protocol",
           "definition": "L4 protocol of the network packet",
           "property_doc_link": "common-networkcontext-l4_protocol-doc"
+        },
+        {
+          "name": "packet.network_direction",
+          "definition": "Network direction of the network packet",
+          "property_doc_link": "common-networkcontext-network_direction-doc"
         },
         {
           "name": "packet.size",
@@ -3889,12 +4047,12 @@
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -4304,12 +4462,12 @@
         },
         {
           "name": "ptrace.tracee.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -4669,12 +4827,12 @@
         },
         {
           "name": "ptrace.tracee.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -5523,6 +5681,11 @@
           "name": "rmdir.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "rmdir.syscall.path",
+          "definition": "Path argument of the syscall",
+          "property_doc_link": "rmdir-syscall-path-doc"
         }
       ]
     },
@@ -5591,6 +5754,30 @@
           "name": "setgid.group",
           "definition": "New group of the process",
           "property_doc_link": "setgid-group-doc"
+        }
+      ]
+    },
+    {
+      "name": "setsockopt",
+      "definition": "A setsockopt was executed",
+      "type": "Network",
+      "from_agent_version": "7.68",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setsockopt.level",
+          "definition": "Socket level",
+          "property_doc_link": "setsockopt-level-doc"
+        },
+        {
+          "name": "setsockopt.optname",
+          "definition": "Socket option name",
+          "property_doc_link": "setsockopt-optname-doc"
+        },
+        {
+          "name": "setsockopt.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
         }
       ]
     },
@@ -5836,12 +6023,12 @@
         },
         {
           "name": "signal.target.ancestors.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.ancestors.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -6251,12 +6438,12 @@
         },
         {
           "name": "signal.target.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -6616,12 +6803,12 @@
         },
         {
           "name": "signal.target.parent.cgroup.manager",
-          "definition": "Lifecycle manager of the cgroup",
+          "definition": "[Experimental] Lifecycle manager of the cgroup",
           "property_doc_link": "common-cgroupcontext-manager-doc"
         },
         {
           "name": "signal.target.parent.cgroup.version",
-          "definition": "Version of the cgroup API",
+          "definition": "[Experimental] Version of the cgroup API",
           "property_doc_link": "common-cgroupcontext-version-doc"
         },
         {
@@ -7137,6 +7324,55 @@
           "name": "splice.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
+      "name": "sysctl",
+      "definition": "A sysctl parameter was read or modified",
+      "type": "Kernel",
+      "from_agent_version": "7.65",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "sysctl.action",
+          "definition": "Action performed on the system control parameter",
+          "property_doc_link": "sysctl-action-doc"
+        },
+        {
+          "name": "sysctl.file_position",
+          "definition": "Position in the sysctl control parameter file at which the action occurred",
+          "property_doc_link": "sysctl-file_position-doc"
+        },
+        {
+          "name": "sysctl.name",
+          "definition": "Name of the system control parameter",
+          "property_doc_link": "sysctl-name-doc"
+        },
+        {
+          "name": "sysctl.name_truncated",
+          "definition": "Indicates that the name field is truncated",
+          "property_doc_link": "sysctl-name_truncated-doc"
+        },
+        {
+          "name": "sysctl.old_value",
+          "definition": "Old value of the system control parameter",
+          "property_doc_link": "sysctl-old_value-doc"
+        },
+        {
+          "name": "sysctl.old_value_truncated",
+          "definition": "Indicates that the old value field is truncated",
+          "property_doc_link": "sysctl-old_value_truncated-doc"
+        },
+        {
+          "name": "sysctl.value",
+          "definition": "New and/or current value for the system control parameter depending on the action type",
+          "property_doc_link": "sysctl-value-doc"
+        },
+        {
+          "name": "sysctl.value_truncated",
+          "definition": "Indicates that the value field is truncated",
+          "property_doc_link": "sysctl-value_truncated-doc"
         }
       ]
     },
@@ -7753,6 +7989,19 @@
       "examples": []
     },
     {
+      "name": "*.data_size",
+      "link": "common-networkstats-data_size-doc",
+      "type": "int",
+      "definition": "Amount of data transmitted or received",
+      "prefixes": [
+        "network_flow_monitor.flows.egress",
+        "network_flow_monitor.flows.ingress"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.egid",
       "link": "common-credentials-egid-doc",
       "type": "int",
@@ -8294,6 +8543,7 @@
       "definition": "Interface ifname",
       "prefixes": [
         "network.device",
+        "network_flow_monitor.device",
         "packet.device"
       ],
       "constants": "",
@@ -8418,10 +8668,13 @@
       "type": "IP/CIDR",
       "definition": "IP address",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
         "connect.addr",
         "network.destination",
         "network.source",
+        "network_flow_monitor.flows.destination",
+        "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
       ],
@@ -8479,10 +8732,13 @@
       "type": "bool",
       "definition": "Whether the IP address belongs to a public network",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
         "connect.addr",
         "network.destination",
         "network.source",
+        "network_flow_monitor.flows.destination",
+        "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
       ],
@@ -8635,6 +8891,7 @@
         "mkdir.file.path",
         "mmap.file.name",
         "mmap.file.path",
+        "network_flow_monitor.flows",
         "open.file.name",
         "open.file.path",
         "process.ancestors",
@@ -8701,7 +8958,7 @@
       "name": "*.manager",
       "link": "common-cgroupcontext-manager-doc",
       "type": "string",
-      "definition": "Lifecycle manager of the cgroup",
+      "definition": "[Experimental] Lifecycle manager of the cgroup",
       "prefixes": [
         "cgroup",
         "exec.cgroup",
@@ -8938,6 +9195,19 @@
       ]
     },
     {
+      "name": "*.network_direction",
+      "link": "common-networkcontext-network_direction-doc",
+      "type": "int",
+      "definition": "Network direction of the network packet",
+      "prefixes": [
+        "network",
+        "packet"
+      ],
+      "constants": "Network directions",
+      "constants_link": "network-directions",
+      "examples": []
+    },
+    {
       "name": "*.package.name",
       "link": "common-fileevent-package-name-doc",
       "type": "string",
@@ -9088,6 +9358,19 @@
       "examples": []
     },
     {
+      "name": "*.packet_count",
+      "link": "common-networkstats-packet_count-doc",
+      "type": "int",
+      "definition": "Count of network packets transmitted or received",
+      "prefixes": [
+        "network_flow_monitor.flows.egress",
+        "network_flow_monitor.flows.ingress"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.path",
       "link": "common-fileevent-path-doc",
       "type": "string",
@@ -9174,10 +9457,13 @@
       "type": "int",
       "definition": "Port number",
       "prefixes": [
+        "accept.addr",
         "bind.addr",
         "connect.addr",
         "network.destination",
         "network.source",
+        "network_flow_monitor.flows.destination",
+        "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
       ],
@@ -9213,6 +9499,7 @@
       "type": "int",
       "definition": "Return value of the syscall",
       "prefixes": [
+        "accept",
         "bind",
         "bpf",
         "chdir",
@@ -9230,6 +9517,7 @@
         "removexattr",
         "rename",
         "rmdir",
+        "setsockopt",
         "setxattr",
         "signal",
         "splice",
@@ -9501,7 +9789,7 @@
       "name": "*.version",
       "link": "common-cgroupcontext-version-doc",
       "type": "int",
-      "definition": "Version of the cgroup API",
+      "definition": "[Experimental] Version of the cgroup API",
       "prefixes": [
         "cgroup",
         "exec.cgroup",
@@ -9515,6 +9803,30 @@
         "signal.target.ancestors.cgroup",
         "signal.target.cgroup",
         "signal.target.parent.cgroup"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "accept.addr.family",
+      "link": "accept-addr-family-doc",
+      "type": "int",
+      "definition": "Address family",
+      "prefixes": [
+        "accept"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "accept.addr.hostname",
+      "link": "accept-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
+      "prefixes": [
+        "accept"
       ],
       "constants": "",
       "constants_link": "",
@@ -9821,6 +10133,18 @@
       "examples": []
     },
     {
+      "name": "connect.addr.hostname",
+      "link": "connect-addr-hostname-doc",
+      "type": "string",
+      "definition": "Address hostname (if available)",
+      "prefixes": [
+        "connect"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "connect.protocol",
       "link": "connect-protocol-doc",
       "type": "int",
@@ -9898,7 +10222,7 @@
       "type": "int",
       "definition": "the class looked up by the DNS question",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "DNS qclasses",
       "constants_link": "dns-qclasses",
@@ -9910,7 +10234,7 @@
       "type": "int",
       "definition": "the total count of questions in the DNS request",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -9922,7 +10246,7 @@
       "type": "int",
       "definition": "the total DNS request size in bytes",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -9934,7 +10258,7 @@
       "type": "string",
       "definition": "the queried domain name",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "",
       "constants_link": "",
@@ -9946,10 +10270,22 @@
       "type": "int",
       "definition": "a two octet code which specifies the DNS question type",
       "prefixes": [
-        "dns"
+        "dns.question"
       ],
       "constants": "DNS qtypes",
       "constants_link": "dns-qtypes",
+      "examples": []
+    },
+    {
+      "name": "dns.response.code",
+      "link": "dns-response-code-doc",
+      "type": "int",
+      "definition": "Response code of the DNS response according to RFC 1035",
+      "prefixes": [
+        "dns.response"
+      ],
+      "constants": "DNS Responses",
+      "constants_link": "dns-responses",
       "examples": []
     },
     {
@@ -9993,6 +10329,18 @@
       "link": "event-os-doc",
       "type": "string",
       "definition": "Operating system of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.rule.tags",
+      "link": "event-rule-tags-doc",
+      "type": "string",
+      "definition": "Tags associated with the rule that's used to evaluate the event",
       "prefixes": [
         ""
       ],
@@ -10265,6 +10613,30 @@
       "examples": []
     },
     {
+      "name": "mkdir.syscall.mode",
+      "link": "mkdir-syscall-mode-doc",
+      "type": "int",
+      "definition": "Mode of the new directory",
+      "prefixes": [
+        "mkdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mkdir.syscall.path",
+      "link": "mkdir-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "mkdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mmap.flags",
       "link": "mmap-flags-doc",
       "type": "int",
@@ -10397,6 +10769,30 @@
       "examples": []
     },
     {
+      "name": "network_flow_monitor.flows.l3_protocol",
+      "link": "network_flow_monitor-flows-l3_protocol-doc",
+      "type": "int",
+      "definition": "L3 protocol of the network packet",
+      "prefixes": [
+        "network_flow_monitor.flows"
+      ],
+      "constants": "L3 protocols",
+      "constants_link": "l3-protocols",
+      "examples": []
+    },
+    {
+      "name": "network_flow_monitor.flows.l4_protocol",
+      "link": "network_flow_monitor-flows-l4_protocol-doc",
+      "type": "int",
+      "definition": "L4 protocol of the network packet",
+      "prefixes": [
+        "network_flow_monitor.flows"
+      ],
+      "constants": "L4 protocols",
+      "constants_link": "l4-protocols",
+      "examples": []
+    },
+    {
       "name": "open.file.destination.mode",
       "link": "open-file-destination-mode-doc",
       "type": "int",
@@ -10511,6 +10907,18 @@
       "definition": "Path argument of the syscall",
       "prefixes": [
         "rename"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "rmdir.syscall.path",
+      "link": "rmdir-syscall-path-doc",
+      "type": "string",
+      "definition": "Path argument of the syscall",
+      "prefixes": [
+        "rmdir"
       ],
       "constants": "",
       "constants_link": "",
@@ -10637,6 +11045,30 @@
       "examples": []
     },
     {
+      "name": "setsockopt.level",
+      "link": "setsockopt-level-doc",
+      "type": "int",
+      "definition": "Socket level",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.optname",
+      "link": "setsockopt-optname-doc",
+      "type": "int",
+      "definition": "Socket option name",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "setuid.euid",
       "link": "setuid-euid-doc",
       "type": "int",
@@ -10754,6 +11186,102 @@
       ],
       "constants": "Pipe buffer flags",
       "constants_link": "pipe-buffer-flags",
+      "examples": []
+    },
+    {
+      "name": "sysctl.action",
+      "link": "sysctl-action-doc",
+      "type": "int",
+      "definition": "Action performed on the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "SysCtl Actions",
+      "constants_link": "sysctl-actions",
+      "examples": []
+    },
+    {
+      "name": "sysctl.file_position",
+      "link": "sysctl-file_position-doc",
+      "type": "int",
+      "definition": "Position in the sysctl control parameter file at which the action occurred",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.name",
+      "link": "sysctl-name-doc",
+      "type": "string",
+      "definition": "Name of the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.name_truncated",
+      "link": "sysctl-name_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the name field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.old_value",
+      "link": "sysctl-old_value-doc",
+      "type": "string",
+      "definition": "Old value of the system control parameter",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.old_value_truncated",
+      "link": "sysctl-old_value_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the old value field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.value",
+      "link": "sysctl-value-doc",
+      "type": "string",
+      "definition": "New and/or current value for the system control parameter depending on the action type",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "sysctl.value_truncated",
+      "link": "sysctl-value_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the value field is truncated",
+      "prefixes": [
+        "sysctl"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -12088,6 +12616,85 @@
         },
         {
           "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "DNS Responses",
+      "link": "dns-responses",
+      "description": "DNS Responses are the supported response codes",
+      "all": [
+        {
+          "name": "NOERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "FORMERR",
+          "architecture": "all"
+        },
+        {
+          "name": "SERVFAIL",
+          "architecture": "all"
+        },
+        {
+          "name": "NXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTIMP",
+          "architecture": "all"
+        },
+        {
+          "name": "REFUSED",
+          "architecture": "all"
+        },
+        {
+          "name": "YXDOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "YXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NXRRSET",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTAUTH",
+          "architecture": "all"
+        },
+        {
+          "name": "NOTZONE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADVERS",
+          "architecture": "all"
+        },
+        {
+          "name": "BADSIG",
+          "architecture": "all"
+        },
+        {
+          "name": "BADKEY",
+          "architecture": "all"
+        },
+        {
+          "name": "BADTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADMODE",
+          "architecture": "all"
+        },
+        {
+          "name": "BADNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "BADALG",
           "architecture": "all"
         }
       ]
@@ -14163,6 +14770,21 @@
       ]
     },
     {
+      "name": "Network directions",
+      "link": "network-directions",
+      "description": "Network directions are the supported directions of network packets.",
+      "all": [
+        {
+          "name": "INGRESS",
+          "architecture": "all"
+        },
+        {
+          "name": "EGRESS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Open flags",
       "link": "open-flags",
       "description": "Open flags are the supported flags for the open syscall.",
@@ -14539,6 +15161,908 @@
       ]
     },
     {
+      "name": "SetSockopt Levels",
+      "link": "setsockopt-levels",
+      "description": "SetSockopt Levels are the supported levels for the setsockopt event.",
+      "all": [
+        {
+          "name": "IPPROTO_IP",
+          "architecture": "all"
+        },
+        {
+          "name": "SOL_SOCKET",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_TCP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_UDP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_IPV6",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_ICMPV6",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SetSockopt Options",
+      "link": "setsockopt-options",
+      "description": "SetSockopt Options are the supported options for the setsockopt event.",
+      "all": [
+        {
+          "name": "IP_TOS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_TTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_HDRINCL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_OPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ROUTER_ALERT",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RETOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PKTOPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MTU_DISCOVER",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVERR",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVTTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVTOS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_FREEBIND",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_IPSEC_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_XFRM_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PASSSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_TRANSPARENT",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ORIGDSTADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MINTTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_NODEFRAG",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_CHECKSUM",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_BIND_ADDRESS_NO_PORT",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVFRAGSIZE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVERR_RFC4884",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_TTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_LOOP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ADD_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_DROP_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_UNBLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_BLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ADD_SOURCE_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_DROP_SOURCE_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MSFILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_JOIN_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_BLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_UNBLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_LEAVE_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_JOIN_SOURCE_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_LEAVE_SOURCE_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_MSFILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_ALL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_UNICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEBUG",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_REUSEADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TYPE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DONTROUTE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BROADCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDBUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVBUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_KEEPALIVE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_OOBINLINE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NO_CHECK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PRIORITY",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_LINGER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BSDCOMPAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_REUSEPORT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSCRED",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERCRED",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVLOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDLOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVTIMEO_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDTIMEO_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SECURITY_AUTHENTICATION",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SECURITY_ENCRYPTION_TRANSPORT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SECURITY_ENCRYPTION_NETWORK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BINDTODEVICE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DETACH_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMP_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ACCEPTCONN",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDBUFFORCE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVBUFFORCE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPNS_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MARK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPING_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PROTOCOL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RXQ_OVFL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_WIFI_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEEK_OFF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NOFCS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_LOCK_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SELECT_ERR_QUEUE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BUSY_POLL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MAX_PACING_RATE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BPF_EXTENSIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_INCOMING_CPU",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_BPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_REUSEPORT_CBPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_REUSEPORT_EBPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_CNX_ADVICE",
+          "architecture": "all"
+        },
+        {
+          "name": "SCM_TIMESTAMPING_OPT_STATS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MEMINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_INCOMING_NAPI_ID",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_COOKIE",
+          "architecture": "all"
+        },
+        {
+          "name": "SCM_TIMESTAMPING_PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERGROUPS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ZEROCOPY",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TXTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BINDTOIFINDEX",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMP_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPNS_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPING_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVTIMEO_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDTIMEO_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DETACH_REUSEPORT_BPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PREFER_BUSY_POLL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BUSY_POLL_BUDGET",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NETNS_COOKIE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BUF_LOCK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RESERVE_MEM",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TXREHASH",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVMARK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSPIDFD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERPIDFD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEVMEM_LINEAR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEVMEM_DMABUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEVMEM_DONTNEED",
+          "architecture": "all"
+        },
+        {
+          "name": "SCM_TS_OPT_ID",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVPRIORITY",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_NODELAY",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_MAXSEG",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_CORK",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_KEEPIDLE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_KEEPINTVL",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_KEEPCNT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_SYNCNT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_LINGER2",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_DEFER_ACCEPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_WINDOW_CLAMP",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_QUICKACK",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_CONGESTION",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_MD5SIG",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_THIN_LINEAR_TIMEOUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_THIN_DUPACK",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_USER_TIMEOUT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR_QUEUE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_QUEUE_SEQ",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR_OPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_TIMESTAMP",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_NOTSENT_LOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_CC_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_SAVE_SYN",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_SAVED_SYN",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR_WINDOW",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN_CONNECT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_ULP",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_MD5SIG_EXT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN_KEY",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN_NO_COOKIE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_ZEROCOPY_RECEIVE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_INQ",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_TX_DELAY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ADDRFORM",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292HOPOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292DSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292RTHDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292PKTOPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292HOPLIMIT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FLOWINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_UNICAST_HOPS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_HOPS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_LOOP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ADD_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_DROP_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ROUTER_ALERT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MTU_DISCOVER",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVERR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_V6ONLY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_JOIN_ANYCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_LEAVE_ANYCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_ALL",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ROUTER_ALERT_ISOLATE",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVERR_RFC4884",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FLOWLABEL_MGR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FLOWINFO_SEND",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_IPSEC_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_XFRM_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_HDRINCL",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVPKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVHOPLIMIT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_HOPLIMIT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVHOPOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_HOPOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RTHDRDSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVRTHDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RTHDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVDSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_DSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVPATHMTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_PATHMTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_DONTFRAG",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVTCLASS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_TCLASS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_AUTOFLOWLABEL",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ADDR_PREFERENCES",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MINHOPCOUNT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ORIGDSTADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_TRANSPARENT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_UNICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVFRAGSIZE",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FREEBIND",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Signal constants",
       "link": "signal-constants",
       "description": "Signal constants are the supported signals for the kill syscall.",
@@ -14673,6 +16197,21 @@
         },
         {
           "name": "SIGSYS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SysCtl Actions",
+      "link": "sysctl-actions",
+      "description": "SysCtl Actions are the supported actions for the sysctl event.",
+      "all": [
+        {
+          "name": "SYSCTL_READ",
+          "architecture": "all"
+        },
+        {
+          "name": "SYSCTL_WRITE",
           "architecture": "all"
         }
       ]

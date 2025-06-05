@@ -20,9 +20,9 @@ import (
 	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
@@ -129,35 +129,7 @@ func (s *Launcher) run() {
 				continue
 			}
 
-			sources, err := ad.CreateSources(cfg.Config)
-			if err != nil {
-				ddLog.Error("Failed to create source ", err)
-				continue
-			}
-
-			for _, source := range sources {
-				// TODO: integrations should only be allowed to have one IntegrationType config.
-				if source.Config.Type == config.IntegrationType {
-					// This check avoids duplicating files that have already been created
-					// by scanInitialFiles
-					logFile, exists := s.integrationToFile[cfg.IntegrationID]
-
-					if !exists {
-						logFile, err = s.createFile(cfg.IntegrationID)
-						if err != nil {
-							ddLog.Error("Failed to create integration log file:", err)
-							continue
-						}
-
-						// file to write the incoming logs to
-						s.integrationToFile[cfg.IntegrationID] = logFile
-					}
-
-					filetypeSource := s.makeFileSource(source, logFile.fileWithPath)
-					s.sources.AddSource(filetypeSource)
-				}
-			}
-
+			s.receiveSources(cfg)
 		case log := <-s.integrationsLogsChan:
 			if s.combinedUsageMax == 0 {
 				continue
@@ -166,6 +138,38 @@ func (s *Launcher) run() {
 			s.receiveLogs(log)
 		case <-s.stop:
 			return
+		}
+	}
+}
+
+// receiveSources handles receiving incoming sources
+func (s *Launcher) receiveSources(cfg integrations.IntegrationConfig) {
+	sources, err := ad.CreateSources(cfg.Config)
+	if err != nil {
+		ddLog.Errorf("Failed to create source for %q: %v", cfg.Config.Name, err)
+		return
+	}
+
+	for _, source := range sources {
+		// TODO: integrations should only be allowed to have one IntegrationType config.
+		if source.Config.Type == config.IntegrationType {
+			// This check avoids duplicating files that have already been created
+			// by scanInitialFiles
+			logFile, exists := s.integrationToFile[cfg.IntegrationID]
+
+			if !exists {
+				logFile, err = s.createFile(cfg.IntegrationID)
+				if err != nil {
+					ddLog.Errorf("Failed to create integration log file for %q: %v", source.Config.IntegrationName, err)
+					continue
+				}
+
+				// file to write the incoming logs to
+				s.integrationToFile[cfg.IntegrationID] = logFile
+			}
+
+			filetypeSource := s.makeFileSource(source, logFile.fileWithPath)
+			s.sources.AddSource(filetypeSource)
 		}
 	}
 }

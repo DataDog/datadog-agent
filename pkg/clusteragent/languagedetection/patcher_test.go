@@ -31,6 +31,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -130,9 +131,9 @@ func TestRun(t *testing.T) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   "test-namespace/test-deployment",
 			},
-			InjectableLanguages: map[langUtil.Container]langUtil.LanguageSet{
-				*langUtil.NewContainer("some-cont"):  {"java": {}},
-				*langUtil.NewContainer("stale-cont"): {"java": {}, "python": {}},
+			InjectableLanguages: map[languagemodels.Container]languagemodels.LanguageSet{
+				*languagemodels.NewContainer("some-cont"):  {"java": {}},
+				*languagemodels.NewContainer("stale-cont"): {"java": {}, "python": {}},
 			},
 		}})
 
@@ -143,12 +144,12 @@ func TestRun(t *testing.T) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   "test-namespace/" + longContNameDeploymentName,
 			},
-			DetectedLanguages: map[langUtil.Container]langUtil.LanguageSet{
-				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
-				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
+			DetectedLanguages: map[languagemodels.Container]languagemodels.LanguageSet{
+				*languagemodels.NewContainer("some-cont"):            {"java": {}, "python": {}},
+				*languagemodels.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
 				// The max allowed annotation key name length in kubernetes is 63
 				// To test that validation works, we are using a container name of length 69
-				*langUtil.NewInitContainer(strings.Repeat("x", 69)): {"ruby": {}, "python": {}},
+				*languagemodels.NewInitContainer(strings.Repeat("x", 69)): {"ruby": {}, "python": {}},
 			},
 		},
 	}
@@ -162,9 +163,9 @@ func TestRun(t *testing.T) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   "test-namespace/test-deployment",
 			},
-			DetectedLanguages: map[langUtil.Container]langUtil.LanguageSet{
-				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
-				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
+			DetectedLanguages: map[languagemodels.Container]languagemodels.LanguageSet{
+				*languagemodels.NewContainer("some-cont"):            {"java": {}, "python": {}},
+				*languagemodels.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
 			},
 		},
 	}
@@ -219,9 +220,9 @@ func TestRun(t *testing.T) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   "test-namespace/test-deployment",
 			},
-			InjectableLanguages: map[langUtil.Container]langUtil.LanguageSet{
-				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
-				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
+			InjectableLanguages: map[languagemodels.Container]languagemodels.LanguageSet{
+				*languagemodels.NewContainer("some-cont"):            {"java": {}, "python": {}},
+				*languagemodels.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
 			},
 		},
 	}
@@ -235,12 +236,12 @@ func TestRun(t *testing.T) {
 				return false
 			}
 
-			return reflect.DeepEqual(deployment.InjectableLanguages, langUtil.ContainersLanguages{
-				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
-				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
-			}) && reflect.DeepEqual(deployment.DetectedLanguages, langUtil.ContainersLanguages{
-				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
-				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
+			return reflect.DeepEqual(deployment.InjectableLanguages, languagemodels.ContainersLanguages{
+				*languagemodels.NewContainer("some-cont"):            {"java": {}, "python": {}},
+				*languagemodels.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
+			}) && reflect.DeepEqual(deployment.DetectedLanguages, languagemodels.ContainersLanguages{
+				*languagemodels.NewContainer("some-cont"):            {"java": {}, "python": {}},
+				*languagemodels.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
 			})
 		},
 		eventuallyTestTimeout,
@@ -336,12 +337,12 @@ func TestPatcherRetriesFailedPatches(t *testing.T) {
 				Kind: workloadmeta.KindKubernetesDeployment,
 				ID:   ns + "/" + deploymentName,
 			},
-			DetectedLanguages: map[langUtil.Container]langUtil.LanguageSet{
-				*langUtil.NewContainer("some-cont"):            {"java": {}, "python": {}},
-				*langUtil.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
+			DetectedLanguages: map[languagemodels.Container]languagemodels.LanguageSet{
+				*languagemodels.NewContainer("some-cont"):            {"java": {}, "python": {}},
+				*languagemodels.NewInitContainer("python-ruby-init"): {"ruby": {}, "python": {}},
 				// The max allowed annotation key name length in kubernetes is 63
 				// To test that failed patches are retried, we are using a container name of length 69
-				*langUtil.NewInitContainer(strings.Repeat("x", 69)): {"ruby": {}, "python": {}},
+				*languagemodels.NewInitContainer(strings.Repeat("x", 69)): {"ruby": {}, "python": {}},
 			},
 		},
 	}

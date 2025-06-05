@@ -180,6 +180,22 @@ func (ps *powerShellCommandBuilder) UninstallWindowsDefender() *powerShellComman
 	return ps
 }
 
+// SetFIPSMode creates a command to enable or disable FIPS mode on the host
+func (ps *powerShellCommandBuilder) SetFIPSMode(enabled bool) *powerShellCommandBuilder {
+	path := `HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy`
+	name := "Enabled"
+	var value string
+	if enabled {
+		value = "1"
+	} else {
+		value = "0"
+	}
+	typeName := "DWORD"
+	cmd := fmt.Sprintf("New-Item -Path '%s' -Force; Set-ItemProperty -Path '%s' -Name '%s' -Value '%s' -Type '%s'", path, path, name, value, typeName)
+	ps.cmds = append(ps.cmds, cmd)
+	return ps
+}
+
 // Execute compiles the list of PowerShell commands into one script and runs it on the given host
 func (ps *powerShellCommandBuilder) Execute(host *components.RemoteHost) (string, error) {
 	return host.Execute(ps.Compile())

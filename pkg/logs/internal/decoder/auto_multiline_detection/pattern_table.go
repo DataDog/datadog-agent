@@ -8,6 +8,7 @@ package automultilinedetection
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
@@ -121,7 +122,7 @@ func (p *PatternTable) evictLRU() {
 			mini = i
 		}
 	}
-	p.table = append(p.table[:mini], p.table[mini+1:]...)
+	p.table = slices.Delete(p.table, mini, mini+1)
 }
 
 // DumpTable returns a slice of DiagnosticRow structs that represent the current state of the table.
@@ -142,7 +143,7 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 }
 
 // ProcessAndContinue adds a pattern to the table and updates its label based on it's frequency.
-// This implements the Herustic interface - so we should stop processing if the label was changed
+// This implements the Heuristic interface - so we should stop processing if the label was changed
 // due to pattern detection.
 func (p *PatternTable) ProcessAndContinue(context *messageContext) bool {
 

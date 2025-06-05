@@ -67,7 +67,7 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	c := util.GetClient()
 
 	v := url.Values{}
 	if params.prettyPrintJSON || params.json {

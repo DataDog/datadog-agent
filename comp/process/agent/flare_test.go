@@ -22,6 +22,6 @@ func TestFillFlare(t *testing.T) {
 
 	fc := NewFlareHelper([]checks.Check{check})
 
-	fc.FillFlare(f.Fb)
+	fc.FillFlare(f)
 	f.AssertFileExists("process_check_output.json")
 }

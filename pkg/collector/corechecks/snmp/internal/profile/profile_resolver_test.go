@@ -6,59 +6,59 @@
 package profile
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func Test_resolveProfiles(t *testing.T) {
+	mockConfig := configmock.New(t)
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
+	mockConfig.SetWithoutSource("confd_path", defaultTestConfdPath)
 	defaultTestConfdProfiles := ProfileConfigMap{}
-	userTestConfdProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	userTestConfdProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
-	profilesWithInvalidExtendProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	mockConfig.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	profilesWithInvalidExtendProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", invalidCyclicConfdPath)
-	invalidCyclicProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	mockConfig.SetWithoutSource("confd_path", invalidCyclicConfdPath)
+	invalidCyclicProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	profileWithInvalidExtendsFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "profile_with_invalid_extends.yaml"))
-	profileWithInvalidExtends, err := readProfileDefinition(profileWithInvalidExtendsFile)
+	profileWithInvalidExtends, haveLegacyProfile, err := readProfileDefinition(profileWithInvalidExtendsFile)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	validationErrorProfileFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "validation_error.yaml"))
-	validationErrorProfile, err := readProfileDefinition(validationErrorProfileFile)
+	validationErrorProfile, haveLegacyProfile, err := readProfileDefinition(validationErrorProfileFile)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
 	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", userProfilesCaseConfdPath)
-	userProfilesCaseUserProfiles, err := getProfileDefinitions(userProfilesFolder, true)
+	mockConfig.SetWithoutSource("confd_path", userProfilesCaseConfdPath)
+	userProfilesCaseUserProfiles, haveLegacyProfile, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
-	userProfilesCaseDefaultProfiles, err := getProfileDefinitions(defaultProfilesFolder, true)
+	require.False(t, haveLegacyProfile)
+	userProfilesCaseDefaultProfiles, haveLegacyProfile, err := getProfileDefinitions(defaultProfilesFolder, true)
 	require.NoError(t, err)
+	require.False(t, haveLegacyProfile)
 
-	type logCount struct {
-		log   string
-		count int
-	}
 	tests := []struct {
 		name                    string
 		userProfiles            ProfileConfigMap
@@ -66,15 +66,13 @@ func Test_resolveProfiles(t *testing.T) {
 		expectedProfileDefMap   ProfileConfigMap
 		expectedProfileMetrics  []string
 		expectedInterfaceIDTags []string
-		expectedIncludeErrors   []string
-		expectedLogs            []logCount
+		expectedLogs            []LogCount
 	}{
 		{
 			name:                  "ok case",
 			userProfiles:          userTestConfdProfiles,
 			defaultProfiles:       defaultTestConfdProfiles,
 			expectedProfileDefMap: FixtureProfileDefinitionMap(),
-			expectedIncludeErrors: []string{},
 		},
 		{
 			name:            "ok user profiles case",
@@ -97,7 +95,6 @@ func Test_resolveProfiles(t *testing.T) {
 				"p5:interface",
 				"p6:interface",
 			},
-			expectedIncludeErrors: []string{},
 		},
 		{
 			name: "invalid extends",
@@ -108,24 +105,24 @@ func Test_resolveProfiles(t *testing.T) {
 				},
 			},
 			expectedProfileDefMap: ProfileConfigMap{},
-			expectedLogs: []logCount{
-				{"[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
+			expectedLogs: []LogCount{
+				{"failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
 			},
 		},
 		{
 			name:                  "invalid recursive extends",
 			userProfiles:          profilesWithInvalidExtendProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
-			expectedLogs: []logCount{
-				{"loadResolveProfiles: failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
+			expectedLogs: []LogCount{
+				{"failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
 			},
 		},
 		{
 			name:                  "invalid cyclic extends",
 			userProfiles:          invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
-			expectedLogs: []logCount{
-				{"[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
+			expectedLogs: []LogCount{
+				{": failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
 			},
 		},
 		{
@@ -136,7 +133,7 @@ func Test_resolveProfiles(t *testing.T) {
 				},
 			},
 			expectedProfileDefMap: ProfileConfigMap{},
-			expectedLogs: []logCount{
+			expectedLogs: []LogCount{
 				{"cannot compile `match` (`global_metric_tags[\\w)(\\w+)`)", 1},
 				{"cannot compile `match` (`table_match[\\w)`)", 1},
 			},
@@ -144,23 +141,11 @@ func Test_resolveProfiles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var b bytes.Buffer
-			w := bufio.NewWriter(&b)
-			l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
-			assert.Nil(t, err)
-			log.SetupLogger(l, "debug")
+			trap := TrapLogs(t, log.DebugLvl)
 
-			profiles, err := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
-			for _, errorMsg := range tt.expectedIncludeErrors {
-				assert.Contains(t, err.Error(), errorMsg)
-			}
+			profiles := resolveProfiles(tt.userProfiles, tt.defaultProfiles)
 
-			assert.NoError(t, w.Flush())
-			logs := b.String()
-
-			for _, aLogCount := range tt.expectedLogs {
-				assert.Equal(t, aLogCount.count, strings.Count(logs, aLogCount.log), logs)
-			}
+			trap.AssertContains(t, tt.expectedLogs)
 
 			for i, profile := range profiles {
 				profiledefinition.NormalizeMetrics(profile.Definition.Metrics)

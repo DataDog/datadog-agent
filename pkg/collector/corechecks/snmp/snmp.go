@@ -11,23 +11,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -40,6 +42,7 @@ var timeNow = time.Now
 // Check aggregates metrics from one Check instance
 type Check struct {
 	core.CheckBase
+	rcClient                   rcclient.Component
 	config                     *checkconfig.CheckConfig
 	singleDeviceCk             *devicecheck.DeviceCheck
 	discovery                  *discovery.Discovery
@@ -125,8 +128,7 @@ func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 // Configure configures the snmp checks
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
 	var err error
-
-	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig)
+	c.config, err = checkconfig.NewCheckConfig(rawInstance, rawInitConfig, c.rcClient)
 	if err != nil {
 		return fmt.Errorf("build config failed: %s", err)
 	}
@@ -182,10 +184,10 @@ func (c *Check) Interval() time.Duration {
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI
-func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
+func (c *Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	if c.config.IsDiscovery() {
 		devices := c.discovery.GetDiscoveredDeviceConfigs()
-		var diagnosis []diagnosis.Diagnosis
+		var diagnosis []diagnose.Diagnosis
 
 		for _, deviceCheck := range devices {
 			diagnosis = append(diagnosis, deviceCheck.GetDiagnoses()...)
@@ -197,15 +199,21 @@ func (c *Check) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return c.singleDeviceCk.GetDiagnoses(), nil
 }
 
+// IsHASupported returns true if the check supports HA
+func (c *Check) IsHASupported() bool {
+	return true
+}
+
 // Factory creates a new check factory
-func Factory(agentConfig config.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
-		return newCheck(agentConfig)
+func Factory(agentConfig config.Component, rcClient rcclient.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
+		return newCheck(agentConfig, rcClient)
 	})
 }
 
-func newCheck(agentConfig config.Component) check.Check {
+func newCheck(agentConfig config.Component, rcClient rcclient.Component) check.Check {
 	return &Check{
+		rcClient:                   rcClient,
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,
 		workerRunDeviceCheckErrors: atomic.NewUint64(0),

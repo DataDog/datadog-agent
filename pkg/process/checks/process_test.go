@@ -13,6 +13,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -20,10 +21,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	taggerMock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	gpusubscriberfxmock "github.com/DataDog/datadog-agent/comp/process/gpusubscriber/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -34,7 +36,6 @@ import (
 	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/subscriptions"
 )
 
 func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
@@ -56,6 +57,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 
+	mockGpuSubscriber := gpusubscriberfxmock.SetupMockGpuSubscriber(t)
+
 	return &ProcessCheck{
 		probe:             probe,
 		scrubber:          procutil.NewDefaultDataScrubber(),
@@ -66,6 +69,8 @@ func processCheckWithMockProbe(t *testing.T) (*ProcessCheck, *mocks.Probe) {
 		skipAmount:        2,
 		serviceExtractor:  serviceExtractor,
 		extractors:        []metadata.Extractor{serviceExtractor},
+		gpuSubscriber:     mockGpuSubscriber,
+		statsd:            &statsd.NoOpClient{},
 	}, probe
 }
 
@@ -86,7 +91,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	fakeTagger := taggerMock.SetupFakeTagger(t)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	// Finally, container provider
 	filter, err := containers.GetPauseContainerFilter()
@@ -386,25 +391,6 @@ func TestDisallowList(t *testing.T) {
 	}
 }
 
-func TestConnRates(t *testing.T) {
-	p := &ProcessCheck{}
-
-	p.initConnRates()
-
-	var transmitter subscriptions.Transmitter[ProcessConnRates]
-	transmitter.Chs = append(transmitter.Chs, p.connRatesReceiver.Ch)
-
-	rates := ProcessConnRates{
-		1: &model.ProcessNetworks{},
-	}
-	transmitter.Notify(rates)
-
-	close(p.connRatesReceiver.Ch)
-
-	assert.Eventually(t, func() bool { return p.getLastConnRates() != nil }, 10*time.Second, time.Millisecond)
-	assert.Equal(t, rates, p.getLastConnRates())
-}
-
 func TestProcessCheckHints(t *testing.T) {
 	processCheck, probe := processCheckWithMockProbe(t)
 
@@ -476,7 +462,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useWindowsServiceName := true
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, serviceExtractor)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)

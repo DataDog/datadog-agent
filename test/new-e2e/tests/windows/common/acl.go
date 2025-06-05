@@ -147,8 +147,8 @@ const (
 // https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.propagationflags
 const (
 	PropagationFlagsNone        = 0
-	PropagationFlagsInherit     = 1
-	PropagationFlagsNoPropagate = 2
+	PropagationFlagsNoPropagate = 1
+	PropagationFlagsInherit     = 2
 )
 
 // Access control types

@@ -9,12 +9,8 @@
 package tcpqueuelength
 
 import (
-	"net/http"
-
 	"gopkg.in/yaml.v2"
 
-	sysprobeclient "github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -23,9 +19,11 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -43,12 +41,12 @@ type TCPQueueLengthCheck struct {
 	core.CheckBase
 	instance       *TCPQueueLengthConfig
 	tagger         tagger.Component
-	sysProbeClient *http.Client
+	sysProbeClient *sysprobeclient.CheckClient
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return newCheck(tagger)
 	})
 }
@@ -75,7 +73,7 @@ func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, _ ui
 	if err != nil {
 		return err
 	}
-	t.sysProbeClient = sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
+	t.sysProbeClient = sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))
 
 	return t.instance.Parse(config)
 }
@@ -88,7 +86,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 
 	stats, err := sysprobeclient.GetCheck[model.TCPQueueLengthStats](t.sysProbeClient, sysconfig.TCPQueueLengthTracerModule)
 	if err != nil {
-		return err
+		return sysprobeclient.IgnoreStartupError(err)
 	}
 
 	sender, err := t.GetSender()

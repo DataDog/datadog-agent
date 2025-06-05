@@ -73,7 +73,7 @@ static void __always_inline postgres_tcp_termination(conn_tuple_t *tup) {
 }
 
 // Tries to skip the next null-terminated string. Returns the number of bytes to skip, or 0 if the null terminator was
-// not found within the first 128 (POSTGRES_SKIP_STRING_ITERATIONS * BLK_SIZE) bytes.
+// not found within the first 128 (POSTGRES_SKIP_STRING_ITERATIONS * POSTGRES_SKIP_STRING_READ_SIZE) bytes.
 static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
     const __u32 original_data_off = pktbuf_data_offset(pkt);
     __u32 data_off = original_data_off;
@@ -83,7 +83,7 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
         data_end = data_off + message_len;
     }
 
-    char temp_buffer[BLK_SIZE] = {0};
+    char temp_buffer[POSTGRES_SKIP_STRING_READ_SIZE] = {0};
     __u8 size_to_read = 0;
 
     #pragma unroll(POSTGRES_SKIP_STRING_ITERATIONS)
@@ -93,8 +93,8 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
         size_to_read = data_end - data_off > sizeof(temp_buffer) ? sizeof(temp_buffer) : data_end - data_off;
         pktbuf_load_bytes(pkt, data_off, temp_buffer, sizeof(temp_buffer));
 
-        #pragma unroll(BLK_SIZE)
-        for (int i = 0; i < BLK_SIZE; i++) {
+        #pragma unroll(POSTGRES_SKIP_STRING_READ_SIZE)
+        for (int i = 0; i < POSTGRES_SKIP_STRING_READ_SIZE; i++) {
             if (i >= size_to_read) {
                 return SKIP_STRING_FAILED;
             }

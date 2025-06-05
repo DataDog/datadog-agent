@@ -7,8 +7,10 @@ struct activity_dump_config {
     u64 wait_list_timestamp;
     u64 start_timestamp;
     u64 end_timestamp;
-    u32 events_rate;
+    u16 events_rate;
+    u16 padding;
     u32 paused;
+    u32 cgroup_flags;
 };
 
 #endif

@@ -11,7 +11,6 @@ import (
 	"context"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -19,7 +18,7 @@ import (
 type ContainersRunningTelemetry struct{}
 
 // NewContainersRunningTelemetry creates a new ContainersRunningTelemetry instance (not supported on non-linux platforms)
-func NewContainersRunningTelemetry(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface, _ workloadmeta.Component) (*ContainersRunningTelemetry, error) {
+func NewContainersRunningTelemetry(_ ContainersRunningTelemetryConfig, _ statsd.ClientInterface, _ workloadmeta.Component) (*ContainersRunningTelemetry, error) {
 	return nil, nil
 }
 

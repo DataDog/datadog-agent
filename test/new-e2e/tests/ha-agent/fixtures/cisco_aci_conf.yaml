@@ -1,0 +1,5 @@
+init_config:
+instances:
+   - aci_url: http://localhost
+     username: datadog
+     pwd: datadog

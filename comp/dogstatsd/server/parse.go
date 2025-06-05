@@ -12,11 +12,12 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type messageType int
@@ -48,10 +49,8 @@ var (
 	// externalDataPrefix is the prefix for a common field which contains the external data for Origin Detection.
 	externalDataPrefix = []byte("e:")
 
-	// containerIDPrefix is the prefix for a notation holding the sender's container Inode in the containerIDField
-	containerIDPrefix = []byte("ci-")
-	// inodePrefix is the prefix for a notation holding the sender's container Inode in the containerIDField
-	inodePrefix = []byte("in-")
+	// cardinalityPrefix is the prefix for a common field which contains the cardinality for Origin Detection.
+	cardinalityPrefix = []byte("card:")
 )
 
 // parser parses dogstatsd messages
@@ -72,7 +71,7 @@ type parser struct {
 	provider provider.Provider
 }
 
-func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta optional.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
+func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wmeta option.Option[workloadmeta.Component], stringInternerTelemetry *stringInternerTelemetry) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
@@ -176,8 +175,9 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 
 	sampleRate := 1.0
 	var tags []string
-	var containerID []byte
-	var externalData string
+	var localData origindetection.LocalData
+	var externalData origindetection.ExternalData
+	var cardinality string
 	var optionalField []byte
 	var timestamp time.Time
 	for message != nil {
@@ -205,12 +205,15 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 				return dogstatsdMetricSample{}, fmt.Errorf("dogstatsd timestamp should be > 0")
 			}
 			timestamp = time.Unix(ts, 0)
-		// container ID
+		// local data
 		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, localDataPrefix):
-			containerID = p.resolveContainerIDFromLocalData(optionalField)
+			localData = p.parseLocalData(optionalField[len(localDataPrefix):])
 		// external data
 		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, externalDataPrefix):
-			externalData = string(optionalField[len(externalDataPrefix):])
+			externalData = p.parseExternalData(optionalField[len(externalDataPrefix):])
+		// cardinality
+		case p.dsdOriginEnabled && bytes.HasPrefix(optionalField, cardinalityPrefix):
+			cardinality = string(optionalField[len(cardinalityPrefix):])
 		}
 	}
 
@@ -222,10 +225,37 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 		metricType:   metricType,
 		sampleRate:   sampleRate,
 		tags:         tags,
-		containerID:  containerID,
+		localData:    localData,
 		externalData: externalData,
+		cardinality:  cardinality,
 		ts:           timestamp,
 	}, nil
+}
+
+// parseLocalData parses the local data string into a LocalData struct.
+func (p *parser) parseLocalData(rawLocalData []byte) origindetection.LocalData {
+	localDataString := string(rawLocalData)
+
+	localData, err := origindetection.ParseLocalData(localDataString)
+	if err != nil {
+		log.Errorf("failed to parse c: field containing Local Data %q: %v", localDataString, err)
+	}
+
+	// return localData even if there was a parsing error as some fields might have been parsed correctly.
+	return localData
+}
+
+// parseExternalData parses the external data string into an ExternalData struct.
+func (p *parser) parseExternalData(rawExternalData []byte) origindetection.ExternalData {
+	externalDataString := string(rawExternalData)
+
+	externalData, err := origindetection.ParseExternalData(externalDataString)
+	if err != nil {
+		log.Errorf("failed to parse e: field containing External Data %q: %v", externalDataString, err)
+	}
+
+	// return externalData even if there was a parsing error as some fields might have been parsed correctly.
+	return externalData
 }
 
 // parseFloat64List parses a list of float64 separated by colonSeparator.
@@ -263,68 +293,6 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 		return nil, fmt.Errorf("no value found")
 	}
 	return values, nil
-}
-
-// resolveContainerIDFromLocalData returns the container ID for the given Local Data.
-// The Local Data is a list that can contain one or two (split by a ',') of either:
-// * "ci-<container-id>" for the container ID.
-// * "in-<cgroupv2-inode>" for the cgroupv2 inode.
-// Possible values:
-// * "<container-id>"
-// * "ci-<container-id>"
-// * "ci-<container-id>,in-<cgroupv2-inode>"
-func (p *parser) resolveContainerIDFromLocalData(rawLocalData []byte) []byte {
-	// Remove prefix from Local Data
-	localData := rawLocalData[len(localDataPrefix):]
-
-	var containerID []byte
-	var containerIDFromInode []byte
-
-	if bytes.Contains(localData, []byte(",")) {
-		// The Local Data can contain a list
-		items := bytes.Split(localData, []byte{','})
-		for _, item := range items {
-			if bytes.HasPrefix(item, containerIDPrefix) {
-				containerID = item[len(containerIDPrefix):]
-			} else if bytes.HasPrefix(item, inodePrefix) {
-				containerIDFromInode = p.resolveContainerIDFromInode(item[len(inodePrefix):])
-			}
-		}
-		if containerID == nil {
-			containerID = containerIDFromInode
-		}
-	} else {
-		// The Local Data can contain a single value
-		if bytes.HasPrefix(localData, containerIDPrefix) { // Container ID with new format: ci-<container-id>
-			containerID = localData[len(containerIDPrefix):]
-		} else if bytes.HasPrefix(localData, inodePrefix) { // Cgroupv2 inode format: in-<cgroupv2-inode>
-			containerID = p.resolveContainerIDFromInode(localData[len(inodePrefix):])
-		} else { // Container ID with old format: <container-id>
-			containerID = localData
-		}
-	}
-
-	if containerID == nil {
-		log.Debugf("Could not parse container ID from Local Data: %s", localData)
-	}
-
-	return containerID
-}
-
-// resolveContainerIDFromInode returns the container ID for the given cgroupv2 inode.
-func (p *parser) resolveContainerIDFromInode(inode []byte) []byte {
-	inodeField, err := strconv.ParseUint(string(inode), 10, 64)
-	if err != nil {
-		log.Debugf("Failed to parse inode from %s, got %v", inode, err)
-		return nil
-	}
-
-	containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
-	if err != nil {
-		log.Debugf("Failed to get container ID, got %v", err)
-		return nil
-	}
-	return []byte(containerID)
 }
 
 // the std API does not have methods to do []byte => float parsing

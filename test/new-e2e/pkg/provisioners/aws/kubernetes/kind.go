@@ -10,13 +10,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/test-infra-definitions/common/utils"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/mutatedbyadmissioncontroller"
@@ -24,18 +25,22 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
+	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
 	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/operator"
+	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
+	"github.com/DataDog/test-infra-definitions/components/kubernetes/cilium"
 	"github.com/DataDog/test-infra-definitions/components/kubernetes/vpa"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
-
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 )
 
 const (
@@ -43,7 +48,8 @@ const (
 	defaultVMName     = "kind"
 )
 
-func kindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+// KindDiagnoseFunc is the diagnose function for the Kind provisioner
+func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := dumpKindClusterState(ctx, stackName)
 	if err != nil {
 		return "", err
@@ -67,7 +73,7 @@ func KindProvisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[en
 		return KindRunFunc(ctx, env, params)
 	}, params.extraConfigParams)
 
-	provisioner.SetDiagnoseFunc(kindDiagnoseFunc)
+	provisioner.SetDiagnoseFunc(KindDiagnoseFunc)
 
 	return provisioner
 }
@@ -89,7 +95,13 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	var kindCluster *kubeComp.Cluster
+	if len(params.ciliumOptions) > 0 {
+		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	} else {
+		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	}
+
 	if err != nil {
 		return err
 	}
@@ -107,11 +119,29 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
+	// Deploy the datadog CSI driver
+	if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
+		return err
+	}
+
 	vpaCrd, err := vpa.DeployCRD(&awsEnv, kubeProvider)
 	if err != nil {
 		return err
 	}
 	dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
+
+	if len(params.ciliumOptions) > 0 {
+		// deploy cilium
+		ciliumParams, err := cilium.NewParams(params.ciliumOptions...)
+		if err != nil {
+			return err
+		}
+
+		_, err = cilium.NewHelmInstallation(&awsEnv, kindCluster, ciliumParams, pulumi.Provider(kubeProvider))
+		if err != nil {
+			return err
+		}
+	}
 
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
@@ -130,12 +160,16 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
+		if params.operatorDDAOptions != nil {
+			newDdaOpts := []agentwithoperatorparams.Option{agentwithoperatorparams.WithFakeIntake(fakeIntake)}
+			params.operatorDDAOptions = append(newDdaOpts, params.operatorDDAOptions...)
+		}
 	} else {
 		env.FakeIntake = nil
 	}
 
 	var dependsOnDDAgent pulumi.ResourceOption
-	if params.agentOptions != nil {
+	if params.agentOptions != nil && !params.deployOperator {
 		helmValues := `
 datadog:
   kubelet:
@@ -155,8 +189,23 @@ agents:
 			return err
 		}
 		dependsOnDDAgent = utils.PulumiDependsOn(agent)
-	} else {
-		env.Agent = nil
+	}
+
+	if params.deployOperator {
+		operatorOpts := make([]operatorparams.Option, 0)
+		operatorOpts = append(
+			operatorOpts,
+			params.operatorOptions...,
+		)
+
+		operatorComp, err := operator.NewOperator(&awsEnv, awsEnv.Namer.ResourceName("dd-operator"), kubeProvider, operatorOpts...)
+		if err != nil {
+			return err
+		}
+		err = operatorComp.Export(ctx, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	if params.deployDogstatsd {
@@ -191,6 +240,10 @@ agents:
 			return err
 		}
 
+		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider); err != nil {
+			return err
+		}
+
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
 		if params.agentOptions != nil {
 			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
@@ -211,6 +264,22 @@ agents:
 		if err != nil {
 			return err
 		}
+	}
+
+	if params.deployOperator && params.operatorDDAOptions != nil {
+		ddaWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("kind-with-operator"), kubeProvider, params.operatorDDAOptions...)
+		if err != nil {
+			return err
+		}
+
+		if err := ddaWithOperatorComp.Export(ctx, &env.Agent.KubernetesAgentOutput); err != nil {
+			return err
+		}
+
+	}
+
+	if params.agentOptions == nil || (params.operatorDDAOptions == nil) {
+		env.Agent = nil
 	}
 
 	return nil

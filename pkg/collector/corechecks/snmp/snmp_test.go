@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/compression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 
 	"github.com/gosnmp/gosnmp"
@@ -29,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -53,13 +52,14 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, compressionmock.MockModule(), demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
+	return fxutil.Test[deps](t, demultiplexerimpl.MockModule(), defaultforwarder.MockModule(), core.MockBundle())
 }
 
 func Test_Run_simpleCase(t *testing.T) {
+	cfg := agentconfig.NewMock(t)
 	// We cache the run_path directory because the chk.Run() method will write in cache
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	cfg.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -339,8 +339,9 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
+	cfg := agentconfig.NewMock(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	cfg.SetWithoutSource("run_path", testDir)
 	report.TimeNow = common.MockTimeNow
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
@@ -485,8 +486,9 @@ metrics:
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -560,8 +562,9 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
@@ -865,6 +868,7 @@ profiles:
 {
   "subnet": "127.0.0.0/30",
   "namespace":"default",
+  "integration": "snmp",
   "devices": [
     {
       "id": "default:1.2.3.4",
@@ -958,8 +962,9 @@ profiles:
 }
 
 func TestServiceCheckFailures(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -997,10 +1002,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck(agentconfig.NewMock(t))
-	check2 := newCheck(agentconfig.NewMock(t))
-	check3 := newCheck(agentconfig.NewMock(t))
-	checkSubnet := newCheck(agentconfig.NewMock(t))
+	check1 := newCheck(agentconfig.NewMock(t), nil)
+	check2 := newCheck(agentconfig.NewMock(t), nil)
+	check3 := newCheck(agentconfig.NewMock(t), nil)
+	checkSubnet := newCheck(agentconfig.NewMock(t), nil)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -1033,16 +1038,17 @@ namespace: nsSubnet
 	err = checkSubnet.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfigSubnet, []byte(``), "test")
 	assert.Nil(t, err)
 
-	assert.Equal(t, checkid.ID("snmp:default:1.1.1.1:9d3f14dbaceba72d"), check1.ID())
-	assert.Equal(t, checkid.ID("snmp:default:2.2.2.2:9c51b342e7a4fdd5"), check2.ID())
-	assert.Equal(t, checkid.ID("snmp:ns3:3.3.3.3:7e1c698677986eca"), check3.ID())
-	assert.Equal(t, checkid.ID("snmp:nsSubnet:10.10.10.0/24:ae80a9e88fe6643e"), checkSubnet.ID())
+	assert.Equal(t, checkid.ID("snmp:default:1.1.1.1:7df466323f9d6575"), check1.ID())
+	assert.Equal(t, checkid.ID("snmp:default:2.2.2.2:157550abc671c535"), check2.ID())
+	assert.Equal(t, checkid.ID("snmp:ns3:3.3.3.3:efedf649ea1f0875"), check3.ID())
+	assert.Equal(t, checkid.ID("snmp:nsSubnet:10.10.10.0/24:d5201742549dd380"), checkSubnet.ID())
 	assert.NotEqual(t, check1.ID(), check2.ID())
 }
 
 func TestCheck_Run(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	sysObjectIDPacketInvalidSysObjectIDMock := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
@@ -1259,8 +1265,9 @@ namespace: '%s'
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1305,8 +1312,9 @@ metrics:
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 
 	timeNow = common.MockTimeNow
 
@@ -1505,8 +1513,8 @@ tags:
 		"1.3.6.1.2.1.1.5.0",
 	}).Return(&packet, nil)
 	sess.On("GetBulk", []string{
-		//"1.3.6.1.2.1.2.2.1.13",
-		//"1.3.6.1.2.1.2.2.1.14",
+		// "1.3.6.1.2.1.2.2.1.13",
+		// "1.3.6.1.2.1.2.2.1.14",
 		"1.3.6.1.2.1.2.2.1.2",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
@@ -1530,6 +1538,7 @@ tags:
 {
   "subnet": "127.0.0.0/30",
   "namespace":"default",
+  "integration": "snmp",
   "devices": [
     {
       "id": "default:1.2.3.4",
@@ -1618,8 +1627,9 @@ tags:
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	timeNow = common.MockTimeNow
 	deps := createDeps(t)
 	senderManager := deps.Demultiplexer
@@ -1678,6 +1688,7 @@ tags:
 {
   "subnet": "127.0.0.0/30",
   "namespace":"default",
+  "integration": "snmp",
   "devices": [
     {
       "id": "default:1.2.3.5",
@@ -1732,8 +1743,9 @@ tags:
 }
 
 func TestDiscovery(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	timeNow = common.MockTimeNow
 	profile.SetConfdPathAndCleanProfiles()
@@ -1951,7 +1963,7 @@ metric_tags:
 	}
 
 	sess.On("GetBulk", []string{
-		//"1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1"
+		// "1.3.6.1.2.1.2.2.1.2", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8", "1.3.6.1.2.1.31.1.1.1.1"
 		"1.3.6.1.2.1.2.2.1.2",
 		"1.3.6.1.2.1.2.2.1.6",
 		"1.3.6.1.2.1.2.2.1.7",
@@ -1994,6 +2006,7 @@ metric_tags:
 {
   "subnet": "10.10.0.0/30",
   "namespace":"default",
+  "integration": "snmp",
   "devices": [
     {
       "id": "%s",
@@ -2078,8 +2091,9 @@ metric_tags:
 }
 
 func TestDiscovery_CheckError(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 
@@ -2156,8 +2170,9 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 
@@ -2167,8 +2182,8 @@ func TestDeviceIDAsHostname(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-hostname")
-	pkgconfigsetup.Datadog().SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+	mockConfig.SetWithoutSource("hostname", "test-hostname")
+	mockConfig.SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := deps.Demultiplexer
 
 	// language=yaml
@@ -2349,8 +2364,9 @@ use_device_id_as_hostname: true
 }
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
-	pkgconfigsetup.Datadog().SetWithoutSource("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 	timeNow = common.MockTimeNow
@@ -2361,7 +2377,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory, agentConfig: agentconfig.NewMock(t)}
 
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "my-hostname")
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
 	senderManager := deps.Demultiplexer
 
 	// language=yaml

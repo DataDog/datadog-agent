@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"context"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -40,18 +39,15 @@ func (b *bbsCacheFake) UpdatedOnce() <-chan struct{} {
 	panic("implement me")
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (b *bbsCacheFake) GetActualLRPsForProcessGUID(processGUID string) ([]*cloudfoundry.ActualLRP, error) {
+func (b *bbsCacheFake) GetActualLRPsForProcessGUID(_ string) ([]*cloudfoundry.ActualLRP, error) {
 	panic("implement me")
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (b *bbsCacheFake) GetActualLRPsForCell(cellID string) ([]*cloudfoundry.ActualLRP, error) {
+func (b *bbsCacheFake) GetActualLRPsForCell(_ string) ([]*cloudfoundry.ActualLRP, error) {
 	panic("implement me")
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (b *bbsCacheFake) GetDesiredLRPFor(processGUID string) (cloudfoundry.DesiredLRP, error) {
+func (b *bbsCacheFake) GetDesiredLRPFor(_ string) (cloudfoundry.DesiredLRP, error) {
 	panic("implement me")
 }
 
@@ -418,7 +414,6 @@ func TestCloudFoundryListener(t *testing.T) {
 			},
 		},
 	} {
-		ctx := context.Background()
 		// NOTE: we don't use t.Run here, since the executions are chained (every test case is expected to delete some
 		// services created by the previous test case), so once something is wrong, we just fail the whole test case
 		testBBSCache.Lock()
@@ -443,8 +438,7 @@ func TestCloudFoundryListener(t *testing.T) {
 
 		for range tc.expNew {
 			s := (<-newSvc).(*CloudFoundryService)
-			adID, err := s.GetADIdentifiers(ctx)
-			assert.Nil(t, err)
+			adID := s.GetADIdentifiers()
 			// we make the comparison easy by leaving out the ADIdentifier structs out
 			oldID := s.adIdentifier
 			s.adIdentifier = cloudfoundry.ADIdentifier{}
@@ -453,8 +447,7 @@ func TestCloudFoundryListener(t *testing.T) {
 		}
 		for range tc.expDel {
 			s := (<-delSvc).(*CloudFoundryService)
-			adID, err := s.GetADIdentifiers(ctx)
-			assert.Nil(t, err)
+			adID := s.GetADIdentifiers()
 			s.adIdentifier = cloudfoundry.ADIdentifier{}
 			assert.Equal(t, tc.expDel[adID[0]], s)
 		}

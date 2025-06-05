@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
@@ -191,7 +192,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 		for _, exporterID := range ids {
 			netflowExporters = append(netflowExporters, exporterMap[namespace][exporterID])
 		}
-		metadataPayloads := metadata.BatchPayloads(namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters, nil)
+		metadataPayloads := metadata.BatchPayloads(integrations.Netflow, namespace, "", flushTime, metadata.PayloadMetadataBatchSize, nil, nil, nil, nil, netflowExporters, nil)
 		for _, payload := range metadataPayloads {
 			payloadBytes, err := json.Marshal(payload)
 			if err != nil {

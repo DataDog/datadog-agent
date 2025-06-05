@@ -9,6 +9,8 @@
 package kubelet
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -24,10 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/probe"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/slis"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/summary"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -102,14 +105,18 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 }
 
 // Factory returns a new KubeletCheck factory
-func Factory(store workloadmeta.Component, tagger tagger.Component) optional.Option[func() check.Check] {
-	return optional.NewOption(func() check.Check {
+func Factory(store workloadmeta.Component, tagger tagger.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
 		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, tagger)
 	})
 }
 
 // Configure configures the check
 func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	if !pkgconfigsetup.Datadog().GetBool("kubelet_core_check_enabled") {
+		return fmt.Errorf("%w: kubelet core check is disabled", check.ErrSkipCheckInstance)
+	}
+
 	err := k.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
@@ -124,6 +131,12 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, c
 	err = k.instance.Parse(config)
 	if err != nil {
 		return err
+	}
+
+	// Set sane defaults
+	if k.instance.Timeout == 0 {
+		// old default was 10 seconds, let's keep it
+		k.instance.Timeout = 10
 	}
 
 	k.instance.Namespace = common.KubeletMetricsPrefix

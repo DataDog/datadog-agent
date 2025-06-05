@@ -7,15 +7,19 @@
 package servicetest
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -23,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"testing"
 
@@ -38,6 +43,9 @@ var agentConfigPADisabled string
 
 //go:embed fixtures/datadog-ta-disabled.yaml
 var agentConfigTADisabled string
+
+//go:embed fixtures/datadog-di-disabled.yaml
+var agentConfigDIDisabled string
 
 //go:embed fixtures/system-probe.yaml
 var systemProbeConfig string
@@ -78,6 +86,8 @@ type agentServiceCommandSuite struct {
 
 func (s *agentServiceCommandSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
@@ -114,6 +124,8 @@ type powerShellServiceCommandSuite struct {
 
 func (s *powerShellServiceCommandSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	s.startAgentCommand = func(host *components.RemoteHost) error {
 		cmd := `Start-Service -Name datadogagent`
@@ -281,8 +293,22 @@ type agentServiceDisabledTraceAgentSuite struct {
 	agentServiceDisabledSuite
 }
 
+func TestServiceBehaviorWhenDisabledInstaller(t *testing.T) {
+	s := &agentServiceDisabledInstallerSuite{}
+	s.disabledServices = []string{
+		"Datadog Installer",
+	}
+	run(t, s, systemProbeConfig, agentConfigDIDisabled, securityAgentConfig)
+}
+
+type agentServiceDisabledInstallerSuite struct {
+	agentServiceDisabledSuite
+}
+
 func (s *agentServiceDisabledSuite) SetupSuite() {
 	s.baseStartStopSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
 
 	// set up the expected services before calling the base setup
 	s.runningUserServices = func() []string {
@@ -363,11 +389,13 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agen
 
 type baseStartStopSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	startAgentCommand   func(host *components.RemoteHost) error
-	stopAgentCommand    func(host *components.RemoteHost) error
-	runningUserServices func() []string
-	runningServices     func() []string
-	dumpFolder          string
+	startAgentCommand         func(host *components.RemoteHost) error
+	stopAgentCommand          func(host *components.RemoteHost) error
+	runningUserServices       func() []string
+	runningServices           func() []string
+	dumpFolder                string
+	cancelMetricCollection    context.CancelFunc
+	waitGroupMetricCollection sync.WaitGroup
 }
 
 // TestAgentStartsAllServices tests that starting the agent starts all services (as enabled)
@@ -408,6 +436,10 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	// check event log for N sets of start and stop messages from each service
 	for _, serviceName := range s.runningUserServices() {
 		providerName := serviceName
+		// skip the installer since it doesn't have a registered provider
+		if providerName == "Datadog Installer" {
+			continue
+		}
 		entries, err := windowsCommon.GetEventLogEntriesFromProvider(host, "Application", providerName)
 		s.Require().NoError(err, "should get event log entries from %s", providerName)
 		// message IDs from pkg/util/winutil/messagestrings
@@ -432,6 +464,11 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 
 func (s *baseStartStopSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
+	defer s.CleanupOnSetupFailure()
+
+	// TODO(WINA-1320): mark this crash as flaky while we investigate it
+	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
 
 	// Enable crash dumps
 	s.dumpFolder = `C:\dumps`
@@ -461,6 +498,40 @@ func (s *baseStartStopSuite) SetupSuite() {
 		return s.getInstalledServices()
 	}
 
+	// TODO(WINA-1320): log the system memory to help debug
+	// Start in background goroutine to reduce affect on timing of other
+	// commands being run.
+	// Stop the goroutine when the test ends
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancelMetricCollection = cancel
+	s.waitGroupMetricCollection.Add(1)
+	go func() {
+		defer s.waitGroupMetricCollection.Done()
+		// Collect metrics at most every 5 seconds
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				s.T().Log("Stopping host memory metrics collection")
+				return
+			case <-ticker.C:
+				s.sendHostMemoryMetrics(host)
+			}
+		}
+	}()
+}
+
+func (s *baseStartStopSuite) TearDownSuite() {
+	// Must stop metric collector so the host connection is no longer in use
+	// before destroying the environment, else reconnect may fail require() in host.go
+	if s.cancelMetricCollection != nil {
+		s.cancelMetricCollection()
+		s.waitGroupMetricCollection.Wait()
+	}
+
+	s.T().Log("Tearing down environment")
+	s.BaseSuite.TearDownSuite()
 }
 
 func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
@@ -499,14 +570,8 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 	s.BaseSuite.AfterTest(suiteName, testName)
 
-	outputDir, err := s.CreateTestOutputDir()
-	if err != nil {
-		s.T().Fatalf("should get output dir")
-	}
-	s.T().Logf("Output dir: %s", outputDir)
-
 	// look for and download crashdumps
-	dumps, err := windowsCommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, outputDir)
+	dumps, err := windowsCommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
 	s.Assert().NoError(err, "should download crash dumps")
 	if !s.Assert().Empty(dumps, "should not have crash dumps") {
 		s.T().Logf("Found crash dumps:")
@@ -521,7 +586,7 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(outputDir, fmt.Sprintf("%s.evtx", logName))
+			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
 			err := windowsCommon.ExportEventLog(host, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access
@@ -537,10 +602,6 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 
 func (s *baseStartStopSuite) collectAgentLogs() {
 	host := s.Env().RemoteHost
-	outputDir, err := s.CreateTestOutputDir()
-	if err != nil {
-		s.T().Fatalf("should get output dir")
-	}
 
 	s.T().Logf("Collecting agent logs")
 	logsFolder, err := host.GetLogsFolder()
@@ -555,7 +616,7 @@ func (s *baseStartStopSuite) collectAgentLogs() {
 		s.T().Logf("Found log file: %s", entry.Name())
 		err = host.GetFile(
 			filepath.Join(logsFolder, entry.Name()),
-			filepath.Join(outputDir, entry.Name()),
+			filepath.Join(s.SessionOutputDir(), entry.Name()),
 		)
 		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
@@ -609,7 +670,26 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 		if !assert.Equal(c, expected, status, "%s should be %s", serviceName, expected) {
 			s.T().Logf("waiting for %s to be %s, status %s", serviceName, expected, status)
 		}
-	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+	}, 2*time.Minute, 10*time.Second, "%s should be in the expected state", serviceName)
+
+	// if a driver service failed to get to the expected state, capture a kernel dump for debugging.
+	if s.T().Failed() && slices.Contains(s.getInstalledKernelServices(), serviceName) {
+		// the polling may have been affected by noise, check one last time.
+		status, err := windowsCommon.GetServiceStatus(host, serviceName)
+		if err != nil {
+			s.T().Logf("failed to get service status for %s : %s", serviceName, err)
+			return
+		}
+
+		if expected != status {
+			s.T().Logf("capturing live kernel dump, %s service state was %s but expected %s\n",
+				serviceName, status, expected)
+			s.captureLiveKernelDump(host, s.SessionOutputDir())
+			return
+		}
+
+		s.T().Logf("warning, detected late transition of %s to %s state", serviceName, expected)
+	}
 }
 
 func (s *baseStartStopSuite) stopAllServices() {
@@ -643,6 +723,7 @@ func (s *baseStartStopSuite) getInstalledUserServices() []string {
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"Datadog Installer",
 	}
 }
 
@@ -664,7 +745,105 @@ func (s *baseStartStopSuite) getInstalledServices() []string {
 func (s *baseStartStopSuite) getAgentEventLogErrorsAndWarnings() ([]windowsCommon.EventLogEntry, error) {
 	host := s.Env().RemoteHost
 	providerNames := s.getInstalledUserServices()
+	// remove the Datadog Installer service from the list of provider names
+	// we do not have an event log for it
+	providerNames = slices.DeleteFunc(providerNames, func(s string) bool {
+		return s == "Datadog Installer"
+	})
 	providerNamesFilter := fmt.Sprintf(`"%s"`, strings.Join(providerNames, `","`))
 	filter := fmt.Sprintf(`@{ LogName='Application'; ProviderName=%s; Level=1,2,3 }`, providerNamesFilter)
 	return windowsCommon.GetEventLogEntriesWithFilterHashTable(host, filter)
+}
+
+// sendHostMemoryMetrics sends the host memory metrics to Datadog
+//
+// TODO(WINA-1320): collect metrics to help debug a crash
+func (s *baseStartStopSuite) sendHostMemoryMetrics(host *components.RemoteHost) {
+	metrics := []datadog.Metric{}
+
+	systemMetrics, err := getSystemMemoryMetrics(host)
+	if err != nil {
+		s.T().Logf("failed to get system memory metrics: %s", err)
+	} else {
+		metrics = append(metrics, systemMetrics...)
+	}
+	processMetrics, err := getTopProcessMemoryMetrics(host)
+	if err != nil {
+		s.T().Logf("failed to get process memory metrics: %s", err)
+	} else {
+		metrics = append(metrics, processMetrics...)
+	}
+	tags := []string{
+		// test info
+		"testname:" + s.T().Name(),
+		// pipeline info
+		"project:datadog-agent",
+		"job:" + os.Getenv("CI_JOB_ID"),
+		"pipeline:" + s.Env().Environment.PipelineID(),
+	}
+	// update Host and Tags in each metric
+	for i := range metrics {
+		metrics[i].Host = datadog.String(host.Address)
+		metrics[i].Tags = append(metrics[i].Tags, tags...)
+	}
+
+	// submit the metrics to dddev
+	err = s.DatadogClient().PostMetrics(metrics)
+	if err != nil {
+		s.T().Logf("failed to post memory metrics: %s", err)
+	} else {
+		s.T().Logf("posted memory metrics")
+	}
+}
+
+// captureLiveKernelDump sends a command to the host to create a live kernel dump and downloads it.
+func (s *baseStartStopSuite) captureLiveKernelDump(host *components.RemoteHost, dumpDir string) {
+	tempDumpDir := `C:\Windows\Temp`
+	sourceDumpDir := filepath.Join(tempDumpDir, `localhost`)
+
+	// The live kernel dump will be placed under subdirectory named "localhost."
+	// Make sure the subdirectory where the dump will be generated is empty.
+	if exists, _ := host.FileExists(sourceDumpDir); exists {
+		err := host.RemoveAll(sourceDumpDir)
+		if err != nil {
+			s.T().Logf("failed to cleanup %s: %s\n", sourceDumpDir, err)
+			return
+		}
+	}
+
+	// This Powershell command is originally tailored for storage cluster environments.
+	getSubsystemCmd := `$ss = Get-CimInstance -ClassName MSFT_StorageSubSystem -Namespace Root\Microsoft\Windows\Storage`
+	createLiveDumpCmd := fmt.Sprintf(`Invoke-CimMethod -InputObject $ss -MethodName "GetDiagnosticInfo" -Arguments @{DestinationPath="%s"; IncludeLiveDump=$true}`, tempDumpDir)
+	dumpCmd := fmt.Sprintf("%s;%s", getSubsystemCmd, createLiveDumpCmd)
+
+	s.T().Logf("creating live kernel dump under %s\n", tempDumpDir)
+	out, err := host.Execute(dumpCmd)
+	out = strings.TrimSpace(out)
+	if out != "" {
+		s.T().Logf("PowerShell live kernel dump output:\n%s", out)
+	}
+
+	if err != nil {
+		s.T().Logf("remote execute error: %s\n", err)
+		return
+	}
+
+	// Check if the dump is present.
+	sourceDumpFile := filepath.Join(sourceDumpDir, `LiveDump.dmp`)
+	if exists, _ := host.FileExists(sourceDumpFile); !exists {
+		s.T().Logf("live kernel dump not found at %s: %s\n", sourceDumpFile, err)
+		return
+	}
+
+	// Download the dump file.
+	destDumpFile := filepath.Join(dumpDir, `LiveDump.dmp`)
+	err = host.GetFile(sourceDumpFile, destDumpFile)
+	if err != nil {
+		s.T().Logf("failed to download live kernel dump to %s: %s\n", destDumpFile, err)
+	} else {
+		s.T().Logf("live kernel dump downloaded to %s\n", destDumpFile)
+	}
+
+	// Cleanup the "localhost" subdirectory.
+	host.RemoveAll(sourceDumpDir)
 }

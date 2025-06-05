@@ -8,7 +8,7 @@ RUN apt-get update -y && apt-get install -y jq conntrack netcat-openbsd dnsutils
 # the core agent has the library path hardcoded, this allows the agent included below to find libs
 ENV LD_LIBRARY_PATH=/opt/datadog-agent/embedded/lib
 
-# inv -e process-agent.build-dev-image will set up a temporary
+# dda inv -e process-agent.build-dev-image will set up a temporary
 # build directory where this Dockerfile and the necessary binaries
 # are in the same directory
 COPY process-agent /opt/datadog-agent/embedded/bin/process-agent
