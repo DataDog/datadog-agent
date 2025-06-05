@@ -17,6 +17,7 @@ from tasks.libs.common.omnibus import (
     omnibus_compute_cache_key,
     send_build_metrics,
     send_cache_miss_event,
+    send_cache_mutation_event,
     should_retry_bundle_install,
 )
 from tasks.libs.common.user_interactions import yes_no_question
@@ -260,6 +261,7 @@ def build(
     )
     remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
     use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
+    cache_state = None
     aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
@@ -280,7 +282,6 @@ def build(
         # generated one.
         with gitlab_section("Manage omnibus cache", collapsed=True):
             if use_remote_cache:
-                cache_state = None
                 cache_key = omnibus_compute_cache_key(ctx)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
                 bundle_dir = tempfile.TemporaryDirectory()
@@ -318,22 +319,25 @@ def build(
     os.remove(pip_config_file)
 
     if use_omnibus_git_cache:
-        # We only want to evict stale tags when using the cache locally.
-        # If the cache was fetched through a cache key and downloaded from S3 we
-        # want to keep it immutable.
-        if not use_remote_cache:
-            stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
-            # Purge the cache manually as omnibus will stick to not restoring a tag when
-            # a mismatch is detected, but will keep the old cached tags.
-            # Do this before checking for tag differences, in order to remove staled tags
-            # in case they were included in the bundle in a previous build
-            for _, tag in enumerate(stale_tags.split(os.linesep)):
-                ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
-        with timed(quiet=True) as durations['Updating omnibus cache']:
-            if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
-                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
-                ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
-                bundle_dir.cleanup()
+        stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
+        # Purge the cache manually as omnibus will stick to not restoring a tag when
+        # a mismatch is detected, but will keep the old cached tags.
+        # Do this before checking for tag differences, in order to remove stale tags
+        # in case they were included in the bundle in a previous build
+        for _, tag in enumerate(stale_tags.split(os.linesep)):
+            ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
+        if use_remote_cache:
+            if ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+                # If we got a cache miss, we can upload the cache
+                if cache_state is None:
+                    with timed(quiet=True) as durations['Updating omnibus cache']:
+                        ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
+                        ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+                        bundle_dir.cleanup()
+                else:
+                    send_cache_mutation_event(
+                        ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                    )
 
     # Output duration information for different steps
     print("Build component timing:")

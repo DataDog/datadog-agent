@@ -360,6 +360,21 @@ def send_build_metrics(ctx, overall_duration):
         print(r.text)
 
 
+def send_cache_mutation_event(ctx, pipeline_id, job_name, job_id):
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
+    payload = {
+        'title': 'omnibus cache mutated',
+        'text': f"Job {job_name} in pipeline #{pipeline_id} attempted to mutate the cache after a hit",
+        'source_type_name': 'omnibus',
+        'date_happened': int(datetime.now().timestamp()),
+        'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache', f'job-id:{job_id}'],
+    }
+    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers)
+    if not r.ok:
+        print('Failed to send cache mutation event')
+        print(r.text)
+
+
 def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
     payload = {
