@@ -252,7 +252,13 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 
 func getRemoteCertificates(store string, certFilters []string, server string, username string, password string) ([]*x509.Certificate, error) {
 
+	// Create network path to the remote server's IPC$ share
+	// see https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regconnectregistryw
 	remoteServer := "\\\\" + server + "\\IPC$"
+	registryPath := "SOFTWARE\\Microsoft\\SystemCertificates\\" + store
+	var remoteRegKey registry.Key
+	var certStoreKey registry.Key
+
 	err := netAddConnection(remoteServer, "", password, username)
 	if err != nil {
 		log.Errorf("Error adding connection: %v", err)
@@ -267,30 +273,30 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	}()
 
 	log.Debugf("Opening remote registry on %s", server)
-	var regKey registry.Key
-	regKey, err = registry.OpenRemoteKey(server, registry.LOCAL_MACHINE)
+
+	// After establishing a connection to the remote server, we open its Local Machine registry key
+	remoteRegKey, err = registry.OpenRemoteKey(server, registry.LOCAL_MACHINE)
 	if err != nil {
 		log.Errorf("Error opening remote registry key: %v", err)
 		return nil, err
 	}
 	log.Debugf("Remote registry opened successfully")
-	defer regKey.Close()
+	defer remoteRegKey.Close()
 
-	var subKeys registry.Key
-	registryPath := "SOFTWARE\\Microsoft\\SystemCertificates\\" + store
-
-	subKeys, err = registry.OpenKey(regKey, registryPath, registry.READ)
+	// Once the remote registry is opened, we use its handle to open the registry key of the certificate store
+	certStoreKey, err = registry.OpenKey(remoteRegKey, registryPath, registry.READ)
 	if err != nil {
 		log.Errorf("Error opening %s registry key: %v", registryPath, err)
 		return nil, err
 	}
 	log.Debugf("%s registry key opened successfully", registryPath)
-	defer subKeys.Close()
+	defer certStoreKey.Close()
 
+	// Pass the registry key handle of the certificate store with the windows.CERT_STORE_PROV_REG provider
 	storeHandle, err := openCertificateStore(
 		windows.CERT_STORE_PROV_REG,
 		windows.CERT_STORE_OPEN_EXISTING_FLAG,
-		uintptr(unsafe.Pointer(subKeys)))
+		uintptr(unsafe.Pointer(certStoreKey)))
 	if err != nil {
 		log.Errorf("Error opening certificate store %s: %v", store, err)
 		return nil, err
