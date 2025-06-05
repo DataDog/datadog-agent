@@ -8,12 +8,9 @@ package agentimpl
 
 import (
 	"context"
-	"crypto/subtle"
-	"errors"
 	"fmt"
 	"net/http"
 
-	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
@@ -35,7 +32,6 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -82,14 +78,12 @@ type server struct {
 }
 
 func (s *server) BuildServer() http.Handler {
-	authInterceptor := grpcutil.AuthInterceptor(parseToken)
-
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	opts := []googleGrpc.ServerOption{
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
-		googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
-		googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
+		googleGrpc.StreamInterceptor(grpcutil.RequireClientCertStream),
+		googleGrpc.UnaryInterceptor(grpcutil.RequireClientCert),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),
 	}
@@ -119,7 +113,7 @@ func (s *server) BuildServer() http.Handler {
 func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
 	dopts := []googleGrpc.DialOption{googleGrpc.WithTransportCredentials(credentials.NewTLS(s.IPC.GetTLSClientConfig()))}
 	ctx := context.Background()
-	gwmux := runtime.NewServeMux()
+	gwmux := runtime.NewServeMux(runtime.WithMiddlewares(mTLSMiddleware))
 	err := pb.RegisterAgentHandlerFromEndpoint(
 		ctx, gwmux, cmdAddr, dopts)
 	if err != nil {
@@ -133,6 +127,18 @@ func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
 	}
 
 	return gwmux, nil
+}
+
+// mTLSMiddleware is a middleware that prevents access to the grpc gateway if the request is not using mTLS.
+// The underlying gRPC server is enforcing mTLS, so this middleware is only needed for the HTTP gateway.
+func mTLSMiddleware(h runtime.HandlerFunc) runtime.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, m map[string]string) {
+		if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		h(w, r, m)
+	}
 }
 
 // Provides defines the output of the grpc component
@@ -160,17 +166,4 @@ func NewComponent(reqs Requires) (Provides, error) {
 		},
 	}
 	return provides, nil
-}
-
-// parseToken parses the token and validate it for our gRPC API, it returns an empty
-// struct and an error or nil
-func parseToken(token string) (interface{}, error) {
-	if subtle.ConstantTimeCompare([]byte(token), []byte(util.GetAuthToken())) == 0 {
-		return struct{}{}, errors.New("Invalid session token")
-	}
-
-	// Currently this empty struct doesn't add any information
-	// to the context, but we could potentially add some custom
-	// type.
-	return struct{}{}, nil
 }
