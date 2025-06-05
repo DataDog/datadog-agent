@@ -13,6 +13,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,6 +29,9 @@ const (
 	// serviceNameSourceOwnerName will tell us if we pulled the DD_SERVICE
 	// from the pod owner name.
 	serviceNameSourceOwnerName = "owner"
+
+	serviceNameSourceLabelsAsTags      = "labels_as_tags"
+	serviceNameSourceAnnotationsAsTags = "annotations_as_tags"
 )
 
 type serviceNameMutator struct {
@@ -61,7 +65,54 @@ func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
 	return nil
 }
 
-func newServiceNameMutator(pod *corev1.Pod) *serviceNameMutator {
+func doesMappedTagMatchValue(m map[string]string, k, v string) bool {
+	if m != nil {
+		if tag, matched := m[k]; matched {
+			return tag == v
+		}
+	}
+	return false
+}
+
+func serviceNameMutatorForMetaAsTags(
+	podMeta map[string]string,
+	match map[string]string,
+	source serviceNameSource,
+) *serviceNameMutator {
+	for k, v := range podMeta {
+		if !doesMappedTagMatchValue(match, k, tags.Service) {
+			continue
+		}
+
+		var env corev1.EnvVar
+		switch source {
+		case serviceNameSourceAnnotationsAsTags:
+			env.ValueFrom = &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: fmt.Sprintf("metadata.annotations['%s']", k),
+				},
+			}
+		case serviceNameSourceLabelsAsTags:
+			env.ValueFrom = &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: fmt.Sprintf("metadata.labels['%s']", k),
+				},
+			}
+		default:
+			log.Errorf("BUG: unexpected service name source %s", source)
+			env.Value = v
+		}
+
+		return &serviceNameMutator{
+			EnvVar: env,
+			Source: source,
+		}
+	}
+
+	return nil
+}
+
+func newServiceNameMutator(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator {
 	vars := findServiceNameEnvVarsInPod(pod)
 	if len(vars) > 1 {
 		log.Debug("more than one unique definition of service name found for the pod")
@@ -74,7 +125,19 @@ func newServiceNameMutator(pod *corev1.Pod) *serviceNameMutator {
 		}
 	}
 
-	log.Debug("no service env vars found in pod, checking owner name")
+	log.Debug("no DD_SERVICE env vars found in pod")
+
+	log.Debug("checking metaAsTags.labels")
+	if mutator := serviceNameMutatorForMetaAsTags(pod.Labels, t.Labels, serviceNameSourceLabelsAsTags); mutator != nil {
+		return mutator
+	}
+
+	log.Debug("checking metaAsTags.annotations")
+	if mutator := serviceNameMutatorForMetaAsTags(pod.Annotations, t.Annotations, serviceNameSourceAnnotationsAsTags); mutator != nil {
+		return mutator
+	}
+
+	log.Debug("no service env vars found & tags found in pod, checking owner name")
 	name, err := getServiceNameFromPodOwnerName(pod)
 	if err != nil || name == "" {
 		log.Debugf("error getting owner name for pod: %v", err)
