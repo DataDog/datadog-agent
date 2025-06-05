@@ -1726,6 +1726,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "SetSockOptEvent": {
             "properties": {
+                "socket_type": {
+                    "type": "integer",
+                    "description": "Socket file descriptor"
+                },
                 "level": {
                     "type": "integer",
                     "description": "Level at which the option is defined"
@@ -1733,11 +1737,16 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "optname": {
                     "type": "integer",
                     "description": "Name of the option being set"
+                },
+                "filter_code": {
+                    "type": "integer",
+                    "description": "Value of the option being set"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "socket_type",
                 "level",
                 "optname"
             ],
@@ -4725,6 +4734,10 @@ Workload Protection events for Linux systems have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
+        "socket_type": {
+            "type": "integer",
+            "description": "Socket file descriptor"
+        },
         "level": {
             "type": "integer",
             "description": "Level at which the option is defined"
@@ -4732,11 +4745,16 @@ Workload Protection events for Linux systems have the following JSON schema:
         "optname": {
             "type": "integer",
             "description": "Name of the option being set"
+        },
+        "filter_code": {
+            "type": "integer",
+            "description": "Value of the option being set"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "socket_type",
         "level",
         "optname"
     ],
@@ -4747,8 +4765,10 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
+| `socket_type` | Socket file descriptor |
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
+| `filter_code` | Value of the option being set |
 
 
 ## `SignalEvent`

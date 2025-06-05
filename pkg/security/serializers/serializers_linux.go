@@ -552,10 +552,14 @@ type SyscallArgsSerializer struct {
 // SetSockOptEventSerializer defines a setsockopt event serializer
 // easyjson:json
 type SetSockOptEventSerializer struct {
+	// Socket file descriptor
+	Socket_type uint32 `json:"socket_type"`
 	// Level at which the option is defined
 	Level uint32 `json:"level"`
 	// Name of the option being set
 	OptName uint32 `json:"optname"`
+	// Value of the option being set
+	Filter_code uint16 `json:"filter_code,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -1310,8 +1314,10 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	return &SetSockOptEventSerializer{
-		Level:   e.SetSockOpt.Level,
-		OptName: e.SetSockOpt.OptName,
+		Socket_type: e.SetSockOpt.Socket_type,
+		Level:       e.SetSockOpt.Level,
+		OptName:     e.SetSockOpt.OptName,
+		Filter_code: e.SetSockOpt.Filter_code,
 	}
 }
 
