@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -84,7 +83,6 @@ void initLogger(rtloader_t *rtloader) {
 
 void GetClusterName(char **);
 void GetConfig(char*, char **);
-void GetRemoteConfig(char*, char **);
 void GetHostname(char **);
 void GetHostTags(char **);
 void GetVersion(char **);
@@ -104,7 +102,6 @@ void EmitAgentTelemetry(char *, char *, double, char *);
 void initDatadogAgentModule(rtloader_t *rtloader) {
 	set_get_clustername_cb(rtloader, GetClusterName);
 	set_get_config_cb(rtloader, GetConfig);
-	set_get_remote_config_cb(rtloader, GetRemoteConfig);
 	set_get_hostname_cb(rtloader, GetHostname);
 	set_get_host_tags_cb(rtloader, GetHostTags);
 	set_get_version_cb(rtloader, GetVersion);
@@ -199,7 +196,7 @@ func (ire InterpreterResolutionError) Error() string {
 		" Python's 'multiprocessing' library may fail to work.", ire.Err)
 }
 
-//nolint:revive
+//nolint:revive // TODO(AML) Fix revive linter
 const PythonWinExeBasename = "python.exe"
 
 var (
@@ -220,7 +217,8 @@ var (
 	// by `sys.path`. It's empty if the interpreter was not initialized.
 	PythonPath = ""
 
-	rtloader *C.rtloader_t
+	//nolint:revive // TODO(AML) Fix revive linter
+	rtloader *C.rtloader_t = nil
 
 	expvarPyInit  *expvar.Map
 	pyInitLock    sync.RWMutex
@@ -236,7 +234,6 @@ func init() {
 
 	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
 	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
-	initFIPS()
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -293,7 +290,7 @@ func pathToBinary(name string, ignoreErrors bool) (string, error) {
 	return absPath, nil
 }
 
-func resolvePythonHome() {
+func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	// Allow to relatively import python
 	_here, err := executable.Folder()
 	if err != nil {
@@ -326,10 +323,7 @@ func resolvePythonHome() {
 	PythonHome = pythonHome3
 
 	log.Infof("Using '%s' as Python home", PythonHome)
-}
 
-func resolvePythonExecPath(ignoreErrors bool) (string, error) {
-	resolvePythonHome()
 	// For Windows, the binary should be in our path already and have a
 	// consistent name
 	if runtime.GOOS == "windows" {
@@ -362,7 +356,7 @@ func resolvePythonExecPath(ignoreErrors bool) (string, error) {
 	return filepath.Join(PythonHome, "bin", interpreterBasename), nil
 }
 
-// Initialize initializes the Python interpreter
+//nolint:revive // TODO(AML) Fix revive linter
 func Initialize(paths ...string) error {
 	pythonVersion := pkgconfigsetup.Datadog().GetString("python_version")
 	allowPathHeuristicsFailure := pkgconfigsetup.Datadog().GetBool("allow_python_path_heuristics_failure")
@@ -385,7 +379,8 @@ func Initialize(paths ...string) error {
 	}
 	log.Debugf("Using '%s' as Python interpreter path", pythonBinPath)
 
-	var pyErr *C.char
+	//nolint:revive // TODO(AML) Fix revive linter
+	var pyErr *C.char = nil
 
 	csPythonHome := TrackedCString(PythonHome)
 	defer C._free(unsafe.Pointer(csPythonHome))
@@ -410,21 +405,8 @@ func Initialize(paths ...string) error {
 		return err
 	}
 
-	// Should we track python memory?
-	if pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
-		var interval time.Duration
-		if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") {
-			// detailed telemetry is enabled
-			interval = 1 * time.Second
-		} else if pkgconfigsetup.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
-			// default telemetry is enabled (emitted every 15 minute)
-			interval = 15 * time.Minute
-		}
-
-		// interval is 0 if telemetry is disabled
-		if interval > 0 {
-			initPymemTelemetry(interval)
-		}
+	if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") && pkgconfigsetup.Datadog().GetBool("telemetry.python_memory") {
+		initPymemTelemetry()
 	}
 
 	// Set the PYTHONPATH if needed.
@@ -461,7 +443,7 @@ func Initialize(paths ...string) error {
 
 	// store the Python version after killing \n chars within the string
 	if pyInfo != nil {
-		PythonVersion = strings.ReplaceAll(C.GoString(pyInfo.version), "\n", "")
+		PythonVersion = strings.Replace(C.GoString(pyInfo.version), "\n", "", -1)
 		// Set python version in the cache
 		cache.Cache.Set(pythonInfoCacheKey, PythonVersion, cache.NoExpiration)
 
@@ -482,7 +464,7 @@ func GetRtLoader() *C.rtloader_t {
 	return rtloader
 }
 
-func initPymemTelemetry(d time.Duration) {
+func initPymemTelemetry() {
 	C.init_pymem_stats(rtloader)
 
 	// "alloc" for consistency with go memstats and mallochook metrics.
@@ -490,7 +472,7 @@ func initPymemTelemetry(d time.Duration) {
 	inuse := telemetry.NewSimpleGauge("pymem", "inuse", "Number of bytes currently allocated by the python interpreter.")
 
 	go func() {
-		t := time.NewTicker(d)
+		t := time.NewTicker(1 * time.Second)
 		var prevAlloc C.size_t
 
 		for range t.C {
@@ -501,43 +483,4 @@ func initPymemTelemetry(d time.Duration) {
 			prevAlloc = s.alloc
 		}
 	}()
-}
-
-func initFIPS() {
-	fipsEnabled, err := fips.Enabled()
-	if err != nil {
-		log.Warnf("could not check FIPS mode: %v", err)
-		return
-	}
-	resolvePythonHome()
-	if PythonHome == "" {
-		log.Warnf("Python home is empty. FIPS mode could not be enabled.")
-		return
-	}
-	if fipsEnabled {
-		err := enableFIPS(PythonHome)
-		if err != nil {
-			log.Warnf("could not initialize FIPS mode: %v", err)
-		}
-	}
-}
-
-// enableFIPS sets the OPENSSL_CONF and OPENSSL_MODULES environment variables
-func enableFIPS(embeddedPath string) error {
-	envVars := map[string][]string{
-		"OPENSSL_CONF":    {embeddedPath, "ssl", "openssl.cnf"},
-		"OPENSSL_MODULES": {embeddedPath, "lib", "ossl-modules"},
-	}
-
-	for envVar, pathParts := range envVars {
-		if v := os.Getenv(envVar); v != "" {
-			continue
-		}
-		path := filepath.Join(pathParts...)
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return fmt.Errorf("path %q does not exist", path)
-		}
-		os.Setenv(envVar, path)
-	}
-	return nil
 }

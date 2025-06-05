@@ -129,19 +129,6 @@ DATADOG_AGENT_RTLOADER_API int get_class(rtloader_t *rtloader, const char *name,
 DATADOG_AGENT_RTLOADER_API int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class,
                                                const char *attr_name, char **value);
 
-/*! \fn int get_attr_bool(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *attr_name, bool *value)
-    \brief Attempts to get a bool attribute from the supplied python class, by name.
-    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
-    \param py_class A rtloader_pyobject_t ** pointer to the class we wish to get the
-    attribute from.
-    \param attr_name A constant C-string with the name of the attribute to get.
-    \param value A bool * pointer C-bool output parameter with the attribute value.
-    \return An integer with the success of the operation. Zero for success, non-zero for failure.
-    \sa rtloader_pyobject_t, rtloader_t
-*/
-DATADOG_AGENT_RTLOADER_API int get_attr_bool(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *attr_name,
-                                             bool *value);
-
 /*! \fn int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char
    *instance, const char *check_id, const char *check_name, rtloader_pyobject_t **check) \brief Attempts to instantiate
    a datadog python check with the supplied configuration parameters. \param rtloader_t A rtloader_t * pointer to the
@@ -436,16 +423,6 @@ DATADOG_AGENT_RTLOADER_API void set_get_version_cb(rtloader_t *, cb_get_version_
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
 DATADOG_AGENT_RTLOADER_API void set_get_config_cb(rtloader_t *, cb_get_config_t);
-
-/*! \fn void set_get_remote_config_cb(crtloader_t *, b_get_remote_config_t)
-    \brief Sets a callback to be used by rtloader to collect the agent configuration.
-    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
-    \param object A function pointer with cb_get_remote_config_t prototype to the
-    callback function.
-
-    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
-*/
-DATADOG_AGENT_RTLOADER_API void set_get_remote_config_cb(rtloader_t *, cb_get_remote_config_t);
 
 /*! \fn void set_headers_cb(rtloader_t *, cb_headers_t)
     \brief Sets a callback to be used by rtloader to collect the typical HTTP headers for

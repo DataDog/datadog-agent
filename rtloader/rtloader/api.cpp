@@ -241,11 +241,6 @@ int get_attr_string(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const c
     return AS_TYPE(RtLoader, rtloader)->getAttrString(AS_TYPE(RtLoaderPyObject, py_class), attr_name, *value);
 }
 
-int get_attr_bool(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *attr_name, bool *value)
-{
-    return AS_TYPE(RtLoader, rtloader)->getAttrBool(AS_TYPE(RtLoaderPyObject, py_class), attr_name, *value);
-}
-
 int get_check(rtloader_t *rtloader, rtloader_pyobject_t *py_class, const char *init_config, const char *instance,
               const char *check_id, const char *check_name, rtloader_pyobject_t **check)
 {
@@ -455,11 +450,6 @@ void set_get_version_cb(rtloader_t *rtloader, cb_get_version_t cb)
 void set_get_config_cb(rtloader_t *rtloader, cb_get_config_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setGetConfigCb(cb);
-}
-
-void set_get_remote_config_cb(rtloader_t *rtloader, cb_get_remote_config_t cb)
-{
-    AS_TYPE(RtLoader, rtloader)->setGetRemoteConfigCb(cb);
 }
 
 void set_headers_cb(rtloader_t *rtloader, cb_headers_t cb)

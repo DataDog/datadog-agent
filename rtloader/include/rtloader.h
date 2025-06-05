@@ -86,15 +86,6 @@ public:
     */
     virtual bool getAttrString(RtLoaderPyObject *obj, const char *attributeName, char *&value) const = 0;
 
-    //! Pure virtual getAttrBool member.
-    /*!
-      \param obj The python object we wish to get the string attribute by name from.
-      \param attributeName A C-string representation of the string attribute we wish to get by name.
-      \param value The output C-bool representation to the specified attribute, if we succeed.
-      \return A boolean indicating the success or not of the operation.
-    */
-    virtual bool getAttrBool(RtLoaderPyObject *obj, const char *attributeName, bool &value) const = 0;
-
     //! Pure virtual getCheck member.
     /*!
       \param py_class The python check class we wish to instantiate.
@@ -299,14 +290,6 @@ public:
       This allows us to set the CGO callback that will enable us to get the agent configuration.
     */
     virtual void setGetConfigCb(cb_get_config_t) = 0;
-
-    //! setGetRemoteConfigCb member.
-    /*!
-      \param A cb_get_remote_config_t function pointer to the CGO callback.
-
-      This allows us to set the CGO callback that will enable us to get the agent configuration.
-    */
-    virtual void setGetRemoteConfigCb(cb_get_config_t) = 0;
 
     //! setHeadersCb member.
     /*!

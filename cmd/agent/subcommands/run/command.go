@@ -581,7 +581,10 @@ func startAgent(
 		// Subscribe to `AGENT_TASK` product
 		rcClient.SubscribeAgentTask()
 		fmt.Println("Subscribe..................")
-		rcClient.Subscribe(data.ProductDataStreamsLiveMessages, rcclient.Update)
+		// get access to ac
+		controller := rcclient.NewController(ac, collectorComponent)
+		// only subscribe to live messages if kafka_consumer integration is running
+		rcClient.Subscribe(data.ProductDataStreamsLiveMessages, controller.Update)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
