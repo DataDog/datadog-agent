@@ -59,7 +59,7 @@ class TestGitlabCiConfig(unittest.TestCase):
             'job1': {'script': 'echo "hello"'},
         }
 
-        res = filter_gitlab_ci_configuration(yml, job='job1')
+        res = filter_gitlab_ci_configuration(yml, jobs='job1')
 
         self.assertDictEqual(res, expected_yml)
 

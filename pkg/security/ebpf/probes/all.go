@@ -133,6 +133,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 		},
 	)
 	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "newfstatat")
+	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsockopt")
 
 	return allProbes
 }
