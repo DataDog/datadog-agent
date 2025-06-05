@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 import sys
-from collections import defaultdict
 from glob import glob
 from typing import Any
 
@@ -17,7 +16,6 @@ from tasks.libs.ciproviders.gitlab_api import (
     get_preset_contexts,
     is_leaf_job,
     load_context,
-    read_includes,
     retrieve_all_paths,
     test_gitlab_configuration,
 )
@@ -106,7 +104,7 @@ def shellcheck_gitlab_ci_jobs(
     shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, use_bat, only_errors)
 
 
-def check_change_paths_gitlab_ci_jobs(jobs: list[tuple[str, dict]]):
+def check_change_paths_valid_gitlab_ci_jobs(jobs: list[tuple[str, dict]]):
     """Verifies that rules: changes: paths in the given jobs match existing files in the repo"""
     error_paths = []
     for _, job in jobs:
@@ -120,8 +118,8 @@ def check_change_paths_gitlab_ci_jobs(jobs: list[tuple[str, dict]]):
         )
 
 
-def check_change_paths_gitlab_ci_config(ctx, configs: dict[str, dict], job_files: list[str] | None = None):
-    """Verifies that the jobs defined within job_files contain a change path rule in the given config."""
+def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]]]):
+    """Verifies that the jobs passed in contain a change path rule in the given config."""
     tests_without_change_path_allow_list = {
         'generate-fips-e2e-pipeline',
         'generate-flakes-finder-pipeline',
@@ -216,39 +214,31 @@ def check_change_paths_gitlab_ci_config(ctx, configs: dict[str, dict], job_files
         'trigger-fips-e2e',
     }
 
-    # Fetch all test jobs
-    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/e2e/install_packages/*.yml')))
-    test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
-    tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
-
-    def contains_valid_change_rule(rule):
+    def contains_valid_change_rule(job_rules):
         """Verifies that the job rule contains the required change path configuration."""
 
-        if 'changes' not in rule or 'paths' not in rule['changes']:
+        if 'changes' not in job_rules or 'paths' not in job_rules['changes']:
             return False
 
         # The change paths should be more than just test files
         return any(
-            not path.startswith(('test/', './test/', 'test\\', '.\\test\\')) for path in rule['changes']['paths']
+            not path.startswith(('test/', './test/', 'test\\', '.\\test\\')) for path in job_rules['changes']['paths']
         )
 
         # Verify that all tests contain a change path rule
 
-    tests_without_change_path = defaultdict(list)
-    tests_without_change_path_allowed = defaultdict(list)
-    for test, filepath in tests:
-        for entry_point, config in configs.items():
-            if test not in config:
-                continue
-            if "rules" in config[test] and not any(
-                contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
-            ):
-                if test in tests_without_change_path_allow_list:
-                    tests_without_change_path_allowed[f"{filepath} ({entry_point})"].append(test)
-                else:
-                    tests_without_change_path[f"{filepath} ({entry_point})"].append(test)
+    tests_without_change_path = set()
+    jobs_without_change_path_allowed = set()
+    for job_name, job in jobs:
+        if "rules" in job and not any(
+            contains_valid_change_rule(rule) for rule in job['rules'] if isinstance(rule, dict)
+        ):
+            if job_name in tests_without_change_path_allow_list:
+                jobs_without_change_path_allowed.add(job_name)
+            else:
+                tests_without_change_path.add(job_name)
 
-    if len(tests_without_change_path_allowed) != 0:
+    if len(jobs_without_change_path_allowed) != 0:
         with gitlab_section('Allow-listed jobs', collapsed=True):
             print(
                 color_message(
@@ -256,15 +246,15 @@ def check_change_paths_gitlab_ci_config(ctx, configs: dict[str, dict], job_files
                     Color.ORANGE,
                 )
             )
-            for filepath_and_entrypoint, tests in tests_without_change_path_allowed.items():
-                print(f"- {color_message(filepath_and_entrypoint, Color.BLUE)}: {', '.join(tests)}")
+            for job_name in jobs_without_change_path_allowed:
+                print(f"- {color_message(job_name, Color.BLUE)}")
             print(color_message('warning: End of allow-listed jobs', Color.ORANGE))
             print()
 
     if len(tests_without_change_path) != 0:
         print(color_message("error: Tests without required change paths rule:", "red"), file=sys.stderr)
-        for filepath_and_entrypoint, tests in tests_without_change_path.items():
-            print(f"- {color_message(filepath_and_entrypoint, Color.BLUE)}: {', '.join(tests)}", file=sys.stderr)
+        for job_name in tests_without_change_path:
+            print(f"- {color_message(job_name, Color.BLUE)}", file=sys.stderr)
 
         raise RuntimeError(
             color_message(

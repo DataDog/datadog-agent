@@ -30,8 +30,8 @@ from tasks.libs.common.git import get_common_ancestor, get_default_branch, get_f
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.gitlab import (
     _gitlab_ci_jobs_codeowners_lint,
-    check_change_paths_gitlab_ci_config,
-    check_change_paths_gitlab_ci_jobs,
+    check_change_paths_exist_gitlab_ci_jobs,
+    check_change_paths_valid_gitlab_ci_jobs,
     check_needs_rules_gitlab_ci_jobs,
     check_owners_gitlab_ci_jobs,
     extract_gitlab_ci_jobs,
@@ -243,7 +243,7 @@ def github_actions_shellcheck(
 
 # === GITLAB === #
 ## === Main linter tasks === ##
-@task(iterable=["job_files"])
+@task
 def full_gitlab_ci(
     ctx,
     configs_file: str | None = None,
@@ -257,7 +257,6 @@ def full_gitlab_ci(
     shellcheck_fail_fast: bool = False,
     shellcheck_use_bat: str | None = None,
     shellcheck_only_errors: bool = False,
-    job_files: list[str] | None = None,
     path_jobowners: str = '.gitlab/JOBOWNERS',
 ):
     """
@@ -273,7 +272,6 @@ def full_gitlab_ci(
         shellcheck_fail_fast: If True, will stop at the first shellcheck error.
         shellcheck_use_bat: If True (or None), will (try to) use bat to display the shellcheck results.
         shellcheck_only_errors: Show only shellcheck errors, not warnings.
-        job_files: Job files for which to check existence of `change: paths:` rules
         path_jobowners: Path to a JOBOWNERS file defining which jobs are owned by which teams
     """
     configs: dict[str, dict]
@@ -310,8 +308,8 @@ def full_gitlab_ci(
         use_bat=shellcheck_use_bat,
         only_errors=shellcheck_only_errors,
     )
-    check_change_paths_gitlab_ci_jobs(changed_jobs)
-    check_change_paths_gitlab_ci_config(ctx, configs, job_files=job_files)
+    check_change_paths_valid_gitlab_ci_jobs(changed_jobs)
+    check_change_paths_exist_gitlab_ci_jobs(changed_jobs)
 
     ci_linters_config = CILintersConfig(
         lint=True,
@@ -468,7 +466,7 @@ def gitlab_change_paths(ctx, diff_file=None):
     if not jobs:
         return
 
-    check_change_paths_gitlab_ci_jobs(jobs)
+    check_change_paths_valid_gitlab_ci_jobs(jobs)
     print(f"All rule:changes:paths from gitlab-ci are {color_message('valid', Color.GREEN)}.")
 
 
@@ -502,20 +500,23 @@ def gitlab_ci_jobs_needs_rules(ctx, diff_file=None):
     check_needs_rules_gitlab_ci_jobs(jobs, ci_linters_config)
 
 
-@task(iterable=['job_files'])
-def job_change_path(ctx, configs_file: str | None = None, job_files=None):
+@task
+def job_change_path(ctx, configs_file: str | None = None, job_pattern: str = ".*"):
     """Verifies that the jobs defined within job_files contain a change path rule.
 
     Args:
         configs_file: Path to a yaml file containing a full gitlabci config
-        job_files: List of files defining jobs to check
+        job_pattern: Regex pattern for selecting which jobs to run the check on
     """
     # Read gitlab configs for all entrypoints
     # The config is filtered to only include jobs
     configs = load_or_generate_gitlab_ci_configs(
         ctx, configs_file, input_file=".gitlab-ci.yml", postprocess_options={"do_filtering": True}
     )
-    check_change_paths_gitlab_ci_config(ctx, configs, job_files=job_files)
+    jobs = extract_gitlab_ci_jobs(configs=configs)
+    compiled_job_pattern = re.compile(job_pattern)
+    jobs = [(job_name, job) for (job_name, job) in jobs if re.match(compiled_job_pattern, job_name)]
+    check_change_paths_exist_gitlab_ci_jobs(jobs)
 
 
 ## === Job ownership === ##
