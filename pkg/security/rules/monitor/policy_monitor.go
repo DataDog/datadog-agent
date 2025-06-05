@@ -11,7 +11,6 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -241,20 +240,13 @@ type LogAction struct {
 	Message string `json:"message,omitempty"`
 }
 
-// MonitoredFilesAndFolders contains information about files and folders being monitored by the rules
-// easyjson:json
-type MonitoredFilesAndFolders struct {
-	Files   []string `json:"files,omitempty"`
-	Folders []string `json:"folders,omitempty"`
-}
-
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
 	events.CustomEventCommonFields
-	Policies       []*PolicyState            `json:"policies"`
-	Filters        *kfilters.FilterReport    `json:"filters,omitempty"`
-	MonitoredPaths *MonitoredFilesAndFolders `json:"monitored_files,omitempty"`
+	Policies       []*PolicyState         `json:"policies"`
+	Filters        *kfilters.FilterReport `json:"filters,omitempty"`
+	MonitoredFiles []string               `json:"monitored_files,omitempty"`
 }
 
 // ToJSON marshal using json format
@@ -404,7 +396,7 @@ func newRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet,
 	evt := RulesetLoadedEvent{
 		Policies:       policies,
 		Filters:        filterReport,
-		MonitoredPaths: extractMonitoredFilesAndFolders(rs),
+		MonitoredFiles: extractMonitoredFilesAndFolders(rs),
 	}
 	evt.FillCustomEventCommonFields(acc)
 
@@ -436,13 +428,12 @@ func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*policy) (
 }
 
 // extractMonitoredFilesAndFolders extracts file and folder paths from rule expressions
-func extractMonitoredFilesAndFolders(rs *rules.RuleSet) *MonitoredFilesAndFolders {
+func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
 	if rs == nil {
 		return nil
 	}
 
-	filesSet := make(map[string]bool)
-	foldersSet := make(map[string]bool)
+	pathsSet := make(map[string]bool)
 
 	// Get FIM events
 	fimEvents := model.GetEventTypePerCategory(model.FIMCategory)[model.FIMCategory]
@@ -458,42 +449,19 @@ func extractMonitoredFilesAndFolders(rs *rules.RuleSet) *MonitoredFilesAndFolder
 					continue
 				}
 
-				if isLikelyFolder(path) {
-					foldersSet[path] = true
-				} else {
-					filesSet[path] = true
-				}
+				pathsSet[path] = true
 			}
 		}
 	}
 
-	if len(filesSet) == 0 && len(foldersSet) == 0 {
+	if len(pathsSet) == 0 {
 		return nil
 	}
 
-	monitored := &MonitoredFilesAndFolders{}
-
-	if len(filesSet) > 0 {
-		monitored.Files = make([]string, 0, len(filesSet))
-		for file := range filesSet {
-			monitored.Files = append(monitored.Files, file)
-		}
-	}
-
-	if len(foldersSet) > 0 {
-		monitored.Folders = make([]string, 0, len(foldersSet))
-		for folder := range foldersSet {
-			monitored.Folders = append(monitored.Folders, folder)
-		}
+	monitored := make([]string, 0, len(pathsSet))
+	for path := range pathsSet {
+		monitored = append(monitored, path)
 	}
 
 	return monitored
-}
-
-// isLikelyFolder determines if a path is likely a folder based on common patterns
-func isLikelyFolder(path string) bool {
-	if strings.HasSuffix(path, "/") || strings.HasSuffix(path, "/*") || strings.HasSuffix(path, "/**") {
-		return true
-	}
-	return false
 }
