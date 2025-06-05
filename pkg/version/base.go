@@ -22,7 +22,9 @@ var Commit string
 // used to serialize to protobuf
 var AgentPayloadVersion string
 
-var agentVersionDefault = "6.0.0"
+var agentVersionDefault = "7.66.0"
+
+// var agentVersionDefault = "7.53.0"
 
 func init() {
 	if AgentVersion == "" {

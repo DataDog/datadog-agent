@@ -240,7 +240,7 @@ func run(log log.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	ac autodiscovery.Component,
-	rcclient rcclient.Component,
+	rcClient rcclient.Component,
 	_ runner.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
@@ -324,7 +324,7 @@ func run(log log.Component,
 		wmeta,
 		taggerComp,
 		ac,
-		rcclient,
+		rcClient,
 		logsAgent,
 		processAgent,
 		forwarder,
@@ -517,7 +517,7 @@ func startAgent(
 	wmeta workloadmeta.Component,
 	tagger tagger.Component,
 	ac autodiscovery.Component,
-	rcclient rcclient.Component,
+	rcClient rcclient.Component,
 	_ option.Option[logsAgent.Component],
 	_ processAgent.Component,
 	_ defaultforwarder.Component,
@@ -574,15 +574,22 @@ func startAgent(
 	}
 	log.Infof("Hostname is: %s", hostnameDetected)
 
+	fmt.Println("starting agent ....................")
+
 	// start remote configuration management
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
-		rcclient.SubscribeAgentTask()
+		rcClient.SubscribeAgentTask()
+		fmt.Println("Subscribe..................")
+		// get access to ac
+		controller := rcclient.NewController(ac, collectorComponent)
+		// only subscribe to live messages if kafka_consumer integration is running
+		rcClient.Subscribe(data.ProductDataStreamsLiveMessages, controller.Update)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
 			rcProvider := providers.NewRemoteConfigProvider()
-			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
+			rcClient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
 			// LoadAndRun is called later on
 			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
 		}
@@ -620,10 +627,12 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry, rcclient, flare)
+	commonchecks.RegisterChecks(wmeta, tagger, cfg, telemetry, rcClient, flare)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
+
+	fmt.Println("agent version is ", version.AgentVersion)
 
 	// load and run all configs in AD
 	ac.LoadAndRun(ctx)
