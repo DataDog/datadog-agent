@@ -1096,13 +1096,7 @@ static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-SEC("tracepoint/net/net_dev_queue")
-int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
-    CHECK_BPF_PROGRAM_BYPASSED()
-    struct sk_buff *skb = ctx->skb;
-    if (!skb) {
-        return 0;
-    }
+static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
     struct sock *sk = sk_buff_sk(skb);
     if (!sk) {
         return 0;
@@ -1135,6 +1129,27 @@ int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx *ctx) {
     }
 
     return 0;
+}
+
+SEC("raw_tracepoint/net/net_dev_queue")
+int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb);
+}
+
+SEC("tracepoint/net/net_dev_queue")
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    struct sk_buff* skb = ctx->skb;
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb);
 }
 
 char _license[] SEC("license") = "GPL";

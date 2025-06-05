@@ -500,35 +500,6 @@ function disableCheckSettings(editor) {
   });
 }
 
-// Handler for the reload button, tells the server to run the check once as a test, if it's
-// a success it reloads the check (also displays the tests results as a popup)
-function reloadCheck() {
-  var fileName = $('#check_input').data('file_name');
-  var checkName = fileName.substr(0, fileName.indexOf("."))
-
-  // Test it once with new configuration
-  sendMessage("checks/run/" + checkName + "/once", "", "post",
-  function(data, status, xhr){
-    $("#manage_checks").append("<div class='popup'>" + DOMPurify.sanitize(data["html"]) + "<div class='exit'>x</div></div>");
-    $(".exit").click(function() {
-      $(".popup").remove();
-      $(".exit").remove();
-    });
-
-    // If check test run was successful, reload the check
-    if (data["success"]) {
-      $("#check_run_results").prepend('<div id="summary">Check reloaded: <i class="fa fa-check green"></div>');
-      sendMessage("checks/reload/" + checkName, "", "post",
-      function(data, status, xhr)  {
-        $("#summary").append('<br>Reload results: ' + data);
-      });
-    } else {
-      $("#check_run_results").prepend('<div id="summary"> Check reloaded: <i class="fa fa-times red"></i></div>');
-    }
-  });
-}
-
-
 //************* Add a check
 
 // Handler for when a used clicks on a check to add: starts the process of adding a check
@@ -597,60 +568,6 @@ function createNewConfigFile(checkName, data) {
     });
   });
 }
-
-// Handler for the 'add check' button: saves the file, tests the check, schedules it if
-// appropriate and reloads the view
-function addNewCheck(editor, name) {
-  // Save the new configuration file
-  var settings = editor.getValue();
-  sendMessage("checks/setConfig/" + name + ".d/conf.yaml", JSON.stringify({config: settings}), "post",
-  function(data, status, xhr) {
-    if (data != "Success") {
-      $("#checks_description").html(DOMPurify.sanitize(data));
-      $("#add_check").append('<i class="fa fa-times fa-lg unsuccessful"></i>');
-      $(".unsuccessful").delay(3000).fadeOut("slow");
-      $("#add_check").css("pointer-events", "auto");
-      return
-    }
-
-    // Run the check once (as a test) & print the result as a popup
-    sendMessage("checks/run/" + name + "/once", "", "post",
-    function(data, status, xhr) {
-      var html;
-      if (typeof(data) == "string") html = data
-      else html = data["html"]
-      $("#manage_checks").append("<div class='popup'>" + html + "<div class='exit'>x</div></div>");
-      $(".exit").click(function() {
-        $(".popup").remove();
-        $(".exit").remove();
-        $("#add_check").css("pointer-events", "auto");
-      });
-
-      // Reload the display (once the config file is saved this check is now enabled,
-      // so it gets moved to the 'Edit Running Checks' section)
-      checkDropdown();
-
-      // If check test was successful, schedule the check (if it wasn't unsuccessful)
-      // scheduling it would only trigger an error because the check doesn't run)
-      if (data["success"]) {
-        $("#check_run_results").prepend(
-          '<div id="summary">' +
-            'Check enabled: <i class="fa fa-check green"></i> <br>' +
-            'Check running: <i class="fa fa-check green"></i>' +
-          '</div>');
-
-        sendMessage("checks/run/" + name, "", "post")
-      } else {
-        $("#check_run_results").prepend(
-          '<div id="summary">' +
-            'Check enabled: <i class="fa fa-check green"></i> <br>' +
-            'Check running: <i class="fa fa-times red"></i>' +
-          '</div>');
-      }
-    });
-  });
-}
-
 
 /*************************************************************************
                             See Running Checks

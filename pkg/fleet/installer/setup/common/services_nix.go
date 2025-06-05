@@ -8,32 +8,29 @@
 package common
 
 import (
-	"bytes"
 	"fmt"
-	"os/exec"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
 // restartServices restarts the services that need to be restarted after a package upgrade or
 // an install script re-run; because the configuration may have changed.
 func (s *Setup) restartServices(pkgs []packageWithVersion) error {
+	t := time.Now()
+	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "restartServices")
 	for _, pkg := range pkgs {
 		switch pkg.name {
 		case DatadogAgentPackage:
-			if err := restartService("datadog-agent.service"); err != nil {
-				return err
+			err := systemd.RestartUnit(ctx, "datadog-agent.service")
+			if err != nil {
+				logs, logsErr := systemd.JournaldLogs(ctx, "datadog-agent.service", t)
+				span.SetTag("journald_logs", logs)
+				span.SetTag("journald_logs_err", logsErr)
+				return fmt.Errorf("failed to restart datadog-agent.service: %w", err)
 			}
 		}
-	}
-	return nil
-}
-
-func restartService(unit string) error {
-	cmd := exec.Command("systemctl", "restart", unit)
-	stderr := bytes.Buffer{}
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to restart %s (%s): %s", unit, err.Error(), stderr.String())
 	}
 	return nil
 }
