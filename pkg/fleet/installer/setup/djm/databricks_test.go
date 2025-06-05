@@ -49,6 +49,8 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:example_workspace",
 				"workspace:example_workspace",
+				"dd.internal.resource:databricks_job:example,'job,name",
+				"dd.internal.resource:databricks_cluster:cluster123",
 			},
 		},
 		{
@@ -62,6 +64,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:job-123-run-456",
 				"jobid:123",
 				"runid:456",
+				"dd.internal.resource:databricks_job:123",
 			},
 		},
 		{
@@ -94,6 +97,8 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:\"example_workspace\"",
 				"workspace:example_workspace",
+				"dd.internal.resource:databricks_job:example,'job,name",
+				"dd.internal.resource:databricks_cluster:cluster123",
 			},
 		},
 		{
@@ -119,6 +124,52 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:Example Workspace",
 				"workspace:example_workspace",
+				"dd.internal.resource:databricks_job:example,'job,name",
+				"dd.internal.resource:databricks_cluster:cluster123",
+			},
+		},
+		{
+			name: "internal resource tags with cluster ID from env",
+			env: map[string]string{
+				"DB_CLUSTER_ID":   "cluster-67890",
+				"DB_CLUSTER_NAME": "job-999-run-888",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:job-999-run-888",
+				"databricks_cluster_id:cluster-67890",
+				"cluster_id:cluster-67890",
+				"cluster_name:job-999-run-888",
+				"jobid:999",
+				"runid:888",
+				"dd.internal.resource:databricks_job:999",
+				"dd.internal.resource:databricks_cluster:cluster-67890",
+			},
+		},
+		{
+			name: "only cluster ID env var",
+			env: map[string]string{
+				"DB_CLUSTER_ID": "cluster-only-12345",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_id:cluster-only-12345",
+				"cluster_id:cluster-only-12345",
+				"dd.internal.resource:databricks_cluster:cluster-only-12345",
+			},
+		},
+		{
+			name: "DD_JOB_NAME takes priority over DB_CLUSTER_NAME for resource tag",
+			env: map[string]string{
+				"DD_JOB_NAME":     "my-custom-job",
+				"DB_CLUSTER_NAME": "job-123-run-456",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"job_name:my-custom-job",
+				"databricks_cluster_name:job-123-run-456",
+				"cluster_name:job-123-run-456",
+				"dd.internal.resource:databricks_job:my-custom-job",
 			},
 		},
 	}
