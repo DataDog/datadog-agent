@@ -387,11 +387,11 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
 
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
+    version = get_version(ctx, include_git=True, major_version=major_version)
+    package_version = os.getenv('PACKAGE_VERSION', version)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
-    ldflags += (
-        f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
-    )
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersion={version} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPayloadVersion={payload_v} "
     if install_path:
         if sys.platform == 'win32':
@@ -407,9 +407,10 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
             #       it's also hardcoded in Generate-OCIPackage.ps1
             package_version = f"{package_version}-1"
         else:
-            package_version = os.path.basename(install_path)
-        if package_version != "datadog-agent":
-            ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
+            install_dir = os.path.basename(install_path)
+            if install_dir != "datadog-agent":
+                package_version = install_dir
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
     return ldflags
 
 

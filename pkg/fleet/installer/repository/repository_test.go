@@ -57,7 +57,7 @@ func TestCreateFresh(t *testing.T) {
 	assert.Equal(t, "v1", state.Stable)
 	assert.False(t, state.HasExperiment())
 	assertLinkTarget(t, repository, stableVersionLink, "v1")
-	assertLinkTarget(t, repository, experimentVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, "stable")
 }
 
 func TestCreateOverwrite(t *testing.T) {
@@ -226,7 +226,7 @@ func TestMigrateRepositoryWithoutExperiment(t *testing.T) {
 	err = repository.Cleanup(context.Background())
 	assert.NoError(t, err)
 	assertLinkTarget(t, repository, stableVersionLink, "v1")
-	assertLinkTarget(t, repository, experimentVersionLink, "v1")
+	assertLinkTarget(t, repository, experimentVersionLink, "stable")
 }
 
 func TestDelete(t *testing.T) {
@@ -403,4 +403,41 @@ func TestRepairDirectoryDifferentCasing(t *testing.T) {
 
 	err := repairDirectory(sourceDir, targetDir)
 	assert.Error(t, err)
+}
+
+// This test is used to verify that the repository can handle external packages that are symlinked.
+// Example:
+// ls -al /opt/datadog-packages/datadog-agent/
+// total 12
+// drwxr-xr-x 3 root     root     4096 May 23 09:12 .
+// drwxr-xr-x 5 root     root     4096 May 23 09:12 ..
+// drwxr-xr-x 9 dd-agent dd-agent 4096 May 23 09:12 7.65.2-1 -> /opt/datadog-agent
+// lrwxrwxrwx 1 root     root       42 May 23 09:12 experiment -> /opt/datadog-packages/datadog-agent/stable
+// lrwxrwxrwx 1 root     root       44 May 23 09:12 stable -> /opt/datadog-packages/datadog-agent/7.65.2-1
+func TestExternalPackage(t *testing.T) {
+	datadogPackagesDatadogAgentDir := t.TempDir()
+	datadogAgentDir := t.TempDir()
+	datadogAgentVersion := "7.65.2-1"
+
+	err := os.Symlink(datadogAgentDir, filepath.Join(datadogPackagesDatadogAgentDir, datadogAgentVersion))
+	assert.NoError(t, err)
+	err = os.Symlink(filepath.Join(datadogPackagesDatadogAgentDir, datadogAgentVersion), filepath.Join(datadogPackagesDatadogAgentDir, "stable"))
+	assert.NoError(t, err)
+	err = os.Symlink(filepath.Join(datadogPackagesDatadogAgentDir, "stable"), filepath.Join(datadogPackagesDatadogAgentDir, "experiment"))
+	assert.NoError(t, err)
+
+	r := Repository{
+		rootPath: datadogPackagesDatadogAgentDir,
+	}
+
+	state, err := r.GetState()
+	assert.NoError(t, err)
+	assert.Equal(t, datadogAgentVersion, state.Stable)
+	assert.False(t, state.HasExperiment())
+
+	err = r.Delete(context.Background())
+	assert.NoError(t, err)
+
+	assert.NoDirExists(t, datadogPackagesDatadogAgentDir)
+	assert.NoDirExists(t, datadogAgentDir)
 }
