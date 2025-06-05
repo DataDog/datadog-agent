@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0
-	github.com/shirou/gopsutil/v4 v4.25.4
+	github.com/shirou/gopsutil/v4 v4.25.5
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.33.0
