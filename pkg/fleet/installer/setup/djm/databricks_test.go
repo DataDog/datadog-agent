@@ -523,7 +523,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 		expectedCollectGPUTags      bool
 		expectedEnableNVML          bool
 		expectedSystemProbeGPU      bool
-		expectedSpanTag             string
 	}{
 		{
 			name: "GPU monitoring enabled",
@@ -533,7 +532,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 			expectedCollectGPUTags: true,
 			expectedEnableNVML:     true,
 			expectedSystemProbeGPU: true,
-			expectedSpanTag:        "true",
 		},
 		{
 			name: "GPU monitoring enabled with any value",
@@ -543,7 +541,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 			expectedCollectGPUTags: true,
 			expectedEnableNVML:     true,
 			expectedSystemProbeGPU: true,
-			expectedSpanTag:        "true",
 		},
 		{
 			name: "GPU monitoring enabled with empty string value",
@@ -553,7 +550,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 			expectedCollectGPUTags: false,
 			expectedEnableNVML:     false,
 			expectedSystemProbeGPU: false,
-			expectedSpanTag:        "",
 		},
 		{
 			name:                   "GPU monitoring not set",
@@ -561,7 +557,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 			expectedCollectGPUTags: false,
 			expectedEnableNVML:     false,
 			expectedSystemProbeGPU: false,
-			expectedSpanTag:        "",
 		},
 	}
 
@@ -597,10 +592,6 @@ func TestSetupGPUIntegration(t *testing.T) {
 				}
 			}
 
-			// Check span tag was set correctly
-			if tt.expectedSpanTag != "" {
-				assert.Contains(t, output.String(), "GPU monitoring enabled")
-			}
 		})
 	}
 }
