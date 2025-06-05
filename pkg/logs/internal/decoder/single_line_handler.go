@@ -66,6 +66,8 @@ func (h *SingleLineHandler) process(msg *message.Message) {
 		// the line is too long, it needs to be cut off and send,
 		// adding the truncated flag the end of the content
 		content = append(content, message.TruncatedFlag...)
+		metrics.LogsTruncated.Add(1)
+		metrics.TlmLogsTruncated.Inc()
 	}
 
 	if lastWasTruncated || h.shouldTruncate {

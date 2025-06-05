@@ -12,5 +12,5 @@ import (
 )
 
 func TestMetrics(t *testing.T) {
-	assert.Equal(t, LogsExpvars.String(), `{"BytesMissed": 0, "BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "HttpDestinationStats": {}, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0}`)
+	assert.Equal(t, LogsExpvars.String(), `{"BytesMissed": 0, "BytesSent": 0, "DestinationErrors": 0, "DestinationLogsDropped": {}, "EncodedBytesSent": 0, "HttpDestinationStats": {}, "LogsDecoded": 0, "LogsProcessed": 0, "LogsSent": 0, "LogsTruncated": 0, "RetryCount": 0, "RetryTimeSpent": 0, "SenderLatency": 0}`)
 }

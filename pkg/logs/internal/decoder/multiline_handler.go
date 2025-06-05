@@ -126,6 +126,8 @@ func (h *MultiLineHandler) process(msg *message.Message) {
 		h.isBufferTruncated = true
 		h.sendBuffer()
 		h.shouldTruncate = true
+		metrics.LogsTruncated.Add(1)
+		metrics.TlmLogsTruncated.Inc()
 	}
 
 	if h.buffer.Len() > 0 {
