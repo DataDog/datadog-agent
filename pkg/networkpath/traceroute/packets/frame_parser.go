@@ -40,7 +40,7 @@ const expectedLayerCount = 2
 func NewFrameParser() *FrameParser {
 	p := &FrameParser{}
 	p.parserv4 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
-	p.parserv6 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &p.IP6, &p.ICMP6, &p.Payload)
+	p.parserv6 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &p.IP6, &p.TCP, &p.ICMP6, &p.Payload)
 	return p
 }
 
@@ -87,7 +87,7 @@ func (p *FrameParser) GetTransportLayer() gopacket.LayerType {
 }
 
 var ipLayers = []gopacket.LayerType{layers.LayerTypeIPv4, layers.LayerTypeIPv6}
-var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerTypeUDP, layers.LayerTypeICMPv4, layers.LayerTypeIPv6}
+var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerTypeUDP, layers.LayerTypeICMPv4, layers.LayerTypeICMPv6, layers.LayerTypeIPv6}
 
 // checkLayers sanity checks the layers of the parse.
 func (p *FrameParser) checkLayers() error {

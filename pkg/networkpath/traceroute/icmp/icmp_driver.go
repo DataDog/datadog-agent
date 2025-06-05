@@ -246,8 +246,7 @@ func extractEchoRequest(parser *packets.FrameParser) (*layers.ICMPv6Echo, error)
 		layers.LayerTypeICMPv6,
 		&icmp6, &echo,
 	)
-	decoded := []gopacket.LayerType{}
-	err = dparser.DecodeLayers(icmpInfo.Payload, &decoded)
+	err = dparser.DecodeLayers(icmpInfo.Payload, &[]gopacket.LayerType{})
 	if err != nil {
 		return nil, &common.BadPacketError{Err: fmt.Errorf("icmpDriver failed to decode ICMPv6 info payload: %w", err)}
 	}

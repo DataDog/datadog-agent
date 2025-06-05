@@ -40,15 +40,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	//if len(os.Args) < 2 {
-	//	println("Usage: portable_icmp <target>")
-	//	os.Exit(1)
-	//}
-	//target := os.Args[1]
+	if len(os.Args) < 2 {
+		println("Usage: portable_icmp <target>")
+		os.Exit(1)
+	}
+	target := os.Args[1]
 
 	cfg := icmp.Params{
-		Target: netip.MustParseAddr("8.8.8.8"),
-		//Target: netip.MustParseAddr("2001:4860:4860::8888"),
+		Target: netip.MustParseAddr(target),
 		ParallelParams: common.TracerouteParallelParams{
 			TracerouteParams: common.TracerouteParams{
 				MinTTL:            1,
