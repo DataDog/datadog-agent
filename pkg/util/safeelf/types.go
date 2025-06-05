@@ -11,6 +11,7 @@ import "debug/elf" //nolint:depguard
 type Prog = elf.Prog
 type Symbol = elf.Symbol
 type Section = elf.Section
+type SectionHeader = elf.SectionHeader
 type SectionType = elf.SectionType
 type SectionIndex = elf.SectionIndex
 

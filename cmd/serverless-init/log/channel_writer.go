@@ -34,6 +34,12 @@ func NewChannelWriter(ch chan *logConfig.ChannelMessage, isError bool) *ChannelW
 // Write buffers Writes from our stdout/stderr fd,
 // and sends to the channel once we've received newlines.
 func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
+	// Flush full stacktrace without splitting by new line
+	if cw.IsError {
+		cw.sendPayload(p)
+		return
+	}
+
 	n, err = cw.Buffer.Write(p)
 	if err != nil {
 		return n, err
@@ -55,20 +61,23 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 			continue
 		}
 
-		channelMessage := &logConfig.ChannelMessage{
-			Content: []byte(line[:len(line)-1]),
-			IsError: cw.IsError,
-		}
-
-		select {
-		case cw.Channel <- channelMessage:
-			// Success case -- the channel isn't full, and can accommodate our message
-		default:
-			// Channel is full (i.e, we aren't flushing data to Datadog as our backend is down).
-			// message will be dropped.
-			log.Debug("Log dropped due to full buffer")
-		}
-
+		cw.sendPayload([]byte(line[:len(line)-1]))
 	}
 	return n, nil
+}
+
+func (cw *ChannelWriter) sendPayload(payload []byte) {
+	channelMessage := &logConfig.ChannelMessage{
+		Content: payload,
+		IsError: cw.IsError,
+	}
+
+	select {
+	case cw.Channel <- channelMessage:
+		// Success case -- the channel isn't full, and can accommodate our message
+	default:
+		// Channel is full (i.e, we aren't flushing data to Datadog as our backend is down).
+		// message will be dropped.
+		log.Debug("Log dropped due to full buffer")
+	}
 }

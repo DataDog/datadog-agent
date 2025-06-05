@@ -1,7 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
-github.com/DataDog/agent-payload/v5 v5.0.152 h1:ftd3Y7NPHBnJk/RZ9e72+unr71yNuY9o+3q7vpAoUQ0=
-github.com/DataDog/agent-payload/v5 v5.0.152/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
+github.com/DataDog/agent-payload/v5 v5.0.155 h1:tOD4Q3imRewXwEa1iDRZrKOIQhYQN4+GaRpV0dA6ckU=
+github.com/DataDog/agent-payload/v5 v5.0.155/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.27.1 h1:gAmbJwdo7V1YM2eEzi9+4gRu4dy+65LBkLN5ECB2q2Y=

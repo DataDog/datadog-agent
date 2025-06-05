@@ -2,6 +2,30 @@
 Release Notes
 =============
 
+.. _Release Notes_7.66.1:
+
+7.66.1
+======
+
+.. _Release Notes_7.66.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-06-03
+
+- Please refer to the `7.66.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7661>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.66.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes issue parsing pod list from kubelet when the `InPlacePodVerticalScaling`
+  feature gate is enabled on the cluster.
+
+
 .. _Release Notes_7.66.0:
 
 7.66.0
