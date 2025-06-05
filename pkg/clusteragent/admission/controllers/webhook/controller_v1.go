@@ -367,6 +367,7 @@ func (c *ControllerV1) generateTemplates() {
 				nsSelector,
 				objSelector,
 				webhook.MatchConditions(),
+				webhook.Timeout(),
 			),
 		)
 	}
@@ -389,17 +390,20 @@ func (c *ControllerV1) generateTemplates() {
 				nsSelector,
 				objSelector,
 				webhook.MatchConditions(),
+				webhook.Timeout(),
 			),
 		)
 	}
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 
-func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition) admiv1.ValidatingWebhook {
+func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.ValidatingWebhook {
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
-	timeout := c.config.getTimeout()
+	if timeout == 0 {
+		timeout = c.config.getTimeout()
+	}
 	failurePolicy := c.getFailurePolicy()
 
 	webhook := admiv1.ValidatingWebhook{
