@@ -952,7 +952,7 @@ type VariableScope interface {
 }
 
 // Scoper maps a variable to the entity its scoped to
-type Scoper func(ctx *Context) VariableScope
+type Scoper func(ctx *Context, scopeFieldEvaluator Evaluator) VariableScope
 
 // Variables holds a set of variables
 type Variables struct {
@@ -962,10 +962,11 @@ type Variables struct {
 
 // VariableOpts holds the options of a variable set
 type VariableOpts struct {
-	Size      int
-	TTL       time.Duration
-	Private   bool // When a variable is marked as private, it will not be included in the serialized event
-	Inherited bool
+	Size                int
+	TTL                 time.Duration
+	Private             bool // When a variable is marked as private, it will not be included in the serialized event
+	Inherited           bool
+	ScopeFieldEvaluator Evaluator
 }
 
 // NewVariables returns a new set of global variables
@@ -1042,7 +1043,7 @@ func (v *ScopedVariables) Len() int {
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
-		scope := v.scoper(ctx)
+		scope := v.scoper(ctx, opts.ScopeFieldEvaluator)
 		if scope == nil {
 			return nil
 		}
@@ -1061,7 +1062,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 	}
 
 	setVariable := func(ctx *Context, value interface{}) error {
-		scope := v.scoper(ctx)
+		scope := v.scoper(ctx, opts.ScopeFieldEvaluator)
 		if scope == nil {
 			return fmt.Errorf("failed to scope variable '%s'", name)
 		}

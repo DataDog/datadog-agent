@@ -59,6 +59,10 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 		if a.Set.Inherited && a.Set.Scope != "process" {
 			return fmt.Errorf("only variables scoped to process can be marked as inherited")
 		}
+
+		if len(a.Set.ScopeField) > 0 && a.Set.Scope != "process" {
+			return fmt.Errorf("only variables scoped to process can have a custom scope_field")
+		}
 	} else if a.Kill != nil {
 		if opts.DisableEnforcement {
 			a.Kill = nil

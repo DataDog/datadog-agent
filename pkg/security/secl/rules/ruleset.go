@@ -451,6 +451,20 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 				opts := eval.VariableOpts{TTL: actionDef.Set.TTL.GetDuration(), Size: actionDef.Set.Size, Private: actionDef.Set.Private, Inherited: actionDef.Set.Inherited}
 
+				if len(actionDef.Set.ScopeField) > 0 {
+					evaluator, found := rs.fieldEvaluators[actionDef.Set.ScopeField]
+					if !found {
+						var err error
+						evaluator, err = rs.model.GetEvaluator(actionDef.Set.ScopeField, "", 0)
+						if err != nil {
+							errs = multierror.Append(&ErrScopeField{Expression: actionDef.Set.ScopeField, Err: err})
+							continue
+						}
+						rs.fieldEvaluators[actionDef.Set.ScopeField] = evaluator
+					}
+					opts.ScopeFieldEvaluator = evaluator
+				}
+
 				variable, err := variableProvider.NewSECLVariable(actionDef.Set.Name, variableValue, opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s' (%+v): %w", reflect.TypeOf(variableValue), actionDef.Set.Name, actionDef.Set, err))
