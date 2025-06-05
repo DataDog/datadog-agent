@@ -48,8 +48,19 @@ type collector struct {
 	containerProvider      proccontainers.ContainerProvider
 }
 
+// EventType represents the type of collector event
+type EventType int
+
+const (
+	// EventTypeProcess means the event comes from Process Discovery.
+	EventTypeProcess EventType = iota
+	// EventTypeServiceDiscovery means the event comes from Service Discovery.
+	EventTypeServiceDiscovery
+)
+
 // Event is a message type used to communicate with the stream function asynchronously
 type Event struct {
+	Type    EventType
 	Created []*workloadmeta.Process
 	Deleted []*workloadmeta.Process
 }
@@ -233,6 +244,7 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 
 			// send these events to the channel
 			c.processEventsCh <- &Event{
+				Type:    EventTypeProcess,
 				Created: wlmCreatedProcs,
 				Deleted: wlmDeletedProcs,
 			}
@@ -256,12 +268,22 @@ func (c *collector) stream(ctx context.Context) {
 		case <-healthCheck.C:
 
 		case processEvent := <-c.processEventsCh:
+			var source workloadmeta.Source
+
+			// Choose source based on event type
+			switch processEvent.Type {
+			case EventTypeProcess:
+				source = workloadmeta.SourceProcessCollector
+			case EventTypeServiceDiscovery:
+				source = workloadmeta.SourceServiceDiscovery
+			}
+
 			events := make([]workloadmeta.CollectorEvent, 0, len(processEvent.Deleted)+len(processEvent.Created))
 			for _, proc := range processEvent.Deleted {
 				events = append(events, workloadmeta.CollectorEvent{
 					Type:   workloadmeta.EventTypeUnset,
 					Entity: proc,
-					Source: workloadmeta.SourceProcessCollector,
+					Source: source,
 				})
 			}
 
@@ -269,7 +291,7 @@ func (c *collector) stream(ctx context.Context) {
 				events = append(events, workloadmeta.CollectorEvent{
 					Type:   workloadmeta.EventTypeSet,
 					Entity: proc,
-					Source: workloadmeta.SourceProcessCollector,
+					Source: source,
 				})
 			}
 
