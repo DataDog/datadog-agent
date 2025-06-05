@@ -518,11 +518,11 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 
 func TestSetupGPUIntegration(t *testing.T) {
 	tests := []struct {
-		name                        string
-		env                         map[string]string
-		expectedCollectGPUTags      bool
-		expectedEnableNVML          bool
-		expectedSystemProbeGPU      bool
+		name                   string
+		env                    map[string]string
+		expectedCollectGPUTags bool
+		expectedEnableNVML     bool
+		expectedSystemProbeGPU bool
 	}{
 		{
 			name: "GPU monitoring enabled",
