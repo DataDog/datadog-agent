@@ -116,10 +116,6 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			shouldNotContain: []string{"Error"},
 		},
 		{
-			name:            "APM Auto-Instrumentation",
-			shouldBePresent: true,
-		},
-		{
 			name:            "Autodiscovery",
 			shouldBePresent: false,
 		},
@@ -203,6 +199,10 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			// XXX: this test is expected to fail until 7.48 as a known status render errors has been fixed in #18123
 			name:            "Status render errors",
 			shouldBePresent: false,
+		},
+		{
+			name:            "SSI",
+			shouldBePresent: true,
 		},
 	}
 

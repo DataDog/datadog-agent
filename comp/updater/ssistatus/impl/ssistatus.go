@@ -10,6 +10,7 @@ import (
 	"context"
 	"embed"
 	"io"
+	"runtime"
 	"slices"
 	"time"
 
@@ -91,12 +92,12 @@ func (c *ssiStatusComponent) Stop(_ context.Context) error {
 
 // Name renders the name
 func (c *ssiStatusComponent) Name() string {
-	return "APM Auto-Instrumentation"
+	return "SSI"
 }
 
 // Section renders the section
 func (c *ssiStatusComponent) Section() string {
-	return "APM Auto-Instrumentation"
+	return "SSI"
 }
 
 // JSON renders the JSON
@@ -117,19 +118,26 @@ func (c *ssiStatusComponent) HTML(_ bool, buffer io.Writer) error {
 
 func (c *ssiStatusComponent) populateStatus(stats map[string]interface{}) {
 	autoInstrumentationEnabled, instrumentationModes, err := c.autoInstrumentationStatus()
-	ssiStatus := make(map[string]bool)
-	if err == nil {
-		ssiStatus["apmStatusNotAvailable"] = false
-		if autoInstrumentationEnabled {
-			ssiStatus["autoInstrumentationEnabled"] = true
-			ssiStatus["hostInstrumented"] = slices.Contains(instrumentationModes, "host")
-			ssiStatus["dockerInstrumented"] = slices.Contains(instrumentationModes, "docker")
-		} else {
-			ssiStatus["autoInstrumentationEnabled"] = false
-		}
+	ssiStatus := make(map[string]interface{})
+	if err != nil {
+		ssiStatus["status"] = "unavailable"
 	} else {
-		ssiStatus["apmStatusNotAvailable"] = true
+		if autoInstrumentationEnabled {
+			ssiStatus["status"] = "enabled"
+		} else {
+			ssiStatus["status"] = "disabled"
+		}
 	}
+	modes := make(map[string]bool)
+	switch os := runtime.GOOS; os {
+	case "windows":
+	case "linux":
+		modes["host"] = slices.Contains(instrumentationModes, "host")
+		modes["docker"] = slices.Contains(instrumentationModes, "docker")
+	default:
+		ssiStatus["status"] = "unsupported"
+	}
+	ssiStatus["modes"] = modes
 	stats["ssiStatus"] = ssiStatus
 }
 
