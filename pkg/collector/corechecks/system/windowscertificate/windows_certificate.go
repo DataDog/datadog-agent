@@ -296,7 +296,7 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	storeHandle, err := openCertificateStore(
 		windows.CERT_STORE_PROV_REG,
 		windows.CERT_STORE_OPEN_EXISTING_FLAG,
-		uintptr(unsafe.Pointer(certStoreKey)))
+		uintptr(certStoreKey))
 	if err != nil {
 		log.Errorf("Error opening certificate store %s: %v", store, err)
 		return nil, err
