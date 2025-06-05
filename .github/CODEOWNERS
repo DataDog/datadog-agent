@@ -333,7 +333,6 @@
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/tagger @DataDog/container-platform
 /comp/core/workloadmeta @DataDog/container-platform
-/comp/core/workloadmeta/collectors/internal/process @DataDog/container-experiences
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/container-app
@@ -599,6 +598,7 @@
 /pkg/snmp/                              @DataDog/ndm-core
 /pkg/tagger/                            @DataDog/container-platform
 /pkg/windowsdriver/                     @DataDog/windows-agent
+/comp/core/workloadmeta/collectors/internal/process  @DataDog/container-experiences
 /comp/core/workloadmeta/collectors/internal/cloudfoundry  @DataDog/agent-integrations
 /comp/core/workloadmeta/collectors/internal/containerd    @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/crio          @DataDog/container-platform @DataDog/container-integrations
