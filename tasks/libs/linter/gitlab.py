@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import sys
+from collections.abc import Callable
 from glob import glob
 from typing import Any
 
@@ -25,6 +27,41 @@ from tasks.libs.owners.parsing import read_owners
 
 
 # === Task code bodies === #
+def gitlabci_lint_task_template(
+    task_body: Callable,
+    success_message: str,
+    ctx,
+    configs_or_diff_file: str | None = None,
+    use_diff: bool = False,
+):
+    """
+    Generic task template for gitlabci linting tasks.
+
+    This function handles config loading/generation & failure printing.
+    The actual task-specific logic should be passed in `task_body`.
+    """
+    full_config: dict[str, dict]
+    if use_diff:
+        _, _, diff = load_or_generate_gitlab_ci_diff(ctx, configs_or_diff_file)
+        jobs = extract_gitlab_ci_jobs(diff=diff)
+        full_config = diff.after  # type: ignore
+    else:
+        configs = load_or_generate_gitlab_ci_configs(ctx, configs_or_diff_file)
+        jobs = extract_gitlab_ci_jobs(configs=configs)
+        full_config = configs  # type: ignore
+
+    # No change, info already printed in extract_gitlab_ci_jobs
+    if not jobs:
+        return
+
+    try:
+        task_body(jobs=jobs, full_config=full_config)
+    except (GitlabLintFailure, MultiGitlabLintFailure) as e:
+        print(e.pretty_print())
+        sys.exit(e.exit_code)
+    print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
+
+
 def lint_and_test_gitlab_ci_config(
     configs: dict[str, dict],
     test="all",
