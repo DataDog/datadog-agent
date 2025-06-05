@@ -287,8 +287,9 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 
 	// Act
 	s.WaitForDaemonToStop(func() {
-		_, err := s.startExperimentPreviousVersion()
-		s.Require().NoError(err, "daemon should stop cleanly")
+		s.startExperimentPreviousVersion()
+		// TODO: after stable is 7.68, we can check for error
+		// s.Require().NoError(err, "daemon should stop cleanly")
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Assert
