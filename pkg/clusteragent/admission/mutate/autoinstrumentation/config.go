@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -65,6 +66,13 @@ type Config struct {
 	// defaultResourceRequirements is the default resource requirements
 	// for the init containers.
 	defaultResourceRequirements initResourceRequirementConfiguration
+
+	// podMetaAsTags is the unified configuration from [[configUtils.MetadataAsTags]]
+	// filtered to pod annotations and pod labels.
+	//
+	// This is used for picking a default service name for a given pod,
+	// see [[serviceNameMutator]].
+	podMetaAsTags podMetaAsTags
 
 	// version is the version of the autoinstrumentation logic to use.
 	// We don't expose this option to the user, and [[instrumentationV1]]
@@ -120,6 +128,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		securityClientLibraryMutator:  securityClientLibraryConfigMutators(datadogConfig),
 		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
 		containerFilter:               excludedContainerNamesContainerFilter,
+		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
 		version:                       version,
 	}, nil
 }
@@ -138,6 +147,19 @@ func NewWebhookConfig(datadogConfig config.Component) *WebhookConfig {
 		IsEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
 		Endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
 	}
+}
+
+func getPodMetaAsTags(datadogConfig config.Component) podMetaAsTags {
+	tags := configUtils.GetMetadataAsTags(datadogConfig)
+	return podMetaAsTags{
+		Labels:      tags.GetPodLabelsAsTags(),
+		Annotations: tags.GetPodAnnotationsAsTags(),
+	}
+}
+
+type podMetaAsTags struct {
+	Labels      map[string]string
+	Annotations map[string]string
 }
 
 // LanguageDetectionConfig is a struct to store the configuration for the language detection. It can be populated using
