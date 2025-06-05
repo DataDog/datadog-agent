@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.68.0-devel
 	github.com/DataDog/datadog-agent/pkg/trace v0.65.1
 	github.com/DataDog/datadog-go/v5 v5.6.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.28.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.127.0
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/collector/component v1.33.0
@@ -218,11 +218,11 @@ require (
 	go.opentelemetry.io/collector/pipeline v0.127.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.127.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
-	go.opentelemetry.io/otel v1.35.0 // indirect
-	go.opentelemetry.io/otel/metric v1.35.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
-	go.opentelemetry.io/otel/trace v1.35.0 // indirect
+	go.opentelemetry.io/otel v1.36.0 // indirect
+	go.opentelemetry.io/otel/metric v1.36.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.36.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.36.0 // indirect
+	go.opentelemetry.io/otel/trace v1.36.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
