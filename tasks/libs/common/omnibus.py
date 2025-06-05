@@ -11,6 +11,10 @@ from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES
 from tasks.release import _get_release_json_value
 
+# Increase this value to force an update to the cache key, invalidating existing
+# caches and forcing a rebuild
+CACHE_VERSION = 2
+
 
 def _get_omnibus_commits(field):
     return _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{field}')
@@ -245,6 +249,7 @@ def omnibus_compute_cache_key(ctx):
         h.update(str.encode(f'{k}={v}'))
         print(f'Current hash value: {h.hexdigest()}')
     cache_key = h.hexdigest()
+    cache_key += f'_{CACHE_VERSION}'
     print(f'Cache key: {cache_key}')
     return cache_key
 
