@@ -37,7 +37,7 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 	// Flush full stacktrace without splitting by new line
 	if cw.IsError {
 		cw.sendPayload(p)
-		return
+		return len(p), nil
 	}
 
 	n, err = cw.Buffer.Write(p)
