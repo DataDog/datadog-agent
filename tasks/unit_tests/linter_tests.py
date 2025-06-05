@@ -75,17 +75,19 @@ class TestIsGetParameterCall(unittest.TestCase):
 class TestGitlabChangePaths(unittest.TestCase):
     @patch("builtins.print")
     @patch(
-        "tasks.linter.generate_gitlab_full_configuration",
-        new=MagicMock(return_value={"rules": {"changes": {"paths": ["tasks/**/*.py"]}}}),
+        "tasks.linter.get_all_gitlab_ci_configurations",
+        new=MagicMock(return_value={".gitlab-ci.yml": {"rules": {"changes": {"paths": ["tasks/**/*.py"]}}}}),
     )
     def test_all_ok(self, print_mock):
         linter.gitlab_change_paths(MockContext())
         print_mock.assert_called_with("All rule:changes:paths from gitlab-ci are \x1b[92mvalid\x1b[0m.")
 
     @patch(
-        "tasks.linter.generate_gitlab_full_configuration",
+        "tasks.linter.get_all_gitlab_ci_configurations",
         new=MagicMock(
-            return_value={"rules": {"changes": {"paths": ["tosks/**/*.py", "tasks/**/*.py", "tusks/**/*.py"]}}}
+            return_value={
+                ".gitlab-ci.yml": {"rules": {"changes": {"paths": ["tosks/**/*.py", "tasks/**/*.py", "tusks/**/*.py"]}}}
+            }
         ),
     )
     def test_bad_paths(self):
