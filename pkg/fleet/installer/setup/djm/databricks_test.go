@@ -515,3 +515,77 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 		})
 	}
 }
+
+func TestSetupGPUIntegration(t *testing.T) {
+	tests := []struct {
+		name                    string
+		env                     map[string]string
+		expectedCollectGPUTags  bool
+		expectedEnableNVML      bool
+		expectedSpanTag         string
+	}{
+		{
+			name: "GPU monitoring enabled",
+			env: map[string]string{
+				"GPU_MONITORING_ENABLED": "true",
+			},
+			expectedCollectGPUTags: true,
+			expectedEnableNVML:     true,
+			expectedSpanTag:        "true",
+		},
+		{
+			name: "GPU monitoring enabled with any value",
+			env: map[string]string{
+				"GPU_MONITORING_ENABLED": "1",
+			},
+			expectedCollectGPUTags: true,
+			expectedEnableNVML:     true,
+			expectedSpanTag:        "true",
+		},
+		{
+			name: "GPU monitoring enabled with empty string value",
+			env: map[string]string{
+				"GPU_MONITORING_ENABLED": "",
+			},
+			expectedCollectGPUTags: false,
+			expectedEnableNVML:     false,
+			expectedSpanTag:        "",
+		},
+		{
+			name:                   "GPU monitoring not set",
+			env:                    map[string]string{},
+			expectedCollectGPUTags: false,
+			expectedEnableNVML:     false,
+			expectedSpanTag:        "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			for k, v := range tt.env {
+				require.NoError(t, os.Setenv(k, v))
+			}
+
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			output := &common.Output{}
+			s := &common.Setup{
+				Span: span,
+				Out:  output,
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
+				},
+			}
+
+			setupGPUIntegration(s)
+
+			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
+			assert.Equal(t, tt.expectedEnableNVML, s.Config.DatadogYAML.EnableNVMLDetection)
+
+			// Check span tag was set correctly
+			if tt.expectedSpanTag != "" {
+				assert.Contains(t, output.String(), "GPU monitoring enabled")
+			}
+		})
+	}
+}

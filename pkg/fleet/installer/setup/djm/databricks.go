@@ -117,6 +117,8 @@ func SetupDatabricks(s *common.Setup) error {
 	}
 	s.Span.SetTag("install_method", installMethod)
 
+	setupGPUIntegration(s)
+
 	switch os.Getenv("DB_IS_DRIVER") {
 	case "TRUE":
 		setupDatabricksDriver(s)
@@ -218,6 +220,15 @@ func setHostTag(s *common.Setup, tagKey, value string) {
 func setClearHostTag(s *common.Setup, tagKey, value string) {
 	s.Config.DatadogYAML.Tags = append(s.Config.DatadogYAML.Tags, tagKey+":"+value)
 	s.Span.SetTag("host_tag_value."+tagKey, value)
+}
+
+func setupGPUIntegration(s *common.Setup) {
+	if os.Getenv("GPU_MONITORING_ENABLED") != "" {
+		s.Out.WriteString("GPU monitoring enabled via GPU_MONITORING_ENABLED environment variable\n")
+		s.Config.DatadogYAML.CollectGPUTags = true
+		s.Config.DatadogYAML.EnableNVMLDetection = true
+		s.Span.SetTag("gpu_monitoring_enabled", "true")
+	}
 }
 
 func setupDatabricksDriver(s *common.Setup) {
