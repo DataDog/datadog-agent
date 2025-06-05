@@ -117,7 +117,7 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, codeDump.Close()) }()
 
-	compiledBPF, err := compiler.CompileBPFProgram(*irp, codeDump)
+	compiledBPF, err := compiler.CompileBPFProgram(irp, codeDump)
 	require.NoError(t, err)
 	defer func() { compiledBPF.Obj.Close() }()
 

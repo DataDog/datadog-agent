@@ -72,7 +72,7 @@ func TestCompileBPFProgram(t *testing.T) {
 		},
 		Lines: []ir.SubprogramLine{},
 	}
-	p := ir.Program{
+	p := &ir.Program{
 		ID: 123,
 		Probes: []*ir.Probe{
 			{
