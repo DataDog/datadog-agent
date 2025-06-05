@@ -72,4 +72,5 @@ func init() {
 	allCapabilities["chdir"] = mergeCapabilities(buildBasenameCapabilities("chdir", "file"), processCapabilities)
 	allCapabilities["bpf"] = bpfCapabilities
 	allCapabilities["sysctl"] = sysctlCapabilities
+	allCapabilities["connect"] = connectCapabilities
 }
