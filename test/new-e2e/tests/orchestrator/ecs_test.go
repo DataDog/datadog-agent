@@ -48,25 +48,25 @@ func TestECSSuite(t *testing.T) {
 }
 
 func (suite *ecsSuite) TestECSEC2Task() {
-	expectAtLeastOneResource{
+	expectResource{
 		filter: &fakeintake.PayloadFilter{ResourceType: process.TypeCollectorECSTask},
 		test: func(payload *aggregator.OrchestratorPayload) bool {
 			return commonTest(payload) && payload.ECSTask.LaunchType == "ec2"
 		},
 		message: "receive ecs ec2 task payload",
 		timeout: 20 * time.Minute,
-	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client(), 1, nil)
 }
 
 func (suite *ecsSuite) TestECSFargateTask() {
-	expectAtLeastOneResource{
+	expectResource{
 		filter: &fakeintake.PayloadFilter{ResourceType: process.TypeCollectorECSTask},
 		test: func(payload *aggregator.OrchestratorPayload) bool {
 			return commonTest(payload) && payload.ECSTask.LaunchType == "fargate"
 		},
 		message: "receive ecs fargate task payload",
 		timeout: 20 * time.Minute,
-	}.Assert(suite.T(), suite.Env().FakeIntake.Client())
+	}.Assert(suite.T(), suite.Env().FakeIntake.Client(), 1, nil)
 }
 
 func commonTest(payload *aggregator.OrchestratorPayload) bool {

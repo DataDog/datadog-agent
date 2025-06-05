@@ -17,27 +17,28 @@ import (
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-// expectAtLeastOneResource is a helper to wait for a resource to appear in the orchestrator payloads
-type expectAtLeastOneResource struct {
+// expectResource is a helper to wait for a resource to appear in the orchestrator payloads
+type expectResource struct {
 	filter  *fakeintake.PayloadFilter
 	test    func(payload *aggregator.OrchestratorPayload) bool
 	message string
 	timeout time.Duration
 }
 
-// Assert waits for a resource to appear in the orchestrator payloads, then checks if any of the found payloads pass the
-// supplied test function. If no matching resource is found within the timeout, the test fails.
-func (e expectAtLeastOneResource) Assert(t *testing.T, client *fakeintake.Client) {
+// Assert tests that the orchestrator payloads contain at least `min` resources that match the filter and pass the test function.
+// If `max` is provided, it also checks that the number of resources does not exceed `max`.
+// If no matching resources are found within the timeout, the test fails.
+func (e expectResource) Assert(t *testing.T, client *fakeintake.Client, min int, max *int) {
 	giveup := time.Now().Add(e.timeout)
 	fmt.Println("trying to " + e.message)
+	count := 0
 	for {
 		payloads, err := client.GetOrchestratorResources(e.filter)
 		require.NoError(t, err, "failed to get resource payloads from intake")
-		//fmt.Printf("found %d resources\n", len(payloads))
 		for _, p := range payloads {
 			if p != nil && e.test(p) {
-				fmt.Println("success: " + e.message)
-				return
+				fmt.Println("receive: " + e.message)
+				count++
 			}
 		}
 		if time.Now().After(giveup) {
@@ -45,7 +46,13 @@ func (e expectAtLeastOneResource) Assert(t *testing.T, client *fakeintake.Client
 		}
 		time.Sleep(5 * time.Second)
 	}
-	t.Error("failed to " + e.message)
+
+	// If max is nil, we only check that we found at least min resources
+	if max == nil {
+		require.True(t, count >= min, "expected to find at least %d, but found %d", min, count)
+	} else {
+		require.True(t, count >= min && count <= *max, "expected to find at least %d and at most %d resources, but found %d", min, max, count)
+	}
 }
 
 type manifest struct {
