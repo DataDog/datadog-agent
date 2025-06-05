@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.28.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.26.0
 	github.com/stormcat24/protodep v0.1.8
 	github.com/stretchr/testify v1.10.0
@@ -135,11 +135,11 @@ require (
 	go.opentelemetry.io/collector/pipeline v0.127.0 // indirect
 	go.opentelemetry.io/collector/receiver v1.33.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.127.0 // indirect
-	go.opentelemetry.io/otel v1.35.0 // indirect
-	go.opentelemetry.io/otel/metric v1.35.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
-	go.opentelemetry.io/otel/trace v1.35.0 // indirect
+	go.opentelemetry.io/otel v1.36.0 // indirect
+	go.opentelemetry.io/otel/metric v1.36.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.36.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.36.0 // indirect
+	go.opentelemetry.io/otel/trace v1.36.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
