@@ -1023,6 +1023,8 @@ type SetrlimitEvent struct {
 // SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
-	Level   uint32 `field:"level"`   // SECLDoc[level] Definition:`Socket level`
-	OptName uint32 `field:"optname"` // SECLDoc[optname] Definition:`Socket option name`
+	Socket_type uint32 `field:"socket_type"` // SECLDoc[socket_type] Definition:`Socket type`
+	Level       uint32 `field:"level"`       // SECLDoc[level] Definition:`Socket level`
+	OptName     uint32 `field:"optname"`     // SECLDoc[optname] Definition:`Socket option name`
+	Filter_code uint16 `field:"filter_code"` // SECLDoc[filter_code] Definition:`Socket filter code`
 }
