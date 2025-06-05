@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	filterdef "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -37,32 +38,51 @@ func TestBasicFilter(t *testing.T) {
 	f := newFilterObject(t, mockConfig)
 
 	t.Run("empty filters, empty container", func(t *testing.T) {
-		container := filterdef.Container{}
+		container := &filterdef.Container{}
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{})
 		assert.Equal(t, filterdef.Unknown, res)
 	})
 
 	t.Run("single include filter", func(t *testing.T) {
-		container := filterdef.Container{
-			Name: "dd-agent",
-		}
+		container := filterdef.CreateContainer(
+			workloadmeta.Container{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "dd-agent",
+				},
+			},
+			nil,
+		)
+
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
 		assert.Equal(t, filterdef.Included, res)
 	})
 
 	t.Run("single exclude filter", func(t *testing.T) {
-		container := filterdef.Container{
-			Image: "datadog/agent:latest",
-		}
+		container := filterdef.CreateContainer(
+			workloadmeta.Container{
+				Image: workloadmeta.ContainerImage{
+					RawName: "datadog/agent:latest",
+				},
+			},
+			nil,
+		)
+
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
 		assert.Equal(t, filterdef.Excluded, res)
 	})
 
 	t.Run("include beats exclude", func(t *testing.T) {
-		container := filterdef.Container{
-			Name:  "dd-agent",
-			Image: "datadog/agent:latest",
-		}
+		container := filterdef.CreateContainer(
+			workloadmeta.Container{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "dd-agent",
+				},
+				Image: workloadmeta.ContainerImage{
+					RawName: "datadog/agent:latest",
+				},
+			},
+			nil,
+		)
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
 		assert.Equal(t, filterdef.Included, res)
 	})
@@ -74,27 +94,47 @@ func TestADAnnotationFilter(t *testing.T) {
 	f := newFilterObject(t, mockConfig)
 
 	t.Run("improper exclude annotation", func(t *testing.T) {
-		container := filterdef.Container{
-			Name: "dd-agent",
-			Owner: filterdef.Pod{
-				Annotations: map[string]string{
-					"ad.datadoghq.com/garbage": "true",
+		pod := filterdef.CreatePod(
+			workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Annotations: map[string]string{
+						"ad.datadoghq.com/garbage": "true",
+					},
 				},
 			},
-		}
+		)
+		container := filterdef.CreateContainer(
+			workloadmeta.Container{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "dd-agent",
+				},
+			},
+			pod,
+		)
+
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
 		assert.Equal(t, filterdef.Unknown, res)
 	})
 
 	t.Run("proper exclude annotation", func(t *testing.T) {
-		container := filterdef.Container{
-			Name: "dd-agent",
-			Owner: filterdef.Pod{
-				Annotations: map[string]string{
-					"ad.datadoghq.com/dd-agent.exclude": "true",
+		pod := filterdef.CreatePod(
+			workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Annotations: map[string]string{
+						"ad.datadoghq.com/dd-agent.exclude": "true",
+					},
 				},
 			},
-		}
+		)
+		container := filterdef.CreateContainer(
+			workloadmeta.Container{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "dd-agent",
+				},
+			},
+			pod,
+		)
+
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
 		assert.Equal(t, filterdef.Excluded, res)
 	})
@@ -102,13 +142,21 @@ func TestADAnnotationFilter(t *testing.T) {
 	// TODO: re-verify this is expected behavior...
 	t.Run("blank container name", func(t *testing.T) {
 		// Edge case if the container name is missing
-		container := filterdef.Container{
-			Owner: filterdef.Pod{
-				Annotations: map[string]string{
-					"ad.datadoghq.com/.exclude": "true",
+
+		pod := filterdef.CreatePod(
+			workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Annotations: map[string]string{
+						"ad.datadoghq.com/.exclude": "true",
+					},
 				},
 			},
-		}
+		)
+
+		container := filterdef.CreateContainer(
+			workloadmeta.Container{},
+			pod,
+		)
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
 		assert.Equal(t, filterdef.Excluded, res)
 	})
@@ -124,36 +172,63 @@ func TestCombinedFilter(t *testing.T) {
 
 	f := newFilterObject(t, mockConfig)
 
-	container := filterdef.Container{
-		Name: "dd-agent",
-	}
+	container := filterdef.CreateContainer(
+		workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "dd-agent",
+			},
+		},
+		nil,
+	)
+
 	res := f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
 	assert.Equal(t, false, res)
 
-	container = filterdef.Container{
-		Name: "dd-agent",
-		Owner: filterdef.Pod{
-			Namespace: "default",
+	pod := filterdef.CreatePod(
+		workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{
+				Namespace: "default",
+			},
 		},
-	}
+	)
+	container = filterdef.CreateContainer(
+		workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "dd-agent",
+			},
+		},
+		pod,
+	)
+
 	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
 	assert.Equal(t, false, res)
 
-	container = filterdef.Container{
-		Name: "nginx",
-		Owner: filterdef.Pod{
-			Namespace: "default",
+	container = filterdef.CreateContainer(
+		workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "nginx",
+			},
 		},
-	}
+		pod,
+	)
 	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
 	assert.Equal(t, false, res)
 
-	container = filterdef.Container{
-		Name: "nginx",
-		Owner: filterdef.Pod{
-			Namespace: "datadog-agent",
+	pod = filterdef.CreatePod(
+		workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{
+				Namespace: "datadog-agent",
+			},
 		},
-	}
+	)
+	container = filterdef.CreateContainer(
+		workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "nginx",
+			},
+		},
+		pod,
+	)
 	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
 	assert.Equal(t, true, res)
 }
@@ -165,7 +240,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 		include   []string
 		exclude   []string
 		pauseCtn  bool
-		container filterdef.Container
+		container *filterdef.Container
 		expected  bool
 	}{
 		{
@@ -173,9 +248,14 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"image:dd-agent"},
 			exclude:  []string{"image:nginx"},
 			pauseCtn: false,
-			container: filterdef.Container{
-				Image: "dd-agent",
-			},
+			container: filterdef.CreateContainer(
+				workloadmeta.Container{
+					Image: workloadmeta.ContainerImage{
+						RawName: "dd-agent",
+					},
+				},
+				nil,
+			),
 			expected: false,
 		},
 		{
@@ -183,9 +263,14 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"image:dd-agent"},
 			exclude:  []string{"image:nginx"},
 			pauseCtn: false,
-			container: filterdef.Container{
-				Image: "nginx-123",
-			},
+			container: filterdef.CreateContainer(
+				workloadmeta.Container{
+					Image: workloadmeta.ContainerImage{
+						RawName: "nginx-123",
+					},
+				},
+				nil,
+			),
 			expected: true,
 		},
 		{
@@ -193,12 +278,20 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"kube_namespace:default"},
 			exclude:  []string{"name:nginx"},
 			pauseCtn: false,
-			container: filterdef.Container{
-				Name: "nginx",
-				Owner: filterdef.Pod{
-					Namespace: "default",
+			container: filterdef.CreateContainer(
+				workloadmeta.Container{
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "nginx",
+					},
 				},
-			},
+				filterdef.CreatePod(
+					workloadmeta.KubernetesPod{
+						EntityMeta: workloadmeta.EntityMeta{
+							Namespace: "default",
+						},
+					},
+				),
+			),
 			expected: false,
 		},
 		{
@@ -206,12 +299,20 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{"name:nginx"},
 			exclude:  []string{"kube_namespace:default"},
 			pauseCtn: false,
-			container: filterdef.Container{
-				Name: "nginx",
-				Owner: filterdef.Pod{
-					Namespace: "default",
+			container: filterdef.CreateContainer(
+				workloadmeta.Container{
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "nginx",
+					},
 				},
-			},
+				filterdef.CreatePod(
+					workloadmeta.KubernetesPod{
+						EntityMeta: workloadmeta.EntityMeta{
+							Namespace: "default",
+						},
+					},
+				),
+			),
 			expected: false,
 		},
 		{
@@ -219,10 +320,17 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{""},
 			exclude:  []string{""},
 			pauseCtn: true,
-			container: filterdef.Container{
-				Name:  "nginx",
-				Image: "kubernetes/pause",
-			},
+			container: filterdef.CreateContainer(
+				workloadmeta.Container{
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "nginx",
+					},
+					Image: workloadmeta.ContainerImage{
+						RawName: "kubernetes/pause",
+					},
+				},
+				nil,
+			),
 			expected: true,
 		},
 		{
@@ -230,9 +338,14 @@ func TestContainerSBOMFilter(t *testing.T) {
 			include:  []string{""},
 			exclude:  []string{""},
 			pauseCtn: false,
-			container: filterdef.Container{
-				Image: "kubernetes/pause",
-			},
+			container: filterdef.CreateContainer(
+				workloadmeta.Container{
+					Image: workloadmeta.ContainerImage{
+						RawName: "kubernetes/pause",
+					},
+				},
+				nil,
+			),
 			expected: false,
 		},
 	}
@@ -259,10 +372,17 @@ func TestFilterPrecedence(t *testing.T) {
 
 	f := newFilterObject(t, mockConfig)
 
-	container := filterdef.Container{
-		Name:  "dd-agent",
-		Image: "datadog/agent:latest",
-	}
+	container := filterdef.CreateContainer(
+		workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "dd-agent",
+			},
+			Image: workloadmeta.ContainerImage{
+				RawName: "datadog/agent:latest",
+			},
+		},
+		nil,
+	)
 
 	t.Run("First set excludes, second set not evaluated", func(t *testing.T) {
 		precedenceFilters := [][]filterdef.ContainerFilter{
@@ -309,9 +429,14 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 	mockConfig := configmock.New(t)
 	f := newFilterObject(t, mockConfig)
 
-	container := filterdef.Container{
-		Name: "no-filters",
-	}
+	container := filterdef.CreateContainer(
+		workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "no-filter",
+			},
+		},
+		nil,
+	)
 
 	t.Run("No filter sets", func(t *testing.T) {
 		precedenceFilters := [][]filterdef.ContainerFilter{}
@@ -330,23 +455,28 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 
 type errorInclProgram struct{}
 
-func (p errorInclProgram) Evaluate(key filterdef.ResourceType, _ map[string]any) (filterdef.Result, []error) {
-	return filterdef.Included, []error{fmt.Errorf("include evaluation error on %s", key)}
+func (p errorInclProgram) Evaluate(o filterdef.Filterable) (filterdef.Result, []error) {
+	return filterdef.Included, []error{fmt.Errorf("include evaluation error on %s", o.Type())}
 }
 
 type errorExclProgram struct{}
 
-func (p errorExclProgram) Evaluate(key filterdef.ResourceType, _ map[string]any) (filterdef.Result, []error) {
-	return filterdef.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", key)}
+func (p errorExclProgram) Evaluate(o filterdef.Filterable) (filterdef.Result, []error) {
+	return filterdef.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", o.Type())}
 }
 
 func TestProgramErrorHandling(t *testing.T) {
 	mockConfig := configmock.New(t)
 	f := newFilterObject(t, mockConfig)
 
-	container := filterdef.Container{
-		Name: "error-case",
-	}
+	container := filterdef.CreateContainer(
+		workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "error-case",
+			},
+		},
+		nil,
+	)
 	precedenceFilters := [][]filterdef.ContainerFilter{
 		{filterdef.ContainerMetrics},
 	}

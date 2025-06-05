@@ -12,5 +12,5 @@ import (
 
 // FilterProgram is an interface that defines a method for evaluating a filter program.
 type FilterProgram interface {
-	Evaluate(resource filterdef.ResourceType, val map[string]any) (filterdef.Result, []error)
+	Evaluate(entity filterdef.Filterable) (filterdef.Result, []error)
 }

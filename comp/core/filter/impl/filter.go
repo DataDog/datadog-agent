@@ -96,12 +96,12 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 }
 
 // IsContainerExcluded checks if a container is excluded based on the provided filters.
-func (f *filter) IsContainerExcluded(container filterdef.Container, containerFilters [][]filterdef.ContainerFilter) bool {
+func (f *filter) IsContainerExcluded(container *filterdef.Container, containerFilters [][]filterdef.ContainerFilter) bool {
 	return evaluateResource(f, container, containerFilters) == filterdef.Excluded
 }
 
 // IsPodExcluded checks if a pod is excluded based on the provided filters.
-func (f *filter) IsPodExcluded(pod filterdef.Pod, podFilters [][]filterdef.PodFilter) bool {
+func (f *filter) IsPodExcluded(pod *filterdef.Pod, podFilters [][]filterdef.PodFilter) bool {
 	return evaluateResource(f, pod, podFilters) == filterdef.Excluded
 }
 
@@ -123,7 +123,7 @@ func evaluateResource[T ~int](
 			}
 
 			// 2. Evaluate the filtering program
-			res, prgErrs := prg.Evaluate(resource.Type(), resource.ToMap())
+			res, prgErrs := prg.Evaluate(resource)
 			if prgErrs != nil {
 				f.log.Debug(prgErrs)
 			}

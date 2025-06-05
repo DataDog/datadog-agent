@@ -14,6 +14,6 @@ package filter
 // If a set of filters produces an Include or Exclude result, then subsequent sets will not be evaluated.
 // Therefore, filters in lower-indexed groups will take precedence over those in higher-indexed groups.
 type Component interface {
-	IsContainerExcluded(container Container, containerFilters [][]ContainerFilter) bool
-	IsPodExcluded(pod Pod, podFilters [][]PodFilter) bool
+	IsContainerExcluded(container *Container, containerFilters [][]ContainerFilter) bool
+	IsPodExcluded(pod *Pod, podFilters [][]PodFilter) bool
 }

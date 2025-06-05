@@ -19,6 +19,7 @@ func GetSharedMetricsFilters() [][]ContainerFilter {
 
 	flist := make([][]ContainerFilter, 2)
 
+	// TODO: Add config option for users to configure AD annotations to take lower priority
 	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations}
 
 	low := []ContainerFilter{ContainerGlobal, ContainerMetrics}
@@ -44,8 +45,10 @@ func GetSharedMetricsFilters() [][]ContainerFilter {
 	return flist
 }
 
+// Scope defines the scope of the filters.
 type Scope string
 
+// Predefined scopes for the filters.
 const (
 	GlobalFilter  Scope = "GlobalFilter"
 	MetricsFilter Scope = "MetricsFilter"
