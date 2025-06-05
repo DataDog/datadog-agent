@@ -14,15 +14,25 @@ import (
 func getCommonStateScopes() map[Scope]VariableProviderFactory {
 	return map[Scope]VariableProviderFactory{
 		"process": func() VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
-				if pce := ctx.Event.(*model.Event).ProcessCacheEntry; pce != nil {
-					return pce
+			return eval.NewScopedVariables(func(ctx *eval.Context, scopeFieldEvaluator eval.Evaluator) eval.VariableScope {
+				if scopeFieldEvaluator != nil {
+					pid, ok := scopeFieldEvaluator.Eval(ctx).(int)
+					if !ok {
+						return nil
+					}
+					if pce := ctx.Event.(*model.Event).FieldHandlers.ResolveProcessCacheEntryFromPID(uint32(pid)); pce != nil {
+						return pce
+					}
+				} else {
+					if pce := ctx.Event.(*model.Event).ProcessCacheEntry; pce != nil {
+						return pce
+					}
 				}
 				return nil
 			})
 		},
 		"container": func() VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
+			return eval.NewScopedVariables(func(ctx *eval.Context, _ eval.Evaluator) eval.VariableScope {
 				if cc := ctx.Event.(*model.Event).ContainerContext; cc != nil {
 					return cc
 				}

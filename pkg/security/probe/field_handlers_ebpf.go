@@ -68,6 +68,11 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, newEntryC
 	return ev.ProcessCacheEntry, true
 }
 
+// ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
+func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.ProcessCacheEntry {
+	return fh.resolvers.ProcessResolver.Resolve(pid, pid, 0, true, nil)
+}
+
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {

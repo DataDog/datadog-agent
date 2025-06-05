@@ -90,6 +90,11 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ func(*model
 	return ev.ProcessCacheEntry, true
 }
 
+// ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
+func (fh *FieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	return fh.resolvers.ProcessResolver.Resolve(pid)
+}
+
 // ResolveProcessCmdLineScrubbed returns a scrubbed version of the cmdline
 func (fh *FieldHandlers) ResolveProcessCmdLineScrubbed(_ *model.Event, e *model.Process) string {
 	return fh.resolvers.ProcessResolver.GetProcessCmdLineScrubbed(e)

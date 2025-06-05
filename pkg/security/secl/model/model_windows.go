@@ -37,6 +37,14 @@ func NewFakeEvent() *Event {
 	}
 }
 
+var processContextZero = ProcessCacheEntry{}
+
+// GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
+func GetPlaceholderProcessCacheEntry(pid uint32) *ProcessCacheEntry {
+	processContextZero.Pid = pid
+	return &processContextZero
+}
+
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
 	if m.ExtraValidateFieldFnc != nil {
