@@ -87,17 +87,22 @@ func GenerateIR(
 		return nil, fmt.Errorf("failed to get loclist reader: %w", err)
 	}
 	v := &rootVisitor{
-		interests:          interests,
-		dwarf:              d,
-		eventIDAlloc:       idAllocator[ir.EventID]{},
-		subprogramIDAlloc:  idAllocator[ir.SubprogramID]{},
-		subprograms:        make([]*ir.Subprogram, 0),
-		inlinedSubprograms: make(map[*dwarf.Entry][]*inlinedSubprogram),
-		typeCatalog:        newTypeCatalog(d, ptrSize),
-		object:             objFile,
-		loclistReader:      loclistReader,
+		interests:           interests,
+		dwarf:               d,
+		eventIDAlloc:        idAllocator[ir.EventID]{},
+		subprogramIDAlloc:   idAllocator[ir.SubprogramID]{},
+		subprograms:         nil,
+		abstractSubprograms: make(map[dwarf.Offset]*abstractSubprogram),
+		inlinedSubprograms:  make(map[*dwarf.Entry][]*inlinedSubprogram),
+		typeCatalog:         newTypeCatalog(d, ptrSize),
+		object:              objFile,
+		loclistReader:       loclistReader,
 	}
 	if err := visitDwarf(d.Reader(), v); err != nil {
+		return nil, err
+	}
+	err = v.instantiateAbstractSubprograms()
+	if err != nil {
 		return nil, err
 	}
 	rewritePlaceholderReferences(v.typeCatalog)
@@ -124,6 +129,83 @@ func GenerateIR(
 		Types:       v.typeCatalog.typesByID,
 		MaxTypeID:   v.typeCatalog.idAlloc.alloc,
 	}, nil
+}
+
+func (v *rootVisitor) instantiateAbstractSubprograms() error {
+	// For every inlined instance of an abstract subprogram, we will add
+	// variable locations from that instantiation.
+	for unit, inlinedSubprograms := range v.inlinedSubprograms {
+		for _, inlinedSubprogram := range inlinedSubprograms {
+			abstractSubprogram := v.abstractSubprograms[inlinedSubprogram.abstractOrigin]
+			if abstractSubprogram == nil {
+				// Not interesting inlined instance.
+				continue
+			}
+			if inlinedSubprogram.outOfLineInstance {
+				if abstractSubprogram.subprogram.OutOfLinePCRanges != nil {
+					return fmt.Errorf(
+						"multiple out-of-line instances of abstract subprogram @0x%x",
+						inlinedSubprogram.abstractOrigin)
+				}
+				abstractSubprogram.subprogram.OutOfLinePCRanges = inlinedSubprogram.ranges
+			} else {
+				abstractSubprogram.subprogram.InlinePCRanges = append(
+					abstractSubprogram.subprogram.InlinePCRanges, inlinedSubprogram.ranges)
+			}
+			for _, inlinedVariable := range inlinedSubprogram.variables {
+				// Inlined subprograms usually have variables with abstract origin pointing at
+				// the abstract subprogram variable. Sometimes, they will have fully defined
+				// variables (observed to be return values in out-of-line instantations).
+				var variable *ir.Variable
+				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
+					inlinedVariable, dwarf.AttrAbstractOrigin)
+				if err != nil {
+					return err
+				}
+				if ok {
+					variable, ok = abstractSubprogram.variables[abstractOrigin]
+					if !ok {
+						return fmt.Errorf(
+							"abstract variable not found for inlined variable %#v",
+							*inlinedVariable)
+					}
+					var locations []ir.Location
+					locField := inlinedVariable.AttrField(dwarf.AttrLocation)
+					if locField != nil {
+						locations, err = v.computeLocations(
+							unit, inlinedSubprogram.ranges, variable.Type, locField)
+						if err != nil {
+							return err
+						}
+						variable.Locations = append(variable.Locations, locations...)
+					}
+				} else {
+					var isParameter bool
+					switch inlinedVariable.Tag {
+					case dwarf.TagFormalParameter:
+						isParameter = true
+					case dwarf.TagVariable:
+						isParameter = false
+					default:
+						return fmt.Errorf("unexpected tag for inlined variable: %#v",
+							inlinedVariable)
+					}
+					variable, err = v.processVariable(
+						unit, inlinedVariable, isParameter,
+						true /* parseLocations */, inlinedSubprogram.ranges)
+					if err != nil {
+						return err
+					}
+					abstractSubprogram.subprogram.Variables = append(
+						abstractSubprogram.subprogram.Variables, variable)
+				}
+			}
+		}
+	}
+	for _, abstractSubprogram := range v.abstractSubprograms {
+		v.subprograms = append(v.subprograms, abstractSubprogram.subprogram)
+	}
+	return nil
 }
 
 func completeGoTypes(tc *typeCatalog) error {
@@ -415,12 +497,13 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 }
 
 type rootVisitor struct {
-	object            object.File
-	interests         interests
-	dwarf             *dwarf.Data
-	eventIDAlloc      idAllocator[ir.EventID]
-	subprogramIDAlloc idAllocator[ir.SubprogramID]
-	subprograms       []*ir.Subprogram
+	object              object.File
+	interests           interests
+	dwarf               *dwarf.Data
+	eventIDAlloc        idAllocator[ir.EventID]
+	subprogramIDAlloc   idAllocator[ir.SubprogramID]
+	subprograms         []*ir.Subprogram
+	abstractSubprograms map[dwarf.Offset]*abstractSubprogram
 	// InlinedSubprograms grouped by the compilation unit entry.
 	inlinedSubprograms map[*dwarf.Entry][]*inlinedSubprogram
 	probes             []*ir.Probe
@@ -455,13 +538,13 @@ func (v *rootVisitor) getUnitVisitor(entry *dwarf.Entry) (unitVisitor *unitChild
 			root: v,
 		}
 	}
-	unitVisitor.unitEntry = entry
+	unitVisitor.unit = entry
 	return unitVisitor
 }
 
 func (v *rootVisitor) putUnitVisitor(unitVisitor *unitChildVisitor) {
 	if v.freeUnitChildVisitor == nil {
-		unitVisitor.unitEntry = nil
+		unitVisitor.unit = nil
 		v.freeUnitChildVisitor = unitVisitor
 	}
 }
@@ -475,8 +558,8 @@ func (v *rootVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 }
 
 type unitChildVisitor struct {
-	root      *rootVisitor
-	unitEntry *dwarf.Entry
+	root *rootVisitor
+	unit *dwarf.Entry
 
 	// TODO: Reuse the subprogramChildVisitor.
 }
@@ -494,18 +577,36 @@ func (v *unitChildVisitor) push(
 		}
 		if !ok {
 			// This is expected to be an out-of-line instance of an abstract program.
-			return processInlinedSubroutineEntry(v.root, v.unitEntry, entry)
+			childVisitor, err = processInlinedSubroutineEntry(v.root, v.unit, entry, true /* outOfLineInstance */)
+			if err != nil {
+				return nil, fmt.Errorf("unnamed, non-inline subprogram: %w", err)
+			}
+			return childVisitor, nil
 		}
+		cfgProbes := v.root.interests.subprograms[name]
 		inline, ok, err := maybeGetAttr[int64](entry, dwarf.AttrInline)
 		if err != nil {
 			return nil, err
 		}
-		// TODO(piob): Handle inline subprograms.
 		if ok && inline == dwInlInlined {
+			if len(cfgProbes) > 0 {
+				abstractSubprogram := &abstractSubprogram{
+					subprogram: &ir.Subprogram{
+						ID:   v.root.subprogramIDAlloc.next(),
+						Name: name,
+					},
+					variables: make(map[dwarf.Offset]*ir.Variable),
+				}
+				v.root.abstractSubprograms[entry.Offset] = abstractSubprogram
+				return &abstractSubprogramVisitor{
+					root:               v.root,
+					unit:               v.unit,
+					abstractSubprogram: abstractSubprogram,
+				}, nil
+			}
 			return nil, nil
 		}
 
-		cfgProbes := v.root.interests.subprograms[name]
 		var subprogram *ir.Subprogram
 		if len(cfgProbes) > 0 {
 			ranges, err := v.root.dwarf.Ranges(entry)
@@ -521,7 +622,7 @@ func (v *unitChildVisitor) push(
 		return &subprogramChildVisitor{
 			root:            v.root,
 			subprogramEntry: entry,
-			unitEntry:       v.unitEntry,
+			unit:            v.unit,
 			subprogram:      subprogram,
 			cfgProbes:       cfgProbes,
 		}, nil
@@ -577,7 +678,8 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 		v.root.subprograms = append(v.root.subprograms, t.subprogram)
 		return nil
 	case *inlinedSubroutineChildVisitor:
-		v.root.inlinedSubprograms[v.unitEntry] = append(v.root.inlinedSubprograms[v.unitEntry], t.sp)
+		return nil
+	case *abstractSubprogramVisitor:
 		return nil
 	default:
 		return fmt.Errorf("unexpected visitor type for unit child: %T", t)
@@ -597,7 +699,7 @@ func (v *subprogramChildVisitor) newProbe(
 		captureSnapshot = lp.CaptureSnapshot
 	}
 
-	lineReader, err := v.root.dwarf.LineReader(v.unitEntry)
+	lineReader, err := v.root.dwarf.LineReader(v.unit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get line reader: %w", err)
 	}
@@ -703,7 +805,7 @@ func getProbeKind(cfgProbe config.Probe) (ir.ProbeKind, error) {
 
 type subprogramChildVisitor struct {
 	root            *rootVisitor
-	unitEntry       *dwarf.Entry
+	unit            *dwarf.Entry
 	subprogramEntry *dwarf.Entry
 	// May be nil if the subprogram is not interesting. We still need to visit it
 	// to collect possibly interesting inlined subprograms instances.
@@ -717,49 +819,20 @@ func (v *subprogramChildVisitor) push(
 	var isParameter bool
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
-		return processInlinedSubroutineEntry(v.root, v.unitEntry, entry)
+		return processInlinedSubroutineEntry(v.root, v.unit, entry, false /* outOfLineInstance */)
 	case dwarf.TagFormalParameter:
 		isParameter = true
 		fallthrough
 	case dwarf.TagVariable:
-		if v.subprogram == nil {
-			return nil, nil
-		}
-		name, err := getAttr[string](entry, dwarf.AttrName)
-		if err != nil {
-			return nil, err
-		}
-		typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
-		if err != nil {
-			return nil, err
-		}
-		typ, err := v.root.typeCatalog.addType(typeOffset)
-		if err != nil {
-			return nil, err
-		}
-		var locations []ir.Location
-		if locField := entry.AttrField(dwarf.AttrLocation); locField != nil {
-			// Note that it's a bit wasteful to compute all the locations
-			// here: we only really need to locations for some specific
-			// PCs (such as the prologue end), but we don't know what
-			// those PCs are here, and figuring them out can be expensive.
-			locations, err = computeLocations(typ, v, v.subprogram.OutOfLinePCRanges, locField)
+		if v.subprogram != nil {
+			variable, err := v.root.processVariable(
+				v.unit, entry, isParameter,
+				true /* parseLocations */, v.subprogram.OutOfLinePCRanges)
 			if err != nil {
 				return nil, err
 			}
+			v.subprogram.Variables = append(v.subprogram.Variables, variable)
 		}
-		isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
-		if err != nil {
-			return nil, err
-		}
-		variable := &ir.Variable{
-			Name:        name,
-			Type:        typ,
-			Locations:   locations,
-			IsParameter: isParameter,
-			IsReturn:    isReturn,
-		}
-		v.subprogram.Variables = append(v.subprogram.Variables, variable)
 		return nil, nil
 	case dwarf.TagTypedef:
 		// Typedefs occur for generic type parameters and carry their dictionary
@@ -774,15 +847,16 @@ func (v *subprogramChildVisitor) push(
 	}
 }
 
-func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
-	switch t := childVisitor.(type) {
-	case *inlinedSubroutineChildVisitor:
-		v.root.inlinedSubprograms[v.unitEntry] = append(v.root.inlinedSubprograms[v.unitEntry], t.sp)
-	}
+func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 	return nil
 }
 
-func processInlinedSubroutineEntry(root *rootVisitor, unit *dwarf.Entry, subroutine *dwarf.Entry) (childVisitor visitor, err error) {
+func processInlinedSubroutineEntry(
+	root *rootVisitor,
+	unit *dwarf.Entry,
+	subroutine *dwarf.Entry,
+	outOfLineInstance bool,
+) (childVisitor visitor, err error) {
 	abstractOrigin, err := getAttr[dwarf.Offset](subroutine, dwarf.AttrAbstractOrigin)
 	if err != nil {
 		return nil, err
@@ -791,20 +865,105 @@ func processInlinedSubroutineEntry(root *rootVisitor, unit *dwarf.Entry, subrout
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse pc ranges %w", err)
 	}
+	sp := &inlinedSubprogram{
+		outOfLineInstance: outOfLineInstance,
+		abstractOrigin:    abstractOrigin,
+		ranges:            ranges,
+	}
+	root.inlinedSubprograms[unit] = append(root.inlinedSubprograms[unit], sp)
 	return &inlinedSubroutineChildVisitor{
 		root: root,
 		unit: unit,
-		sp: &inlinedSubprogram{
-			abstractOrigin: abstractOrigin,
-			ranges:         ranges,
-		},
+		sp:   sp,
 	}, nil
 }
 
+func (v *rootVisitor) processVariable(
+	unit, entry *dwarf.Entry,
+	isParameter, parseLocations bool,
+	subprogramPCRanges []ir.PCRange,
+) (*ir.Variable, error) {
+	name, err := getAttr[string](entry, dwarf.AttrName)
+	if err != nil {
+		return nil, err
+	}
+	typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+	if err != nil {
+		return nil, err
+	}
+	typ, err := v.typeCatalog.addType(typeOffset)
+	if err != nil {
+		return nil, err
+	}
+	var locations []ir.Location
+	if parseLocations {
+		if locField := entry.AttrField(dwarf.AttrLocation); locField != nil {
+			// Note that it's a bit wasteful to compute all the locations
+			// here: we only really need to locations for some specific
+			// PCs (such as the prologue end), but we don't know what
+			// those PCs are here, and figuring them out can be expensive.
+			locations, err = v.computeLocations(unit, subprogramPCRanges, typ, locField)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
+	if err != nil {
+		return nil, err
+	}
+	return &ir.Variable{
+		Name:        name,
+		Type:        typ,
+		Locations:   locations,
+		IsParameter: isParameter,
+		IsReturn:    isReturn,
+	}, nil
+}
+
+type abstractSubprogram struct {
+	subprogram *ir.Subprogram
+	variables  map[dwarf.Offset]*ir.Variable
+}
+
+type abstractSubprogramVisitor struct {
+	root               *rootVisitor
+	unit               *dwarf.Entry
+	abstractSubprogram *abstractSubprogram
+}
+
+func (v *abstractSubprogramVisitor) push(
+	entry *dwarf.Entry,
+) (childVisitor visitor, err error) {
+	var isParameter bool
+	switch entry.Tag {
+	case dwarf.TagFormalParameter:
+		isParameter = true
+		fallthrough
+	case dwarf.TagVariable:
+		variable, err := v.root.processVariable(
+			v.unit, entry, isParameter,
+			false /* parseLocations */, nil /* subprogramPCRanges */)
+		if err != nil {
+			return nil, err
+		}
+		v.abstractSubprogram.subprogram.Variables = append(
+			v.abstractSubprogram.subprogram.Variables, variable)
+		v.abstractSubprogram.variables[entry.Offset] = variable
+		return nil, nil
+	}
+	return nil, fmt.Errorf("unexpected tag for abstract subprogram child: %s", entry.Tag)
+}
+
+func (v *abstractSubprogramVisitor) pop(_ *dwarf.Entry, _ visitor) error {
+	return nil
+}
+
 type inlinedSubprogram struct {
-	abstractOrigin dwarf.Offset
-	ranges         []ir.PCRange
-	variables      []*dwarf.Entry
+	outOfLineInstance bool
+	abstractOrigin    dwarf.Offset
+	ranges            []ir.PCRange
+	variables         []*dwarf.Entry
 }
 
 type inlinedSubroutineChildVisitor struct {
@@ -818,7 +977,7 @@ func (v *inlinedSubroutineChildVisitor) push(
 ) (childVisitor visitor, err error) {
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
-		return processInlinedSubroutineEntry(v.root, v.unit, entry)
+		return processInlinedSubroutineEntry(v.root, v.unit, entry, false /* outOfLineInstance */)
 	case dwarf.TagFormalParameter:
 		fallthrough
 	case dwarf.TagVariable:
@@ -830,22 +989,18 @@ func (v *inlinedSubroutineChildVisitor) push(
 	return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)
 }
 
-func (v *inlinedSubroutineChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
-	switch t := childVisitor.(type) {
-	case *inlinedSubroutineChildVisitor:
-		v.root.inlinedSubprograms[v.unit] = append(v.root.inlinedSubprograms[v.unit], t.sp)
-	}
+func (v *inlinedSubroutineChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 	return nil
 }
 
-func computeLocations(
-	typ ir.Type,
-	v *subprogramChildVisitor,
+func (v *rootVisitor) computeLocations(
+	unit *dwarf.Entry,
 	subprogramRanges []ir.PCRange,
+	typ ir.Type,
 	locField *dwarf.Field,
 ) ([]ir.Location, error) {
 	totalSize := int64(typ.GetByteSize())
-	pointerSize := int(v.root.object.PointerSize())
+	pointerSize := int(v.object.PointerSize())
 	fixLoclist := func(pieces []locexpr.LocationPiece) []locexpr.LocationPiece {
 		// Workaround for delve not returning sizes.
 		if len(pieces) == 1 {
@@ -868,11 +1023,11 @@ func computeLocations(
 				"unexpected location field type: %T", locField.Val,
 			)
 		}
-		if err := v.root.loclistReader.Seek(v.unitEntry, offset); err != nil {
+		if err := v.loclistReader.Seek(unit, offset); err != nil {
 			return nil, err
 		}
 		var entry loclist.Entry
-		for v.root.loclistReader.Next(&entry) {
+		for v.loclistReader.Next(&entry) {
 			locationPieces, err := locexpr.Exec(
 				entry.Instr, totalSize, pointerSize,
 			)

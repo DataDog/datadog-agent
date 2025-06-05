@@ -58,8 +58,6 @@ type Subprogram struct {
 	InlinePCRanges [][]PCRange
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
-	// Lines are the lines of the subprogram.
-	Lines []SubprogramLine
 }
 
 // SubprogramLine represents a line in the subprogram.
