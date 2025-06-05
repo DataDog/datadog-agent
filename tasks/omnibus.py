@@ -318,13 +318,17 @@ def build(
     os.remove(pip_config_file)
 
     if use_omnibus_git_cache:
-        stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
-        # Purge the cache manually as omnibus will stick to not restoring a tag when
-        # a mismatch is detected, but will keep the old cached tags.
-        # Do this before checking for tag differences, in order to remove staled tags
-        # in case they were included in the bundle in a previous build
-        for _, tag in enumerate(stale_tags.split(os.linesep)):
-            ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
+        # We only want to evict stalled tags when using the cache locally.
+        # If the cache was fetched through a cache key and downloaded from S3 we
+        # want to keep it immutable.
+        if not use_remote_cache:
+            stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
+            # Purge the cache manually as omnibus will stick to not restoring a tag when
+            # a mismatch is detected, but will keep the old cached tags.
+            # Do this before checking for tag differences, in order to remove staled tags
+            # in case they were included in the bundle in a previous build
+            for _, tag in enumerate(stale_tags.split(os.linesep)):
+                ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
         with timed(quiet=True) as durations['Updating omnibus cache']:
             if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
                 ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
