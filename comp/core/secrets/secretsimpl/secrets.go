@@ -153,6 +153,7 @@ type secretResolver struct {
 	backendArguments        []string
 	backendTimeout          int
 	commandAllowGroupExec   bool
+	defaultBackendUsed      bool
 	removeTrailingLinebreak bool
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
@@ -286,6 +287,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		}
 	}
 	r.backendCommand = params.Command
+	r.defaultBackendUsed = false
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
 		if runtime.GOOS == "windows" {
@@ -299,6 +301,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 			}
 			r.backendCommand = nonWindowsPath
 		}
+		r.defaultBackendUsed = true
 	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
@@ -777,12 +780,12 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 		fmt.Fprintf(w, "error parsing secret permissions details template: %s\n", err)
 		return
 	}
-
-	err = checkRights(r.backendCommand, r.commandAllowGroupExec)
-
 	permissions := "OK, the executable has the correct permissions"
-	if err != nil {
-		permissions = fmt.Sprintf("error: %s", err)
+	if !r.defaultBackendUsed {
+		err = checkRights(r.backendCommand, r.commandAllowGroupExec)
+		if err != nil {
+			permissions = fmt.Sprintf("error: %s", err)
+		}
 	}
 
 	details, err := r.getExecutablePermissions()
