@@ -5785,9 +5785,9 @@
           "property_doc_link": "setrlimit-rlim_max-doc"
         },
         {
-          "name": "setrlimit.target",
-          "definition": "Target process ID for the limit change",
-          "property_doc_link": "setrlimit-target-doc"
+          "name": "setrlimit.target_pid",
+          "definition": "Target process ID for the limit change only used for prlimit64",
+          "property_doc_link": "setrlimit-target_pid-doc"
         }
       ]
     },
@@ -11116,10 +11116,10 @@
       "examples": []
     },
     {
-      "name": "setrlimit.target",
-      "link": "setrlimit-target-doc",
+      "name": "setrlimit.target_pid",
+      "link": "setrlimit-target_pid-doc",
       "type": "int",
-      "definition": "Target process ID for the limit change",
+      "definition": "Target process ID for the limit change only used for prlimit64",
       "prefixes": [
         "setrlimit"
       ],

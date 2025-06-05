@@ -1534,7 +1534,7 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.Resource = int(binary.NativeEndian.Uint32(data[read : read+4]))
-	e.Target = binary.NativeEndian.Uint32(data[read+4 : read+8])
+	e.TargetPid = binary.NativeEndian.Uint32(data[read+4 : read+8])
 	e.RlimCur = binary.NativeEndian.Uint64(data[read+8 : read+16])
 	e.RlimMax = binary.NativeEndian.Uint64(data[read+16 : read+24])
 

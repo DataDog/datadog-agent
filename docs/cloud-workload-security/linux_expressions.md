@@ -1429,7 +1429,7 @@ A setrlimit command was executed
 | [`setrlimit.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`setrlimit.rlim_cur`](#setrlimit-rlim_cur-doc) | Current (soft) limit value |
 | [`setrlimit.rlim_max`](#setrlimit-rlim_max-doc) | Maximum (hard) limit value |
-| [`setrlimit.target`](#setrlimit-target-doc) | Target process ID for the limit change |
+| [`setrlimit.target_pid`](#setrlimit-target_pid-doc) | Target process ID for the limit change only used for prlimit64 |
 
 ### Event `setsockopt`
 
@@ -3425,10 +3425,10 @@ Definition: Maximum (hard) limit value
 
 
 
-### `setrlimit.target` {#setrlimit-target-doc}
+### `setrlimit.target_pid` {#setrlimit-target_pid-doc}
 Type: int
 
-Definition: Target process ID for the limit change
+Definition: Target process ID for the limit change only used for prlimit64
 
 
 

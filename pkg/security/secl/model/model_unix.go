@@ -993,10 +993,10 @@ type SysCtlEvent struct {
 // SetrlimitEvent represents a setrlimit event
 type SetrlimitEvent struct {
 	SyscallEvent
-	Resource int    `field:"resource"` // SECLDoc[resource] Definition:`Resource type being limited` Constants:`Resource limit types`
-	RlimCur  uint64 `field:"rlim_cur"` // SECLDoc[rlim_cur] Definition:`Current (soft) limit value`
-	RlimMax  uint64 `field:"rlim_max"` // SECLDoc[rlim_max] Definition:`Maximum (hard) limit value`
-	Target   uint32 `field:"target"`   // SECLDoc[target] Definition:`Target process ID for the limit change`
+	Resource  int    `field:"resource"`   // SECLDoc[resource] Definition:`Resource type being limited` Constants:`Resource limit types`
+	RlimCur   uint64 `field:"rlim_cur"`   // SECLDoc[rlim_cur] Definition:`Current (soft) limit value`
+	RlimMax   uint64 `field:"rlim_max"`   // SECLDoc[rlim_max] Definition:`Maximum (hard) limit value`
+	TargetPid uint32 `field:"target_pid"` // SECLDoc[target_pid] Definition:`Target process ID for the limit change only used for prlimit64`
 }
 
 // SetSockOptEvent represents a set socket option event
@@ -1004,5 +1004,4 @@ type SetSockOptEvent struct {
 	SyscallEvent
 	Level   uint32 `field:"level"`   // SECLDoc[level] Definition:`Socket level`
 	OptName uint32 `field:"optname"` // SECLDoc[optname] Definition:`Socket option name`
-
 }
