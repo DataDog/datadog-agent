@@ -22,7 +22,7 @@ func main() {
 	b := 2
 	c := 3
 	sliceArg([]*int{&a, &b, &c})
-	arrayArg(&[3]*int{&a, &b, &c})
+	arrayArg([3]*int{&a, &b, &c})
 }
 
 //go:noinline
@@ -41,6 +41,6 @@ func sliceArg(s []*int) {
 }
 
 //go:noinline
-func arrayArg(a *[3]*int) {
-	fmt.Println(*a)
+func arrayArg(a [3]*int) {
+	fmt.Println(a)
 }

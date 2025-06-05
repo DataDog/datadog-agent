@@ -814,12 +814,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
 
-  case SM_OP_DEREFERENCE_CFA_OFFSET: {
+  case SM_OP_EXPR_DEREFERENCE_CFA: {
     int32_t cfa_offset = sm_read_program_uint32(sm);
     uint32_t data_len = sm_read_program_uint32(sm);
     uint32_t output_offset = sm_read_program_uint32(sm);
-    target_ptr_t addr =
-        (target_ptr_t)((int64_t)(sm->frame_data.fp) + 16 + cfa_offset);
+    target_ptr_t addr = (target_ptr_t)((int64_t)(sm->frame_data.cfa) + cfa_offset);
     if (!scratch_buf_dereference(buf, sm->offset + output_offset, data_len, addr)) {
       return 1;
     }

@@ -57,7 +57,6 @@ typedef enum sm_opcode {
   SM_OP_ENQUEUE_GO_SWISS_MAP = 32,
   SM_OP_ENQUEUE_GO_SWISS_MAP_GROUPS = 33,
   SM_OP_ENQUEUE_GO_SUBROUTINE = 34,
-  SM_OP_DEREFERENCE_CFA_OFFSET = 35,
   SM_OP_COPY_FROM_REGISTER = 36,
   SM_OP_PREPARE_EXPR_EVAL = 37,
   SM_OP_SAVE_EXPR_RESULT = 38,
@@ -104,7 +103,6 @@ static const char* op_code_name(sm_opcode_t op_code) {
   case SM_OP_ENQUEUE_GO_SWISS_MAP: return "ENQUEUE_GO_SWISS_MAP";
   case SM_OP_ENQUEUE_GO_SWISS_MAP_GROUPS: return "ENQUEUE_GO_SWISS_MAP_GROUPS";
   case SM_OP_ENQUEUE_GO_SUBROUTINE: return "ENQUEUE_GO_SUBROUTINE";
-  case SM_OP_DEREFERENCE_CFA_OFFSET: return "DEREFERENCE_CFA_OFFSET";
   case SM_OP_COPY_FROM_REGISTER: return "COPY_FROM_REGISTER";
   case SM_OP_PREPARE_EXPR_EVAL: return "PREPARE_EXPR_EVAL";
   case SM_OP_SAVE_EXPR_RESULT: return "SAVE_EXPR_RESULT";
@@ -155,7 +153,7 @@ typedef uint64_t target_ptr_t;
 
 typedef struct frame_data {
   uint16_t stack_idx;
-  uint64_t fp;
+  uint64_t cfa;
 } frame_data_t;
 
 typedef struct resolved_go_interface {

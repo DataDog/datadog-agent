@@ -58,7 +58,7 @@ Subprograms:
             - Range: 0x491ce0..0x491d13
               Pieces: [{Size: 0, InReg: true, StackOffset: 0, Register: 0}]
             - Range: 0x491d13..0x491d9b
-              Pieces: [{Size: 0, InReg: false, StackOffset: 8, Register: 0}]
+              Pieces: [{Size: 0, InReg: false, StackOffset: 0, Register: 0}]
           IsParameter: true
           IsReturn: false
       Lines: []

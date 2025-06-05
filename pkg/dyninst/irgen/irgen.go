@@ -809,6 +809,19 @@ func computeLocations(
 ) ([]ir.Location, error) {
 	totalSize := int64(typ.GetByteSize())
 	pointerSize := int(v.root.object.PointerSize())
+	fixLoclist := func(pieces []locexpr.LocationPiece) []locexpr.LocationPiece {
+		// Workaround for delve not returning sizes.
+		if len(pieces) == 1 {
+			pieces[0].Size = totalSize
+		}
+		// Workaround for net/dwarfutils/locexpr doing incorrect pointer-side adjustment
+		for i := range pieces {
+			if !pieces[i].InReg {
+				pieces[i].StackOffset -= int64(pointerSize)
+			}
+		}
+		return pieces
+	}
 	var locations []ir.Location
 	switch locField.Class {
 	case dwarf.ClassLocListPtr:
@@ -829,10 +842,7 @@ func computeLocations(
 			if err != nil {
 				return nil, err
 			}
-			// Workaround for delve not returning sizes.
-			if len(locationPieces) == 1 {
-				locationPieces[0].Size = totalSize
-			}
+			locationPieces = fixLoclist(locationPieces)
 			locations = append(locations, ir.Location{
 				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
 				Pieces: locationPieces,
@@ -852,10 +862,7 @@ func computeLocations(
 		if err != nil {
 			return nil, err
 		}
-		// Workaround for delve not returning sizes.
-		if len(locationPieces) == 1 {
-			locationPieces[0].Size = totalSize
-		}
+		locationPieces = fixLoclist(locationPieces)
 		// BUG: This should take into consideration the ranges of the current
 		// block, not necessarily the ranges of the subprogram.
 		for _, r := range v.ranges {
