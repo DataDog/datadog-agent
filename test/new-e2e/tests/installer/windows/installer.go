@@ -30,8 +30,11 @@ import (
 
 // DatadogInstallerRunner represents an interface for the Datadog Installer
 type DatadogInstallerRunner interface {
-	Version() (string, error)
+	// type  helpers
 	SetBinaryPath(path string)
+
+	// subcommands
+	Version() (string, error)
 	SetCatalog(newCatalog Catalog) (string, error)
 	StartExperiment(packageName string, packageVersion string) (string, error)
 	PromoteExperiment(packageName string) (string, error)
@@ -43,12 +46,15 @@ type DatadogInstallerRunner interface {
 	Status() (string, error)
 	Purge() (string, error)
 	GarbageCollect() (string, error)
-	Install(opts ...MsiOption) error
-	Uninstall(opts ...MsiOption) error
 	SetConfigExperiment(config ConfigExperiment) (string, error)
 	StartConfigExperiment(packageName string, config ConfigExperiment) (string, error)
 	PromoteConfigExperiment(packageName string) (string, error)
 	StopConfigExperiment(packageName string) (string, error)
+
+	// MSI commands
+	// TODO: we should separate installation from the command line interface
+	Install(opts ...MsiOption) error
+	Uninstall(opts ...MsiOption) error
 }
 
 // DatadogInstaller represents an interface to the Datadog Installer on the remote host.
