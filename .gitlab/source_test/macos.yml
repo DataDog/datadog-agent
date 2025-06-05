@@ -21,6 +21,11 @@ include:
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - dda inv -- -e test --rerun-fails=2 --race --profile --cpus 12 --result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $FAST_TESTS_FLAG --test-washer --coverage
     - dda inv -- -e invoke-unit-tests
+  after_script:
+    - !reference [.vault_login]
+    - !reference [.select_python_env_commands]
+    - !reference [.upload_junit_source]
+    - !reference [.upload_coverage]
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -35,19 +40,7 @@ include:
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
   tags: ["macos:ventura-amd64", "specific:true"]
-  after_script:
-    - !reference [.vault_login]
-    - !reference [.select_python_env_commands]
-    - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
 
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
-  rules:
-    !reference [.manual]
   tags: ["macos:ventura-arm64", "specific:true"]
-  after_script:
-    - !reference [.vault_login]
-    - !reference [.select_python_env_commands]
-    - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
