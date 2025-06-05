@@ -1121,10 +1121,14 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(i
 			continue
 		}
 		switch key {
+		case "socket_type":
+			out.Socket_type = uint32(in.Uint32())
 		case "level":
 			out.Level = uint32(in.Uint32())
 		case "optname":
 			out.OptName = uint32(in.Uint32())
+		case "filter_code":
+			out.Filter_code = uint16(in.Uint16())
 		default:
 			in.SkipRecursive()
 		}
@@ -1140,14 +1144,24 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"level\":"
+		const prefix string = ",\"socket_type\":"
 		out.RawString(prefix[1:])
+		out.Uint32(uint32(in.Socket_type))
+	}
+	{
+		const prefix string = ",\"level\":"
+		out.RawString(prefix)
 		out.Uint32(uint32(in.Level))
 	}
 	{
 		const prefix string = ",\"optname\":"
 		out.RawString(prefix)
 		out.Uint32(uint32(in.OptName))
+	}
+	if in.Filter_code != 0 {
+		const prefix string = ",\"filter_code\":"
+		out.RawString(prefix)
+		out.Uint16(uint16(in.Filter_code))
 	}
 	out.RawByte('}')
 }

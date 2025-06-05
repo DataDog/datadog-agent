@@ -57,21 +57,50 @@ func TestSetSockOpt(t *testing.T) {
 			}
 			defer syscall.Close(fd)
 
-			filter := []SockFilter{
-				{Code: 0x06, Jt: 0, Jf: 0, K: 0xFFFFFFFF}, // BPF_RET | BPF_K
+			// Filtre BPF qui fait "rien" - accepte tous les paquets
+			program := []syscall.SockFilter{
+				{Code: 0x28, Jt: 0, Jf: 0, K: 0x0000000c},
+				{Code: 0x15, Jt: 0, Jf: 8, K: 0x000086dd},
+				{Code: 0x30, Jt: 0, Jf: 0, K: 0x00000014},
+				{Code: 0x15, Jt: 2, Jf: 0, K: 0x00000084},
+				{Code: 0x15, Jt: 1, Jf: 0, K: 0x00000006},
+				{Code: 0x15, Jt: 0, Jf: 17, K: 0x00000011},
+				{Code: 0x28, Jt: 0, Jf: 0, K: 0x00000036},
+				{Code: 0x15, Jt: 14, Jf: 0, K: 0x00000016},
+				{Code: 0x28, Jt: 0, Jf: 0, K: 0x00000038},
+				{Code: 0x15, Jt: 12, Jf: 13, K: 0x00000016},
+				{Code: 0x15, Jt: 0, Jf: 12, K: 0x00000800},
+				{Code: 0x30, Jt: 0, Jf: 0, K: 0x00000017},
+				{Code: 0x15, Jt: 2, Jf: 0, K: 0x00000084},
+				{Code: 0x15, Jt: 1, Jf: 0, K: 0x00000006},
+				{Code: 0x15, Jt: 0, Jf: 8, K: 0x00000011},
+				{Code: 0x28, Jt: 0, Jf: 0, K: 0x00000014},
+				{Code: 0x45, Jt: 6, Jf: 0, K: 0x00001fff},
+				{Code: 0xb1, Jt: 0, Jf: 0, K: 0x0000000e},
+				{Code: 0x48, Jt: 0, Jf: 0, K: 0x0000000e},
+				{Code: 0x15, Jt: 2, Jf: 0, K: 0x00000016},
+				{Code: 0x48, Jt: 0, Jf: 0, K: 0x00000010},
+				{Code: 0x15, Jt: 0, Jf: 1, K: 0x00000016},
+				{Code: 0x06, Jt: 0, Jf: 0, K: 0x0000ffff},
+				{Code: 0x06, Jt: 0, Jf: 0, K: 0x00000000},
 			}
-			prog := SockFprog{
-				Len:    uint16(len(filter)),
-				Filter: &filter[0],
+
+			// Créer la structure du filtre BPF
+			filter := syscall.SockFprog{
+				Len:    uint16(len(program)),
+				Filter: &program[0],
 			}
+			// Affichage de la structure pour vérifier les paramètres
+			fmt.Printf("Len: %d\n", filter.Len)
+			fmt.Printf("Filter: %+v\n", filter)
 
 			_, _, errno := syscall.Syscall6(
 				syscall.SYS_SETSOCKOPT,
 				uintptr(fd),
 				uintptr(syscall.SOL_SOCKET),
 				uintptr(syscall.SO_ATTACH_FILTER),
-				uintptr(unsafe.Pointer(&prog)),
-				uintptr(unsafe.Sizeof(prog)),
+				uintptr(unsafe.Pointer(&filter)),
+				uintptr(unsafe.Sizeof(filter)),
 				0,
 			)
 

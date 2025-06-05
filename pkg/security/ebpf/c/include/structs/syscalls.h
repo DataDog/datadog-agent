@@ -265,8 +265,11 @@ struct syscall_cache_t {
         } sysctl;
 
         struct {
+            int socket_type;
             int level;
             int optname;
+            struct sock_fprog *fprog;
+            u16 filter_code;
         } setsockopt;
     };
 };

@@ -1715,6 +1715,10 @@
     },
     "SetSockOptEvent": {
       "properties": {
+        "socket_type": {
+          "type": "integer",
+          "description": "Socket file descriptor"
+        },
         "level": {
           "type": "integer",
           "description": "Level at which the option is defined"
@@ -1722,11 +1726,16 @@
         "optname": {
           "type": "integer",
           "description": "Name of the option being set"
+        },
+        "filter_code": {
+          "type": "integer",
+          "description": "Value of the option being set"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
+        "socket_type",
         "level",
         "optname"
       ],

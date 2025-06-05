@@ -547,8 +547,10 @@ struct setsockopt_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
 
+    int socket_type;
     int level;
     int optname;
+    unsigned short filter_code; // sock_filter code
 };
 
 #endif

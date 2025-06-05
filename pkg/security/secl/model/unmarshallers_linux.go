@@ -1556,9 +1556,14 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Level = binary.NativeEndian.Uint32(data[0:4])
-	e.OptName = binary.NativeEndian.Uint32(data[4:8])
-	return 8 + read, nil
+	e.Socket_type = binary.NativeEndian.Uint32(data[0:4])
+
+	e.Level = binary.NativeEndian.Uint32(data[4:8])
+	e.OptName = binary.NativeEndian.Uint32(data[8:12])
+	e.Filter_code = binary.NativeEndian.Uint16(data[12:14])
+	fmt.Print("SetSockOptEvent: ", e.Socket_type, e.Level, e.OptName, e.Filter_code, "\n")
+	fmt.Printf("MARSHAL RETURN")
+	return 14 + read, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
