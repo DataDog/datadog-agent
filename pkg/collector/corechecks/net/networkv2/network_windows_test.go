@@ -446,6 +446,40 @@ func TestExcludedInterfaces(t *testing.T) {
 				Errout:      25,
 			},
 		},
+		tcp4Stats: &mibTcpStats{
+			DwRtoAlgorithm: uint32(1), // not used
+			DwRtoMin:       uint32(2), // not used
+			DwRtoMax:       uint32(3), // not used
+			DwMaxConn:      uint32(4), // not used
+			DwActiveOpens:  uint32(5),
+			DwPassiveOpens: uint32(6),
+			DwAttemptFails: uint32(7),
+			DwEstabResets:  uint32(8),
+			DwCurrEstab:    uint32(9),
+			DwInSegs:       uint32(10),
+			DwOutSegs:      uint32(11),
+			DwRetransSegs:  uint32(12),
+			DwInErrs:       uint32(13),
+			DwOutRsts:      uint32(14),
+			DwNumConns:     uint32(15),
+		},
+		tcp6Stats: &mibTcpStats{
+			DwRtoAlgorithm: uint32(16), // not used
+			DwRtoMin:       uint32(17), // not used
+			DwRtoMax:       uint32(18), // not used
+			DwMaxConn:      uint32(19), // not used
+			DwActiveOpens:  uint32(20),
+			DwPassiveOpens: uint32(21),
+			DwAttemptFails: uint32(22),
+			DwEstabResets:  uint32(23),
+			DwCurrEstab:    uint32(24),
+			DwInSegs:       uint32(25),
+			DwOutSegs:      uint32(26),
+			DwRetransSegs:  uint32(27),
+			DwInErrs:       uint32(28),
+			DwOutRsts:      uint32(29),
+			DwNumConns:     uint32(30),
+		},
 	}
 
 	networkCheck := createTestNetworkCheck(net)
@@ -523,6 +557,40 @@ func TestExcludedInterfacesRe(t *testing.T) {
 				Dropout:     32,
 				Errout:      33,
 			},
+		},
+		tcp4Stats: &mibTcpStats{
+			DwRtoAlgorithm: uint32(1), // not used
+			DwRtoMin:       uint32(2), // not used
+			DwRtoMax:       uint32(3), // not used
+			DwMaxConn:      uint32(4), // not used
+			DwActiveOpens:  uint32(5),
+			DwPassiveOpens: uint32(6),
+			DwAttemptFails: uint32(7),
+			DwEstabResets:  uint32(8),
+			DwCurrEstab:    uint32(9),
+			DwInSegs:       uint32(10),
+			DwOutSegs:      uint32(11),
+			DwRetransSegs:  uint32(12),
+			DwInErrs:       uint32(13),
+			DwOutRsts:      uint32(14),
+			DwNumConns:     uint32(15),
+		},
+		tcp6Stats: &mibTcpStats{
+			DwRtoAlgorithm: uint32(16), // not used
+			DwRtoMin:       uint32(17), // not used
+			DwRtoMax:       uint32(18), // not used
+			DwMaxConn:      uint32(19), // not used
+			DwActiveOpens:  uint32(20),
+			DwPassiveOpens: uint32(21),
+			DwAttemptFails: uint32(22),
+			DwEstabResets:  uint32(23),
+			DwCurrEstab:    uint32(24),
+			DwInSegs:       uint32(25),
+			DwOutSegs:      uint32(26),
+			DwRetransSegs:  uint32(27),
+			DwInErrs:       uint32(28),
+			DwOutRsts:      uint32(29),
+			DwNumConns:     uint32(30),
 		},
 	}
 
