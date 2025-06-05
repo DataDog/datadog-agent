@@ -225,8 +225,19 @@ func setClearHostTag(s *common.Setup, tagKey, value string) {
 func setupGPUIntegration(s *common.Setup) {
 	if os.Getenv("GPU_MONITORING_ENABLED") != "" {
 		s.Out.WriteString("GPU monitoring enabled via GPU_MONITORING_ENABLED environment variable\n")
+		
+		// Configure datadog.yaml for GPU tags and NVML detection
 		s.Config.DatadogYAML.CollectGPUTags = true
 		s.Config.DatadogYAML.EnableNVMLDetection = true
+		
+		// Configure system-probe.yaml for GPU monitoring
+		if s.Config.SystemProbeYAML == nil {
+			s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
+		}
+		s.Config.SystemProbeYAML.GPUMonitoringConfig = config.GPUMonitoringConfig{
+			Enabled: true,
+		}
+		
 		s.Span.SetTag("gpu_monitoring_enabled", "true")
 	}
 }

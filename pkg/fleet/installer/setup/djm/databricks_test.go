@@ -518,11 +518,12 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 
 func TestSetupGPUIntegration(t *testing.T) {
 	tests := []struct {
-		name                    string
-		env                     map[string]string
-		expectedCollectGPUTags  bool
-		expectedEnableNVML      bool
-		expectedSpanTag         string
+		name                        string
+		env                         map[string]string
+		expectedCollectGPUTags      bool
+		expectedEnableNVML          bool
+		expectedSystemProbeGPU      bool
+		expectedSpanTag             string
 	}{
 		{
 			name: "GPU monitoring enabled",
@@ -531,6 +532,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 			},
 			expectedCollectGPUTags: true,
 			expectedEnableNVML:     true,
+			expectedSystemProbeGPU: true,
 			expectedSpanTag:        "true",
 		},
 		{
@@ -540,6 +542,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 			},
 			expectedCollectGPUTags: true,
 			expectedEnableNVML:     true,
+			expectedSystemProbeGPU: true,
 			expectedSpanTag:        "true",
 		},
 		{
@@ -549,6 +552,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 			},
 			expectedCollectGPUTags: false,
 			expectedEnableNVML:     false,
+			expectedSystemProbeGPU: false,
 			expectedSpanTag:        "",
 		},
 		{
@@ -556,6 +560,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 			env:                    map[string]string{},
 			expectedCollectGPUTags: false,
 			expectedEnableNVML:     false,
+			expectedSystemProbeGPU: false,
 			expectedSpanTag:        "",
 		},
 	}
@@ -581,6 +586,16 @@ func TestSetupGPUIntegration(t *testing.T) {
 
 			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
 			assert.Equal(t, tt.expectedEnableNVML, s.Config.DatadogYAML.EnableNVMLDetection)
+
+			// Check system-probe configuration
+			if tt.expectedSystemProbeGPU {
+				assert.NotNil(t, s.Config.SystemProbeYAML)
+				assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
+			} else {
+				if s.Config.SystemProbeYAML != nil {
+					assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
+				}
+			}
 
 			// Check span tag was set correctly
 			if tt.expectedSpanTag != "" {
