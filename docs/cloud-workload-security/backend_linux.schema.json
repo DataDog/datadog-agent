@@ -222,6 +222,21 @@
       "type": "object",
       "description": "CGroupContextSerializer serializes a cgroup context to JSON"
     },
+    "CGroupWriteEvent": {
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/File",
+          "description": "File pointing to the cgroup"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "PID of the process added to the cgroup"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
+    },
     "ConnectEvent": {
       "properties": {
         "addr": {
@@ -2043,6 +2058,9 @@
     },
     "setsockopt": {
       "$ref": "#/$defs/SetSockOptEvent"
+    },
+    "cgroup_write": {
+      "$ref": "#/$defs/CGroupWriteEvent"
     }
   },
   "additionalProperties": false,
