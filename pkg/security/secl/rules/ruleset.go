@@ -594,6 +594,13 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		}
 
 		if action.Def.Set != nil {
+			// compile scope field
+			if len(action.Def.Set.ScopeField) > 0 {
+				if err := action.CompileScopeField(rs.model); err != nil {
+					return "", &ErrRuleLoad{Rule: pRule, Err: err}
+				}
+			}
+
 			if field := action.Def.Set.Field; field != "" {
 				if _, found := rs.fieldEvaluators[field]; !found {
 					evaluator, err := rs.model.GetEvaluator(field, "", 0)
@@ -774,24 +781,34 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 				return fmt.Errorf("unknown variable: %s", name)
 			}
 
-			if mutable, ok := variable.(eval.MutableVariable); ok {
-				value := action.Def.Set.Value
-				if field := action.Def.Set.Field; field != "" {
-					if evaluator := rs.fieldEvaluators[field]; evaluator != nil {
-						value = evaluator.Eval(ctx)
-					}
-				} else if expression := action.Def.Set.Expression; expression != "" {
-					if evaluator := rs.fieldEvaluators[expression]; evaluator != nil {
-						value = evaluator.Eval(ctx)
-					}
+			value := action.Def.Set.Value
+			if field := action.Def.Set.Field; field != "" {
+				if evaluator := rs.fieldEvaluators[field]; evaluator != nil {
+					value = evaluator.Eval(ctx)
 				}
+			} else if expression := action.Def.Set.Expression; expression != "" {
+				if evaluator := rs.fieldEvaluators[expression]; evaluator != nil {
+					value = evaluator.Eval(ctx)
+				}
+			}
 
+			if mutable, ok := variable.(eval.MutableVariable); ok {
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
 						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
 					}
 				} else {
 					if err := mutable.Set(ctx, value); err != nil {
+						return err
+					}
+				}
+			} else if mutable, ok := variable.(eval.MutableScopedVariable); ok {
+				if action.Def.Set.Append {
+					if err := mutable.Append(ctx, value, action.ScopeFieldEvaluator); err != nil {
+						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
+					}
+				} else {
+					if err := mutable.Set(ctx, value, action.ScopeFieldEvaluator); err != nil {
 						return err
 					}
 				}

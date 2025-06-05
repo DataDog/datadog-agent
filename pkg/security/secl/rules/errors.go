@@ -176,6 +176,16 @@ func (e ErrActionFilter) Error() string {
 	return fmt.Sprintf("filter `%s` error: %s", e.Expression, e.Err)
 }
 
+// ErrScopeField is return on scope field definition error
+type ErrScopeField struct {
+	Expression string
+	Err        error
+}
+
+func (e ErrScopeField) Error() string {
+	return fmt.Sprintf("scope_field `%s` error: %s", e.Expression, e.Err)
+}
+
 // ErrFieldNotAvailable is returned when a field is not available
 type ErrFieldNotAvailable struct {
 	Field        eval.Field
