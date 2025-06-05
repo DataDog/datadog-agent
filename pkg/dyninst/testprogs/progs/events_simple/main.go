@@ -23,6 +23,9 @@ func main() {
 	c := 3
 	sliceArg([]*int{&a, &b, &c})
 	arrayArg([3]*int{&a, &b, &c})
+	inlined(1)
+	// Passing inlined function via pointer forces it to have additional out-of-line instantiation.
+	outer(inlined)
 }
 
 //go:noinline
@@ -43,4 +46,13 @@ func sliceArg(s []*int) {
 //go:noinline
 func arrayArg(a [3]*int) {
 	fmt.Println(a)
+}
+
+func inlined(i int) {
+	fmt.Println(i)
+}
+
+//go:noinline
+func outer(f func(int)) {
+	f(2)
 }
