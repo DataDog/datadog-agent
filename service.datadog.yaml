@@ -87,7 +87,8 @@ extensions:
             disable_failure_notifications: true
         - name: "conductor-sandbox"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
-          branch: "chouquette/conductor"
+          # Create and push to this branch to test changes with conductor if needed without merging to main
+          branch: "conductor-sandbox" 
           parent_environments: ["staging"]
   datadoghq.com/change-detection:
     source_patterns:
