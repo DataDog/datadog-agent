@@ -42,7 +42,8 @@ import (
 )
 
 const (
-	pathCheck = "/check"
+	pathCheck    = "/check"
+	pathServices = "/services"
 
 	// The maximum number of times that we check if a process has open ports
 	// before ignoring it forever.
@@ -129,6 +130,8 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug", s.handleDebugEndpoint)
 	httpMux.HandleFunc("/network-stats", s.handleNetworkStatsEndpoint)
 	httpMux.HandleFunc(pathCheck, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleCheck))
+	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+
 	return nil
 }
 
@@ -242,9 +245,27 @@ func (s *discovery) handleCheck(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	services, err := s.getServices(params)
+	services, err := s.getCheckServices(params)
 	if err != nil {
 		_ = log.Errorf("failed to handle /discovery%s: %v", pathCheck, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteAsJSON(w, services, utils.CompactOutput)
+}
+
+func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
+	params, err := core.ParseParams(req.URL.Query())
+	if err != nil {
+		_ = log.Errorf("invalid params to /discovery%s: %v", pathServices, err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	services, err := s.getServices(params)
+	if err != nil {
+		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -633,7 +654,8 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	return service
 }
 
-func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
+// getStatus returns the list of currently running services.
+func (s *discovery) getCheckServices(params core.Params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -646,6 +668,58 @@ func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, er
 	return s.core.GetServices(params, pids, context, func(context any, pid int32) *model.Service {
 		return s.getService(context.(parsingContext), pid)
 	})
+}
+
+// getServices processes a list of PIDs and returns service information for each.
+// This is used by the /services endpoint which accepts explicit PID lists and bypasses
+// the port retry logic used by the /check endpoint. The caller (the Core-Agent
+// process collector) will handle the retry..
+func (s *discovery) getServices(params core.Params) (*model.ServicesEndpointResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	response := &model.ServicesEndpointResponse{
+		Services: make([]model.Service, 0),
+	}
+
+	context := newParsingContext()
+
+	for _, pid := range params.Pids {
+		service := s.getServiceWithoutRetry(context, int32(pid))
+		if service == nil {
+			continue
+		}
+		response.Services = append(response.Services, *service)
+	}
+
+	return response, nil
+}
+
+// getServiceWithoutRetry extracts service information for a PID without port retry logic.
+// Unlike getService(), this function immediately returns nil if no ports are found,
+// rather than tracking retry attempts. This is used by the /services endpoint.
+func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *model.Service {
+	if s.shouldIgnoreComm(pid) {
+		return nil
+	}
+
+	ports, err := s.getPorts(context, pid)
+	if err != nil {
+		return nil
+	}
+	if len(ports) == 0 {
+		return nil
+	}
+
+	info, err := s.getServiceInfo(pid)
+	if err != nil {
+		log.Tracef("[pid: %d] could not get service info: %v", pid, err)
+		return nil
+	}
+	info.Ports = ports
+
+	out := &model.Service{}
+	info.ToModelService(pid, out)
+	return out
 }
 
 // handleNetworkStatsEndpoint is the handler for the /network-stats endpoint.
