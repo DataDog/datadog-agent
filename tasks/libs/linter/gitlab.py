@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import re
-import sys
 from glob import glob
 from typing import Any
 
 import yaml
-from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.gitlab_api import (
@@ -21,6 +19,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import gitlab_section
+from tasks.libs.linter.gitlab_exceptions import FailureLevel, GitlabLintFailure, MultiGitlabLintFailure
 from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
 from tasks.libs.owners.parsing import read_owners
 
@@ -47,7 +46,7 @@ def lint_and_test_gitlab_ci_config(
                 else:
                     all_contexts = get_preset_contexts(test)
 
-                print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
+                print(f'[{color_message("INFO", Color.BLUE)}] We will test {len(all_contexts)} contexts')
                 for context in all_contexts:
                     print("Test gitlab configuration with context: ", context)
                     test_gitlab_configuration(
@@ -64,7 +63,6 @@ def shellcheck_gitlab_ci_jobs(
     verbose: bool = False,
     shellcheck_args="",
     fail_fast: bool = False,
-    use_bat: str | None = None,
     only_errors: bool = False,
 ):
     """Lints the scripts for the given job objects using shellcheck.
@@ -101,21 +99,27 @@ def shellcheck_gitlab_ci_jobs(
             if keyword in content:
                 scripts[f'{job}.{keyword}'] = f'#!/bin/bash\n{flatten_script(content[keyword]).strip()}\n'
 
-    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, use_bat, only_errors)
+    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, only_errors)
 
 
 def check_change_paths_valid_gitlab_ci_jobs(jobs: list[tuple[str, dict]]):
     """Verifies that rules: changes: paths in the given jobs match existing files in the repo"""
-    error_paths = []
-    for _, job in jobs:
+    failures = []
+    for job_name, job in jobs:
         for path in set(retrieve_all_paths(job)):
             files = glob(path, recursive=True)
             if len(files) == 0:
-                error_paths.append(path)
-    if error_paths:
-        raise Exit(
-            f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
-        )
+                failures.append(
+                    GitlabLintFailure(
+                        details=f"Path '{path}' does not match any files in the repository",
+                        failing_job_name=job_name,
+                        level=FailureLevel.ERROR,
+                    )
+                )
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
+        raise MultiGitlabLintFailure(failures=failures)
 
 
 def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]]]):
@@ -227,79 +231,52 @@ def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]
 
         # Verify that all tests contain a change path rule
 
-    tests_without_change_path = set()
-    jobs_without_change_path_allowed = set()
+    failures = []
     for job_name, job in jobs:
         if "rules" in job and not any(
             contains_valid_change_rule(rule) for rule in job['rules'] if isinstance(rule, dict)
         ):
-            if job_name in tests_without_change_path_allow_list:
-                jobs_without_change_path_allowed.add(job_name)
-            else:
-                tests_without_change_path.add(job_name)
-
-    if len(jobs_without_change_path_allowed) != 0:
-        with gitlab_section('Allow-listed jobs', collapsed=True):
-            print(
-                color_message(
-                    'warning: The following tests do not contain required change paths rule but are allowed:',
-                    Color.ORANGE,
+            failures.append(
+                GitlabLintFailure(
+                    details=f"Job does not contain a valid change paths rule{', but is allow-listed' if job_name in tests_without_change_path_allow_list else ''}.",
+                    failing_job_name=job_name,
+                    level=FailureLevel.WARNING
+                    if job_name in tests_without_change_path_allow_list
+                    else FailureLevel.ERROR,
                 )
             )
-            for job_name in jobs_without_change_path_allowed:
-                print(f"- {color_message(job_name, Color.BLUE)}")
-            print(color_message('warning: End of allow-listed jobs', Color.ORANGE))
-            print()
 
-    if len(tests_without_change_path) != 0:
-        print(color_message("error: Tests without required change paths rule:", "red"), file=sys.stderr)
-        for job_name in tests_without_change_path:
-            print(f"- {color_message(job_name, Color.BLUE)}", file=sys.stderr)
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
 
-        raise RuntimeError(
-            color_message(
-                'Some tests do not contain required change paths rule, they must contain at least one non-test path.',
-                Color.RED,
-            )
-        )
-
-    print(color_message("success: All tests contain a change paths rule or are allow-listed", "green"))
+        raise MultiGitlabLintFailure(failures=failures)
 
 
 def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_config: CILintersConfig):
     """Verifies that the specified jobs contain `needs` and also `rules`."""
     # Verify the jobs
-    error_jobs = []
-    n_ignored = 0
-    for job, contents in jobs:
-        error = "needs" not in contents or "rules" not in contents
+    failures = []
+    for job_name, job in jobs:
+        error = "needs" not in job or "rules" not in job
         to_ignore = (
-            job in ci_linters_config.needs_rules_jobs or contents['stage'] in ci_linters_config.needs_rules_stages
+            job_name in ci_linters_config.needs_rules_jobs or job['stage'] in ci_linters_config.needs_rules_stages
         )
-
-        if to_ignore:
-            if error:
-                n_ignored += 1
-            continue
 
         if error:
-            error_jobs.append((job, contents['stage']))
+            failures.append(
+                GitlabLintFailure(
+                    details=f"Job is missing `needs` or `rules` key{', but is allow-listed' if to_ignore else ''}.",
+                    failing_job_name=job_name,
+                    level=FailureLevel.WARNING if to_ignore else FailureLevel.ERROR,
+                )
+            )
 
-    if n_ignored:
-        print(
-            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs / stages defined in {ci_linters_config.path}:needs-rules)'
-        )
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
 
-    if error_jobs:
-        error_jobs = sorted(error_jobs)
-        error_jobs = '\n'.join(f'- {job} ({stage} stage)' for job, stage in error_jobs)
-
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: The following jobs are missing 'needs' or 'rules' section:\n{error_jobs}\nJobs should have needs and rules, see https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent for details.\nIf you really want to have a job without needs / rules, you can add it to {ci_linters_config.path}",
-            code=1,
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All jobs have "needs" and "rules"')
+        raise MultiGitlabLintFailure(failures=failures)
 
 
 def check_owners_gitlab_ci_jobs(
@@ -309,28 +286,23 @@ def check_owners_gitlab_ci_jobs(
 ):
     jobowners = read_owners(path_jobowners, remove_default_pattern=True)
     job_names = [name for (name, _) in jobs]
-    error_jobs = []
-    n_ignored = 0
+    failures = []
     for job in job_names:
         owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
         if not owners:
-            if job in ci_linters_config.job_owners_jobs:
-                n_ignored += 1
-            else:
-                error_jobs.append(job)
+            failures.append(
+                GitlabLintFailure(
+                    details=f"Job does not have any owners defined in {path_jobowners}{', but is allow-listed' if job in ci_linters_config.job_owners_jobs else ''}.",
+                    failing_job_name=job,
+                    level=FailureLevel.WARNING if job in ci_linters_config.job_owners_jobs else FailureLevel.ERROR,
+                )
+            )
 
-    if n_ignored:
-        print(
-            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs defined in {ci_linters_config.path}:job-owners)'
-        )
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
 
-    if error_jobs:
-        error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These jobs are not defined in {path_jobowners}:\n{error_jobs}"
-        )
-
-    print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
+        raise MultiGitlabLintFailure(failures=failures)
 
 
 # === Task-specific helpers === #
@@ -386,21 +358,24 @@ def list_get_parameter_calls(file):
     return calls
 
 
-def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners):
-    error_files = []
+def _gitlab_ci_jobs_codeowners_lint(modified_yml_files, gitlab_owners):
+    failures = []
     for path in modified_yml_files:
         teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
         if not teams:
-            error_files.append(path)
+            failures.append(
+                GitlabLintFailure(
+                    details=f"File '{path}' does not have any matching non-default CODEOWNERS rule",
+                    failing_job_name=path,
+                    level=FailureLevel.ERROR,
+                )
+            )
 
-    if error_files:
-        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
 
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+        raise MultiGitlabLintFailure(failures=failures)
 
 
 # === "Plumbing" methods === #
@@ -436,7 +411,7 @@ def extract_gitlab_ci_jobs(
         ]
 
     if not jobs:
-        print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
+        print(f'[{color_message("INFO", Color.BLUE)}] No added / modified job files, skipping lint')
         return []
 
     return jobs
