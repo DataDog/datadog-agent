@@ -7,11 +7,9 @@
   },
   "mounts": [
     {
-      "source": "/tmp/bazel-devcontainer",
       "target": "/tmp/bazel/",
-      "type": "bind"
+      "type": "volume"
     }
   ],
   "name": "bazel",
-  "remoteUser": "ubuntu"
 }
