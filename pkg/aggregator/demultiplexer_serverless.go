@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // ServerlessDemultiplexer is a simple demultiplexer used by the serverless flavor of the Agent
@@ -167,6 +168,17 @@ func (d *ServerlessDemultiplexer) AggregateSamples(_ TimeSamplerID, samples metr
 //nolint:revive // TODO(AML) Fix revive linter
 func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.MetricSampleBatch) {
 	panic("not implemented.")
+}
+
+// ReconfigTimeSamplersBlocklist is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) ReconfigTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
+	trigger := blocklistTrigger{
+		trigger: trigger{
+			time: time.Now(),
+		},
+		blocklist: blocklist,
+	}
+	d.statsdWorker.blocklistChan <- trigger
 }
 
 // Serializer returns the shared serializer

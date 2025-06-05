@@ -11,11 +11,15 @@ import (
 	"strings"
 )
 
+// Blocklist is a strings blocklist.
+// See `NewBlocklist` for details.
 type Blocklist struct {
 	data        []string
 	matchPrefix bool
 }
 
+// NewBlocklist creates a new strings blocklist.
+// Use `matchPrefix` to  create a prefixes blocklist.
 func NewBlocklist(data []string, matchPrefix bool) Blocklist {
 	data = slices.Clone(data)
 	sort.Strings(data)
@@ -43,11 +47,13 @@ func NewBlocklist(data []string, matchPrefix bool) Blocklist {
 	}
 }
 
-// Test returns true if the given name is in the blocklist.
+// Test returns true if the given name is in the blocklist
+// or matching by prefix if the string blocklist has been
+// created with `matchPrefix`.
 func (b *Blocklist) Test(name string) bool {
-    if b == nil {
-        return false
-    }
+	if b == nil {
+		return false
+	}
 
 	if len(b.data) == 0 {
 		return false
@@ -77,4 +83,3 @@ func (b *Blocklist) Test(name string) bool {
 
 	return false
 }
-

@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // The timeSamplerWorker runs the process loop for a TimeSampler:
@@ -27,6 +28,11 @@ type timeSamplerWorker struct {
 	// flushInterval is the automatic flush interval
 	flushInterval time.Duration
 
+	// flushBlocklist is the blocklist used when flushing metrics to the serializer.
+	// It's main use-case is to filter out some metrics after their aggregation
+	// process, such as histograms which create several metrics.
+	flushBlocklist *utilstrings.Blocklist
+
 	// parallel serialization configuration
 	parallelSerialization FlushAndSerializeInParallel
 
@@ -35,6 +41,8 @@ type timeSamplerWorker struct {
 	samplesChan chan []metrics.MetricSample
 	// use this chan to trigger a flush of the time sampler
 	flushChan chan flushTrigger
+	// use this chan to trigger a blocklist reconfiguration
+	blocklistChan chan blocklistTrigger
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
 	// channel to trigger interactive dump of the context resolver
@@ -49,6 +57,11 @@ type dumpTrigger struct {
 	done chan error
 }
 
+type blocklistTrigger struct {
+	trigger
+	blocklist *utilstrings.Blocklist
+}
+
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
@@ -60,10 +73,11 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 
 		flushInterval: flushInterval,
 
-		samplesChan: make(chan []metrics.MetricSample, bufferSize),
-		stopChan:    make(chan struct{}),
-		flushChan:   make(chan flushTrigger),
-		dumpChan:    make(chan dumpTrigger),
+		samplesChan:   make(chan []metrics.MetricSample, bufferSize),
+		stopChan:      make(chan struct{}),
+		flushChan:     make(chan flushTrigger),
+		dumpChan:      make(chan dumpTrigger),
+		blocklistChan: make(chan blocklistTrigger),
 
 		tagsStore: tagsStore,
 	}
@@ -91,6 +105,8 @@ func (w *timeSamplerWorker) run() {
 				w.sampler.sample(&ms[i], t)
 			}
 			w.metricSamplePool.PutBatch(ms)
+		case trigger := <-w.blocklistChan:
+			w.flushBlocklist = trigger.blocklist
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)
 			w.tagsStore.Shrink()
@@ -105,7 +121,7 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink)
+	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist)
 	trigger.blockChan <- struct{}{}
 }
 
