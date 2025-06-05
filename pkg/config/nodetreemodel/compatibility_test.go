@@ -204,7 +204,7 @@ func TestCompareGetEnvVars(t *testing.T) {
 	})
 
 	t.Run("Adding an unknown setting in the yaml", func(t *testing.T) {
-		viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
 			cfg.SetKnown("PORT")
 			cfg.SetDefault("HOST", "localhost")
 			cfg.BindEnv("log_level")

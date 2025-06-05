@@ -10,17 +10,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 
 	"go.uber.org/atomic"
 
 	"github.com/mitchellh/mapstructure"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -454,7 +454,10 @@ func (c *ntmConfig) computeAllSettings(path string) []string {
 	// 3. Collect all unknown keys, even if they have no value set
 	c.collectKeysFromNode(c.unknown, "", keySet, true)
 
-	allKeys := maps.Keys(keySet)
+	var allKeys []string
+	for key := range maps.Keys(keySet) {
+		allKeys = append(allKeys, key)
+	}
 	slices.Sort(allKeys)
 	return allKeys
 }
