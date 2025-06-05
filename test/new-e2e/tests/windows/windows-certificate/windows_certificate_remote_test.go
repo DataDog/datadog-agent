@@ -89,9 +89,11 @@ func (v *multiVMSuite) SetupSuite() {
 	v.Require().NoError(err)
 	v.Require().NotEmpty(addAdmingroupOut)
 
-	// err = windowsCommon.DisableDefender(certificateHost)
-	// v.Require().NoError(err)
+	err = windowsCommon.DisableDefender(certificateHost)
+	v.Require().NoError(err)
 
+	// This will require a reboot to apply the policy
+	// Reboot will be done once everything else is configured on certificateHost
 	err = windowsCommon.SetRegistryDWORDValue(certificateHost, `HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System`,
 		"LocalAccountTokenFilterPolicy", 1)
 	v.Require().NoError(err)
