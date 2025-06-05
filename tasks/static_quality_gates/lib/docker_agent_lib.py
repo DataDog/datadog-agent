@@ -185,4 +185,4 @@ def generic_debug_docker_agent_quality_gate(arch, jmx=False, flavor="agent", ima
     url_1 = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
     url_2 = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_2_id}-{ancestor_sha[:8]}{image_suffixes}-{arch}"
 
-    get_images_content_diff(url_1, url_2)
+    get_images_content_diff(ctx, url_1, url_2)
