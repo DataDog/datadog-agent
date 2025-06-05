@@ -7,7 +7,7 @@
 package daemoncheckerimpl
 
 import (
-	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
+	daemonchecker "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/def"
 )
 
 // Requires defines the dependencies for the daemonchecker component

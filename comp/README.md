@@ -646,6 +646,12 @@ Package status implements the core status component information provider interfa
 
 Package updater implements the updater component.
 
+### [comp/updater/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/daemonchecker)
+
+*Datadog Team*: fleet
+
+Package daemonchecker retrieves the running status of the installer daemon
+
 ### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
 
 Package localapi is the updater local api component.
@@ -674,12 +680,6 @@ Package updater is the updater component.
 *Datadog Team*: container-integrations
 
 Package datadogclient provides a client to query the datadog API
-
-### [comp/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/daemonchecker)
-
-*Datadog Team*: fleet
-
-Package daemonchecker retrieves the running status of the installer daemon
 
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 

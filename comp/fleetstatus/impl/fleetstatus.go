@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
+	daemonchecker "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/def"
 )
 
 // Requires defines the dependencies for the fleetstatus component

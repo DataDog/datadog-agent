@@ -11,7 +11,7 @@ package mock
 import (
 	"testing"
 
-	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
+	daemonchecker "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/def"
 )
 
 type mockDaemonChecker struct{}

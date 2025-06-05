@@ -7,8 +7,8 @@
 package fx
 
 import (
-	daemonchecker "github.com/DataDog/datadog-agent/comp/daemonchecker/def"
-	daemoncheckerimpl "github.com/DataDog/datadog-agent/comp/daemonchecker/impl"
+	daemonchecker "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/def"
+	daemoncheckerimpl "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

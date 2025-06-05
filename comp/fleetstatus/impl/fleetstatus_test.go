@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	daemoncheckerMock "github.com/DataDog/datadog-agent/comp/daemonchecker/mock"
+	daemoncheckerMock "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/mock"
 )
 
 func TestFleetStatus(t *testing.T) {
