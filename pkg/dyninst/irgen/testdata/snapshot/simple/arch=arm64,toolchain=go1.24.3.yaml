@@ -7,7 +7,7 @@ Probes:
       Subprogram: {subprogram: 2}
       Events:
         - ID: 1
-          Type: 39 EventRootType ProbeEvent
+          Type: 39 EventRootType Probe[main.mapArg]
           InjectionPCs: [655148]
           Condition: null
       Snapshot: false
@@ -18,7 +18,7 @@ Probes:
       Subprogram: {subprogram: 3}
       Events:
         - ID: 2
-          Type: 40 EventRootType ProbeEvent
+          Type: 40 EventRootType Probe[main.bigMapArg]
           InjectionPCs: [655264]
           Condition: null
       Snapshot: false
@@ -29,7 +29,7 @@ Probes:
       Subprogram: {subprogram: 4}
       Events:
         - ID: 3
-          Type: 41 EventRootType ProbeEvent
+          Type: 41 EventRootType Probe[main.stringArg]
           InjectionPCs: [655580]
           Condition: null
       Snapshot: false
@@ -40,7 +40,7 @@ Probes:
       Subprogram: {subprogram: 1}
       Events:
         - ID: 4
-          Type: 42 EventRootType ProbeEvent
+          Type: 42 EventRootType Probe[main.inlined]
           InjectionPCs: [655836, 655040]
           Condition: null
       Snapshot: false
@@ -497,7 +497,7 @@ Types:
       Element: 27 StructureType noalg.map.group[string]main.bigStruct
     - __kind: EventRootType
       ID: 39
-      Name: ProbeEvent
+      Name: Probe[main.mapArg]
       ByteSize: 1
       PresenseBitsetSize: 1
       Expressions:
@@ -512,7 +512,7 @@ Types:
                   ByteSize: 0
     - __kind: EventRootType
       ID: 40
-      Name: ProbeEvent
+      Name: Probe[main.bigMapArg]
       ByteSize: 1
       PresenseBitsetSize: 1
       Expressions:
@@ -527,7 +527,7 @@ Types:
                   ByteSize: 0
     - __kind: EventRootType
       ID: 41
-      Name: ProbeEvent
+      Name: Probe[main.stringArg]
       ByteSize: 17
       PresenseBitsetSize: 1
       Expressions:
@@ -542,7 +542,7 @@ Types:
                   ByteSize: 16
     - __kind: EventRootType
       ID: 42
-      Name: ProbeEvent
+      Name: Probe[main.inlined]
       ByteSize: 9
       PresenseBitsetSize: 1
       Expressions:

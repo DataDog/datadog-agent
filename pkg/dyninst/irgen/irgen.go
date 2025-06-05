@@ -488,9 +488,8 @@ func populateEventsRootExpressions(probes []*ir.Probe, typeCatalog *typeCatalog)
 			}
 			event.Type = &ir.EventRootType{
 				TypeCommon: ir.TypeCommon{
-					ID: id,
-					// TODO: Give this a better name.
-					Name:     "ProbeEvent",
+					ID:       id,
+					Name:     fmt.Sprintf("Probe[%s]", probe.Subprogram.Name),
 					ByteSize: uint32(byteSize),
 				},
 				// TODO: Populate the presence bitset size and expressions.
