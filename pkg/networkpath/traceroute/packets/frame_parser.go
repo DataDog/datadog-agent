@@ -172,6 +172,28 @@ func SerializeTCPFirstBytes(tcp TCPInfo) []byte {
 	return buf
 }
 
+// UDPInfo is the info we get back from ICMP exceeded payload in a UDP probe.
+type UDPInfo struct {
+	SrcPort  uint16
+	DstPort  uint16
+	Length   uint16
+	Checksum uint16
+}
+
+// ParseUDPFirstBytes parses the first 8 bytes an ICMP response is expected to have, as UDP
+func ParseUDPFirstBytes(buffer []byte) (UDPInfo, error) {
+	if len(buffer) < 8 {
+		return UDPInfo{}, fmt.Errorf("ParseUDPFirstBytes: buffer too short (%d bytes)", len(buffer))
+	}
+	udp := UDPInfo{
+		SrcPort:  binary.BigEndian.Uint16(buffer[0:2]),
+		DstPort:  binary.BigEndian.Uint16(buffer[2:4]),
+		Length:   binary.BigEndian.Uint16(buffer[4:6]),
+		Checksum: binary.BigEndian.Uint16(buffer[6:8]),
+	}
+	return udp, nil
+}
+
 // ICMPInfo encodes the information relevant to traceroutes from an ICMP response
 type ICMPInfo struct {
 	// IPPair is the source/dest IPs from the IP layer
@@ -191,6 +213,18 @@ func (p *FrameParser) IsTTLExceeded() bool {
 		return p.ICMP4.TypeCode == layers.CreateICMPv4TypeCode(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
 	case layers.LayerTypeICMPv6:
 		return p.ICMP6.TypeCode == layers.CreateICMPv6TypeCode(layers.ICMPv6TypeTimeExceeded, layers.ICMPv6CodeHopLimitExceeded)
+	default:
+		return false
+	}
+}
+
+// IsDestinationUnreachable returns true if the packet is a Destination Unreachable ICMP response
+func (p *FrameParser) IsDestinationUnreachable() bool {
+	switch p.GetTransportLayer() {
+	case layers.LayerTypeICMPv4:
+		return p.ICMP4.TypeCode.Type() == layers.ICMPv4TypeDestinationUnreachable
+	case layers.LayerTypeICMPv6:
+		return p.ICMP6.TypeCode.Type() == layers.ICMPv6TypeDestinationUnreachable
 	default:
 		return false
 	}
