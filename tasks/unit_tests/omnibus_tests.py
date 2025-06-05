@@ -177,6 +177,34 @@ class TestOmnibusCache(unittest.TestCase):
         commands = _run_calls_to_string(self.mock_ctx.run.mock_calls)
         self.assertNotIn('omnibus-git-cache', commands)
 
+    def test_mutated_cache(self):
+        self.mock_ctx.set_result_for(
+            'run',
+            re.compile(r'git (.* )?tag -l'),
+            [Result('foo-1'), Result('foo-2')],
+        )
+        self._set_up_default_command_mocks()
+        with mock.patch('requests.post') as post_mock:
+            omnibus.build(self.mock_ctx)
+
+        # Assert we sent a cache mutation event
+        assert post_mock.mock_calls
+        self.assertIn("events", post_mock.mock_calls[0].args[0])
+        self.assertIn("omnibus cache mutated", str(post_mock.mock_calls[0].kwargs['json']))
+        # Assert we bundled and uploaded the cache (should always happen on cache misses)
+        self.assertRunLines(
+            [
+                # We copied the cache from remote cache
+                r'aws s3 cp (\S* )?s3://omnibus-cache/\w+/slug \S+/omnibus-git-cache-bundle',
+                # We cloned the repo
+                r'git clone --mirror /\S+/omnibus-git-cache-bundle omnibus-git-cache/opt/datadog-agent',
+                # We listed the tags to get current cache state
+                r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
+                # We ran omnibus
+                r'bundle exec omnibus build agent',
+            ],
+        )
+
 
 class TestOmnibusInstall(unittest.TestCase):
     def setUp(self):
