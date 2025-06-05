@@ -175,12 +175,12 @@ jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-cspm"
 github_labels = ["team/agent-cspm"]
 
-[teams."Container Intake"]
-jira_project = "CTK"
+[teams."Container Experiences"]
+jira_project = "CXP"
 jira_issue_type = "Task"
 jira_statuses = ["TRIAGE", "In Progress", "Done"]
-github_team = "container-intake"
-github_labels = ["team/container-intake"]
+github_team = "container-experiences"
+github_labels = ["team/container-experiences"]
 
 [teams."Windows Agent"]
 jira_project = "WINA"

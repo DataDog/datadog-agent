@@ -13,7 +13,6 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v1.33.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.33.0
 	go.uber.org/zap v1.27.0
-
 )
 
 require github.com/gobwas/glob v0.2.3 // indirect

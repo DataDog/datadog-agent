@@ -28,7 +28,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.153 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.155 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
@@ -166,6 +166,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.127.0
 	go.opentelemetry.io/collector/component/componenttest v0.127.0
 	go.opentelemetry.io/collector/config/configopaque v1.33.0
+	go.opentelemetry.io/collector/config/configtls v1.33.0
 	go.opentelemetry.io/collector/exporter/exportertest v0.127.0
 )
 
@@ -223,7 +224,6 @@ require (
 	go.opentelemetry.io/collector/config/configauth v0.127.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.33.0 // indirect
 	go.opentelemetry.io/collector/config/confighttp v0.127.0 // indirect
-	go.opentelemetry.io/collector/config/configtls v1.33.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.127.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.127.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.127.0 // indirect
