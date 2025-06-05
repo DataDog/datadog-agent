@@ -18,6 +18,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/grpc"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -25,13 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// for testing purposes
-var coreAgentGetHostname = hostname.Get
 
 // HostInfo describes details of host information shared between various checks
 type HostInfo struct {
@@ -42,13 +39,13 @@ type HostInfo struct {
 }
 
 // CollectHostInfo collects host information
-func CollectHostInfo(config pkgconfigmodel.Reader, ipc ipc.Component) (*HostInfo, error) {
+func CollectHostInfo(config pkgconfigmodel.Reader, hostnameComp hostnameinterface.Component, ipc ipc.Component) (*HostInfo, error) {
 	sysInfo, err := CollectSystemInfo()
 	if err != nil {
 		return nil, err
 	}
 
-	hostName, err := resolveHostName(config, ipc)
+	hostName, err := resolveHostName(config, hostnameComp, ipc)
 	if err != nil {
 		return nil, err
 	}
@@ -60,10 +57,10 @@ func CollectHostInfo(config pkgconfigmodel.Reader, ipc ipc.Component) (*HostInfo
 	}, nil
 }
 
-func resolveHostName(config pkgconfigmodel.Reader, ipc ipc.Component) (string, error) {
+func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostnameinterface.Component, ipc ipc.Component) (string, error) {
 	// use the common agent hostname utility when not running in the process-agent
 	if flavor.GetFlavor() != flavor.ProcessAgent {
-		hostName, err := coreAgentGetHostname(context.TODO())
+		hostName, err := hostnameComp.Get(context.TODO())
 		if err != nil {
 			return "", fmt.Errorf("error while getting hostname: %v", err)
 		}

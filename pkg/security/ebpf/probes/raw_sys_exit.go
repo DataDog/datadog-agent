@@ -205,5 +205,12 @@ func getSysExitTailCallRoutes() []manager.TailCallRoute {
 				EBPFFuncName: tailCallTracepointFnc("handle_sys_newfstatat_exit"),
 			},
 		},
+		{
+			ProgArrayName: "sys_exit_progs",
+			Key:           uint32(model.SetSockOptEventType),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallTracepointFnc("handle_sys_setsockopt_exit"),
+			},
+		},
 	}
 }
