@@ -19,7 +19,7 @@ import (
 	"golang.org/x/net/ipv4"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/filter"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -66,7 +66,7 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	t.srcPort = port
 
 	// create a socket filter for TCP to reduce CPU usage
-	filterCfg := filter.TCP4FilterConfig{
+	filterCfg := packets.TCP4FilterConfig{
 		Src: netip.AddrPortFrom(targetAddr, t.DestPort),
 		Dst: netip.AddrPortFrom(localAddr, port),
 	}
@@ -76,17 +76,17 @@ func (t *TCPv4) TracerouteSequential() (*common.Results, error) {
 	}
 	tcpLc := &net.ListenConfig{
 		Control: func(_network, _address string, c syscall.RawConn) error {
-			return filter.SetBPFAndDrain(c, filterProg)
+			return packets.SetBPFAndDrain(c, filterProg)
 		},
 	}
 	log.Tracef("filtered on: %+v", filterCfg)
 
 	// create raw sockets to listen to TCP and ICMP
-	rawIcmpConn, err := filter.MakeRawConn(context.Background(), &net.ListenConfig{}, "ip4:icmp", localAddr)
+	rawIcmpConn, err := packets.MakeRawConn(context.Background(), &net.ListenConfig{}, "ip4:icmp", localAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make ICMP raw socket: %w", err)
 	}
-	rawTCPConn, err := filter.MakeRawConn(context.Background(), tcpLc, "ip4:tcp", localAddr)
+	rawTCPConn, err := packets.MakeRawConn(context.Background(), tcpLc, "ip4:tcp", localAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make TCP raw socket: %w", err)
 	}

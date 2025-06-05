@@ -9,15 +9,16 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/flare"
 )
 
 func TestGetAutoscalerList(t *testing.T) {
@@ -30,18 +31,19 @@ func TestGetAutoscalerList(t *testing.T) {
 		},
 	}
 
+	ipcMock := ipcmock.New(t)
+
 	// Create test server that responds to /autoscaler-list path
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := ipcMock.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/autoscaler-list" {
 			out, _ := json.Marshal(mockResponse)
 			w.Write(out)
 		}
 	}))
-	defer s.Close()
 
 	setupClusterAgentIPCAddress(t, configmock.New(t), s.URL)
 
-	content, err := getDCAAutoscalerList()
+	content, err := getDCAAutoscalerList(&flare.RemoteFlareProvider{IPC: ipcMock})
 	require.NoError(t, err)
 
 	// Parse the JSON response

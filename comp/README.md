@@ -465,7 +465,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
-*Datadog Team*: container-intake
+*Datadog Team*: container-experiences
 
 Package process implements the "process" bundle, providing components for the Process Agent
 
@@ -653,6 +653,13 @@ Package localapi is the updater local api component.
 ### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
 
 Package localapiclient provides the local API client component.
+
+### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
+
+*Datadog Team*: fleet
+
+Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
+add it to the inventoryagent payload.
 
 ### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
 
