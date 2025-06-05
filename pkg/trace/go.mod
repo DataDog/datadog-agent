@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent/pkg/trace
 
-go 1.23.0
+go 1.24.0
+
+toolchain go1.24.3
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -44,7 +46,7 @@ require (
 	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/ini.v1 v1.67.0
-	k8s.io/apimachinery v0.32.3
+	k8s.io/apimachinery v0.33.0
 )
 
 require (
@@ -96,6 +98,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
+	github.com/prometheus/common v0.63.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
