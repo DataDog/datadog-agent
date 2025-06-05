@@ -65,12 +65,12 @@ func (s *RedisSuite) TestFormatRedisStats() {
 		},
 		USMData: network.USMProtocolsData{
 			Redis: map[redis.Key]*redis.RequestStats{
-				dummyKey: {ErrorToStats: map[bool]*redis.RequestStat{
-					false: {
+				dummyKey: {ErrorToStats: map[redis.ErrorType]*redis.RequestStat{
+					redis.NoErr: {
 						FirstLatencySample: 1,
 						Count:              2,
 					},
-					true: {
+					redis.Err: {
 						FirstLatencySample: 1,
 						Count:              2,
 					},
@@ -88,13 +88,13 @@ func (s *RedisSuite) TestFormatRedisStats() {
 						KeyName:   dummyKey.KeyName.Get(),
 						Truncated: dummyKey.Truncated,
 						ErrorToStats: map[int32]*model.RedisStatsEntry{
-							0: {
-								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
-								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[false].Count),
+							int32(redis.NoErr): {
+								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[redis.NoErr].FirstLatencySample,
+								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[redis.NoErr].Count),
 							},
-							1: {
-								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[false].FirstLatencySample,
-								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[false].Count),
+							int32(redis.Err): {
+								FirstLatencySample: in.USMData.Redis[dummyKey].ErrorToStats[redis.Err].FirstLatencySample,
+								Count:              uint32(in.USMData.Redis[dummyKey].ErrorToStats[redis.Err].Count),
 							},
 						},
 					},
@@ -149,7 +149,7 @@ func (s *RedisSuite) TestRedisIDCollisionRegression() {
 		USMData: network.USMProtocolsData{
 			Redis: map[redis.Key]*redis.RequestStats{
 				redisKey: {
-					ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+					ErrorToStats: map[redis.ErrorType]*redis.RequestStat{redis.NoErr: {Count: 10}},
 				},
 			},
 		},
@@ -205,10 +205,11 @@ func (s *RedisSuite) TestRedisLocalhostScenario() {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
+
 		USMData: network.USMProtocolsData{
 			Redis: map[redis.Key]*redis.RequestStats{
 				redisKey: {
-					ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}},
+					ErrorToStats: map[redis.ErrorType]*redis.RequestStat{redis.NoErr: {Count: 10}},
 				},
 			},
 		},
@@ -277,7 +278,7 @@ func generateBenchMarkPayloadRedis(sourcePortsMax, destPortsMax uint16) network.
 				redis.GetCommand,
 				"dummyKey",
 				false,
-			)] = &redis.RequestStats{ErrorToStats: map[bool]*redis.RequestStat{false: {Count: 10}}}
+			)] = &redis.RequestStats{ErrorToStats: map[redis.ErrorType]*redis.RequestStat{redis.NoErr: {Count: 10}}}
 		}
 	}
 

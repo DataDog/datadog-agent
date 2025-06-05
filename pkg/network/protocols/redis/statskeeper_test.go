@@ -25,7 +25,7 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 	sk := NewStatsKeeper(cfg)
 
 	sourceIP, destIP, sourcePort, destPort := generateAddresses()
-	tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), "keyName", false, 500)
+	tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, GetCommand, NoErr, "keyName", false, 500)
 
 	eventWrapper := NewEventWrapper(tx)
 
@@ -50,11 +50,13 @@ func TestProcessRedisTransactions(t *testing.T) {
 
 		for j := 0; j < 2*numIterationsPerErr; j++ {
 			isErr := false
+			err := NoErr
 			if j%2 != 0 {
 				isErr = true
+				err = WrongType
 			}
 			latency := time.Duration(j%2+1) * time.Millisecond
-			tx := NewEventWrapper(generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, uint8(GetCommand), keyName, isErr, latency))
+			tx := NewEventWrapper(generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, GetCommand, err, keyName, isErr, latency))
 			sk.Process(tx)
 		}
 	}
@@ -64,7 +66,7 @@ func TestProcessRedisTransactions(t *testing.T) {
 	assert.Equal(t, numOfKeys, len(stats))
 	for key, stats := range stats {
 		assert.Equal(t, keyPrefix, key.KeyName.Get()[:len(keyPrefix)])
-		errors := []bool{false, true}
+		errors := []ErrorType{NoErr, WrongType}
 		for i, isErr := range errors {
 			s := stats.ErrorToStats[isErr]
 			require.NotNil(t, s)
@@ -93,7 +95,7 @@ func generateAddresses() (util.Address, util.Address, int, int) {
 	return sourceIP, destIP, sourcePort, destPort
 }
 
-func generateRedisTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, command uint8, keyName string, isError bool, latency time.Duration) *EbpfEvent {
+func generateRedisTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, command CommandType, error ErrorType, keyName string, isError bool, latency time.Duration) *EbpfEvent {
 	var buf [128]byte
 	copy(buf[:], keyName)
 	keySize := len(keyName)
@@ -106,7 +108,8 @@ func generateRedisTransaction(source util.Address, dest util.Address, sourcePort
 	event.Tx.Is_error = isError
 	event.Tx.Buf = buf
 	event.Tx.Buf_len = uint16(keySize)
-	event.Tx.Command = command
+	event.Tx.Command = uint8(command)
+	event.Tx.Error = uint8(error)
 	event.Tuple.Saddr_l = uint64(binary.LittleEndian.Uint32(source.Unmap().AsSlice()))
 	event.Tuple.Sport = uint16(sourcePort)
 	event.Tuple.Daddr_l = uint64(binary.LittleEndian.Uint32(dest.Unmap().AsSlice()))
