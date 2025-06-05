@@ -7,6 +7,7 @@
 package automultilinedetection
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -86,13 +87,16 @@ func TestUserPatternsJSON(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetWithoutSource("logs_config.auto_multi_line_detection_custom_samples", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
 
+	sampleOneTokens, _ := NewTokenizer(0).tokenize([]byte("1"))
+	sampleTwoRegex, _ := regexp.Compile("^" + "\\d\\w")
+	sampleThreeTokens, _ := NewTokenizer(0).tokenize([]byte("3"))
 	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 3, len(samples.samples))
 	assert.Equal(t, startGroup, samples.samples[0].label)
-	assert.Equal(t, "1", samples.samples[0].Sample)
+	assert.Equal(t, sampleOneTokens, samples.samples[0].tokens)
 	assert.Equal(t, noAggregate, samples.samples[1].label)
-	assert.Equal(t, "\\d\\w", samples.samples[1].Regex)
-	assert.Equal(t, "3", samples.samples[2].Sample)
+	assert.Equal(t, sampleTwoRegex, samples.samples[1].compiledRegex)
+	assert.Equal(t, sampleThreeTokens, samples.samples[2].tokens)
 	assert.Equal(t, 0.1, samples.samples[2].matchThreshold)
 }
 
@@ -101,13 +105,16 @@ func TestUserPatternsJSONEnv(t *testing.T) {
 	mockConfig := mock.New(t)
 	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION_CUSTOM_SAMPLES", `[{"sample": "1", "label": "start_group"}, {"regex": "\\d\\w", "label": "no_aggregate"}, {"sample": "3", "match_threshold": 0.1}]`)
 
+	sampleOneTokens, _ := NewTokenizer(0).tokenize([]byte("1"))
+	sampleTwoRegex, _ := regexp.Compile("^" + "\\d\\w")
+	sampleThreeTokens, _ := NewTokenizer(0).tokenize([]byte("3"))
 	samples := NewUserSamples(mockConfig, nil)
 	assert.Equal(t, 3, len(samples.samples))
 	assert.Equal(t, startGroup, samples.samples[0].label)
-	assert.Equal(t, "1", samples.samples[0].Sample)
+	assert.Equal(t, sampleOneTokens, samples.samples[0].tokens)
 	assert.Equal(t, noAggregate, samples.samples[1].label)
-	assert.Equal(t, "\\d\\w", samples.samples[1].Regex)
-	assert.Equal(t, "3", samples.samples[2].Sample)
+	assert.Equal(t, sampleTwoRegex, samples.samples[1].compiledRegex)
+	assert.Equal(t, sampleThreeTokens, samples.samples[2].tokens)
 	assert.Equal(t, 0.1, samples.samples[2].matchThreshold)
 }
 

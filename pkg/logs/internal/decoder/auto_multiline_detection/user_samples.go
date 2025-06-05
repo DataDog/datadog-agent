@@ -21,8 +21,6 @@ const defaultMatchThreshold = 0.75
 
 // UserSample represents a user-defined sample for auto multi-line detection.
 type UserSample struct {
-	config.AutoMultilineSample
-
 	// Parse fields
 	tokens         []tokens.Token
 	matchThreshold float64
@@ -38,34 +36,26 @@ type UserSamples struct {
 // NewUserSamples creates a new UserSamples instance.
 func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSample) *UserSamples {
 	tokenizer := NewTokenizer(0)
-	s := make([]*UserSample, 0)
+	configSamples := make([]config.AutoMultilineSample, 0)
 	var err error
 
 	if sourceSamples != nil {
 		for _, sample := range sourceSamples {
 			log.Debugf("Adding source user sample: %+v", sample)
-			s = append(s, &UserSample{
-				AutoMultilineSample: *sample,
-			})
+			configSamples = append(configSamples, *sample)
 		}
 	} else {
 		rawMainSamples := cfgRdr.Get("logs_config.auto_multi_line_detection_custom_samples")
 		if rawMainSamples != nil {
 			if str, ok := rawMainSamples.(string); ok && str != "" {
-				err = json.Unmarshal([]byte(str), &s)
+				err = json.Unmarshal([]byte(str), &configSamples)
 			} else {
-				var rawUserSamples []config.AutoMultilineSample
-				err = structure.UnmarshalKey(cfgRdr, "logs_config.auto_multi_line_detection_custom_samples", &rawUserSamples)
-				for _, rawSample := range rawUserSamples {
-					s = append(s, &UserSample{
-						AutoMultilineSample: rawSample,
-					})
-				}
+				err = structure.UnmarshalKey(cfgRdr, "logs_config.auto_multi_line_detection_custom_samples", &configSamples)
 			}
 
 			if err != nil {
 				log.Error("Failed to unmarshal main config custom samples: ", err)
-				s = make([]*UserSample, 0)
+				configSamples = make([]config.AutoMultilineSample, 0)
 			}
 		}
 
@@ -73,58 +63,57 @@ func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSa
 		if len(legacyAdditionalPatterns) > 0 {
 			log.Warn("Found deprecated logs_config.auto_multi_line_extra_patterns converting to logs_config.auto_multi_line_detection_custom_samples")
 			for _, pattern := range legacyAdditionalPatterns {
-				s = append(s, &UserSample{
-					AutoMultilineSample: config.AutoMultilineSample{
-						Regex: pattern,
-					},
+				configSamples = append(configSamples, config.AutoMultilineSample{
+					Regex: pattern,
 				})
 			}
 		}
 	}
 
-	parsedSamples := make([]*UserSample, 0, len(s))
-	for _, sample := range s {
-		if sample.Sample != "" {
-			sample.tokens, _ = tokenizer.tokenize([]byte(sample.Sample))
+	parsedSamples := make([]*UserSample, 0, len(configSamples))
+	for _, configSample := range configSamples {
+		parsedSample := &UserSample{}
+		if configSample.Sample != "" {
+			parsedSample.tokens, _ = tokenizer.tokenize([]byte(configSample.Sample))
 
-			if sample.MatchThreshold != nil {
-				if *sample.MatchThreshold <= 0 || *sample.MatchThreshold > 1 {
-					log.Warnf("Invalid match threshold %f, skipping sample", *sample.MatchThreshold)
+			if configSample.MatchThreshold != nil {
+				if *configSample.MatchThreshold <= 0 || *configSample.MatchThreshold > 1 {
+					log.Warnf("Invalid match threshold %f, skipping sample", *configSample.MatchThreshold)
 					continue
 				}
-				sample.matchThreshold = *sample.MatchThreshold
+				parsedSample.matchThreshold = *configSample.MatchThreshold
 			} else {
-				sample.matchThreshold = defaultMatchThreshold
+				parsedSample.matchThreshold = defaultMatchThreshold
 			}
-		} else if sample.Regex != "" {
-			compiled, err := regexp.Compile("^" + sample.Regex)
+		} else if configSample.Regex != "" {
+			compiled, err := regexp.Compile("^" + configSample.Regex)
 			if err != nil {
-				log.Warn(sample.Regex, " is not a valid regular expression - skipping")
+				log.Warn(configSample.Regex, " is not a valid regular expression - skipping")
 				continue
 			}
-			sample.compiledRegex = compiled
+			parsedSample.compiledRegex = compiled
 		} else {
 			log.Warn("Sample and regex was empty, skipping")
 			continue
 		}
 
-		if sample.Label != nil {
-			switch *sample.Label {
+		if configSample.Label != nil {
+			switch *configSample.Label {
 			case "start_group":
-				sample.label = startGroup
+				parsedSample.label = startGroup
 			case "no_aggregate":
-				sample.label = noAggregate
+				parsedSample.label = noAggregate
 			case "aggregate":
-				sample.label = aggregate
+				parsedSample.label = aggregate
 			default:
-				log.Warnf("Unknown label %s, skipping sample", *sample.Label)
+				log.Warnf("Unknown label %s, skipping sample", *configSample.Label)
 				continue
 			}
 		} else {
-			sample.label = startGroup
+			parsedSample.label = startGroup
 		}
 
-		parsedSamples = append(parsedSamples, sample)
+		parsedSamples = append(parsedSamples, parsedSample)
 	}
 
 	return &UserSamples{
