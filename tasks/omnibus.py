@@ -110,7 +110,7 @@ def get_omnibus_env(
 
     if sys.platform == 'darwin':
         # Target MacOS 10.12
-        env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
+        env['MACOSX_DEPLOYMENT_TARGET'] = '11.0' if os.uname().machine == "arm64" else '10.12'
 
     if skip_sign:
         env['SKIP_SIGN_MAC'] = 'true'

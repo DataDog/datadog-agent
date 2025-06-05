@@ -51,6 +51,8 @@ static_quality_gates:
     - windows_msi_and_bosh_zip_x64-a7
  #  - job: agent_dmg-x64-a7
  #    optional: True
+ #  - job: agent_dmg-arm64-a7
+ #    optional: True
  #
   script:
     - !reference [.login_to_docker_readonly_crane]
