@@ -152,7 +152,20 @@ LIMIT 20
   - `QUERY => 'metric_name{tags}'`
   - `MIN_TIMESTAMP => -seconds` (negative for past)
   - `MAX_TIMESTAMP => 0` (0 for now)
-  - `UNNEST_TIMESERIES => true/false`
+  - `UNNEST_TIMESERIES => false` ⚠️ **ALWAYS use false for metrics queries**
+
+### ⚠️ **CRITICAL: Always Use UNNEST_TIMESERIES => false for Metrics**
+
+**Why UNNEST_TIMESERIES must be false:**
+- `UNNEST_TIMESERIES => true` returns 0 rows for metrics queries
+- `UNNEST_TIMESERIES => false` returns the proper timeseries arrays with timestamps and values
+- The raw array format is the correct and working format for metrics data
+- Do not try to "prettify" the output - the array format contains all the data you need
+
+**Reading the Results:**
+- First array = timestamps (Unix timestamps)
+- Second array = corresponding values
+- Arrays are parallel - same index positions correspond to each other
 
 ### 1. CPU Usage for Device
 ```sql
@@ -160,7 +173,7 @@ LIMIT 20
 select * from TABLE(squire.timeseries.metrics(
     QUERY => 'avg:snmp.cpu.usage{device_ip:10.100.70.140}', 
     MIN_TIMESTAMP => -3600, MAX_TIMESTAMP => 0, 
-    UNNEST_TIMESERIES => true
+    UNNEST_TIMESERIES => false
 ))
 ```
 
@@ -170,7 +183,7 @@ select * from TABLE(squire.timeseries.metrics(
 select * from TABLE(squire.timeseries.metrics(
     QUERY => 'avg:snmp.memory.usage{device_ip:10.100.70.140}', 
     MIN_TIMESTAMP => -1800, MAX_TIMESTAMP => 0, 
-    UNNEST_TIMESERIES => true
+    UNNEST_TIMESERIES => false
 ))
 ```
 
@@ -180,7 +193,7 @@ select * from TABLE(squire.timeseries.metrics(
 select * from TABLE(squire.timeseries.metrics(
     QUERY => 'avg:snmp.ifBandwidthInUsage.rate{device_ip:10.100.70.140} by {interface}', 
     MIN_TIMESTAMP => -1800, MAX_TIMESTAMP => 0, 
-    UNNEST_TIMESERIES => true
+    UNNEST_TIMESERIES => false
 ))
 ```
 
@@ -190,7 +203,7 @@ select * from TABLE(squire.timeseries.metrics(
 select * from TABLE(squire.timeseries.metrics(
     QUERY => 'avg:snmp.ifBandwidthOutUsage.rate{device_ip:10.100.70.140} by {interface}', 
     MIN_TIMESTAMP => -1800, MAX_TIMESTAMP => 0, 
-    UNNEST_TIMESERIES => true
+    UNNEST_TIMESERIES => false
 ))
 ```
 
@@ -462,7 +475,7 @@ WHERE "@device.ip" = 'YOUR_DEVICE_IP'
 
 ### Device SNMP Summary
 ```sql
-select * from TABLE(squire.timeseries.metrics(QUERY => 'avg:snmp.cpu.usage{device_ip:YOUR_DEVICE_IP}', MIN_TIMESTAMP => -3600, MAX_TIMESTAMP => 0, UNNEST_TIMESERIES => true))
+select * from TABLE(squire.timeseries.metrics(QUERY => 'avg:snmp.cpu.usage{device_ip:YOUR_DEVICE_IP}', MIN_TIMESTAMP => -3600, MAX_TIMESTAMP => 0, UNNEST_TIMESERIES => false))
 ```
 
 ### Interface Bandwidth Summary
