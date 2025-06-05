@@ -7,8 +7,9 @@ package infraattributesprocessor
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/consumer/consumertest"

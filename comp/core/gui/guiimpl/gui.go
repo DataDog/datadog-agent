@@ -26,8 +26,6 @@ import (
 	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
@@ -76,14 +74,12 @@ type Payload struct {
 type dependencies struct {
 	fx.In
 
-	Log       log.Component
-	Config    config.Component
-	Flare     flare.Component
-	Status    status.Component
-	Collector collector.Component
-	Ac        autodiscovery.Component
-	Lc        fx.Lifecycle
-	Hostname  hostnameinterface.Component
+	Log      log.Component
+	Config   config.Component
+	Flare    flare.Component
+	Status   status.Component
+	Lc       fx.Lifecycle
+	Hostname hostnameinterface.Component
 }
 
 type provides struct {
@@ -145,7 +141,7 @@ func newGui(deps dependencies) provides {
 	agentRouter := securedRouter.PathPrefix("/agent").Subrouter().StrictSlash(true)
 	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, deps.Hostname, g.startTimestamp)
 	checkRouter := securedRouter.PathPrefix("/checks").Subrouter().StrictSlash(true)
-	checkHandler(checkRouter, deps.Collector, deps.Ac)
+	checkHandler(checkRouter)
 
 	// Check token on every securedRouter endpoints
 	securedRouter.Use(g.authMiddleware)

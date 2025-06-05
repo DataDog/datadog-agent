@@ -24,7 +24,7 @@ const (
 	ProtocolDispatcherClassificationPrograms    = "dispatcher_classification_progs"
 	TLSProtocolDispatcherClassificationPrograms = "tls_dispatcher_classification_progs"
 
-	DefaultMapCleanerBatchSize = 1
+	DefaultMapCleanerBatchSize = 100
 )
 
 // Protocol is the interface that represents a protocol supported by USM.
