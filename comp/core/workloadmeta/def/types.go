@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
@@ -96,6 +97,10 @@ const (
 	// by the ProcessLanguageCollector.
 	SourceProcessLanguageCollector Source = "process_language_collector"
 	SourceProcessCollector         Source = "process_collector"
+
+	// SourceServiceDiscovery represents service discovery data for processes
+	// detected by the process collector.
+	SourceServiceDiscovery         Source = "service_discovery"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -1196,6 +1201,63 @@ func printHistory(out io.Writer, history *v1.History) {
 
 var _ Entity = &ContainerImageMetadata{}
 
+// Service contains service discovery information for a process
+type Service struct {
+	// GeneratedName is the name generated from the process info
+	GeneratedName string
+
+	// GeneratedNameSource indicates the source of the generated name
+	GeneratedNameSource string
+
+	// AdditionalGeneratedNames contains other potential names for the service
+	AdditionalGeneratedNames []string
+
+	// ContainerServiceName is the service name from container tags
+	ContainerServiceName string
+
+	// ContainerServiceNameSource indicates the source of the container service name
+	ContainerServiceNameSource string
+
+	// ContainerTags are the container tags associated with the service
+	ContainerTags []string
+
+	// TracerMetadata contains APM tracer metadata
+	TracerMetadata []tracermetadata.TracerMetadata
+
+	// DDService is the value from DD_SERVICE environment variable
+	DDService string
+
+	// DDServiceInjected indicates if DD_SERVICE was injected
+	DDServiceInjected bool
+
+	// CheckedContainerData indicates if container data was checked
+	CheckedContainerData bool
+
+	// Ports is the list of ports the service is listening on
+	Ports []uint16
+
+	// APMInstrumentation indicates the APM instrumentation status
+	APMInstrumentation string
+
+	// Language is the programming language of the service
+	Language string
+
+	// Type is the service type (e.g., "web_service")
+	Type string
+
+	// CommandLine contains the command line arguments
+	CommandLine []string
+
+	// StartTimeMilli is the service start time in milliseconds since epoch
+	StartTimeMilli uint64
+
+	// ContainerID is the container ID if running in a container
+	ContainerID string
+
+	// LastHeartbeat is the timestamp of the last heartbeat update (Unix seconds)
+	LastHeartbeat int64
+}
+
 // Process is an Entity that represents a process
 type Process struct {
 	EntityID // EntityID.ID is the PID
@@ -1213,8 +1275,12 @@ type Process struct {
 	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
+
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
+
+	// Service contains service discovery information for this process
+	Service      *Service
 }
 
 var _ Entity = &Process{}
