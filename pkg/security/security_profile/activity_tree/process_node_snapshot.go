@@ -263,7 +263,7 @@ func extractPathFromSmapsLine(line []byte) (string, bool) {
 }
 
 func (pn *ProcessNode) snapshotBoundSockets(p *process.Process, stats *Stats, newEvent func() *model.Event) {
-	boundSockets, err := procfs.GetBoundSockets(p)
+	boundSockets, err := procfs.NewBoundSocketSnapshotter().GetBoundSockets(p)
 	if err != nil {
 		seclog.Warnf("error while listing sockets (pid: %v): %s", p.Pid, err)
 		return
