@@ -258,6 +258,8 @@ def build(
         and host_distribution != "ociru"
         and "OMNIBUS_PACKAGE_ARTIFACT_DIR" not in os.environ
     )
+    remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
+    use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
     aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
@@ -272,13 +274,11 @@ def build(
         # which effectively drops whatever was in omnibus_cache_dir
         install_directory = install_directory.lstrip('/')
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
-        remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
         # generated one.
         with gitlab_section("Manage omnibus cache", collapsed=True):
-            use_remote_cache = remote_cache_name is not None
             if use_remote_cache:
                 cache_state = None
                 cache_key = omnibus_compute_cache_key(ctx)
