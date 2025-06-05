@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package common
+package packets
 
 import (
 	"encoding/binary"
@@ -12,38 +12,51 @@ import (
 	"net/netip"
 	"slices"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 )
 
 // FrameParser parses traceroute responses using gopacket.
 type FrameParser struct {
-	Ethernet layers.Ethernet
 	IP4      layers.IPv4
+	IP6      layers.IPv6
 	TCP      layers.TCP
 	ICMP4    layers.ICMPv4
+	ICMP6    layers.ICMPv6
 	Payload  gopacket.Payload
 	Layers   []gopacket.LayerType
-	parser   *gopacket.DecodingLayerParser
+	parserv4 *gopacket.DecodingLayerParser
+	parserv6 *gopacket.DecodingLayerParser
 }
 
-var ignoredLayerErr = &ReceiveProbeNoPktError{
-	Err: fmt.Errorf("FrameParser saw an a layer type not used by traceroute (e.g. ARP) and decided to ignore it"),
+var ignoredLayerErr = &common.ReceiveProbeNoPktError{
+	Err: fmt.Errorf("FrameParser saw an a layer type not used by traceroute (e.g. SCTP) and decided to ignore it"),
 }
 
-const expectedLayerCount = 3
+const expectedLayerCount = 2
 
 // NewFrameParser constructs a new FrameParser
 func NewFrameParser() *FrameParser {
 	p := &FrameParser{}
-	p.parser = gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &p.Ethernet, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
+	p.parserv4 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &p.IP4, &p.TCP, &p.ICMP4, &p.Payload)
+	// TODO: IPv6 is not actually implemented yet
+	p.parserv6 = gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, &p.IP6, &p.TCP, &p.ICMP6, &p.Payload)
 
 	return p
 }
 
 // Parse parses an ethernet packet
 func (p *FrameParser) Parse(buffer []byte) error {
-	err := p.parser.DecodeLayers(buffer, &p.Layers)
+	parser, err := p.getParser(buffer)
+	if err != nil {
+		return err
+	}
+	// TODO: currently we don't support ipv6
+	if parser == p.parserv6 {
+		return ignoredLayerErr
+	}
+	err = parser.DecodeLayers(buffer, &p.Layers)
 	var unsupportedErr gopacket.UnsupportedLayerType
 	if errors.As(err, &unsupportedErr) {
 		if len(p.Layers) < expectedLayerCount {
@@ -67,7 +80,7 @@ func (p *FrameParser) GetIPLayer() gopacket.LayerType {
 	if len(p.Layers) < expectedLayerCount {
 		return gopacket.LayerTypeZero
 	}
-	return p.Layers[1]
+	return p.Layers[0]
 }
 
 // GetTransportLayer gets the layer type of the transport layer (e.g. TCP, ICMP)
@@ -75,7 +88,7 @@ func (p *FrameParser) GetTransportLayer() gopacket.LayerType {
 	if len(p.Layers) < expectedLayerCount {
 		return gopacket.LayerTypeZero
 	}
-	return p.Layers[2]
+	return p.Layers[1]
 }
 
 // TODO IPv6
@@ -191,3 +204,18 @@ func (p *FrameParser) GetICMPInfo() (ICMPInfo, error) {
 
 // TTLExceeded4 is the TTL Exceeded ICMP4 TypeCode
 var TTLExceeded4 = layers.CreateICMPv4TypeCode(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
+
+func (p *FrameParser) getParser(buffer []byte) (*gopacket.DecodingLayerParser, error) {
+	if len(buffer) < 1 {
+		return nil, fmt.Errorf("getParser: buffer was empty")
+	}
+	version := buffer[0] >> 4
+	switch version {
+	case 4:
+		return p.parserv4, nil
+	case 6:
+		return p.parserv6, nil
+	default:
+		return nil, fmt.Errorf("unexpected IP version %d", version)
+	}
+}
