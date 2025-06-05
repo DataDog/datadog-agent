@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	collectorID       = "process-collector"
+	collectorID       = "remote-process-collector"
 	cacheValidityNoRT = 2 * time.Second
 )
 
