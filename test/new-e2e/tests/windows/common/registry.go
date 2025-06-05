@@ -48,7 +48,8 @@ func SetRegistryDWORDValue(host *components.RemoteHost, path string, name string
 //
 // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/set-itemproperty?view=powershell-7.4#-type
 func SetTypedRegistryValue(host *components.RemoteHost, path string, name string, value string, typeName string) error {
-	cmd := fmt.Sprintf("New-Item -Path '%s' -Force; Set-ItemProperty -Path '%s' -Name '%s' -Value '%s' -Type '%s'", path, path, name, value, typeName)
+	// Note: Need Test-path because -Force removes the key if it already exists
+	cmd := fmt.Sprintf("if (-not (Test-Path -Path '%s')) { New-Item -Path '%s' -Force } Set-ItemProperty -Path '%s' -Name '%s' -Value '%s' -Type '%s'", path, path, path, name, value, typeName)
 	_, err := host.Execute(cmd)
 	if err != nil {
 		return err
