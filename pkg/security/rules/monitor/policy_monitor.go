@@ -11,6 +11,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -152,8 +153,8 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
-func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState, filterReport *kfilters.FilterReport) {
-	rule, event := newRuleSetLoadedEvent(acc, policies, filterReport)
+func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) {
+	rule, event := newRuleSetLoadedEvent(acc, rs, policies, filterReport)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
@@ -240,12 +241,20 @@ type LogAction struct {
 	Message string `json:"message,omitempty"`
 }
 
+// MonitoredFilesAndFolders contains information about files and folders being monitored by the rules
+// easyjson:json
+type MonitoredFilesAndFolders struct {
+	Files   []string `json:"files,omitempty"`
+	Folders []string `json:"folders,omitempty"`
+}
+
 // RulesetLoadedEvent is used to report that a new ruleset was loaded
 // easyjson:json
 type RulesetLoadedEvent struct {
 	events.CustomEventCommonFields
-	Policies []*PolicyState         `json:"policies"`
-	Filters  *kfilters.FilterReport `json:"filters,omitempty"`
+	Policies       []*PolicyState            `json:"policies"`
+	Filters        *kfilters.FilterReport    `json:"filters,omitempty"`
+	MonitoredPaths *MonitoredFilesAndFolders `json:"monitored_files,omitempty"`
 }
 
 // ToJSON marshal using json format
@@ -391,10 +400,11 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 }
 
 // newRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func newRuleSetLoadedEvent(acc *events.AgentContainerContext, policies []*PolicyState, filterReport *kfilters.FilterReport) (*rules.Rule, *events.CustomEvent) {
+func newRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) (*rules.Rule, *events.CustomEvent) {
 	evt := RulesetLoadedEvent{
-		Policies: policies,
-		Filters:  filterReport,
+		Policies:       policies,
+		Filters:        filterReport,
+		MonitoredPaths: extractMonitoredFilesAndFolders(rs),
 	}
 	evt.FillCustomEventCommonFields(acc)
 
@@ -423,4 +433,67 @@ func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*policy) (
 
 	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
 		evts
+}
+
+// extractMonitoredFilesAndFolders extracts file and folder paths from rule expressions
+func extractMonitoredFilesAndFolders(rs *rules.RuleSet) *MonitoredFilesAndFolders {
+	if rs == nil {
+		return nil
+	}
+
+	filesSet := make(map[string]bool)
+	foldersSet := make(map[string]bool)
+
+	// Get FIM events
+	fimEvents := model.GetEventTypePerCategory(model.FIMCategory)[model.FIMCategory]
+
+	// Check both file.name and file.path for each FIM event
+	for _, event := range fimEvents {
+		for _, suffix := range []string{".file.name", ".file.path"} {
+			field := event + suffix
+			values := rs.GetFieldValues(field)
+			for _, value := range values {
+				path, ok := value.Value.(string)
+				if !ok || path == "" {
+					continue
+				}
+
+				if isLikelyFolder(path) {
+					foldersSet[path] = true
+				} else {
+					filesSet[path] = true
+				}
+			}
+		}
+	}
+
+	if len(filesSet) == 0 && len(foldersSet) == 0 {
+		return nil
+	}
+
+	monitored := &MonitoredFilesAndFolders{}
+
+	if len(filesSet) > 0 {
+		monitored.Files = make([]string, 0, len(filesSet))
+		for file := range filesSet {
+			monitored.Files = append(monitored.Files, file)
+		}
+	}
+
+	if len(foldersSet) > 0 {
+		monitored.Folders = make([]string, 0, len(foldersSet))
+		for folder := range foldersSet {
+			monitored.Folders = append(monitored.Folders, folder)
+		}
+	}
+
+	return monitored
+}
+
+// isLikelyFolder determines if a path is likely a folder based on common patterns
+func isLikelyFolder(path string) bool {
+	if strings.HasSuffix(path, "/") || strings.HasSuffix(path, "/*") || strings.HasSuffix(path, "/**") {
+		return true
+	}
+	return false
 }
