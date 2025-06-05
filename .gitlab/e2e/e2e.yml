@@ -434,6 +434,7 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestKindSuite
       - EXTRA_PARAMS: --run TestAgentWindowsSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips
   allow_failure: true
 
 new-e2e-discovery:
@@ -490,7 +491,7 @@ new-e2e-apm:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
-    ON_NIGHTLY_FIPS: "true"
+    # TODO: Re-enable on fips pipeline when fips is available with remote config using: ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
