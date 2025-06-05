@@ -46,3 +46,19 @@ type ServicesResponse struct {
 	HeartbeatServices    []Service `json:"heartbeat_services"`
 	RunningServicesCount int       `json:"running_services_count"`
 }
+
+// ServicesEndpointResponse is the response for the system-probe /discovery/services endpoint.
+type ServicesEndpointResponse struct {
+	Services []Service `json:"services"`
+}
+
+// NetworkStatsResponse is the response for the system-probe /discovery/network-stats endpoint.
+type NetworkStatsResponse struct {
+	Stats map[int]NetworkStats `json:"stats"`
+}
+
+// NetworkStats contains network statistics for a process.
+type NetworkStats struct {
+	RxBytes uint64 `json:"rx_bytes"`
+	TxBytes uint64 `json:"tx_bytes"`
+}

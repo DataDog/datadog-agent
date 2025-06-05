@@ -112,9 +112,10 @@ type Event struct {
 	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
 
 	// network syscalls
-	Bind    BindEvent    `field:"bind" event:"bind"`       // [7.37] [Network] A bind was executed
-	Connect ConnectEvent `field:"connect" event:"connect"` // [7.60] [Network] A connect was executed
-	Accept  AcceptEvent  `field:"accept" event:"accept"`   // [7.63] [Network] An accept was executed
+	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed
+	Connect    ConnectEvent    `field:"connect" event:"connect"`       // [7.60] [Network] A connect was executed
+	Accept     AcceptEvent     `field:"accept" event:"accept"`         // [7.63] [Network] An accept was executed
+	SetSockOpt SetSockOptEvent `field:"setsockopt" event:"setsockopt"` // [7.68] [Network] A setsockopt was executed
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -986,4 +987,11 @@ type SysCtlEvent struct {
 	OldValueTruncated bool   `field:"old_value_truncated"` // SECLDoc[old_value_truncated] Definition:`Indicates that the old value field is truncated`
 	Value             string `field:"value"`               // SECLDoc[value] Definition:`New and/or current value for the system control parameter depending on the action type`
 	ValueTruncated    bool   `field:"value_truncated"`     // SECLDoc[value_truncated] Definition:`Indicates that the value field is truncated`
+}
+
+// SetSockOptEvent represents a set socket option event
+type SetSockOptEvent struct {
+	SyscallEvent
+	Level   uint32 `field:"level"`   // SECLDoc[level] Definition:`Socket level`
+	OptName uint32 `field:"optname"` // SECLDoc[optname] Definition:`Socket option name`
 }

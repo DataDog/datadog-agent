@@ -32,7 +32,6 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
-	installerexecfx "github.com/DataDog/datadog-agent/comp/updater/installerexec/fx"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -506,7 +505,6 @@ func getSharedFxOption() fx.Option {
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
-		installerexecfx.Module(),
 		ssistatusfx.Module(),
 	)
 }

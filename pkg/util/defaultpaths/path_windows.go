@@ -21,8 +21,6 @@ var (
 	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
 	PyChecksPath = filepath.Join(_here, "..", "checks.d")
 	distPath     string
-	// InstallerPath holds the path to the installer binary
-	InstallerPath = filepath.Join(_here, "..", "..", "embedded", "bin", "installer")
 )
 
 var (
