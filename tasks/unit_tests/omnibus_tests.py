@@ -142,8 +142,6 @@ class TestOmnibusCache(unittest.TestCase):
             [
                 # We ran omnibus
                 r'bundle exec omnibus build agent',
-                # Listed tags for cache comparison
-                r'git -C omnibus-git-cache/opt/datadog-agent tag -l',
                 # And we created and uploaded the new cache
                 r'git -C omnibus-git-cache/opt/datadog-agent bundle create /\S+/omnibus-git-cache-bundle --tags',
                 r'aws s3 cp (\S* )?/\S+/omnibus-git-cache-bundle s3://omnibus-cache/\w+/slug',
