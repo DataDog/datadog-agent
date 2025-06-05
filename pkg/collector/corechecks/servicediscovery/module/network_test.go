@@ -219,8 +219,8 @@ func TestNetwork(t *testing.T) {
 	params.HeartbeatTime = 0
 
 	// Get the service to be recognized as started
-	_ = getServicesWithParams(t, discovery.url, &params)
-	_ = getServicesWithParams(t, discovery.url, &params)
+	_ = getCheckWithParams(t, discovery.url, &params)
+	_ = getCheckWithParams(t, discovery.url, &params)
 
 	old := model.Service{}
 
@@ -229,7 +229,7 @@ func TestNetwork(t *testing.T) {
 	// test does some basic assertions just to ensure that everything is
 	// hooked up together.
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServicesWithParams(collect, discovery.url, &params)
+		resp := getCheckWithParams(collect, discovery.url, &params)
 		service := findService(pid, resp.HeartbeatServices)
 		require.NotNil(collect, service)
 		assert.NotZero(collect, service.RxBytes)
@@ -240,7 +240,7 @@ func TestNetwork(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServicesWithParams(collect, discovery.url, &params)
+		resp := getCheckWithParams(collect, discovery.url, &params)
 		service := findService(pid, resp.HeartbeatServices)
 		require.NotNil(collect, service)
 		assert.Greater(collect, service.RxBytes, old.RxBytes)
@@ -302,7 +302,7 @@ func TestNetworkStats(t *testing.T) {
 	})
 
 	// Number of calls made to timeProvider.Now() for one call of
-	// getServicesWithParams()
+	// getCheckWithParams()
 	nowCalls := 2
 
 	// Start the service and check we found it.
@@ -318,7 +318,7 @@ func TestNetworkStats(t *testing.T) {
 		now := mockedTime
 		discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
 
-		resp := getServices(collect, discovery.url)
+		resp := getCheckServices(collect, discovery.url)
 		startEvent := findService(pid, resp.StartedServices)
 		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 	}, 30*time.Second, 100*time.Millisecond)
@@ -329,7 +329,7 @@ func TestNetworkStats(t *testing.T) {
 	now := mockedTime
 	discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
 
-	_ = getServicesWithParams(t, discovery.url, &params)
+	_ = getCheckWithParams(t, discovery.url, &params)
 
 	mock.EXPECT().GetStats(gomock.Any()).DoAndReturn(func(pids core.PidSet) (map[uint32]core.NetworkStats, error) {
 		require.True(t, pids.Has(int32(pid)))
@@ -344,7 +344,7 @@ func TestNetworkStats(t *testing.T) {
 	now = now.Add(1 * time.Second)
 	discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
 
-	_ = getServicesWithParams(t, discovery.url, &params)
+	_ = getCheckWithParams(t, discovery.url, &params)
 
 	now = now.Add(10 * time.Second)
 	discovery.mockTimeProvider.EXPECT().Now().Return(now).Times(nowCalls)
@@ -358,7 +358,7 @@ func TestNetworkStats(t *testing.T) {
 			},
 		}, nil
 	})
-	response := getServicesWithParams(t, discovery.url, &params)
+	response := getCheckWithParams(t, discovery.url, &params)
 	service := findService(pid, response.HeartbeatServices)
 	require.NotNil(t, service)
 	require.Equal(t, 3000, int(service.RxBytes))
@@ -369,7 +369,7 @@ func TestNetworkStats(t *testing.T) {
 	stopService(cmd, cancel)
 
 	discovery.mockTimeProvider.EXPECT().Now().Return(now).AnyTimes()
-	r := getServicesWithParams(t, discovery.url, &params)
+	r := getCheckWithParams(t, discovery.url, &params)
 	t.Log(r.StoppedServices)
 
 	mock.EXPECT().Close().Times(1)

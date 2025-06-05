@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParams(t *testing.T) {
+func TestHeartbeatParams(t *testing.T) {
 	def := DefaultParams()
 
 	values := url.Values{}
@@ -41,4 +41,18 @@ func TestParams(t *testing.T) {
 	params, err = ParseParams(values)
 	require.NoError(t, err)
 	require.Equal(t, 2*time.Second, params.HeartbeatTime)
+}
+
+func TestPidsParams(t *testing.T) {
+	def := DefaultParams()
+
+	values := url.Values{}
+	params, err := ParseParams(values)
+	require.NoError(t, err)
+	require.Equal(t, def, params)
+
+	values.Set(pidsParam, "1,2,3")
+	params, err = ParseParams(values)
+	require.NoError(t, err)
+	require.Equal(t, []int{1, 2, 3}, params.Pids)
 }
