@@ -188,6 +188,31 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 			variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context) (string, bool) {
 				return v, true
 			}, nil)
+		case []any:
+			switch v[0].(type) {
+			case string:
+				values := make([]string, len(v))
+				for i, value := range v {
+					values[i] = value.(string)
+				}
+				variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context) ([]string, bool) {
+					return values, true
+				}, nil)
+			case json.Number:
+				values := make([]int, len(v))
+				for i, value := range v {
+					v64, err := value.(json.Number).Int64()
+					if err != nil {
+						return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
+					}
+					values[i] = int(v64)
+				}
+				variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context) ([]int, bool) {
+					return values, true
+				}, nil)
+			default:
+				return nil, fmt.Errorf("unknown variable type %s: %T", k, v)
+			}
 		case json.Number:
 			value, err := v.Int64()
 			if err != nil {
