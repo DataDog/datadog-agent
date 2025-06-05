@@ -318,7 +318,7 @@ def build(
     os.remove(pip_config_file)
 
     if use_omnibus_git_cache:
-        # We only want to evict stalled tags when using the cache locally.
+        # We only want to evict stale tags when using the cache locally.
         # If the cache was fetched through a cache key and downloaded from S3 we
         # want to keep it immutable.
         if not use_remote_cache:
