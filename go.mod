@@ -26,7 +26,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.2
-	github.com/DataDog/appsec-internal-go v1.10.0
+	github.com/DataDog/appsec-internal-go v1.12.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.64.0-rc.12
@@ -649,7 +649,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.59.0
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.65.1
 	github.com/DataDog/datadog-agent/pkg/version v0.65.1
-	github.com/DataDog/go-libddwaf/v3 v3.5.2
+	github.com/DataDog/go-libddwaf/v3 v3.5.4
 	github.com/DataDog/go-sqllexer v0.1.6
 	github.com/Datadog/dublin-traceroute v0.0.2
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
@@ -707,6 +707,7 @@ require (
 
 require (
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.127.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v0.127.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.127.0 // indirect
 )

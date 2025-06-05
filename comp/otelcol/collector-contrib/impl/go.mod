@@ -6,6 +6,7 @@ go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.64.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.127.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.127.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.127.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.127.0

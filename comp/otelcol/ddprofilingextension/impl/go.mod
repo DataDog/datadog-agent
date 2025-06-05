@@ -50,7 +50,7 @@ require (
 
 require (
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
-	github.com/DataDog/appsec-internal-go v1.10.0 // indirect
+	github.com/DataDog/appsec-internal-go v1.12.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.61.0 // indirect
@@ -87,7 +87,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.65.1 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.37.1 // indirect
-	github.com/DataDog/go-libddwaf/v3 v3.5.2 // indirect
+	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/DataDog/go-sqllexer v0.1.6 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect

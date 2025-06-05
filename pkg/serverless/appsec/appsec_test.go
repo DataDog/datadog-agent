@@ -10,11 +10,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 
 	"github.com/DataDog/appsec-internal-go/appsec"
-	waf "github.com/DataDog/go-libddwaf/v3"
 
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,24 @@ func init() {
 	os.Setenv("DD_APPSEC_WAF_TIMEOUT", "1m")
 }
 
+// TestAWSLambadaHostSupport ensures the AWS Lamba host is supported by checking that libddwaf loads
+// successfully on linux/{amd64,arm64}. This test assumes the test will be executed on such hosts.
+func TestAWSLambadaHostSupport(t *testing.T) {
+	err := wafHealth()
+	if runtime.GOOS == "linux" && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
+		// This package is only supports AWS Lambda targets (linux/{amd64,arm64}).
+		// Ensure libddwaf load properly on such hosts.
+		require.NoError(t, err)
+	} else {
+		t.Skip() // The current host is not representative of the AWS Lambda host environments
+	}
+}
+
 func TestNew(t *testing.T) {
+	if err := wafHealth(); err != nil {
+		t.Skip("host not supported by appsec", err)
+	}
+
 	for _, appsecEnabled := range []bool{true, false} {
 		appsecEnabledStr := strconv.FormatBool(appsecEnabled)
 		t.Run(fmt.Sprintf("DD_SERVERLESS_APPSEC_ENABLED=%s", appsecEnabledStr), func(t *testing.T) {
@@ -32,18 +49,8 @@ func TestNew(t *testing.T) {
 			if stop != nil {
 				defer stop(context.Background())
 			}
-			if err := wafHealth(); err != nil {
-				if ok, _ := waf.SupportsTarget(); ok {
-					// host should be supported by appsec, error is unexpected
-					require.NoError(t, err)
-				} else {
-					// host not supported by appsec
-					require.Error(t, err)
-				}
-				return
-			}
-
 			require.NoError(t, err)
+
 			if appsecEnabled {
 				require.NotNil(t, lp)
 			} else {
