@@ -170,6 +170,7 @@ func RootCommands() []*cobra.Command {
 		getStateCommand(),
 		statusCommand(),
 		postinstCommand(),
+		isPrermSupportedCommand(),
 		prermCommand(),
 		hooksCommand(),
 	}

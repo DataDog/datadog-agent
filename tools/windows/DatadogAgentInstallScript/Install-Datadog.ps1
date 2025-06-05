@@ -63,7 +63,7 @@ function Send-Telemetry($payload) {
       "Content-Type" = "application/json"
    }
    try {
-      $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders
+      $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders -UseBasicParsing
       Write-Host "Sending telemetry: $($result.StatusCode)"
    } catch {
       # Don't propagate errors when sending telemetry, because our error handling code will also

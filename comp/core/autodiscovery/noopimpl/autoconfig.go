@@ -37,12 +37,6 @@ func (n *noopAutoConfig) AddConfigProvider(providers.ConfigProvider, bool, time.
 
 func (n *noopAutoConfig) LoadAndRun(context.Context) {}
 
-func (n *noopAutoConfig) ForceRanOnceFlag() {}
-
-func (n *noopAutoConfig) HasRunOnce() bool {
-	return false
-}
-
 func (n *noopAutoConfig) GetAllConfigs() []integration.Config {
 	return []integration.Config{}
 }
@@ -68,10 +62,6 @@ func (n *noopAutoConfig) GetProviderCatalog() map[string]providers.ConfigProvide
 func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {
 	return nil
 }
-
-func (n *noopAutoConfig) Start() {}
-
-func (n *noopAutoConfig) Stop() {}
 
 func (n *noopAutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}

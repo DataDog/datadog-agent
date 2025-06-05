@@ -30,14 +30,28 @@ def argument_extractor(entry_args, **kwargs) -> SimpleNamespace:
     return SimpleNamespace(**kwargs)
 
 
-def byte_to_string(size):
+def byte_to_string(size, unit_power=None, with_unit=True):
     if not size:
-        return "0 B"
+        return f"0{' B' if with_unit else ''}"
+    sign = ""
+    if size < 0:
+        size *= -1
+        sign = "-"
     size_name = ("B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB")
-    i = int(math.log(size, 1024))
-    p = math.pow(1024, i)
+    if unit_power is None:
+        unit_power = int(math.log(size, 1024))
+    p = math.pow(1024, unit_power)
     s = round(size / p, 2)
-    return f"{s} {size_name[i]}"
+    # If s is not exactly 0 but rounded like (0.0 or -0.0)
+    # Goal is to output +0 / -0 for very small changes and 0 for no changes at all
+    if id(s) != id(0) and s == 0:
+        s = 0
+    return f"{sign}{s}{' '+size_name[unit_power] if with_unit else ''}"
+
+
+def string_to_latex_color(text):
+    # Github latex colors are currently broken, we are disabling this function's color temporarily for now
+    return r"$${" + text + "}$$"
 
 
 def string_to_byte(size: str):
@@ -54,7 +68,7 @@ def string_to_byte(size: str):
     if value:
         return int(value * math.pow(1024, power))
     elif "B" in size:
-        return int(size.replace("B", ""))
+        return int(float(size.replace("B", "")))
     else:
         return int(size)
 
@@ -71,7 +85,10 @@ def find_package_path(flavor, package_os, arch, extension=None):
     separator = '_' if package_os == 'debian' else '-'
     if not extension:
         extension = "deb" if package_os == 'debian' else "rpm"
-    glob_pattern = f'{package_dir}/{flavor}{separator}7*{arch}.{extension}'
+    pipeline_match = ""
+    if package_os == "windows":  # Windows builds are subject to artifacts leak and need their pipeline to match the msi
+        pipeline_match = f"{os.environ['CI_PIPELINE_ID']}-1-"
+    glob_pattern = f'{package_dir}/{flavor}{separator}7*{pipeline_match}{arch}.{extension}'
     package_paths = glob.glob(glob_pattern)
     if len(package_paths) > 1:
         raise Exit(code=1, message=color_message(f"Too many files matching {glob_pattern}: {package_paths}", "red"))
@@ -99,8 +116,27 @@ class GateMetricHandler:
         if filename is not None:
             self._load_metrics_report(filename)
 
-    def get_formatted_metric(self, gate_name, metric_name):
-        return byte_to_string(self.metrics[gate_name][metric_name])
+    def get_formatted_metric(self, gate_name, metric_name, with_unit=False):
+        value = self.metrics[gate_name][metric_name]
+        string_value = byte_to_string(value, with_unit=with_unit, unit_power=2)
+        if value > 0:
+            string_value = "+" + string_value
+            return string_to_latex_color(string_value)
+        elif value < 0:
+            return string_to_latex_color(string_value)
+        else:
+            return string_to_latex_color(string_value)
+
+    def get_formatted_metric_comparison(self, gate_name, first_metric, limit_metric):
+        first_value = self.metrics[gate_name][first_metric]
+        second_value = self.metrics[gate_name][limit_metric]
+        limit_value_string = r"$${" + byte_to_string(second_value, unit_power=2, with_unit=False) + "}$$"
+        if first_value > second_value:
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} > {limit_value_string}"
+        elif first_value < second_value:
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} < {limit_value_string}"
+        else:
+            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} = {limit_value_string}"
 
     def register_metric(self, gate_name, metric_name, metric_value):
         if self.metrics.get(gate_name, None) is None:
@@ -130,6 +166,41 @@ class GateMetricHandler:
                 unit="byte",
             )
         return None
+
+    def generate_relative_size(self, ctx, filename="static_gate_report.json", ancestor=None):
+        if ancestor:
+            # Fetch the ancestor's static quality gates report json file
+            out = ctx.run(
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{ancestor}/{filename} {filename}",
+                hide=True,
+                warn=True,
+            )
+            if out.exited == 0:
+                # Load the report inside of a GateMetricHandler specific to the ancestor
+                ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, filename)
+                for gate in self.metrics:
+                    ancestor_gate = ancestor_metric_handler.metrics.get(gate)
+                    if not ancestor_gate:
+                        continue
+                    # Compute the difference between the wire and disk size of common gates between the ancestor and the current pipeline
+                    for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
+                        if self.metrics[gate].get(metric_key) and ancestor_gate.get(metric_key):
+                            relative_metric_size = self.metrics[gate][metric_key] - ancestor_gate[metric_key]
+                            self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
+            else:
+                print(
+                    color_message(
+                        f"[WARN] Unable to fetch quality gates {filename} from {ancestor} !\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
+                        "orange",
+                    )
+                )
+        else:
+            print(
+                color_message(
+                    "[WARN] Unable to find this commit ancestor",
+                    "orange",
+                )
+            )
 
     def _generate_series(self):
         if not self.git_ref or not self.bucket_branch:

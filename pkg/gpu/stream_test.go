@@ -8,6 +8,9 @@
 package gpu
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -22,7 +25,7 @@ import (
 )
 
 func TestKernelLaunchesHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -82,7 +85,7 @@ func TestKernelLaunchesHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -154,7 +157,7 @@ func TestMemoryAllocationsHandled(t *testing.T) {
 }
 
 func TestMemoryAllocationsDetectLeaks(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -190,7 +193,7 @@ func TestMemoryAllocationsDetectLeaks(t *testing.T) {
 }
 
 func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -235,7 +238,7 @@ func TestMemoryAllocationsNoCrashOnInvalidFree(t *testing.T) {
 }
 
 func TestMemoryAllocationsMultipleAllocsHandled(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
 	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), getStreamLimits(config.New()), streamTelemetry)
 	require.NoError(t, err)
@@ -335,8 +338,14 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 		}
 
 		t.Run(name, func(t *testing.T) {
-			proc := kernel.ProcFSRoot()
-			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+			var proc string
+			if fatbinParsingEnabled {
+				proc = t.TempDir()
+			} else {
+				proc = kernel.ProcFSRoot()
+			}
+
+			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))
 
 			if fatbinParsingEnabled {
@@ -350,7 +359,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			// Set up the caches in system context so no actual queries are done
 			pid, tid := uint64(1), uint64(1)
 			kernAddress := uint64(42)
-			binPath := "/path/to/binary"
+			binPath := "binary"
 			smVersion := uint32(75)
 			kernName := "kernel"
 			kernSize := uint64(1000)
@@ -365,6 +374,17 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			}
 
 			if fatbinParsingEnabled {
+				// Create all parent directories,
+				// the path should match the procBinPath var value in cuda.AddKernelCacheEntry
+				tmpFoldersPath := filepath.Join(proc, fmt.Sprintf("%d", pid), "root")
+				err := os.MkdirAll(tmpFoldersPath, 0755)
+				require.NoError(t, err)
+				filePath := filepath.Join(tmpFoldersPath, binPath)
+				data := []byte(kernName)
+				//create a dummy file because AddKernelCacheEntry expects a file to exist to get the file stats for verification
+				err = os.WriteFile(filePath, data, 0644)
+				require.NoError(t, err)
+
 				cuda.AddKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
 			}
 
@@ -454,7 +474,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 }
 
 func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -491,7 +511,7 @@ func TestKernelLaunchTriggersSyncIfLimitReached(t *testing.T) {
 }
 
 func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -570,7 +590,7 @@ func TestKernelLaunchWithManualSyncsAndLimitsReached(t *testing.T) {
 }
 
 func TestMemoryAllocationEviction(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -609,7 +629,7 @@ func TestMemoryAllocationEviction(t *testing.T) {
 }
 
 func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	telemetryMock := testutil.GetTelemetryMock(t)
 	streamTelemetry := newStreamTelemetry(telemetryMock)
 	limits := streamLimits{
@@ -685,7 +705,7 @@ func TestMemoryAllocationEvictionAndFrees(t *testing.T) {
 }
 
 func TestStreamHandlerIsInactive(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	limits := streamLimits{
 		maxKernelLaunches: 5,
 		maxAllocEvents:    5,

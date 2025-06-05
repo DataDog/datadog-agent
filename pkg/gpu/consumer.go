@@ -135,7 +135,9 @@ func (c *cudaEventConsumer) Start() {
 
 				dataLen := len(batchData.Data)
 				if dataLen < gpuebpf.SizeofCudaEventHeader {
-					log.Errorf("Not enough data to parse header, data size=%d, expecting at least %d", dataLen, gpuebpf.SizeofCudaEventHeader)
+					if logLimitProbe.ShouldLog() {
+						log.Warnf("Not enough data to parse header, data size=%d, expecting at least %d", dataLen, gpuebpf.SizeofCudaEventHeader)
+					}
 					c.telemetry.eventErrors.Inc(telemetryEventHeader, telemetryEventErrorMismatch)
 					continue
 				}
@@ -144,8 +146,8 @@ func (c *cudaEventConsumer) Start() {
 				dataPtr := unsafe.Pointer(&batchData.Data[0])
 				err := c.handleEvent(header, dataPtr, dataLen)
 
-				if err != nil {
-					log.Errorf("Error processing CUDA event: %v", err)
+				if err != nil && logLimitProbe.ShouldLog() {
+					log.Warnf("Error processing CUDA event: %v", err)
 				}
 
 				batchData.Done()
@@ -177,7 +179,7 @@ func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType g
 	if dataLen != expectedSize {
 		evStr := eventType.String()
 		c.telemetry.eventErrors.Inc(evStr, telemetryEventErrorMismatch)
-		return fmt.Errorf("Not enough data to parse %s event, data size=%d, expecting %d", evStr, dataLen, expectedSize)
+		return fmt.Errorf("not enough data to parse %s event, data size=%d, expecting %d", evStr, dataLen, expectedSize)
 	}
 
 	typedEvent := (*K)(data)
@@ -193,7 +195,7 @@ func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, d
 	streamHandler, err := c.streamHandlers.getStream(header)
 
 	if err != nil {
-		return fmt.Errorf("error getting stream handler: %w", err)
+		return fmt.Errorf("error getting stream handler for stream id: %d : %w ", header.Stream_id, err)
 	}
 
 	switch eventType {
@@ -205,7 +207,7 @@ func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, d
 		return handleTypedEvent(c, streamHandler.handleSync, eventType, data, dataLen, int(gpuebpf.SizeofCudaSync))
 	default:
 		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
-		return fmt.Errorf("Unknown event type: %d", header.Type)
+		return fmt.Errorf("unknown event type: %d", header.Type)
 	}
 }
 
@@ -227,7 +229,7 @@ func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, d
 		return handleTypedEvent(c, c.handleSetDevice, eventType, data, dataLen, gpuebpf.SizeofCudaSetDeviceEvent)
 	default:
 		c.telemetry.eventErrors.Inc(telemetryEventTypeUnknown, telemetryEventErrorUnknownType)
-		return fmt.Errorf("Unknown event type: %d", header.Type)
+		return fmt.Errorf("unknown event type: %d", header.Type)
 	}
 }
 

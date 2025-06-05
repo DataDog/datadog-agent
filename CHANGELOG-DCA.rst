@@ -2,6 +2,89 @@
 Release Notes
 =============
 
+.. _Release Notes_7.66.1:
+
+7.66.1
+======
+
+.. _Release Notes_7.66.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-06-03
+Pinned to datadog-agent v7.66.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7661>`_.
+
+.. _Release Notes_7.66.0:
+
+7.66.0
+======
+
+.. _Release Notes_7.66.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-22
+Pinned to datadog-agent v7.66.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7660>`_.
+
+.. _Release Notes_7.66.0_New Features:
+
+New Features
+------------
+
+- For workload selection in auto-instrumentation, users can now use the Kubernetes native ``valueFrom``
+  as an alternative to ``value`` in ``ddTraceConfigs``. This enables dynamic, user-defined and label
+  based value propagation to the tracing SDKs, like ``DD_SERVICE``.
+
+- Collect `EndpointSlice` manifests in the orchestrator check.
+
+- Tag resources from Cluster Agent Orchestrator check with all static tags.
+
+.. _Release Notes_7.66.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix major data races in the orchestrator check for the Kubernetes resource collection.
+
+- Fix data race in autodiscovery cluster checks provider.
+
+- Fix data race in autodiscovery kube services provider.
+
+- Fixes an issue with autoinstrumentation where sometimes a ``DD_SERVICE`` is
+  not consistent between containers and init containers.
+
+- The auto-instrumentation webhook no longer mutates the ``istio-proxy`` container.
+  This fixes an issue with Kubernetes-native sidecars and the istio service mesh
+  where a standard sidecar is moved to be the first init container by istio after it
+  was mutated by auto-instrumentation.
+
+- The cluster-agent kubernetes_metadata API now supports client specified annotations filtering.
+  Clients can pass along filters as query parameters like '?filter=abc&filter=def'.
+
+
+.. _Release Notes_7.65.2:
+
+7.65.2
+======
+
+.. _Release Notes_7.65.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-05-13
+Pinned to datadog-agent v7.65.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7652>`_.
+
+.. _Release Notes_7.65.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix wrong computation of the init container resources in the autoinstrumentation webhook.
+
+
 .. _Release Notes_7.65.1:
 
 7.65.1

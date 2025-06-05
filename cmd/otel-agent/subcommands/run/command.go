@@ -42,6 +42,7 @@ import (
 	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl"
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -55,7 +56,6 @@ import (
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -141,7 +141,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return statsd.NewOTelStatsd(client)
 		}),
 		ipcfx.ModuleReadWrite(),
-		collectorfx.Module(),
+		collectorfx.Module(collectorimpl.NewParams(params.BYOC)),
 		collectorcontribFx.Module(),
 		converterfx.Module(),
 		fx.Provide(func(cp converter.Component) confmap.Converter {
@@ -204,9 +204,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 		remoteTaggerFx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c coreconfig.Component) (string, error) { return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil },
-			RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
-				return func() (string, error) { return security.FetchAuthToken(c) }
-			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
 		telemetryimpl.Module(),

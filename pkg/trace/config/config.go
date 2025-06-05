@@ -490,6 +490,8 @@ type AgentConfig struct {
 
 	// RemoteConfigClient retrieves sampling updates from the remote config backend
 	RemoteConfigClient RemoteClient `json:"-"`
+	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
+	MRFRemoteConfigClient RemoteClient `json:"-"`
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
@@ -513,13 +515,17 @@ type AgentConfig struct {
 	// key-value pairs, starting with a comma
 	AzureContainerAppTags string
 
-	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
-	// Function will be nil if in an environment without an auth token
-	GetAgentAuthToken func() string `json:"-"`
+	// AuthToken is the auth token for the agent
+	AuthToken string `json:"-"`
 
-	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
-	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.
-	IsMRFEnabled func() bool `json:"-"`
+	// IPC TLS client config
+	IPCTLSClientConfig *tls.Config `json:"-"`
+
+	// IPC TLS server config
+	IPCTLSServerConfig *tls.Config `json:"-"`
+
+	MRFFailoverAPMDefault bool
+	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -710,6 +716,14 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
+}
+
+// MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
+func (c *AgentConfig) MRFFailoverAPM() bool {
+	if c.MRFFailoverAPMRC != nil {
+		return *c.MRFFailoverAPMRC
+	}
+	return c.MRFFailoverAPMDefault
 }
 
 // ConfiguredPeerTags returns the set of peer tags that should be used

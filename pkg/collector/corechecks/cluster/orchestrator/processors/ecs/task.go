@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -59,7 +60,7 @@ func (t *TaskHandlers) BuildMessageBody(ctx processors.ProcessorContext, resourc
 		Tasks:        models,
 		Info:         pctx.SystemInfo,
 		HostName:     pctx.Hostname,
-		Tags:         pctx.ExtraTags,
+		Tags:         util.ImmutableTagsJoin(pctx.Cfg.ExtraTags, pctx.GetCollectorTags()),
 	}
 }
 
