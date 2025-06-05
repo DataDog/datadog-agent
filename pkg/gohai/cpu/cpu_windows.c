@@ -4,7 +4,7 @@
 
 #include "cpu_windows.h"
 
-inline void getCacheSize(SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX* ptr, CPU_INFO* cpuInfo) {
+static inline void getCacheSize(SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX* ptr, CPU_INFO* cpuInfo) {
     switch (ptr->Cache.Level) {
         case 1:
             cpuInfo->l1CacheSize += ptr->Cache.CacheSize;
@@ -36,7 +36,11 @@ int computeCoresAndProcessors(CPU_INFO* cpuInfo) {
     // NOTE: The following call always return failure because the intention is to
     // get the buffer size so we provide NULL as the buffer. The error we need to
     // check is ERROR_INSUFFICIENT_BUFFER. Any other error will trigger a return.
-    GetLogicalProcessorInformationEx(RelationAll, NULL, &buflen);
+    BOOL ret = GetLogicalProcessorInformationEx(RelationAll, NULL, &buflen);
+    if (FALSE != ret) {
+        // this should not happen due to no buffer suppliedin the call
+        return ERROR_INVALID_FUNCTION;
+    }
     DWORD err = GetLastError();
     if (err != ERROR_INSUFFICIENT_BUFFER) {
         return err;
@@ -55,7 +59,8 @@ int computeCoresAndProcessors(CPU_INFO* cpuInfo) {
     // Walk through the buffer
     byteOffset = 0;
     while (byteOffset < buflen) {
-        SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX* ptr = (SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*)((char*)buffer + byteOffset);
+        SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX* ptr =
+            (SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX*)((char*)buffer + byteOffset);
 
         switch (ptr->Relationship) {
             case RelationProcessorCore:
