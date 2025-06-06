@@ -442,14 +442,20 @@ func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
 	for _, event := range fimEvents {
 		for _, suffix := range []string{".file.name", ".file.path"} {
 			field := event + suffix
-			values := rs.GetFieldValues(field)
-			for _, value := range values {
-				path, ok := value.Value.(string)
-				if !ok || path == "" {
-					continue
-				}
+			// Get all rules that use this field
+			for _, rule := range rs.GetRules() {
+				values := rule.GetFieldValues(field)
+				for _, value := range values {
+					path, ok := value.Value.(string)
+					if !ok || path == "" {
+						continue
+					}
 
-				pathsSet[path] = true
+					// Check if this value is used positively in the rule expression (NO: not in or !=)
+					if isPositivelyUsed(rule, field, value, rs) {
+						pathsSet[path] = true
+					}
+				}
 			}
 		}
 	}
@@ -464,4 +470,41 @@ func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
 	}
 
 	return monitored
+}
+
+// isPositivelyUsed checks if a field value is used positively
+func isPositivelyUsed(rule *rules.Rule, field eval.Field, value eval.FieldValue, rs *rules.RuleSet) bool {
+
+	fakeEvent := rs.NewEvent()
+	ctx := eval.NewContext(fakeEvent)
+
+	// Test with the actual value
+	err := fakeEvent.SetFieldValue(field, value.Value)
+	if err != nil {
+		return false
+	}
+
+	origResult, err := rule.PartialEval(ctx, field)
+	if err != nil {
+		return false
+	}
+
+	// Test with a different value to see if the rule behavior changes
+	notValue, err := eval.NotOfValue(value.Value)
+	if err != nil {
+		return false
+	}
+
+	err = fakeEvent.SetFieldValue(field, notValue)
+	if err != nil {
+		return false
+	}
+
+	notResult, err := rule.PartialEval(ctx, field)
+	if err != nil {
+		return false
+	}
+
+	// If the results are different, this means the field is used positively
+	return origResult != notResult
 }
