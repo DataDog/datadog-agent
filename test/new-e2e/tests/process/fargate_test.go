@@ -57,6 +57,7 @@ func TestECSFargateTestSuite(t *testing.T) {
 func (s *ECSFargateSuite) TestProcessCheck() {
 	t := s.T()
 
+	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
@@ -65,7 +66,7 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 		assertFargateHostname(t, payloads)
-	}, 2*time.Minute, 10*time.Second)
+	}, 2*time.Minute, 10*time.Second, "process payloads should be collected: %v", payloads)
 }
 
 type ECSFargateCoreAgentSuite struct {
@@ -90,9 +91,10 @@ func TestECSFargateCoreAgentTestSuite(t *testing.T) {
 func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
 
+	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
-		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
@@ -100,7 +102,7 @@ func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 
 		assertFargateHostname(t, payloads)
-	}, 2*time.Minute, 10*time.Second)
+	}, 2*time.Minute, 10*time.Second, "process payloads should be collected by the core agent: %v", payloads)
 }
 
 func assertFargateHostname(t assert.TestingT, payloads []*aggregator.ProcessPayload) {
