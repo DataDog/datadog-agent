@@ -63,7 +63,6 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
@@ -97,14 +96,12 @@ func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		var err error
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		requireProcessNotCollected(c, payloads, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
-
 		assertFargateHostname(t, payloads)
 	}, 2*time.Minute, 10*time.Second)
 }
