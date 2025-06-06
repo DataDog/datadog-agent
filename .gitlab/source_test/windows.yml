@@ -20,7 +20,7 @@
     - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$API_KEY_ORG2" -tempFile "$tmpfile")
     - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
     - $Env:DD_API_KEY=$(cat "$tmpfile")
-    - ./datadog-ci.exe trace --name "Docker pull windows" -- docker pull ${WINBUILDIMAGE}
+    - ./datadog-ci.exe trace --name "Docker pull windows" --tags "windows:pulldocker" -- docker pull ${WINBUILDIMAGE}
     - >
       docker run --rm
       -m 24576M
