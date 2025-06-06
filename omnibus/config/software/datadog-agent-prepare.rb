@@ -15,7 +15,7 @@ build do
 
   command "echo PREPARE CELIAN TEST"
 
-  command "rm /tmp/debug"
+  command "rm -f /tmp/debug"
 
   command "pwd >> /tmp/debug", cwd: Dir.pwd
   command "echo >> /tmp/debug"
