@@ -8,7 +8,6 @@ package fleetstatusimpl
 
 import (
 	"embed"
-	"expvar"
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -87,21 +86,15 @@ func (sp statusProvider) populateStatus(stats map[string]interface{}) {
 	status := make(map[string]interface{})
 
 	remoteManagementEnabled := isRemoteManagementEnabled(sp.Config)
-	remoteConfigEnabled := isRemoteConfigEnabled()
 	isInstallerRunning := false
 	isInstallerRunning, _ = sp.DaemonChecker.IsRunning()
 
 	status["remoteManagementEnabled"] = remoteManagementEnabled
-	status["remoteConfigEnabled"] = remoteConfigEnabled
 	status["installerRunning"] = isInstallerRunning
-	status["fleetAutomationEnabled"] = remoteManagementEnabled && remoteConfigEnabled && isInstallerRunning
+	status["fleetAutomationEnabled"] = remoteManagementEnabled && isInstallerRunning
 	stats["fleetAutomationStatus"] = status
 }
 
 func isRemoteManagementEnabled(conf config.Component) bool {
 	return conf.GetBool("remote_updates")
-}
-
-func isRemoteConfigEnabled() bool {
-	return expvar.Get("remoteConfigStatus") != nil
 }
