@@ -132,7 +132,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		return metadata
 	}
 
-	rawLayers, err := fetchSystemProbeConfigBySource(sysprobeConf)
+	rawLayers, err := fetchSystemProbeConfigBySource(sysprobeConf, nil) // It's ok to pass nil here because the IPCClient is not used by SystemProbe API
 	if err != nil {
 		sb.log.Debugf("error fetching system-probe config layers: %s", err)
 		return metadata
@@ -166,7 +166,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 		}
 	}
 
-	if str, err := fetchSystemProbeConfig(sysprobeConf); err == nil {
+	if str, err := fetchSystemProbeConfig(sysprobeConf, nil); err == nil {
 		metadata["full_configuration"] = str
 	} else {
 		sb.log.Debugf("error fetching system-probe config: %s", err)

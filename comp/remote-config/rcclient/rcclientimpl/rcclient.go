@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -101,8 +100,8 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
-		func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
-		deps.IPC.GetTLSClientConfig,
+		deps.IPC.GetAuthToken(),
+		deps.IPC.GetTLSClientConfig(),
 		optsWithDefault...,
 	)
 	if err != nil {
@@ -114,8 +113,8 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
 			pkgconfigsetup.GetIPCPort(),
-			func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
-			deps.IPC.GetTLSClientConfig,
+			deps.IPC.GetAuthToken(),
+			deps.IPC.GetTLSClientConfig(),
 			optsWithDefault...,
 		)
 		if err != nil {

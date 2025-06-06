@@ -223,7 +223,7 @@ func validateRedis(t *testing.T, monitor *Monitor, expectedStats map[string]map[
 	found := make(map[string]map[redis.CommandType]int)
 	require.Eventually(t, func() bool {
 		statsObj, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		redisProtocolStats, exists := statsObj[protocols.Redis]
 		if !exists {
 			return false

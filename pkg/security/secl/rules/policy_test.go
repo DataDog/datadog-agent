@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -940,6 +941,227 @@ func TestActionSetVariableInherited(t *testing.T) {
 	assert.NotNil(t, value)
 	assert.Equal(t, 1000, value)
 	assert.True(t, set)
+}
+
+func stringPtr(input string) *string {
+	return &input
+}
+
+func fakeOpenEvent(path string, pid uint32, ancestor *model.ProcessCacheEntry) *model.Event {
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	event.ProcessCacheEntry = &model.ProcessCacheEntry{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				PIDContext: model.PIDContext{
+					Pid: pid,
+				},
+			},
+		},
+	}
+	if ancestor != nil {
+		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
+	}
+	event.ProcessCacheEntry.Retain()
+	event.SetFieldValue("open.file.path", path)
+	return event
+}
+
+func TestActionSetVariableInheritedFilter(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "first_execution_context",
+				Expression: `open.file.path == "/tmp/first" && ${process.correlation_key} == ""`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"first_${builtins.uuid4}"`,
+							Scope:        "process",
+							Inherited:    true,
+						},
+					},
+				},
+			},
+			{
+				ID:         "second_execution_context",
+				Expression: `open.file.path == "/tmp/second" && ${process.correlation_key} in ["", ~"first_*"]`,
+				Actions: []*ActionDefinition{
+					{
+						Filter: stringPtr(`${process.correlation_key} != ""`),
+						Set: &SetDefinition{
+							Name:         "parent_correlation_keys",
+							DefaultValue: "",
+							Expression:   "${process.correlation_key}",
+							Scope:        "process",
+							Append:       true,
+							Inherited:    true,
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"second_${builtins.uuid4}"`,
+							Scope:        "process",
+							Inherited:    true,
+						},
+					},
+				},
+			},
+			{
+				ID:         "third_execution_context",
+				Expression: `open.file.path == "/tmp/third" && ${process.correlation_key} in ["", ~"first_*", ~"second_*"]`,
+				Actions: []*ActionDefinition{
+					{
+						Filter: stringPtr(`${process.correlation_key} != ""`),
+						Set: &SetDefinition{
+							Name:         "parent_correlation_keys",
+							DefaultValue: "",
+							Expression:   "${process.correlation_key}",
+							Scope:        "process",
+							Append:       true,
+							Inherited:    true,
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"third_${builtins.uuid4}"`,
+							Scope:        "process",
+							Inherited:    true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := rs.evalOpts
+
+	// Fetch process.correlation_key variable
+	correlationKeySECLVariable := opts.VariableStore.Get("process.correlation_key")
+	assert.NotNil(t, correlationKeySECLVariable)
+	correlationKeyScopedVariable, ok := correlationKeySECLVariable.(eval.ScopedVariable)
+	assert.NotNil(t, correlationKeyScopedVariable)
+	assert.True(t, ok)
+
+	// Fetch process.parent_correlation_keys variable
+	parentCorrelationKeysSECLVariable := opts.VariableStore.Get("process.parent_correlation_keys")
+	assert.NotNil(t, parentCorrelationKeysSECLVariable)
+	parentCorrelationKeysScopedVariable, ok := parentCorrelationKeysSECLVariable.(eval.ScopedVariable)
+	assert.NotNil(t, parentCorrelationKeysScopedVariable)
+	assert.True(t, ok)
+
+	event := fakeOpenEvent("/tmp/first", 1, nil)
+	ctx := eval.NewContext(event)
+
+	// test correlation key initial value
+	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, "", correlationKeyValue)
+	assert.False(t, set)
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "first_"))
+	assert.True(t, set)
+
+	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx)
+	assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
+
+	correlationKeyFromFirstRule := correlationKeyValue.(string)
+
+	// trigger the first rule again, and make sure nothing changes
+	event2 := fakeOpenEvent("/tmp/first", 2, event.ProcessCacheEntry)
+	ctx = eval.NewContext(event2)
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
+	assert.True(t, set)
+
+	if rs.Evaluate(event2) {
+		t.Errorf("Didn't expected event to match rule")
+	}
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
+	assert.True(t, set)
+
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
+
+	// jump to the third rule, check:
+	//  - that the correlation key is updated with the pattern from the third rule
+	//  - that the first correlation key is now in the "parent correlation keys" variable
+	event3 := fakeOpenEvent("/tmp/third", 3, event2.ProcessCacheEntry)
+	ctx = eval.NewContext(event3)
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
+	assert.True(t, set)
+
+	if !rs.Evaluate(event3) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "third_"))
+	assert.True(t, set)
+
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
+
+	correlationKeyFromThirdRule := correlationKeyValue.(string)
+
+	// trigger the second rule, make sure nothing changes
+	event4 := fakeOpenEvent("/tmp/second", 4, event3.ProcessCacheEntry)
+	ctx = eval.NewContext(event4)
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
+	assert.True(t, set)
+
+	if rs.Evaluate(event4) {
+		t.Errorf("Didn't expected event to match rule")
+	}
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
+	assert.True(t, set)
+
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
 }
 
 func TestActionSetVariableExpression(t *testing.T) {

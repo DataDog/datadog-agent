@@ -13,15 +13,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 const (
-	// maxCommLen is maximum command name length to process when checking for non-reportable commands,
-	// is one byte less (excludes end of line) than the maximum of /proc/<pid>/comm
-	// defined in https://man7.org/linux/man-pages/man5/proc.5.html.
-	maxCommLen   = 15
 	poolCapacity = 100
 )
 
@@ -35,12 +32,12 @@ var ignoreFamily = map[string]struct{}{
 }
 
 var (
-	procCommBufferPool = ddsync.NewSlicePool[byte](maxCommLen, poolCapacity)
+	procCommBufferPool = ddsync.NewSlicePool[byte](core.MaxCommLen, poolCapacity)
 )
 
 // shouldIgnoreComm returns true if process should be ignored
 func (s *discovery) shouldIgnoreComm(pid int32) bool {
-	if s.config.ignoreComms == nil {
+	if s.config.IgnoreComms == nil {
 		return false
 	}
 	commPath := kernel.HostProc(strconv.Itoa(int(pid)), "comm")
@@ -66,7 +63,7 @@ func (s *discovery) shouldIgnoreComm(pid int32) bool {
 	}
 
 	comm := strings.TrimSuffix(string((*buf)[:n]), "\n")
-	_, found := s.config.ignoreComms[comm]
+	_, found := s.config.IgnoreComms[comm]
 
 	return found
 }

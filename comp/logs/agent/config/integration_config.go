@@ -93,6 +93,57 @@ type LogsConfig struct {
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
 	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
+	// AutoMultiLineOptions provides detailed configuration for auto multi-line detection specific to this source.
+	// It maps to the 'auto_multi_line' key in the YAML configuration.
+	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
+	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
+	// Downstream code will be responsible for parsing this string.
+	AutoMultiLineSamples []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
+}
+
+// SourceAutoMultiLineOptions defines per-source auto multi-line detection overrides.
+// These settings allow for fine-grained control over auto multi-line detection
+// for a specific log source, potentially overriding global configurations.
+type SourceAutoMultiLineOptions struct {
+	// EnableJSONDetection allows to enable or disable the detection of multi-line JSON logs for this source.
+	EnableJSONDetection *bool `mapstructure:"enable_json_detection" json:"enable_json_detection" yaml:"enable_json_detection"`
+
+	// EnableDatetimeDetection allows to enable or disable the detection of multi-lines based on leading datetime stamps for this source.
+	EnableDatetimeDetection *bool `mapstructure:"enable_datetime_detection" json:"enable_datetime_detection" yaml:"enable_datetime_detection"`
+
+	// MatchThreshold sets the similarity threshold to consider a pattern match for this source.
+	TimestampDetectorMatchThreshold *float64 `mapstructure:"timestamp_detector_match_threshold" json:"timestamp_detector_match_threshold" yaml:"timestamp_detector_match_threshold"`
+
+	// TokenizerMaxInputBytes sets the maximum number of bytes the tokenizer will read for this source.
+	TokenizerMaxInputBytes *int `mapstructure:"tokenizer_max_input_bytes" json:"tokenizer_max_input_bytes" yaml:"tokenizer_max_input_bytes"`
+
+	// PatternTableMaxSize sets the number of patterns auto multi line can use
+	PatternTableMaxSize *int `mapstructure:"pattern_table_max_size" json:"pattern_table_max_size" yaml:"pattern_table_max_size"`
+
+	// PatternTableMatchThreshold sets the threshold for pattern table match for this source.
+	PatternTableMatchThreshold *float64 `mapstructure:"pattern_table_match_threshold" json:"pattern_table_match_threshold" yaml:"pattern_table_match_threshold"`
+
+	// EnableJSONAggregation allows to enable or disable the aggregation of multi-line JSON logs for this source.
+	EnableJSONAggregation *bool `mapstructure:"enable_json_aggregation" json:"enable_json_aggregation" yaml:"enable_json_aggregation"`
+
+	// TagAggregatedJSON allows to enable or disable the tagging of aggregated JSON logs for this source.
+	TagAggregatedJSON *bool `mapstructure:"tag_aggregated_json" json:"tag_aggregated_json" yaml:"tag_aggregated_json"`
+}
+
+// AutoMultilineSample defines a sample used to create auto multiline detection
+// rules
+type AutoMultilineSample struct {
+	// Sample is a raw log message sample used to aggregate logs.
+	Sample string `mapstructure:"sample" json:"sample" yaml:"sample"`
+	// MatchThreshold is the ratio of tokens that must match between the sample and the log message to consider it a match.
+	// From a user perspective, this is how similar the log has to be to the sample to be considered a match.
+	// Optional - Default value is 0.75.
+	MatchThreshold *float64 `mapstructure:"match_threshold,omitempty" json:"match_threshold,omitempty"`
+	// Regex is a pattern used to aggregate logs. NOTE that you can use either a sample or a regex, but not both.
+	Regex string `mapstructure:"regex,omitempty" json:"regex,omitempty"`
+	// Label is the label to apply to the log message if it matches the sample.
+	// Optional - Default value is "start_group".
+	Label *string `mapstructure:"label,omitempty" json:"label,omitempty"`
 }
 
 // StringSliceField is a custom type for unmarshalling comma-separated string values or typical yaml fields into a slice of strings.
