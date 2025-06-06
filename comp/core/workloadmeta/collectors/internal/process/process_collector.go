@@ -209,7 +209,7 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 
 			// categorize the processes into events for workloadmeta
 			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-			languages := c.detectLanguages(createdProcs, c.systemProbeConfig)
+			languages := c.detectLanguages(createdProcs)
 			wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
 
 			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
