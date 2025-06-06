@@ -113,28 +113,8 @@ USE_DYNAMIC_TOKENS=true
 ```
 
 **Option 2: Cursor Configuration**
-```json
-{
-  "mcpServers": {
-    "trino-netflow": {
-      "command": "node",
-      "args": ["/path/to/trino-mcp-server/dist/index.js"],
-      "env": {
-        "TRINO_SERVER": "trino-gateway.us1.staging.dog",
-        "TRINO_CATALOG": "eventplatform",
-        "TRINO_SCHEMA": "system",
-        "TRINO_USER": "your-username",
-        "TRINO_AUTH_TYPE": "datadog",
-        "DD_ORG_ID": "2",
-        "DD_CLIENT_ID": "trino-cli",
-        "DD_USER_UUID": "your-uuid",
-        "DD_DATACENTER": "us1.staging.dog",
-        "USE_DYNAMIC_TOKENS": "true"
-      }
-    }
-  }
-}
-```
+
+See the complete [Cursor Configuration](#cursor-configuration) section below for the full MCP server setup.
 
 ### Prerequisites for Dynamic Tokens
 
@@ -159,7 +139,7 @@ If dynamic token generation fails:
 3. **Check datacenter**: Ensure `DD_DATACENTER` matches your environment
 4. **Fallback mode**: Set static tokens in `env.datadog` as backup
 
-## Setting up with Cursor
+## Cursor Configuration
 
 1. **Add to your Cursor configuration:**
    Edit your Cursor settings and add the MCP server configuration:
@@ -179,12 +159,19 @@ If dynamic token generation fails:
            "DD_ORG_ID": "2",
            "DD_CLIENT_ID": "trino-cli",
            "DD_USER_UUID": "your-uuid",
-           "DD_DATACENTER": "us1.staging.dog"
+           "DD_DATACENTER": "us1.staging.dog",
+           "USE_DYNAMIC_TOKENS": "true"
          }
        }
      }
    }
    ```
+
+   **Configuration Options:**
+   - **Required fields**: All fields except `USE_DYNAMIC_TOKENS` are required
+   - **Dynamic tokens**: Set `USE_DYNAMIC_TOKENS` to `"true"` to enable automatic token refresh (recommended)
+   - **Static tokens**: Omit `USE_DYNAMIC_TOKENS` or set to `"false"` to use static tokens from `env.datadog` file
+   - **Path**: Update the path in `args` to match your installation directory
 
 2. **Restart Cursor** to load the MCP server
 
