@@ -105,7 +105,7 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink)
+	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, trigger.forceFlushAll)
 	trigger.blockChan <- struct{}{}
 }
 
