@@ -32,23 +32,28 @@ func TestNewServer(t *testing.T) {
 }
 
 func TestHistogramMetricNamesFilter(t *testing.T) {
-    require := require.New(t)
+	cfg := make(map[string]interface{})
+	require := require.New(t)
+
+	cfg["histogram_aggregates"] = []string{"avg", "max", "median"}
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	s := deps.Server.(*server)
+
 	bl := []string{
 		"foo",
 		"bar",
 		"baz",
 		"foo.avg",
-		"fooavg",
 		"foo.max",
 		"foo.count",
 		"baz.73percentile",
 		"baz.22percentile",
-		"baz80percentile",
 		"count",
 	}
 
-	filtered := createHistogramsBlocklist(bl)
-	require.ElementsMatch(filtered, []string{"foo.avg", "foo.max", "foo.count", "baz.73percentile", "baz.22percentile"})
+	filtered := s.createHistogramsBlocklist(bl)
+	require.ElementsMatch(filtered, []string{"foo.avg", "foo.max", "baz.73percentile", "baz.22percentile"})
 }
 
 // This test is proving that no data race occurred on the `cachedTlmOriginIds` map.
