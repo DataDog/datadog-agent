@@ -38,10 +38,14 @@ build do
 
   command "echo CELIAN TEST"
 
+  command "pwd", cwd: Dir.pwd
   command "pwd"
+  command "ls", cwd: Dir.pwd
   command "ls"
   command "echo 'tools/ci:'"
-  command "ls tools/ci"
+  command "ls tools/ci || true", cwd: Dir.pwd
+  command "ls tools/ci || true"
+  command "./tools/ci/retry.sh bash -c 'echo retry; false'", cwd: Dir.pwd
   command "./tools/ci/retry.sh bash -c 'echo retry; false'"
 
   command "echo END CELIAN TEST"
