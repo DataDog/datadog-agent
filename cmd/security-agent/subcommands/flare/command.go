@@ -18,9 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/flare/securityagent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
@@ -57,6 +58,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
+				ipcfx.ModuleInsecure(),
 			)
 		},
 	}
@@ -68,7 +70,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(_ log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
+func requestFlare(_ log.Component, config config.Component, _ secrets.Component, client ipc.HTTPClient, params *cliParams) error {
 	warnings := config.Warnings()
 	if warnings != nil && warnings.Errors != nil {
 		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Errors))
@@ -84,18 +86,11 @@ func requestFlare(_ log.Component, config config.Component, _ secrets.Component,
 
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Security Agent to build the flare archive."))
 	var e error
-	c := util.GetClient()
 	urlstr := fmt.Sprintf("https://localhost:%v/agent/flare", config.GetInt("security_agent.cmd_port"))
 
 	logFile := config.GetString("security_agent.log_file")
 
-	// Set session token
-	e = util.SetAuthToken(config)
-	if e != nil {
-		return e
-	}
-
-	r, e := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	r, e := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	sr := string(r)
 	var filePath string
 	if e != nil {

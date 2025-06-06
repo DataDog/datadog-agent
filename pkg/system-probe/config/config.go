@@ -82,15 +82,14 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 		}
 	}
 
-	// Load the remote configuration
-	if fleetPoliciesDirPath == "" {
-		fleetPoliciesDirPath = pkgconfigsetup.SystemProbe().GetString("fleet_policies_dir")
-	}
+	// if fleetPoliciesDirPath was provided in the command line, copy it to the config
 	if fleetPoliciesDirPath != "" {
-		err := pkgconfigsetup.SystemProbe().MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "system-probe.yaml"))
-		if err != nil {
-			return nil, err
-		}
+		pkgconfigsetup.SystemProbe().Set("fleet_policies_dir", fleetPoliciesDirPath, pkgconfigmodel.SourceAgentRuntime)
+	}
+	// apply remote fleet policy to the config
+	err = applyFleetPolicy(pkgconfigsetup.SystemProbe())
+	if err != nil {
+		return nil, fmt.Errorf("failed to load fleet policy: %w", err)
 	}
 
 	return load()
@@ -213,5 +212,21 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		}
 		return err
 	}
+	return nil
+}
+
+func applyFleetPolicy(cfg pkgconfigmodel.Config) error {
+	// Apply overrides for local config options (e.g. fleet_policies_dir)
+	pkgconfigsetup.FleetConfigOverride(cfg)
+
+	// Load the remote configuration
+	fleetPoliciesDirPath := cfg.GetString("fleet_policies_dir")
+	if fleetPoliciesDirPath != "" {
+		err := cfg.MergeFleetPolicy(path.Join(fleetPoliciesDirPath, "system-probe.yaml"))
+		if err != nil {
+			return fmt.Errorf("failed to merge fleet policy: %w", err)
+		}
+	}
+
 	return nil
 }

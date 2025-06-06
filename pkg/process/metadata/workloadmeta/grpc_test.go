@@ -15,8 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -55,9 +56,12 @@ func TestStartStop(t *testing.T) {
 
 	extractor := NewWorkloadMetaExtractor(cfg)
 
+	// Mock IPC component to provide TLS credentials
+	ipcMock := ipcmock.New(t)
+
 	port := testutil.FreeTCPPort(t)
 	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
-	srv := NewGRPCServer(configmock.New(t), extractor)
+	srv := NewGRPCServer(configmock.New(t), extractor, ipcMock.GetTLSServerConfig())
 
 	err := srv.Start()
 	assert.NoError(t, err)
@@ -88,9 +92,12 @@ func TestStreamServer(t *testing.T) {
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
+	// Mock IPC component to provide TLS credentials
+	ipcMock := ipcmock.New(t)
+
 	port := testutil.FreeTCPPort(t)
 	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
-	srv := NewGRPCServer(cfg, extractor)
+	srv := NewGRPCServer(cfg, extractor, ipcMock.GetTLSServerConfig())
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
 	defer srv.Stop()
@@ -102,7 +109,7 @@ func TestStreamServer(t *testing.T) {
 	// Drop first cache diff before gRPC connection is created
 	<-extractor.ProcessCacheDiff()
 
-	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(credentials.NewTLS(ipcMock.GetTLSClientConfig()))) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	defer cc.Close()
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
@@ -168,9 +175,12 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
+	// Mock IPC component to provide TLS credentials
+	ipcMock := ipcmock.New(t)
+
 	port := testutil.FreeTCPPort(t)
 	cfg.SetWithoutSource("process_config.language_detection.grpc_port", port)
-	srv := NewGRPCServer(cfg, extractor)
+	srv := NewGRPCServer(cfg, extractor, ipcMock.GetTLSServerConfig())
 	require.NoError(t, srv.Start())
 	require.NotNil(t, srv.addr)
 	defer srv.Stop()
@@ -180,7 +190,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 		Pid2: proc2,
 	})
 
-	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(credentials.NewTLS(ipcMock.GetTLSClientConfig()))) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	defer cc.Close()
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
@@ -373,12 +383,15 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule()).Reset()
 	extractor := NewWorkloadMetaExtractor(cfg)
 
-	grpcServer := NewGRPCServer(cfg, extractor)
+	// Mock IPC component to provide TLS credentials
+	ipcMock := ipcmock.New(t)
+
+	grpcServer := NewGRPCServer(cfg, extractor, ipcMock.GetTLSServerConfig())
 	err = grpcServer.Start()
 	require.NoError(t, err)
 	t.Cleanup(grpcServer.Stop)
 
-	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(credentials.NewTLS(ipcMock.GetTLSClientConfig()))) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = cc.Close()

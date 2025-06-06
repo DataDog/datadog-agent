@@ -35,6 +35,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (provides, error) {
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
 		),
 	)

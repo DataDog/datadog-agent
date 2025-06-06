@@ -654,6 +654,13 @@ Package localapi is the updater local api component.
 
 Package localapiclient provides the local API client component.
 
+### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
+
+*Datadog Team*: fleet
+
+Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
+add it to the inventoryagent payload.
+
 ### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
 
 Package telemetry provides the installer telemetry component.

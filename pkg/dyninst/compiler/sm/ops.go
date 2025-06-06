@@ -63,14 +63,16 @@ type ExprSaveOp struct {
 
 type ExprDereferenceCfaOp struct {
 	baseOp
-	Offset uint32
-	Len    uint32
+	Offset       uint32
+	Len          uint32
+	OutputOffset uint32
 }
 
 type ExprReadRegisterOp struct {
 	baseOp
-	Register uint8
-	Size     uint8
+	Register     uint8
+	Size         uint8
+	OutputOffset uint32
 }
 
 type ExprDereferencePtrOp struct {
@@ -102,7 +104,7 @@ type ProcessArrayRepeatOp struct {
 
 type ProcessSliceOp struct {
 	baseOp
-	SliceData ir.GoSliceDataType
+	SliceData *ir.GoSliceDataType
 }
 
 type ProcessSliceDataPrepOp struct {
@@ -116,6 +118,7 @@ type ProcessSliceDataRepeatOp struct {
 
 type ProcessStringOp struct {
 	baseOp
+	StringData *ir.GoStringDataType
 }
 
 type ProcessGoEmptyInterfaceOp struct {

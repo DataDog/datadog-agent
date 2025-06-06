@@ -12,7 +12,7 @@ import (
 
 // team: container-experiences
 
-//nolint:revive // TODO(PROC) Fix revive linter
+// Component defines the interface for accessing host information
 type Component interface {
 	Object() *checks.HostInfo
 }

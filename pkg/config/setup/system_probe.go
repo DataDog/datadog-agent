@@ -387,6 +387,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.limiter_rate"), 10)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.filter"), "no_pid_tcp_syn")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.private_ip_ranges"), DefaultPrivateIPCIDRs)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.extra_private_ip_ranges"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)

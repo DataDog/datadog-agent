@@ -3,9 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package filter
+// Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
+// add it to the inventoryagent payload.
+package ssistatus
 
-import "errors"
+// team: fleet
 
-// ErrAttachBPFNotSupported indicates that attaching classic BPF filters is not supported
-var ErrAttachBPFNotSupported = errors.New("attaching BPF filters is not supported on this platform")
+// Component is the component type.
+type Component interface{}

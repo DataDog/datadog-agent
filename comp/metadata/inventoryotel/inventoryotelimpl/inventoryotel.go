@@ -8,10 +8,8 @@ package inventoryotelimpl
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -25,6 +23,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	iointerface "github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
@@ -68,14 +67,13 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 type inventoryotel struct {
 	util.InventoryPayload
 
-	conf       config.Component
-	log        log.Component
-	m          sync.Mutex
-	data       otelMetadata
-	hostname   string
-	ipc        ipc.Component
-	f          *freshConfig
-	httpClient *http.Client
+	conf     config.Component
+	log      log.Component
+	m        sync.Mutex
+	data     otelMetadata
+	hostname string
+	client   ipc.HTTPClient
+	f        *freshConfig
 }
 
 type dependencies struct {
@@ -84,7 +82,7 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	IPC        ipc.Component
+	Client     ipc.HTTPClient
 	Hostname   hostnameinterface.Component
 }
 
@@ -99,21 +97,12 @@ type provides struct {
 
 func newInventoryOtelProvider(deps dependencies) (provides, error) {
 	hname, _ := deps.Hostname.Get(context.Background())
-	// HTTP client need not verify otel-agent cert since it's self-signed
-	// at start-up. TLS used for encryption not authentication.
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
 	i := &inventoryotel{
 		conf:     deps.Config,
 		log:      deps.Log,
 		hostname: hname,
 		data:     make(otelMetadata),
-		ipc:      deps.IPC,
-		httpClient: &http.Client{
-			Transport: tr,
-			Timeout:   httpTO,
-		},
+		client:   deps.Client,
 	}
 
 	getter := i.fetchRemoteOtelConfig
@@ -166,32 +155,9 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 }
 
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
-	authToken := i.ipc.GetAuthToken()
-
-	// Create a Bearer string by appending string access token
-	bearer := "Bearer " + authToken
-
-	// Create a new request using http
-	req, err := http.NewRequest("GET", u.String(), nil)
+	body, err := i.client.Get(u.String(), ipchttp.WithTimeout(httpTO))
 	if err != nil {
-		i.log.Error("Error building request: ", err)
-		return nil, err
-	}
-
-	// add authorization header to the req
-	req.Header.Add("Authorization", bearer)
-
-	resp, err := i.httpClient.Do(req)
-	if err != nil {
-		i.log.Error("Error on response: ", err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		i.log.Error("Error while reading the response bytes:", err)
-		return nil, err
+		return nil, i.log.Error("error fetching remote otel config: %w", err)
 	}
 
 	return i.parseResponseFromJSON(body)

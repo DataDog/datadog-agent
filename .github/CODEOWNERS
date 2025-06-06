@@ -341,6 +341,7 @@
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
+/comp/updater/ssistatus @DataDog/fleet
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
 /comp/haagent @DataDog/ndm-core

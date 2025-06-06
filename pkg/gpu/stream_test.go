@@ -8,6 +8,9 @@
 package gpu
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -335,11 +338,13 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 		}
 
 		t.Run(name, func(t *testing.T) {
+			var proc string
 			if fatbinParsingEnabled {
-				t.Skip("skipping fatbinParsingEnabled test, currently broken because it doesn't create an actual fatbin file")
+				proc = t.TempDir()
+			} else {
+				proc = kernel.ProcFSRoot()
 			}
 
-			proc := kernel.ProcFSRoot()
 			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))
 
@@ -354,7 +359,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			// Set up the caches in system context so no actual queries are done
 			pid, tid := uint64(1), uint64(1)
 			kernAddress := uint64(42)
-			binPath := "/path/to/binary"
+			binPath := "binary"
 			smVersion := uint32(75)
 			kernName := "kernel"
 			kernSize := uint64(1000)
@@ -369,6 +374,17 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			}
 
 			if fatbinParsingEnabled {
+				// Create all parent directories,
+				// the path should match the procBinPath var value in cuda.AddKernelCacheEntry
+				tmpFoldersPath := filepath.Join(proc, fmt.Sprintf("%d", pid), "root")
+				err := os.MkdirAll(tmpFoldersPath, 0755)
+				require.NoError(t, err)
+				filePath := filepath.Join(tmpFoldersPath, binPath)
+				data := []byte(kernName)
+				//create a dummy file because AddKernelCacheEntry expects a file to exist to get the file stats for verification
+				err = os.WriteFile(filePath, data, 0644)
+				require.NoError(t, err)
+
 				cuda.AddKernelCacheEntry(t, sysCtx.cudaKernelCache, int(pid), kernAddress, smVersion, binPath, kernel)
 			}
 
