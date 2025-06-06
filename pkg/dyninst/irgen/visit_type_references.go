@@ -52,12 +52,14 @@ func visitTypeReferences(tc *typeCatalog, f func(t *ir.Type)) {
 				f(&t.Fields[i].Type)
 			}
 
+		case *ir.GoSliceDataType:
+			f(&t.Element)
+
 		case *ir.BaseType:
 		case *ir.GoChannelType:
 		case *ir.GoEmptyInterfaceType:
 		case *ir.GoHMapHeaderType:
 		case *ir.GoInterfaceType:
-		case *ir.GoSliceDataType:
 		case *ir.GoSliceHeaderType:
 		case *ir.GoStringDataType:
 		case *ir.GoStringHeaderType:

@@ -3,20 +3,36 @@ probes:
 - id: a
   type: LOG_PROBE
   where:
-    method_name: main.sliceArg
+    method_name: main.intArg
 - id: b
   type: LOG_PROBE
   where:
-    method_name: main.mapArg
+    method_name: main.stringArg
 - id: c
   type: LOG_PROBE
   where:
-    method_name: main.bigMapArg
+    method_name: main.intSliceArg
 - id: d
   type: LOG_PROBE
   where:
-    method_name: main.stringArg
+    method_name: main.intArrayArg
 - id: e
   type: LOG_PROBE
   where:
+    method_name: main.stringSliceArg
+- id: f
+  type: LOG_PROBE
+  where:
+    method_name: main.stringArrayArg
+- id: g
+  type: LOG_PROBE
+  where:
     method_name: main.inlined
+- id: h
+  type: LOG_PROBE
+  where:
+    method_name: main.mapArg
+- id: i
+  type: LOG_PROBE
+  where:
+    method_name: main.bigMapArg
