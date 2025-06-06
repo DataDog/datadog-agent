@@ -103,11 +103,6 @@ deploy_containers-a7-full:
   rules:
     !reference [.manual_on_deploy_auto_on_rc]
 
-deploy_containers-a7-full-internal:
-  extends: .deploy_containers-a7-full-base
-  rules:
-    !reference [.on_internal_final]
-
 deploy_containers-a7-fips:
   extends: .deploy_containers-a7-base-fips
   rules:
@@ -154,6 +149,11 @@ deploy_containers-a7_internal:
     !reference [.on_internal_final]
   variables:
     JMX: "-jmx"
+
+deploy_containers-a7-full-internal:
+  extends: .deploy_containers-a7-full-base
+  rules:
+    !reference [.on_internal_final]
 
 deploy_containers-a7-fips_internal:
   extends: .deploy_containers-a7-base-fips
