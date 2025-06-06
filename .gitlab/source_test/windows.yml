@@ -16,7 +16,7 @@
     - $FAST_TESTS_FLAG=""
     - If ($FAST_TESTS -eq "true") { $FAST_TESTS_FLAG="--only-impacted-packages" }
     - Invoke-WebRequest -Uri "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_win-x64" -OutFile "datadog-ci.exe"
-    - ./datadog-ci.exe version
+    - $Env:DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - ./datadog-ci.exe trace --name "Docker pull windows" -- docker pull ${WINBUILDIMAGE}
     - >
       docker run --rm
