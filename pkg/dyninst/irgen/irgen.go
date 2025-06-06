@@ -42,6 +42,16 @@ import (
 
 // TODO: Support hmaps.
 
+// This is an arbitrary limit for how much data will be captured for
+// dynamically sized types (strings and slices).
+const maxDynamicTypeSize = 512
+
+// Same limit, but for hashmap buckets slice (both hmaps and swiss maps,
+// both using pointers and embeeded key/value types). Limit is higher
+// than for strings and slices, given that not all bucket slots are
+// occupied.
+const maxHashBucketsSize = 4 * maxDynamicTypeSize
+
 // GenerateIR generates an IR program from a binary and a list of probes.
 func GenerateIR(
 	programID ir.ProgramID,
@@ -248,7 +258,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		TypeCommon: ir.TypeCommon{
 			ID:       tc.idAlloc.next(),
 			Name:     fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
-			ByteSize: 0, // variable size
+			ByteSize: maxHashBucketsSize,
 		},
 		Element: tablePtrType,
 	}
@@ -258,7 +268,7 @@ func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 		TypeCommon: ir.TypeCommon{
 			ID:       tc.idAlloc.next(),
 			Name:     fmt.Sprintf("[]%s.array", groupType.GetName()),
-			ByteSize: 0, // variable size
+			ByteSize: maxDynamicTypeSize,
 		},
 		Element: groupType,
 	}
@@ -294,7 +304,7 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 		TypeCommon: ir.TypeCommon{
 			ID:       tc.idAlloc.next(),
 			Name:     fmt.Sprintf("%s.str", st.Name),
-			ByteSize: 0, // variable size
+			ByteSize: maxDynamicTypeSize,
 		},
 	}
 	tc.typesByID[strDataType.ID] = strDataType
@@ -329,7 +339,7 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 		TypeCommon: ir.TypeCommon{
 			ID:       tc.idAlloc.next(),
 			Name:     fmt.Sprintf("%s.array", st.Name),
-			ByteSize: 0, // variable size
+			ByteSize: maxDynamicTypeSize,
 		},
 		Element: elementType,
 	}
@@ -799,6 +809,19 @@ func computeLocations(
 ) ([]ir.Location, error) {
 	totalSize := int64(typ.GetByteSize())
 	pointerSize := int(v.root.object.PointerSize())
+	fixLoclist := func(pieces []locexpr.LocationPiece) []locexpr.LocationPiece {
+		// Workaround for delve not returning sizes.
+		if len(pieces) == 1 {
+			pieces[0].Size = totalSize
+		}
+		// Workaround for net/dwarfutils/locexpr doing incorrect pointer-side adjustment
+		for i := range pieces {
+			if !pieces[i].InReg {
+				pieces[i].StackOffset -= int64(pointerSize)
+			}
+		}
+		return pieces
+	}
 	var locations []ir.Location
 	switch locField.Class {
 	case dwarf.ClassLocListPtr:
@@ -819,10 +842,7 @@ func computeLocations(
 			if err != nil {
 				return nil, err
 			}
-			// Workaround for delve not returning sizes.
-			if len(locationPieces) == 1 {
-				locationPieces[0].Size = totalSize
-			}
+			locationPieces = fixLoclist(locationPieces)
 			locations = append(locations, ir.Location{
 				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
 				Pieces: locationPieces,
@@ -842,10 +862,9 @@ func computeLocations(
 		if err != nil {
 			return nil, err
 		}
-		// Workaround for delve not returning sizes.
-		if len(locationPieces) == 1 {
-			locationPieces[0].Size = totalSize
-		}
+		locationPieces = fixLoclist(locationPieces)
+		// BUG: This should take into consideration the ranges of the current
+		// block, not necessarily the ranges of the subprogram.
 		for _, r := range v.ranges {
 			locations = append(locations, ir.Location{
 				Range:  r,

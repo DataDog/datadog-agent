@@ -28,7 +28,6 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
-	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -120,13 +119,9 @@ func initStateFromBinaries(
 	haveSources bool,
 	progsSrcDir string,
 ) (state, error) {
-	buildInfo, ok := debug.ReadBuildInfo()
-	if !ok {
-		return state{}, fmt.Errorf("failed to read build info")
-	}
 	pkgPath := strings.TrimPrefix(
 		reflect.TypeOf(Config{}).PkgPath(),
-		buildInfo.Main.Path+"/",
+		"github.com/DataDog/datadog-agent/",
 	)
 	const maxDirectoryDepth = 10
 	binariesDir := path.Join(".", pkgPath, "binaries")
@@ -159,7 +154,6 @@ found:
 		if err != nil {
 			return state{}, fmt.Errorf("failed to parse config from directory name: %w", err)
 		}
-		configs[cfg] = struct{}{}
 		files, err := os.ReadDir(path.Join(binariesDir, file.Name()))
 		if err != nil {
 			return state{}, fmt.Errorf("failed to read program directory: %w", err)
@@ -177,6 +171,8 @@ found:
 				continue
 			}
 			programConfigs[file.Name()]++
+			// Only count the config if there's at least one program for it.
+			configs[cfg] = struct{}{}
 		}
 	}
 	numConfigs := len(configs)

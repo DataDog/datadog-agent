@@ -22,29 +22,25 @@ import (
 //go:generate $GOPATH/bin/include_headers pkg/dyninst/ebpf/event.c pkg/ebpf/bytecode/build/runtime/dyninst_event.c pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/dyninst_event.c pkg/ebpf/bytecode/runtime/dyninst_event.go runtime
 
-func getCFlags(config *ddebpf.Config) []string {
-	cflags := []string{
-		"-g",
-		"-Wno-unused-variable",
-		"-Wno-unused-function",
-		"-DDYNINST_GENERATED_CODE",
-	}
-	if config.BPFDebug {
-		cflags = append(cflags, "-DDEBUG=1")
-	}
-	return cflags
+// CompiledBPF holds compiled object of the eBPF program and its metadata.
+type CompiledBPF struct {
+	Obj ebpfruntime.CompiledOutput
+
+	// Program to attach and list of pcs to attach at, along with the cookie that should be provided at that attach point.
+	ProgramName  string
+	Attachpoints []codegen.BPFAttachPoint
 }
 
 // CompileBPFProgram compiles the eBPF program.
-func CompileBPFProgram(program ir.Program, extraCodeSink io.Writer) (ebpfruntime.CompiledOutput, error) {
+func CompileBPFProgram(program *ir.Program, extraCodeSink io.Writer) (CompiledBPF, error) {
 	generatedCode := bytes.NewBuffer(nil)
 	smProgram, err := sm.GenerateProgram(program)
 	if err != nil {
-		return nil, err
+		return CompiledBPF{}, err
 	}
-	err = codegen.GenerateCCode(smProgram, generatedCode)
+	attachpoints, err := codegen.GenerateCCode(smProgram, generatedCode)
 	if err != nil {
-		return nil, err
+		return CompiledBPF{}, err
 	}
 
 	injector := func(in io.Reader, out io.Writer) error {
@@ -68,5 +64,23 @@ func CompileBPFProgram(program ir.Program, extraCodeSink io.Writer) (ebpfruntime
 		ModifyCallback:   injector,
 		UseKernelHeaders: true,
 	}
-	return ebpfruntime.Dyninstevent.CompileWithOptions(cfg, opts)
+	obj, err := ebpfruntime.Dyninstevent.CompileWithOptions(cfg, opts)
+	if err != nil {
+		return CompiledBPF{}, err
+	}
+
+	return CompiledBPF{Obj: obj, ProgramName: "probe_run_with_cookie", Attachpoints: attachpoints}, nil
+}
+
+func getCFlags(config *ddebpf.Config) []string {
+	cflags := []string{
+		"-g",
+		"-Wno-unused-variable",
+		"-Wno-unused-function",
+		"-DDYNINST_GENERATED_CODE",
+	}
+	if config.BPFDebug {
+		cflags = append(cflags, "-DDEBUG=1")
+	}
+	return cflags
 }

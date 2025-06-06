@@ -256,7 +256,7 @@ func getProgramBanner(version string) (string, string) {
 // If not, it displays a pretty-printed message anyway (for support)
 func Info(w io.Writer, conf *config.AgentConfig) error {
 	url := fmt.Sprintf("https://127.0.0.1:%d/debug/vars", conf.DebugServerPort)
-	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	tr := &http.Transport{TLSClientConfig: conf.IPCTLSClientConfig}
 	client := http.Client{Timeout: 3 * time.Second, Transport: tr}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -365,6 +365,11 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	for i, e := range conf.Endpoints {
 		c.Endpoints[i] = &config.Endpoint{Host: e.Host, NoProxy: e.NoProxy}
 	}
+
+	// Remove the TLS configs and AuthToken to avoid exposing sensitive data
+	c.IPCTLSClientConfig = &tls.Config{}
+	c.IPCTLSServerConfig = &tls.Config{}
+	c.AuthToken = ""
 
 	var buf []byte
 	buf, err := json.Marshal(&c)

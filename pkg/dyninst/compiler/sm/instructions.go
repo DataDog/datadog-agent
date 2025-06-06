@@ -55,18 +55,22 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ExprDereferenceCfaOp:
-		bytes := make([]byte, 0, 8)
+		bytes := make([]byte, 0, 12)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Offset)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.OutputOffset)
 		return staticInstruction{
 			name:  "SM_OP_EXPR_DEREFERENCE_CFA",
 			bytes: bytes,
 		}
 
 	case ExprReadRegisterOp:
+		bytes := make([]byte, 0, 6)
+		bytes = append(bytes, op.Register, op.Size)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.OutputOffset)
 		return staticInstruction{
 			name:  "SM_OP_EXPR_READ_REGISTER",
-			bytes: []byte{op.Register, op.Size},
+			bytes: bytes,
 		}
 
 	case ExprDereferencePtrOp:
@@ -84,22 +88,19 @@ func makeInstruction(op Op) codeFragment {
 			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.Pointee.GetID())),
 		}
 
-	case ProcessArrayPrepOp:
+	case ProcessArrayDataPrepOp:
 		return staticInstruction{
-			name:  "SM_OP_PROCESS_ARRAY_PREP",
-			bytes: binary.LittleEndian.AppendUint32(nil, op.Array.Count),
-		}
-
-	case ProcessArrayRepeatOp:
-		return staticInstruction{
-			name:  "SM_OP_PROCESS_ARRAY_PREP",
-			bytes: binary.LittleEndian.AppendUint32(nil, op.OffsetShift),
+			name:  "SM_OP_PROCESS_ARRAY_DATA_PREP",
+			bytes: binary.LittleEndian.AppendUint32(nil, op.ArrayByteLen),
 		}
 
 	case ProcessSliceOp:
+		bytes := make([]byte, 0, 8)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.SliceData.GetID()))
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.SliceData.Element.GetByteSize())
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_SLICE",
-			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.SliceData.GetID())),
+			bytes: bytes,
 		}
 
 	case ProcessSliceDataPrepOp:
@@ -111,13 +112,13 @@ func makeInstruction(op Op) codeFragment {
 	case ProcessSliceDataRepeatOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_SLICE_DATA_REPEAT",
-			bytes: binary.LittleEndian.AppendUint32(nil, op.OffsetShift),
+			bytes: binary.LittleEndian.AppendUint32(nil, op.ElemByteLen),
 		}
 
 	case ProcessStringOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_STRING",
-			bytes: []byte{},
+			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.StringData.GetID())),
 		}
 
 	case ProcessGoEmptyInterfaceOp:

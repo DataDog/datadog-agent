@@ -8,7 +8,9 @@
 package codegen
 
 import (
+	"cmp"
 	"io"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -18,6 +20,10 @@ func generateTypeInfos(program sm.Program, functionLoc map[sm.FunctionID]uint32,
 	defer func() {
 		err = recoverFprintf()
 	}()
+
+	slices.SortFunc(program.Types, func(a, b ir.Type) int {
+		return cmp.Compare(a.GetID(), b.GetID())
+	})
 	mustFprintf(out, "typedef enum type {\n")
 	mustFprintf(out, "\tTYPE_NONE = 0,\n")
 	for _, t := range program.Types {
