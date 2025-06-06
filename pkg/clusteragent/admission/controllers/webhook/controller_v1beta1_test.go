@@ -166,9 +166,9 @@ func TestAdmissionControllerFailureModeV1beta1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.Ignore, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.Ignore, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 
@@ -176,9 +176,9 @@ func TestAdmissionControllerFailureModeV1beta1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.failure_policy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		validatingWebhookSkeleton := c.getValidatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.Fail, *validatingWebhookSkeleton.FailurePolicy)
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.Fail, *mutatingWebhookSkeleton.FailurePolicy)
 	}
 }
@@ -192,7 +192,7 @@ func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
 		mockConfig.SetWithoutSource("admission_controller.reinvocationpolicy", value)
 		c.config = NewConfig(true, false, false, mockConfig)
 
-		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil)
+		mutatingWebhookSkeleton := c.getMutatingWebhookSkeleton("foo", "/bar", []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nil, nil, nil, 0)
 		assert.Equal(t, admiv1beta1.IfNeededReinvocationPolicy, *mutatingWebhookSkeleton.ReinvocationPolicy)
 	}
 }
@@ -1052,7 +1052,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
 
-			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
+			assert.EqualValues(t, tt.want, c.getValidatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil, 0))
 		})
 	}
 }
@@ -1158,7 +1158,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 
 			nsSelector, objSelector := common.DefaultLabelSelectors(tt.namespaceSelector)
 
-			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil))
+			assert.EqualValues(t, tt.want, c.getMutatingWebhookSkeleton(tt.args.nameSuffix, tt.args.path, []admiv1beta1.OperationType{admiv1beta1.Create}, map[string][]string{"": {"pods"}}, nsSelector, objSelector, nil, 0))
 		})
 	}
 }
