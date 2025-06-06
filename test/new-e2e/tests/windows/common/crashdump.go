@@ -8,6 +8,7 @@ package common
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -162,4 +163,42 @@ func DownloadAllWERDumpsFunc(host *components.RemoteHost, dumpFolder string, out
 	}
 
 	return collectedDumps, retErr
+}
+
+// DownloadSystemCrashDump downloads a system crash dump from a remote host.
+func DownloadSystemCrashDump(host *components.RemoteHost, systemCrashDumpFile string, outputFile string) (string, error) {
+	if exists, _ := host.FileExists(systemCrashDumpFile); !exists {
+		return "", nil
+	}
+
+	// We cannot directly remote copy/download the system crash dump file since it is under a protected directory.
+	// We first need to copy it to another temporary location.
+
+	tempDir, err := os.MkdirTemp("", "TempSystemCrashDump")
+	if err != nil {
+		return "", fmt.Errorf("error creating temporary directory: %w", err)
+	}
+
+	outName := filepath.Base(outputFile)
+	tmpPath, err := filepath.Abs(filepath.Join(tempDir, outName))
+	if err != nil {
+		return "", fmt.Errorf("error getting absolute path: %w", err)
+	}
+
+	_, err = host.Execute(fmt.Sprintf("Copy-Item -Path \"%s\" -Destination \"%s\"", systemCrashDumpFile, tmpPath))
+	if err != nil {
+		return "", fmt.Errorf("error copying system crash dump file %s to %s: %w", systemCrashDumpFile, tmpPath, err)
+	}
+
+	defer func() {
+		// Cleanup the temporary but large dump file in case other diagnostics need space.
+		host.Remove(tmpPath)
+	}()
+
+	err = host.GetFile(tmpPath, outputFile)
+	if err != nil {
+		return "", fmt.Errorf("error getting system crash dump file %s: %w", tmpPath, err)
+	}
+
+	return outputFile, nil
 }

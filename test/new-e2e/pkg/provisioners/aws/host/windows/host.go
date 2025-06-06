@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/driververifier"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
 )
 
@@ -45,6 +46,7 @@ type ProvisionerParams struct {
 	defenderoptions        []defender.Option
 	installerOptions       []installer.Option
 	fipsModeOptions        []fipsmode.Option
+	driverVerifierOptions  []driververifier.Option
 }
 
 // ProvisionerOption is a provisioner option.
@@ -141,6 +143,14 @@ func WithInstaller(opts ...installer.Option) ProvisionerOption {
 	}
 }
 
+// WithDriverVerifierOptionss configures driver verifier on an EC2 VM.
+func WithDriverVerifierOptions(opts ...driververifier.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.driverVerifierOptions = append(params.driverVerifierOptions, opts...)
+		return nil
+	}
+}
+
 // Run deploys a Windows environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *ProvisionerParams) error {
 	awsEnv, err := aws.NewEnvironment(ctx)
@@ -161,6 +171,18 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	err = host.Export(ctx, &env.RemoteHost.HostOutput)
 	if err != nil {
 		return err
+	}
+
+	if params.driverVerifierOptions != nil {
+		driverVerifier, err := driververifier.NewDriverVerifier(awsEnv.CommonEnvironment, host, params.driverVerifierOptions...)
+		if err != nil {
+			return err
+		}
+
+		// Active Directory setup needs to happen after Driver Verifier setup
+		params.activeDirectoryOptions = append(params.activeDirectoryOptions,
+			activedirectory.WithPulumiResourceOptions(
+				pulumi.DependsOn(driverVerifier.Resources)))
 	}
 
 	if params.defenderoptions != nil {

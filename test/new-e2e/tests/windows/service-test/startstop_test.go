@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -61,6 +62,15 @@ var securityAgentConfig string
 
 //go:embed fixtures/security-agent-disabled.yaml
 var securityAgentConfigDisabled string
+
+// Folder for WER dumps.
+const werCrashDumpFolder = `C:\dumps`
+
+// Path to the system crash dump (BSOD).
+const systemCrashDumpFile = `C:\Windows\MEMORY.DMP`
+
+// The name of the downloaded system crash dump file.
+const systemCrashDumpOutFileName = `SystemCrash.DMP`
 
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
@@ -470,8 +480,11 @@ func (s *baseStartStopSuite) SetupSuite() {
 	// TODO(WINA-1320): mark this crash as flaky while we investigate it
 	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
 
+	// Enable driver verifier and reboot
+	s.enableDriverVerifier(true)
+
 	// Enable crash dumps
-	s.dumpFolder = `C:\dumps`
+	s.dumpFolder = werCrashDumpFolder
 	err := windowsCommon.EnableWERGlobalDumps(s.Env().RemoteHost, s.dumpFolder)
 	s.Require().NoError(err, "should enable WER dumps")
 	env := map[string]string{
@@ -598,6 +611,15 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		// collect agent logs
 		s.collectAgentLogs()
 	}
+
+	// Look for a system crash dump. These may be triggered by Driver Verifier.
+	// Stop the test immediately if a system crash dump is found.
+	s.T().Log("Checking for system crash dump")
+	systemCrashDumpOutPath := filepath.Join(s.SessionOutputDir(), systemCrashDumpOutFileName)
+	systemDump, err := windowsCommon.DownloadSystemCrashDump(
+		s.Env().RemoteHost, systemCrashDumpFile, systemCrashDumpOutPath)
+	s.Assert().NoError(err, "should download system crash dump")
+	s.Require().Equal(systemDump, "", "should not have system crash dump")
 }
 
 func (s *baseStartStopSuite) collectAgentLogs() {
@@ -846,4 +868,61 @@ func (s *baseStartStopSuite) captureLiveKernelDump(host *components.RemoteHost, 
 
 	// Cleanup the "localhost" subdirectory.
 	host.RemoveAll(sourceDumpDir)
+}
+
+// enableDriverVerifier enables standard verifier checks on Datadog drivers.
+func (s *baseStartStopSuite) enableDriverVerifier(reboot bool) {
+	var driverList string
+
+	for _, kernel := range s.getInstalledKernelServices() {
+		driverList += fmt.Sprintf("%s.sys ", kernel)
+	}
+
+	s.T().Logf("Enabling driver verifier for: %s", driverList)
+
+	host := s.Env().RemoteHost
+
+	// Driver verifier returns an exit status of 2.
+	_, err := host.Execute("bcdedit /debug on")
+	if err != nil {
+		s.T().Logf("bcedit /debug on output:\n%s", err)
+	}
+
+	_, err = host.Execute("bcdedit -set testsigning on")
+	if err != nil {
+		s.T().Logf("bcedit -set testsigning on output:\n%s", err)
+	}
+
+	_, err = host.Execute("bcdedit -set nointegritychecks on")
+	if err != nil {
+		s.T().Logf("bcedit -set nointegritychecks on output:\n%s", err)
+	}
+
+	out, err := host.Execute(fmt.Sprintf("verifier /standard /driver %s", driverList))
+	out = strings.TrimSpace(out)
+
+	if err != nil {
+		s.T().Logf("Driver verifier error output:\n%s", err)
+	}
+
+	if out != "" {
+		s.T().Logf("Driver verifier output:\n%s", out)
+	}
+
+	if reboot {
+		s.T().Log("Restarting host after enabling driver verifer")
+		host.Execute("Restart-Computer -Force")
+
+		// Do not try to reconnect immediately as the system needs some time to
+		// initiate the shutdown process.
+		time.Sleep(10 * time.Second)
+
+		err = backoff.Retry(func() error {
+			s.T().Log("Attempting to reconnect to host")
+			return host.Reconnect()
+		}, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Second), 12))
+
+		s.Require().NoError(err, "should reconnect to host")
+		s.T().Log("Reconnected to host after enabling driver verifier")
+	}
 }

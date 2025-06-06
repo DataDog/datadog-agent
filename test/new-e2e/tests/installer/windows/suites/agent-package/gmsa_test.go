@@ -37,6 +37,7 @@ func TestAgentUpgradesOnDCWithGMSA(t *testing.T) {
 				winawshost.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
 				),
+				// winawshost.WithDriverVerifierOptions(driververifier.Disabled()),
 			),
 		),
 	)
@@ -47,6 +48,17 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) SetupSuite() {
 	s.testAgentUpgradeSuite.SetupSuite()
 
 	host := s.Env().RemoteHost
+
+	//s.T().Log("*** Resetting driver verifer")
+	//host.Execute("verifier /standard /driver ddnpm.sys")
+	//s.T().Log("*** Restarting after driver verifer reset")
+	//host.Execute("Restart-Computer -Force")
+	//s.T().Log("*** Reset done")
+
+	//time.Sleep(2 * time.Minute)
+
+	//err := host.Reconnect()
+	//s.Require().NoError(err, "should reconnect to host")
 
 	// Check and configure the KDS root key if not already configured
 	s.T().Log("Checking and configuring KDS root key...")
