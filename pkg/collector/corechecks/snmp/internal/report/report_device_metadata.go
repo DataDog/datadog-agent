@@ -616,6 +616,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 	sort.Strings(vpnTunnelIndexes)
 
 	vpnTunnelStore := NewVPNTunnelStore()
+
 	for _, strIndex := range vpnTunnelIndexes {
 		indexElems := strings.Split(strIndex, ".")
 		if len(indexElems) != 1 {
@@ -785,15 +786,15 @@ func resolveVPNTunnelsRoutes(store *metadata.Store, vpnTunnelStore VPNTunnelStor
 }
 
 func resolveRouteByNextHop(route DeviceRoute, vpnTunnelStore VPNTunnelStore) {
-	vpnTunnel, exists := vpnTunnelStore.GetTunnelByRemoteOutsideIP(route.NextHopIP)
+	vpnTunnels, exists := vpnTunnelStore.GetTunnelsByRemoteOutsideIP(route.NextHopIP)
 	if !exists {
 		return
 	}
 
-	vpnTunnel.InterfaceID = vpnTunnel.DeviceID + ":" + route.IfIndex
-
-	vpnTunnel.RouteAddresses = append(vpnTunnel.RouteAddresses,
-		fmt.Sprintf("%s/%d", route.Destination, route.PrefixLen))
+	for _, vpnTunnel := range vpnTunnels {
+		vpnTunnel.RouteAddresses = append(vpnTunnel.RouteAddresses,
+			fmt.Sprintf("%s/%d", route.Destination, route.PrefixLen))
+	}
 }
 
 func resolveRoutesByIfIndex(store *metadata.Store, vpnTunnelStore VPNTunnelStore, routesByIfIndex RoutesByIfIndex) {

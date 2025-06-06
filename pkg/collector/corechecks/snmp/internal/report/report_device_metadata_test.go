@@ -935,7 +935,6 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
         },
         {
             "device_id": "1234",
-            "interface_id": "1234:4",
             "local_outside_ip": "30.0.0.1",
             "remote_outside_ip": "40.0.0.1",
             "protocol": "ipsec",

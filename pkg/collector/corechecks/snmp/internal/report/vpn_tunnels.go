@@ -12,7 +12,7 @@ import (
 // VPNTunnelStore stores VPN tunnel metadata indexed by outside IPs
 type VPNTunnelStore struct {
 	ByOutsideIPs      map[string]*devicemetadata.VPNTunnelMetadata
-	ByRemoteOutsideIP map[string]*devicemetadata.VPNTunnelMetadata
+	ByRemoteOutsideIP map[string][]*devicemetadata.VPNTunnelMetadata
 }
 
 // DeviceRoute represents a route on a network device
@@ -30,7 +30,7 @@ type RoutesByIfIndex map[string][]DeviceRoute
 func NewVPNTunnelStore() VPNTunnelStore {
 	return VPNTunnelStore{
 		ByOutsideIPs:      make(map[string]*devicemetadata.VPNTunnelMetadata),
-		ByRemoteOutsideIP: make(map[string]*devicemetadata.VPNTunnelMetadata),
+		ByRemoteOutsideIP: make(map[string][]*devicemetadata.VPNTunnelMetadata),
 	}
 }
 
@@ -41,7 +41,7 @@ func (vts *VPNTunnelStore) AddTunnel(vpnTunnel devicemetadata.VPNTunnelMetadata)
 	}
 
 	vts.ByOutsideIPs[buildOutsideIPsKey(vpnTunnel.LocalOutsideIP, vpnTunnel.RemoteOutsideIP)] = &vpnTunnel
-	vts.ByRemoteOutsideIP[vpnTunnel.RemoteOutsideIP] = &vpnTunnel
+	vts.ByRemoteOutsideIP[vpnTunnel.RemoteOutsideIP] = append(vts.ByRemoteOutsideIP[vpnTunnel.RemoteOutsideIP], &vpnTunnel)
 }
 
 // GetTunnelByOutsideIPs retrieves a VPN tunnel by its local and remote outside IPs
@@ -50,10 +50,10 @@ func (vts *VPNTunnelStore) GetTunnelByOutsideIPs(localOutsideIP string, remoteOu
 	return vpnTunnel, exists
 }
 
-// GetTunnelByRemoteOutsideIP retrieves a VPN tunnel by its remote outside IP
-func (vts *VPNTunnelStore) GetTunnelByRemoteOutsideIP(remoteOutsideIP string) (*devicemetadata.VPNTunnelMetadata, bool) {
-	vpnTunnel, exists := vts.ByRemoteOutsideIP[remoteOutsideIP]
-	return vpnTunnel, exists
+// GetTunnelsByRemoteOutsideIP retrieves VPN tunnels by their remote outside IP
+func (vts *VPNTunnelStore) GetTunnelsByRemoteOutsideIP(remoteOutsideIP string) ([]*devicemetadata.VPNTunnelMetadata, bool) {
+	vpnTunnels, exists := vts.ByRemoteOutsideIP[remoteOutsideIP]
+	return vpnTunnels, exists
 }
 
 // ToSlice converts the VPNTunnelStore to a slice of VPNTunnelMetadata

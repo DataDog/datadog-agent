@@ -18,7 +18,7 @@ func TestVPNTunnelStore(t *testing.T) {
 	assert.NotNil(t, vts.ByOutsideIPs)
 	assert.NotNil(t, vts.ByRemoteOutsideIP)
 
-	vpnTunnels := []devicemetadata.VPNTunnelMetadata{
+	allVPNTunnels := []devicemetadata.VPNTunnelMetadata{
 		{
 			DeviceID:        "device1",
 			InterfaceID:     "device1:1",
@@ -43,44 +43,68 @@ func TestVPNTunnelStore(t *testing.T) {
 			Protocol:        "ipsec",
 			RouteAddresses:  []string{"10.0.0.4/24", "10.0.0.5/24"},
 		},
+		{
+			DeviceID:        "device1",
+			InterfaceID:     "device1:4",
+			LocalOutsideIP:  "13.14.15.16",
+			RemoteOutsideIP: "12.11.10.9",
+			Protocol:        "ipsec",
+			RouteAddresses:  []string{"10.0.0.6/24"},
+		},
 	}
 
 	_, exists := vts.GetTunnelByOutsideIPs("1.2.3.4", "4.3.2.1")
 	assert.False(t, exists)
 
-	for _, vpnTunnel := range vpnTunnels {
+	for _, vpnTunnel := range allVPNTunnels {
 		vts.AddTunnel(vpnTunnel)
 	}
-	assert.Len(t, vts.ByOutsideIPs, len(vpnTunnels))
-	assert.Len(t, vts.ByRemoteOutsideIP, len(vpnTunnels))
+	assert.Len(t, vts.ByOutsideIPs, len(allVPNTunnels))
+	assert.Len(t, vts.ByRemoteOutsideIP, 3)
 
 	vpnTunnel, exists := vts.GetTunnelByOutsideIPs("1.2.3.4", "4.3.2.1")
 	assert.True(t, exists)
-	assert.Equal(t, vpnTunnels[0], *vpnTunnel)
-	vpnTunnel, exists = vts.GetTunnelByOutsideIPs("9.10.11.12", "12.11.10.9")
+	assert.Equal(t, allVPNTunnels[0], *vpnTunnel)
+	vpnTunnel, exists = vts.GetTunnelByOutsideIPs("5.6.7.8", "8.7.6.5")
 	assert.True(t, exists)
-	assert.Equal(t, vpnTunnels[2], *vpnTunnel)
+	assert.Equal(t, allVPNTunnels[1], *vpnTunnel)
 
-	_, exists = vts.GetTunnelByOutsideIPs("", "")
-	assert.False(t, exists)
 	_, exists = vts.GetTunnelByOutsideIPs("4.3.2.1", "1.2.3.4")
 	assert.False(t, exists)
-
-	vpnTunnel, exists = vts.GetTunnelByRemoteOutsideIP("4.3.2.1")
-	assert.True(t, exists)
-	assert.Equal(t, vpnTunnels[0], *vpnTunnel)
-	vpnTunnel, exists = vts.GetTunnelByRemoteOutsideIP("8.7.6.5")
-	assert.True(t, exists)
-	assert.Equal(t, vpnTunnels[1], *vpnTunnel)
-
-	_, exists = vts.GetTunnelByRemoteOutsideIP("1.2.3.4")
+	_, exists = vts.GetTunnelByOutsideIPs("", "")
 	assert.False(t, exists)
-	_, exists = vts.GetTunnelByRemoteOutsideIP("")
+
+	vpnTunnels, exists := vts.GetTunnelsByRemoteOutsideIP("4.3.2.1")
+	assert.True(t, exists)
+	assert.Len(t, vpnTunnels, 1)
+	assert.Equal(t,
+		[]devicemetadata.VPNTunnelMetadata{
+			allVPNTunnels[0],
+		},
+		[]devicemetadata.VPNTunnelMetadata{
+			*vpnTunnels[0],
+		})
+	vpnTunnels, exists = vts.GetTunnelsByRemoteOutsideIP("12.11.10.9")
+	assert.True(t, exists)
+	assert.Len(t, vpnTunnels, 2)
+	assert.Equal(t,
+		[]devicemetadata.VPNTunnelMetadata{
+			allVPNTunnels[2],
+			allVPNTunnels[3],
+		},
+		[]devicemetadata.VPNTunnelMetadata{
+			*vpnTunnels[0],
+			*vpnTunnels[1],
+		})
+
+	_, exists = vts.GetTunnelsByRemoteOutsideIP("1.2.3.4")
+	assert.False(t, exists)
+	_, exists = vts.GetTunnelsByRemoteOutsideIP("")
 	assert.False(t, exists)
 
 	vtsSlice := vts.ToSlice()
-	assert.Len(t, vtsSlice, len(vpnTunnels))
-	for _, vpnTunnel := range vpnTunnels {
+	assert.Len(t, vtsSlice, len(allVPNTunnels))
+	for _, vpnTunnel := range allVPNTunnels {
 		assert.Contains(t, vtsSlice, vpnTunnel)
 	}
 }
