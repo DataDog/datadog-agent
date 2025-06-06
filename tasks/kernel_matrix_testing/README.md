@@ -121,13 +121,13 @@ This guide shows a minimal workflow to get a single remote VM running in AWS.
 
 **1. Initialize KMT & Configure SSH Key** (only needs to be done once)
 
-This will download required resources, install system dependencies, and guide you through setting up a default SSH key for remote instances.
+To create EC2 instances for remote VMs, KMT needs an SSH key to provision them. The `kmt.init` command will guide you through an interactive wizard to set up a default SSH key, so you don't have to provide it for every command. For a detailed explanation of the supported methods, see the [`kmt.config-ssh-key`](#kmtconfig-ssh-key) command documentation.
 
 ```bash
 # Using --remote-setup-only is sufficient if you don't plan to use local VMs
 dda inv -e kmt.init --remote-setup-only
 ```
-> If you have already run `kmt.init`, you can configure the SSH key separately with `dda inv -e kmt.config-ssh-key`.
+> If you have already run `kmt.init`, you can configure the SSH key separately at any time by running `dda inv -e kmt.config-ssh-key`.
 
 **2. Create and Configure a Stack**
 
@@ -222,12 +222,7 @@ dda inv -e kmt.init --all-images
 
 # If you only intend to manage remote VMs
 dda inv -e kmt.init --remote-setup-only
-
-# For a light setup of only the directory structure
-dda inv -e kmt.init
 ```
-
-> Note: Running `kmt.init` without `--images`, `--all-images`, or `--remote-setup-only` will prompt for confirmation to proceed without downloading any VM images. This is useful for a minimal setup, but for most practical use cases, you should provide one of these flags.
 
 The `--images` parameter is required unless `--remote-setup-only` or `--all-images` is specified, or you explicitly confirm the interactive prompt. Use `kmt.ls` to see available images.
 
@@ -403,11 +398,11 @@ dda inv -e kmt.config-ssh-key
 
 This configuration is stored globally for KMT, so you don't have to provide the `--ssh-key` argument to `kmt.launch-stack` every time. The wizard supports three methods for locating your key:
 
--   **Keys in `~/.ssh`**: Automatically finds key files in your `.ssh` directory.
--   **Keys in SSH Agent**: Finds keys loaded in an SSH agent (e.g., 1Password). Note that this method may not be reliable if you have many keys in the agent.
--   **Manual Path**: Provide the full path to your private key file.
+-   **Keys in `~/.ssh`**: Automatically finds key files in your `.ssh` directory for you to choose from.
+-   **Keys in SSH Agent**: Finds keys loaded in an SSH agent (e.g., the 1Password SSH agent). Note that with this method, KMT does not know the path to the private key file, which means the generated SSH config cannot specify which key to use. This can be problematic if you have many keys in the agent, as SSH may try all of them and be rejected before it finds the correct one. In that case, you may need to configure it manually. [See more details in the 1Password documentation](https://developer.1password.com/docs/ssh/agent/advanced/).
+-   **Manual Path**: Provide the full path to your private key file. Note that **this method performs no validation on the provided path**.
 
-You can also specify the key name registered in AWS in case it differs from your local key's name.
+In all cases, you can also specify the key name registered in AWS in case it differs from your local key's name.
 
 ### `kmt.explain-ci-failure`
 
