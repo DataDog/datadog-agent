@@ -321,6 +321,12 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledProcessAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorAgentCommand
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorPowerShell
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledSystemProbe
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledProcessAgent
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledTraceAgent
+      - EXTRA_PARAMS: --run TestDriverVerifierOnServiceBehaviorWhenDisabledInstaller
 
 new-e2e-windows-certificate:
   extends: .new_e2e_template
