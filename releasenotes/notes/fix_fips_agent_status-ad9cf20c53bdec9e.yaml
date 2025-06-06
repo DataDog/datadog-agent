@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-     Removed the FIPS Proxy status section from the agent status page when running the FIPS Agent. 
+     Remove the FIPS Proxy status section from the Agent status page when running the FIPS Agent. 
