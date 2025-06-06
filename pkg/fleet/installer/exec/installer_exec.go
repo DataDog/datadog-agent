@@ -334,10 +334,12 @@ func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err er
 	return cmd.Run()
 }
 
-// StartHookDetached starts a hook for a given package in the background with detached standard IO.
-func (i *InstallerExec) StartHookDetached(ctx context.Context, hookContext string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "hooks", hookContext)
-	defer func() { cmd.span.Finish(err) }()
+// StartPackageCommandDetached starts a package-specific command for a given package in the background with detached standard IO.
+func (i *InstallerExec) StartPackageCommandDetached(ctx context.Context, packageName string, command string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "package_command")
+	defer func() { span.Finish(err) }()
+
+	cmd := i.newInstallerCmd(ctx, "package-command", packageName, command)
 	// We're running this process in the background, so we don't intend to collect any output from it.
 	// We set channels to nil here because os/exec waits on these pipes to close even after
 	// the process terminates which can cause us (or our parent) to be forever blocked
