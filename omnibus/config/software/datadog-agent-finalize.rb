@@ -202,12 +202,15 @@ build do
             end
 
             if code_signing_identity
+                # Sometimes the timestamp service is not available, so we retry
+                codesign = "../tools/ci/retry.sh codesign"
+
                 # Codesign everything
-                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
+                command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} #{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'", cwd: Dir.pwd
+                command "#{codesign} #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'", cwd: Dir.pwd
             end
         end
     end
