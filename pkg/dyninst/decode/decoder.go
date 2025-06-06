@@ -93,9 +93,10 @@ func (d *Decoder) Decode(event Event, out io.Writer) error {
 	}
 	itemsByAddress := map[uint64]dataItem{}
 	for item, err := range event.dataItems() {
-		if err != nil && errors.Is(err, finishedIterating) {
-			return nil
-		} else if err != nil {
+		if errors.Is(err, finishedIterating) {
+			break
+		}
+		if err != nil {
 			return err
 		}
 		if eventRoot == nil {

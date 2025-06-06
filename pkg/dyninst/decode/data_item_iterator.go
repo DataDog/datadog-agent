@@ -65,8 +65,12 @@ func (e Event) dataItems() iter.Seq2[dataItem, error] {
 		}
 		idx = advanceBuffer(idx, int(eventHeader.Stack_byte_len)) // Skip stack trace data
 		for {
+			if idx == len(e) {
+				yield(dataItem{}, finishedIterating)
+				return
+			}
 			if idx+dataItemHeaderSize >= len(e) {
-				yield(dataItem{}, fmt.Errorf("not enough bytes to read data item header: %d < %d", len(e), idx+dataItemHeaderSize))
+				yield(dataItem{}, fmt.Errorf("not enough bytes to read data item header: %d > %d", idx+dataItemHeaderSize, len(e)))
 				return
 			}
 			header := (*output.DataItemHeader)(unsafe.Pointer(&e[idx]))
