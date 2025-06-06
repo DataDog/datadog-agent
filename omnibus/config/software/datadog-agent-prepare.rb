@@ -33,10 +33,12 @@ build do
   command "ls tools/ci >> /tmp/debug || true"
   command "echo >> /tmp/debug"
 
-  command "./tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true", cwd: Dir.pwd
-  command "echo >> /tmp/debug"
-  command "./tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true"
-  command "echo END >> /tmp/debug"
+  command "../tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true", cwd: Dir.pwd
+
+  # command "./tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true", cwd: Dir.pwd
+  # command "echo >> /tmp/debug"
+  # command "./tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true"
+  # command "echo END >> /tmp/debug"
 
   command "cat /tmp/debug; false"
 
