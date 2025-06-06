@@ -526,3 +526,36 @@ func WithDevEnvOverrides(prefix string) PackageOption {
 		return nil
 	}
 }
+
+// InstallConfigExperiment starts a config experiment using the provided InstallerConfig.
+func (d *DatadogInstaller) InstallConfigExperiment(packageName string, config ConfigExperiment) (string, error) {
+	serializedConfig, err := json.Marshal(config.Files)
+	if err != nil {
+		return "", err
+	}
+	// Escape quotes in the JSON string to handle PowerShell quoting properly
+	configStr := strings.ReplaceAll(string(serializedConfig), `"`, `\"`)
+	return d.execute(fmt.Sprintf("install-config-experiment %s %s '%s'", packageName, config.ID, configStr))
+}
+
+// PromoteConfigExperiment promotes a config experiment.
+func (d *DatadogInstaller) PromoteConfigExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("promote-config-experiment %s", packageName))
+}
+
+// RemoveConfigExperiment stops a config experiment.
+func (d *DatadogInstaller) RemoveConfigExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("remove-config-experiment %s", packageName))
+}
+
+// ConfigExperiment represents a configuration experiment for the Datadog Installer.
+type ConfigExperiment struct {
+	ID    string                 `json:"id"`
+	Files []ConfigExperimentFile `json:"files"`
+}
+
+// ConfigExperimentFile represents a configuration file in a config experiment.
+type ConfigExperimentFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}

@@ -13,12 +13,18 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStatusOut(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule(),
+		fx.Provide(func() ipc.HTTPClient {
+			return ipcmock.New(t).GetClient()
+		}),
 	))
 
 	provides := newStatus(deps)

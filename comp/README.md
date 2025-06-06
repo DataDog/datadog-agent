@@ -471,7 +471,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
-*Datadog Team*: container-intake
+*Datadog Team*: container-experiences
 
 Package process implements the "process" bundle, providing components for the Process Agent
 
@@ -652,11 +652,11 @@ Package status implements the core status component information provider interfa
 
 Package updater implements the updater component.
 
-### [comp/updater/installerexec](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/installerexec)
+### [comp/updater/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/daemonchecker)
 
 *Datadog Team*: fleet
 
-Package installerexec provides a component to execute installer commands
+Package daemonchecker retrieves the running status of the installer daemon
 
 ### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
 
@@ -692,6 +692,12 @@ Package datadogclient provides a client to query the datadog API
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/fleetstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/fleetstatus)
+
+*Datadog Team*: fleet
+
+Package fleetstatus implements the core status component information provider interface
 
 ### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
 

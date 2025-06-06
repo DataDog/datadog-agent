@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 
 	// package dependencies
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	// third-party dependencies
@@ -134,16 +134,8 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			resp, err := util.GetClient().Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			// for debug purpose
-			if content, err := io.ReadAll(resp.Body); assert.NoError(t, err) {
-				t.Log(string(content))
-			}
-
-			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			_, err = deps.IPC.GetClient().Do(req)
+			require.ErrorContains(t, err, "status code: 404")
 
 			metricFamilies, err := registry.Gather()
 			require.NoError(t, err)
@@ -227,16 +219,12 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 
-	resp, err := util.GetClient().Do(req)
+	content, err := deps.IPC.GetClient().Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
 
-	content, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
 	t.Log(string(content))
 
 	// test the gateway is monted at the root
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "GRPC GATEWAY OK", string(content))
 
 	req, err = http.NewRequest(http.MethodGet, url, nil)
@@ -252,7 +240,7 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 		Transport: transport,
 	}
 
-	resp, err = http2Client.Do(req)
+	resp, err := http2Client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 

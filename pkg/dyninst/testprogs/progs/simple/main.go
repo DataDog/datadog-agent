@@ -14,6 +14,7 @@ func main() {
 	bigMapArg(map[string]bigStruct{"b": {Field1: 1}})
 	stringSliceArg([]string{"c"})
 	intSliceArg([]int{1})
+	stringArg("d")
 }
 
 //go:noinline
@@ -44,6 +45,11 @@ func bigMapArg(m map[string]bigStruct) {
 
 //go:noinline
 func stringSliceArg(s []string) {
+	fmt.Println(s)
+}
+
+//go:noinline
+func stringArg(s string) {
 	fmt.Println(s)
 }
 

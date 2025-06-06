@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	conventions "go.opentelemetry.io/collector/semconv/v1.18.0"
+	conventions "go.opentelemetry.io/otel/semconv/v1.18.0"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/internal/testutils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata/payload"
@@ -147,27 +147,27 @@ func TestUpdate(t *testing.T) {
 		{
 			hostname: "host-1-hostid",
 			attributes: map[string]any{
-				conventions.AttributeCloudProvider:         conventions.AttributeCloudProviderAWS,
-				conventions.AttributeCloudRegion:           "us-east-1",
-				conventions.AttributeCloudAvailabilityZone: "us-east-1c",
-				conventions.AttributeHostID:                "host-1-hostid",
-				conventions.AttributeHostName:              "host-1-hostname",
-				conventions.AttributeOSDescription:         "Fedora Linux",
-				conventions.AttributeOSType:                conventions.AttributeOSTypeLinux,
-				conventions.AttributeHostArch:              conventions.AttributeHostArchAMD64,
-				attributeKernelName:                        "GNU/Linux",
-				attributeKernelRelease:                     "5.19.0-43-generic",
-				attributeKernelVersion:                     "#44~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon May 22 13:39:36 UTC 2",
-				attributeHostCPUVendorID:                   "GenuineIntel",
-				attributeHostCPUFamily:                     6,
-				attributeHostCPUModelID:                    10,
-				attributeHostCPUModelName:                  "11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz",
-				attributeHostCPUStepping:                   1,
-				attributeHostCPUCacheL2Size:                12288000,
-				attributeHostIP:                            []any{"192.168.1.140", "fe80::abc2:4a28:737a:609e"},
-				attributeHostMAC:                           []any{"AC-DE-48-23-45-67", "AC-DE-48-23-45-67-01-9F"},
-				"datadog.host.tag.foo":                     "bar",
-				conventions.AttributeDeploymentEnvironment: "prod",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAWS.Value.AsString(),
+				string(conventions.CloudRegionKey):           "us-east-1",
+				string(conventions.CloudAvailabilityZoneKey): "us-east-1c",
+				string(conventions.HostIDKey):                "host-1-hostid",
+				string(conventions.HostNameKey):              "host-1-hostname",
+				string(conventions.OSDescriptionKey):         "Fedora Linux",
+				string(conventions.OSTypeKey):                conventions.OSTypeLinux.Value.AsString(),
+				string(conventions.HostArchKey):              conventions.HostArchAMD64.Value.AsString(),
+				attributeKernelName:                          "GNU/Linux",
+				attributeKernelRelease:                       "5.19.0-43-generic",
+				attributeKernelVersion:                       "#44~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Mon May 22 13:39:36 UTC 2",
+				attributeHostCPUVendorID:                     "GenuineIntel",
+				attributeHostCPUFamily:                       6,
+				attributeHostCPUModelID:                      10,
+				attributeHostCPUModelName:                    "11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz",
+				attributeHostCPUStepping:                     1,
+				attributeHostCPUCacheL2Size:                  12288000,
+				attributeHostIP:                              []any{"192.168.1.140", "fe80::abc2:4a28:737a:609e"},
+				attributeHostMAC:                             []any{"AC-DE-48-23-45-67", "AC-DE-48-23-45-67-01-9F"},
+				"datadog.host.tag.foo":                       "bar",
+				string(conventions.DeploymentEnvironmentKey): "prod",
 			},
 			metric:          BuildMetric[int64](metricSystemCPUPhysicalCount, 32),
 			expectedChanged: false,
@@ -176,14 +176,14 @@ func TestUpdate(t *testing.T) {
 			// Same as #1, but missing some attributes
 			hostname: "host-1-hostid",
 			attributes: map[string]any{
-				conventions.AttributeCloudProvider:         conventions.AttributeCloudProviderAWS,
-				conventions.AttributeCloudRegion:           "us-east-1",
-				conventions.AttributeCloudAvailabilityZone: "us-east-1c",
-				conventions.AttributeHostID:                "host-1-hostid",
-				conventions.AttributeHostName:              "host-1-hostname",
-				conventions.AttributeOSDescription:         "Fedora Linux",
-				"datadog.host.tag.foo":                     "bar",
-				conventions.AttributeDeploymentEnvironment: "prod",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAWS.Value.AsString(),
+				string(conventions.CloudRegionKey):           "us-east-1",
+				string(conventions.CloudAvailabilityZoneKey): "us-east-1c",
+				string(conventions.HostIDKey):                "host-1-hostid",
+				string(conventions.HostNameKey):              "host-1-hostname",
+				string(conventions.OSDescriptionKey):         "Fedora Linux",
+				"datadog.host.tag.foo":                       "bar",
+				string(conventions.DeploymentEnvironmentKey): "prod",
 			},
 			metric:          BuildMetric[float64](metricSystemCPUFrequency, 400_000_005.5),
 			expectedChanged: false,
@@ -192,18 +192,18 @@ func TestUpdate(t *testing.T) {
 			// Same as #1 but wrong type and an update
 			hostname: "host-1-hostid",
 			attributes: map[string]any{
-				conventions.AttributeCloudProvider:         conventions.AttributeCloudProviderAWS,
-				conventions.AttributeCloudRegion:           "us-east-1",
-				conventions.AttributeCloudAvailabilityZone: "us-east-1c",
-				conventions.AttributeHostID:                "host-1-hostid",
-				conventions.AttributeHostName:              "host-1-hostname",
-				conventions.AttributeOSDescription:         true, // wrong type
-				conventions.AttributeHostArch:              conventions.AttributeHostArchAMD64,
-				attributeKernelName:                        "GNU/Linux",
-				attributeKernelRelease:                     "5.19.0-43-generic",
-				attributeKernelVersion:                     "#82~18.04.1-Ubuntu SMP Fri Apr 16 15:10:02 UTC 2021", // changed
-				"datadog.host.tag.foo":                     "baz",                                                 // changed
-				conventions.AttributeDeploymentEnvironment: "prod",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAWS.Value.AsString(),
+				string(conventions.CloudRegionKey):           "us-east-1",
+				string(conventions.CloudAvailabilityZoneKey): "us-east-1c",
+				string(conventions.HostIDKey):                "host-1-hostid",
+				string(conventions.HostNameKey):              "host-1-hostname",
+				string(conventions.OSDescriptionKey):         true, // wrong type
+				string(conventions.HostArchKey):              conventions.HostArchAMD64.Value.AsString(),
+				attributeKernelName:                          "GNU/Linux",
+				attributeKernelRelease:                       "5.19.0-43-generic",
+				attributeKernelVersion:                       "#82~18.04.1-Ubuntu SMP Fri Apr 16 15:10:02 UTC 2021", // changed
+				"datadog.host.tag.foo":                       "baz",                                                 // changed
+				string(conventions.DeploymentEnvironmentKey): "prod",
 			},
 			expectedChanged: true,
 			expectedErrs:    []string{"\"os.description\" has type \"Bool\", expected type \"Str\" instead"},
@@ -212,17 +212,17 @@ func TestUpdate(t *testing.T) {
 			// Same as #1 but wrong type in two places and no update
 			hostname: "host-1-hostid",
 			attributes: map[string]any{
-				conventions.AttributeCloudProvider:         conventions.AttributeCloudProviderAWS,
-				conventions.AttributeCloudRegion:           "us-east-1",
-				conventions.AttributeCloudAvailabilityZone: "us-east-1c",
-				conventions.AttributeHostID:                "host-1-hostid",
-				conventions.AttributeHostName:              "host-1-hostname",
-				conventions.AttributeOSDescription:         true, // wrong type
-				conventions.AttributeHostArch:              conventions.AttributeHostArchAMD64,
-				attributeKernelName:                        false, // wrong type
-				attributeKernelRelease:                     "5.19.0-43-generic",
-				"datadog.host.tag.foo":                     "baz",
-				conventions.AttributeDeploymentEnvironment: "prod",
+				string(conventions.CloudProviderKey):         conventions.CloudProviderAWS.Value.AsString(),
+				string(conventions.CloudRegionKey):           "us-east-1",
+				string(conventions.CloudAvailabilityZoneKey): "us-east-1c",
+				string(conventions.HostIDKey):                "host-1-hostid",
+				string(conventions.HostNameKey):              "host-1-hostname",
+				string(conventions.OSDescriptionKey):         true, // wrong type
+				string(conventions.HostArchKey):              conventions.HostArchAMD64.Value.AsString(),
+				attributeKernelName:                          false, // wrong type
+				attributeKernelRelease:                       "5.19.0-43-generic",
+				"datadog.host.tag.foo":                       "baz",
+				string(conventions.DeploymentEnvironmentKey): "prod",
 			},
 			expectedChanged: false,
 			expectedErrs: []string{
@@ -234,11 +234,11 @@ func TestUpdate(t *testing.T) {
 			// Different host, partial information, on Azure
 			hostname: "host-2-hostid",
 			attributes: map[string]any{
-				conventions.AttributeCloudProvider: conventions.AttributeCloudProviderAzure,
-				conventions.AttributeHostID:        "host-2-hostid",
-				conventions.AttributeHostName:      "host-2-hostname",
-				conventions.AttributeHostArch:      conventions.AttributeHostArchARM64,
-				"deployment.environment.name":      "staging",
+				string(conventions.CloudProviderKey): conventions.CloudProviderAzure.Value.AsString(),
+				string(conventions.HostIDKey):        "host-2-hostid",
+				string(conventions.HostNameKey):      "host-2-hostname",
+				string(conventions.HostArchKey):      conventions.HostArchARM64.Value.AsString(),
+				"deployment.environment.name":        "staging",
 			},
 		},
 	}

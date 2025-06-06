@@ -12,3 +12,7 @@ probes:
   type: LOG_PROBE
   where:
     method_name: main.bigMapArg
+- id: d
+  type: LOG_PROBE
+  where:
+    method_name: main.stringArg

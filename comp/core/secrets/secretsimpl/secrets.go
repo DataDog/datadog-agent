@@ -420,6 +420,12 @@ var (
 		"api_key",
 		"app_key",
 		"additional_endpoints",
+		"orchestrator_additional_endpoints",
+		"profiling_additional_endpoints",
+		"debugger_additional_endpoints",
+		"debugger_diagnostics_additional_endpoints",
+		"symdb_additional_endpoints",
+		"events_additional_endpoints",
 	}
 	// tests override this to test refresh logic
 	allowlistEnabled = true

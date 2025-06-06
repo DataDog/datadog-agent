@@ -19,8 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -49,6 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false)}), // never output anything but hostname
 				core.Bundle(),
+				ipcfx.ModuleInsecure(),
 			)
 		},
 	}
@@ -58,8 +60,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{getHostnameCommand}
 }
 
-func printHostname(_ log.Component, config config.Component, params *cliParams) error {
-	hname, err := getHostname(config, params)
+func printHostname(_ log.Component, params *cliParams, client ipc.HTTPClient) error {
+	hname, err := getHostname(params, client)
 
 	if err != nil {
 		return fmt.Errorf("Error getting the hostname: %v", err)
@@ -69,9 +71,9 @@ func printHostname(_ log.Component, config config.Component, params *cliParams) 
 	return nil
 }
 
-func getHostname(config config.Component, params *cliParams) (string, error) {
+func getHostname(params *cliParams, client ipc.HTTPClient) (string, error) {
 	if !params.forceLocal {
-		hname, err := getRemoteHostname(config)
+		hname, err := getRemoteHostname(client)
 		if err == nil {
 			return hname, nil
 		}
@@ -83,8 +85,8 @@ func getHostname(config config.Component, params *cliParams) (string, error) {
 	return hostname.Get(context.Background())
 }
 
-func getRemoteHostname(config config.Component) (string, error) {
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/hostname")
+func getRemoteHostname(client ipc.HTTPClient) (string, error) {
+	endpoint, err := client.NewIPCEndpoint("/agent/hostname")
 	if err != nil {
 		return "", err
 	}

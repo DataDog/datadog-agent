@@ -156,6 +156,10 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			shouldContain:   []string{"no checks"},
 		},
 		{
+			name:            "Fleet Automation",
+			shouldBePresent: true,
+		},
+		{
 			name:            "Logs Agent",
 			shouldBePresent: true,
 			shouldContain:   []string{"Logs Agent is not running"},

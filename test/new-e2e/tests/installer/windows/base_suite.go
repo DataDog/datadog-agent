@@ -274,6 +274,8 @@ func (s *BaseSuite) startExperimentPreviousVersion() (string, error) {
 
 // MustStartExperimentPreviousVersion starts an experiment with the previous version of the Agent
 func (s *BaseSuite) MustStartExperimentPreviousVersion() {
+	s.T().Helper()
+
 	// Arrange
 	agentVersion := s.StableAgentVersion().Version()
 
@@ -306,6 +308,8 @@ func (s *BaseSuite) StartExperimentCurrentVersion() (string, error) {
 
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
+	s.T().Helper()
+
 	// Arrange
 	agentVersion := s.CurrentAgentVersion().Version()
 
@@ -330,6 +334,8 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 
 // AssertSuccessfulAgentStartExperiment that experiment started successfully
 func (s *BaseSuite) AssertSuccessfulAgentStartExperiment(version string) {
+	s.T().Helper()
+
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
@@ -343,6 +349,8 @@ func (s *BaseSuite) AssertSuccessfulAgentStartExperiment(version string) {
 
 // AssertSuccessfulAgentPromoteExperiment that experiment was promoted successfully
 func (s *BaseSuite) AssertSuccessfulAgentPromoteExperiment(version string) {
+	s.T().Helper()
+
 	err := s.WaitForInstallerService("Running")
 	s.Require().NoError(err)
 
@@ -357,21 +365,63 @@ func (s *BaseSuite) AssertSuccessfulAgentPromoteExperiment(version string) {
 
 // WaitForInstallerService waits for installer service to be expected state
 func (s *BaseSuite) WaitForInstallerService(state string) error {
-	return s.waitForInstallerServiceWithBackoff(state,
-		// usually waiting after MSI runs so we have to wait awhile
-		// max wait is 30*30 -> 900 seconds (15 minutes)
-		backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30))
+	// usually waiting after MSI runs so we have to wait awhile
+	// max wait is 30*30 -> 900 seconds (15 minutes)
+	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), consts.ServiceName)
 }
 
-func (s *BaseSuite) waitForInstallerServiceWithBackoff(state string, b backoff.BackOff) error {
+// WaitForServicesWithBackoff waits for the specified services to be in the desired state using backoff retry.
+func (s *BaseSuite) WaitForServicesWithBackoff(state string, b backoff.BackOff, services ...string) error {
 	return backoff.Retry(func() error {
-		out, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, consts.ServiceName)
-		if err != nil {
-			return err
-		}
-		if !strings.Contains(out, state) {
-			return fmt.Errorf("expected state %s, got %s", state, out)
+		for _, service := range services {
+			status, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, service)
+			if err != nil {
+				return err
+			}
+			if !strings.Contains(status, state) {
+				return fmt.Errorf("service %s is not in state %s, status: %s", service, state, status)
+			}
 		}
 		return nil
 	}, b)
+}
+
+// AssertSuccessfulConfigStartExperiment that config experiment started successfully
+func (s *BaseSuite) AssertSuccessfulConfigStartExperiment(configID string) {
+	s.T().Helper()
+
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasConfigState("datadog-agent").
+		WithExperimentConfigEqual(configID).
+		HasARunningDatadogAgentService()
+}
+
+// AssertSuccessfulConfigPromoteExperiment that config experiment was promoted successfully
+func (s *BaseSuite) AssertSuccessfulConfigPromoteExperiment(configID string) {
+	s.T().Helper()
+
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasConfigState("datadog-agent").
+		WithStableConfigEqual(configID).
+		WithExperimentConfigEqual("").
+		HasARunningDatadogAgentService()
+}
+
+// AssertSuccessfulConfigStopExperiment that config experiment was stopped successfully
+func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
+	s.T().Helper()
+
+	err := s.WaitForInstallerService("Running")
+	s.Require().NoError(err)
+
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasConfigState("datadog-agent").
+		WithExperimentConfigEqual("").
+		HasARunningDatadogAgentService()
 }

@@ -20,7 +20,6 @@ import (
 	"github.com/skydive-project/go-debouncer"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -65,8 +64,8 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool)) (
 	}
 
 	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(),
-		func() (string, error) { return security.FetchAuthToken(pkgconfigsetup.Datadog()) },
-		apiutil.GetTLSClientConfig, // using helper command from pkg/api/util because there is no access to components
+		apiutil.GetAuthToken(),
+		apiutil.GetTLSClientConfig(), // using helper command from pkg/api/util because there is no access to components
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts(state.ProductCWSDD, state.ProductCWSCustom),
 		client.WithPollInterval(securityAgentRCPollInterval),

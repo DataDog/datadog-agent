@@ -36,10 +36,11 @@ type EvalReport struct {
 	Error     error `json:",omitempty"`
 }
 
-// EventData defines the structure used to represent an event
-type EventData struct {
-	Type   eval.EventType
-	Values map[string]interface{}
+// TestData defines the structure used to represent an event and its variables
+type TestData struct {
+	Type      eval.EventType
+	Values    map[string]any
+	Variables map[string]any
 }
 
 // EvalRuleParams are parameters to the EvalRule function
@@ -54,11 +55,16 @@ type EvalRuleParams struct {
 func EvalRule(evalArgs EvalRuleParams) error {
 	policiesDir := evalArgs.Dir
 
+	event, variables, err := dataFromJSON(evalArgs.EventFile)
+	if err != nil {
+		return err
+	}
+
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
 	ruleOpts := rules.NewRuleOpts(enabled)
-	evalOpts := newEvalOpts(evalArgs.UseWindowsModel)
+	evalOpts := newEvalOpts(evalArgs.UseWindowsModel).WithVariables(variables)
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 
 	agentVersionFilter, err := newAgentVersionFilter()
@@ -95,17 +101,12 @@ func EvalRule(evalArgs EvalRuleParams) error {
 		return err
 	}
 
-	event, err := eventDataFromJSON(evalArgs.EventFile)
-	if err != nil {
-		return err
-	}
-
 	report := EvalReport{
 		Event: event,
 	}
 
 	if !evalArgs.UseWindowsModel {
-		approvers, _, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
+		approvers, _, _, err := ruleSet.GetApprovers(kfilters.GetCapababilities())
 		if err != nil {
 			report.Error = err
 		} else {
@@ -127,22 +128,9 @@ func EvalRule(evalArgs EvalRuleParams) error {
 	return nil
 }
 
-func eventDataFromJSON(file string) (eval.Event, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
+func eventFromTestData(testData TestData) (eval.Event, error) {
 
-	decoder := json.NewDecoder(f)
-	decoder.UseNumber()
-
-	var eventData EventData
-	if err := decoder.Decode(&eventData); err != nil {
-		return nil, err
-	}
-
-	kind := secconfig.ParseEvalEventType(eventData.Type)
+	kind := secconfig.ParseEvalEventType(testData.Type)
 	if kind == model.UnknownEventType {
 		return nil, errors.New("unknown event type")
 	}
@@ -156,7 +144,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	}
 	event.Init()
 
-	for k, v := range eventData.Values {
+	for k, v := range testData.Values {
 		switch v := v.(type) {
 		case json.Number:
 			value, err := v.Int64()
@@ -184,6 +172,93 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	}
 
 	return event, nil
+}
+
+func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, error) {
+	variables := make(map[string]eval.SECLVariable)
+
+	// copy the embedded variables
+	for k, v := range model.SECLVariables {
+		variables[k] = v
+	}
+
+	for k, v := range testData.Variables {
+		switch v := v.(type) {
+		case string:
+			variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context) (string, bool) {
+				return v, true
+			}, nil)
+		case []any:
+			switch v[0].(type) {
+			case string:
+				values := make([]string, len(v))
+				for i, value := range v {
+					values[i] = value.(string)
+				}
+				variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context) ([]string, bool) {
+					return values, true
+				}, nil)
+			case json.Number:
+				values := make([]int, len(v))
+				for i, value := range v {
+					v64, err := value.(json.Number).Int64()
+					if err != nil {
+						return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
+					}
+					values[i] = int(v64)
+				}
+				variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context) ([]int, bool) {
+					return values, true
+				}, nil)
+			default:
+				return nil, fmt.Errorf("unknown variable type %s: %T", k, v)
+			}
+		case json.Number:
+			value, err := v.Int64()
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
+			}
+			variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context) (int, bool) {
+				return int(value), true
+			}, nil)
+		case bool:
+			variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context) (bool, bool) {
+				return v, true
+			}, nil)
+		default:
+			return nil, fmt.Errorf("unknown variable type %s: %T", k, v)
+		}
+	}
+
+	return variables, nil
+}
+
+func dataFromJSON(file string) (eval.Event, map[string]eval.SECLVariable, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer f.Close()
+
+	decoder := json.NewDecoder(f)
+	decoder.UseNumber()
+
+	var testData TestData
+	if err := decoder.Decode(&testData); err != nil {
+		return nil, nil, err
+	}
+
+	event, err := eventFromTestData(testData)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	variables, err := variablesFromTestData(testData)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return event, variables, nil
 }
 
 func anySliceToStringSlice(in []any) ([]string, bool) {
