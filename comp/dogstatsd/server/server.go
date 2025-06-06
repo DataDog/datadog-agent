@@ -67,7 +67,7 @@ var (
 	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
 	once                  sync.Once
 
-	percentileRx = regexp.MustCompile(`.\d\dpercentile$`)
+	percentileRx = regexp.MustCompile(`\.\d\dpercentile$`)
 )
 
 type dependencies struct {
