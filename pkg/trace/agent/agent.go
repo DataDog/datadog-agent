@@ -128,6 +128,8 @@ type Agent struct {
 	ctx context.Context
 
 	firstSpanMap sync.Map
+
+	processWg *sync.WaitGroup
 }
 
 // SpanModifier is an interface that allows to modify spans while they are
@@ -168,6 +170,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		DebugServer:           api.NewDebugServer(conf),
 		Statsd:                statsd,
 		Timing:                timing,
+		processWg:             &sync.WaitGroup{},
 	}
 	agnt.SamplerMetrics.Add(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.NoPrioritySampler, agnt.RareSampler)
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, agnt, telemetryCollector, statsd, timing)
@@ -203,6 +206,7 @@ func (a *Agent) Run() {
 	workers := max(runtime.GOMAXPROCS(0), 1)
 
 	log.Infof("Processing Pipeline configured with %d workers", workers)
+	a.processWg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go a.work()
 	}
@@ -241,6 +245,7 @@ func (a *Agent) UpdateAPIKey(oldKey, newKey string) {
 }
 
 func (a *Agent) work() {
+	defer a.processWg.Done()
 	for {
 		p, ok := <-a.In
 		if !ok {
@@ -248,17 +253,21 @@ func (a *Agent) work() {
 		}
 		a.Process(p)
 	}
-
 }
 
 func (a *Agent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
 
-	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
+	// Stop the receiver first so we do not receive more payloads and start to shut down the workers
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
+
+	//Wait to process any leftover payloads in flight before closing components that might be needed
+	a.processWg.Wait()
+
+	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
 	for _, stopper := range []interface{ Stop() }{
 		a.Concentrator,
 		a.ClientStatsAggregator,
@@ -383,6 +392,7 @@ func (a *Agent) Process(p *api.Payload) {
 			if a.SpanModifier != nil {
 				a.SpanModifier.ModifySpan(chunk, span)
 			}
+			time.Sleep(100 * time.Millisecond)
 			a.obfuscateSpan(span)
 			a.Truncate(span)
 			if p.ClientComputedTopLevel {
