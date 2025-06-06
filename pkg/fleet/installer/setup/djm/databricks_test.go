@@ -62,6 +62,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:job-123-run-456",
 				"jobid:123",
 				"runid:456",
+				"dd.internal.resource:databricks_job:123",
 			},
 		},
 		{
@@ -119,6 +120,32 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:Example Workspace",
 				"workspace:example_workspace",
+			},
+		},
+		{
+			name: "internal resource tags with cluster ID from env",
+			env: map[string]string{
+				"DBX_CLUSTER_ID":  "cluster-67890",
+				"DB_CLUSTER_NAME": "job-999-run-888",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:job-999-run-888",
+				"cluster_name:job-999-run-888",
+				"jobid:999",
+				"runid:888",
+				"dd.internal.resource:databricks_job:999",
+				"dd.internal.resource:databricks_cluster:cluster-67890",
+			},
+		},
+		{
+			name: "only cluster ID env var",
+			env: map[string]string{
+				"DBX_CLUSTER_ID": "cluster-only-12345",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"dd.internal.resource:databricks_cluster:cluster-only-12345",
 			},
 		},
 	}
