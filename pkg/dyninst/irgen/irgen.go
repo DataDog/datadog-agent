@@ -203,6 +203,13 @@ func (v *rootVisitor) instantiateAbstractSubprograms() error {
 		}
 	}
 	for _, abstractSubprogram := range v.abstractSubprograms {
+		for _, probeCfg := range abstractSubprogram.probesCfgs {
+			probe, err := v.newProbe(probeCfg, abstractSubprogram.unit, abstractSubprogram.subprogram)
+			if err != nil {
+				return err
+			}
+			v.probes = append(v.probes, probe)
+		}
 		v.subprograms = append(v.subprograms, abstractSubprogram.subprogram)
 	}
 	return nil
@@ -583,14 +590,16 @@ func (v *unitChildVisitor) push(
 			}
 			return childVisitor, nil
 		}
-		cfgProbes := v.root.interests.subprograms[name]
+		probesCfgs := v.root.interests.subprograms[name]
 		inline, ok, err := maybeGetAttr[int64](entry, dwarf.AttrInline)
 		if err != nil {
 			return nil, err
 		}
 		if ok && inline == dwInlInlined {
-			if len(cfgProbes) > 0 {
+			if len(probesCfgs) > 0 {
 				abstractSubprogram := &abstractSubprogram{
+					unit:       v.unit,
+					probesCfgs: probesCfgs,
 					subprogram: &ir.Subprogram{
 						ID:   v.root.subprogramIDAlloc.next(),
 						Name: name,
@@ -608,7 +617,7 @@ func (v *unitChildVisitor) push(
 		}
 
 		var subprogram *ir.Subprogram
-		if len(cfgProbes) > 0 {
+		if len(probesCfgs) > 0 {
 			ranges, err := v.root.dwarf.Ranges(entry)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
@@ -624,7 +633,7 @@ func (v *unitChildVisitor) push(
 			subprogramEntry: entry,
 			unit:            v.unit,
 			subprogram:      subprogram,
-			cfgProbes:       cfgProbes,
+			probesCfgs:      probesCfgs,
 		}, nil
 
 	case dwarf.TagUnspecifiedType:
@@ -663,14 +672,14 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 		}
 
 		// Here we want to convert the config probes into IR probes.
-		for _, cfgProbe := range t.cfgProbes {
-			probe, err := t.newProbe(cfgProbe, t.subprogram)
+		for _, probeCfg := range t.probesCfgs {
+			probe, err := v.root.newProbe(probeCfg, t.unit, t.subprogram)
 			if err != nil {
 				// TODO: We should collect up all the errors rather than
 				// returning the first one.
 				return fmt.Errorf(
 					"failed to create probe %s: %w",
-					cfgProbe.GetID(), err,
+					probeCfg.GetID(), err,
 				)
 			}
 			v.root.probes = append(v.root.probes, probe)
@@ -686,34 +695,50 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 	}
 }
 
-func (v *subprogramChildVisitor) newProbe(
-	cfgProbe config.Probe,
+func (v *rootVisitor) newProbe(
+	probeCfg config.Probe,
+	unit *dwarf.Entry,
 	subprogram *ir.Subprogram,
 ) (*ir.Probe, error) {
-	kind, err := getProbeKind(cfgProbe)
+	kind, err := getProbeKind(probeCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get probe kind: %w", err)
 	}
 	var captureSnapshot bool
-	if lp, ok := cfgProbe.(*config.LogProbe); ok {
+	if lp, ok := probeCfg.(*config.LogProbe); ok {
 		captureSnapshot = lp.CaptureSnapshot
 	}
 
-	lineReader, err := v.root.dwarf.LineReader(v.unit)
+	lineReader, err := v.dwarf.LineReader(unit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get line reader: %w", err)
 	}
-	prologueEnd, err := findPrologueEnd(lineReader, v.subprogram.OutOfLinePCRanges)
-	if err != nil {
-		return nil, err
+	var injectionPCs []uint64
+	if subprogram.OutOfLinePCRanges == nil && len(subprogram.InlinePCRanges) == 0 {
+		return nil, fmt.Errorf("subprogram %q has no pc ranges", subprogram.Name)
+	}
+	if subprogram.OutOfLinePCRanges != nil {
+		prologueEnd, ok, err := findPrologueEnd(lineReader, subprogram.OutOfLinePCRanges)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			// Frameless subprogram, first PC should be suitable for injection.
+			injectionPCs = append(injectionPCs, subprogram.OutOfLinePCRanges[0][0])
+		} else {
+			injectionPCs = append(injectionPCs, prologueEnd)
+		}
+	}
+	for _, inlinedInstanceRanges := range subprogram.InlinePCRanges {
+		// Inlined instances are always frameless.
+		injectionPCs = append(injectionPCs, inlinedInstanceRanges[0][0])
 	}
 
 	// TODO: Find the return locations and add a return event.
-	// TODO(piob): Include call locations for inlined subprograms.
 	events := []*ir.Event{
 		{
-			ID:           v.root.eventIDAlloc.next(),
-			InjectionPCs: []uint64{prologueEnd},
+			ID:           v.eventIDAlloc.next(),
+			InjectionPCs: injectionPCs,
 			Condition:    nil,
 			// Will be populated after all the types have been resolved
 			// and placeholders have been filled in.
@@ -721,11 +746,11 @@ func (v *subprogramChildVisitor) newProbe(
 		},
 	}
 	probe := &ir.Probe{
-		ID:         cfgProbe.GetID(),
+		ID:         probeCfg.GetID(),
 		Subprogram: subprogram,
 		Kind:       kind,
-		Version:    cfgProbe.GetVersion(),
-		Tags:       cfgProbe.GetTags(),
+		Version:    probeCfg.GetVersion(),
+		Tags:       probeCfg.GetTags(),
 		Events:     events,
 		Snapshot:   captureSnapshot,
 	}
@@ -734,15 +759,12 @@ func (v *subprogramChildVisitor) newProbe(
 
 func findPrologueEnd(
 	lineReader *dwarf.LineReader, ranges []ir.PCRange,
-) (prologueEnd uint64, err error) {
+) (injectionPC uint64, ok bool, err error) {
 	var lineEntry dwarf.LineEntry
 	// Note: this is assuming that the ranges are sorted.
 	if len(ranges) == 0 {
-		return 0, fmt.Errorf("expected at least one range for subprogram")
+		return 0, false, fmt.Errorf("expected at least one range for subprogram")
 	}
-	// Frameless subprograms have no prologue and so they'll have
-	// no prologue end; use the first PC as the prologue end.
-	prologueEnd = ranges[0][0]
 	for _, r := range ranges {
 		// In general, SeekPC is not the function we're looking for.  We
 		// want to seek to the next line entry that's in the range but
@@ -774,8 +796,7 @@ func findPrologueEnd(
 		}
 		for lineEntry.Address < r[1] {
 			if lineEntry.PrologueEnd {
-				prologueEnd = lineEntry.Address
-				break
+				return lineEntry.Address, true, nil
 			}
 			if err := lineReader.Next(&lineEntry); err != nil {
 				// TODO(XXX): Should this bail out?
@@ -787,11 +808,11 @@ func findPrologueEnd(
 			}
 		}
 	}
-	return prologueEnd, nil
+	return 0, false, nil
 }
 
-func getProbeKind(cfgProbe config.Probe) (ir.ProbeKind, error) {
-	switch ty := cfgProbe.GetType(); ty {
+func getProbeKind(probeCfg config.Probe) (ir.ProbeKind, error) {
+	switch ty := probeCfg.GetType(); ty {
 	case config.TypeLogProbe:
 		return ir.ProbeKindLog, nil
 	case config.TypeMetricProbe:
@@ -810,7 +831,7 @@ type subprogramChildVisitor struct {
 	// May be nil if the subprogram is not interesting. We still need to visit it
 	// to collect possibly interesting inlined subprograms instances.
 	subprogram *ir.Subprogram
-	cfgProbes  []config.Probe
+	probesCfgs []config.Probe
 }
 
 func (v *subprogramChildVisitor) push(
@@ -922,6 +943,8 @@ func (v *rootVisitor) processVariable(
 }
 
 type abstractSubprogram struct {
+	unit       *dwarf.Entry
+	probesCfgs []config.Probe
 	subprogram *ir.Subprogram
 	variables  map[dwarf.Offset]*ir.Variable
 }
