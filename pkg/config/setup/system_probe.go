@@ -418,6 +418,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// Discovery config
 	cfg.BindEnv(join(discoveryNS, "enabled"))
+	cfg.BindEnvAndSetDefault(join(discoveryNS, "use_workloadmeta"), false)
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.enabled"), true)
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
