@@ -326,7 +326,7 @@ func startTelemetryCollection(wg *sync.WaitGroup, serverlessID registration.ID, 
 	if logRegistrationError != nil {
 		log.Error("Can't subscribe to logs:", logRegistrationError)
 	} else {
-		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", tagger, compression)
+		logsAgent, err := serverlessLogs.SetupLogAgent(logChannel, "AWS Logs", "lambda", "", tagger, compression)
 		if err != nil {
 			log.Errorf("Error setting up the logs agent: %s", err)
 		}

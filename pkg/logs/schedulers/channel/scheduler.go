@@ -25,6 +25,9 @@ type Scheduler struct {
 	// source is the Source of the LogsConfig the scheduler creates
 	source string
 
+	// runtime is the runtime of the LogsConfig the scheduler creates
+	runtime string
+
 	// logsChan is the channel carrying messages to be sent to the pipeline
 	logsChan chan *config.ChannelMessage
 
@@ -38,10 +41,11 @@ type Scheduler struct {
 var _ schedulers.Scheduler = &Scheduler{}
 
 // NewScheduler creates a new Scheduler.
-func NewScheduler(sourceName, source string, logsChan chan *config.ChannelMessage) *Scheduler {
+func NewScheduler(sourceName, source string, runtime string, logsChan chan *config.ChannelMessage) *Scheduler {
 	return &Scheduler{
 		sourceName: sourceName,
 		source:     source,
+		runtime:    runtime,
 		logsChan:   logsChan,
 	}
 }
@@ -66,6 +70,7 @@ func (s *Scheduler) setSource() {
 	s.logSource = sources.NewLogSource(s.sourceName, &config.LogsConfig{
 		Type:    config.StringChannelType,
 		Source:  s.source,
+		Runtime: s.runtime,
 		Channel: s.logsChan,
 	})
 	s.sourceMgr.AddSource(s.logSource)
