@@ -83,6 +83,6 @@ func runTest(
 	} else {
 		expected, err := os.ReadFile(outputFile)
 		require.NoError(t, err)
-		require.Equal(t, string(expected), string(out.Bytes()))
+		require.Equal(t, string(expected), out.String())
 	}
 }
