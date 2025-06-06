@@ -7,12 +7,6 @@ path = "github.com/mwitkow/go-proto-validators"
 ignores = ["./test", "./examples"]
 
 [[dependencies]]
-target = "github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis/google/api"
-revision = "v1.14.1"
-path = "google/api"
-
-
-[[dependencies]]
 target = "github.com/protocolbuffers/protobuf/src/google/protobuf"
 revision = "v3.11.4"
 path = "google/protobuf"

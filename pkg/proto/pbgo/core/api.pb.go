@@ -30,23 +30,24 @@ var File_datadog_api_v1_api_proto protoreflect.FileDescriptor
 
 const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\n" +
-	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto2q\n" +
-	"\x05Agent\x12h\n" +
-	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/grpc/host2\xd5\x0f\n" +
-	"\vAgentSecure\x12\x8f\x01\n" +
-	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/grpc/tagger/stream_entities0\x01\x12\xe5\x01\n" +
-	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\"A\x82\xd3\xe4\x93\x02;:\x01*\"6/v1/grpc/tagger/generate_container_id_from_origin_info\x12\x89\x01\n" +
-	"\x11TaggerFetchEntity\x12$.datadog.model.v1.FetchEntityRequest\x1a%.datadog.model.v1.FetchEntityResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/grpc/tagger/fetch_entity\x12\x9b\x01\n" +
-	"\x17DogstatsdCaptureTrigger\x12'.datadog.model.v1.CaptureTriggerRequest\x1a(.datadog.model.v1.CaptureTriggerResponse\"-\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/grpc/dogstatsd/capture/trigger\x12\x8c\x01\n" +
-	"\x17DogstatsdSetTaggerState\x12\x1d.datadog.model.v1.TaggerState\x1a%.datadog.model.v1.TaggerStateResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /v1/grpc/dogstatsd/capture/state\x12\x8f\x01\n" +
-	"\x10ClientGetConfigs\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\"(\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/v1/grpc/remoteconfig/configs\x12x\n" +
-	"\x0eGetConfigState\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/grpc/remoteconfig/state\x12\x94\x01\n" +
-	"\x12ClientGetConfigsHA\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /v1/grpc/remoteconfig/configs_ha\x12}\n" +
-	"\x10GetConfigStateHA\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/grpc/remoteconfig/state_ha\x12\xb3\x01\n" +
-	"\x1aWorkloadmetaStreamEntities\x12/.datadog.workloadmeta.WorkloadmetaStreamRequest\x1a0.datadog.workloadmeta.WorkloadmetaStreamResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/grpc/workloadmeta/stream_entities0\x01\x12\xaf\x01\n" +
-	"\x13RegisterRemoteAgent\x12/.datadog.remoteagent.RegisterRemoteAgentRequest\x1a0.datadog.remoteagent.RegisterRemoteAgentResponse\"5\x82\xd3\xe4\x93\x02/:\x01*\"*/v1/grpc/remoteagent/register_remote_agent\x12\x9b\x01\n" +
-	"\x19AutodiscoveryStreamConfig\x12\x16.google.protobuf.Empty\x1a2.datadog.autodiscovery.AutodiscoveryStreamResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/grpc/autodiscovery/stream_configs0\x01\x12k\n" +
-	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/grpc/host_tags2\xcb\x02\n" +
+	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto2Z\n" +
+	"\x05Agent\x12Q\n" +
+	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xf8\n" +
+	"\n" +
+	"\vAgentSecure\x12c\n" +
+	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse0\x01\x12\xa2\x01\n" +
+	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\x12`\n" +
+	"\x11TaggerFetchEntity\x12$.datadog.model.v1.FetchEntityRequest\x1a%.datadog.model.v1.FetchEntityResponse\x12l\n" +
+	"\x17DogstatsdCaptureTrigger\x12'.datadog.model.v1.CaptureTriggerRequest\x1a(.datadog.model.v1.CaptureTriggerResponse\x12_\n" +
+	"\x17DogstatsdSetTaggerState\x12\x1d.datadog.model.v1.TaggerState\x1a%.datadog.model.v1.TaggerStateResponse\x12e\n" +
+	"\x10ClientGetConfigs\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\x12P\n" +
+	"\x0eGetConfigState\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\x12g\n" +
+	"\x12ClientGetConfigsHA\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\x12R\n" +
+	"\x10GetConfigStateHA\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\x12\x81\x01\n" +
+	"\x1aWorkloadmetaStreamEntities\x12/.datadog.workloadmeta.WorkloadmetaStreamRequest\x1a0.datadog.workloadmeta.WorkloadmetaStreamResponse0\x01\x12x\n" +
+	"\x13RegisterRemoteAgent\x12/.datadog.remoteagent.RegisterRemoteAgentRequest\x1a0.datadog.remoteagent.RegisterRemoteAgentResponse\x12i\n" +
+	"\x19AutodiscoveryStreamConfig\x12\x16.google.protobuf.Empty\x1a2.datadog.autodiscovery.AutodiscoveryStreamResponse0\x01\x12O\n" +
+	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply2\xcb\x02\n" +
 	"\vRemoteAgent\x12o\n" +
 	"\x10GetStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a-.datadog.remoteagent.GetStatusDetailsResponse\x12f\n" +
 	"\rGetFlareFiles\x12).datadog.remoteagent.GetFlareFilesRequest\x1a*.datadog.remoteagent.GetFlareFilesResponse\x12c\n" +
