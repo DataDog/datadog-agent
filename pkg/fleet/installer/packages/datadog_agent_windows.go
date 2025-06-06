@@ -80,7 +80,7 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	}
 
 	// install the new stable Agent
-	err = installAgentPackage(env, "stable", ctx.WindowsArgs, "setup_agent.log")
+	err = installAgentPackage(ctx, env, "stable", ctx.WindowsArgs, "setup_agent.log")
 	return err
 }
 
@@ -138,7 +138,7 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	}
 
 	args := getStartExperimentMSIArgs()
-	err = installAgentPackage(env, "experiment", args, "start_agent_experiment.log")
+	err = installAgentPackage(ctx, env, "experiment", args, "start_agent_experiment.log")
 	if err != nil {
 		// we failed to install the Agent, we need to restore the stable Agent
 		// to leave the system in a consistent state.
@@ -198,7 +198,7 @@ func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
 	}
 
 	// reinstall the stable Agent
-	err = installAgentPackage(env, "stable", nil, "restore_stable_agent.log")
+	err = installAgentPackage(ctx, env, "stable", nil, "restore_stable_agent.log")
 	if err != nil {
 		// we failed to reinstall the stable Agent
 		// we can't do much here
@@ -307,10 +307,12 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 
 }
 
-func installAgentPackage(env *env.Env, target string, args []string, logFileName string) error {
+func installAgentPackage(ctx context.Context, env *env.Env, target string, args []string, logFileName string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "install_agent")
+	defer func() { span.Finish(err) }()
 
 	rootPath := ""
-	_, err := os.Stat(paths.RootTmpDir)
+	_, err = os.Stat(paths.RootTmpDir)
 	// If bootstrap has not been called before, `paths.RootTmpDir` might not exist
 	if err == nil {
 		// we can use the default tmp dir because it exists
@@ -753,7 +755,10 @@ func postPromoteConfigExperimentDatadogAgentBackground(_ context.Context) error 
 }
 
 // runDatadogAgentPackageCommand maps the package specific command names to their corresponding functions.
-func runDatadogAgentPackageCommand(ctx context.Context, command string) error {
+func runDatadogAgentPackageCommand(ctx context.Context, command string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, command)
+	defer func() { span.Finish(err) }()
+
 	switch command {
 	case "postStartExperimentBackground":
 		return postStartExperimentDatadogAgentBackground(ctx)
