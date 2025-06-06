@@ -152,8 +152,8 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
-func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState, filterReport *kfilters.FilterReport) {
-	rule, event := newRuleSetLoadedEvent(acc, policies, filterReport)
+func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) {
+	rule, event := newRuleSetLoadedEvent(acc, rs, policies, filterReport)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
@@ -244,8 +244,9 @@ type LogAction struct {
 // easyjson:json
 type RulesetLoadedEvent struct {
 	events.CustomEventCommonFields
-	Policies []*PolicyState         `json:"policies"`
-	Filters  *kfilters.FilterReport `json:"filters,omitempty"`
+	Policies       []*PolicyState         `json:"policies"`
+	Filters        *kfilters.FilterReport `json:"filters,omitempty"`
+	MonitoredFiles []string               `json:"monitored_files,omitempty"`
 }
 
 // ToJSON marshal using json format
@@ -391,10 +392,11 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 }
 
 // newRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func newRuleSetLoadedEvent(acc *events.AgentContainerContext, policies []*PolicyState, filterReport *kfilters.FilterReport) (*rules.Rule, *events.CustomEvent) {
+func newRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) (*rules.Rule, *events.CustomEvent) {
 	evt := RulesetLoadedEvent{
-		Policies: policies,
-		Filters:  filterReport,
+		Policies:       policies,
+		Filters:        filterReport,
+		MonitoredFiles: extractMonitoredFilesAndFolders(rs),
 	}
 	evt.FillCustomEventCommonFields(acc)
 
@@ -423,4 +425,86 @@ func newHeartbeatEvents(acc *events.AgentContainerContext, policies []*policy) (
 
 	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
 		evts
+}
+
+// extractMonitoredFilesAndFolders extracts file and folder paths from rule expressions
+func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
+	if rs == nil {
+		return nil
+	}
+
+	pathsSet := make(map[string]bool)
+
+	// Get FIM events
+	fimEvents := model.GetEventTypePerCategory(model.FIMCategory)[model.FIMCategory]
+
+	// Check both file.name and file.path for each FIM event
+	for _, event := range fimEvents {
+		for _, suffix := range []string{".file.name", ".file.path"} {
+			field := event + suffix
+			// Get all rules that use this field
+			for _, rule := range rs.GetRules() {
+				values := rule.GetFieldValues(field)
+				for _, value := range values {
+					path, ok := value.Value.(string)
+					if !ok || path == "" {
+						continue
+					}
+
+					// Check if this value is used positively in the rule expression (NO: not in or !=)
+					if isPositivelyUsed(rule, field, value, rs) {
+						pathsSet[path] = true
+					}
+				}
+			}
+		}
+	}
+
+	if len(pathsSet) == 0 {
+		return nil
+	}
+
+	monitored := make([]string, 0, len(pathsSet))
+	for path := range pathsSet {
+		monitored = append(monitored, path)
+	}
+
+	return monitored
+}
+
+// isPositivelyUsed checks if a field value is used positively
+func isPositivelyUsed(rule *rules.Rule, field eval.Field, value eval.FieldValue, rs *rules.RuleSet) bool {
+
+	fakeEvent := rs.NewEvent()
+	ctx := eval.NewContext(fakeEvent)
+
+	// Test with the actual value
+	err := fakeEvent.SetFieldValue(field, value.Value)
+	if err != nil {
+		return false
+	}
+
+	origResult, err := rule.PartialEval(ctx, field)
+	if err != nil {
+		return false
+	}
+
+	// Test with a different value to see if the rule behavior changes
+	notValue, err := eval.NotOfValue(value.Value)
+	if err != nil {
+		return false
+	}
+
+	err = fakeEvent.SetFieldValue(field, notValue)
+	if err != nil {
+		return false
+	}
+
+	notResult, err := rule.PartialEval(ctx, field)
+	if err != nil {
+		return false
+	}
+
+	// If the results are different, this means the field is used positively
+	return origResult != notResult
 }
