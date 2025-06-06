@@ -67,6 +67,7 @@ var (
 	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
 	once                  sync.Once
 
+	histAggrs    = []string{"max", "min", "median", "avg", "sum", "count"}
 	percentileRx = regexp.MustCompile(`\.\d?\dpercentile$`)
 )
 
@@ -521,7 +522,8 @@ func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
 	// - one with only the metric names ending with histogram aggregates suffixes
 
 	// only histogram metric names (including their aggregates suffixes)
-	histoMetricNames := s.createHistogramsBlocklist(metricNames)
+	histoMetricNames := createHistogramsBlocklist(metricNames)
+	s.log.Debugf("SetBlocklist created a histograms subsets of %d metric names", len(histoMetricNames))
 
 	// send the complete blocklist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
@@ -536,13 +538,11 @@ func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
 
 // create a list based on all `metricNames` but only containing metric names
 // with histogram aggregates suffixes.
-func (s *server) createHistogramsBlocklist(metricNames []string) []string {
-	aggrs := s.config.GetStringSlice("histogram_aggregates")
-
+func createHistogramsBlocklist(metricNames []string) []string {
 	histoMetricNames := []string{}
 	for _, metricName := range metricNames {
 		// metric names ending with a histogram aggregates
-		for _, aggr := range aggrs {
+		for _, aggr := range histAggrs {
 			if strings.HasSuffix(metricName, "."+aggr) {
 				histoMetricNames = append(histoMetricNames, metricName)
 			}
@@ -552,8 +552,6 @@ func (s *server) createHistogramsBlocklist(metricNames []string) []string {
 			histoMetricNames = append(histoMetricNames, metricName)
 		}
 	}
-
-	s.log.Debugf("SetBlocklist created a histograms subsets of %d metric names", len(histoMetricNames))
 	return histoMetricNames
 }
 
