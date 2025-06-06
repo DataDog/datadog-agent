@@ -72,7 +72,7 @@ deploy_mutable_image_tags-a7-full-rc:
       - SUFFIX: ["-full"]
 
 deploy_mutable_image_tags-a7-fips-rc:
-  extends: .deploy_mutable_image_tags_7-rc
+  extends: .deploy_mutable_image_tags_base
   rules:
     !reference [.on_rc]
   needs:
@@ -80,9 +80,10 @@ deploy_mutable_image_tags-a7-fips-rc:
       artifacts: false
   parallel:
     matrix:
-      - SUFFIX:
-          - "-fips"
-          - "-fips-jmx"
+      - SUFFIX: ["-fips"]
+        IMG_NEW_TAGS: ["7-fips-rc"]
+      - SUFFIX: ["-fips-jmx"]
+        IMG_NEW_TAGS: ["7-fips-rc-jmx"]
 
 # Jobs [.on_internal_rc]
 
@@ -98,7 +99,7 @@ deploy_mutable_image_tags-a7_internal-rc:
       - SUFFIX: [""]
 
 deploy_mutable_image_tags-a7-fips_internal-rc:
-  extends: .deploy_mutable_image_tags_7-rc
+  extends: .deploy_mutable_image_tags_base
   rules:
     !reference [.on_internal_rc]
   needs:
@@ -106,9 +107,10 @@ deploy_mutable_image_tags-a7-fips_internal-rc:
       artifacts: false
   parallel:
     matrix:
-      - SUFFIX:
-          - "-fips"
-          - "-fips-jmx"
+      - SUFFIX: ["-fips"]
+        IMG_NEW_TAGS: ["7-fips-rc"]
+      - SUFFIX: ["-fips-jmx"]
+        IMG_NEW_TAGS: ["7-fips-rc-jmx"]
 
 # Jobs [.on_internal_final]
 
