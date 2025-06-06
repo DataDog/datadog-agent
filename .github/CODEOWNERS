@@ -268,8 +268,6 @@
 /docs/public/architecture/dogstatsd/                         @DataDog/agent-metric-pipelines
 /docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-runtimes
 
-/google-marketplace/                    @DataDog/container-ecosystems
-
 # These files are owned by all teams, but assigning them to @DataDog/agent-all causes a lot of spam
 # Assigning them to a group that doesn't exist means nobody will receive notifications for them, but
 # that should be fine since rarely we make PRs that only change those files alone.
@@ -343,8 +341,11 @@
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/trace/etwtracer @DataDog/windows-agent
+/comp/updater/daemonchecker @DataDog/fleet
+/comp/updater/ssistatus @DataDog/fleet
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
+/comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/ndm-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/rdnsquerier @DataDog/ndm-integrations

@@ -134,11 +134,16 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 			warnings = append(warnings, fmt.Errorf("unknown key from YAML: %s", currPath))
 			if !allowDynamicSchema {
 				continue
-			} else if isScalar(value) || isSlice(value) {
-				schemaChild = newLeafNode(value, model.SourceSchema)
-			} else {
-				schemaChild = newInnerNode(make(map[string]Node))
 			}
+
+			// if the key is not defined in the schema, we can still add it to the destination
+			if value == nil || isScalar(value) || isSlice(value) {
+				dest.InsertChildNode(key, newLeafNode(value, source))
+				continue
+			}
+
+			// fallback to inner node if it's not a scalar or nil
+			schemaChild = newInnerNode(make(map[string]Node))
 		}
 
 		// if the node in the schema is a leaf, then we create a new leaf in dest

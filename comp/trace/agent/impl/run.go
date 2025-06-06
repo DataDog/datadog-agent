@@ -160,5 +160,5 @@ func newConfigFetcher(ipc ipc.Component) (rc.ConfigFetcher, error) {
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return ipc.GetAuthToken(), nil }, ipc.GetTLSClientConfig) // TODO IPC: GRPC client will be provided by the IPC component
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetAuthToken(), ipc.GetTLSClientConfig()) // TODO IPC: GRPC client will be provided by the IPC component
 }

@@ -64,6 +64,7 @@ type secagent struct {
 	log      log.Component
 	conf     config.Component
 	hostname string
+	client   ipc.HTTPClient
 }
 
 // Requires defines the dependencies for the securityagent metadata component
@@ -72,8 +73,7 @@ type Requires struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	Hostname   hostnameinterface.Component
-	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
-	IPC ipc.Component
+	IPCClient  ipc.HTTPClient
 }
 
 // Provides defines the output of the securityagent metadata component
@@ -91,6 +91,7 @@ func NewComponent(deps Requires) Provides {
 		log:      deps.Log,
 		conf:     deps.Config,
 		hostname: hname,
+		client:   deps.IPCClient,
 	}
 	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json")
 
@@ -121,7 +122,7 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 		return metadata
 	}
 
-	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf)
+	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf, sa.client)
 	if err != nil {
 		sa.log.Debugf("error fetching security-agent config layers: %s", err)
 		return metadata
@@ -155,7 +156,7 @@ func (sa *secagent) getConfigLayers() map[string]interface{} {
 		}
 	}
 
-	if str, err := fetchSecurityAgentConfig(sa.conf); err == nil {
+	if str, err := fetchSecurityAgentConfig(sa.conf, sa.client); err == nil {
 		metadata["full_configuration"] = str
 	} else {
 		sa.log.Debugf("error fetching security-agent config: %s", err)

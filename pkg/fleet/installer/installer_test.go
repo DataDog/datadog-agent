@@ -519,3 +519,15 @@ func TestWriteConfigSymlinks(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
 	assert.NoFileExists(t, filepath.Join(userDir, "conf.d.override"))
 }
+
+func TestConfigNames(t *testing.T) {
+	// test that the config name is allowed after cleaning
+	// e.g. b/c filepath.Clean on Windows will convert forward slashes to backslashes
+	t.Run("allowed-after-clean", func(t *testing.T) {
+		for _, f := range allowedConfigFiles {
+			cleaned := cleanConfigName(f)
+			assert.Equal(t, cleaned, f)
+			assert.True(t, configNameAllowed(cleaned), "config name %s should be allowed", cleaned)
+		}
+	})
+}
