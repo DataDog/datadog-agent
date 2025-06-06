@@ -756,3 +756,28 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	assert.Falsef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to not be in heap")
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to be in heap")
 }
+
+func TestIsTimestampStale(t *testing.T) {
+	currentTime := time.Now()
+	receivedTime := currentTime.Add(-1 * time.Minute)
+
+	// no fallback policy
+	assert.False(t, isTimestampStale(currentTime, receivedTime, nil))
+	receivedTime = currentTime.Add(-1 * time.Minute * 11)
+	assert.True(t, isTimestampStale(currentTime, receivedTime, nil))
+
+	// fallback policy with stale recommendation threshold
+	fallbackPolicy := &datadoghq.DatadogFallbackPolicy{
+		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+			Triggers: datadoghq.HorizontalFallbackTriggers{
+				StaleRecommendationThresholdSeconds: 120,
+			},
+		},
+	}
+	receivedTime = currentTime.Add(-1 * time.Minute)
+	assert.False(t, isTimestampStale(currentTime, receivedTime, fallbackPolicy))
+	receivedTime = currentTime.Add(-1 * time.Minute * 2)
+	assert.False(t, isTimestampStale(currentTime, receivedTime, fallbackPolicy))
+	receivedTime = currentTime.Add(-1 * time.Minute * 3)
+	assert.True(t, isTimestampStale(currentTime, receivedTime, fallbackPolicy))
+}
