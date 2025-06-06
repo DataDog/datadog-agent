@@ -82,6 +82,7 @@ type LogsConfig struct {
 	// ChannelTagsMutex guards ChannelTags.
 	ChannelTagsMutex sync.Mutex
 
+	Runtime         string
 	Service         string
 	Source          string
 	SourceCategory  string

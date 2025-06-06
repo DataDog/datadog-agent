@@ -18,6 +18,7 @@ type Origin struct {
 	Offset     string
 	service    string
 	source     string
+	runtime    string
 	tags       []string
 }
 
@@ -81,6 +82,11 @@ func (o *Origin) tagsToStringArray(processingTags []string) []string {
 		tags = append(tags, "sourcecategory"+":"+sourceCategory)
 	}
 
+	runtime := o.Runtime()
+	if runtime != "" {
+		tags = append(tags, "runtime"+":"+runtime)
+	}
+
 	tags = append(tags, o.LogSource.Config.Tags...)
 	tags = append(tags, processingTags...)
 
@@ -118,4 +124,18 @@ func (o *Origin) Service() string {
 		return o.LogSource.Config.Service
 	}
 	return o.service
+}
+
+// SetRuntime sets the runtime of the origin.
+func (o *Origin) SetRuntime(runtime string) {
+	o.runtime = runtime
+}
+
+// Runtime returns the runtime of the configuration if set or the runtime of the message,
+// if none are defined, returns an empty string by default.
+func (o *Origin) Runtime() string {
+	if o.LogSource.Config.Runtime != "" {
+		return o.LogSource.Config.Runtime
+	}
+	return o.runtime
 }

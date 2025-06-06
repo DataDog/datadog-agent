@@ -20,7 +20,7 @@ import (
 var logsScheduler *channel.Scheduler
 
 // SetupLogAgent sets up the logs agent to handle messages on the given channel.
-func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string, tagger tagger.Component, compression logscompression.Component) (logsAgent.ServerlessLogsAgent, error) {
+func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, source string, runtime string, tagger tagger.Component, compression logscompression.Component) (logsAgent.ServerlessLogsAgent, error) {
 	agent := agentimpl.NewServerlessLogsAgent(tagger, compression)
 	err := agent.Start()
 	if err != nil {
@@ -28,7 +28,7 @@ func SetupLogAgent(logChannel chan *config.ChannelMessage, sourceName string, so
 		return nil, err
 	}
 
-	logsScheduler = channel.NewScheduler(sourceName, source, logChannel)
+	logsScheduler = channel.NewScheduler(sourceName, source, runtime, logChannel)
 	agent.AddScheduler(logsScheduler)
 	return agent, nil
 }

@@ -36,6 +36,7 @@ type Config struct {
 	FlushTimeout time.Duration
 	Channel      chan *logConfig.ChannelMessage
 	source       string
+	runtime      string
 	IsEnabled    bool
 }
 
@@ -50,23 +51,24 @@ func CreateConfig(origin string) *Config {
 		// Use a buffered channel with size 10000
 		Channel:   make(chan *logConfig.ChannelMessage, 10000),
 		source:    source,
+		runtime:   "nodejs",
 		IsEnabled: isEnabled(os.Getenv(logEnabledEnvVar)),
 	}
 }
 
 // SetupLogAgent creates the log agent and sets the base tags
 func SetupLogAgent(conf *Config, tags map[string]string, tagger tagger.Component, compression logscompression.Component, origin string) logsAgent.ServerlessLogsAgent {
-	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, tagger, compression)
+	logsAgent, _ := serverlessLogs.SetupLogAgent(conf.Channel, sourceName, conf.source, conf.runtime, tagger, compression)
 
 	tagsArray := serverlessTag.MapToArray(tags)
 
-	addFileTailing(logsAgent, conf.source, tagsArray, origin)
+	addFileTailing(logsAgent, conf.source, conf.runtime, tagsArray, origin)
 
 	serverlessLogs.SetLogsTags(tagsArray)
 	return logsAgent
 }
 
-func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags []string, origin string) {
+func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, runtime string, tags []string, origin string) {
 
 	appServiceDefaultLoggingEnabled := origin == "appservice" && isInstanceTailingEnabled()
 	// The Azure App Service log volume is shared across all instances. This leads to every instance tailing the same files.
@@ -79,6 +81,7 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 			Service: os.Getenv("DD_SERVICE"),
 			Tags:    tags,
 			Source:  source,
+			Runtime: runtime,
 		})
 		logsAgent.GetSources().AddSource(src)
 		// If we are not in Azure or the aas instance env var is not set, we fall back to the previous behavior
@@ -89,6 +92,7 @@ func addFileTailing(logsAgent logsAgent.ServerlessLogsAgent, source string, tags
 			Service: os.Getenv("DD_SERVICE"),
 			Tags:    tags,
 			Source:  source,
+			Runtime: runtime,
 		})
 		logsAgent.GetSources().AddSource(src)
 	}
