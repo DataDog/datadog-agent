@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"golang.org/x/sys/unix"
 )
 
@@ -62,6 +63,9 @@ func TestSetrlimitEvent(t *testing.T) {
 				return fmt.Errorf("failed to start command: %w", err)
 			}
 			expectedPID = cmd.Process.Pid
+			if nspids, err := utils.GetNsPids(uint32(expectedPID), ""); err == nil && len(nspids) > 0 {
+				expectedPID = int(nspids[len(nspids)-1])
+			}
 			if err := cmd.Wait(); err != nil {
 				return fmt.Errorf("command failed: %w", err)
 			}
@@ -93,6 +97,9 @@ func TestSetrlimitEvent(t *testing.T) {
 				return fmt.Errorf("failed to start command: %w", err)
 			}
 			expectedPID = cmd.Process.Pid
+			if nspids, err := utils.GetNsPids(uint32(expectedPID), ""); err == nil && len(nspids) > 0 {
+				expectedPID = int(nspids[len(nspids)-1])
+			}
 			if err := cmd.Wait(); err != nil {
 				return fmt.Errorf("command failed: %w", err)
 			}
@@ -156,6 +163,9 @@ func TestSetrlimitEvent(t *testing.T) {
 				return fmt.Errorf("failed to start command: %w", err)
 			}
 			expectedPID = cmd.Process.Pid
+			if nspids, err := utils.GetNsPids(uint32(expectedPID), ""); err == nil && len(nspids) > 0 {
+				expectedPID = int(nspids[len(nspids)-1])
+			}
 			if err := cmd.Wait(); err != nil {
 				return fmt.Errorf("command failed: %w", err)
 			}
