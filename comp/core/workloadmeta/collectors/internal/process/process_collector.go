@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -40,6 +41,7 @@ type collector struct {
 	catalog                workloadmeta.AgentType
 	clock                  clock.Clock
 	processProbe           procutil.Probe
+	config                 pkgconfigmodel.Reader
 	systemProbeConfig      pkgconfigmodel.Reader
 	processEventsCh        chan *Event
 	lastCollectedProcesses map[int32]*procutil.Process
@@ -52,12 +54,13 @@ type Event struct {
 	Deleted []*workloadmeta.Process
 }
 
-func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, systemProbeConfig pkgconfigmodel.Reader) collector {
+func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
 	return collector{
 		id:                     id,
 		catalog:                catalog,
 		clock:                  clock,
 		processProbe:           processProbe,
+		config:                 config,
 		systemProbeConfig:      systemProbeConfig,
 		processEventsCh:        make(chan *Event),
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
@@ -66,6 +69,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 
 type dependencies struct {
 	fx.In
+	Config    config.Component
 	Sysconfig sysprobeconfig.Component
 }
 
@@ -73,7 +77,7 @@ type dependencies struct {
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewProcessCollectorProvider(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	// process probe is not yet componentized, so we can't use fx injection for that
-	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), deps.Sysconfig)
+	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), deps.Config, deps.Sysconfig)
 	return workloadmeta.CollectorProvider{
 		Collector: &collector,
 	}, nil
@@ -84,11 +88,16 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewProcessCollectorProvider)
 }
 
-// isEnabled returns a boolean indicating if the process collector is enabled and what collection interval to use if it is.
+// isEnabled returns a boolean indicating if the process collector is enabled
 func (c *collector) isEnabled() bool {
 	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
 	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
 	return false
+}
+
+// isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
+func (c *collector) isLanguageCollectionEnabled() bool {
+	return c.config.GetBool("language_detection.enabled")
 }
 
 // collectionIntervalConfig returns the configured collection interval
@@ -123,9 +132,12 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 // createdProcessesToWorkloadMetaProcesses helper function to convert createdProcs with container data into wlm entities
 func createdProcessesToWorkloadmetaProcesses(createdProcs []*procutil.Process, pidToCid map[int]string, languages []*languagemodels.Language) []*workloadmeta.Process {
 	wlmProcs := make([]*workloadmeta.Process, len(createdProcs))
+	isLanguageDataAvailable := len(languages) == len(createdProcs) // language data is not always available, so we have to check
 	for i, proc := range createdProcs {
 		wlmProcs[i] = processToWorkloadMetaProcess(proc)
-		wlmProcs[i].Language = languages[i] // TODO: implicit ordering is used to map proc <--> language which is not robust
+		if isLanguageDataAvailable {
+			wlmProcs[i].Language = languages[i] // assuming order of language slice (not ideal but works for now)
+		}
 
 		// enrich with container data if possible
 		cid, exists := pidToCid[int(proc.Pid)]
@@ -179,12 +191,16 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 	return newProcs
 }
 
+// detectLanguages collects languages from given processes if language collection is enabled
 func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemodels.Language {
-	languageInterfaceProcs := make([]languagemodels.Process, len(processes))
-	for i, proc := range processes {
-		languageInterfaceProcs[i] = languagemodels.Process(proc)
+	if c.isLanguageCollectionEnabled() {
+		languageInterfaceProcs := make([]languagemodels.Process, len(processes))
+		for i, proc := range processes {
+			languageInterfaceProcs[i] = languagemodels.Process(proc)
+		}
+		return languagedetection.DetectLanguage(languageInterfaceProcs, c.systemProbeConfig)
 	}
-	return languagedetection.DetectLanguage(languageInterfaceProcs, c.systemProbeConfig)
+	return nil
 }
 
 // collect captures all the required process data for the process check
