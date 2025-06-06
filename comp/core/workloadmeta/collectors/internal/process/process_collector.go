@@ -10,7 +10,13 @@ package process
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,10 +28,13 @@ import (
 	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,6 +42,9 @@ const (
 	collectorID       = "process-collector"
 	componentName     = "workloadmeta-process"
 	cacheValidityNoRT = 2 * time.Second
+
+	// Service discovery constants
+	maxPortCheckTries = 10
 )
 
 type collector struct {
@@ -46,6 +58,11 @@ type collector struct {
 	processEventsCh        chan *Event
 	lastCollectedProcesses map[int32]*procutil.Process
 	containerProvider      proccontainers.ContainerProvider
+
+	// Service discovery fields
+	sysProbeClient *http.Client
+	startTime      time.Time
+	startupTimeout time.Duration
 }
 
 // EventType represents the type of collector event
@@ -75,6 +92,11 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		systemProbeConfig:      systemProbeConfig,
 		processEventsCh:        make(chan *Event),
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
+
+		// Initialize service discovery fields
+		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		startTime:      time.Now(),
+		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
 	}
 }
 
@@ -214,6 +236,60 @@ func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemo
 	return nil
 }
 
+// getDiscoveryServices calls the system-probe /discovery/services endpoint
+func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesEndpointResponse, error) {
+	var responseData model.ServicesEndpointResponse
+
+	url := getDiscoveryURL("services", pids)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.sysProbeClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("non-ok status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
+	}
+
+	err = json.Unmarshal(body, &responseData)
+	if err != nil {
+		return nil, err
+	}
+
+	return &responseData, nil
+}
+
+// getDiscoveryURL builds the URL for the discovery endpoint
+func getDiscoveryURL(endpoint string, pids []int32) string {
+	URL := &url.URL{
+		Scheme: "http",
+		Host:   "sysprobe",
+		Path:   "/discovery/" + endpoint,
+	}
+
+	if len(pids) > 0 {
+		pidsStr := make([]string, len(pids))
+		for i, pid := range pids {
+			pidsStr[i] = strconv.Itoa(int(pid))
+		}
+
+		query := url.Values{}
+		query.Add("pids", strings.Join(pidsStr, ","))
+		URL.RawQuery = query.Encode()
+	}
+
+	return URL.String()
+}
+
 // collect captures all the required process data for the process check
 func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker) {
 	// TODO: implement the full collection logic for the process collector. Once collection is done, submit events.
@@ -249,12 +325,81 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 				Deleted: wlmDeletedProcs,
 			}
 
+			// Basic service discovery (Phase 3: no heartbeat logic yet)
+			alivePids := make([]int32, 0, len(procs))
+			for pid := range procs {
+				alivePids = append(alivePids, pid)
+			}
+
+			if len(alivePids) > 0 {
+				resp, err := c.getDiscoveryServices(alivePids)
+				if err != nil {
+					if time.Since(c.startTime) < c.startupTimeout {
+						log.Warnf("service collector: system-probe not started yet: %v", err)
+					} else {
+						log.Errorf("failed to get services: %s", err)
+					}
+				} else {
+					// Send service discovery events
+					wlmServiceEntities := c.getProcessEntitiesFromServices(resp.Services)
+					if len(wlmServiceEntities) > 0 {
+						c.processEventsCh <- &Event{
+							Type:    EventTypeServiceDiscovery,
+							Created: wlmServiceEntities,
+						}
+					}
+				}
+			}
+
 			// store latest collected processes
 			c.lastCollectedProcesses = procs
 		case <-ctx.Done():
 			log.Infof("The %s collector has stopped", collectorID)
 			return
 		}
+	}
+}
+
+// getProcessEntitiesFromServices creates Process entities with service discovery data
+func (c *collector) getProcessEntitiesFromServices(services []model.Service) []*workloadmeta.Process {
+	entities := make([]*workloadmeta.Process, 0, len(services))
+
+	for _, service := range services {
+		entity := &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(service.PID),
+			},
+			Pid:     int32(service.PID),
+			Service: convertModelServiceToService(&service),
+		}
+		entities = append(entities, entity)
+	}
+
+	return entities
+}
+
+// convertModelServiceToService converts model.Service to workloadmeta.Service
+func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
+	return &workloadmeta.Service{
+		GeneratedName:              modelService.GeneratedName,
+		GeneratedNameSource:        modelService.GeneratedNameSource,
+		AdditionalGeneratedNames:   modelService.AdditionalGeneratedNames,
+		ContainerServiceName:       modelService.ContainerServiceName,
+		ContainerServiceNameSource: modelService.ContainerServiceNameSource,
+		ContainerTags:              modelService.ContainerTags,
+		TracerMetadata:             modelService.TracerMetadata,
+		DDService:                  modelService.DDService,
+		DDServiceInjected:          modelService.DDServiceInjected,
+		CheckedContainerData:       modelService.CheckedContainerData,
+		Ports:                      modelService.Ports,
+		APMInstrumentation:         modelService.APMInstrumentation,
+		Language:                   modelService.Language,
+		Type:                       modelService.Type,
+		CommandLine:                modelService.CommandLine,
+		StartTimeMilli:             modelService.StartTimeMilli,
+		ContainerID:                modelService.ContainerID,
+		LastHeartbeat:              modelService.LastHeartbeat,
 	}
 }
 
