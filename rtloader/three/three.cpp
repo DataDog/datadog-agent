@@ -85,16 +85,21 @@ bool Three::init()
 
     // Configure Python executable if provided
     if (!_pythonExe.empty()) {
-        // Note: While PyConfig provides the necessary functionality, we maintain this additional configuration
-        // to ensure consistent behavior across all platforms, including Windows.
+        // Set the program name
+        // Removing the setup of `program_name` doesn't break any test. 
+        // Thus, it might be not required but we keep it to ensure that nothing else breaks.
         status = PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe.c_str());
         if (PyStatus_Exception(status)) {
             setError("Failed to set program name" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
             PyConfig_Clear(&_config);
             return false;
         }
-
+        
         // Set the executable path
+        // If we remove the setup of `executable`, the test `TestSysExecutableValue` 
+        // located at `./rtloader/test/rtloader/rtloader_test.go:77` fails but only on Windows.
+        // The path of the Python executable isn't mocked or is overwritten, the reason is unclear.
+        // Here's a GitHub issue that tackles the same problem in another context: https://github.com/python/cpython/issues/124241
         status = PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str());
         if (PyStatus_Exception(status)) {
             setError("Failed to set executable path" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
