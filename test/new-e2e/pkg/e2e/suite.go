@@ -321,10 +321,14 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		bs.params.skipDeleteOnFailure, _ = runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	}
 
+	stackNameSuffix, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackNameSuffix, "")
+	if err != nil {
+		bs.T().Fatalf("unable to get stack name suffix: %v", err)
+	}
 	if bs.params.stackName == "" {
 		sType := reflect.TypeOf(self).Elem()
 		hash := utils.StrHash(sType.PkgPath()) // hash of PkgPath in order to have a unique stack name
-		bs.params.stackName = fmt.Sprintf("e2e-%s-%s", sType.Name(), hash)
+		bs.params.stackName = fmt.Sprintf("e2e-%s-%s%s", sType.Name(), hash, fmt.Sprintf("-%s", stackNameSuffix))
 	}
 
 	bs.originalProvisioners = bs.params.provisioners
