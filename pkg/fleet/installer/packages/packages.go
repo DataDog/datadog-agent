@@ -71,128 +71,64 @@ type hooksCLI struct {
 	packages *repository.Repositories
 }
 
-type hookOptions struct {
-	// Experiment set to true to use the datadog-installer from the experiment path for datadog-agent package hooks. By default, the stable path is used. Only applies to Linux.
-	Experiment bool
-	// Package is the name of the package to run the hook for.
-	Package string
-	// HookName is the name of the hook to run.
-	HookName string
-	// Detached set to true to run the hook in the background with detached standard IO.
-	Detached bool
-
-	// TODO: needs docs
-	PackageType PackageType
-	Upgrade     bool
-
-	// TODO: may be unused now
-	WindowsArgs []string
-}
-
 // PreInstall calls the pre-install hook for the package.
 func (h *hooksCLI) PreInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
-	return h.callHook(ctx, hookOptions{
-		Package:     pkg,
-		HookName:    "preInstall",
-		PackageType: pkgType,
-		Upgrade:     upgrade,
-	})
+	return h.callHook(ctx, false, pkg, "preInstall", pkgType, upgrade, nil)
 }
 
 // PreRemove calls the pre-remove hook for the package.
 func (h *hooksCLI) PreRemove(ctx context.Context, pkg string, pkgType PackageType, upgrade bool) error {
-	return h.callHook(ctx, hookOptions{
-		Package:     pkg,
-		HookName:    "preRemove",
-		PackageType: pkgType,
-		Upgrade:     upgrade,
-	})
+	return h.callHook(ctx, false, pkg, "preRemove", pkgType, upgrade, nil)
 }
 
 // PostInstall calls the post-install hook for the package.
 func (h *hooksCLI) PostInstall(ctx context.Context, pkg string, pkgType PackageType, upgrade bool, winArgs []string) error {
-	return h.callHook(ctx, hookOptions{
-		Package:     pkg,
-		HookName:    "postInstall",
-		PackageType: pkgType,
-		Upgrade:     upgrade,
-		WindowsArgs: winArgs,
-	})
+	return h.callHook(ctx, false, pkg, "postInstall", pkgType, upgrade, winArgs)
 }
 
 // PreStartExperiment calls the pre-start-experiment hook for the package.
 func (h *hooksCLI) PreStartExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, hookOptions{
-		Package:  pkg,
-		HookName: "preStartExperiment",
-	})
+	return h.callHook(ctx, false, pkg, "preStartExperiment", PackageTypeOCI, false, nil)
 }
 
 // PostStartExperiment calls the post-start-experiment hook for the package.
 func (h *hooksCLI) PostStartExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, hookOptions{
-		Experiment: true,
-		Package:    pkg,
-		HookName:   "postStartExperiment",
-	})
+	return h.callHook(ctx, true, pkg, "postStartExperiment", PackageTypeOCI, false, nil)
 }
 
 // PreStopExperiment calls the pre-stop-experiment hook for the package.
 func (h *hooksCLI) PreStopExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, hookOptions{
-		Experiment: true,
-		Package:    pkg,
-		HookName:   "preStopExperiment",
-	})
+	return h.callHook(ctx, true, pkg, "preStopExperiment", PackageTypeOCI, false, nil)
 }
 
 // PostStopExperiment calls the post-stop-experiment hook for the package.
 func (h *hooksCLI) PostStopExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, hookOptions{
-		Package:  pkg,
-		HookName: "postStopExperiment",
-	})
+	return h.callHook(ctx, false, pkg, "postStopExperiment", PackageTypeOCI, false, nil)
 }
 
 // PrePromoteExperiment calls the pre-promote-experiment hook for the package.
 func (h *hooksCLI) PrePromoteExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, hookOptions{
-		Package:  pkg,
-		HookName: "prePromoteExperiment",
-	})
+	return h.callHook(ctx, false, pkg, "prePromoteExperiment", PackageTypeOCI, false, nil)
 }
 
 // PostPromoteExperiment calls the post-promote-experiment hook for the package.
 func (h *hooksCLI) PostPromoteExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, hookOptions{
-		Experiment: true,
-		Package:    pkg,
-		HookName:   "postPromoteExperiment",
-	})
+	return h.callHook(ctx, true, pkg, "postPromoteExperiment", PackageTypeOCI, false, nil)
 }
 
 // PostStartConfigExperiment calls the post-start-config-experiment hook for the package.
 func (h *hooksCLI) PostStartConfigExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, hookOptions{
-		Package:  pkg,
-		HookName: "postStartConfigExperiment",
-	})
+	return h.callHook(ctx, false, pkg, "postStartConfigExperiment", PackageTypeOCI, false, nil)
 }
 
 // PreStopConfigExperiment calls the pre-stop-config-experiment hook for the package.
 func (h *hooksCLI) PreStopConfigExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, hookOptions{
-		Package:  pkg,
-		HookName: "preStopConfigExperiment",
-	})
+	return h.callHook(ctx, false, pkg, "preStopConfigExperiment", PackageTypeOCI, false, nil)
 }
 
 // PostPromoteConfigExperiment calls the post-promote-config-experiment hook for the package.
 func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
-	return h.callHook(ctx, hookOptions{
-		Package:  pkg,
-		HookName: "postPromoteConfigExperiment",
-	})
+	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil)
 }
 
 // PackageType is the type of package.
@@ -247,20 +183,13 @@ func (h *hooksCLI) getPath(pkg string, pkgType PackageType, experiment bool) str
 	panic(fmt.Sprintf("unknown package type with package: %s, %s", pkgType, pkg))
 }
 
-// callHook calls a hook with the given options
-func (h *hooksCLI) callHook(ctx context.Context, opts hookOptions) error {
-	// default options
-	if opts.PackageType == "" {
-		opts.PackageType = PackageTypeOCI
-	}
-
-	// Get path to the datadog-installer executable
+func (h *hooksCLI) callHook(ctx context.Context, experiment bool, pkg string, name string, packageType PackageType, upgrade bool, windowsArgs []string) error {
 	hooksCLIPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
-	pkgPath := h.getPath(opts.Package, opts.PackageType, opts.Experiment)
-	if opts.Package == "datadog-agent" && runtime.GOOS == "linux" && opts.HookName != "preInstall" {
+	pkgPath := h.getPath(pkg, packageType, experiment)
+	if pkg == "datadog-agent" && runtime.GOOS == "linux" && name != "preInstall" {
 		agentInstallerPath := filepath.Join(pkgPath, "embedded", "bin", "installer")
 		_, err := os.Stat(agentInstallerPath)
 		if err != nil && !os.IsNotExist(err) {
@@ -270,38 +199,27 @@ func (h *hooksCLI) callHook(ctx context.Context, opts hookOptions) error {
 			hooksCLIPath = agentInstallerPath
 		}
 	}
-
 	hookCtx := HookContext{
 		Context:     ctx,
-		Hook:        opts.HookName,
-		Package:     opts.Package,
+		Hook:        name,
+		Package:     pkg,
 		PackagePath: pkgPath,
-		PackageType: opts.PackageType,
-		Upgrade:     opts.Upgrade,
-		WindowsArgs: opts.WindowsArgs,
+		PackageType: packageType,
+		Upgrade:     upgrade,
+		WindowsArgs: windowsArgs,
 	}
 	serializedHookCtx, err := json.Marshal(hookCtx)
 	if err != nil {
 		return fmt.Errorf("failed to serialize hook context: %w", err)
 	}
-
 	// FIXME: remove when we drop support for the installer
-	if opts.Package == "datadog-installer" {
+	if pkg == "datadog-installer" {
 		return RunHook(hookCtx)
 	}
-
-	// Run the hook in a subprocess
 	i := exec.NewInstallerExec(h.env, hooksCLIPath)
-
-	// Run the hook in the background with detached standard IO, will not wait for the hook to finish
-	if opts.Detached {
-		return i.StartHookDetached(ctx, string(serializedHookCtx))
-	}
-
-	// Run the hook in the foreground, will wait for the hook to finish and collect the output
 	err = i.RunHook(ctx, string(serializedHookCtx))
 	if err != nil {
-		return fmt.Errorf("failed to run hook (%s): %w", opts.HookName, err)
+		return fmt.Errorf("failed to run hook (%s): %w", name, err)
 	}
 	return nil
 }
