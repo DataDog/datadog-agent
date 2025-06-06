@@ -107,6 +107,8 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 		return metrics.SetType
 	case timingType:
 		return metrics.HistogramType
+	case sketchType:
+		return metrics.SketchType
 	}
 	return metrics.GaugeType
 }
@@ -162,7 +164,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 					Mtype:      mtype,
 					Value:      ddSample.values[idx],
 					SampleRate: ddSample.sampleRate,
-					RawValue:   ddSample.setValue,
+					RawValue:   ddSample.rawValue,
 					Timestamp:  tsToFloatForSamples(ddSample.ts),
 					OriginInfo: extractedOrigin,
 					ListenerID: listenerID,
@@ -180,7 +182,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		Mtype:      mtype,
 		Value:      ddSample.value,
 		SampleRate: ddSample.sampleRate,
-		RawValue:   ddSample.setValue,
+		RawValue:   ddSample.rawValue,
 		Timestamp:  tsToFloatForSamples(ddSample.ts),
 		OriginInfo: extractedOrigin,
 		ListenerID: listenerID,

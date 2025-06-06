@@ -52,7 +52,7 @@ func TestMetricTypes(t *testing.T) {
 		{
 			name:  "Test Set",
 			input: []byte("daemon:abc|s|@0.5|#sometag1:somevalue1,sometag2:somevalue2"),
-			test:  defaultMetric().withType(metrics.SetType).withSampleRate(0.5).withValue(0).withRawValue("abc"),
+			test:  defaultMetric().withType(metrics.SetType).withSampleRate(0.5).withValue(0).withRawValue([]byte("abc")),
 		},
 	}
 
