@@ -60,6 +60,19 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 	}
 
 	report.Event = event
+
+	// store the variables values so that we can reapply them after policies are loaded
+	variablesValues := make(map[string]any)
+	for k, v := range variables {
+		rv, ok := v.(eval.Variable)
+		if !ok {
+			continue
+		}
+
+		value, _ := rv.GetValue()
+		variablesValues[k] = value
+	}
+
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -98,16 +111,10 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 
 	// reapply the variables values
 	vars := ruleSet.GetVariables()
-	for k, v := range variables {
-		rv, ok := v.(eval.Variable)
-		if !ok {
-			continue
-		}
-
+	for k, v := range variablesValues {
 		if _, ok := vars[k]; ok {
 			if mv, ok := vars[k].(eval.MutableVariable); ok {
-				value, _ := rv.GetValue()
-				mv.Set(nil, value)
+				mv.Set(nil, v)
 			}
 		}
 	}
