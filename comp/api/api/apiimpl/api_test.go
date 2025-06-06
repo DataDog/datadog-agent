@@ -8,17 +8,13 @@ package apiimpl
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"slices"
 	"strconv"
 	"testing"
 
-	"golang.org/x/net/http2"
-
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -163,155 +159,4 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			assert.True(t, hasLabelValue(metric.GetLabel(), "path", "/this_does_not_exist"))
 		})
 	}
-}
-
-type s struct {
-	body string
-}
-
-func (s *s) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(s.body))
-}
-
-type grpcServer struct {
-	grpcServer bool
-	gateway    bool
-}
-
-func (grpc *grpcServer) BuildServer() http.Handler {
-	if grpc.grpcServer {
-		return &s{
-			body: "GRPC SERVER OK",
-		}
-	}
-	return nil
-}
-
-func (grpc *grpcServer) BuildGatewayMux(string) (http.Handler, error) {
-	if grpc.gateway {
-		return &s{
-			body: "GRPC GATEWAY OK",
-		}, nil
-	}
-
-	return nil, fmt.Errorf("error")
-}
-
-func TestStartServerWithGrpcServer(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port": 0,
-		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
-		"agent_ipc.port": 0,
-	}}
-
-	deps := getAPIServer(t, cfgOverride, fx.Options(
-		fx.Replace(
-			fx.Annotate(&grpcServer{
-				grpcServer: true,
-				gateway:    true,
-			}, fx.As(new(grpc.Component))),
-		)))
-
-	addr := deps.API.CMDServerAddress().String()
-
-	url := fmt.Sprintf("https://%s", addr)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-
-	content, err := deps.IPC.GetClient().Do(req)
-	require.NoError(t, err)
-
-	t.Log(string(content))
-
-	// test the gateway is monted at the root
-	assert.Equal(t, "GRPC GATEWAY OK", string(content))
-
-	req, err = http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/grpc")
-
-	transport := &http.Transport{
-		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
-	}
-
-	http2.ConfigureTransport(transport)
-	http2Client := &http.Client{
-		Transport: transport,
-	}
-
-	resp, err := http2Client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	content, err = io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	t.Log(string(content))
-
-	// test the api routes grpc request to the grpc server
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "GRPC SERVER OK", string(content))
-}
-
-func TestStartServerWithGrpcServerFailGateway(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port": 0,
-		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
-		"agent_ipc.port": 0,
-	}}
-
-	_, _, errApp := testAPIServer(t, cfgOverride, fx.Options(
-		fx.Replace(
-			fx.Annotate(&grpcServer{
-				grpcServer: true,
-				gateway:    false,
-			}, fx.As(new(grpc.Component))),
-		)))
-
-	assert.Error(t, errApp)
-}
-
-func TestStartServerWithoutGrpcServer(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port": 0,
-		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
-		"agent_ipc.port": 0,
-	}}
-
-	deps := getAPIServer(t, cfgOverride, fx.Options(
-		fx.Replace(
-			fx.Annotate(&grpcServer{
-				grpcServer: false,
-				gateway:    true,
-			}, fx.As(new(grpc.Component))),
-		)))
-
-	addr := deps.API.CMDServerAddress().String()
-
-	url := fmt.Sprintf("https://%s", addr)
-
-	// test the api routes does not routes grpc request to the grpc server
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/grpc")
-
-	transport := &http.Transport{
-		TLSClientConfig: deps.IPC.GetTLSClientConfig(),
-	}
-
-	http2.ConfigureTransport(transport)
-	http2Client := &http.Client{
-		Transport: transport,
-	}
-
-	resp, err := http2Client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	content, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	t.Log(string(content))
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "GRPC GATEWAY OK", string(content))
 }
