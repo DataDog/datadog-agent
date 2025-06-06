@@ -54,9 +54,10 @@ deploy_mutable_image_tags-a7-full-rc:
   extends: .deploy_mutable_image_tags_base
   rules:
     !reference [.on_rc]
-  variables:
-    IMG_TAG_REFERENCE_SUFFIX: ["-full"]
-    IMG_NEW_TAGS: ["7-rc-full"]
+  parallel:
+    matrix:
+      - IMG_TAG_REFERENCE_SUFFIX: ["-full"]
+        IMG_NEW_TAGS: ["7-rc-full"]
 
 deploy_mutable_image_tags-a7-fips-rc:
   extends: .deploy_mutable_image_tags_base
@@ -75,9 +76,10 @@ deploy_mutable_image_tags-a7_internal-rc:
   extends: .deploy_mutable_image_tags_base
   rules:
     !reference [.on_internal_rc]
-  variables:
-    IMG_TAG_REFERENCE_SUFFIX: [""]
-    IMG_NEW_TAGS: ["7-rc"]
+  parallel:
+    matrix:
+      - IMG_TAG_REFERENCE_SUFFIX: [""]
+        IMG_NEW_TAGS: ["7-rc"]
 
 deploy_mutable_image_tags-a7-fips_internal-rc:
   extends: .deploy_mutable_image_tags_base
@@ -94,7 +96,8 @@ deploy_mutable_image_tags-a7-fips_internal-rc:
 
 deploy_mutable_image_tags-a7_internal:
   extends: .deploy_mutable_image_tags_base
-  rules: !reference [.on_internal_final]
+  rules: 
+    !reference [.on_internal_final]
   parallel:
     matrix:
       - IMG_TAG_REFERENCE_SUFFIX: ["-jmx"]
@@ -108,7 +111,8 @@ deploy_mutable_image_tags-a7_internal:
 
 deploy_mutable_image_tags-a7:
   extends: .deploy_mutable_image_tags_base
-  rules: !reference [.on_final]
+  rules: 
+    !reference [.on_final]
   parallel:
     matrix:
       - IMG_TAG_REFERENCE_SUFFIX: [""]
@@ -137,7 +141,8 @@ deploy_mutable_image_tags-a7:
 deploy_mutable_image_tags-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
-  rules: !reference [.on_final]
+  rules: 
+    !reference [.on_final]
   before_script:
     - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}
@@ -145,7 +150,8 @@ deploy_mutable_image_tags-dogstatsd:
 
 deploy_mutable_image_tags-a7-fips:
   extends: .deploy_mutable_image_tags_base
-  rules: !reference [.on_final]
+  rules: 
+    !reference [.on_final]
   parallel:
     matrix:
       - IMG_TAG_REFERENCE_SUFFIX: ["-fips"]
