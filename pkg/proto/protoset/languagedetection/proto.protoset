@@ -1,0 +1,14 @@
+
+¯
+#datadog/languagedetection/api.protodatadog.languagedetection"O
+Process
+pid (Rpid
+command (	Rcommand
+cmdline (	Rcmdline"8
+Language
+name (	Rname
+version (	Rversion"Y
+DetectLanguageRequest@
+	processes (2".datadog.languagedetection.ProcessR	processes"[
+DetectLanguageResponseA
+	languages (2#.datadog.languagedetection.LanguageR	languagesB"Z pkg/proto/pbgo/languagedetectionbproto3

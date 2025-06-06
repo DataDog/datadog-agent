@@ -167,6 +167,15 @@ const _ = grpc.SupportPackageIsVersion6
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type AgentClient interface {
 	// get the hostname
+	// can be called using grpcurl:
+	//
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.Agent/GetHostname
+	//	{
+	//	  "hostname": "COMP-..."
+	//	}
 	GetHostname(ctx context.Context, in *HostnameRequest, opts ...grpc.CallOption) (*HostnameReply, error)
 }
 
@@ -190,6 +199,15 @@ func (c *agentClient) GetHostname(ctx context.Context, in *HostnameRequest, opts
 // AgentServer is the server API for Agent service.
 type AgentServer interface {
 	// get the hostname
+	// can be called using grpcurl:
+	//
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.Agent/GetHostname
+	//	{
+	//	  "hostname": "COMP-..."
+	//	}
 	GetHostname(context.Context, *HostnameRequest) (*HostnameReply, error)
 }
 
@@ -242,66 +260,84 @@ var _Agent_serviceDesc = grpc.ServiceDesc{
 type AgentSecureClient interface {
 	// subscribes to added, removed, or changed entities in the Tagger
 	// and streams them to clients as events.
-	// can be called through the HTTP gateway, and events will be streamed as JSON:
+	// can be called using grpcurl:
 	//
-	//	  $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
-	//	  {
-	//	   "result": {
-	//	       "entity": {
-	//	           "id": {
-	//	               "prefix": "kubernetes_pod_uid",
-	//	               "uid": "4025461f832caf3fceb7fc2a32f879c6"
-	//	           },
-	//	           "hash": "cad4fc8fc409fcc1",
-	//	           "lowCardinalityTags": [
-	//	               "kube_namespace:kube-system",
-	//	               "pod_phase:running"
-	//	           ]
-	//	       }
-	//	   }
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/TaggerStreamEntities
+	//	{
+	//	  "entity": {
+	//	    "id": {
+	//	      "prefix": "kubernetes_pod_uid",
+	//	      "uid": "4025461f832caf3fceb7fc2a32f879c6"
+	//	    },
+	//	    "hash": "cad4fc8fc409fcc1",
+	//	    "lowCardinalityTags": [
+	//	      "kube_namespace:kube-system",
+	//	      "pod_phase:running"
+	//	    ]
+	//	  }
 	//	}
 	TaggerStreamEntities(ctx context.Context, in *StreamTagsRequest, opts ...grpc.CallOption) (AgentSecure_TaggerStreamEntitiesClient, error)
 	// Generates a container ID from Origin Info.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
+	// can be called using grpcurl:
 	//
-	//	$ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
-	//	   https://localhost:5001/v1/grpc/tagger/generate_container_id_from_origin_info
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/TaggerGenerateContainerIDFromOriginInfo
 	//	{
-	//	  "containerID":"c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
+	//	  "containerID": "c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
 	//	}
 	TaggerGenerateContainerIDFromOriginInfo(ctx context.Context, in *GenerateContainerIDFromOriginInfoRequest, opts ...grpc.CallOption) (*GenerateContainerIDFromOriginInfoResponse, error)
 	// fetches an entity from the Tagger with the desired cardinality tags.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
+	// can be called using grpcurl:
 	//
-	//	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k -H "Content-Type: application/json" \
-	//	     --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
-	//	     https://localhost:5001/v1/grpc/tagger/fetch_entity
-	//	  {
-	//	   "id": {
-	//	       "prefix": "kubernetes_pod_uid",
-	//	       "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
-	//	   },
-	//	   "tags": [
-	//	       "kube_namespace:kube-system",
-	//	       "pod_phase:running",
-	//	       "kube_deployment:coredns",
-	//	       "kube_service:kube-dns"
-	//	   ]
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/TaggerFetchEntity
+	//	{
+	//	  "id": {
+	//	    "prefix": "kubernetes_pod_uid",
+	//	    "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
+	//	  },
+	//	  "tags": [
+	//	    "kube_namespace:kube-system",
+	//	    "pod_phase:running",
+	//	    "kube_deployment:coredns",
+	//	    "kube_service:kube-dns"
+	//	  ]
 	//	}
 	TaggerFetchEntity(ctx context.Context, in *FetchEntityRequest, opts ...grpc.CallOption) (*FetchEntityResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
+	// Can be called using grpcurl:
 	//
-	//	TODO: add the curl code here
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"duration": 10}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/DogstatsdCaptureTrigger
+	//	{
+	//	  "success": true,
+	//	  "path": "/tmp/datadog-dogstatsd-capture.log"
+	//	}
 	DogstatsdCaptureTrigger(ctx context.Context, in *CaptureTriggerRequest, opts ...grpc.CallOption) (*CaptureTriggerResponse, error)
-	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
+	// Set the tagger state for dogstatsd.
+	// Can be called using grpcurl:
 	//
-	//	TODO: add the curl code here
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"enabled": true}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/DogstatsdSetTaggerState
+	//	{
+	//	  "success": true
+	//	}
 	DogstatsdSetTaggerState(ctx context.Context, in *TaggerState, opts ...grpc.CallOption) (*TaggerStateResponse, error)
 	ClientGetConfigs(ctx context.Context, in *ClientGetConfigsRequest, opts ...grpc.CallOption) (*ClientGetConfigsResponse, error)
 	GetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
@@ -309,31 +345,59 @@ type AgentSecureClient interface {
 	GetConfigStateHA(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
 	// Subscribes to added, removed, or changed entities in the Workloadmeta and
 	// streams them to clients as events.
-	// Can be called through the HTTP gateway, and events will be streamed as JSON.
+	// Can be called using grpcurl.
 	// Example call that receives all the events:
 	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/WorkloadmetaStreamEntities
 	//
 	// Example call that receives only unset events:
 	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"eventType":2}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"filter":{"eventType":2}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/WorkloadmetaStreamEntities
 	//
 	// Example call that receives only from the cluster orchestrator:
 	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"source":3}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"filter":{"source":3}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/WorkloadmetaStreamEntities
 	WorkloadmetaStreamEntities(ctx context.Context, in *WorkloadmetaStreamRequest, opts ...grpc.CallOption) (AgentSecure_WorkloadmetaStreamEntitiesClient, error)
 	// Registers a remote agent.
+	// Can be called using grpcurl:
+	//
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"hostname": "agent-host", "metadata": {"version": "1.2.3"}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/RegisterRemoteAgent
 	RegisterRemoteAgent(ctx context.Context, in *RegisterRemoteAgentRequest, opts ...grpc.CallOption) (*RegisterRemoteAgentResponse, error)
 	// Subscribes to autodiscovery config updates
+	// Can be called using grpcurl:
+	//
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/AutodiscoveryStreamConfig
 	AutodiscoveryStreamConfig(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (AgentSecure_AutodiscoveryStreamConfigClient, error)
 	// Get the host tags
+	// Can be called using grpcurl:
+	//
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/GetHostTags
+	//	{
+	//	  "tags": ["role:database", "env:production"]
+	//	}
 	GetHostTags(ctx context.Context, in *HostTagRequest, opts ...grpc.CallOption) (*HostTagReply, error)
 }
 
@@ -535,66 +599,84 @@ func (c *agentSecureClient) GetHostTags(ctx context.Context, in *HostTagRequest,
 type AgentSecureServer interface {
 	// subscribes to added, removed, or changed entities in the Tagger
 	// and streams them to clients as events.
-	// can be called through the HTTP gateway, and events will be streamed as JSON:
+	// can be called using grpcurl:
 	//
-	//	  $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
-	//	  {
-	//	   "result": {
-	//	       "entity": {
-	//	           "id": {
-	//	               "prefix": "kubernetes_pod_uid",
-	//	               "uid": "4025461f832caf3fceb7fc2a32f879c6"
-	//	           },
-	//	           "hash": "cad4fc8fc409fcc1",
-	//	           "lowCardinalityTags": [
-	//	               "kube_namespace:kube-system",
-	//	               "pod_phase:running"
-	//	           ]
-	//	       }
-	//	   }
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/TaggerStreamEntities
+	//	{
+	//	  "entity": {
+	//	    "id": {
+	//	      "prefix": "kubernetes_pod_uid",
+	//	      "uid": "4025461f832caf3fceb7fc2a32f879c6"
+	//	    },
+	//	    "hash": "cad4fc8fc409fcc1",
+	//	    "lowCardinalityTags": [
+	//	      "kube_namespace:kube-system",
+	//	      "pod_phase:running"
+	//	    ]
+	//	  }
 	//	}
 	TaggerStreamEntities(*StreamTagsRequest, AgentSecure_TaggerStreamEntitiesServer) error
 	// Generates a container ID from Origin Info.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
+	// can be called using grpcurl:
 	//
-	//	$ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
-	//	   https://localhost:5001/v1/grpc/tagger/generate_container_id_from_origin_info
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/TaggerGenerateContainerIDFromOriginInfo
 	//	{
-	//	  "containerID":"c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
+	//	  "containerID": "c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
 	//	}
 	TaggerGenerateContainerIDFromOriginInfo(context.Context, *GenerateContainerIDFromOriginInfoRequest) (*GenerateContainerIDFromOriginInfoResponse, error)
 	// fetches an entity from the Tagger with the desired cardinality tags.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
+	// can be called using grpcurl:
 	//
-	//	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k -H "Content-Type: application/json" \
-	//	     --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
-	//	     https://localhost:5001/v1/grpc/tagger/fetch_entity
-	//	  {
-	//	   "id": {
-	//	       "prefix": "kubernetes_pod_uid",
-	//	       "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
-	//	   },
-	//	   "tags": [
-	//	       "kube_namespace:kube-system",
-	//	       "pod_phase:running",
-	//	       "kube_deployment:coredns",
-	//	       "kube_service:kube-dns"
-	//	   ]
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/TaggerFetchEntity
+	//	{
+	//	  "id": {
+	//	    "prefix": "kubernetes_pod_uid",
+	//	    "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
+	//	  },
+	//	  "tags": [
+	//	    "kube_namespace:kube-system",
+	//	    "pod_phase:running",
+	//	    "kube_deployment:coredns",
+	//	    "kube_service:kube-dns"
+	//	  ]
 	//	}
 	TaggerFetchEntity(context.Context, *FetchEntityRequest) (*FetchEntityResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
+	// Can be called using grpcurl:
 	//
-	//	TODO: add the curl code here
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"duration": 10}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/DogstatsdCaptureTrigger
+	//	{
+	//	  "success": true,
+	//	  "path": "/tmp/datadog-dogstatsd-capture.log"
+	//	}
 	DogstatsdCaptureTrigger(context.Context, *CaptureTriggerRequest) (*CaptureTriggerResponse, error)
-	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
+	// Set the tagger state for dogstatsd.
+	// Can be called using grpcurl:
 	//
-	//	TODO: add the curl code here
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"enabled": true}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/DogstatsdSetTaggerState
+	//	{
+	//	  "success": true
+	//	}
 	DogstatsdSetTaggerState(context.Context, *TaggerState) (*TaggerStateResponse, error)
 	ClientGetConfigs(context.Context, *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error)
 	GetConfigState(context.Context, *empty.Empty) (*GetStateConfigResponse, error)
@@ -602,31 +684,59 @@ type AgentSecureServer interface {
 	GetConfigStateHA(context.Context, *empty.Empty) (*GetStateConfigResponse, error)
 	// Subscribes to added, removed, or changed entities in the Workloadmeta and
 	// streams them to clients as events.
-	// Can be called through the HTTP gateway, and events will be streamed as JSON.
+	// Can be called using grpcurl.
 	// Example call that receives all the events:
 	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/WorkloadmetaStreamEntities
 	//
 	// Example call that receives only unset events:
 	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"eventType":2}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"filter":{"eventType":2}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/WorkloadmetaStreamEntities
 	//
 	// Example call that receives only from the cluster orchestrator:
 	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"source":3}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"filter":{"source":3}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/WorkloadmetaStreamEntities
 	WorkloadmetaStreamEntities(*WorkloadmetaStreamRequest, AgentSecure_WorkloadmetaStreamEntitiesServer) error
 	// Registers a remote agent.
+	// Can be called using grpcurl:
+	//
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{"hostname": "agent-host", "metadata": {"version": "1.2.3"}}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/RegisterRemoteAgent
 	RegisterRemoteAgent(context.Context, *RegisterRemoteAgentRequest) (*RegisterRemoteAgentResponse, error)
 	// Subscribes to autodiscovery config updates
+	// Can be called using grpcurl:
+	//
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/AutodiscoveryStreamConfig
 	AutodiscoveryStreamConfig(*empty.Empty, AgentSecure_AutodiscoveryStreamConfigServer) error
 	// Get the host tags
+	// Can be called using grpcurl:
+	//
+	//	$ grpcurl -H "authorization: Bearer $(cat ./bin/agent/dist/auth_token)" \
+	//	   -d '{}' \
+	//	   -cacert ./bin/agent/dist/ipc_cert.pem \
+	//	   -protoset ./pkg/proto/protoset/api/v1/proto.protoset \
+	//	   localhost:5001 datadog.api.v1.AgentSecure/GetHostTags
+	//	{
+	//	  "tags": ["role:database", "env:production"]
+	//	}
 	GetHostTags(context.Context, *HostTagRequest) (*HostTagReply, error)
 }
 

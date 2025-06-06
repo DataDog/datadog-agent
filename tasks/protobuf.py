@@ -44,7 +44,7 @@ def generate(ctx, pre_commit=False):
 
     We must build the packages one at a time due to protoc-gen-go limitations
     """
-    proto_file = re.compile(r"pkg/proto/pbgo/.*\.pb\.go$")
+    proto_file = re.compile(r"pkg/proto/pbgo/.*(\.pb\.go|\.protoset)$")
     old_unstaged_proto_files = set(get_unstaged_files(ctx, re_filter=proto_file, include_deleted_files=True))
     old_untracked_proto_files = set(get_untracked_files(ctx, re_filter=proto_file))
     # Key: path, Value: inject_tags
@@ -80,7 +80,13 @@ def generate(ctx, pre_commit=False):
             # so keep it in a variable for sanity.
             output_generator = "--go_out=plugins=grpc:"
             cli_extras = ''
-            ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
+            protoset_flag = "--descriptor_set_out="
+            protoset_dest = os.path.join(proto_root, "protoset", pkg, "proto.protoset")
+            # Create the protoset directory if it doesn't exist
+            os.makedirs(os.path.dirname(protoset_dest), exist_ok=True)
+            ctx.run(
+                f"protoc -I{proto_root} -I{protodep_root} {protoset_flag}{protoset_dest} --include_imports {output_generator}{repo_root} {cli_extras} {targets}"
+            )
 
             if pkg in PKG_PLUGINS:
                 output_generator = PKG_PLUGINS[pkg]

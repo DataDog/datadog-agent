@@ -1,0 +1,42 @@
+
+£
+
+*datadog/process/workloadmeta_process.protodatadog.process"·
+ProcessStreamResponse
+eventID (ReventID>
+	setEvents (2 .datadog.process.ProcessEventSetR	setEventsD
+unsetEvents (2".datadog.process.ProcessEventUnsetRunsetEvents"¶
+ProcessEventSet
+pid (Rpid
+nspid (Rnspid 
+containerID (	RcontainerID"
+creationTime (RcreationTime5
+language (2.datadog.process.LanguageRlanguage"%
+ProcessEventUnset
+pid (Rpid"
+Language
+name (	Rname"
+ProcessStreamEntitiesRequest"f
+ParentLanguageAnnotationRequestC
+
+podDetails (2#.datadog.process.PodLanguageDetailsR
+podDetails"¸
+PodLanguageDetails
+	namespace (	R	namespace
+name (	RnameU
+containerDetails (2).datadog.process.ContainerLanguageDetailsRcontainerDetails:
+ownerref (2.datadog.process.KubeOwnerInfoRownerref]
+initContainerDetails (2).datadog.process.ContainerLanguageDetailsRinitContainerDetails"y
+ContainerLanguageDetails$
+containerName (	RcontainerName7
+	languages (2.datadog.process.LanguageR	languages"G
+KubeOwnerInfo
+id (	Rid
+name (	Rname
+kind (	Rkind2€
+ProcessEntityStreami
+StreamEntities-.datadog.process.ProcessStreamEntitiesRequest&.datadog.process.ProcessStreamResponse0BZpkg/proto/pbgo/processbproto3
+|
+datadog/process/process.protodatadog.process"(
+ProcessStatRequest
+pids (RpidsBZpkg/proto/pbgo/processbproto3
