@@ -1719,6 +1719,102 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 }
 
+func TestActionSetVariableLength(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Value: "foo",
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:         "var2",
+						Expression:   "${var1.length}",
+						DefaultValue: 0,
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "var3",
+						Append: true,
+						Value:  1,
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "var3",
+						Append: true,
+						Value:  2,
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:         "var4",
+						Expression:   "${var3.length}",
+						DefaultValue: 0,
+					},
+				},
+			},
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.ContainerContext = &model.ContainerContext{
+		ContainerID: "0123456789abcdef",
+	}
+	event.ProcessCacheEntry = processCacheEntry
+	event.SetFieldValue("open.file.path", "/tmp/test")
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	opts := rs.evalOpts
+
+	existingVariable := opts.VariableStore.Get("var2")
+	assert.NotNil(t, existingVariable)
+	intArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	intValue, _ := intArrayVar.GetValue()
+	assert.NotNil(t, intValue)
+	assert.Equal(t, 3, intValue)
+
+	existingVariable = opts.VariableStore.Get("var4")
+	assert.NotNil(t, existingVariable)
+	intArrayVar, ok = existingVariable.(eval.Variable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	intValue, _ = intArrayVar.GetValue()
+	assert.NotNil(t, intValue)
+	assert.Equal(t, 2, intValue)
+}
+
 // go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestLoadPolicy"
 func TestLoadPolicy(t *testing.T) {
 	type args struct {
