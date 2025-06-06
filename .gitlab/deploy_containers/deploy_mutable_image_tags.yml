@@ -9,7 +9,109 @@
     - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${IMG_TAG_REFERENCE_SUFFIX}
 
-# Stable tags
+.deploy_mutable_image_tags-base_rc:
+  extends: .docker_publish_job_definition
+  stage: deploy_mutable_image_tags
+  dependencies: []
+  before_script:
+    - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${IMG_TAG_REFERENCE_FLAVOR}${IMG_TAG_REFERENCE_WIN_OS}${IMG_TAG_REFERENCE_JMX}
+    - export IMG_NEW_TAGS=7-rc${IMG_TAG_REFERENCE_FLAVOR}${IMG_TAG_REFERENCE_WIN_OS}${IMG_TAG_REFERENCE_JMX}
+
+# Jobs [.on_rc]
+
+deploy_mutable_image_tags-a7-rc:
+  extends: .deploy_mutable_image_tags-base_rc
+  stage: deploy_mutable_image_tags
+  rules:
+    !reference [.on_rc]
+  parallel:
+    matrix:
+      - IMG_TAG_REFERENCE_FLAVOR:
+          - ""
+          - "-servercore"
+          - "-linux"
+        IMG_TAG_REFERENCE_JMX:
+          - ""
+          - "-jmx"
+
+deploy_mutable_image_tags-a7-win-only-rc:
+  extends: .deploy_mutable_image_tags-base_rc
+  stage: deploy_mutable_image_tags
+  rules:
+    !reference [.on_rc]
+  parallel:
+    matrix:
+      - IMG_TAG_REFERENCE_FLAVOR:
+          - ""
+          - "-servercore"
+        IMG_TAG_REFERENCE_JMX:
+          - ""
+          - "-jmx"
+        IMG_TAG_REFERENCE_WIN_OS:
+          - "-ltsc2019"
+          - "-ltsc2022"
+
+deploy_mutable_image_tags-a7-full-rc:
+  extends: .deploy_mutable_image_tags_base
+  stage: deploy_mutable_image_tags
+  rules:
+    !reference [.on_rc]
+  variables:
+    IMG_TAG_REFERENCE_SUFFIX: ["-full"]
+    IMG_NEW_TAGS: ["7-rc-full"]
+
+deploy_mutable_image_tags-a7-fips-rc:
+  extends: .deploy_mutable_image_tags_base
+  stage: deploy_mutable_image_tags
+  rules:
+    !reference [.on_rc]
+  parallel:
+    matrix:
+      - IMG_TAG_REFERENCE_SUFFIX: ["-fips"]
+        IMG_NEW_TAGS: ["7-fips-rc"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-fips-jmx"]
+        IMG_NEW_TAGS: ["7-fips-rc-jmx"]
+
+# Jobs [.on_internal_rc]
+
+deploy_mutable_image_tags-a7_internal-rc:
+  extends: .deploy_mutable_image_tags_base
+  stage: deploy_mutable_image_tags
+  rules:
+    !reference [.on_internal_rc]
+  variables:
+    IMG_TAG_REFERENCE_SUFFIX: [""]
+    IMG_NEW_TAGS: ["7-rc"]
+
+deploy_mutable_image_tags-a7-fips_internal-rc:
+  extends: .deploy_mutable_image_tags_base
+  stage: deploy_mutable_image_tags
+  rules:
+    !reference [.on_internal_rc]
+  parallel:
+    matrix:
+      - IMG_TAG_REFERENCE_SUFFIX: ["-fips"]
+        IMG_NEW_TAGS: ["7-fips-rc"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-fips-jmx"]
+        IMG_NEW_TAGS: ["7-fips-rc-jmx"]
+
+# Jobs [.on_internal_final]
+
+deploy_mutable_image_tags-a7_internal:
+  extends: .deploy_mutable_image_tags_base
+  stage: deploy_mutable_image_tags
+  rules: !reference [.on_internal_final]
+  parallel:
+    matrix:
+      - IMG_TAG_REFERENCE_SUFFIX: ["-jmx"]
+        IMG_NEW_TAGS: ["7-jmx"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-full"]
+        IMG_NEW_TAGS: ["7-full"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-fips-jmx"]
+        IMG_NEW_TAGS: ["7-fips-jmx"]
+
+# Jobs [.on_final]
 
 deploy_mutable_image_tags-a7:
   extends: .deploy_mutable_image_tags_base
@@ -40,19 +142,6 @@ deploy_mutable_image_tags-a7:
       - IMG_TAG_REFERENCE_SUFFIX: ["-full"]
         IMG_NEW_TAGS: ["7-full,latest-full"]
 
-deploy_mutable_image_tags-a7_internal:
-  extends: .deploy_mutable_image_tags_base
-  stage: deploy_mutable_image_tags
-  rules: !reference [.on_internal_final]
-  parallel:
-    matrix:
-      - IMG_TAG_REFERENCE_SUFFIX: "-jmx"
-        IMG_NEW_TAGS: 7-jmx
-      - IMG_TAG_REFERENCE_SUFFIX: "-full"
-        IMG_NEW_TAGS: 7-full
-      - IMG_TAG_REFERENCE_SUFFIX: "-fips-jmx"
-        IMG_NEW_TAGS: 7-fips-jmx
-
 deploy_mutable_image_tags-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
@@ -68,8 +157,7 @@ deploy_mutable_image_tags-a7-fips:
   rules: !reference [.on_final]
   parallel:
     matrix:
-      - IMG_TAG_REFERENCE_SUFFIX: "-fips"
-        IMG_NEW_TAGS: 7-fips
-      - IMG_TAG_REFERENCE_SUFFIX: "-fips-jmx"
-        IMG_NEW_TAGS: 7-fips-jmx
-
+      - IMG_TAG_REFERENCE_SUFFIX: ["-fips"]
+        IMG_NEW_TAGS: ["7-fips"]
+      - IMG_TAG_REFERENCE_SUFFIX: ["-fips-jmx"]
+        IMG_NEW_TAGS: ["7-fips-jmx"]

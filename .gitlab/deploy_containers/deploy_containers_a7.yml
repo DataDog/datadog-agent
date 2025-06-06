@@ -118,39 +118,6 @@ deploy_containers-a7-fips:
           - ""
           - "-jmx"
 
-deploy_containers-a7-rc:
-  extends: .deploy_containers-a7_external
-  rules:
-    !reference [.on_rc]
-  variables:
-    VERSION: 7-rc
-
-deploy_containers-a7-win-only-rc:
-  extends: .deploy_containers-a7_win_only_external
-  rules:
-    !reference [.on_rc]
-  variables:
-    VERSION: 7-rc
-
-deploy_containers-a7-full-rc:
-  extends: .deploy_containers-a7-full-base
-  rules:
-    !reference [.on_rc]
-  variables:
-    VERSION: 7-rc
-
-deploy_containers-a7-fips-rc:
-  extends: .deploy_containers-a7-base-fips
-  rules:
-    !reference [.on_rc]
-  variables:
-    VERSION: 7-fips-rc
-  parallel:
-    matrix:
-      - JMX:
-          - ""
-          - "-jmx"
-
 deploy_containers-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_containers
@@ -162,6 +129,25 @@ deploy_containers-dogstatsd:
     - export IMG_SOURCES="${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64"
     - export IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
 
+# Jobs [.on_internal_rc]
+
+deploy_containers-a7_internal-rc:
+  extends: .deploy_containers-a7-base
+  rules:
+    !reference [.on_internal_rc]
+
+deploy_containers-a7-fips_internal-rc:
+  extends: .deploy_containers-a7-base-fips
+  rules:
+    !reference [.on_internal_rc]
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
+
+# Jobs [.on_internal_final]
+
 deploy_containers-a7_internal:
   extends: .deploy_containers-a7-base
   rules:
@@ -169,29 +155,9 @@ deploy_containers-a7_internal:
   variables:
     JMX: "-jmx"
 
-
-deploy_containers-a7_internal-rc:
-  extends: .deploy_containers-a7-base
-  rules:
-    !reference [.on_internal_rc]
-  variables:
-    VERSION: 7-rc
-
 deploy_containers-a7-fips_internal:
   extends: .deploy_containers-a7-base-fips
   rules:
     !reference [.on_internal_final]
   variables:
     JMX: "-jmx"
-
-deploy_containers-a7-fips_internal-rc:
-  extends: .deploy_containers-a7-base-fips
-  rules:
-    !reference [.on_internal_rc]
-  variables:
-    VERSION: 7-fips-rc
-  parallel:
-    matrix:
-      - JMX:
-          - ""
-          - "-jmx"
