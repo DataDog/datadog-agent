@@ -12,39 +12,6 @@ skip_transitive_dependency_licensing true
 build do
   license :project_license
 
-
-  command "echo PREPARE CELIAN TEST"
-
-  command "rm -f /tmp/debug"
-
-  command "pwd >> /tmp/debug", cwd: Dir.pwd
-  command "echo >> /tmp/debug"
-  command "pwd >> /tmp/debug"
-  command "echo >> /tmp/debug"
-
-  command "ls >> /tmp/debug", cwd: Dir.pwd
-  command "echo >> /tmp/debug"
-  command "ls >> /tmp/debug"
-  command "echo >> /tmp/debug"
-
-  command "echo 'tools/ci:'"
-  command "ls tools/ci >> /tmp/debug || true", cwd: Dir.pwd
-  command "echo >> /tmp/debug"
-  command "ls tools/ci >> /tmp/debug || true"
-  command "echo >> /tmp/debug"
-
-  command "../tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true", cwd: Dir.pwd
-
-  # command "./tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true", cwd: Dir.pwd
-  # command "echo >> /tmp/debug"
-  # command "./tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true"
-  # command "echo END >> /tmp/debug"
-
-  command "cat /tmp/debug; false"
-
-  command "echo END PREPARE CELIAN TEST"
-
-
   block do
     %w{embedded/lib embedded/bin embedded/etc bin}.each do |dir|
       dir_fullpath = File.expand_path(File.join(install_dir, dir))
