@@ -37,8 +37,11 @@ func (e expectResource) Assert(t *testing.T, client *fakeintake.Client, min int,
 		require.NoError(t, err, "failed to get resource payloads from intake")
 		for _, p := range payloads {
 			if p != nil && e.test(p) {
-				fmt.Println("receive: " + e.message)
 				count++
+				if max == nil && count >= min {
+					fmt.Println("receive: " + e.message)
+					return
+				}
 			}
 		}
 		if time.Now().After(giveup) {
