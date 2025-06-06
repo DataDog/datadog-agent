@@ -76,7 +76,6 @@ func (b *bucket) flush() *message.Message {
 			metrics.TlmTruncatedCount.Inc("", "")
 		}
 		metrics.TlmTruncatedCount.Inc(b.message.Origin.Service(), b.message.Origin.Source())
-
 	}
 
 	msg := b.message

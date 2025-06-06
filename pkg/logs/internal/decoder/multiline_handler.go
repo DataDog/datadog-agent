@@ -131,7 +131,6 @@ func (h *MultiLineHandler) process(msg *message.Message) {
 			metrics.TlmTruncatedCount.Inc("", "")
 		}
 		metrics.TlmTruncatedCount.Inc(msg.Origin.Service(), msg.Origin.Source())
-
 	}
 
 	if h.buffer.Len() > 0 {
