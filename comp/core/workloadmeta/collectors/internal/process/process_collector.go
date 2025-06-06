@@ -65,6 +65,8 @@ type collector struct {
 	sysProbeClient *http.Client
 	startTime      time.Time
 	startupTimeout time.Duration
+	serviceRetries map[int32]uint
+	ignoredPids    core.PidSet
 }
 
 // EventType represents the type of collector event
@@ -99,6 +101,8 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 		startTime:      time.Now(),
 		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		serviceRetries: make(map[int32]uint),
+		ignoredPids:    make(core.PidSet),
 	}
 }
 
@@ -238,17 +242,27 @@ func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemo
 	return nil
 }
 
-// filterPidsToRequest filters PIDs to only request services for new or stale processes
-func (c *collector) filterPidsToRequest(alivePids []int32) []int32 {
+// filterPidsToRequest filters PIDs to only request services for new or stale processes.
+// It returns a slice of pids to request (to be used as a request parameters), and
+// a map of pids to *model.Service to be filled up with the response received from
+// system-probe. This map is useful to know for which pids we have not received
+// service info and that needs to be handled by the retry mechanism.
+func (c *collector) filterPidsToRequest(alivePids core.PidSet) ([]int32, map[int32]*model.Service) {
 	now := time.Now()
 	pidsToRequest := make([]int32, 0, len(alivePids))
+	pidsToService := make(map[int32]*model.Service, len(alivePids))
 
-	for _, pid := range alivePids {
+	for pid := range alivePids {
+		if c.ignoredPids.Has(pid) {
+			continue
+		}
+
 		// Check if we have service data for this process
 		entity, err := c.store.GetProcess(pid)
 		if err != nil || entity == nil || entity.Service == nil {
 			// No service data found, need to request it
 			pidsToRequest = append(pidsToRequest, pid)
+			pidsToService[pid] = nil
 			continue
 		}
 
@@ -257,10 +271,11 @@ func (c *collector) filterPidsToRequest(alivePids []int32) []int32 {
 		if now.Sub(lastHeartbeat) > core.HeartbeatTime {
 			// Service data is stale, need to refresh it
 			pidsToRequest = append(pidsToRequest, pid)
+			pidsToService[pid] = nil
 		}
 	}
 
-	return pidsToRequest
+	return pidsToRequest, pidsToService
 }
 
 // getDiscoveryServices calls the system-probe /discovery/services endpoint
@@ -293,6 +308,86 @@ func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesEndpointR
 	}
 
 	return &responseData, nil
+}
+
+func (c *collector) handleServiceRetries(pid int32) {
+	log.Debugf("no service found for pid: %d", pid)
+	tries := c.serviceRetries[pid]
+	tries++
+	if tries < maxPortCheckTries {
+		log.Debugf("adding service retry for pid: %d", pid)
+		c.serviceRetries[pid] = tries
+	} else {
+		log.Tracef("[pid: %d] ignoring due to max number of retries", pid)
+		c.ignoredPids.Add(pid)
+		delete(c.serviceRetries, pid)
+	}
+}
+
+// getProcessEntitiesFromServices creates Process entities with service discovery data
+func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService map[int32]*model.Service) []*workloadmeta.Process {
+	entities := make([]*workloadmeta.Process, 0, len(pids))
+	now := time.Now()
+
+	for _, pid := range pids {
+		service := pidsToService[pid]
+		if service == nil {
+			c.handleServiceRetries(pid)
+			continue
+		}
+
+		// Update the last heartbeat to current time
+		service.LastHeartbeat = now.Unix()
+
+		entity := &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(service.PID),
+			},
+			Pid:     int32(service.PID),
+			Service: convertModelServiceToService(service),
+		}
+		entities = append(entities, entity)
+	}
+
+	return entities
+}
+
+// convertModelServiceToService converts model.Service to workloadmeta.Service
+func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
+	return &workloadmeta.Service{
+		GeneratedName:              modelService.GeneratedName,
+		GeneratedNameSource:        modelService.GeneratedNameSource,
+		AdditionalGeneratedNames:   modelService.AdditionalGeneratedNames,
+		ContainerServiceName:       modelService.ContainerServiceName,
+		ContainerServiceNameSource: modelService.ContainerServiceNameSource,
+		ContainerTags:              modelService.ContainerTags,
+		TracerMetadata:             modelService.TracerMetadata,
+		DDService:                  modelService.DDService,
+		DDServiceInjected:          modelService.DDServiceInjected,
+		CheckedContainerData:       modelService.CheckedContainerData,
+		Ports:                      modelService.Ports,
+		APMInstrumentation:         modelService.APMInstrumentation,
+		Language:                   modelService.Language,
+		Type:                       modelService.Type,
+		CommandLine:                modelService.CommandLine,
+		StartTimeMilli:             modelService.StartTimeMilli,
+		ContainerID:                modelService.ContainerID,
+		LastHeartbeat:              modelService.LastHeartbeat,
+	}
+}
+
+// cleanPidMaps deletes dead PIDs from the provided maps.
+func cleanPidMaps[T any](alivePids core.PidSet, maps ...map[int32]T) {
+	for _, m := range maps {
+		for pid := range m {
+			if alivePids.Has(pid) {
+				continue
+			}
+
+			delete(m, pid)
+		}
+	}
 }
 
 // getDiscoveryURL builds the URL for the discovery endpoint
@@ -352,87 +447,49 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 				Deleted: wlmDeletedProcs,
 			}
 
-			alivePids := make([]int32, 0, len(procs))
+			// store latest collected processes
+			c.lastCollectedProcesses = procs
+
+			alivePids := make(core.PidSet, len(procs))
 			for pid := range procs {
-				alivePids = append(alivePids, pid)
+				alivePids.Add(pid)
 			}
 
-			// Filter PIDs to only request services for new or stale processes
-			pidsToRequest := c.filterPidsToRequest(alivePids)
+			pidsToRequest, pidsToService := c.filterPidsToRequest(alivePids)
+			if len(pidsToRequest) == 0 {
+				continue
+			}
 
-			if len(pidsToRequest) > 0 {
-				resp, err := c.getDiscoveryServices(pidsToRequest)
-				if err != nil {
-					if time.Since(c.startTime) < c.startupTimeout {
-						log.Warnf("service collector: system-probe not started yet: %v", err)
-					} else {
-						log.Errorf("failed to get services: %s", err)
-					}
+			resp, err := c.getDiscoveryServices(pidsToRequest)
+			if err != nil {
+				if time.Since(c.startTime) < c.startupTimeout {
+					log.Warnf("service collector: system-probe not started yet: %v", err)
 				} else {
-					// Send service discovery events
-					wlmServiceEntities := c.getProcessEntitiesFromServices(resp.Services)
-					if len(wlmServiceEntities) > 0 {
-						c.processEventsCh <- &Event{
-							Type:    EventTypeServiceDiscovery,
-							Created: wlmServiceEntities,
-						}
-					}
+					log.Errorf("failed to get services: %s", err)
+				}
+				continue
+			}
+
+			for i, service := range resp.Services {
+				pidsToService[int32(service.PID)] = &resp.Services[i]
+				log.Debugf("collector: found service: %+v", service)
+			}
+
+			// Send service discovery events
+			wlmServiceEntities := c.getProcessEntitiesFromServices(pidsToRequest, pidsToService)
+			if len(wlmServiceEntities) > 0 {
+				c.processEventsCh <- &Event{
+					Type:    EventTypeServiceDiscovery,
+					Created: wlmServiceEntities,
 				}
 			}
 
-			// store latest collected processes
-			c.lastCollectedProcesses = procs
+			cleanPidMaps(alivePids, c.ignoredPids)
+			cleanPidMaps(alivePids, c.serviceRetries)
 		case <-ctx.Done():
 			log.Infof("The %s collector has stopped", collectorID)
 			return
 		}
-	}
-}
-
-// getProcessEntitiesFromServices creates Process entities with service discovery data
-func (c *collector) getProcessEntitiesFromServices(services []model.Service) []*workloadmeta.Process {
-	entities := make([]*workloadmeta.Process, 0, len(services))
-	now := time.Now()
-
-	for _, service := range services {
-		// Update the last heartbeat to current time
-		service.LastHeartbeat = now.Unix()
-
-		entity := &workloadmeta.Process{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindProcess,
-				ID:   strconv.Itoa(service.PID),
-			},
-			Pid:     int32(service.PID),
-			Service: convertModelServiceToService(&service),
-		}
-		entities = append(entities, entity)
-	}
-
-	return entities
-}
-
-// convertModelServiceToService converts model.Service to workloadmeta.Service
-func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
-	return &workloadmeta.Service{
-		GeneratedName:              modelService.GeneratedName,
-		GeneratedNameSource:        modelService.GeneratedNameSource,
-		AdditionalGeneratedNames:   modelService.AdditionalGeneratedNames,
-		ContainerServiceName:       modelService.ContainerServiceName,
-		ContainerServiceNameSource: modelService.ContainerServiceNameSource,
-		ContainerTags:              modelService.ContainerTags,
-		TracerMetadata:             modelService.TracerMetadata,
-		DDService:                  modelService.DDService,
-		DDServiceInjected:          modelService.DDServiceInjected,
-		CheckedContainerData:       modelService.CheckedContainerData,
-		Ports:                      modelService.Ports,
-		APMInstrumentation:         modelService.APMInstrumentation,
-		Language:                   modelService.Language,
-		Type:                       modelService.Type,
-		CommandLine:                modelService.CommandLine,
-		StartTimeMilli:             modelService.StartTimeMilli,
-		ContainerID:                modelService.ContainerID,
-		LastHeartbeat:              modelService.LastHeartbeat,
 	}
 }
 
