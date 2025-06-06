@@ -1,4 +1,4 @@
-"""Module regrouping all invoke tasks used for linting the `datadog-agent` repo"""
+"""Module regrouping all invoke tasks used for linting the `datadog-agent` repo."""
 
 from __future__ import annotations
 
@@ -149,8 +149,8 @@ def update_go(_):
 def python(ctx):
     """Lints Python files.
 
-    See 'setup.cfg' and 'pyproject.toml' file for configuration.
-    If running locally, you probably want to use the pre-commit instead.
+    See 'setup.cfg' and 'pyproject.toml' file for configuration. If
+    running locally, you probably want to use the pre-commit instead.
     """
 
     print(
@@ -258,8 +258,7 @@ def full_gitlab_ci(
     shellcheck_only_errors: bool = False,
     path_jobowners: str = '.gitlab/JOBOWNERS',
 ):
-    """
-    Top-level task for running all gitlabci-related linters
+    """Top-level task for running all gitlabci-related linters.
 
     Having them all run from a single function like this prevents needing to regenerate the config at every step, which can take a while.
 
@@ -445,9 +444,7 @@ def gitlab_ci_shellcheck(
 ## === SSM-related === ##
 @task
 def list_parameters(_, type):
-    """
-    List all SSM parameters used in the datadog-agent repository.
-    """
+    """List all SSM parameters used in the datadog-agent repository."""
     if type == "ssm":
         section_pattern = re.compile(r"aws ssm variables")
     elif type == "vault":
@@ -674,8 +671,9 @@ def gitlab_ci_jobs_owners(
 def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=False):
     """Checks that all Go files contain the appropriate copyright header.
 
-    If '--fix' is provided as an option, it will try to fix problems as it finds them.
-    If '--dry_run' is provided when fixing, no changes to the files will be applied.
+    If '--fix' is provided as an option, it will try to fix problems as
+    it finds them. If '--dry_run' is provided when fixing, no changes to
+    the files will be applied.
     """
 
     files = None

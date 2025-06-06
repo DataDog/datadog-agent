@@ -1,4 +1,4 @@
-"""Definitions for gitlabci linting-related exceptions"""
+"""Definitions for gitlabci linting-related exceptions."""
 
 from dataclasses import dataclass
 from enum import Enum
@@ -7,7 +7,7 @@ from tasks.libs.common.color import Color, color_message
 
 
 class FailureLevel(int, Enum):
-    """Enum for different criticalities of gitlabci linting failures"""
+    """Enum for different criticalities of gitlabci linting failures."""
 
     CRITICAL = 3  # Something went wrong while linting
     ERROR = 2  # The linter found something wrong with the file being linted
@@ -27,7 +27,7 @@ FAILURE_LEVEL_COLORS = {
 
 @dataclass
 class GitlabLintFailure(Exception):
-    """Custom exception used to handle gitlabci linting errors easily"""
+    """Custom exception used to handle gitlabci linting errors easily."""
 
     details: str
     level: FailureLevel
@@ -61,7 +61,7 @@ class GitlabLintFailure(Exception):
 @dataclass
 class MultiGitlabLintFailure(Exception):
     failures: list[GitlabLintFailure]
-    """Custom exception used to handle simultaneous gitlabci linting errors easily"""
+    """Custom exception used to handle simultaneous gitlabci linting errors easily."""
 
     def pretty_print(self) -> str:
         """Outputs a nice string detailing the failure, meant for CLI output."""
@@ -82,7 +82,7 @@ class MultiGitlabLintFailure(Exception):
 
     @property
     def level(self) -> FailureLevel:
-        """Returns the highest level of failure"""
+        """Returns the highest level of failure."""
         return max(failure.level for failure in self.failures)
 
     @property
