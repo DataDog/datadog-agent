@@ -18,6 +18,9 @@ retract (
 // Internal deps fix version
 replace (
 	github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
+	// Use a patched version of go-cmp to avoid disabling dead code elimination
+	// Commit from https://github.com/DataDog/go-cmp/tree/dce-patch/v0.7.0
+	github.com/google/go-cmp => github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 )
 
