@@ -329,9 +329,10 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		sType := reflect.TypeOf(self).Elem()
 		hash := utils.StrHash(sType.PkgPath()) // hash of PkgPath in order to have a unique stack name
 		bs.params.stackName = fmt.Sprintf("e2e-%s-%s", sType.Name(), hash)
-		if stackNameSuffix != "" {
-			bs.params.stackName = fmt.Sprintf("%s-%s", bs.params.stackName, stackNameSuffix)
-		}
+	}
+
+	if stackNameSuffix != "" {
+		bs.params.stackName = fmt.Sprintf("%s-%s", bs.params.stackName, stackNameSuffix)
 	}
 
 	bs.originalProvisioners = bs.params.provisioners
