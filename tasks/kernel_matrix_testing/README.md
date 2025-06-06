@@ -5,6 +5,7 @@
 *   [Quick Start](#quick-start)
     *   [Quick Start for Local VMs](#quick-start-for-local-vms)
     *   [Quick Start for Remote VMs](#quick-start-for-remote-vms)
+    *   [Quick Start for Local and Remote VMs](#quick-start-for-local-and-remote-vms)
 *   [Core Concepts](#core-concepts)
     *   [Stacks](#stacks)
     *   [VMsets File](#vmsets-file)
@@ -173,6 +174,49 @@ When you are finished, destroy the stack to terminate the EC2 instance.
 
 ```bash
 dda inv -e kmt.destroy-stack --stack=my-remote-stack
+```
+
+### Quick Start for Local and Remote VMs
+
+This guide shows how to run a mixed stack with both local and remote VMs.
+
+**1. Initialize KMT for a Full Setup** (only needs to be done once)
+
+To run both local and remote VMs, you need to download VM images and configure an SSH key. The `kmt.init` command with an `--images` flag will handle both.
+
+```bash
+# This will download the Ubuntu 22.04 image and start the SSH key setup wizard
+dda inv -e kmt.init --images=ubuntu_22.04
+```
+
+**2. Create and Configure a Mixed Stack**
+
+Provide a list of both local and remote VMs to the `gen-config` command.
+
+```bash
+# This configures one local Ubuntu 22.04 VM and one remote x86_64 Ubuntu 22.04 VM
+dda inv -e kmt.gen-config --vms=ubuntu22-local-distro,x86-jammy-distro --init-stack --stack=my-mixed-stack
+```
+
+**3. Launch the Stack**
+
+The same `launch-stack` command will start the local VM and launch the remote EC2 instance.
+
+```bash
+dda inv -e kmt.launch-stack --stack=my-mixed-stack
+```
+> You may be prompted for your `sudo` password for the local VM setup. The remote VM will use your pre-configured SSH key.
+
+**4. Connect and Clean Up**
+
+The `status`, `ssh-config`, and `destroy-stack` commands work just like in the other scenarios, managing all VMs in the stack together.
+
+```bash
+# Check status of all VMs
+dda inv -e kmt.status --stack=my-mixed-stack
+
+# When finished, destroy all resources
+dda inv -e kmt.destroy-stack --stack=my-mixed-stack
 ```
 
 ## Core Concepts
