@@ -36,11 +36,6 @@ func (server *apiServer) startCMDServer(
 	// gRPC server
 	grpcServer := server.grpcComponent.BuildServer()
 
-	// gRPC gateway mux
-	gwmux, gxmuxErr := server.grpcComponent.BuildGatewayMux(cmdAddr)
-	if gxmuxErr != nil {
-		return gxmuxErr
-	}
 	// Setup multiplexer
 	// create the REST HTTP router
 	agentMux := gorilla.NewRouter()
@@ -59,7 +54,6 @@ func (server *apiServer) startCMDServer(
 				server.endpointProviders,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
-	cmdMux.Handle("/", gwmux)
 
 	// Add some observability in the API server
 	cmdMuxHandler := tmf.Middleware(cmdServerShortName)(cmdMux)
