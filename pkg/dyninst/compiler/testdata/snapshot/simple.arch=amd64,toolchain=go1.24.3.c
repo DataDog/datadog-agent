@@ -145,6 +145,8 @@ const uint8_t stack_machine_code[] = {
 		SM_OP_CALL, 0x28, 0x00, 0x00, 0x00, // ProcessType[string]
 		SM_OP_PROCESS_SLICE_DATA_REPEAT, 0x10, 0x00, 0x00, 0x00, 
 		SM_OP_RETURN, 
+
+	// Extra illegal ops to simplify code bound checks
 		SM_OP_ILLEGAL, 
 		SM_OP_ILLEGAL, 
 		SM_OP_ILLEGAL, 
