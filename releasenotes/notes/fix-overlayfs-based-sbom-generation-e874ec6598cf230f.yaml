@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix SBOM generation when container images are scanned using the
+    overlayfs direct scan method (`overlayfs_direct_scan: true`).

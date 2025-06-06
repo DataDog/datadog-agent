@@ -48,7 +48,7 @@ type typeFuncMetadata struct {
 }
 
 // GenerateProgram generates stack machine program for a given IR program.
-func GenerateProgram(program ir.Program) (Program, error) {
+func GenerateProgram(program *ir.Program) (Program, error) {
 	g := generator{
 		typeFuncMetadata: make(map[ir.TypeID]typeFuncMetadata, len(program.Types)),
 		functionReg:      make(map[FunctionID]struct{}),
@@ -226,11 +226,11 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		needed = true
 		offsetShift = uint32(t.GetByteSize())
 		ops = []Op{
-			ProcessArrayPrepOp{},
+			ProcessArrayDataPrepOp{ArrayByteLen: t.GetByteSize()},
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessArrayRepeatOp{},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
 			ReturnOp{},
 		}
 
@@ -249,7 +249,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceDataRepeatOp{},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
 			ReturnOp{},
 		}
 
