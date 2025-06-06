@@ -51,6 +51,8 @@ var (
 	defaultPercentiles = []int(nil)
 )
 
+// ParsePercentiles represents a string percentile in
+// an integer percentile (e.g. "0.95" -> 95, "0.85" -> 85
 func ParsePercentiles(percentiles []string) []int {
 	res := []int{}
 	for _, p := range percentiles {
