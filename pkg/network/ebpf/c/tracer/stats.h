@@ -370,12 +370,19 @@ __maybe_unused static __always_inline bool tcp_failed_connections_enabled() {
 
 // handle_tcp_failure handles TCP connection failures on the socket pointer and adds them to the connection tuple
 // returns an integer to the caller indicating if there was a failure or not
-static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t) {
+// skip_timeouts: if true, will skip processing timeout failures (used to avoid double counting when timeouts are handled elsewhere)
+static __always_inline bool handle_tcp_failure(struct sock *sk, conn_tuple_t *t, bool skip_timeouts) {
     if (!tcp_failed_connections_enabled()) {
         return false;
     }
     int err = 0;
     BPF_CORE_READ_INTO(&err, sk, sk_err);
+
+    // If skip_timeouts is true and this is a timeout error, return early
+    if (skip_timeouts && err == TCP_CONN_FAILED_TIMEOUT) {
+        log_debug("handle_tcp_failure: skipping timeout failure (already handled elsewhere)");
+        return false;
+    }
 
     switch (err) {
         case 0:

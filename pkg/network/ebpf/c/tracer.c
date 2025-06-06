@@ -197,6 +197,33 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__udp_sendpage, int sent) {
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 1, 0, PACKET_COUNT_INCREMENT, skp);
 }
 
+SEC("kprobe/tcp_write_timeout")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_write_timeout, struct sock *sk) {
+    conn_tuple_t t = {};
+
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    
+    log_debug("kprobe/tcp_write_timeout: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+
+    // TCP write timeouts are triggered by kernel timers, so we need to get the original user PID
+    // from the ongoing connect map that was set during tcp_connect()
+    pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    if (!failed_conn_pid) {
+        return 0;
+    }
+
+    t.pid = GET_USER_MODE_PID(failed_conn_pid->pid_tgid);
+    log_debug("kprobe/tcp_write_timeout: recovered pid: %u", t.pid);
+
+    // Handle the timeout failure with the correct user PID
+    // Note: We don't delete from tcp_ongoing_connect_pid here since tcp_close/tcp_done will handle cleanup
+    handle_tcp_failure(sk, &t, false);
+    return 0;
+}
+
 SEC("kprobe/tcp_done")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     conn_tuple_t t = {};
@@ -208,7 +235,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
 
-    // connection timeouts will have 0 pids as they are cleaned up by an idle process.
+    // connection timeouts will have 0 or kernel pids as they are cleaned up by an idle process.
     // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
     // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
     pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
@@ -220,7 +247,8 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
-    if (!handle_tcp_failure(sk, &t)) {
+    // Handle failures but skip timeouts since they're already handled in tcp_write_timeout
+    if (!handle_tcp_failure(sk, &t, true)) {
         return 0;
     }
 
@@ -260,7 +288,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
 
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
 
-    handle_tcp_failure(sk, &t);
+    handle_tcp_failure(sk, &t, false);
 
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_close_connection_flush);
