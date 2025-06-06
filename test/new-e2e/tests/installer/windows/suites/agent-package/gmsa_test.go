@@ -15,6 +15,7 @@ import (
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/driververifier"
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 
 	"testing"
@@ -37,6 +38,7 @@ func TestAgentUpgradesOnDCWithGMSA(t *testing.T) {
 				winawshost.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
 				),
+				winawshost.WithDriverVerifierOptions(driververifier.Disabled()),
 			),
 		),
 	)

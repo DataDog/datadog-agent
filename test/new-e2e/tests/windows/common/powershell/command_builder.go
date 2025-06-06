@@ -8,8 +8,9 @@ package powershell
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
 type powerShellCommandBuilder struct {
@@ -193,6 +194,18 @@ func (ps *powerShellCommandBuilder) SetFIPSMode(enabled bool) *powerShellCommand
 	typeName := "DWORD"
 	cmd := fmt.Sprintf("New-Item -Path '%s' -Force; Set-ItemProperty -Path '%s' -Name '%s' -Value '%s' -Type '%s'", path, path, name, value, typeName)
 	ps.cmds = append(ps.cmds, cmd)
+	return ps
+}
+
+// DisableDriverVerifier creates a command to disable driver verifier
+func (ps *powerShellCommandBuilder) DisableDriverVerifier() *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, `verifier /reset`)
+	return ps
+}
+
+// EnableDriverVerifierWithStandardFlags enables driver verifier on the specified driver with standard flags.
+func (ps *powerShellCommandBuilder) EnableDriverVerifierWithStandardFlags(driverName string) *powerShellCommandBuilder {
+	ps.cmds = append(ps.cmds, fmt.Sprintf(`verifier /standard /driver %s`, driverName))
 	return ps
 }
 
