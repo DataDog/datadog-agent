@@ -114,7 +114,9 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 	for k, v := range variablesValues {
 		if _, ok := vars[k]; ok {
 			if mv, ok := vars[k].(eval.MutableVariable); ok {
-				mv.Set(nil, v)
+				if err := mv.Set(nil, v); err != nil {
+					return report, fmt.Errorf("failed to set variable %s: %w", k, err)
+				}
 			}
 		}
 	}
