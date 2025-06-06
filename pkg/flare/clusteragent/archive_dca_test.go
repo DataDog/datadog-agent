@@ -71,9 +71,9 @@ func TestGetDCALocalAutoscalingWorkloadList(t *testing.T) {
 			},
 		},
 	}
-
+	ipcMock := ipcmock.New(t)
 	// Create test server that responds to /local-autoscaling-check path
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := ipcMock.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/local-autoscaling-check" {
 			out, _ := json.Marshal(mockResponse)
 			w.Write(out)
@@ -83,7 +83,7 @@ func TestGetDCALocalAutoscalingWorkloadList(t *testing.T) {
 
 	setupClusterAgentIPCAddress(t, configmock.New(t), s.URL)
 
-	content, err := getDCALocalAutoscalingWorkloadList()
+	content, err := getDCALocalAutoscalingWorkloadList(&flare.RemoteFlareProvider{IPC: ipcMock})
 	require.NoError(t, err)
 
 	// Parse the JSON response
@@ -114,8 +114,10 @@ func TestGetDCALocalAutoscalingWorkloadList(t *testing.T) {
 }
 
 func TestGetDCALocalAutoscalingWorkloadListError(t *testing.T) {
+	ipcMock := ipcmock.New(t)
+
 	// Create test server that returns an error
-	s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := ipcMock.NewMockServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/local-autoscaling-check" {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("Internal server error"))
@@ -125,7 +127,7 @@ func TestGetDCALocalAutoscalingWorkloadListError(t *testing.T) {
 
 	setupClusterAgentIPCAddress(t, configmock.New(t), s.URL)
 
-	_, err := getDCALocalAutoscalingWorkloadList()
+	_, err := getDCALocalAutoscalingWorkloadList(&flare.RemoteFlareProvider{IPC: ipcMock})
 	assert.Error(t, err, "Should return an error when server responds with error")
 }
 
