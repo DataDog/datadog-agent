@@ -11,7 +11,6 @@ import (
 	"expvar"
 	"fmt"
 	"net"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -66,8 +65,6 @@ var (
 
 	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
 	once                  sync.Once
-
-	percentileRx = regexp.MustCompile(`\.\d?\dpercentile$`)
 )
 
 type dependencies struct {
@@ -539,6 +536,12 @@ func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
 func (s *server) createHistogramsBlocklist(metricNames []string) []string {
 	aggrs := s.config.GetStringSlice("histogram_aggregates")
 
+	percentiles := metrics.ParsePercentiles(s.config.GetStringSlice("histogram_percentiles"))
+	percentileAggrs := make([]string, len(percentiles))
+	for i, percentile := range percentiles {
+		percentileAggrs[i] = fmt.Sprintf("%dpercentile", percentile)
+	}
+
 	histoMetricNames := []string{}
 	for _, metricName := range metricNames {
 		// metric names ending with a histogram aggregates
@@ -548,8 +551,10 @@ func (s *server) createHistogramsBlocklist(metricNames []string) []string {
 			}
 		}
 		// metric names ending with a percentile
-		if percentileRx.MatchString(metricName) {
-			histoMetricNames = append(histoMetricNames, metricName)
+		for _, percentileAggr := range percentileAggrs {
+			if strings.HasSuffix(metricName, "."+percentileAggr) {
+				histoMetricNames = append(histoMetricNames, metricName)
+			}
 		}
 	}
 
