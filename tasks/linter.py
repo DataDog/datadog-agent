@@ -43,6 +43,7 @@ from tasks.libs.linter.gitlab import (
 from tasks.libs.linter.gitlab_exceptions import GitlabLintFailure, MultiGitlabLintFailure
 from tasks.libs.linter.go import run_lint_go
 from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, shellcheck_linter
+from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.test_core import process_input_args, process_result
 from tasks.update_go import _update_go_mods, _update_references
@@ -350,6 +351,7 @@ def full_gitlab_ci(
         ci_linters_config=ci_linters_config,
     )
 
+    jobowners = read_owners(path_jobowners, remove_default_pattern=True)
     gitlabci_run_sublinter_helper(
         check_owners_gitlab_ci_jobs,
         failures=failures,
@@ -358,7 +360,7 @@ def full_gitlab_ci(
         success_message='All gitlabci jobs have defined codeowners.',
         jobs=jobs,
         ci_linters_config=ci_linters_config,
-        path_jobowners=path_jobowners,
+        jobowners=jobowners,
     )
 
 
@@ -655,7 +657,8 @@ def gitlab_ci_jobs_owners(
             all_jobs=full_config_get_all_leaf_jobs(full_config),
             all_stages=full_config_get_all_stages(full_config),
         )
-        check_owners_gitlab_ci_jobs(jobs, ci_linters_config, path_jobowners=path_jobowners)
+        jobowners = read_owners(path_jobowners, remove_default_pattern=True)
+        check_owners_gitlab_ci_jobs(jobs, ci_linters_config, jobowners=jobowners)
 
     gitlabci_lint_task_template(
         body,

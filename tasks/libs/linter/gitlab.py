@@ -7,6 +7,7 @@ from glob import glob
 from typing import Any
 
 import yaml
+from codeowners import CodeOwners
 
 from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.gitlab_api import (
@@ -23,7 +24,6 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.linter.gitlab_exceptions import FailureLevel, GitlabLintFailure, MultiGitlabLintFailure
 from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
-from tasks.libs.owners.parsing import read_owners
 
 
 # === Task code bodies === #
@@ -342,11 +342,8 @@ def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_co
 
 
 def check_owners_gitlab_ci_jobs(
-    jobs: list[tuple[str, dict]],
-    ci_linters_config: CILintersConfig,
-    path_jobowners: str = '.gitlab/JOBOWNERS',
+    jobs: list[tuple[str, dict]], ci_linters_config: CILintersConfig, jobowners: CodeOwners
 ):
-    jobowners = read_owners(path_jobowners, remove_default_pattern=True)
     job_names = [name for (name, _) in jobs]
     failures = []
     for job in job_names:
@@ -354,7 +351,7 @@ def check_owners_gitlab_ci_jobs(
         if not owners:
             failures.append(
                 GitlabLintFailure(
-                    details=f"Job does not have any owners defined in {path_jobowners}{', but is allow-listed' if job in ci_linters_config.job_owners_jobs else ''}.",
+                    details=f"Job does not have any non-default owners defined{', but is allow-listed' if job in ci_linters_config.job_owners_jobs else ''}.",
                     failing_job_name=job,
                     level=FailureLevel.WARNING if job in ci_linters_config.job_owners_jobs else FailureLevel.ERROR,
                 )
