@@ -67,8 +67,11 @@ func (cw *ChannelWriter) Write(p []byte) (n int, err error) {
 }
 
 func (cw *ChannelWriter) sendPayload(payload []byte) {
+	bufCopy := make([]byte, len(payload))
+	copy(bufCopy, payload)
+
 	channelMessage := &logConfig.ChannelMessage{
-		Content: payload,
+		Content: bufCopy,
 		IsError: cw.IsError,
 	}
 
