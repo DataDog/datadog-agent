@@ -15,15 +15,30 @@ build do
 
   command "echo PREPARE CELIAN TEST"
 
-  command "pwd", cwd: Dir.pwd
-  command "pwd"
-  command "ls", cwd: Dir.pwd
-  command "ls"
+  command "rm /tmp/debug"
+
+  command "pwd >> /tmp/debug", cwd: Dir.pwd
+  command "echo >> /tmp/debug"
+  command "pwd >> /tmp/debug"
+  command "echo >> /tmp/debug"
+
+  command "ls >> /tmp/debug", cwd: Dir.pwd
+  command "echo >> /tmp/debug"
+  command "ls >> /tmp/debug"
+  command "echo >> /tmp/debug"
+
   command "echo 'tools/ci:'"
-  command "ls tools/ci || true", cwd: Dir.pwd
-  command "ls tools/ci || true"
-  command "./tools/ci/retry.sh bash -c 'echo retry; false'", cwd: Dir.pwd
-  command "./tools/ci/retry.sh bash -c 'echo retry; false'"
+  command "ls tools/ci >> /tmp/debug || true", cwd: Dir.pwd
+  command "echo >> /tmp/debug"
+  command "ls tools/ci >> /tmp/debug || true"
+  command "echo >> /tmp/debug"
+
+  command "./tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true", cwd: Dir.pwd
+  command "echo >> /tmp/debug"
+  command "./tools/ci/retry.sh bash -c 'echo retry; false' >> /tmp/debug || true"
+  command "echo END >> /tmp/debug"
+
+  command "cat /tmp/debug; false"
 
   command "echo END PREPARE CELIAN TEST"
 
