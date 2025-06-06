@@ -1416,6 +1416,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.SetrlimitEventType:
+		if _, err = event.Setrlimit.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode setrlimit event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
 	}
 
 	// resolve the container context

@@ -75,6 +75,13 @@ struct syscall_cache_t {
         } rename;
 
         struct {
+            int resource;
+            u64 rlim_cur;
+            u64 rlim_max;
+            u32 pid;
+        } setrlimit;
+
+        struct {
             struct dentry *dentry;
             struct path *path;
             struct file_t file;

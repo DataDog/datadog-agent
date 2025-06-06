@@ -518,6 +518,7 @@ func initConstants() {
 	initSysCtlActionConstants()
 	initSetSockOptLevelConstants()
 	initSetSockOptOptNameConstants()
+	initRlimitConstants()
 }
 
 // RetValError represents a syscall return error value
