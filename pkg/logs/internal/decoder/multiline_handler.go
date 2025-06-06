@@ -127,7 +127,11 @@ func (h *MultiLineHandler) process(msg *message.Message) {
 		h.sendBuffer()
 		h.shouldTruncate = true
 		metrics.LogsTruncated.Add(1)
-		metrics.TlmLogsTruncated.Inc()
+		if msg == nil || msg.Origin == nil {
+			metrics.TlmTruncatedCount.Inc("", "")
+		}
+		metrics.TlmTruncatedCount.Inc(msg.Origin.Service(), msg.Origin.Source())
+
 	}
 
 	if h.buffer.Len() > 0 {
