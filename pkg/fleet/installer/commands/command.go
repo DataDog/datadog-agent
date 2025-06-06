@@ -529,15 +529,16 @@ func packageCommand() *cobra.Command {
 		Use:     "package-command <package> <command>",
 		Short:   "Run a package-specific command",
 		Args:    cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			span, ctx := telemetry.StartSpanFromContext(ctx, "package_command")
-			defer span.Finish(nil)
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i := newCmd("package_command")
+			defer i.stop(err)
 
 			packageName := args[0]
 			command := args[1]
+			i.span.SetTag("params.package", packageName)
+			i.span.SetTag("params.command", command)
 
-			return packages.RunPackageCommand(ctx, packageName, command)
+			return packages.RunPackageCommand(i.ctx, packageName, command)
 		},
 	}
 
