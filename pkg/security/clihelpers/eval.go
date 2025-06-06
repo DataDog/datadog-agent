@@ -51,15 +51,15 @@ type EvalRuleParams struct {
 	EventFile       string
 }
 
-// EvalRule evaluates a rule against an event
-func EvalRule(evalArgs EvalRuleParams) error {
-	policiesDir := evalArgs.Dir
+func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs EvalRuleParams) (EvalReport, error) {
+	var report EvalReport
 
-	event, variables, err := dataFromJSON(evalArgs.EventFile)
+	event, variables, err := dataFromJSON(decoder)
 	if err != nil {
-		return err
+		return report, err
 	}
 
+	report.Event = event
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
@@ -69,7 +69,7 @@ func EvalRule(evalArgs EvalRuleParams) error {
 
 	agentVersionFilter, err := newAgentVersionFilter()
 	if err != nil {
-		return fmt.Errorf("failed to create agent version filter: %w", err)
+		return report, fmt.Errorf("failed to create agent version filter: %w", err)
 	}
 
 	loaderOpts := rules.PolicyLoaderOpts{
@@ -83,11 +83,6 @@ func EvalRule(evalArgs EvalRuleParams) error {
 		},
 	}
 
-	provider, err := rules.NewPoliciesDirProvider(policiesDir)
-	if err != nil {
-		return err
-	}
-
 	loader := rules.NewPolicyLoader(provider)
 
 	var ruleSet *rules.RuleSet
@@ -98,11 +93,23 @@ func EvalRule(evalArgs EvalRuleParams) error {
 	}
 
 	if err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
-		return err
+		return report, err
 	}
 
-	report := EvalReport{
-		Event: event,
+	// reapply the variables values
+	vars := ruleSet.GetVariables()
+	for k, v := range variables {
+		rv, ok := v.(eval.Variable)
+		if !ok {
+			continue
+		}
+
+		if _, ok := vars[k]; ok {
+			if mv, ok := vars[k].(eval.MutableVariable); ok {
+				value, _ := rv.GetValue()
+				mv.Set(nil, value)
+			}
+		}
 	}
 
 	if !evalArgs.UseWindowsModel {
@@ -115,6 +122,33 @@ func EvalRule(evalArgs EvalRuleParams) error {
 	}
 
 	report.Succeeded = ruleSet.Evaluate(event)
+
+	return report, nil
+}
+
+// EvalRule evaluates a rule against an event
+func EvalRule(evalArgs EvalRuleParams) error {
+	policiesDir := evalArgs.Dir
+
+	f, err := os.Open(evalArgs.EventFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	decoder := json.NewDecoder(f)
+	decoder.UseNumber()
+
+	provider, err := rules.NewPoliciesDirProvider(policiesDir)
+	if err != nil {
+		return err
+	}
+
+	report, err := evalRule(provider, decoder, evalArgs)
+	if err != nil {
+		return err
+	}
+
 	output, err := json.MarshalIndent(report, "", "    ")
 	if err != nil {
 		return err
@@ -182,12 +216,21 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 		variables[k] = v
 	}
 
+	varOpts := eval.VariableOpts{
+		TTL: 10000000,
+	}
+
+	// add the variables from the test data
 	for k, v := range testData.Variables {
 		switch v := v.(type) {
 		case string:
-			variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context) (string, bool) {
-				return v, true
-			}, nil)
+			if rules.IsScopeVariable(k) {
+				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context) (string, bool) {
+					return v, true
+				}, nil)
+			} else {
+				variables[k] = eval.NewStringVariable(v, varOpts)
+			}
 		case []any:
 			switch v[0].(type) {
 			case string:
@@ -195,9 +238,13 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 				for i, value := range v {
 					values[i] = value.(string)
 				}
-				variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context) ([]string, bool) {
-					return values, true
-				}, nil)
+				if rules.IsScopeVariable(k) {
+					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context) ([]string, bool) {
+						return values, true
+					}, nil)
+				} else {
+					variables[k] = eval.NewStringArrayVariable(values, varOpts)
+				}
 			case json.Number:
 				values := make([]int, len(v))
 				for i, value := range v {
@@ -207,9 +254,14 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 					}
 					values[i] = int(v64)
 				}
-				variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context) ([]int, bool) {
-					return values, true
-				}, nil)
+
+				if rules.IsScopeVariable(k) {
+					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context) ([]int, bool) {
+						return values, true
+					}, nil)
+				} else {
+					variables[k] = eval.NewIntArrayVariable(values, varOpts)
+				}
 			default:
 				return nil, fmt.Errorf("unknown variable type %s: %T", k, v)
 			}
@@ -218,13 +270,21 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
 			}
-			variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context) (int, bool) {
-				return int(value), true
-			}, nil)
+			if rules.IsScopeVariable(k) {
+				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context) (int, bool) {
+					return int(value), true
+				}, nil)
+			} else {
+				variables[k] = eval.NewIntVariable(int(value), varOpts)
+			}
 		case bool:
-			variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context) (bool, bool) {
-				return v, true
-			}, nil)
+			if rules.IsScopeVariable(k) {
+				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context) (bool, bool) {
+					return v, true
+				}, nil)
+			} else {
+				variables[k] = eval.NewBoolVariable(v, varOpts)
+			}
 		default:
 			return nil, fmt.Errorf("unknown variable type %s: %T", k, v)
 		}
@@ -233,16 +293,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 	return variables, nil
 }
 
-func dataFromJSON(file string) (eval.Event, map[string]eval.SECLVariable, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer f.Close()
-
-	decoder := json.NewDecoder(f)
-	decoder.UseNumber()
-
+func dataFromJSON(decoder *json.Decoder) (eval.Event, map[string]eval.SECLVariable, error) {
 	var testData TestData
 	if err := decoder.Decode(&testData); err != nil {
 		return nil, nil, err

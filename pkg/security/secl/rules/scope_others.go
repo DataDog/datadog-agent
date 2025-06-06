@@ -8,6 +8,19 @@
 // Package rules holds rules related files
 package rules
 
+const (
+	// ScopeProcess is the scope for process variables
+	ScopeProcess = "process"
+	// ScopeContainer is the scope for container variables
+	ScopeContainer = "container"
+)
+
+// VariableScopes is the list of scopes for variables
+var VariableScopes = []string{
+	ScopeProcess,
+	ScopeContainer,
+}
+
 func getStateScopes() map[Scope]VariableProviderFactory {
 	return getCommonStateScopes()
 }
