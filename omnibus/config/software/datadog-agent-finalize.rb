@@ -204,8 +204,8 @@ build do
             if code_signing_identity
                 # Codesign everything
                 command "find #{install_dir} -type f | grep -E '(\\.so|\\.dylib)' | xargs -I{} tools/ci/retry.sh codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{}  tools/ci/retry.sh codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
-                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{}  tools/ci/retry.sh codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "find #{install_dir}/embedded/bin -perm +111 -type f | xargs -I{} tools/ci/retry.sh codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
+                command "find #{install_dir}/embedded/sbin -perm +111 -type f | xargs -I{} tools/ci/retry.sh codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
                 command "find #{install_dir}/bin -perm +111 -type f | xargs -I{} tools/ci/retry.sh codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '{}'"
                 command "tools/ci/retry.sh codesign #{hardened_runtime}--force --timestamp --deep -s '#{code_signing_identity}' '#{install_dir}/Datadog Agent.app'"
             end
