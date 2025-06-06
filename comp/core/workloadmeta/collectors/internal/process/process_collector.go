@@ -19,15 +19,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/benbjohnson/clock"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/benbjohnson/clock"
-	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -236,6 +238,31 @@ func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemo
 	return nil
 }
 
+// filterPidsToRequest filters PIDs to only request services for new or stale processes
+func (c *collector) filterPidsToRequest(alivePids []int32) []int32 {
+	now := time.Now()
+	pidsToRequest := make([]int32, 0, len(alivePids))
+
+	for _, pid := range alivePids {
+		// Check if we have service data for this process
+		entity, err := c.store.GetProcess(pid)
+		if err != nil || entity == nil || entity.Service == nil {
+			// No service data found, need to request it
+			pidsToRequest = append(pidsToRequest, pid)
+			continue
+		}
+
+		// Check if service data is stale (last heartbeat > 15 minutes ago)
+		lastHeartbeat := time.Unix(entity.Service.LastHeartbeat, 0)
+		if now.Sub(lastHeartbeat) > core.HeartbeatTime {
+			// Service data is stale, need to refresh it
+			pidsToRequest = append(pidsToRequest, pid)
+		}
+	}
+
+	return pidsToRequest
+}
+
 // getDiscoveryServices calls the system-probe /discovery/services endpoint
 func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesEndpointResponse, error) {
 	var responseData model.ServicesEndpointResponse
@@ -325,14 +352,16 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 				Deleted: wlmDeletedProcs,
 			}
 
-			// Basic service discovery (Phase 3: no heartbeat logic yet)
 			alivePids := make([]int32, 0, len(procs))
 			for pid := range procs {
 				alivePids = append(alivePids, pid)
 			}
 
-			if len(alivePids) > 0 {
-				resp, err := c.getDiscoveryServices(alivePids)
+			// Filter PIDs to only request services for new or stale processes
+			pidsToRequest := c.filterPidsToRequest(alivePids)
+
+			if len(pidsToRequest) > 0 {
+				resp, err := c.getDiscoveryServices(pidsToRequest)
 				if err != nil {
 					if time.Since(c.startTime) < c.startupTimeout {
 						log.Warnf("service collector: system-probe not started yet: %v", err)
@@ -363,8 +392,12 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 // getProcessEntitiesFromServices creates Process entities with service discovery data
 func (c *collector) getProcessEntitiesFromServices(services []model.Service) []*workloadmeta.Process {
 	entities := make([]*workloadmeta.Process, 0, len(services))
+	now := time.Now()
 
 	for _, service := range services {
+		// Update the last heartbeat to current time
+		service.LastHeartbeat = now.Unix()
+
 		entity := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindProcess,
