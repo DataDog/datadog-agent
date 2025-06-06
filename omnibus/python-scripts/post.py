@@ -15,16 +15,16 @@ def post(install_directory, storage_location, skip_flag=False):
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
             packages.create_python_installed_packages_file(post_python_installed_packages_file)
-
+            
             flag_path = "/etc/datadog-agent/.skip_install_python_third_party_deps"
+            if os.name == "nt":
+                flag_path = os.path.join(storage_location, ".skip_install_python_third_party_deps")
 
             # by default, we persist third party integrations
             persist_third_party_integration = True
 
-            # if skip_flag is True no need check for the file flag
-            if not skip_flag:
-                if os.name != "nt" and os.path.exists(flag_path):
-                    persist_third_party_integration = False
+            if os.path.exists(flag_path) or not skip_flag:
+                persist_third_party_integration = False
 
             if persist_third_party_integration:
                 diff_python_installed_packages_file = packages.diff_python_installed_packages_file(storage_location)
