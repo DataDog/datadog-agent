@@ -179,7 +179,7 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 	return newProcs
 }
 
-func (c *collector) detectLanguages(processes []*procutil.Process, systemProbeConfig pkgconfigmodel.Reader) []*languagemodels.Language {
+func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemodels.Language {
 	languageInterfaceProcs := make([]languagemodels.Process, len(processes))
 	for i, proc := range processes {
 		languageInterfaceProcs[i] = languagemodels.Process(proc)
