@@ -129,6 +129,46 @@ func TestFormatTrace(t *testing.T) {
 	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
 }
 
+func TestStopWaits(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation.Cache.Enabled = true
+	cfg.Obfuscation.Cache.MaxSize = 1_000
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		agnt.Run()
+	}()
+
+	now := time.Now()
+	span := &pb.Span{
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+		Type:     "sql",
+		Start:    now.Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+	}
+
+	agnt.In <- &api.Payload{
+		TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+	}
+
+	cancel()
+	wg.Wait() // Wait for agent to completely exit
+
+	mtw := agnt.TraceWriter.(*mockTraceWriter)
+
+	assert := assert.New(t)
+	assert.Len(mtw.payloads, 1)
+	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", mtw.payloads[0].TracerPayload.Chunks[0].Spans[0].Meta["sql.query"])
+}
+
 func TestProcess(t *testing.T) {
 	t.Run("Replacer", func(t *testing.T) {
 		// Ensures that for "sql" type spans:
