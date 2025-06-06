@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import re
-import sys
 from collections.abc import Callable
 from glob import glob
 from typing import Any
 
 import yaml
 from codeowners import CodeOwners
+from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.gitlab_api import (
@@ -57,7 +57,7 @@ def gitlabci_lint_task_template(
         task_body(jobs=jobs, full_config=full_config)
     except (GitlabLintFailure, MultiGitlabLintFailure) as e:
         print(e.pretty_print())
-        sys.exit(e.exit_code)
+        raise Exit(code=e.exit_code) from e
     print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
 
 
@@ -83,7 +83,7 @@ def gitlabci_run_sublinter_helper(
 
         if fail_fast and e.level == FailureLevel.ERROR:
             print(e.pretty_print())
-            sys.exit(e.exit_code)
+            raise Exit(code=e.exit_code) from e
     print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
 
 
@@ -454,9 +454,9 @@ def extract_gitlab_ci_jobs(
     # Dict of entrypoint -> config object, of the format returned by `get_all_gitlab_ci_configurations`
 
     # Unfortunately a MultiGitlabCIDiff is not always truthy (see its __bool__), so we have to check explicitely
-    assert (configs is not None or diff is not None) and not (
-        configs is not None and diff is not None
-    ), "Please pass exactly one of a config object or a diff object"
+    assert (configs is not None or diff is not None) and not (configs is not None and diff is not None), (
+        "Please pass exactly one of a config object or a diff object"
+    )
 
     if diff is not None:
         jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]

@@ -385,7 +385,7 @@ def gitlab_ci(ctx, configs_file: str | None = None, input_file=".gitlab-ci.yml",
         lint_and_test_gitlab_ci_config(configs, test=test, custom_context=custom_context)
     except (GitlabLintFailure, MultiGitlabLintFailure) as e:
         print(e.pretty_print())
-        sys.exit(e.exit_code)
+        raise Exit(code=e.exit_code) from e
 
     print(f'[{color_message("OK", Color.GREEN)}] All contexts tested successfully.')
 
@@ -437,7 +437,7 @@ def gitlab_ci_shellcheck(
         )
     except (GitlabLintFailure, MultiGitlabLintFailure) as e:
         print(e.pretty_print())
-        sys.exit(e.exit_code)
+        raise Exit(code=e.exit_code) from e
     print(f'[{color_message("OK", Color.GREEN)}] Shellcheck passed for all gitlab ci jobs.')
 
 
@@ -629,7 +629,7 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
         _gitlab_ci_jobs_codeowners_lint(modified_yml_files, gitlab_owners)
     except (GitlabLintFailure, MultiGitlabLintFailure) as e:
         print(e.pretty_print())
-        sys.exit(e.exit_code)
+        raise Exit(code=e.exit_code) from e
     print(f'[{color_message("OK", Color.GREEN)}] All checked job files have a CODEOWNER defined in {path_codeowners}.')
 
 
