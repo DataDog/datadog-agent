@@ -7,6 +7,7 @@ package packets
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -52,10 +53,7 @@ func (p *FrameParser) Parse(buffer []byte) error {
 	if err != nil {
 		return err
 	}
-	// TODO: currently we don't support ipv6
-	if parser == p.parserv6 {
-		return ignoredLayerErr
-	}
+
 	err = parser.DecodeLayers(buffer, &p.Layers)
 	var unsupportedErr gopacket.UnsupportedLayerType
 	if errors.As(err, &unsupportedErr) {
@@ -92,8 +90,8 @@ func (p *FrameParser) GetTransportLayer() gopacket.LayerType {
 }
 
 // TODO IPv6
-var ipLayers = []gopacket.LayerType{layers.LayerTypeIPv4}
-var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerTypeUDP, layers.LayerTypeICMPv4}
+var ipLayers = []gopacket.LayerType{layers.LayerTypeIPv4, layers.LayerTypeIPv6}
+var transportLayers = []gopacket.LayerType{layers.LayerTypeTCP, layers.LayerTypeUDP, layers.LayerTypeICMPv4, layers.LayerTypeICMPv6}
 
 // checkLayers sanity checks the layers of the parse.
 func (p *FrameParser) checkLayers() error {
@@ -132,11 +130,25 @@ func getIPv4Pair(ip4 *layers.IPv4) IPPair {
 	return IPPair{SrcAddr: srcAddr, DstAddr: dstAddr}
 }
 
+func getIPv6Pair(ip6 *layers.IPv6) IPPair {
+	srcAddr, ok := netip.AddrFromSlice(ip6.SrcIP)
+	if !ok {
+		return IPPair{}
+	}
+	dstAddr, ok := netip.AddrFromSlice(ip6.DstIP)
+	if !ok {
+		return IPPair{}
+	}
+	return IPPair{srcAddr, dstAddr}
+}
+
 // GetIPPair gets the IPPair of the IP layer
 func (p *FrameParser) GetIPPair() (IPPair, error) {
 	switch p.GetIPLayer() {
 	case layers.LayerTypeIPv4:
 		return getIPv4Pair(&p.IP4), nil
+	case layers.LayerTypeIPv6:
+		return getIPv6Pair(&p.IP6), nil
 	default:
 		// TODO IPv6
 		return IPPair{}, fmt.Errorf("GetIPPair: unexpected IP layer type %s", p.Layers[0])
@@ -174,6 +186,7 @@ func SerializeTCPFirstBytes(tcp TCPInfo) []byte {
 
 // UDPInfo is the info we get back from ICMP exceeded payload in a UDP probe.
 type UDPInfo struct {
+	ID       uint16
 	SrcPort  uint16
 	DstPort  uint16
 	Length   uint16
@@ -191,6 +204,21 @@ func ParseUDPFirstBytes(buffer []byte) (UDPInfo, error) {
 		Length:   binary.BigEndian.Uint16(buffer[4:6]),
 		Checksum: binary.BigEndian.Uint16(buffer[6:8]),
 	}
+
+	fmt.Println("buffer", hex.EncodeToString(buffer))
+	// Check for minimum payload length for NSMNC + 2-byte ID
+	if len(buffer) >= 16 && string(buffer[8:13]) == "NSMNC" {
+		fmt.Println("NSMNC")
+
+		if len(buffer) >= 16 { // 8-byte header + 8-byte payload
+			fmt.Println("Reading")
+			idHigh := buffer[14]
+			idLow := buffer[15]
+			udp.ID = (uint16(idHigh) << 8) | uint16(idLow)
+			fmt.Println("Reading", udp.ID)
+		}
+	}
+
 	return udp, nil
 }
 
@@ -251,9 +279,45 @@ func (p *FrameParser) GetICMPInfo() (ICMPInfo, error) {
 			Payload:         slices.Clone(innerPkt.Payload),
 		}
 		return icmpInfo, nil
+	case layers.LayerTypeICMPv6:
+		embedded, err := extractEmbeddedIPv6(p.ICMP6.Payload)
+		if err != nil {
+			return ICMPInfo{}, fmt.Errorf("GetICMPInfo failed to decode inner packet: %w", err)
+		}
+		var innerPkt layers.IPv6
+		err = (&innerPkt).DecodeFromBytes(embedded, gopacket.NilDecodeFeedback)
+		if err != nil {
+			return ICMPInfo{}, fmt.Errorf("GetICMPInfo failed to decode inner packet: %w", err)
+		}
+		icmpInfo := ICMPInfo{
+			IPPair:   ipPair,
+			ICMPPair: getIPv6Pair(&innerPkt),
+			Payload:  slices.Clone(innerPkt.Payload),
+		}
+		return icmpInfo, nil
 	default:
 		// TODO IPv6
 		return ICMPInfo{}, fmt.Errorf("GetICMPInfo: unexpected layer type %s", p.Layers[1])
+	}
+}
+
+func extractEmbeddedIPv6(payload []byte) ([]byte, error) {
+	switch {
+	// Handle ICMPv6 error messages (Dest Unreachable, Packet Too Big, Time Exceeded, Parameter Problem)
+	case len(payload) >= 8 && (payload[0] == 0x01 || payload[0] == 0x02 || payload[0] == 0x03 || payload[0] == 0x04):
+		// Embedded IPv6 packet starts at offset 8
+		if payload[8]>>4 == 6 {
+			return payload[8:], nil
+		}
+		return nil, fmt.Errorf("embedded packet at offset 8 is not IPv6")
+	// Handle TUN headers: skip 4-byte prefix if IPv6 follows
+	case len(payload) >= 5 && payload[4]>>4 == 6:
+		return payload[4:], nil
+	// Direct IPv6 payload
+	case len(payload) > 0 && payload[0]>>4 == 6:
+		return payload, nil
+	default:
+		return nil, fmt.Errorf("cannot locate IPv6 header in payload")
 	}
 }
 
