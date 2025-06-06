@@ -204,6 +204,10 @@ func (v *baseStatusSuite) testDefaultInstallStatus(processAgentContain, processA
 			name:            "Status render errors",
 			shouldBePresent: false,
 		},
+		{
+			name:            "SSI",
+			shouldBePresent: true,
+		},
 	}
 
 	fetchAndCheckStatus(v, expectedSections)
