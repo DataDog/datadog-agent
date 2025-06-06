@@ -542,6 +542,15 @@ type SetSockOptEventSerializer struct {
 	OptName uint32 `json:"optname"`
 }
 
+// CGroupWriteEventSerializer serializes a cgroup_write event
+// easyjson:json
+type CGroupWriteEventSerializer struct {
+	// File pointing to the cgroup
+	File *FileSerializer `json:"file,omitempty"`
+	// PID of the process added to the cgroup
+	Pid uint32 `json:"pid,omitempty"`
+}
+
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
 
 	switch e.GetEventType() {
@@ -683,6 +692,7 @@ type EventSerializer struct {
 	*NetworkFlowMonitorSerializer `json:"network_flow_monitor,omitempty"`
 	*SysCtlEventSerializer        `json:"sysctl,omitempty"`
 	*SetSockOptEventSerializer    `json:"setsockopt,omitempty"`
+	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1263,10 +1273,18 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 		EventTypeState: e.EventTypeState.String(),
 	}
 }
+
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	return &SetSockOptEventSerializer{
 		Level:   e.SetSockOpt.Level,
 		OptName: e.SetSockOpt.OptName,
+	}
+}
+
+func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
+	return &CGroupWriteEventSerializer{
+		File: newFileSerializer(&e.CgroupWrite.File, e),
+		Pid:  e.CgroupWrite.Pid,
 	}
 }
 
@@ -1572,6 +1590,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SysCtlEventSerializer = newSysCtlEventSerializer(&event.SysCtl, event)
 	case model.SetSockOptEventType:
 		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
+	case model.CgroupWriteEventType:
+		s.CGroupWriteEventSerializer = newCGroupWriteEventSerializer(event)
 	}
 
 	return s
