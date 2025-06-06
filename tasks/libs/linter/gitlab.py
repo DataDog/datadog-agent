@@ -1,18 +1,370 @@
 from __future__ import annotations
 
 import re
+import sys
+from collections.abc import Callable
+from glob import glob
+from typing import Any
 
 import yaml
-from invoke.exceptions import Exit
+from codeowners import CodeOwners
 
+from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.gitlab_api import (
     MultiGitlabCIDiff,
+    compute_gitlab_ci_config_diff,
     get_all_gitlab_ci_configurations,
+    get_preset_contexts,
     is_leaf_job,
+    load_context,
+    retrieve_all_paths,
+    test_gitlab_configuration,
 )
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.utils import gitlab_section
+from tasks.libs.linter.gitlab_exceptions import FailureLevel, GitlabLintFailure, MultiGitlabLintFailure
+from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
 
 
+# === Task code bodies === #
+def gitlabci_lint_task_template(
+    task_body: Callable,
+    success_message: str,
+    ctx,
+    configs_or_diff_file: str | None = None,
+    use_diff: bool = False,
+):
+    """
+    Generic task template for gitlabci linting tasks.
+
+    This function handles config loading/generation & failure printing.
+    The actual task-specific logic should be passed in `task_body`.
+    """
+    full_config: dict[str, dict]
+    if use_diff:
+        _, _, diff = load_or_generate_gitlab_ci_diff(ctx, configs_or_diff_file)
+        jobs = extract_gitlab_ci_jobs(diff=diff)
+        full_config = diff.after  # type: ignore
+    else:
+        configs = load_or_generate_gitlab_ci_configs(ctx, configs_or_diff_file)
+        jobs = extract_gitlab_ci_jobs(configs=configs)
+        full_config = configs  # type: ignore
+
+    # No change, info already printed in extract_gitlab_ci_jobs
+    if not jobs:
+        return
+
+    try:
+        task_body(jobs=jobs, full_config=full_config)
+    except (GitlabLintFailure, MultiGitlabLintFailure) as e:
+        print(e.pretty_print())
+        sys.exit(e.exit_code)
+    print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
+
+
+def gitlabci_run_sublinter_helper(
+    sublinter: Callable,
+    failures: list[GitlabLintFailure],
+    fail_fast: bool,
+    info_message: str,
+    success_message: str,
+    *args,
+    **kwargs,
+):
+    """Helper function used in `full_gitlab_ci` to run a 'sublinter' (i.e. a linting task) and handle any failures."""
+    print(f'[{color_message("INFO", Color.BLUE)}] {info_message}')
+    try:
+        sublinter(*args, **kwargs)
+    except (GitlabLintFailure, MultiGitlabLintFailure) as e:
+        if isinstance(e, MultiGitlabLintFailure):
+            failures.extend(e.failures)
+        else:
+            failures.append(e)
+
+        if fail_fast and e.level == FailureLevel.ERROR:
+            print(e.pretty_print())
+            sys.exit(e.exit_code)
+    print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
+
+
+def lint_and_test_gitlab_ci_config(
+    configs: dict[str, dict],
+    test="all",
+    custom_context=None,
+):
+    """Lints and tests the validity of the gitlabci config object passed in argument.
+
+    Args:
+        test: The context preset to test the gitlab ci file with containing environment variables.
+        custom_context: A custom context to test the gitlab ci file with.
+    """
+    for config_filename, config_object in configs.items():
+        with gitlab_section(f"Testing {config_filename}", echo=True):
+            # Only the main config should be tested with all contexts
+            if config_filename == ".gitlab-ci.yml":
+                all_contexts = []
+                if custom_context:
+                    all_contexts = load_context(custom_context)
+                else:
+                    all_contexts = get_preset_contexts(test)
+
+                print(f'[{color_message("INFO", Color.BLUE)}] We will test {len(all_contexts)} contexts')
+                for context in all_contexts:
+                    print("Test gitlab configuration with context: ", context)
+                    test_gitlab_configuration(
+                        entry_point=config_filename, config_object=config_object, context=dict(context)
+                    )
+            else:
+                test_gitlab_configuration(entry_point=config_filename, config_object=config_object)
+
+
+def shellcheck_gitlab_ci_jobs(
+    ctx,
+    jobs: list[tuple[str, dict]],
+    exclude: str = DEFAULT_SHELLCHECK_EXCLUDES,
+    verbose: bool = False,
+    shellcheck_args="",
+    fail_fast: bool = False,
+    only_errors: bool = False,
+):
+    """Lints the scripts for the given job objects using shellcheck.
+
+    Args:
+        exclude: A comma separated list of shellcheck error codes to exclude.
+        shellcheck_args: Additional arguments to pass to shellcheck.
+        fail_fast: If True, will stop at the first error.
+        use_bat: If True (or None), will (try to) use bat to display the script.
+        only_errors: Show only errors, not warnings.
+
+    Note:
+        Will raise an Exit if any errors are found.
+    """
+    scripts = {}
+    for job, content in jobs:
+        # Skip jobs that are not executed
+        if not is_leaf_job(job, content):
+            continue
+
+        # Shellcheck is only for bash like scripts
+        is_powershell = any(
+            'powershell' in flatten_script(content.get(keyword, ''))
+            for keyword in ('before_script', 'script', 'after_script')
+        )
+        if is_powershell:
+            continue
+
+        if verbose:
+            print('Verifying job:', job)
+
+        # Lint scripts
+        for keyword in ('before_script', 'script', 'after_script'):
+            if keyword in content:
+                scripts[f'{job}.{keyword}'] = f'#!/bin/bash\n{flatten_script(content[keyword]).strip()}\n'
+
+    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, only_errors)
+
+
+def check_change_paths_valid_gitlab_ci_jobs(jobs: list[tuple[str, dict]]):
+    """Verifies that rules: changes: paths in the given jobs match existing files in the repo"""
+    failures = []
+    for job_name, job in jobs:
+        for path in set(retrieve_all_paths(job)):
+            files = glob(path, recursive=True)
+            if len(files) == 0:
+                failures.append(
+                    GitlabLintFailure(
+                        details=f"Path '{path}' does not match any files in the repository",
+                        failing_job_name=job_name,
+                        level=FailureLevel.ERROR,
+                    )
+                )
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
+        raise MultiGitlabLintFailure(failures=failures)
+
+
+def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]]]):
+    """Verifies that the jobs passed in contain a change path rule in the given config."""
+    tests_without_change_path_allow_list = {
+        'generate-fips-e2e-pipeline',
+        'generate-flakes-finder-pipeline',
+        'k8s-e2e-cspm-dev',
+        'k8s-e2e-cspm-main',
+        'k8s-e2e-otlp-dev',
+        'k8s-e2e-otlp-main',
+        'new-e2e-agent-platform-install-script-amazonlinux-a6-arm64',
+        'new-e2e-agent-platform-install-script-amazonlinux-a6-x86_64',
+        'new-e2e-agent-platform-install-script-amazonlinux-a7-arm64',
+        'new-e2e-agent-platform-install-script-amazonlinux-a7-x64',
+        'new-e2e-agent-platform-install-script-centos-a6-x86_64',
+        'new-e2e-agent-platform-install-script-centos-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-a6-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-centos-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-a6-arm64',
+        'new-e2e-agent-platform-install-script-debian-a6-x86_64',
+        'new-e2e-agent-platform-install-script-debian-a7-arm64',
+        'new-e2e-agent-platform-install-script-debian-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-heroku-agent-a6-x86_64',
+        'new-e2e-agent-platform-install-script-debian-heroku-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-suse-a6-x86_64',
+        'new-e2e-agent-platform-install-script-suse-a7-arm64',
+        'new-e2e-agent-platform-install-script-suse-a7-x86_64',
+        'new-e2e-agent-platform-install-script-suse-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-suse-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-a6-arm64',
+        'new-e2e-agent-platform-install-script-ubuntu-a6-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-a7-arm64',
+        'new-e2e-agent-platform-install-script-ubuntu-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-dogstatsd-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a6-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-heroku-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-ubuntu-iot-agent-a7-x86_64',
+        'new-e2e-agent-platform-install-script-docker',
+        'new-e2e-agent-platform-install-script-upgrade6-amazonlinux-x64',
+        'new-e2e-agent-platform-install-script-upgrade6-centos-fips-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-centos-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-debian-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-suse-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade6-ubuntu-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-amazonlinux-iot-agent-x64',
+        'new-e2e-agent-platform-install-script-upgrade7-amazonlinux-x64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-fips-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-fips-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-centos-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-debian-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-debian-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-suse-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-suse-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-ubuntu-iot-agent-x86_64',
+        'new-e2e-agent-platform-install-script-upgrade7-ubuntu-x86_64',
+        'new-e2e-agent-platform-rpm-centos6-a7-x86_64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a6-arm64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-amazonlinux-a7-x64',
+        'new-e2e-agent-platform-step-by-step-centos-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-centos-a7-x86_64',
+        'new-e2e-agent-platform-step-by-step-debian-a6-arm64',
+        'new-e2e-agent-platform-step-by-step-debian-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-debian-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-debian-a7-x64',
+        'new-e2e-agent-platform-step-by-step-suse-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-suse-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-suse-a7-x86_64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a6-arm64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a6-x86_64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a7-arm64',
+        'new-e2e-agent-platform-step-by-step-ubuntu-a7-x86_64',
+        'new-e2e-agent-runtimes',
+        'new-e2e-agent-configuration',
+        'new-e2e-cws',
+        'new-e2e-language-detection',
+        'new-e2e-npm-docker',
+        'new-e2e-eks-cleanup',
+        'new-e2e-npm-packages',
+        'new-e2e-orchestrator',
+        'new-e2e-package-signing-amazonlinux-a6-x86_64',
+        'new-e2e-package-signing-debian-a7-x86_64',
+        'new-e2e-package-signing-suse-a7-x86_64',
+        'new-e2e_windows_powershell_module_test',
+        'new-e2e-eks-cleanup-on-failure',
+        'trigger-flakes-finder',
+        'trigger-fips-e2e',
+    }
+
+    def contains_valid_change_rule(job_rules):
+        """Verifies that the job rule contains the required change path configuration."""
+
+        if 'changes' not in job_rules or 'paths' not in job_rules['changes']:
+            return False
+
+        # The change paths should be more than just test files
+        return any(
+            not path.startswith(('test/', './test/', 'test\\', '.\\test\\')) for path in job_rules['changes']['paths']
+        )
+
+        # Verify that all tests contain a change path rule
+
+    failures = []
+    for job_name, job in jobs:
+        if "rules" in job and not any(
+            contains_valid_change_rule(rule) for rule in job['rules'] if isinstance(rule, dict)
+        ):
+            failures.append(
+                GitlabLintFailure(
+                    details=f"Job does not contain a valid change paths rule{', but is allow-listed' if job_name in tests_without_change_path_allow_list else ''}.",
+                    failing_job_name=job_name,
+                    level=FailureLevel.WARNING
+                    if job_name in tests_without_change_path_allow_list
+                    else FailureLevel.ERROR,
+                )
+            )
+
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
+
+        raise MultiGitlabLintFailure(failures=failures)
+
+
+def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_config: CILintersConfig):
+    """Verifies that the specified jobs contain `needs` and also `rules`."""
+    # Verify the jobs
+    failures = []
+    for job_name, job in jobs:
+        error = "needs" not in job or "rules" not in job
+        to_ignore = (
+            job_name in ci_linters_config.needs_rules_jobs or job['stage'] in ci_linters_config.needs_rules_stages
+        )
+
+        if error:
+            failures.append(
+                GitlabLintFailure(
+                    details=f"Job is missing `needs` or `rules` key{', but is allow-listed' if to_ignore else ''}.",
+                    failing_job_name=job_name,
+                    level=FailureLevel.WARNING if to_ignore else FailureLevel.ERROR,
+                )
+            )
+
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
+
+        raise MultiGitlabLintFailure(failures=failures)
+
+
+def check_owners_gitlab_ci_jobs(
+    jobs: list[tuple[str, dict]], ci_linters_config: CILintersConfig, jobowners: CodeOwners
+):
+    job_names = [name for (name, _) in jobs]
+    failures = []
+    for job in job_names:
+        owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
+        if not owners:
+            failures.append(
+                GitlabLintFailure(
+                    details=f"Job does not have any non-default owners defined{', but is allow-listed' if job in ci_linters_config.job_owners_jobs else ''}.",
+                    failing_job_name=job,
+                    level=FailureLevel.WARNING if job in ci_linters_config.job_owners_jobs else FailureLevel.ERROR,
+                )
+            )
+
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
+
+        raise MultiGitlabLintFailure(failures=failures)
+
+
+# === Task-specific helpers === #
 class SSMParameterCall:
     def __init__(self, file, line_nb, with_wrapper=False, with_env_var=False):
         """
@@ -65,92 +417,96 @@ def list_get_parameter_calls(file):
     return calls
 
 
-def get_gitlab_ci_lintable_jobs(ctx, diff_file=None, config_file=None, only_names=False):
+def _gitlab_ci_jobs_codeowners_lint(modified_yml_files, gitlab_owners):
+    failures = []
+    for path in modified_yml_files:
+        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
+        if not teams:
+            failures.append(
+                GitlabLintFailure(
+                    details=f"File '{path}' does not have any matching non-default CODEOWNERS rule",
+                    failing_job_name=path,
+                    level=FailureLevel.ERROR,
+                )
+            )
+
+    if failures:
+        if len(failures) == 1:
+            raise failures[0]
+
+        raise MultiGitlabLintFailure(failures=failures)
+
+
+# === "Plumbing" methods === #
+# Note: Using * prevents passing positional, avoiding confusion between configs and diff
+def extract_gitlab_ci_jobs(
+    *, configs: dict[str, dict] | None = None, diff: MultiGitlabCIDiff | None = None
+) -> list[tuple[str, dict[str, Any]]]:
     """Retrieves the jobs from full gitlab ci configuration file or from a diff file.
 
     Args:
-        diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
-        config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
-        > If none of these are passed, the full config will be generated automatically, but this will be slower.
+        diff: Diff object used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
+        configs: "Full" gitlab ci configuration object, obtained by `get_all_gitlab_ci_configurations`.
 
     Returns:
-        A (jobs, full_config) tuple.
-        `jobs` is itself a tuple of (job_name: str, job_contents: dict). If `only_names` is True, it will be a simple list of all the job names.
-        `full_config` is a gitlabci config object, of the same structure as returned by `get_all_gitlab_ci_configurations`
+        A list of (job_name: str, job_contents: dict) tuples.
+        If `only_names` is True, it will be a simple list of all the job names.
     """
     # Dict of entrypoint -> config object, of the format returned by `get_all_gitlab_ci_configurations`
-    configs: dict[str, dict]
-    assert not (config_file and diff_file), "Please only pass either a config file or a diff file"
 
-    if diff_file:
-        # Special handling of diff files
-        with open(diff_file) as f:
-            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
+    # Unfortunately a MultiGitlabCIDiff is not always truthy (see its __bool__), so we have to check explicitely
+    assert (configs is not None or diff is not None) and not (
+        configs is not None and diff is not None
+    ), "Please pass exactly one of a config object or a diff object"
 
-        configs = diff.after  # type: ignore
+    if diff is not None:
         jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
     else:
-        if config_file:
-            with open(config_file) as f:
-                configs = yaml.safe_load(f)
-        else:
-            # If a config/diff file is not passed, build it on-demand using `get_all_gitlab_ci_configurations`
-            configs = get_all_gitlab_ci_configurations(ctx, input_file=".gitlab-ci.yml")
-
         jobs = [
             (job, job_contents)
-            for contents in configs.values()
+            for contents in configs.values()  # type: ignore
             for job, job_contents in contents.items()
             if is_leaf_job(job, job_contents)
         ]
 
     if not jobs:
-        print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
-        return [], {}
+        print(f'[{color_message("INFO", Color.BLUE)}] No added / modified job files, skipping lint')
+        return []
 
-    if only_names:
-        jobs = [job for job, _ in jobs]
-
-    return jobs, configs
+    return jobs
 
 
-def _gitlab_ci_jobs_owners_lint(jobs, jobowners, ci_linters_config, path_jobowners):
-    error_jobs = []
-    n_ignored = 0
-    for job in jobs:
-        owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
-        if not owners:
-            if job in ci_linters_config.job_owners_jobs:
-                n_ignored += 1
-            else:
-                error_jobs.append(job)
+def load_or_generate_gitlab_ci_configs(ctx, yaml_to_load: str | None = None, **kwargs) -> dict[str, dict]:
+    """
+    Load a "full" gitlabci config object from file, or re-generate it if needed.
+    "Full" in this context means that:
+    - The "full" configuration object is a dict of entrypoint -> gitlabci configuration object
+    - In each sub-object, all `include`s, `reference`s and `extend`s have been resolved.
 
-    if n_ignored:
-        print(
-            f'{color_message("Info", Color.BLUE)}: {n_ignored} ignored jobs (jobs defined in {ci_linters_config.path}:job-owners)'
-        )
+    Args:
+        `yaml_to_load`: Path to a yaml file containing a full gitlabci config object
+    Any other kwargs will be passed to `get_all_gitlab_ci_configurations`, called if need to regenerate the config.
+    """
+    if yaml_to_load:
+        with open(yaml_to_load) as f:
+            return yaml.safe_load(f)
 
-    if error_jobs:
-        error_jobs = '\n'.join(f'- {job}' for job in sorted(error_jobs))
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These jobs are not defined in {path_jobowners}:\n{error_jobs}"
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All jobs have owners defined in {path_jobowners}')
+    return get_all_gitlab_ci_configurations(ctx, **kwargs)
 
 
-def _gitlab_ci_jobs_codeowners_lint(path_codeowners, modified_yml_files, gitlab_owners):
-    error_files = []
-    for path in modified_yml_files:
-        teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
-        if not teams:
-            error_files.append(path)
+def load_or_generate_gitlab_ci_diff(
+    ctx, yaml_to_load: str | None = None, **kwargs
+) -> tuple[dict[str, dict], dict[str, dict], MultiGitlabCIDiff]:
+    """
+    Similar to `load_or_generate_gitlab_ci_configs`, but returns a 'diff triplet'.
 
-    if error_files:
-        error_files = '\n'.join(f'- {path}' for path in sorted(error_files))
+    We call a "diff triplet" a triplet of `(diff, before_config, after_config)`, as generated by the `compute_gitlab_ci_config` task.
+    Any extra kwargs are passed as-is to `compute_gitlab_ci_config_diff`.
+    """
+    if yaml_to_load:
+        with open(yaml_to_load) as f:
+            diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
+            return diff.before, diff.after, diff  # type: ignore
 
-        raise Exit(
-            f"{color_message('Error', Color.RED)}: These files should have specific CODEOWNERS rules within {path_codeowners} starting with '/.gitlab/<stage_name>'):\n{error_files}"
-        )
-    else:
-        print(f'{color_message("Success", Color.GREEN)}: All files have CODEOWNERS rules within {path_codeowners}')
+    before, after, diff = compute_gitlab_ci_config_diff(ctx, **kwargs)
+    return before, after, diff
