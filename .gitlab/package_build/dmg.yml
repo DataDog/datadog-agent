@@ -26,7 +26,8 @@
 agent_dmg-x64-a7:
   stage: package_build
   tags: ["macos:ventura-amd64", "specific:true"]
-  needs: ["go_mod_tidy_check"]
+  # needs: ["go_mod_tidy_check"]
+  needs: []
   rules:
      - !reference [.on_macos_gui_change]
      - !reference [.on_packaging_change]

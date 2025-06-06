@@ -35,6 +35,21 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 always_build true
 
 build do
+
+  command "echo CELIAN TEST"
+
+  command "pwd"
+  command "ls"
+  command "echo 'tools/ci:'"
+  command "ls tools/ci"
+  command "./tools/ci/retry.sh bash -c 'echo retry; false'"
+
+  command "echo END CELIAN TEST"
+
+
+
+
+
   license :project_license
 
   # set GOPATH on the omnibus source dir for this software
