@@ -150,7 +150,7 @@ def get_images_content_diff(ctx, url_1, url_2):
                 print(f"  - {line}")
         if image_tar_gz:
             for image in image_tar_gz:
-                ctx.run(f"tar -tvf {image} -C {src_folder}/out", hide=True)
+                ctx.run(f"cd {src_folder} && tar -tvf {image} -C ./out", hide=True)
         else:
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
     # Compare both image content
