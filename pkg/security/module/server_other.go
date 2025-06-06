@@ -8,3 +8,5 @@
 package module
 
 func (a *APIServer) collectOSReleaseData() {}
+
+func (a *APIServer) collectSBOMS() {}

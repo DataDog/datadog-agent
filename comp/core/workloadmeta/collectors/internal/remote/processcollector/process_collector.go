@@ -138,12 +138,16 @@ func init() {
 	grpclog.SetLoggerV2(grpcutil.NewLogger())
 }
 
-func (s *streamHandler) Port() int {
+func (s *streamHandler) getPort() int {
 	if s.port == 0 {
 		return s.Reader.GetInt("process_config.language_detection.grpc_port")
 	}
 	// for test purposes
 	return s.port
+}
+
+func (s *streamHandler) Address() string {
+	return fmt.Sprintf(":%d", s.getPort())
 }
 
 func (s *streamHandler) IsEnabled() bool {
@@ -231,7 +235,6 @@ func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmet
 			processEntity.ContainerID = ctrIDFromProvider
 		}
 
-		event.Entity = processEntity
 		collectorEvents[idx] = event
 	}
 }

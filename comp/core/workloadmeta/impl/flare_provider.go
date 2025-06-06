@@ -39,5 +39,20 @@ func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
 
 	_ = fb.AddFile("sbom.json", content)
 
+	if w.config.GetBool("runtime_security_config.sbom.enabled") {
+		containers := w.ListContainers()
+
+		fields = lo.SliceToMap(containers, func(container *wmdef.Container) (string, *wmdef.SBOM) {
+			return container.ID, container.SBOM
+		})
+
+		content, err = json.MarshalIndent(fields, "", "    ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal results to JSON: %v", err)
+		}
+
+		_ = fb.AddFile("containers-sbom.json", content)
+	}
+
 	return nil
 }
