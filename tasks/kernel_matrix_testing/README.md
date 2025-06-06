@@ -139,6 +139,13 @@ This command will create a new stack and configure it to run one remote Ubuntu 2
 dda inv -e kmt.gen-config --vms=x86-jammy-distro --init-stack --stack=my-remote-stack
 ```
 
+You can also specify multiple VMs with different architectures. KMT will launch them on separate EC2 instances.
+
+```bash
+# This configures a stack with multiple x86_64 and arm64 VMs
+dda inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro --init-stack --stack=my-multi-arch-stack
+```
+
 **3. Launch the Stack**
 
 This will launch the EC2 instance and boot the VM. Your pre-configured SSH key will be used automatically.
@@ -339,6 +346,38 @@ The order of elements does not matter.
 -   `amazon4.14-x86-distro`, `distro-x86_64-amazon4.14` all resolve to a **remote x86_64 Amazon Linux 2 (kernel 4.14) distribution VM**.
 -   `custom-arm-5.4`, `5.4-arm64-custom` all resolve to a **remote arm64 custom kernel 5.4 VM**.
 
+#### Incremental Configuration Examples
+
+The `vmsets` file can be generated incrementally. This means you can generate a configuration, launch the stack, and then add more VMs and launch them in the same stack without disrupting the running ones.
+
+**Example 1: Adding local VMs incrementally**
+```bash
+# Setup configuration file to launch jammy and focal locally. Initialize a new stack corresponding to the current branch
+dda inv -e kmt.gen-config --vms=jammy-local-distro,focal-local-distro --init-stack
+# Launch this stack.
+dda inv -e kmt.launch-stack
+# Add amazon linux VMs to be launched locally
+dda inv -e kmt.gen-config --vms=amazon4.14-local-distro,distro-local-amazon5.15,distro-local-amazon5.10
+# Launch the new VMs added. The previous VMs will keep running
+dda inv -e kmt.launch-stack
+# Replace the configuration with a new one, removing all but one VM
+dda inv -e kmt.gen-config --new --vms=amazon4.14-local-distro
+# Apply this new configuration. The other VMs will be destroyed.
+dda inv -e kmt.launch-stack
+```
+
+**Example 2: Adding remote VMs incrementally**
+```bash
+# Setup configuration file to launch ubuntu VMs on remote x86_64 and arm64 machines
+dda inv -e kmt.gen-config --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
+# Launch the stack
+dda inv -e kmt.launch-stack
+# Add amazon linux
+dda inv -e kmt.gen-config --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
+# Launch the new VMs.
+dda inv -e kmt.launch-stack
+```
+
 ### `kmt.launch-stack`
 
 Launches all configured VMs in a stack. If VMs have been added to the configuration since the last launch, it will only start the new ones.
@@ -347,7 +386,7 @@ Launches all configured VMs in a stack. If VMs have been added to the configurat
 dda inv -e kmt.launch-stack [--stack=<name>] [--ssh-key=<key>]
 ```
 
--   If launching **local VMs**, you may be prompted for your `sudo` password. No SSH key is needed.
+-   If launching **local VMs**, you may be prompted for your `sudo` password. This is required because the program needs to run some commands as root. We do not run the entire scenario with `sudo` to avoid creating broken permissions.
 -   If launching **remote VMs**, an SSH key is required. If you configured a default key with `kmt.config-ssh-key`, you don't need to provide it again.
 
 The `--ssh-key` argument allows you to specify a key for this launch, overriding the default. The value can be:
@@ -427,6 +466,8 @@ dda inv -e kmt.resume [--stack=<name>]
 ### `kmt.destroy-stack`
 
 Destroys a stack, tearing down all associated resources. This deletes local VMs and terminates remote EC2 instances. **This action is irreversible.**
+
+This command will attempt to manually tear down all resources, primarily cleaning the local `libvirt` environment and destroying remote EC2 instances.
 
 ```bash
 dda inv -e kmt.destroy-stack [--stack=<name>]
