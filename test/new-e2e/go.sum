@@ -8,8 +8,8 @@ github.com/DataDog/agent-payload/v5 v5.0.155 h1:tOD4Q3imRewXwEa1iDRZrKOIQhYQN4+G
 github.com/DataDog/agent-payload/v5 v5.0.155/go.mod h1:lxh9lb5xYrBXjblpIWYUi4deJqVbkIfkjwesi5nskDc=
 github.com/DataDog/datadog-api-client-go v1.16.0 h1:5jOZv1m98criCvYTa3qpW8Hzv301nbZX3K9yJtwGyWY=
 github.com/DataDog/datadog-api-client-go v1.16.0/go.mod h1:PgrP2ABuJWL3Auw2iEkemAJ/r72ghG4DQQmb5sgnKW4=
-github.com/DataDog/datadog-api-client-go/v2 v2.37.1 h1:weZhrGMO//sMEoSKWngoSQwMp4zBSlEX4p3/YWy9ltw=
-github.com/DataDog/datadog-api-client-go/v2 v2.37.1/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
+github.com/DataDog/datadog-api-client-go/v2 v2.38.0 h1:0f2SuTVOFyDDtYvkOs+xawZLO08h10CBeiEfXsx5kVc=
+github.com/DataDog/datadog-api-client-go/v2 v2.38.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go/v5 v5.6.0 h1:2oCLxjF/4htd55piM75baflj/KoE6VYS7alEUqFvRDw=
 github.com/DataDog/datadog-go/v5 v5.6.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYxD74QmMw0/3CqSKhEr6teh0ncQ=
