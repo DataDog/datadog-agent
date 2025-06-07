@@ -7,9 +7,7 @@
   before_script:
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
-    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
+    - !reference [.setup_rpm_signing_key]
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
@@ -116,6 +114,35 @@ agent_suse-arm64-a7-fips:
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse --flavor fips"
     DD_PROJECT: agent
 
+.package_ot_rpm_common:
+  extends: [.package_deb_common]
+  variables:
+    # Not setting any required files for ddot packages yet
+    PACKAGE_REQUIRED_FILES_LIST: ""
+  script:
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    - !reference [.setup_rpm_signing_key]
+    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project otel-agent ${OMNIBUS_EXTRA_ARGS}
+    - !reference [.create_signature_and_lint_linux_packages]
+
+ot_agent_rpm-x64-a7:
+  extends: [.package_ot_rpm_common, .package_rpm_x86]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["datadog-otel-agent-x64"]
+  variables:
+    DD_PROJECT: agent
+
+ot_agent_rpm-arm64-a7:
+  extends: [.package_ot_rpm_common, .package_rpm_arm64]
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["datadog-otel-agent-arm64"]
+  variables:
+    DD_PROJECT: agent
+
 installer_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_arm64]
   needs: ["installer-arm64"]
@@ -143,9 +170,7 @@ installer_suse_rpm-arm64:
     - when: on_success
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_GPG_KEY)" | gpg --import --batch
-    - EXIT="${PIPESTATUS[0]}"; if [ $EXIT -ne 0 ]; then echo "Unable to locate credentials needs gitlab runner restart"; exit $EXIT; fi
-    - RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $RPM_SIGNING_PASSPHRASE) || exit $?; export RPM_SIGNING_PASSPHRASE
+    - !reference [.setup_rpm_signing_key]
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor=iot ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.create_signature_and_lint_linux_packages]
