@@ -15,7 +15,6 @@ import (
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/driververifier"
 	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 
 	"testing"
@@ -38,7 +37,7 @@ func TestAgentUpgradesOnDCWithGMSA(t *testing.T) {
 				winawshost.WithActiveDirectoryOptions(
 					activedirectory.WithDomainController(TestDomain, TestPassword),
 				),
-				winawshost.WithDriverVerifierOptions(driververifier.Disabled()),
+				// winawshost.WithDriverVerifierOptions(driververifier.Disabled()),
 			),
 		),
 	)
@@ -49,6 +48,12 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) SetupSuite() {
 	s.testAgentUpgradeSuite.SetupSuite()
 
 	host := s.Env().RemoteHost
+
+	s.T().Log("*** Resetting driver verifer")
+	host.Execute("verifier /reset")
+	s.T().Log("*** Restarting after driver verifer reset")
+	host.Execute("Restart-Computer -Force")
+	s.T().Log("*** Reset done")
 
 	// Check and configure the KDS root key if not already configured
 	s.T().Log("Checking and configuring KDS root key...")

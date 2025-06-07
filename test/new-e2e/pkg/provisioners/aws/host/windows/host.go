@@ -179,7 +179,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 			return err
 		}
 
-		// Driver Verifier setup needs to happen after Windows Defender setup
+		// Active Directory setup needs to happen after Driver Verifier setup
 		params.activeDirectoryOptions = append(params.activeDirectoryOptions,
 			activedirectory.WithPulumiResourceOptions(
 				pulumi.DependsOn(driverVerifier.Resources)))
