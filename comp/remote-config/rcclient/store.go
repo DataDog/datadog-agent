@@ -84,6 +84,8 @@ func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallba
 	var err error
 	for _, check := range checks {
 		fmt.Println("check is", check)
+		fmt.Println("config is", check.InstanceConfig())
+		fmt.Println("init config is", check.InitConfig())
 		liveMessageCheck, err := wrapLiveMessageCheck(c, check)
 		if err != nil {
 			log.Errorf("Failed to wrap live message check: %v. Using original check", err)
