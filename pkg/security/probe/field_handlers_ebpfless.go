@@ -58,7 +58,7 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ fun
 }
 
 // ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
-func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.ProcessCacheEntry {
+func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntryFromPID(_ uint32) *model.ProcessCacheEntry {
 	// not supported yet, we're missing NSID
 	return nil
 }

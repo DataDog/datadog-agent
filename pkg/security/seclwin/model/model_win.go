@@ -37,6 +37,11 @@ func NewFakeEvent() *Event {
 	}
 }
 
+// ResolveProcessCacheEntryFromPID stub implementation
+func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	return GetPlaceholderProcessCacheEntry(pid)
+}
+
 var processContextZero = ProcessCacheEntry{}
 
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions

@@ -622,11 +622,6 @@ func (dfh *FakeFieldHandlers) ResolveProcessCacheEntry(ev *Event, _ func(*Proces
 	return nil, false
 }
 
-// ResolveProcessCacheEntryFromPID stub implementation
-func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
-	return GetPlaceholderProcessCacheEntry(pid, pid, false)
-}
-
 // ResolveContainerContext stub implementation
 func (dfh *FakeFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false

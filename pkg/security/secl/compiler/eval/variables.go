@@ -47,17 +47,13 @@ type ScopedVariable interface {
 type MutableVariable interface {
 	Set(ctx *Context, value interface{}) error
 	Append(ctx *Context, value interface{}) error
-}
-
-// MutableScopedVariable is the interface for scoped variables whose value can be changed
-type MutableScopedVariable interface {
-	Set(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error
-	Append(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error
+	GetVariableOpts() VariableOpts
+	SetVariableOpts(opts VariableOpts)
 }
 
 // settableVariable describes a SECL variable
 type settableVariable struct {
-	setFnc func(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error
+	setFnc func(ctx *Context, value interface{}) error
 	opts   VariableOpts
 }
 
@@ -66,16 +62,16 @@ type expirableVariable interface {
 }
 
 // Set the variable with the specified value
-func (v *settableVariable) Set(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error {
+func (v *settableVariable) Set(ctx *Context, value interface{}) error {
 	if v.setFnc == nil {
 		return errors.New("variable is not mutable")
 	}
 
-	return v.setFnc(ctx, value, scopeFieldEvaluator)
+	return v.setFnc(ctx, value)
 }
 
 // Append a value to the variable
-func (v *settableVariable) Append(_ *Context, _ interface{}, _ Evaluator) error {
+func (v *settableVariable) Append(_ *Context, _ interface{}) error {
 	return errAppendNotSupported
 }
 
@@ -116,7 +112,7 @@ func (i *ScopedIntVariable) GetValue(ctx *Context) (interface{}, bool) {
 }
 
 // NewScopedIntVariable returns a new integer variable
-func NewScopedIntVariable(intFnc func(ctx *Context) (int, bool), setFnc func(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error) *ScopedIntVariable {
+func NewScopedIntVariable(intFnc func(ctx *Context) (int, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIntVariable {
 	return &ScopedIntVariable{
 		settableVariable: settableVariable{
 			setFnc: setFnc,
@@ -151,7 +147,7 @@ func (s *ScopedStringVariable) GetValue(ctx *Context) (interface{}, bool) {
 }
 
 // NewScopedStringVariable returns a new scoped string variable
-func NewScopedStringVariable(strFnc func(ctx *Context) (string, bool), setFnc func(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error) *ScopedStringVariable {
+func NewScopedStringVariable(strFnc func(ctx *Context) (string, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedStringVariable {
 	return &ScopedStringVariable{
 		strFnc: strFnc,
 		settableVariable: settableVariable{
@@ -185,7 +181,7 @@ func (b *ScopedBoolVariable) GetValue(ctx *Context) (interface{}, bool) {
 }
 
 // NewScopedBoolVariable returns a new boolean variable
-func NewScopedBoolVariable(boolFnc func(ctx *Context) (bool, bool), setFnc func(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error) *ScopedBoolVariable {
+func NewScopedBoolVariable(boolFnc func(ctx *Context) (bool, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedBoolVariable {
 	return &ScopedBoolVariable{
 		boolFnc: boolFnc,
 		settableVariable: settableVariable{
@@ -219,7 +215,7 @@ func (i *ScopedIPVariable) GetValue(ctx *Context) (interface{}, bool) {
 }
 
 // NewScopedIPVariable returns a new scoped IP variable
-func NewScopedIPVariable(ipFnc func(ctx *Context) (net.IPNet, bool), setFnc func(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error) *ScopedIPVariable {
+func NewScopedIPVariable(ipFnc func(ctx *Context) (net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIPVariable {
 	return &ScopedIPVariable{
 		ipFnc: ipFnc,
 		settableVariable: settableVariable{
@@ -253,24 +249,24 @@ func (s *ScopedStringArrayVariable) GetValue(ctx *Context) (interface{}, bool) {
 }
 
 // Set the array values
-func (s *ScopedStringArrayVariable) Set(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error {
+func (s *ScopedStringArrayVariable) Set(ctx *Context, value interface{}) error {
 	if s, ok := value.(string); ok {
 		value = []string{s}
 	}
-	return s.settableVariable.Set(ctx, value, scopeFieldEvaluator)
+	return s.settableVariable.Set(ctx, value)
 }
 
 // Append a value to the array
-func (s *ScopedStringArrayVariable) Append(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error {
+func (s *ScopedStringArrayVariable) Append(ctx *Context, value interface{}) error {
 	if val, ok := value.(string); ok {
 		value = []string{val}
 	}
 	values, _ := s.strFnc(ctx)
-	return s.Set(ctx, append(values, value.([]string)...), scopeFieldEvaluator)
+	return s.Set(ctx, append(values, value.([]string)...))
 }
 
 // NewScopedStringArrayVariable returns a new scoped string array variable
-func NewScopedStringArrayVariable(strFnc func(ctx *Context) ([]string, bool), setFnc func(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error) *ScopedStringArrayVariable {
+func NewScopedStringArrayVariable(strFnc func(ctx *Context) ([]string, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedStringArrayVariable {
 	return &ScopedStringArrayVariable{
 		strFnc: strFnc,
 		settableVariable: settableVariable{
@@ -304,24 +300,24 @@ func (v *ScopedIntArrayVariable) GetValue(ctx *Context) (interface{}, bool) {
 }
 
 // Set the array values
-func (v *ScopedIntArrayVariable) Set(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error {
+func (v *ScopedIntArrayVariable) Set(ctx *Context, value interface{}) error {
 	if i, ok := value.(int); ok {
 		value = []int{i}
 	}
-	return v.settableVariable.Set(ctx, value, scopeFieldEvaluator)
+	return v.settableVariable.Set(ctx, value)
 }
 
 // Append a value to the array
-func (v *ScopedIntArrayVariable) Append(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error {
+func (v *ScopedIntArrayVariable) Append(ctx *Context, value interface{}) error {
 	if val, ok := value.(int); ok {
 		value = []int{val}
 	}
 	values, _ := v.intFnc(ctx)
-	return v.Set(ctx, append(values, value.([]int)...), scopeFieldEvaluator)
+	return v.Set(ctx, append(values, value.([]int)...))
 }
 
 // NewScopedIntArrayVariable returns a new integer array variable
-func NewScopedIntArrayVariable(intFnc func(ctx *Context) ([]int, bool), setFnc func(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error) *ScopedIntArrayVariable {
+func NewScopedIntArrayVariable(intFnc func(ctx *Context) ([]int, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIntArrayVariable {
 	return &ScopedIntArrayVariable{
 		intFnc: intFnc,
 		settableVariable: settableVariable{
@@ -355,24 +351,24 @@ func (i *ScopedIPArrayVariable) GetValue(ctx *Context) (interface{}, bool) {
 }
 
 // Set the array values
-func (i *ScopedIPArrayVariable) Set(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error {
+func (i *ScopedIPArrayVariable) Set(ctx *Context, value interface{}) error {
 	if ip, ok := value.(net.IPNet); ok {
 		value = []net.IPNet{ip}
 	}
-	return i.settableVariable.Set(ctx, value, scopeFieldEvaluator)
+	return i.settableVariable.Set(ctx, value)
 }
 
 // Append a value to the array
-func (i *ScopedIPArrayVariable) Append(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error {
+func (i *ScopedIPArrayVariable) Append(ctx *Context, value interface{}) error {
 	if val, ok := value.(net.IPNet); ok {
 		value = []net.IPNet{val}
 	}
 	values, _ := i.ipFnc(ctx)
-	return i.Set(ctx, append(values, value.([]net.IPNet)...), scopeFieldEvaluator)
+	return i.Set(ctx, append(values, value.([]net.IPNet)...))
 }
 
 // NewScopedIPArrayVariable returns a new IP array variable
-func NewScopedIPArrayVariable(ipFnc func(ctx *Context) ([]net.IPNet, bool), setFnc func(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error) *ScopedIPArrayVariable {
+func NewScopedIPArrayVariable(ipFnc func(ctx *Context) ([]net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIPArrayVariable {
 	return &ScopedIPArrayVariable{
 		ipFnc: ipFnc,
 		settableVariable: settableVariable{
@@ -956,7 +952,7 @@ type VariableScope interface {
 }
 
 // Scoper maps a variable to the entity its scoped to
-type Scoper func(ctx *Context, scopeFieldEvaluator Evaluator) VariableScope
+type Scoper func(ctx *Context) VariableScope
 
 // Variables holds a set of variables
 type Variables struct {
@@ -1046,7 +1042,7 @@ func (v *ScopedVariables) Len() int {
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
-		scope := v.scoper(ctx, nil)
+		scope := v.scoper(ctx)
 		if scope == nil {
 			return nil
 		}
@@ -1064,8 +1060,8 @@ func (v *ScopedVariables) NewSECLVariable(name string, value interface{}, opts V
 		return vars[name]
 	}
 
-	setVariable := func(ctx *Context, value interface{}, scopeFieldEvaluator Evaluator) error {
-		scope := v.scoper(ctx, scopeFieldEvaluator)
+	setVariable := func(ctx *Context, value interface{}) error {
+		scope := v.scoper(ctx)
 		if scope == nil {
 			return fmt.Errorf("failed to scope variable '%s'", name)
 		}

@@ -52,6 +52,11 @@ func NewFakeEvent() *Event {
 	}
 }
 
+// ResolveProcessCacheEntryFromPID stub implementation
+func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	return GetPlaceholderProcessCacheEntry(pid, pid, false)
+}
+
 // Event represents an event sent from the kernel
 // genaccessors
 // gengetter: GetContainerCreatedAt

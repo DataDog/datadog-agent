@@ -91,7 +91,7 @@ func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ func(*model
 }
 
 // ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
-func (fh *FieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+func (fh *FieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.ProcessCacheEntry {
 	return fh.resolvers.ProcessResolver.Resolve(pid)
 }
 
