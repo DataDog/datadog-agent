@@ -438,6 +438,10 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			return nil, err
 		}
 		layoutIdx := 0
+		if len(loclist.Pieces) == 0 {
+			// Variable has loclist entry for relevant PC range, but it is still unavailable.
+			break
+		}
 		for _, locPiece := range loclist.Pieces {
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx

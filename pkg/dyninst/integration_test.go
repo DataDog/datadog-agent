@@ -103,6 +103,12 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 				MethodName: "main.arrayArg",
 			},
 		},
+		&config.LogProbe{
+			ID: "inlined",
+			Where: &config.Where{
+				MethodName: "main.inlined",
+			},
+		},
 	}
 
 	obj, err := object.NewElfObject(binary)
@@ -203,7 +209,8 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, bpfOutDump.Close()) }()
 
-	for range len(probes) {
+	// Inlined function is called twice, hence extra event.
+	for range len(probes) + 1 {
 		t.Logf("reading ringbuf item")
 		require.Greater(t, rd.AvailableBytes(), 0)
 		record, err := rd.Read()

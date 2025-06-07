@@ -16,3 +16,7 @@ probes:
   type: LOG_PROBE
   where:
     method_name: main.stringArg
+- id: e
+  type: LOG_PROBE
+  where:
+    method_name: main.inlined

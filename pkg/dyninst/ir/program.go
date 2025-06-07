@@ -50,16 +50,14 @@ type Subprogram struct {
 	Name string
 	// OutOfLinePCRanges are the ranges of PC values that will be probed for the
 	// out-of-line-instances of the subprogram. These are sorted by start PC.
-	//
-	// What does this mean for inlined subprograms?
+	// Some functions may be inlined only in certain callers, in which case
+	// both OutOfLinePCRanges and InlinePCRanges will be non-empty.
 	OutOfLinePCRanges []PCRange
 	// InlinePCRanges are the ranges of PC values that will be probed for the
 	// inlined instances of the subprogram. These are sorted by start PC.
 	InlinePCRanges [][]PCRange
 	// Variables are the variables that are used in the subprogram.
 	Variables []*Variable
-	// Lines are the lines of the subprogram.
-	Lines []SubprogramLine
 }
 
 // SubprogramLine represents a line in the subprogram.
