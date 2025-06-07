@@ -14,7 +14,7 @@ import (
 func getStateScopes() map[Scope]VariableProviderFactory {
 	stateScopes := getCommonStateScopes()
 	stateScopes["cgroup"] = func() VariableProvider {
-		return eval.NewScopedVariables(func(ctx *eval.Context, _ eval.Evaluator) eval.VariableScope {
+		return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
 			if ctx.Event.(*model.Event).CGroupContext == nil || ctx.Event.(*model.Event).CGroupContext.CGroupFile.IsNull() {
 				return nil
 			}

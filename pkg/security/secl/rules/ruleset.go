@@ -763,6 +763,9 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rul
 
 func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.PolicyRule.Actions {
+		// set context scope field evaluator
+		ctx.SetScopeFieldEvaluator(action.ScopeFieldEvaluator)
+
 		if !action.IsAccepted(ctx) {
 			continue
 		}
@@ -781,34 +784,23 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 				return fmt.Errorf("unknown variable: %s", name)
 			}
 
-			value := action.Def.Set.Value
-			if field := action.Def.Set.Field; field != "" {
-				if evaluator := rs.fieldEvaluators[field]; evaluator != nil {
-					value = evaluator.Eval(ctx)
-				}
-			} else if expression := action.Def.Set.Expression; expression != "" {
-				if evaluator := rs.fieldEvaluators[expression]; evaluator != nil {
-					value = evaluator.Eval(ctx)
-				}
-			}
-
 			if mutable, ok := variable.(eval.MutableVariable); ok {
+				value := action.Def.Set.Value
+				if field := action.Def.Set.Field; field != "" {
+					if evaluator := rs.fieldEvaluators[field]; evaluator != nil {
+						value = evaluator.Eval(ctx)
+					}
+				} else if expression := action.Def.Set.Expression; expression != "" {
+					if evaluator := rs.fieldEvaluators[expression]; evaluator != nil {
+						value = evaluator.Eval(ctx)
+					}
+				}
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
 						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
 					}
 				} else {
 					if err := mutable.Set(ctx, value); err != nil {
-						return err
-					}
-				}
-			} else if mutable, ok := variable.(eval.MutableScopedVariable); ok {
-				if action.Def.Set.Append {
-					if err := mutable.Append(ctx, value, action.ScopeFieldEvaluator); err != nil {
-						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
-					}
-				} else {
-					if err := mutable.Set(ctx, value, action.ScopeFieldEvaluator); err != nil {
 						return err
 					}
 				}
@@ -819,6 +811,8 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 			}
 
 		}
+
+		ctx.PerActionReset()
 	}
 
 	return nil

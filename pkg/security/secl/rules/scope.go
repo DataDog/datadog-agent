@@ -14,9 +14,10 @@ import (
 func getCommonStateScopes() map[Scope]VariableProviderFactory {
 	return map[Scope]VariableProviderFactory{
 		"process": func() VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context, scopeFieldEvaluator eval.Evaluator) eval.VariableScope {
-				if scopeFieldEvaluator != nil {
-					pid, ok := scopeFieldEvaluator.Eval(ctx).(int)
+			return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
+				scopeEvaluator := ctx.GetScopeFieldEvaluator()
+				if scopeEvaluator != nil {
+					pid, ok := scopeEvaluator.Eval(ctx).(int)
 					if !ok {
 						return nil
 					}
@@ -32,7 +33,7 @@ func getCommonStateScopes() map[Scope]VariableProviderFactory {
 			})
 		},
 		"container": func() VariableProvider {
-			return eval.NewScopedVariables(func(ctx *eval.Context, _ eval.Evaluator) eval.VariableScope {
+			return eval.NewScopedVariables(func(ctx *eval.Context) eval.VariableScope {
 				if cc := ctx.Event.(*model.Event).ContainerContext; cc != nil {
 					return cc
 				}
