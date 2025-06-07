@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package server
+package strings
 
 import (
 	"slices"
@@ -11,12 +11,16 @@ import (
 	"strings"
 )
 
-type blocklist struct {
+// Blocklist is a strings blocklist.
+// See `NewBlocklist` for details.
+type Blocklist struct {
 	data        []string
 	matchPrefix bool
 }
 
-func newBlocklist(data []string, matchPrefix bool) blocklist {
+// NewBlocklist creates a new strings blocklist.
+// Use `matchPrefix` to  create a prefixes blocklist.
+func NewBlocklist(data []string, matchPrefix bool) Blocklist {
 	data = slices.Clone(data)
 	sort.Strings(data)
 
@@ -37,14 +41,20 @@ func newBlocklist(data []string, matchPrefix bool) blocklist {
 	// Invariants for data:
 	// For all i, j such that i < j, data[i] < data[j].
 	// for all i, j such that i != j, !HasPrefix(data[i], data[j]).
-
-	return blocklist{
+	return Blocklist{
 		data:        data,
 		matchPrefix: matchPrefix,
 	}
 }
 
-func (b *blocklist) test(name string) bool {
+// Test returns true if the given name is in the blocklist
+// or matching by prefix if the string blocklist has been
+// created with `matchPrefix`.
+func (b *Blocklist) Test(name string) bool {
+	if b == nil {
+		return false
+	}
+
 	if len(b.data) == 0 {
 		return false
 	}
