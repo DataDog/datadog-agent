@@ -394,7 +394,7 @@ func (s *BaseSuite) AssertSuccessfulConfigStartExperiment(configID string) {
 	s.Require().NoError(err)
 
 	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
-		HasConfigState("datadog-agent").
+		HasConfigState(consts.AgentPackage).
 		WithExperimentConfigEqual(configID).
 		HasARunningDatadogAgentService()
 }
@@ -407,7 +407,7 @@ func (s *BaseSuite) AssertSuccessfulConfigPromoteExperiment(configID string) {
 	s.Require().NoError(err)
 
 	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
-		HasConfigState("datadog-agent").
+		HasConfigState(consts.AgentPackage).
 		WithStableConfigEqual(configID).
 		WithExperimentConfigEqual("").
 		HasARunningDatadogAgentService()
@@ -421,7 +421,7 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 	s.Require().NoError(err)
 
 	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
-		HasConfigState("datadog-agent").
+		HasConfigState(consts.AgentPackage).
 		WithExperimentConfigEqual("").
 		HasARunningDatadogAgentService()
 }
