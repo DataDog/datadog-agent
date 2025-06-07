@@ -5,9 +5,10 @@
 
 //go:build linux_bpf
 
-package irgen_test
+package compiler
 
 import (
+	"bytes"
 	"flag"
 	"os"
 	"path"
@@ -16,8 +17,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/codegen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
@@ -61,22 +63,26 @@ func runTest(
 	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
 
-	marshaled, err := irprinter.PrintYAML(ir)
+	program, err := sm.GenerateProgram(ir)
 	require.NoError(t, err)
 
-	outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".yaml")
+	var out bytes.Buffer
+	_, err = codegen.GenerateCCode(program, &out)
+	require.NoError(t, err)
+
+	outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".c")
 	if *rewrite {
-		tmpFile, err := os.CreateTemp(snapshotDir, "ir.yaml")
+		tmpFile, err := os.CreateTemp(snapshotDir, "sm.c")
 		require.NoError(t, err)
 		name := tmpFile.Name()
 		defer func() { _ = os.Remove(name) }()
-		_, err = tmpFile.Write(marshaled)
+		_, err = tmpFile.Write(out.Bytes())
 		require.NoError(t, err)
 		require.NoError(t, tmpFile.Close())
 		require.NoError(t, os.Rename(name, outputFile))
 	} else {
 		expected, err := os.ReadFile(outputFile)
 		require.NoError(t, err)
-		require.Equal(t, string(expected), string(marshaled))
+		require.Equal(t, string(expected), out.String())
 	}
 }
