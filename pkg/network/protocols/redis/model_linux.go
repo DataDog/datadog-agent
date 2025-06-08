@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
@@ -90,6 +91,15 @@ func (e *EventWrapper) ErrorType() ErrorType {
 		e.error = ErrorType(e.Tx.Error)
 		e.errorSet = true
 	}
+	// Convert int8 array to string by converting each byte to a rune and then to string
+	errStr := make([]rune, 0, len(e.Tx.Err_buf))
+	for _, b := range e.Tx.Err_buf {
+		if b == 0 {
+			break
+		}
+		errStr = append(errStr, rune(b))
+	}
+	log.Infof("redis error string: %s", string(errStr))
 	return e.error
 }
 
