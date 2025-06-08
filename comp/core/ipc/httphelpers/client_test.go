@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,6 +136,18 @@ func TestDoGet(t *testing.T) {
 
 		_, err := client.Get(ts.URL, WithContext(ctx))
 		require.Error(t, err)
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		handler := func(w http.ResponseWriter, _ *http.Request) {
+			time.Sleep(100 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+		}
+		client, ts := getMockServerAndConfig(t, http.HandlerFunc(handler))
+
+		_, err := client.Get(ts.URL, WithTimeout(10*time.Millisecond))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "Client.Timeout exceeded")
 	})
 }
 
