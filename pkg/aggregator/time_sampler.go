@@ -200,7 +200,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 		// it is the final stage before flushing the series to the serialisation
 		// part of the pipeline but also, here is a stage where all series have been
 		// generated & processed (even the ones generated from a histogram metric).
-		if blocklist.Test(serie.Name) {
+		if blocklist != nil && blocklist.Test(serie.Name) {
 			continue
 		}
 		serieSink.Append(serie)

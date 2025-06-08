@@ -528,11 +528,12 @@ func (s *server) SetBlocklist(metricNames []string, matchPrefix bool) {
 
 	// send the histogram blocklist used right before flushing to the serializer
 	histoBlocklist := utilstrings.NewBlocklist(histoMetricNames, matchPrefix)
-	s.demultiplexer.ReconfigTimeSamplersBlocklist(&histoBlocklist)
+	s.demultiplexer.SetTimeSamplersBlocklist(&histoBlocklist)
 }
 
 // create a list based on all `metricNames` but only containing metric names
 // with histogram aggregates suffixes.
+// TODO(remy): should we consider moving this in the metrics package instead?
 func (s *server) createHistogramsBlocklist(metricNames []string) []string {
 	aggrs := s.config.GetStringSlice("histogram_aggregates")
 

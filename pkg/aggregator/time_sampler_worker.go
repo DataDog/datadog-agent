@@ -42,7 +42,7 @@ type timeSamplerWorker struct {
 	// use this chan to trigger a flush of the time sampler
 	flushChan chan flushTrigger
 	// use this chan to trigger a blocklist reconfiguration
-	blocklistChan chan blocklistTrigger
+	blocklistChan chan *utilstrings.Blocklist
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
 	// channel to trigger interactive dump of the context resolver
@@ -55,11 +55,6 @@ type timeSamplerWorker struct {
 type dumpTrigger struct {
 	dest io.Writer
 	done chan error
-}
-
-type blocklistTrigger struct {
-	trigger
-	blocklist *utilstrings.Blocklist
 }
 
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
@@ -77,7 +72,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		stopChan:      make(chan struct{}),
 		flushChan:     make(chan flushTrigger),
 		dumpChan:      make(chan dumpTrigger),
-		blocklistChan: make(chan blocklistTrigger),
+		blocklistChan: make(chan *utilstrings.Blocklist),
 
 		tagsStore: tagsStore,
 	}
@@ -105,8 +100,8 @@ func (w *timeSamplerWorker) run() {
 				w.sampler.sample(&ms[i], t)
 			}
 			w.metricSamplePool.PutBatch(ms)
-		case trigger := <-w.blocklistChan:
-			w.flushBlocklist = trigger.blocklist
+		case blocklist := <-w.blocklistChan:
+			w.flushBlocklist = blocklist
 		case trigger := <-w.flushChan:
 			w.triggerFlush(trigger)
 			w.tagsStore.Shrink()

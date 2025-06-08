@@ -170,15 +170,9 @@ func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.Metric
 	panic("not implemented.")
 }
 
-// ReconfigTimeSamplersBlocklist is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) ReconfigTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
-	trigger := blocklistTrigger{
-		trigger: trigger{
-			time: time.Now(),
-		},
-		blocklist: blocklist,
-	}
-	d.statsdWorker.blocklistChan <- trigger
+// SetTimeSamplersBlocklist is not supported in the Serverless Agent implementation.
+func (d *ServerlessDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
+	d.statsdWorker.blocklistChan <- blocklist
 }
 
 // Serializer returns the shared serializer
