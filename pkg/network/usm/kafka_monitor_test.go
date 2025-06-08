@@ -1670,6 +1670,7 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 		}
 		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
 		if expectedStatsCount != 0 {
+			fmt.Println(len(kafkaStats), expectedStatsCount)
 			validateProduceFetchCount(collect, kafkaStats, topicName, validation, errorCode)
 		}
 	}, time.Second*5, time.Millisecond*10)
@@ -1747,6 +1748,7 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 			assert.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
 			numberOfProduceRequests += requestStats.Count
 		case kafka.FetchAPIKey:
+			fmt.Println("FETCH!!!!")
 			assert.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
 			numberOfFetchRequests += requestStats.Count
 		case kafka.MetadataAPIKey:

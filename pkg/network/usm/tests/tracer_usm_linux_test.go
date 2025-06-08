@@ -2420,9 +2420,10 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 
 	defer client.Client.Close()
 
-	// TODO
-	//require.NoError(t, client.CreateTopic(topicName1))
-	//require.NoError(t, client.CreateTopic(topicName2))
+	_, err = client.CreateTopic(topicName1)
+	require.NoError(t, err, "failed to create topic 1")
+	_, err = client.CreateTopic(topicName2)
+	require.NoError(t, err, "failed to create topic 2")
 
 	record1 := &kgo.Record{Topic: topicName1, Value: []byte("Hello Kafka!")}
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)

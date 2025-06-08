@@ -64,7 +64,10 @@ func (c *Client) CreateTopic(topicName string) (kadm.CreateTopicResponse, error)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 	responses, err := adminClient.CreateTopics(ctxTimeout, 2, 1, nil, topicName)
-	if len(responses) != 1 || err != nil {
+	if len(responses) != 1 {
+		return kadm.CreateTopicResponse{}, fmt.Errorf("expected 1 response, got %d", len(responses))
+	}
+	if err != nil {
 		return kadm.CreateTopicResponse{}, err
 	}
 
