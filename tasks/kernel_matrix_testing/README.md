@@ -128,6 +128,8 @@ To create EC2 instances for remote VMs, KMT needs an SSH key to provision them. 
 # Using --remote-setup-only is sufficient if you don't plan to use local VMs
 dda inv -e kmt.init --remote-setup-only
 ```
+> **Note:** For day-to-day development, using local VMs is highly recommended as remote VMs launch metal instances which can be costly. Remote VMs are best suited for running tests against a large number of VMs concurrently.
+
 > If you have already run `kmt.init`, you can configure the SSH key separately at any time by running `dda inv -e kmt.config-ssh-key`.
 
 **2. Create and Configure a Stack**
