@@ -24,7 +24,7 @@ var openCapabilities = mergeCapabilities(
 			Field:        "open.file.path",
 			TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
 			ValidateFnc:  validateBasenameFilter,
-			FilterWeight: 15,
+			FilterWeight: 300,
 		},
 		{
 			Field:        "open.file.name",

@@ -45,6 +45,9 @@ type configManager interface {
 	// The call is made with the manager's lock held, so callers should perform
 	// minimal work within f.
 	mapOverLoadedConfigs(func(map[string]integration.Config))
+
+	// getActiveConfigs returns the currently active configs
+	getActiveConfigs() map[string]integration.Config
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -291,6 +294,17 @@ func (cm *reconcilingConfigManager) mapOverLoadedConfigs(f func(map[string]integ
 	cm.m.Lock()
 	defer cm.m.Unlock()
 	f(cm.scheduledConfigs)
+}
+
+func (cm *reconcilingConfigManager) getActiveConfigs() map[string]integration.Config {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
+	res := make(map[string]integration.Config, len(cm.activeConfigs))
+	for k, v := range cm.activeConfigs {
+		res[k] = v
+	}
+	return res
 }
 
 // reconcileService calculates the current set of resolved templates for the

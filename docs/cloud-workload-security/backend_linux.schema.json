@@ -1184,6 +1184,10 @@
           "$ref": "#/$defs/File",
           "description": "File information of the interpreter"
         },
+        "cgroup": {
+          "$ref": "#/$defs/CGroupContext",
+          "description": "CGroup context"
+        },
         "container": {
           "$ref": "#/$defs/ContainerContext",
           "description": "Container context"
@@ -1322,6 +1326,10 @@
         "interpreter": {
           "$ref": "#/$defs/File",
           "description": "File information of the interpreter"
+        },
+        "cgroup": {
+          "$ref": "#/$defs/CGroupContext",
+          "description": "CGroup context"
         },
         "container": {
           "$ref": "#/$defs/ContainerContext",
@@ -1650,6 +1658,25 @@
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
+    "SetSockOptEvent": {
+      "properties": {
+        "level": {
+          "type": "integer",
+          "description": "Level at which the option is defined"
+        },
+        "optname": {
+          "type": "integer",
+          "description": "Name of the option being set"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "level",
+        "optname"
+      ],
+      "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+    },
     "SignalEvent": {
       "properties": {
         "type": {
@@ -1829,6 +1856,9 @@
           "$ref": "#/$defs/SyscallArgs"
         },
         "rmdir": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "setsockopt": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },
@@ -2010,6 +2040,9 @@
     },
     "sysctl": {
       "$ref": "#/$defs/SysCtlEvent"
+    },
+    "setsockopt": {
+      "$ref": "#/$defs/SetSockOptEvent"
     }
   },
   "additionalProperties": false,
