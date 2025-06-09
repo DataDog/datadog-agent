@@ -75,7 +75,7 @@ A stack is a collection of VMs. This command will create a new stack and configu
 ```bash
 # --init-stack creates the stack if it does not exist
 # If --stack is not provided, a name is generated from your git branch
-dda inv -e kmt.gen-config --vms=ubuntu22-local-distro --init-stack --stack=my-first-stack
+dda inv -e kmt.gen-config --vms=ubuntu22-local-distro --init-stack
 ```
 
 **3. Launch the Stack**
@@ -83,7 +83,7 @@ dda inv -e kmt.gen-config --vms=ubuntu22-local-distro --init-stack --stack=my-fi
 This will start the VM(s) in your stack.
 
 ```bash
-dda inv -e kmt.launch-stack --stack=my-first-stack
+dda inv -e kmt.launch-stack
 ```
 > Since this is a local VM, you may be prompted for your password to run some commands with `sudo`.
 
@@ -92,20 +92,20 @@ dda inv -e kmt.launch-stack --stack=my-first-stack
 You can view the running VMs and their IP addresses.
 
 ```bash
-dda inv -e kmt.status --stack=my-first-stack
+dda inv -e kmt.status
 ```
 
 **5. Connect to the VM**
 
-The easiest way to connect is by generating an SSH configuration file.
+The easiest way to connect is by generating an SSH configuration file. The stack name will be automatically inferred from your git branch.
 
 ```bash
 # Generate the SSH config
-dda inv -e kmt.ssh-config --stack=my-first-stack > ~/.ssh/kmt_ssh_config
+dda inv -e kmt.ssh-config > ~/.ssh/kmt_ssh_config
 
 # Add `Include ~/.ssh/kmt_ssh_config` to your main ~/.ssh/config file.
 # Then, you can connect with:
-ssh kmt-my-first-stack-local-ubuntu_22.04
+ssh kmt-<your-branch-name>-local-ubuntu_22.04
 ```
 
 **6. Clean Up**
@@ -113,7 +113,7 @@ ssh kmt-my-first-stack-local-ubuntu_22.04
 When you are finished, destroy the stack to tear down all associated resources.
 
 ```bash
-dda inv -e kmt.destroy-stack --stack=my-first-stack
+dda inv -e kmt.destroy-stack
 ```
 
 ### Quick Start for Remote VMs
@@ -138,14 +138,14 @@ This command will create a new stack and configure it to run one remote Ubuntu 2
 
 ```bash
 # --init-stack creates the stack if it does not exist
-dda inv -e kmt.gen-config --vms=x86-jammy-distro --init-stack --stack=my-remote-stack
+dda inv -e kmt.gen-config --vms=x86-jammy-distro --init-stack
 ```
 
 You can also specify multiple VMs with different architectures. KMT will launch them on separate EC2 instances.
 
 ```bash
 # This configures a stack with multiple x86_64 and arm64 VMs
-dda inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro --init-stack --stack=my-multi-arch-stack
+dda inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro --init-stack
 ```
 
 **3. Launch the Stack**
@@ -153,7 +153,7 @@ dda inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.
 This will launch the EC2 instance and boot the VM. Your pre-configured SSH key will be used automatically.
 
 ```bash
-dda inv -e kmt.launch-stack --stack=my-remote-stack
+dda inv -e kmt.launch-stack
 ```
 
 **4. Check Status**
@@ -161,20 +161,20 @@ dda inv -e kmt.launch-stack --stack=my-remote-stack
 You can view the running VMs and their IP addresses. It may take a few moments for the VM to be assigned an IP.
 
 ```bash
-dda inv -e kmt.status --stack=my-remote-stack
+dda inv -e kmt.status
 ```
 
 **5. Connect to the VM**
 
-The easiest way to connect is by generating an SSH configuration file.
+The easiest way to connect is by generating an SSH configuration file. The stack name will be automatically inferred from your git branch.
 
 ```bash
 # Generate the SSH config
-dda inv -e kmt.ssh-config --stack=my-remote-stack > ~/.ssh/kmt_ssh_config
+dda inv -e kmt.ssh-config > ~/.ssh/kmt_ssh_config
 
 # Add `Include ~/.ssh/kmt_ssh_config` to your main ~/.ssh/config file if you haven't.
 # Then, you can connect with:
-ssh kmt-my-remote-stack-distro-ubuntu_22.04
+ssh kmt-<your-branch-name>-distro-ubuntu_22.04
 ```
 
 **6. Clean Up**
@@ -182,7 +182,7 @@ ssh kmt-my-remote-stack-distro-ubuntu_22.04
 When you are finished, destroy the stack to terminate the EC2 instance.
 
 ```bash
-dda inv -e kmt.destroy-stack --stack=my-remote-stack
+dda inv -e kmt.destroy-stack
 ```
 
 ### Quick Start for Local and Remote VMs
@@ -204,7 +204,7 @@ Provide a list of both local and remote VMs to the `gen-config` command.
 
 ```bash
 # This configures one local Ubuntu 22.04 VM and one remote x86_64 Ubuntu 22.04 VM
-dda inv -e kmt.gen-config --vms=ubuntu22-local-distro,x86-jammy-distro --init-stack --stack=my-mixed-stack
+dda inv -e kmt.gen-config --vms=ubuntu22-local-distro,x86-jammy-distro --init-stack
 ```
 
 **3. Launch the Stack**
@@ -212,7 +212,7 @@ dda inv -e kmt.gen-config --vms=ubuntu22-local-distro,x86-jammy-distro --init-st
 The same `launch-stack` command will start the local VM and launch the remote EC2 instance.
 
 ```bash
-dda inv -e kmt.launch-stack --stack=my-mixed-stack
+dda inv -e kmt.launch-stack
 ```
 > You may be prompted for your `sudo` password for the local VM setup. The remote VM will use your pre-configured SSH key.
 
@@ -222,10 +222,10 @@ The `status`, `ssh-config`, and `destroy-stack` commands work just like in the o
 
 ```bash
 # Check status of all VMs
-dda inv -e kmt.status --stack=my-mixed-stack
+dda inv -e kmt.status
 
 # When finished, destroy all resources
-dda inv -e kmt.destroy-stack --stack=my-mixed-stack
+dda inv -e kmt.destroy-stack
 ```
 
 ## Core Concepts
