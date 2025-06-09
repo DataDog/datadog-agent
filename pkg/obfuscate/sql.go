@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sqllexer "github.com/DataDog/go-sqllexer"
+	"github.com/outcaste-io/ristretto/z"
 )
 
 var questionMark = []byte("?")
@@ -321,7 +322,7 @@ func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig, o
 		optsStr = string(optsBytes)
 	}
 	if optsStrError == nil && o.queryCache.Cache != nil {
-		cacheKey := in + optsStr
+		cacheKey := z.MemHashString(in) + z.MemHashString(optsStr)
 		if v, ok := o.queryCache.Get(cacheKey); ok {
 			return v.(*ObfuscatedQuery), nil
 		}
