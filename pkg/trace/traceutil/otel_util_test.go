@@ -10,12 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	"go.opentelemetry.io/otel/metric/noop"
 	semconv117 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
@@ -163,6 +160,7 @@ func TestGetOTelSpanType(t *testing.T) {
 		name     string
 		spanKind ptrace.SpanKind
 		rattrs   map[string]string
+		sattrs   map[string]string
 		expected string
 	}{
 		{
@@ -228,10 +226,48 @@ func TestGetOTelSpanType(t *testing.T) {
 			spanKind: ptrace.SpanKindInternal,
 			expected: "custom",
 		},
+		{
+			name:     "span.type in both span and resource (span wins)",
+			rattrs:   map[string]string{"span.type": "resource-type"},
+			sattrs:   map[string]string{"span.type": "span-type"},
+			expected: "span-type",
+		},
+		{
+			name:     "span.type only in span",
+			sattrs:   map[string]string{"span.type": "span-type"},
+			expected: "span-type",
+		},
+		{
+			name:     "span.type only in resource",
+			rattrs:   map[string]string{"span.type": "resource-type"},
+			expected: "resource-type",
+		},
+		{
+			name:     "db.system in both span and resource (span wins)",
+			spanKind: ptrace.SpanKindClient,
+			rattrs:   map[string]string{"db.system": "redis"},
+			sattrs:   map[string]string{"db.system": "memcached"},
+			expected: spanTypeMemcached,
+		},
+		{
+			name:     "db.system only in span",
+			spanKind: ptrace.SpanKindClient,
+			sattrs:   map[string]string{"db.system": "redis"},
+			expected: spanTypeRedis,
+		},
+		{
+			name:     "db.system only in resource",
+			spanKind: ptrace.SpanKindClient,
+			rattrs:   map[string]string{"db.system": "redis"},
+			expected: spanTypeRedis,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			span := ptrace.NewSpan()
 			span.SetKind(tt.spanKind)
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
 			res := pcommon.NewResource()
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
@@ -305,6 +341,7 @@ func TestGetOTelService(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		rattrs    map[string]string
+		sattrs    map[string]string
 		normalize bool
 		expected  string
 	}{
@@ -313,9 +350,20 @@ func TestGetOTelService(t *testing.T) {
 			expected: "otlpresourcenoservicename",
 		},
 		{
-			name:     "normal service",
+			name:     "normal service in resource",
 			rattrs:   map[string]string{string(semconv.ServiceNameKey): "svc"},
 			expected: "svc",
+		},
+		{
+			name:     "normal service in span",
+			sattrs:   map[string]string{string(semconv.ServiceNameKey): "svc"},
+			expected: "svc",
+		},
+		{
+			name:     "service in both, span takes precedence",
+			rattrs:   map[string]string{string(semconv.ServiceNameKey): "resource_svc"},
+			sattrs:   map[string]string{string(semconv.ServiceNameKey): "span_svc"},
+			expected: "span_svc",
 		},
 		{
 			name:      "truncate long service",
@@ -335,7 +383,11 @@ func TestGetOTelService(t *testing.T) {
 			for k, v := range tt.rattrs {
 				res.Attributes().PutStr(k, v)
 			}
-			actual := GetOTelService(res, tt.normalize)
+			span := ptrace.NewSpan()
+			for k, v := range tt.sattrs {
+				span.Attributes().PutStr(k, v)
+			}
+			actual := GetOTelService(span, res, tt.normalize)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
@@ -420,6 +472,55 @@ func TestGetOTelResource(t *testing.T) {
 			sattrs:     map[string]string{"span.name": "span_name"},
 			expectedV1: "span_name",
 			expectedV2: "SET key value",
+		},
+		{
+			name:       "resource.name in both span and resource (span wins)",
+			rattrs:     map[string]string{"resource.name": "res_resource"},
+			sattrs:     map[string]string{"resource.name": "res_span"},
+			expectedV1: "res_resource",
+			expectedV2: "res_span",
+		},
+		{
+			name:       "http.request.method in both span and resource (span wins)",
+			rattrs:     map[string]string{"http.request.method": "POST"},
+			sattrs:     map[string]string{"http.request.method": "GET"},
+			expectedV1: "POST",
+			expectedV2: "GET",
+		},
+		{
+			name:       "messaging.operation in both span and resource (span wins)",
+			rattrs:     map[string]string{"messaging.operation": "receive"},
+			sattrs:     map[string]string{"messaging.operation": "process"},
+			expectedV1: "receive",
+			expectedV2: "process",
+		},
+		{
+			name:       "rpc.method in both span and resource (span wins)",
+			rattrs:     map[string]string{"rpc.method": "resource_method", "rpc.service": "resource_service"},
+			sattrs:     map[string]string{"rpc.method": "span_method", "rpc.service": "span_service"},
+			expectedV1: "resource_method resource_service",
+			expectedV2: "span_method span_service",
+		},
+		{
+			name:       "GraphQL type in both span and resource (span wins)",
+			rattrs:     map[string]string{"graphql.operation.type": "mutation"},
+			sattrs:     map[string]string{"graphql.operation.type": "query", "graphql.operation.name": "myQuery"},
+			expectedV1: "mutation myQuery",
+			expectedV2: "query myQuery",
+		},
+		{
+			name:       "DB statement in both span and resource (span wins)",
+			rattrs:     map[string]string{"db.system": "mysql", "db.statement": "SELECT * FROM resource"},
+			sattrs:     map[string]string{"db.system": "mysql", "db.statement": "SELECT * FROM span"},
+			expectedV1: "span_name",
+			expectedV2: "SELECT * FROM span",
+		},
+		{
+			name:       "fallback to span name if nothing set",
+			sattrs:     map[string]string{},
+			rattrs:     map[string]string{},
+			expectedV1: "span_name",
+			expectedV2: "span_name",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -521,61 +622,6 @@ func TestGetOTelOperationName(t *testing.T) {
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
-}
-
-func TestGetOTelHostname(t *testing.T) {
-	for _, tt := range []struct {
-		name         string
-		rattrs       map[string]string
-		sattrs       map[string]string
-		fallbackHost string
-		expected     string
-	}{
-		{
-			name:     "datadog.host.name",
-			rattrs:   map[string]string{"datadog.host.name": "test-host"},
-			expected: "test-host",
-		},
-		{
-			name:     "_dd.hostname",
-			rattrs:   map[string]string{"_dd.hostname": "test-host"},
-			expected: "test-host",
-		},
-		{
-			name:         "fallback hostname",
-			fallbackHost: "test-host",
-			expected:     "test-host",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			span := ptrace.NewSpan()
-			span.SetName("span_name")
-			for k, v := range tt.sattrs {
-				span.Attributes().PutStr(k, v)
-			}
-			res := pcommon.NewResource()
-			for k, v := range tt.rattrs {
-				res.Attributes().PutStr(k, v)
-			}
-			set := componenttest.NewNopTelemetrySettings()
-			set.MeterProvider = noop.NewMeterProvider()
-			tr, err := attributes.NewTranslator(set)
-			assert.NoError(t, err)
-			actual := GetOTelHostname(span, res, tr, tt.fallbackHost)
-			assert.Equal(t, tt.expected, actual)
-		})
-	}
-}
-
-func TestGetOTelStatusCode(t *testing.T) {
-	span := ptrace.NewSpan()
-	span.SetName("span_name")
-	assert.Equal(t, uint32(0), GetOTelStatusCode(span))
-	span.Attributes().PutInt(string(semconv.HTTPStatusCodeKey), 200)
-	assert.Equal(t, uint32(200), GetOTelStatusCode(span))
-	span.Attributes().Remove(string(semconv.HTTPStatusCodeKey))
-	span.Attributes().PutInt("http.response.status_code", 404)
-	assert.Equal(t, uint32(404), GetOTelStatusCode(span))
 }
 
 func TestGetOTelContainerTags(t *testing.T) {

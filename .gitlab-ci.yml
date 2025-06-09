@@ -738,6 +738,7 @@ workflow:
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
   - pkg/dynamicinstrumentation/**/*
+  - pkg/dyninst/**/*
   - pkg/gpu/**/*
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml

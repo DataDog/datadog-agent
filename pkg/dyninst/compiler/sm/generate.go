@@ -48,7 +48,7 @@ type typeFuncMetadata struct {
 }
 
 // GenerateProgram generates stack machine program for a given IR program.
-func GenerateProgram(program ir.Program) (Program, error) {
+func GenerateProgram(program *ir.Program) (Program, error) {
 	g := generator{
 		typeFuncMetadata: make(map[ir.TypeID]typeFuncMetadata, len(program.Types)),
 		functionReg:      make(map[FunctionID]struct{}),
@@ -226,11 +226,11 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		needed = true
 		offsetShift = uint32(t.GetByteSize())
 		ops = []Op{
-			ProcessArrayPrepOp{},
+			ProcessArrayDataPrepOp{ArrayByteLen: t.GetByteSize()},
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessArrayRepeatOp{},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
 			ReturnOp{},
 		}
 
@@ -249,7 +249,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceDataRepeatOp{},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
 			ReturnOp{},
 		}
 
@@ -274,7 +274,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		needed = true
 		offsetShift = 0
 		ops = []Op{
-			ProcessSliceOp{},
+			ProcessSliceOp{SliceData: t.Data},
 			ReturnOp{},
 		}
 
@@ -283,7 +283,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		needed = true
 		offsetShift = 0
 		ops = []Op{
-			ProcessStringOp{},
+			ProcessStringOp{
+				StringData: t.Data,
+			},
 			ReturnOp{},
 		}
 
@@ -419,7 +421,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 // `ops` is used as an output buffer for the encoded instructions.
 func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
 	for _, loclist := range op.Variable.Locations {
-		if pc < loclist.Range[0] || pc >= loclist.Range[0] {
+		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
 			continue
 		}
 		// NOTE: Tricky.
@@ -436,7 +438,6 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			return nil, err
 		}
 		layoutIdx := 0
-		outputOffset := op.Offset
 		for _, locPiece := range loclist.Pieces {
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
@@ -445,20 +446,18 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			}
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
-			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.Size {
-				if outputOffset < paddedOffset {
-					ops = append(ops, IncrementOutputOffsetOp{Value: paddedOffset - outputOffset})
-					outputOffset = paddedOffset
-				}
+			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
 				if locPiece.InReg {
 					ops = append(ops, ExprReadRegisterOp{
-						Register: uint8(locPiece.Register),
-						Size:     uint8(locPiece.Size),
+						Register:     uint8(locPiece.Register),
+						Size:         uint8(locPiece.Size),
+						OutputOffset: paddedOffset - op.Offset,
 					})
 				} else {
 					ops = append(ops, ExprDereferenceCfaOp{
-						Offset: uint32(locPiece.StackOffset),
-						Len:    uint32(locPiece.Size),
+						Offset:       uint32(locPiece.StackOffset),
+						Len:          uint32(locPiece.Size),
+						OutputOffset: paddedOffset - op.Offset,
 					})
 				}
 			}

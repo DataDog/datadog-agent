@@ -22,12 +22,13 @@ import (
 )
 
 func TestIRGenAllProbes(t *testing.T) {
-	for _, pkg := range testprogs.Packages {
+	programs := testprogs.GetPrograms(t)
+	cfgs := testprogs.GetCommonConfigs(t)
+	for _, pkg := range programs {
 		t.Run(pkg, func(t *testing.T) {
-			for _, cfg := range testprogs.CommonConfigs {
+			for _, cfg := range cfgs {
 				t.Run(cfg.String(), func(t *testing.T) {
-					bin, err := testprogs.GetBinary(pkg, cfg)
-					require.NoError(t, err)
+					bin := testprogs.GetBinary(t, pkg, cfg)
 					testAllProbes(t, bin)
 				})
 			}

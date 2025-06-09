@@ -29,7 +29,7 @@ import (
 )
 
 // GetBoundSockets returns the list of bound sockets for a given process
-func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error) {
+func (bss *BoundSocketSnapshotter) GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error) {
 
 	boundSockets := []model.SnapshottedBoundSocket{}
 
@@ -56,55 +56,76 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 		}
 	}
 
-	// use /proc/[pid]/net/tcp,tcp6,udp,udp6 to extract the ports opened by the current process
-	// looking for AF_INET sockets
-	TCP, err := parseNetIP(p.Pid, "net/tcp")
+	link, err := os.Readlink(kernel.HostProc(fmt.Sprintf("%d", p.Pid), "ns/net"))
 	if err != nil {
-		seclog.Debugf("couldn't snapshot TCP sockets: %v", err)
+		return nil, err
 	}
-	UDP, err := parseNetIP(p.Pid, "net/udp")
-	if err != nil {
-		seclog.Debugf("couldn't snapshot UDP sockets: %v", err)
+	// link should be in for of: net:[4026542294]
+	if !strings.HasPrefix(link, "net:[") {
+		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformated: (%s) err: %v", link, err)
 	}
 
-	var (
-		TCP6 []netIPEntry
-		UDP6 []netIPEntry
-	)
+	link = strings.TrimPrefix(link, "net:[")
+	link = strings.TrimSuffix(link, "]")
 
-	if ipv6exists() {
-		// looking for AF_INET6 sockets
-		TCP6, err = parseNetIP(p.Pid, "net/tcp6")
+	ns, err := strconv.ParseUint(link, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformated: (%s) err: %v", link, err)
+	}
+
+	var cacheEntry *netNsCacheEntry
+
+	cacheEntry, ok := bss.netNsCache[ns]
+	if !ok || cacheEntry == nil {
+		// cache miss, we need to snapshot the sockets of the network namespace
+		cacheEntry = &netNsCacheEntry{}
+		tcp, err := parseNetIP(p.Pid, "net/tcp")
 		if err != nil {
-			seclog.Debugf("couldn't snapshot TCP6 sockets: %v", err)
+			seclog.Debugf("couldn't snapshot TCP sockets: %v", err)
 		}
-		UDP6, err = parseNetIP(p.Pid, "net/udp6")
+		udp, err := parseNetIP(p.Pid, "net/udp")
 		if err != nil {
-			seclog.Debugf("couldn't snapshot UDP6 sockets: %v", err)
+			seclog.Debugf("couldn't snapshot UDP sockets: %v", err)
 		}
+		cacheEntry.TCP = tcp
+		cacheEntry.UDP = udp
+		if ipv6exists() {
+			// looking for AF_INET6 sockets
+			tcp6, err := parseNetIP(p.Pid, "net/tcp6")
+			if err != nil {
+				seclog.Debugf("couldn't snapshot TCP6 sockets: %v", err)
+			}
+			udp6, err := parseNetIP(p.Pid, "net/udp6")
+			if err != nil {
+				seclog.Debugf("couldn't snapshot UDP6 sockets: %v", err)
+			}
+			cacheEntry.TCP6 = tcp6
+			cacheEntry.UDP6 = udp6
+		}
+		bss.netNsCache[ns] = cacheEntry
 	}
 
 	// searching for socket inode
 	for _, s := range sockets {
-		for _, sock := range TCP {
+		for _, sock := range cacheEntry.TCP {
 			if sock.inode == s {
 				boundSockets = append(boundSockets, model.SnapshottedBoundSocket{IP: sock.ip, Port: sock.port, Family: unix.AF_INET, Protocol: unix.IPPROTO_TCP})
 				break
 			}
 		}
-		for _, sock := range UDP {
+		for _, sock := range cacheEntry.UDP {
 			if sock.inode == s {
 				boundSockets = append(boundSockets, model.SnapshottedBoundSocket{IP: sock.ip, Port: sock.port, Family: unix.AF_INET, Protocol: unix.IPPROTO_UDP})
 				break
 			}
 		}
-		for _, sock := range TCP6 {
+		for _, sock := range cacheEntry.TCP6 {
 			if sock.inode == s {
 				boundSockets = append(boundSockets, model.SnapshottedBoundSocket{IP: sock.ip, Port: sock.port, Family: unix.AF_INET6, Protocol: unix.IPPROTO_TCP})
 				break
 			}
 		}
-		for _, sock := range UDP6 {
+		for _, sock := range cacheEntry.UDP6 {
 			if sock.inode == s {
 				boundSockets = append(boundSockets, model.SnapshottedBoundSocket{IP: sock.ip, Port: sock.port, Family: unix.AF_INET6, Protocol: unix.IPPROTO_UDP})
 				break
@@ -114,6 +135,25 @@ func GetBoundSockets(p *process.Process) ([]model.SnapshottedBoundSocket, error)
 	}
 
 	return boundSockets, nil
+}
+
+// NewBoundSocketSnapshotter creates a new BoundSocketSnapshotter instance
+func NewBoundSocketSnapshotter() *BoundSocketSnapshotter {
+	return &BoundSocketSnapshotter{
+		netNsCache: make(map[uint64]*netNsCacheEntry),
+	}
+}
+
+// BoundSocketSnapshotter is used to snapshot bound sockets of a process
+type BoundSocketSnapshotter struct {
+	netNsCache map[uint64]*netNsCacheEntry
+}
+
+type netNsCacheEntry struct {
+	TCP  []netIPEntry
+	UDP  []netIPEntry
+	TCP6 []netIPEntry
+	UDP6 []netIPEntry
 }
 
 var ipv6exists = sync.OnceValue(func() bool {

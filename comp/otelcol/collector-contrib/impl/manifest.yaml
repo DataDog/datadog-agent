@@ -1,4 +1,6 @@
 connectors:
+- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector
+    v0.127.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector
     v0.127.0
 dist:

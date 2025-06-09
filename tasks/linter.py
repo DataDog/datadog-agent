@@ -19,9 +19,7 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     full_config_get_all_leaf_jobs,
     full_config_get_all_stages,
-    generate_gitlab_full_configuration,
     get_all_gitlab_ci_configurations,
-    get_gitlab_ci_configuration,
     get_preset_contexts,
     is_leaf_job,
     load_context,
@@ -255,12 +253,14 @@ def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml")
         custom_context: A custom context to test the gitlab ci file with.
     """
     print(f'{color_message("info", Color.BLUE)}: Fetching Gitlab CI configurations...')
-    configs = get_all_gitlab_ci_configurations(ctx, input_file=input_file, with_lint=False)
+    configs = get_all_gitlab_ci_configurations(
+        ctx, input_file=input_file, resolve_only_includes=True, postprocess_options=False
+    )
 
-    for entry_point, input_config in configs.items():
-        with gitlab_section(f"Testing {entry_point}", echo=True):
+    for config_filename, config_object in configs.items():
+        with gitlab_section(f"Testing {config_filename}", echo=True):
             # Only the main config should be tested with all contexts
-            if entry_point == ".gitlab-ci.yml":
+            if config_filename == ".gitlab-ci.yml":
                 all_contexts = []
                 if custom_context:
                     all_contexts = load_context(custom_context)
@@ -270,9 +270,11 @@ def gitlab_ci(ctx, test="all", custom_context=None, input_file=".gitlab-ci.yml")
                 print(f'{color_message("info", Color.BLUE)}: We will test {len(all_contexts)} contexts')
                 for context in all_contexts:
                     print("Test gitlab configuration with context: ", context)
-                    test_gitlab_configuration(ctx, entry_point, input_config, dict(context))
+                    test_gitlab_configuration(
+                        entry_point=config_filename, config_object=config_object, context=dict(context)
+                    )
             else:
-                test_gitlab_configuration(ctx, entry_point, input_config)
+                test_gitlab_configuration(entry_point=config_filename, config_object=config_object)
 
 
 @task
@@ -292,6 +294,7 @@ def gitlab_ci_shellcheck(
     Args:
         diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
+        > If none of these are passed, the full config will be generated automatically, but this will be slower.
     """
 
     # Used by the CI to skip linting if no changes
@@ -299,7 +302,7 @@ def gitlab_ci_shellcheck(
         print('No diff file found, skipping lint')
         return
 
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+    jobs, full_config = get_gitlab_ci_lintable_jobs(ctx, diff_file, config_file)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
@@ -399,13 +402,16 @@ def ssm_parameters(ctx, mode="all", folders=None):
 def gitlab_change_paths(ctx):
     """Verifies that rules: changes: paths match existing files in the repository."""
 
-    # Read gitlab config
-    config = generate_gitlab_full_configuration(ctx, ".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+    # Read gitlab configs for all entrypoints
+    configs = get_all_gitlab_ci_configurations(
+        ctx, input_file=".gitlab-ci.yml", postprocess_options={"do_filtering": True}
+    )
     error_paths = []
-    for path in set(retrieve_all_paths(config)):
-        files = glob(path, recursive=True)
-        if len(files) == 0:
-            error_paths.append(path)
+    for _, config in configs.items():
+        for path in set(retrieve_all_paths(config)):
+            files = glob(path, recursive=True)
+            if len(files) == 0:
+                error_paths.append(path)
     if error_paths:
         raise Exit(
             f"{color_message('No files found for paths', Color.RED)}:\n{chr(10).join(' - ' + path for path in error_paths)}"
@@ -414,7 +420,7 @@ def gitlab_change_paths(ctx):
 
 
 @task
-def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
+def gitlab_ci_jobs_needs_rules(ctx, diff_file=None, config_file=None):
     """Verifies that each added / modified job contains `needs` and also `rules`.
 
     It is possible to declare a job not following these rules within `.gitlab/.ci-linters.yml`.
@@ -423,12 +429,13 @@ def gitlab_ci_jobs_needs_rules(_, diff_file=None, config_file=None):
     Args:
         diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+        > If none of these are passed, the full config will be generated automatically, but this will be slower.
 
     See:
       https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/4059234597/Gitlab+CI+configuration+guidelines#datadog-agent
     """
 
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file)
+    jobs, full_config = get_gitlab_ci_lintable_jobs(ctx, diff_file, config_file)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
@@ -574,10 +581,11 @@ def job_change_path(ctx, job_files=None):
 
     job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/e2e/install_packages/*.yml')))
 
-    # Read and parse gitlab config
+    # Read gitlab configs for all entrypoints
     # The config is filtered to only include jobs
-    config = get_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
-
+    configs = get_all_gitlab_ci_configurations(
+        ctx, input_file=".gitlab-ci.yml", postprocess_options={"do_filtering": True}
+    )
     # Fetch all test jobs
     test_config = read_includes(ctx, job_files, return_config=True, add_file_path=True)
     tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
@@ -597,13 +605,23 @@ def job_change_path(ctx, job_files=None):
     tests_without_change_path = defaultdict(list)
     tests_without_change_path_allowed = defaultdict(list)
     for test, filepath in tests:
-        if "rules" in config[test] and not any(
-            contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
-        ):
-            if test in tests_without_change_path_allow_list:
-                tests_without_change_path_allowed[filepath].append(test)
-            else:
-                tests_without_change_path[filepath].append(test)
+        # For each config entrypoint that contains this test (there might be multiple), verify that there is a change path defined
+        configs_containing_test = {entry_point: config for (entry_point, config) in configs.items() if test in config}
+        if len(configs_containing_test) == 0:
+            raise RuntimeError(
+                color_message(
+                    f'Specified test {color_message(filepath, Color.BLUE)} was not found in the gitlab config for any entrypoint !',
+                    Color.RED,
+                )
+            )
+        for entry_point, config in configs_containing_test.items():
+            if "rules" in config[test] and not any(
+                contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)
+            ):
+                if test in tests_without_change_path_allow_list:
+                    tests_without_change_path_allowed[f"{filepath} ({entry_point})"].append(test)
+                else:
+                    tests_without_change_path[f"{filepath} ({entry_point})"].append(test)
 
     if len(tests_without_change_path_allowed) != 0:
         with gitlab_section('Allow-listed jobs', collapsed=True):
@@ -613,15 +631,15 @@ def job_change_path(ctx, job_files=None):
                     Color.ORANGE,
                 )
             )
-            for filepath, tests in tests_without_change_path_allowed.items():
-                print(f"- {color_message(filepath, Color.BLUE)}: {', '.join(tests)}")
+            for filepath_and_entrypoint, tests in tests_without_change_path_allowed.items():
+                print(f"- {color_message(filepath_and_entrypoint, Color.BLUE)}: {', '.join(tests)}")
             print(color_message('warning: End of allow-listed jobs', Color.ORANGE))
             print()
 
     if len(tests_without_change_path) != 0:
         print(color_message("error: Tests without required change paths rule:", "red"), file=sys.stderr)
-        for filepath, tests in tests_without_change_path.items():
-            print(f"- {color_message(filepath, Color.BLUE)}: {', '.join(tests)}", file=sys.stderr)
+        for filepath_and_entrypoint, tests in tests_without_change_path.items():
+            print(f"- {color_message(filepath_and_entrypoint, Color.BLUE)}: {', '.join(tests)}", file=sys.stderr)
 
         raise RuntimeError(
             color_message(
@@ -629,8 +647,8 @@ def job_change_path(ctx, job_files=None):
                 Color.RED,
             )
         )
-    else:
-        print(color_message("success: All tests contain a change paths rule or are allow-listed", "green"))
+
+    print(color_message("success: All tests contain a change paths rule or are allow-listed", "green"))
 
 
 ## === Job ownership === ##
@@ -665,16 +683,17 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
 
 
 @task
-def gitlab_ci_jobs_owners(_, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
+def gitlab_ci_jobs_owners(ctx, diff_file=None, config_file=None, path_jobowners='.gitlab/JOBOWNERS'):
     """Verifies that each job is defined within JOBOWNERS files.
 
     Args:
         diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config
+        > If none of these are passed, the full config will be generated automatically, but this will be slower.
         path_jobowners: Path to the JOBOWNERS file
     """
 
-    jobs, full_config = get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=True)
+    jobs, full_config = get_gitlab_ci_lintable_jobs(ctx, diff_file, config_file, only_names=True)
 
     # No change, info already printed in get_gitlab_ci_lintable_jobs
     if not full_config:
