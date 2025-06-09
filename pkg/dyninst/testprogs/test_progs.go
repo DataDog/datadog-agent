@@ -32,47 +32,66 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 const helpMsg = "consider running `dda inv system-probe.build-dyninst-test-programs`"
 
+// MustGetCommonConfigs calls GetCommonConfigs and checks for an error..
+func MustGetCommonConfigs(t *testing.T) []Config {
+	cfgs, err := GetCommonConfigs()
+	require.NoError(t, err)
+	return cfgs
+}
+
+// MustGetPrograms calls GetPrograms and checks for an error.
+func MustGetPrograms(t *testing.T) []string {
+	programs, err := GetPrograms()
+	require.NoError(t, err)
+	return programs
+}
+
+// MustGetBinary calls GetBinary and checks for an error.
+func MustGetBinary(t *testing.T, name string, cfg Config) string {
+	bin, err := GetBinary(name, cfg)
+	require.NoError(t, err)
+	return bin
+}
+
 // GetCommonConfigs returns a list of configurations that are suggested for
 // use in tests. In scenarios where the source code is available, other
 // configurations may still be available via GetBinary.
-func GetCommonConfigs(t *testing.T) []Config {
-	return must(t, func(state *state) ([]Config, error) {
-		return state.commonConfigs, nil
-	}, "get common configs")
+func GetCommonConfigs() ([]Config, error) {
+	state, err := getState()
+	if err != nil {
+		return nil, fmt.Errorf("testprogs: %w", err)
+	}
+	return state.commonConfigs, nil
 }
 
 // GetPrograms returns a list of programs that are available for testing.
-func GetPrograms(t *testing.T) []string {
-	return must(t, func(state *state) ([]string, error) {
-		return state.programs, nil
-	}, "get programs")
+func GetPrograms() ([]string, error) {
+	state, err := getState()
+	if err != nil {
+		return nil, fmt.Errorf("testprogs: %w", err)
+	}
+	return state.programs, nil
 }
 
 // GetBinary returns the path to the binary for the given name and
 // configuration.  If the binary is not found, it will be compiled if the source
 // code is available.
-func GetBinary(t *testing.T, name string, cfg Config) string {
-	return must(t, func(state *state) (string, error) {
-		return getBinary(state, name, cfg)
-	}, "get binary")
-}
-
-// must is a helper function that gets the state and calls the given function.
-// If the function returns an error, it will fail the test.
-func must[A any](t *testing.T, f func(*state) (A, error), errMsg string) A {
+func GetBinary(name string, cfg Config) (string, error) {
 	state, err := getState()
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return "", fmt.Errorf("testprogs: %w", err)
 	}
-	a, err := f(state)
+	bin, err := getBinary(state, name, cfg)
 	if err != nil {
-		t.Fatalf("testprogs: %s: %v", errMsg, err)
+		return "", fmt.Errorf("testprogs: %w", err)
 	}
-	return a
+	return bin, nil
 }
 
 type state struct {

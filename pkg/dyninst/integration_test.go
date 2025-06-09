@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
-	object "github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -47,13 +47,13 @@ func skipIfKernelNotSupported(t *testing.T) {
 
 func TestDyninst(t *testing.T) {
 	skipIfKernelNotSupported(t)
-	cfgs := testprogs.GetCommonConfigs(t)
+	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, cfg := range cfgs {
 		t.Run(cfg.String(), func(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
 			}
-			bin := testprogs.GetBinary(t, "simple", cfg)
+			bin := testprogs.MustGetBinary(t, "simple", cfg)
 			testDyninst(t, bin)
 		})
 	}
@@ -77,7 +77,7 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
 
-	probes := testprogs.GetProbeCfgs(t, "simple")
+	probes := testprogs.MustGetProbeCfgs(t, "simple")
 
 	obj, err := object.NewElfObject(binary)
 	require.NoError(t, err)
