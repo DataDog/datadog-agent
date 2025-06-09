@@ -1043,6 +1043,54 @@ func TestIsLikelyAPIOrAppKey(t *testing.T) {
 	}
 }
 
+func TestBackendTypeWithValidVaultConfig(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	assert.Nil(t, err)
+	log.SetupLogger(l, "error")
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	r := newEnabledSecretResolver(tel)
+
+	r.enabled = true
+	r.backendType = "hashicorp.vault"
+	r.backendConfig = map[string]interface{}{
+		"vault_address": "http://127.0.0.1:8200",
+		"secret_path":   "/Datadog/Production",
+		"vault_session": map[string]interface{}{
+			"vault_auth_type": "aws",
+			"vault_aws_role":  "rahul_role",
+			"aws_region":      "us-east-1",
+		},
+	}
+
+	r.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{
+			"api_key":     "datadog-api-key-123",
+			"app_key":     "datadog-app-key-456",
+			"db_password": "secure-db-password",
+		}, nil
+	}
+
+	r.Configure(secrets.ConfigParams{Type: r.backendType, Config: r.backendConfig})
+	w.Flush()
+
+	assert.Nil(t, err)
+	assert.NotContains(t, b.String(), "unsupported nested key")
+	assert.NotContains(t, b.String(), "ERROR")
+
+	assert.Equal(t, "hashicorp.vault", r.backendType)
+	assert.Equal(t, "http://127.0.0.1:8200", r.backendConfig["vault_address"])
+	assert.Equal(t, "/Datadog/Production", r.backendConfig["secret_path"])
+
+	vaultSession, ok := r.backendConfig["vault_session"].(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, "aws", vaultSession["vault_auth_type"])
+	assert.Equal(t, "rahul_role", vaultSession["vault_aws_role"])
+	assert.Equal(t, "us-east-1", vaultSession["aws_region"])
+}
+
 func TestBackendTypeWithInvalidConfig(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)

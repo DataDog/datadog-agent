@@ -86,6 +86,9 @@ var allowedKeysByBackend = map[string]map[string]interface{}{
 			"vault_secret_id": true,
 			"vault_username":  true,
 			"vault_password":  true,
+			"vault_auth_type": true,
+			"vault_aws_role":  true,
+			"aws_region":      true,
 		},
 	},
 	"akeyless": {
