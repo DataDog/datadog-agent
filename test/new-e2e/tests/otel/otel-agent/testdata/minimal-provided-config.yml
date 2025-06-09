@@ -26,6 +26,7 @@ exporters:
       reporter_period: 30m0s
       tags: []
     hostname: otelcol-docker
+    hostname_detection_timeout: 25s
     idle_conn_timeout: "1m30s"
     logs:
       batch_wait: 5
