@@ -14,6 +14,8 @@ const (
 	DecodingMaxSupportedFetchRequestApiVersion             = 0x11
 	ClassificationMinSupportedAPIVersionsRequestApiVersion = 0x3
 	ClassificationMaxSupportedAPIVersionsRequestApiVersion = 0x4
+	DecodingMinSupportedMetadataRequestApiVersion          = 0xa
+	DecodingMaxSupportedMetadataRequestApiVersion          = 0xd
 )
 
 type ConnTuple struct {

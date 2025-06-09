@@ -36,7 +36,8 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #ifdef EXTRA_DEBUG
 #define extra_debug(fmt, ...) log_debug("kafka: " fmt, ##__VA_ARGS__)
 #else
-#define extra_debug(fmt, ...)
+//#define extra_debug(fmt, ...)
+#define extra_debug(fmt, ...) log_debug("kafka: " fmt, ##__VA_ARGS__)
 #endif
 
 static void __always_inline kafka_tcp_termination(conn_tuple_t *tup)
@@ -478,7 +479,7 @@ static enum parser_level parser_state_to_level(kafka_response_state state)
     switch (state) {
     case KAFKA_FETCH_RESPONSE_START:
     case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
-    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_OR_ID:
     case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
     case KAFKA_FETCH_RESPONSE_PARTITION_START:
     case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
@@ -519,10 +520,12 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             u32 data_end,
                                                                             u32 api_version)
 {
-    log_debug("GUY Parsing fetch response v%d", api_version);
+    extra_debug("Parsing fetch response v%d", api_version);
     u32 orig_offset = offset;
     bool flexible = api_version >= 12;
+    bool topic_id_instead_of_name = api_version >= 13;
     enum parse_result ret;
+
 
     log_debug("GUY carry_over_offset %d", response->carry_over_offset);
 
@@ -533,6 +536,11 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
     offset += response->carry_over_offset;
     response->carry_over_offset = 0;
+
+    __u8 abcd[5] = {0};
+    pktbuf_load_bytes(pkt, offset, abcd, sizeof(abcd));
+    log_debug("GUY abcd1 %02x%02x%02x", abcd[0], abcd[1], abcd[2]);
+    log_debug("GUY abcd2 %02x%02x", abcd[3], abcd[4]);
 
     log_debug("GUY state: %d", response->state);
     switch (response->state) {
@@ -570,52 +578,43 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 return RET_ERR;
             }
         }
-        response->state = KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE;
+        response->state = KAFKA_FETCH_RESPONSE_TOPIC_NAME_OR_ID;
         // fallthrough
 
-    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_OR_ID:
         {
-            __u8 test[5] = {0};
-            pktbuf_load_bytes(pkt, offset, test, sizeof(test));
-            log_debug("GUY test1 %d %02x%02x", offset, test[0], test[1]);
-            log_debug("GUY test2 %02x%02x%02x", test[2], test[3], test[4]);
+            if (topic_id_instead_of_name) {
+                offset += 16; // UUID is 16 bytes long.
+            } else {
+                s64 topic_name_size = 0;
+                ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
+                                         VARINT_BYTES_TOPIC_NAME_SIZE);
+                extra_debug("topic_name_size: %lld", topic_name_size);
+                if (ret != RET_DONE) {
+                    log_debug("GUY 5 returning %d", ret);
+                    return ret;
+                }
+                if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+                    return RET_ERR;
+                }
 
-            s64 topic_name_size = 0;
-            ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
-                                     VARINT_BYTES_TOPIC_NAME_SIZE);
-            extra_debug("topic_name_size: %lld", topic_name_size);
-            if (ret != RET_DONE) {
-                log_debug("GUY 5 returning %d", ret);
-                return ret;
+                // Should we check that topic name matches the topic we expect?
+                offset += topic_name_size;
             }
-            if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-                log_debug("GUY 6 size: %lld", topic_name_size);
-                return RET_ERR;
-            }
-
-            // Should we check that topic name matches the topic we expect?
-            offset += topic_name_size;
         }
         response->state = KAFKA_FETCH_RESPONSE_NUM_PARTITIONS;
         // fallthrough
 
     case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
         {
-            __u8 test[5] = {0};
-            pktbuf_load_bytes(pkt, offset, test, sizeof(test));
-            log_debug("GUY test3 %d %02x%02x", offset, test[0], test[1]);
-            log_debug("GUY test4 %02x%02x%02x", test[2], test[3], test[4]);
-
             s64 number_of_partitions = 0;
             ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true,
                                      VARINT_BYTES_NUM_PARTITIONS);
-            log_debug("GUY number_of_partitions: %lld", number_of_partitions);
+            extra_debug("number_of_partitions: %lld", number_of_partitions);
             if (ret != RET_DONE) {
-                log_debug("GUY 7 returning %d", ret);
                 return ret;
             }
             if (number_of_partitions <= 0) {
-                log_debug("GUY 8 returning RET_ERR");
                 return RET_ERR;
             }
 
@@ -637,7 +636,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_START:
         case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
-        case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+        case KAFKA_FETCH_RESPONSE_TOPIC_NAME_OR_ID:
         case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
             // Never happens. Only present to supress a compiler warning.
             break;
@@ -646,8 +645,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START;
             // fallthrough
 
-         case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
-         {
+        case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
+        {
             // Error codes range from -1 to 119 as per the Kafka protocol specification.
             // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
             s16 error_code = 0;
@@ -676,7 +675,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS;
             // fallthrough
-            }
+        }
 
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (api_version >= 4) {
@@ -684,7 +683,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &aborted_transactions, first,
                                          VARINT_BYTES_NUM_ABORTED_TRANSACTIONS);
                 if (ret != RET_DONE) {
-                    log_debug("GUY 11 returning");
                     return ret;
                 }
 
@@ -692,7 +690,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
                 // Note that -1 is a valid value which means that the list is empty.
                 if (aborted_transactions < -1) {
-                    log_debug("GUY 12 returning");
                     return RET_ERR;
                 }
                 // If we interpret some junk data as a packet with a huge aborted_transactions,
@@ -701,7 +698,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 // as a heuristic.
                 if (aborted_transactions >= KAFKA_MAX_ABORTED_TRANSACTIONS) {
                     extra_debug("Possibly invalid aborted_transactions %lld", aborted_transactions);
-                    log_debug("GUY 13 returning");
                     return RET_ERR;
                 }
                 if (aborted_transactions >= 0) {
@@ -735,7 +731,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &tmp, first,
                                      VARINT_BYTES_RECORD_BATCHES_NUM_BYTES);
             if (ret != RET_DONE) {
-                log_debug("GUY 14 returning");
                 return ret;
             }
 
@@ -748,7 +743,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
                 if (idx >= KAFKA_MAX_RECORD_BATCHES_ARRAYS) {
                     extra_debug("out of space in record_batches_array");
-                    log_debug("GUY 15 returning");
                     return RET_ERR;
                 }
 
@@ -768,7 +762,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 // Verification disabled due to code size limitations.
                 ret = skip_tagged_fields(response, pkt, &offset, data_end, false);
                 if (ret != RET_DONE) {
-                    log_debug("GUY 16 returning");
                     return ret;
                 }
             }
@@ -778,13 +771,11 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         case KAFKA_FETCH_RESPONSE_PARTITION_END:
             if (offset > data_end) {
                 response->carry_over_offset = offset - data_end;
-                log_debug("GUY 17 returning");
                 return RET_EOP;
             }
 
             response->partitions_count--;
             if (response->partitions_count == 0) {
-                log_debug("GUY 18 returning");
                 return RET_DONE;
             }
 
@@ -792,9 +783,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             break;
 
         default:
-
             extra_debug("invalid state %d in partition parser", response->state);
-            log_debug("GUY 19 returning");
             return RET_ERR;
             break;
         }
@@ -817,7 +806,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             u32 data_end,
                                                                             u32 api_version)
 {
-    extra_debug("Parsing produce response");
+    extra_debug("Parsing produce response v%d", api_version);
     u32 orig_offset = offset;
     bool flexible = api_version >= 9;
     enum parse_result ret;
@@ -944,7 +933,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             u32 data_end,
                                                                             u32 api_version)
 {
-    log_debug("GUY Parsing metadata response v%d, dport: %d, len: %d", api_version, tup->dport, data_end - offset);
+    extra_debug("Parsing metadata response v%d", api_version);
 
     u32 orig_offset = offset;
     enum parse_result ret;
@@ -972,7 +961,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
             ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
             if (ret != RET_DONE) {
-                log_debug("GUY 1");
                 return ret;
             }
 
@@ -987,12 +975,10 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_brokers, first,
                                     VARINT_BYTES_NUM_BROKERS);
             if (ret != RET_DONE) {
-                log_debug("GUY 2");
                return ret;
             }
             if (num_of_brokers <= 0 || num_of_brokers > NUM_BROKERS_MAX) {
-               extra_debug("invalid number of brokers: %d", num_of_brokers);
-               log_debug("GUY 3");
+               extra_debug("invalid number of brokers: %lld", num_of_brokers);
                return RET_ERR;
             }
 
@@ -1008,7 +994,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             s16 host_size = read_nullable_string_size(pkt, true, &offset);
             if (host_size <= 0) {
                 log_debug("invalid broker host length: %d", host_size);
-                log_debug("GUY 4");
                 return RET_ERR;
             }
             offset += host_size; // Skip host
@@ -1023,7 +1008,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
             if (ret != RET_DONE) {
                 log_debug("error skipping tagged fields in broker loop");
-                log_debug("GUY 5");
                 return ret;
             }
 
@@ -1050,7 +1034,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             response->state = KAFKA_METADATA_RESPONSE_NUM_TOPICS;
             // fallthrough
         case KAFKA_METADATA_RESPONSE_NUM_TOPICS:
-            log_debug("GUY KAFKA_METADATA_RESPONSE_NUM_TOPICS");
             extra_debug("KAFKA_METADATA_RESPONSE_NUM_TOPICS");
 
             __u8 test[5] = {0};
@@ -1059,20 +1042,13 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             // Assume flexible=true because we don't support old versions
             ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_topics, first,
                                     VARINT_BYTES_NUM_TOPICS);
-            log_debug("GUY num_of_topics: %lld, ret: %d", num_of_topics, ret);
+            extra_debug("num_of_topics: %lld, ret: %d", num_of_topics, ret);
             if (ret != RET_DONE) {
-                log_debug("GUY 6");
                 return ret;
             }
             if (num_of_topics <= 0) {
-                log_debug("GUY 7 num_of_topics <= 0");
-                log_debug("GUY 7 %d %02x%02x", offset, test[0], test[1]);
-                log_debug("GUY 7 %02x%02x%02x", test[2], test[3], test[4]);
-                // If there are no topics, we are done
                 return RET_DONE;
             }
-//            log_debug("GUY test1 %d %02x%02x", offset, test[0], test[1]);
-//            log_debug("GUY test2 %02x%02x%02x", test[2], test[3], test[4]);
             if (num_of_topics > NUM_TOPICS_MAX) {
                 extra_debug("invalid number of topics: %lld", num_of_topics);
                 return RET_ERR;
@@ -1100,7 +1076,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             if (offset + topic_name_size > pktbuf_data_end(pkt)) {
                 // handle reminder?
                 extra_debug("not enough data to read topic_name");
-                log_debug("GUY 8");
                 break;
             }
             pktbuf_load_bytes_with_telemetry(pkt, offset, topic_name, topic_name_size);
@@ -1111,7 +1086,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
                 // handle reminder?
                 extra_debug("not enough data to read topic_id");
-                log_debug("GUY 9");
                 break;
             }
             pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
@@ -1138,7 +1112,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_partitions, first,
                                                 VARINT_BYTES_NUM_PARTITIONS);
             if (ret != RET_DONE) {
-                log_debug("GUY 10");
                 return ret;
             }
             offset += 26 * num_of_partitions; // Skip partitions TODO variable length partitions
@@ -2150,7 +2123,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     // Flip the tuple for the response path.
     flip_tuple(&key.tuple);
     bpf_map_update_elem(&kafka_in_flight, &key, &transaction, BPF_NOEXIST);
-    log_debug("GUY kafka: Added request with api_key %d api_version %d",
+    log_debug("GUY kafka: finished parsing request successfully with api_key %d api_version %d",
               kafka_header.api_key, kafka_header.api_version);
     return true;
 }

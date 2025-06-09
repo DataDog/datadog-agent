@@ -42,10 +42,15 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	latency := tx.RequestLatency()
 	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
-	//if tx.APIKey() != ProduceAPIKey && latency <= 0 {
-	//	statKeeper.telemetry.invalidLatency.Add(int64(tx.RecordsCount()))
-	//	return
-	//}
+	if tx.APIKey() != ProduceAPIKey && latency <= 0 {
+		statKeeper.telemetry.invalidLatency.Add(int64(tx.RecordsCount()))
+		return
+	}
+
+	// Metadata requests do not have a topic name, so we skip them
+	if tx.APIKey() == MetadataAPIKey {
+		return
+	}
 
 	// extractTopicName is an expensive operation but, it is also concurrent safe, so we can do it here
 	// without holding the lock.
