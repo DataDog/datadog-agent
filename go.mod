@@ -62,7 +62,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/aquasecurity/trivy-db v0.0.0-20250227071930-8bd8a9b89e2d
 	github.com/avast/retry-go/v4 v4.6.0
-	github.com/aws/aws-lambda-go v1.37.0
+	github.com/aws/aws-lambda-go v1.49.0
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/beevik/ntp v1.4.3
 	github.com/benbjohnson/clock v1.3.5
