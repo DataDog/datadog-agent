@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    APM: Fix an issue where the trace-agent could panic during shutdown trying to obfuscate a sql payload.
+    APM: Fix an issue where the trace-agent could panic during shutdown trying to obfuscate a SQL payload.
