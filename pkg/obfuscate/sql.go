@@ -297,7 +297,7 @@ func isSQLLexer(obfuscationMode ObfuscationMode) bool {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
-	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL, o.optsStr)
+	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL, o.sqlOptsStr)
 }
 
 // ObfuscateSQLStringForDBMS quantizes and obfuscates the given input SQL query string for a specific DBMS.
@@ -305,7 +305,7 @@ func (o *Obfuscator) ObfuscateSQLStringForDBMS(in string, dbms string) (*Obfusca
 	if isSQLLexer(o.opts.SQL.ObfuscationMode) {
 		o.opts.SQL.DBMS = dbms
 	}
-	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL, o.optsStr)
+	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL, o.sqlOptsStr)
 }
 
 // ObfuscateSQLStringWithOptions accepts an optional SQLOptions to change the behavior of the obfuscator

@@ -30,7 +30,7 @@ const Version = 1
 // concurrent use.
 type Obfuscator struct {
 	opts                 *Config
-	optsStr              string          // string representation of the options, used for caching
+	sqlOptsStr           string          // string representation of the options, used for caching
 	es                   *jsonObfuscator // nil if disabled
 	openSearch           *jsonObfuscator // nil if disabled
 	mongo                *jsonObfuscator // nil if disabled
@@ -308,8 +308,8 @@ func NewObfuscator(cfg Config) *Obfuscator {
 		cfg.Logger = noopLogger{}
 	}
 	optsStr := ""
-	optsBytes, err := json.Marshal(cfg)
-	if err != nil {
+	optsBytes, err := json.Marshal(cfg.SQL)
+	if err == nil {
 		optsStr = string(optsBytes)
 	} else {
 		log.Errorf("failed to marshal obfuscation config: %v", err)
@@ -317,7 +317,7 @@ func NewObfuscator(cfg Config) *Obfuscator {
 
 	o := Obfuscator{
 		opts:              &cfg,
-		optsStr:           optsStr,
+		sqlOptsStr:        optsStr,
 		queryCache:        newMeasuredCache(cacheOptions{On: cfg.Cache.Enabled, Statsd: cfg.Statsd, MaxSize: cfg.Cache.MaxSize}),
 		sqlLiteralEscapes: atomic.NewBool(false),
 		log:               cfg.Logger,
