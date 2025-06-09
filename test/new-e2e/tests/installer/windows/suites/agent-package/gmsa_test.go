@@ -8,6 +8,7 @@ package agenttests
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -55,9 +56,14 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) SetupSuite() {
 	host.Execute("Restart-Computer -Force")
 	s.T().Log("*** Reset done")
 
+	time.Sleep(2 * time.Minute)
+
+	err := host.Reconnect()
+	s.Require().NoError(err, "should reconnect to host")
+
 	// Check and configure the KDS root key if not already configured
 	s.T().Log("Checking and configuring KDS root key...")
-	err := createKDSRootKey(host)
+	err = createKDSRootKey(host)
 	s.Require().NoError(err, "should check and create KDS root key")
 
 	// Configure the gMSA account
