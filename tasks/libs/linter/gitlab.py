@@ -7,6 +7,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.gitlab_api import (
     MultiGitlabCIDiff,
+    get_all_gitlab_ci_configurations,
     is_leaf_job,
 )
 from tasks.libs.common.color import Color, color_message
@@ -64,34 +65,44 @@ def list_get_parameter_calls(file):
     return calls
 
 
-def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
+def get_gitlab_ci_lintable_jobs(ctx, diff_file=None, config_file=None, only_names=False):
     """Retrieves the jobs from full gitlab ci configuration file or from a diff file.
 
     Args:
         diff_file: Path to the diff file used to build MultiGitlabCIDiff obtained by compute-gitlab-ci-config.
         config_file: Path to the full gitlab ci configuration file obtained by compute-gitlab-ci-config.
+        > If none of these are passed, the full config will be generated automatically, but this will be slower.
+
+    Returns:
+        A (jobs, full_config) tuple.
+        `jobs` is itself a tuple of (job_name: str, job_contents: dict). If `only_names` is True, it will be a simple list of all the job names.
+        `full_config` is a gitlabci config object, of the same structure as returned by `get_all_gitlab_ci_configurations`
     """
+    # Dict of entrypoint -> config object, of the format returned by `get_all_gitlab_ci_configurations`
+    configs: dict[str, dict]
+    assert not (config_file and diff_file), "Please only pass either a config file or a diff file"
 
-    assert (
-        diff_file or config_file and not (diff_file and config_file)
-    ), "You must provide either a diff file or a config file and not both"
-
-    # Load all the jobs from the files
-    if config_file:
-        with open(config_file) as f:
-            full_config = yaml.safe_load(f)
-            jobs = [
-                (job, job_contents)
-                for contents in full_config.values()
-                for job, job_contents in contents.items()
-                if is_leaf_job(job, job_contents)
-            ]
-    else:
+    if diff_file:
+        # Special handling of diff files
         with open(diff_file) as f:
             diff = MultiGitlabCIDiff.from_dict(yaml.safe_load(f))
 
-        full_config = diff.after
+        configs = diff.after  # type: ignore
         jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
+    else:
+        if config_file:
+            with open(config_file) as f:
+                configs = yaml.safe_load(f)
+        else:
+            # If a config/diff file is not passed, build it on-demand using `get_all_gitlab_ci_configurations`
+            configs = get_all_gitlab_ci_configurations(ctx, input_file=".gitlab-ci.yml")
+
+        jobs = [
+            (job, job_contents)
+            for contents in configs.values()
+            for job, job_contents in contents.items()
+            if is_leaf_job(job, job_contents)
+        ]
 
     if not jobs:
         print(f"{color_message('Info', Color.BLUE)}: No added / modified jobs, skipping lint")
@@ -100,7 +111,7 @@ def get_gitlab_ci_lintable_jobs(diff_file, config_file, only_names=False):
     if only_names:
         jobs = [job for job, _ in jobs]
 
-    return jobs, full_config
+    return jobs, configs
 
 
 def _gitlab_ci_jobs_owners_lint(jobs, jobowners, ci_linters_config, path_jobowners):

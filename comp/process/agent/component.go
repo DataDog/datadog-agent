@@ -6,7 +6,7 @@
 // Package agent contains a process-agent component
 package agent
 
-// team: container-intake
+// team: container-experiences
 
 // Component is the process agent component type
 type Component interface {

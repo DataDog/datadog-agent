@@ -36,6 +36,16 @@ type ElfFile struct {
 	unitVersions map[dwarf.Offset]uint8
 }
 
+// TextSectionHeader implements File.
+func (e *ElfFile) TextSectionHeader() (*safeelf.SectionHeader, error) {
+	for _, s := range e.Sections {
+		if s.Name == ".text" {
+			return &s.SectionHeader, nil
+		}
+	}
+	return nil, fmt.Errorf("text section not found")
+}
+
 // Architecture implements File.
 func (e *ElfFile) Architecture() Architecture {
 	return e.architecture

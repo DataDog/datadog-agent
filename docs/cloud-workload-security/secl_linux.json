@@ -5758,6 +5758,30 @@
       ]
     },
     {
+      "name": "setsockopt",
+      "definition": "A setsockopt was executed",
+      "type": "Network",
+      "from_agent_version": "7.68",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setsockopt.level",
+          "definition": "Socket level",
+          "property_doc_link": "setsockopt-level-doc"
+        },
+        {
+          "name": "setsockopt.optname",
+          "definition": "Socket option name",
+          "property_doc_link": "setsockopt-optname-doc"
+        },
+        {
+          "name": "setsockopt.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "setuid",
       "definition": "A process changed its effective uid",
       "type": "Process",
@@ -9493,6 +9517,7 @@
         "removexattr",
         "rename",
         "rmdir",
+        "setsockopt",
         "setxattr",
         "signal",
         "splice",
@@ -11014,6 +11039,30 @@
       "definition": "New group of the process",
       "prefixes": [
         "setgid"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.level",
+      "link": "setsockopt-level-doc",
+      "type": "int",
+      "definition": "Socket level",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.optname",
+      "link": "setsockopt-optname-doc",
+      "type": "int",
+      "definition": "Socket option name",
+      "prefixes": [
+        "setsockopt"
       ],
       "constants": "",
       "constants_link": "",
@@ -15108,6 +15157,908 @@
         {
           "name": "PTRACE_POKEMTETAGS",
           "architecture": "arm64"
+        }
+      ]
+    },
+    {
+      "name": "SetSockopt Levels",
+      "link": "setsockopt-levels",
+      "description": "SetSockopt Levels are the supported levels for the setsockopt event.",
+      "all": [
+        {
+          "name": "IPPROTO_IP",
+          "architecture": "all"
+        },
+        {
+          "name": "SOL_SOCKET",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_TCP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_UDP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_IPV6",
+          "architecture": "all"
+        },
+        {
+          "name": "IPPROTO_ICMPV6",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "SetSockopt Options",
+      "link": "setsockopt-options",
+      "description": "SetSockopt Options are the supported options for the setsockopt event.",
+      "all": [
+        {
+          "name": "IP_TOS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_TTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_HDRINCL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_OPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ROUTER_ALERT",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RETOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PKTOPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MTU_DISCOVER",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVERR",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVTTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVTOS",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_FREEBIND",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_IPSEC_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_XFRM_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_PASSSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_TRANSPARENT",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ORIGDSTADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MINTTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_NODEFRAG",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_CHECKSUM",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_BIND_ADDRESS_NO_PORT",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVFRAGSIZE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_RECVERR_RFC4884",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_TTL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_LOOP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ADD_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_DROP_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_UNBLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_BLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_ADD_SOURCE_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_DROP_SOURCE_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MSFILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_JOIN_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_BLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_UNBLOCK_SOURCE",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_LEAVE_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_JOIN_SOURCE_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_LEAVE_SOURCE_GROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "MCAST_MSFILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_MULTICAST_ALL",
+          "architecture": "all"
+        },
+        {
+          "name": "IP_UNICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEBUG",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_REUSEADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TYPE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ERROR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DONTROUTE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BROADCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDBUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVBUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_KEEPALIVE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_OOBINLINE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NO_CHECK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PRIORITY",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_LINGER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BSDCOMPAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_REUSEPORT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSCRED",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERCRED",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVLOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDLOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVTIMEO_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDTIMEO_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SECURITY_AUTHENTICATION",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SECURITY_ENCRYPTION_TRANSPORT",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SECURITY_ENCRYPTION_NETWORK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BINDTODEVICE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DETACH_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERNAME",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMP_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ACCEPTCONN",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDBUFFORCE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVBUFFORCE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSSEC",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPNS_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MARK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPING_OLD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PROTOCOL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DOMAIN",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RXQ_OVFL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_WIFI_STATUS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEEK_OFF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NOFCS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_LOCK_FILTER",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SELECT_ERR_QUEUE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BUSY_POLL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MAX_PACING_RATE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BPF_EXTENSIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_INCOMING_CPU",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_BPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_REUSEPORT_CBPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ATTACH_REUSEPORT_EBPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_CNX_ADVICE",
+          "architecture": "all"
+        },
+        {
+          "name": "SCM_TIMESTAMPING_OPT_STATS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_MEMINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_INCOMING_NAPI_ID",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_COOKIE",
+          "architecture": "all"
+        },
+        {
+          "name": "SCM_TIMESTAMPING_PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERGROUPS",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_ZEROCOPY",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TXTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BINDTOIFINDEX",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMP_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPNS_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TIMESTAMPING_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVTIMEO_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_SNDTIMEO_NEW",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DETACH_REUSEPORT_BPF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PREFER_BUSY_POLL",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BUSY_POLL_BUDGET",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_NETNS_COOKIE",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_BUF_LOCK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RESERVE_MEM",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_TXREHASH",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVMARK",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PASSPIDFD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_PEERPIDFD",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEVMEM_LINEAR",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEVMEM_DMABUF",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_DEVMEM_DONTNEED",
+          "architecture": "all"
+        },
+        {
+          "name": "SCM_TS_OPT_ID",
+          "architecture": "all"
+        },
+        {
+          "name": "SO_RCVPRIORITY",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_NODELAY",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_MAXSEG",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_CORK",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_KEEPIDLE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_KEEPINTVL",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_KEEPCNT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_SYNCNT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_LINGER2",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_DEFER_ACCEPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_WINDOW_CLAMP",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_QUICKACK",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_CONGESTION",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_MD5SIG",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_THIN_LINEAR_TIMEOUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_THIN_DUPACK",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_USER_TIMEOUT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR_QUEUE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_QUEUE_SEQ",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR_OPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_TIMESTAMP",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_NOTSENT_LOWAT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_CC_INFO",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_SAVE_SYN",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_SAVED_SYN",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_REPAIR_WINDOW",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN_CONNECT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_ULP",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_MD5SIG_EXT",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN_KEY",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_FASTOPEN_NO_COOKIE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_ZEROCOPY_RECEIVE",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_INQ",
+          "architecture": "all"
+        },
+        {
+          "name": "TCP_TX_DELAY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ADDRFORM",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292HOPOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292DSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292RTHDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292PKTOPTIONS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_2292HOPLIMIT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FLOWINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_UNICAST_HOPS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_HOPS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_LOOP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ADD_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_DROP_MEMBERSHIP",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ROUTER_ALERT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MTU_DISCOVER",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVERR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_V6ONLY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_JOIN_ANYCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_LEAVE_ANYCAST",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MULTICAST_ALL",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ROUTER_ALERT_ISOLATE",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVERR_RFC4884",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FLOWLABEL_MGR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FLOWINFO_SEND",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_IPSEC_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_XFRM_POLICY",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_HDRINCL",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVPKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_PKTINFO",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVHOPLIMIT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_HOPLIMIT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVHOPOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_HOPOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RTHDRDSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVRTHDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RTHDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVDSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_DSTOPTS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVPATHMTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_PATHMTU",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_DONTFRAG",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVTCLASS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_TCLASS",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_AUTOFLOWLABEL",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ADDR_PREFERENCES",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_MINHOPCOUNT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_ORIGDSTADDR",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_TRANSPARENT",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_UNICAST_IF",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_RECVFRAGSIZE",
+          "architecture": "all"
+        },
+        {
+          "name": "IPV6_FREEBIND",
+          "architecture": "all"
         }
       ]
     },
