@@ -95,9 +95,16 @@ You can view the running VMs and their IP addresses.
 dda inv -e kmt.status
 ```
 
-**5. Connect to the VM**
+**5. Interact with the VM**
 
-The easiest way to connect is by generating an SSH configuration file. The stack name will be automatically inferred from your git branch.
+The primary way to interact with the VMs is by running tests using the `kmt.test` command.
+
+```bash
+# Run all tests on the VM
+dda inv -e kmt.test --vms=ubuntu22-local-distro
+```
+
+For debugging or manual inspection, you can also connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
 
 ```bash
 # Generate the SSH config
@@ -164,9 +171,16 @@ You can view the running VMs and their IP addresses. It may take a few moments f
 dda inv -e kmt.status
 ```
 
-**5. Connect to the VM**
+**5. Interact with the VM**
 
-The easiest way to connect is by generating an SSH configuration file. The stack name will be automatically inferred from your git branch.
+The primary way to interact with the VMs is by running tests using the `kmt.test` command.
+
+```bash
+# Run all tests on the VM
+dda inv -e kmt.test --vms=x86-jammy-distro
+```
+
+For debugging or manual inspection, you can also connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
 
 ```bash
 # Generate the SSH config
