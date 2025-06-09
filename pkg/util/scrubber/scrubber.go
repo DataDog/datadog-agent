@@ -85,10 +85,6 @@ var blankRegex = regexp.MustCompile(`^\s*$`)
 type Scrubber struct {
 	singleLineReplacers []Replacer
 	multiLineReplacers  []Replacer
-
-	// shouldApply is a function that can be used to conditionally apply a replacer.
-	// If the function returns false, the replacer will not be applied.
-	shouldApply func(repl Replacer) bool
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -114,11 +110,6 @@ func (c *Scrubber) AddReplacer(kind ReplacerKind, replacer Replacer) {
 	case MultiLine:
 		c.multiLineReplacers = append(c.multiLineReplacers, replacer)
 	}
-}
-
-// SetShouldApply sets a condition function to the scrubber. If the function returns false, the replacer will not be applied.
-func (c *Scrubber) SetShouldApply(shouldApply func(repl Replacer) bool) {
-	c.shouldApply = shouldApply
 }
 
 // ScrubFile scrubs credentials from file given by pathname
@@ -197,10 +188,6 @@ func (c *Scrubber) scrub(data []byte, replacers []Replacer) []byte {
 	for _, repl := range replacers {
 		if repl.Regex == nil {
 			// ignoring YAML only replacers
-			continue
-		}
-
-		if c.shouldApply != nil && !c.shouldApply(repl) {
 			continue
 		}
 
