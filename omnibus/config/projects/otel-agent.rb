@@ -103,7 +103,8 @@ elsif redhat_target?
   # RPM packages can't have dashes in their version segment, so we use
   # the same sanitization function that gets applied for the Agent version
   safe_version = Omnibus::Packager::RPM::safe_version(build_version)
-  runtime_dependency "datadog-agent = 1:#{safe_version}-1"
+  puts "datadog-agent = 1:#{safe_version}-1"
+  #runtime_dependency "datadog-agent = 1:#{safe_version}-1"
 end
 
 # .deb specific flags

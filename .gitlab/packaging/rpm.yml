@@ -119,10 +119,11 @@ agent_suse-arm64-a7-fips:
   variables:
     # Not setting any required files for ddot packages yet
     PACKAGE_REQUIRED_FILES_LIST: ""
+    RPM_SIGNING_PASSPHRASE: ""
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
-    - !reference [.setup_rpm_signing_key]
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project otel-agent ${OMNIBUS_EXTRA_ARGS}
+    #- !reference [.setup_rpm_signing_key]
+    - dda inv -- -e omnibus.build --log-level debug --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project otel-agent ${OMNIBUS_EXTRA_ARGS}
     - !reference [.create_signature_and_lint_linux_packages]
 
 ot_agent_rpm-x64-a7:

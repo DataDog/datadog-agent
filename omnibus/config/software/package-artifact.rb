@@ -10,11 +10,27 @@ build do
   # which contains all binaries, and an optional debug one with the debuging symbols
   # that have been stripped out during the build
   # We want this in a `block` to have access to the Builder DSL
-  block "Extract intermediate build artifacts" do
+  if project.name == "otel-agent"
     Dir.glob("*.tar.xz", base: input_dir).each do |input|
       path = File.join(input_dir, input)
-      shellout! "tar xf #{path} -C /"
-      FileUtils.rm path
+      puts(input)
+      puts(`tar tf #{path}`)
+    end
+    block "Extract intermediate build artifacts" do
+      Dir.glob("*.tar.xz", base: input_dir).each do |input|
+        path = File.join(input_dir, input)
+        # shellout instead of shellout! to allow this to fail when the file doesn't exist
+        shellout "tar xf #{path} -C / opt/datadog-agent/embedded/bin/otel-agent"
+        FileUtils.rm path
+      end
+    end
+  else
+    block "Extract intermediate build artifacts" do
+      Dir.glob("*.tar.xz", base: input_dir).each do |input|
+        path = File.join(input_dir, input)
+        shellout! "tar xf #{path} -C /"
+        FileUtils.rm path
+      end
     end
   end
 
