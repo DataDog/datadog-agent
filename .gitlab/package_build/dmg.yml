@@ -53,6 +53,7 @@ agent_dmg-x64-a7:
   before_script:
     # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
     - sudo umount /Volumes/Agent || true
+    - rm -rf "$OMNIBUS_GIT_CACHE_DIR" || true
   after_script:
     # Destroy the keychain used to sign packages
     - |

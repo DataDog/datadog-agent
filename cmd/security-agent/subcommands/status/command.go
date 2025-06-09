@@ -20,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -52,6 +54,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -63,11 +66,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{statusCmd}
 }
 
-func runStatus(_ log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
+func runStatus(_ log.Component, config config.Component, _ secrets.Component, client ipc.HTTPClient, params *cliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string
-	c := util.GetClient()
 
 	v := url.Values{}
 	if params.prettyPrintJSON || params.json {
@@ -83,13 +85,7 @@ func runStatus(_ log.Component, config config.Component, _ secrets.Component, pa
 		RawQuery: v.Encode(),
 	}
 
-	// Set session token
-	e = util.SetAuthToken(config)
-	if e != nil {
-		return e
-	}
-
-	r, e := util.DoGet(c, url.String(), util.LeaveConnectionOpen)
+	r, e := client.Get(url.String(), ipchttp.WithLeaveConnectionOpen)
 	if e != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

@@ -7,7 +7,6 @@
 package remoteconfighandler
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -76,7 +75,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 		},
 		configHTTPClient: &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //Skipped while IPC cert supply chain is released
+				TLSClientConfig: conf.IPCTLSClientConfig,
 			},
 		},
 		configSetEndpointFormatString: fmt.Sprintf(
@@ -208,9 +207,7 @@ func (h *RemoteConfigHandler) buildLogLevelRequest(newLevel string) (*http.Reque
 		pkglog.Infof("Failed to build request to change log level of the trace-agent to %s through remote config", newLevel)
 		return nil, err
 	}
-	if h.agentConfig.GetAgentAuthToken != nil {
-		req.Header.Set("Authorization", "Bearer "+h.agentConfig.GetAgentAuthToken())
-	}
+	req.Header.Set("Authorization", "Bearer "+h.agentConfig.AuthToken) // TODO IPC: avoid using the auth token directly
 	return req, nil
 }
 

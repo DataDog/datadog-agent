@@ -315,3 +315,19 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 		}
 	}
 }
+
+func resetMapping[K comparable, V any](m map[K]V) {
+	for key := range m {
+		delete(m, key)
+	}
+}
+
+// ResetAllMappings removes all mappings. This is useful in tests to reset state
+func ResetAllMappings() {
+	resetMapping(mapNameMapping)
+	resetMapping(mapModuleMapping)
+	resetMapping(progNameMapping)
+	resetMapping(progModuleMapping)
+	resetMapping(probeIDToFDMappings)
+	resetMapping(progIgnoredIDs)
+}

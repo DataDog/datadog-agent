@@ -9,11 +9,20 @@ package snmp
 import (
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strconv"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/aggregator"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
@@ -30,11 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-	"net"
-	"os"
-	"strconv"
 )
 
 const (
@@ -103,6 +107,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				metricscompression.Module(),
 				logscompression.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 			if err != nil {
 				var ue configErr
@@ -168,6 +173,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				haagentfx.Module(),
 				metricscompression.Module(),
 				logscompression.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 			if err != nil {
 				var ue configErr
@@ -227,8 +233,8 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component) error {
-	agentParams, agentError := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf)
+func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component, client ipc.HTTPClient) error {
+	agentParams, agentError := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf, client)
 	if agentError != nil {
 		return agentError
 	}
@@ -268,7 +274,7 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Componen
 	return nil
 }
 
-func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component) error {
+func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -279,7 +285,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf)
+	agentErr := setDefaultsFromAgent(connParams, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
@@ -298,7 +304,7 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
-func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component) error {
+func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, logger log.Component, client ipc.HTTPClient) error {
 	// Parse args
 	if len(args) == 0 {
 		return confErrf("missing argument: IP address")
@@ -313,7 +319,7 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf)
+	agentErr := setDefaultsFromAgent(connParams, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.

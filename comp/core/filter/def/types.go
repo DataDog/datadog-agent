@@ -59,7 +59,7 @@ func CreateContainer(container workloadmeta.Container, owner Filterable) *Contai
 		switch o := owner.(type) {
 		case *Pod:
 			c.Owner = &typedef.FilterContainer_Pod{
-				Pod: o.ToProto(),
+				Pod: o.FilterPod,
 			}
 		}
 	}
@@ -122,17 +122,7 @@ var _ Filterable = &Pod{}
 
 // Serialize converts the Pod object to a map.
 func (p *Pod) Serialize() any {
-	return p.ToProto()
-}
-
-// ToProto converts the Pod object to a protobuf representation.
-func (p *Pod) ToProto() *typedef.FilterPod {
-	return &typedef.FilterPod{
-		Id:          p.Id,
-		Name:        p.Name,
-		Namespace:   p.Namespace,
-		Annotations: p.Annotations,
-	}
+	return p.FilterPod
 }
 
 // Type returns the resource type of the pod.
