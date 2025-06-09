@@ -48,6 +48,10 @@ type node struct {
 
 //nolint:all
 //go:noinline
+func test_pointer_loop(a *node) {}
+
+//nolint:all
+//go:noinline
 func test_unsafe_pointer(x unsafe.Pointer) {}
 
 //nolint:all
@@ -158,4 +162,10 @@ func ExecutePointerFuncs() {
 	up := &u
 	upp := &up
 	test_pointer_to_pointer(upp)
+
+	self := &node{
+		val: 1,
+	}
+	self.b = self
+	test_pointer_loop(self)
 }

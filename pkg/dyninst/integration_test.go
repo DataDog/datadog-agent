@@ -120,6 +120,7 @@ func TestDyninst(t *testing.T) {
 			expectedDecodingOutput: `{"x":-8}`,
 			expectedToPass:         true,
 		},
+
 		{
 			name:   "test_single_int16",
 			binary: "sample",
@@ -954,10 +955,37 @@ func TestDyninst(t *testing.T) {
 			expectedDecodingOutput: `{}`,
 			expectedToPass:         false,
 		},
+		{
+			name:   "test_linked_list",
+			binary: "sample",
+			probes: []config.Probe{
+				&config.LogProbe{
+					ID: "test_linked_list",
+					Where: &config.Where{
+						MethodName: "main.test_linked_list",
+					},
+				},
+			},
+			expectedDecodingOutput: `{}`,
+			expectedToPass:         false,
+		},
+		{
+			name:   "test_pointer_loop",
+			binary: "sample",
+			probes: []config.Probe{
+				&config.LogProbe{
+					ID: "test_pointer_loop",
+					Where: &config.Where{
+						MethodName: "main.test_pointer_loop",
+					},
+				},
+			},
+			expectedDecodingOutput: `{}`,
+			expectedToPass:         false,
+		},
 	}
 
 	allTestData = make(map[string]TestData)
-
 	for _, tc := range testCases {
 		for _, cfg := range testprogs.GetCommonConfigs(t) {
 			if cfg.GOARCH != runtime.GOARCH {
@@ -967,7 +995,7 @@ func TestDyninst(t *testing.T) {
 			testName := fmt.Sprintf("%s_%s", tc.name, cfg.String())
 			t.Run(testName, func(t *testing.T) {
 				bin := testprogs.GetBinary(t, tc.binary, cfg)
-				testDyninst(t, testName, bin, tc)
+				testDyninst(t, bin, tc)
 			})
 		}
 	}
@@ -975,7 +1003,7 @@ func TestDyninst(t *testing.T) {
 
 var allTestData map[string]TestData
 
-func testDyninst(t *testing.T, testName string, sampleServicePath string, tc testCase) {
+func testDyninst(t *testing.T, sampleServicePath string, tc testCase) {
 	tempDir, err := os.MkdirTemp(os.TempDir(), "dyninst-integration-test-")
 	require.NoError(t, err)
 	defer func() {
