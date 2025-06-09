@@ -46,8 +46,13 @@ func getFargateProvisioner(configMap runner.ConfigMap) provisioners.TypedProvisi
 func TestECSFargateTestSuite(t *testing.T) {
 	t.Parallel()
 	s := ECSFargateSuite{}
+
+	extraConfig := runner.ConfigMap{
+		"ddagent:extraEnvVars": auto.ConfigValue{Value: "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED=false"},
+	}
+
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		getFargateProvisioner(nil),
+		getFargateProvisioner(extraConfig),
 	),
 	}
 
