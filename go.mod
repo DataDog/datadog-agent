@@ -156,9 +156,9 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.3.0
 	github.com/twmb/murmur3 v1.1.8
-	github.com/uptrace/bun v1.2.5
-	github.com/uptrace/bun/dialect/pgdialect v1.2.5
-	github.com/uptrace/bun/driver/pgdriver v1.2.5
+	github.com/uptrace/bun v1.2.12
+	github.com/uptrace/bun/dialect/pgdialect v1.2.12
+	github.com/uptrace/bun/driver/pgdriver v1.2.12
 	github.com/urfave/negroni v1.0.0
 	github.com/vishvananda/netlink v1.3.0
 	github.com/vishvananda/netns v0.0.5
@@ -395,15 +395,15 @@ require (
 	go.opentelemetry.io/collector/featuregate v1.33.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.35.0 // indirect
-	go.opentelemetry.io/otel v1.35.0
+	go.opentelemetry.io/otel v1.36.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.57.0 // indirect
-	go.opentelemetry.io/otel/metric v1.35.0 // indirect
+	go.opentelemetry.io/otel/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.35.0
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
-	go.opentelemetry.io/otel/trace v1.35.0
+	go.opentelemetry.io/otel/trace v1.36.0
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/mod v0.24.0
@@ -915,7 +915,7 @@ require (
 	github.com/prometheus/prometheus v0.302.1 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
-	github.com/rs/zerolog v1.33.0 // indirect
+	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/rust-secure-code/go-rustaudit v0.0.0-20250226111315-e20ec32e963c // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/samber/oops v1.15.0 // indirect
