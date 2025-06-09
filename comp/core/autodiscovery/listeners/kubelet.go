@@ -160,7 +160,7 @@ func (l *KubeletListener) createContainerService(
 	svc := &service{
 		entity:   container,
 		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), types.ChecksConfigCardinality),
-		ready:    pod.Ready || shouldSkipPodReadiness(pod),
+		ready:    pod.Ready,
 		ports:    ports,
 		extraConfig: map[string]string{
 			"pod_name":  pod.Name,
