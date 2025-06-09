@@ -62,20 +62,24 @@ func (l *liveMessagesCheck) InstanceConfig() string {
 }
 
 func wrapLiveMessageCheck(c *Controller, kafkaCheck check.Check) (check.Check, error) {
-	data := integration.Data(kafkaCheck.InstanceConfig())
+	fmt.Println("wrapping: ", kafkaCheck.InstanceConfig())
+	strData := integration.Data(kafkaCheck.InstanceConfig())
+	data := &strData
 	err := data.SetField("live_messages_configs", c.getConfigs())
 	if err != nil {
 		return nil, fmt.Errorf("failed to set live messages configs: %w", err)
 	}
+	fmt.Println("Finish wrapping: ", string(*data))
 	return &liveMessagesCheck{
 		Check:          kafkaCheck,
-		instanceConfig: string(data),
+		instanceConfig: string(*data),
 	}, nil
 }
 
 // Update updates the config globalStore with the provided updates
 func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	fmt.Println("update called!")
+	log.Info("Called Update of remote configuration!!!!!!!!!!!!!")
 	if err := c.parseRemoteConfig(updates, applyStateCallback); err != nil {
 		return
 	}
@@ -90,10 +94,17 @@ func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallba
 		if err != nil {
 			log.Errorf("Failed to wrap live message check: %v. Using original check", err)
 			updatedChecks = append(updatedChecks, check)
+			continue
 		}
-		updatedChecks = append(updatedChecks, liveMessageCheck)
+		if err := check.Configure(nil, 123, integration.Data(liveMessageCheck.InstanceConfig()), integration.Data(liveMessageCheck.InitConfig()), liveMessageCheck.ConfigSource()); err != nil {
+			log.Errorf("Failed to wrap live message check: %v. Using original check", err)
+			updatedChecks = append(updatedChecks, check)
+			continue
+		}
+		fmt.Println("updated config is", check.InstanceConfig())
+		updatedChecks = append(updatedChecks, check)
 	}
-	_, err = c.collectorComponent.ReloadAllCheckInstances("kafka_consumer", checks)
+	_, err = c.collectorComponent.ReloadAllCheckInstances("kafka_consumer", updatedChecks)
 	if err != nil {
 		log.Errorf("Failed to reload checks for kafka_consumer: %v", err)
 		return

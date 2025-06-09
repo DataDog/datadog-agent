@@ -581,6 +581,7 @@ func startAgent(
 		// Subscribe to `AGENT_TASK` product
 		rcClient.SubscribeAgentTask()
 		fmt.Println("Subscribe..................")
+		log.Info("Subscribe...............")
 		// get access to ac
 		controller := rcclient.NewController(ac, collectorComponent)
 		// only subscribe to live messages if kafka_consumer integration is running
