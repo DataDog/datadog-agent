@@ -48,6 +48,11 @@ func NewDecoder(program *ir.Program) (*Decoder, error) {
 	return decoder, nil
 }
 
+type dataItemWithAddrCounter struct {
+	dataItem
+	addrCounter uint8
+}
+
 func (d *Decoder) Decode(event Event, out io.Writer) error {
 	var (
 		rootData  []byte
@@ -91,7 +96,7 @@ func (d *Decoder) Decode(event Event, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	itemsByAddress := map[uint64]dataItem{}
+	itemsByAddress := map[uint64]*dataItemWithAddrCounter{}
 	for item, err := range event.dataItems() {
 		if errors.Is(err, finishedIterating) {
 			break
@@ -108,7 +113,10 @@ func (d *Decoder) Decode(event Event, out io.Writer) error {
 			}
 			continue
 		} else {
-			itemsByAddress[item.header.Address] = item
+			itemsByAddress[item.header.Address] = &dataItemWithAddrCounter{
+				dataItem:    item,
+				addrCounter: 0,
+			}
 		}
 	}
 
@@ -138,7 +146,7 @@ func (d *Decoder) Decode(event Event, out io.Writer) error {
 	return nil
 }
 
-func (d *Decoder) encodeValue(enc *jsontext.Encoder, itemsByAddress map[uint64]dataItem, irType ir.Type, data []byte) error {
+func (d *Decoder) encodeValue(enc *jsontext.Encoder, itemsByAddress map[uint64]*dataItemWithAddrCounter, irType ir.Type, data []byte) error {
 	switch v := irType.(type) {
 	case *ir.BaseType:
 		return d.encodeBaseTypeValue(enc, v, data)
@@ -146,14 +154,46 @@ func (d *Decoder) encodeValue(enc *jsontext.Encoder, itemsByAddress map[uint64]d
 		if len(data) < int(v.GetByteSize()) {
 			return errors.New("passed data not long enough for pointer")
 		}
+		// handle nil pointer
 		addr := binary.NativeEndian.Uint64(data)
+		if addr == 0 {
+			err := enc.WriteToken(jsontext.String("nil"))
+			if err != nil {
+				return err
+			}
+			return nil
+		}
 		pointedValue, ok := itemsByAddress[addr]
 		if !ok {
 			return errors.New("pointer not found in address pass map")
 		}
-		err := d.encodeValue(enc, itemsByAddress, d.program.Types[ir.TypeID(pointedValue.header.Type)], pointedValue.data)
+		pointedValue.addrCounter++
+		if pointedValue.addrCounter > 1 {
+			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", pointedValue.header.Address)))
+		}
+		err := enc.WriteToken(jsontext.BeginObject)
+		if err != nil {
+			return err
+		}
+		err = enc.WriteToken(jsontext.String("Address"))
+		if err != nil {
+			return err
+		}
+		err = enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", pointedValue.header.Address)))
+		if err != nil {
+			return err
+		}
+		err = enc.WriteToken(jsontext.String("Value"))
+		if err != nil {
+			return err
+		}
+		err = d.encodeValue(enc, itemsByAddress, d.program.Types[ir.TypeID(pointedValue.header.Type)], pointedValue.data)
 		if err != nil {
 			return fmt.Errorf("could not get pointed-at value: %s", err)
+		}
+		err = enc.WriteToken(jsontext.EndObject)
+		if err != nil {
+			return err
 		}
 	case *ir.StructureType:
 		err := enc.WriteToken(jsontext.BeginObject)
