@@ -336,8 +336,6 @@ Generates or updates the `vmsets` configuration file for a stack, specifying whi
 dda inv -e kmt.gen-config --vms=<list> [--stack=<name>]
 ```
 
-The file can be generated incrementally. You can run `kmt.gen-config` and `kmt.launch-stack` multiple times to add more VMs to the same stack.
-
 **Common Flags:**
 
 -   `--vms=<list>`: A comma-separated list of VMs to add to the stack. See [Specifying VMs](#specifying-vms) below for the format.
@@ -361,38 +359,6 @@ The order of elements does not matter.
 -   `jammy-local-distro`, `distro-local-jammy`, `local-ubuntu22-distro` all resolve to a **local Ubuntu 22.04 distribution VM**.
 -   `amazon4.14-x86-distro`, `distro-x86_64-amazon4.14` all resolve to a **remote x86_64 Amazon Linux 2 (kernel 4.14) distribution VM**.
 -   `custom-arm-5.4`, `5.4-arm64-custom` all resolve to a **remote arm64 custom kernel 5.4 VM**.
-
-#### Incremental Configuration Examples
-
-The `vmsets` file can be generated incrementally. This means you can generate a configuration, launch the stack, and then add more VMs and launch them in the same stack without disrupting the running ones.
-
-**Example 1: Adding local VMs incrementally**
-```bash
-# Setup configuration file to launch jammy and focal locally. Initialize a new stack corresponding to the current branch
-dda inv -e kmt.gen-config --vms=jammy-local-distro,focal-local-distro --init-stack
-# Launch this stack.
-dda inv -e kmt.launch-stack
-# Add amazon linux VMs to be launched locally
-dda inv -e kmt.gen-config --vms=amazon4.14-local-distro,distro-local-amazon5.15,distro-local-amazon5.10
-# Launch the new VMs added. The previous VMs will keep running
-dda inv -e kmt.launch-stack
-# Replace the configuration with a new one, removing all but one VM
-dda inv -e kmt.gen-config --new --vms=amazon4.14-local-distro
-# Apply this new configuration. The other VMs will be destroyed.
-dda inv -e kmt.launch-stack
-```
-
-**Example 2: Adding remote VMs incrementally**
-```bash
-# Setup configuration file to launch ubuntu VMs on remote x86_64 and arm64 machines
-dda inv -e kmt.gen-config --vms=x86-ubuntu20-distro,distro-bionic-x86,distro-jammy-x86,distro-arm64-ubuntu22,arm64-ubuntu18-distro
-# Launch the stack
-dda inv -e kmt.launch-stack
-# Add amazon linux
-dda inv -e kmt.gen-config --vms=x86-amazon5.4-disto,arm64-distro-amazon5.4
-# Launch the new VMs.
-dda inv -e kmt.launch-stack
-```
 
 ### `kmt.launch-stack`
 
