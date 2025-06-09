@@ -16,6 +16,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
+var errorTypeStringMap = map[ErrorType]string{
+	NoErr:       "NO_ERR",
+	UnknownErr:  "ERR_UNKNOWN",
+	Err:         "ERR",
+	WrongType:   "ERR_WRONGTYPE",
+	NoAuth:      "ERR_NOAUTH",
+	NoPerm:      "ERR_NOPERM",
+	Busy:        "ERR_BUSY",
+	NoScript:    "ERR_NOSCRIPT",
+	Loading:     "ERR_LOADING",
+	ReadOnly:    "ERR_READONLY",
+	ExecAbort:   "ERR_EXECABORT",
+	MasterDown:  "ERR_MASTERDOWN",
+	Misconf:     "ERR_MISCONF",
+	CrossSlot:   "ERR_CROSSSLOT",
+	TryAgain:    "ERR_TRYAGAIN",
+	Ask:         "ERR_ASK",
+	Moved:       "ERR_MOVED",
+	ClusterDown: "ERR_CLUSTERDOWN",
+	NoReplicas:  "ERR_NOREPLICAS",
+	Oom:         "ERR_OOM",
+	NoQuorum:    "ERR_NOQUORUM",
+	BusyKey:     "ERR_BUSYKEY",
+	Unblocked:   "ERR_UNBLOCKED",
+	WrongPass:   "ERR_WRONGPASS",
+	InvalidObj:  "ERR_INVALIDOBJ",
+}
+
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
 // We use this wrapper to avoid recomputing the same values (key name) multiple times.
 type EventWrapper struct {
@@ -124,58 +152,8 @@ func (c CommandType) String() string {
 }
 
 func (e ErrorType) String() string {
-	switch e {
-	case NoErr:
-		return "NO_ERR"
-	case UnknownErr:
-		return "ERR_UNKNOWN"
-	case Err:
-		return "ERR"
-	case WrongType:
-		return "ERR_WRONGTYPE"
-	case NoAuth:
-		return "ERR_NOAUTH"
-	case NoPerm:
-		return "ERR_NOPERM"
-	case Busy:
-		return "ERR_BUSY"
-	case NoScript:
-		return "ERR_NOSCRIPT"
-	case Loading:
-		return "ERR_LOADING"
-	case ReadOnly:
-		return "ERR_READONLY"
-	case ExecAbort:
-		return "ERR_EXECABORT"
-	case MasterDown:
-		return "ERR_MASTERDOWN"
-	case Misconf:
-		return "ERR_MISCONF"
-	case CrossSlot:
-		return "ERR_CROSSSLOT"
-	case TryAgain:
-		return "ERR_TRYAGAIN"
-	case Ask:
-		return "ERR_ASK"
-	case Moved:
-		return "ERR_MOVED"
-	case ClusterDown:
-		return "ERR_CLUSTERDOWN"
-	case NoReplicas:
-		return "ERR_NOREPLICAS"
-	case Oom:
-		return "ERR_OOM"
-	case NoQuorum:
-		return "ERR_NOQUORUM"
-	case BusyKey:
-		return "ERR_BUSYKEY"
-	case Unblocked:
-		return "ERR_UNBLOCKED"
-	case WrongPass:
-		return "ERR_WRONGPASS"
-	case InvalidObj:
-		return "ERR_INVALIDOBJ"
-	default:
-		return "ERR_UNKNOWN"
+	if str, ok := errorTypeStringMap[e]; ok {
+		return str
 	}
+	return "ERR_UNKNOWN"
 }

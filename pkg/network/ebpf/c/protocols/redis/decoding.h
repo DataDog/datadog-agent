@@ -185,11 +185,11 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
 }
 
 // Extracts the error prefix (ERRPREFIX) from a Redis error response line: "-ERRPREFIX message\r\n" -> "ERRPREFIX".
-static __always_inline bool extract_redis_error_prefix(pktbuf_t pkt, char *buf, u8 buf_len) {
+static __always_inline void extract_redis_error_prefix(pktbuf_t pkt, char *buf, u8 buf_len) {
     // Assumes current offset is at the '-' (RESP_ERROR_PREFIX)
     char first_byte;
     if (pktbuf_load_bytes_from_current_offset(pkt, &first_byte, 1) < 0 || first_byte != RESP_ERROR_PREFIX) {
-        return false;
+        return;
     }
     pktbuf_advance(pkt, 1); // Skip '-'
 
@@ -208,7 +208,6 @@ static __always_inline bool extract_redis_error_prefix(pktbuf_t pkt, char *buf, 
         pktbuf_advance(pkt, 1);
     }
     buf[i] = '\0';
-    return i > 0;
 }
 
 // Handles TCP connection termination by cleaning up in-flight transactions.
@@ -270,12 +269,8 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
     if (first_byte == RESP_ERROR_PREFIX) {
         transaction->is_error = true;
         char error_prefix[MAX_ERROR_SIZE] = {};
-        bool got_error = extract_redis_error_prefix(pkt, error_prefix, sizeof(error_prefix));
-        if (got_error) {
-            transaction->error = map_redis_error_prefix(error_prefix);
-        } else {
-            transaction->error = REDIS_ERR_UNKNOWN;
-        }
+        extract_redis_error_prefix(pkt, error_prefix, sizeof(error_prefix));
+        transaction->error = map_redis_error_prefix(error_prefix);
         goto enqueue;
     }
     if (transaction->command == REDIS_GET && first_byte == RESP_BULK_PREFIX) {

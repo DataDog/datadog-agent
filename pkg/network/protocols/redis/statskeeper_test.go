@@ -105,7 +105,6 @@ func generateRedisTransaction(source util.Address, dest util.Address, sourcePort
 
 	event.Tx.Request_started = 1
 	event.Tx.Response_last_seen = event.Tx.Request_started + latencyNS
-	event.Tx.Is_error = isError
 	event.Tx.Buf = buf
 	event.Tx.Buf_len = uint16(keySize)
 	event.Tx.Command = uint8(command)
