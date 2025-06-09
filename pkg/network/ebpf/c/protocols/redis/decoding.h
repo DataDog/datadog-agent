@@ -267,7 +267,6 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
         return;
     }
     if (first_byte == RESP_ERROR_PREFIX) {
-        transaction->is_error = true;
         char error_prefix[MAX_ERROR_SIZE] = {};
         extract_redis_error_prefix(pkt, error_prefix, sizeof(error_prefix));
         transaction->error = map_redis_error_prefix(error_prefix);

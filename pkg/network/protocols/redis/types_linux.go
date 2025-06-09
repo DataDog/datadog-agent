@@ -37,8 +37,7 @@ type EbpfTx struct {
 	Command            uint8
 	Tags               uint8
 	Truncated          bool
-	Is_error           bool
-	Pad_cgo_0          [1]byte
+	Pad_cgo_0          [2]byte
 }
 
 type ErrorType uint8
