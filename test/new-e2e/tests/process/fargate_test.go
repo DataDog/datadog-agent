@@ -68,6 +68,7 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
+		assertProcessCollectedNew(c, payloads, false, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
 		assertFargateHostname(t, payloads)
 	}, 2*time.Minute, 10*time.Second)
