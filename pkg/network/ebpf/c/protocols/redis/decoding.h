@@ -258,7 +258,7 @@ static __always_inline redis_error_t map_redis_error_prefix(const char *prefix) 
      if (bpf_memcmp(prefix, "UNBLOCKED", 9) == 0) return REDIS_ERR_UNBLOCKED;
      if (bpf_memcmp(prefix, "WRONGPASS", 9) == 0) return REDIS_ERR_WRONGPASS;
      if (bpf_memcmp(prefix, "INVALIDOBJ", 7) == 0) return REDIS_ERR_INVALIDOBJ;
-     bpf_printk("Unknown Redis error prefix: %s", prefix);
+     bpf_trace_printk("Unknown Redis error prefix: %s", prefix);
     return REDIS_ERR_UNKNOWN;
 }
 
