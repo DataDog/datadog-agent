@@ -25,7 +25,7 @@ func BenchmarkStatKeeperSameTX(b *testing.B) {
 	sk := NewStatsKeeper(cfg)
 
 	sourceIP, destIP, sourcePort, destPort := generateAddresses()
-	tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, GetCommand, NoErr, "keyName", false, 500)
+	tx := generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, GetCommand, NoErr, "keyName", 500)
 
 	eventWrapper := NewEventWrapper(tx)
 
@@ -49,14 +49,12 @@ func TestProcessRedisTransactions(t *testing.T) {
 		keyName := keyPrefix + strconv.Itoa(i)
 
 		for j := 0; j < 2*numIterationsPerErr; j++ {
-			isErr := false
 			err := NoErr
 			if j%2 != 0 {
-				isErr = true
 				err = WrongType
 			}
 			latency := time.Duration(j%2+1) * time.Millisecond
-			tx := NewEventWrapper(generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, GetCommand, err, keyName, isErr, latency))
+			tx := NewEventWrapper(generateRedisTransaction(sourceIP, destIP, sourcePort, destPort, GetCommand, err, keyName, latency))
 			sk.Process(tx)
 		}
 	}
@@ -95,7 +93,7 @@ func generateAddresses() (util.Address, util.Address, int, int) {
 	return sourceIP, destIP, sourcePort, destPort
 }
 
-func generateRedisTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, command CommandType, error ErrorType, keyName string, isError bool, latency time.Duration) *EbpfEvent {
+func generateRedisTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, command CommandType, error ErrorType, keyName string, latency time.Duration) *EbpfEvent {
 	var buf [128]byte
 	copy(buf[:], keyName)
 	keySize := len(keyName)
