@@ -12,10 +12,15 @@ typedef struct type_info {
 } type_info_t;
 
 typedef struct probe_params {
+  uint32_t throttler_idx;
   uint32_t stack_machine_pc;
-  uint32_t stream_id;
   bool frameless;
 } probe_params_t;
+
+typedef struct throttler_params {
+  uint64_t period_ns;
+  int64_t budget;
+} throttler_params_t;
 
 typedef enum sm_opcode {
   SM_OP_INVALID = 0,
@@ -47,7 +52,6 @@ typedef enum sm_opcode {
   SM_OP_CHASE_POINTERS = 22,
   SM_OP_PREPARE_EVENT_ROOT = 23,
 } sm_opcode_t;
-
 
 #ifdef DYNINST_DEBUG
 static const char* op_code_name(sm_opcode_t op_code) {
@@ -91,6 +95,8 @@ typedef enum type { TYPE_NONE = 0 } type_t;
 const type_info_t type_info[] = {};
 const uint32_t type_ids[] = {};
 const uint32_t num_types = 0;
+const throttler_params_t throttler_params[] = {};
+#define NUM_THROTTLERS 0
 
 #endif
 

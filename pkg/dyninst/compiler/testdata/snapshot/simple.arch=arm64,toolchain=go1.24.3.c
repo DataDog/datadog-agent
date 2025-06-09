@@ -166,16 +166,16 @@ const uint32_t stack_machine_code_max_op = 13;
 const uint32_t chase_pointers_entrypoint = 0x1;
 
 const probe_params_t probe_params[] = {
-	{.stack_machine_pc = 0x19, .stream_id = 0, .frameless = false},
-	{.stack_machine_pc = 0x50, .stream_id = 0, .frameless = false},
-	{.stack_machine_pc = 0x92, .stream_id = 0, .frameless = false},
-	{.stack_machine_pc = 0xbd, .stream_id = 0, .frameless = false},
-	{.stack_machine_pc = 0xff, .stream_id = 0, .frameless = false},
-	{.stack_machine_pc = 0x13f, .stream_id = 0, .frameless = false},
-	{.stack_machine_pc = 0x15d, .stream_id = 0, .frameless = false},
-	{.stack_machine_pc = 0x17b, .stream_id = 0, .frameless = false},
-	{.stack_machine_pc = 0x1a0, .stream_id = 0, .frameless = false},
-	{.stack_machine_pc = 0x1bf, .stream_id = 0, .frameless = false},
+	{.throttler_idx = 0, .stack_machine_pc = 0x19, .frameless = false},
+	{.throttler_idx = 1, .stack_machine_pc = 0x50, .frameless = false},
+	{.throttler_idx = 2, .stack_machine_pc = 0x92, .frameless = false},
+	{.throttler_idx = 3, .stack_machine_pc = 0xbd, .frameless = false},
+	{.throttler_idx = 4, .stack_machine_pc = 0xff, .frameless = false},
+	{.throttler_idx = 5, .stack_machine_pc = 0x13f, .frameless = false},
+	{.throttler_idx = 6, .stack_machine_pc = 0x15d, .frameless = false},
+	{.throttler_idx = 7, .stack_machine_pc = 0x17b, .frameless = false},
+	{.throttler_idx = 8, .stack_machine_pc = 0x1a0, .frameless = false},
+	{.throttler_idx = 8, .stack_machine_pc = 0x1bf, .frameless = false},
 };
 const uint32_t num_probe_params = 10;
 typedef enum type {
@@ -303,3 +303,15 @@ const uint32_t type_ids[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 
 
 const uint32_t num_types = 57;
 
+const throttler_params_t throttler_params[] = {
+	{.period_ns = 100000000, .budget = 500},
+	{.period_ns = 100000000, .budget = 500},
+	{.period_ns = 100000000, .budget = 500},
+	{.period_ns = 100000000, .budget = 500},
+	{.period_ns = 100000000, .budget = 500},
+	{.period_ns = 100000000, .budget = 500},
+	{.period_ns = 100000000, .budget = 500},
+	{.period_ns = 100000000, .budget = 500},
+	{.period_ns = 100000000, .budget = 500},
+};
+#define NUM_THROTTLERS 9

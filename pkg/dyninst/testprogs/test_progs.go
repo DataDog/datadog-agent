@@ -310,12 +310,6 @@ func (m *Config) String() string {
 	return fmt.Sprintf("arch=%s,toolchain=%s", m.GOARCH, m.GOTOOLCHAIN)
 }
 
-// Go124 is the go version 1.24.1.
-const Go124 = "go1.24.1"
-
-// Local is the local go version.
-const Local = "local"
-
 const (
 	// Amd64 is the amd64 architecture.
 	Amd64 = "amd64"
@@ -366,5 +360,5 @@ func parseConfig(s string) (Config, error) {
 }
 
 var (
-	goVersionRegex = regexp.MustCompile(`^(go1\.\d+\.\d+|local)$`)
+	goVersionRegex = regexp.MustCompile(`^(go1\.\d+\.\d+)$`)
 )
