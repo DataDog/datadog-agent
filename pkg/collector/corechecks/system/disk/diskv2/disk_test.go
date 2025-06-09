@@ -722,6 +722,34 @@ excluded_disks:
 	m.AssertMetric(t, "Gauge", "system.disk.free", float64(6835937.5), "", []string{"device:shm", "device_name:shm"})
 }
 
+func TestGivenADiskCheckWithExcludedDisksConfiguredWithDa2_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithSda2Devices(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda2",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+excluded_disks:
+  - da2
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
+}
+
 func TestGivenADiskCheckWithDeviceExcludeIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
