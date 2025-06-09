@@ -269,9 +269,10 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
     }
     if (first_byte == RESP_ERROR_PREFIX) {
         transaction->is_error = true;
-        bool got_error = extract_redis_error_prefix(pkt, transaction->err_buf, sizeof(transaction->err_buf));
+        char error_prefix[MAX_ERROR_SIZE] = {};
+        bool got_error = extract_redis_error_prefix(pkt, error_prefix, sizeof(error_prefix));
         if (got_error) {
-            transaction->error = map_redis_error_prefix(transaction->err_buf);
+            transaction->error = map_redis_error_prefix(error_prefix);
         } else {
             transaction->error = REDIS_ERR_UNKNOWN;
         }

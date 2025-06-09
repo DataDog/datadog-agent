@@ -30,7 +30,6 @@ type EbpfEvent struct {
 }
 type EbpfTx struct {
 	Buf                [128]byte
-	Err_buf            [24]int8
 	Request_started    uint64
 	Response_last_seen uint64
 	Buf_len            uint16

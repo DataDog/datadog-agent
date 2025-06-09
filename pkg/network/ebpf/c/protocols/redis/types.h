@@ -49,7 +49,6 @@ typedef enum {
 // Redis in-flight transaction info
 typedef struct {
     char buf[MAX_KEY_LEN];        // 128 bytes
-    char err_buf[MAX_ERROR_SIZE]; // temporary for debugging
     __u64 request_started;        // 8 bytes
     __u64 response_last_seen;     // 8 bytes
     __u16 buf_len;               // 2 bytes

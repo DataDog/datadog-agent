@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type redisEncoder struct {
@@ -109,7 +108,6 @@ func (e *redisEncoder) Close() {
 }
 
 func mapRedisErrorType(err redis.ErrorType) int32 {
-	log.Infof("redis error received: %d", int32(err))
 	switch err {
 	case redis.NoErr:
 		return int32(model.RedisErrorType_RedisNoError)
