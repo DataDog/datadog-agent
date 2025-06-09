@@ -15,6 +15,9 @@ func main() {
 	stringSliceArg([]string{"c"})
 	intSliceArg([]int{1})
 	stringArg("d")
+	inlined(1)
+	// Passing inlined function as an argument forces out-of-line instantation.
+	funcArg(inlined)
 }
 
 //go:noinline
@@ -56,4 +59,13 @@ func stringArg(s string) {
 //go:noinline
 func intSliceArg(s []int) {
 	fmt.Println(s)
+}
+
+func inlined(x int) {
+	fmt.Println(x)
+}
+
+//go:noinline
+func funcArg(f func(int)) {
+	f(2)
 }

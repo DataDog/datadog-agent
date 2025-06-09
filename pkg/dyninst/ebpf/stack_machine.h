@@ -554,7 +554,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     return 1;
   }
   const sm_opcode_t op = (sm_opcode_t)sm_read_program_uint8(sm);
-  LOG(4, "%8d %s %s", sm->pc - 1, padding(sm->pc_stack_pointer), op_code_name(op));
+  LOG(4, "%6x %s %s", sm->pc - 1, padding(sm->pc_stack_pointer), op_code_name(op));
   if (sm->pc >= stack_machine_code_len - stack_machine_code_max_op + 1) {
     return 1;
   }
