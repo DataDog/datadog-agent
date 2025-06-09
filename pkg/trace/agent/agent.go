@@ -259,7 +259,8 @@ func (a *Agent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
 
-	// Stop the receiver first so we do not receive more payloads and start to shut down the workers
+	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
+	// Stop the receiver first before other processing components
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
@@ -267,7 +268,6 @@ func (a *Agent) loop() {
 	//Wait to process any leftover payloads in flight before closing components that might be needed
 	a.processWg.Wait()
 
-	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
 	for _, stopper := range []interface{ Stop() }{
 		a.Concentrator,
 		a.ClientStatsAggregator,
