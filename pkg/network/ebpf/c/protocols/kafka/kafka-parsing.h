@@ -36,8 +36,7 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #ifdef EXTRA_DEBUG
 #define extra_debug(fmt, ...) log_debug("kafka: " fmt, ##__VA_ARGS__)
 #else
-//#define extra_debug(fmt, ...)
-#define extra_debug(fmt, ...) log_debug("kafka: " fmt, ##__VA_ARGS__)
+#define extra_debug(fmt, ...)
 #endif
 
 static void __always_inline kafka_tcp_termination(conn_tuple_t *tup)
@@ -945,6 +944,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     extra_debug("carry_over_offset %d", response->carry_over_offset);
 
     if (response->carry_over_offset < 0) {
+        log_debug("GUY returning RET_ERR due to negative carry_over_offset");
         return RET_ERR;
     }
 
@@ -961,6 +961,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
             ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
             if (ret != RET_DONE) {
+                log_debug("GUY returning %d from skip_tagged_fields in START", ret);
                 return ret;
             }
 
@@ -975,10 +976,12 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_brokers, first,
                                     VARINT_BYTES_NUM_BROKERS);
             if (ret != RET_DONE) {
+               log_debug("GUY returning %d from read_varint_or_s32 in NUM_BROKERS", ret);
                return ret;
             }
-            if (num_of_brokers <= 0 || num_of_brokers > NUM_BROKERS_MAX) {
+            if (num_of_brokers < 0 || num_of_brokers > NUM_BROKERS_MAX) {
                extra_debug("invalid number of brokers: %lld", num_of_brokers);
+               log_debug("GUY returning RET_ERR due to invalid number of brokers: %lld", num_of_brokers);
                return RET_ERR;
             }
 
@@ -989,11 +992,19 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         {
             extra_debug("KAFKA_METADATA_RESPONSE_BROKERS_LOOP");
 
+            // Move to next step if we have no more brokers to parse
+            // Note that num_of_brokers can be 0
+            if (num_of_brokers <= 0) {
+                response->state = KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS;
+                continue;
+            }
+
             offset += sizeof(s32); // Skip node_id
             // Assume flexible=true because we don't support old versions
             s16 host_size = read_nullable_string_size(pkt, true, &offset);
             if (host_size <= 0) {
-                log_debug("invalid broker host length: %d", host_size);
+                log_debug("GUY invalid broker host length: %d", host_size);
+                log_debug("GUY returning RET_ERR due to invalid broker host length: %d", host_size);
                 return RET_ERR;
             }
             offset += host_size; // Skip host
@@ -1007,18 +1018,13 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
             ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
             if (ret != RET_DONE) {
-                log_debug("error skipping tagged fields in broker loop");
+                log_debug("GUY error skipping tagged fields in broker loop");
+                log_debug("GUY returning %d from skip_tagged_fields in BROKERS_LOOP", ret);
                 return ret;
             }
 
             // If we have more brokers to parse, break and continue parsing brokers
             num_of_brokers--;
-
-            // Move to next step if we have no more brokers to parse
-            if (num_of_brokers <= 0) {
-                response->state = KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS;
-                // fallthrough
-            }
         }
         case KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS:
             extra_debug("KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS");
@@ -1044,13 +1050,16 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                     VARINT_BYTES_NUM_TOPICS);
             extra_debug("num_of_topics: %lld, ret: %d", num_of_topics, ret);
             if (ret != RET_DONE) {
+                log_debug("GUY returning %d from read_varint_or_s32 in NUM_TOPICS", ret);
                 return ret;
             }
             if (num_of_topics <= 0) {
+                log_debug("GUY returning RET_DONE due to num_of_topics <= 0");
                 return RET_DONE;
             }
             if (num_of_topics > NUM_TOPICS_MAX) {
                 extra_debug("invalid number of topics: %lld", num_of_topics);
+                log_debug("GUY returning RET_ERR due to invalid number of topics: %lld", num_of_topics);
                 return RET_ERR;
             }
 
@@ -1071,11 +1080,13 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             // Read topic name
             s16 topic_name_size = read_nullable_string_size(pkt, true, &offset);
             if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_STRING_SIZE) {
+                log_debug("GUY continuing due to invalid topic_name_size: %d", topic_name_size);
                 continue; // maybe handle null or empty topic names?
             }
             if (offset + topic_name_size > pktbuf_data_end(pkt)) {
                 // handle reminder?
                 extra_debug("not enough data to read topic_name");
+                log_debug("GUY breaking due to not enough data to read topic_name");
                 break;
             }
             pktbuf_load_bytes_with_telemetry(pkt, offset, topic_name, topic_name_size);
@@ -1086,6 +1097,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
                 // handle reminder?
                 extra_debug("not enough data to read topic_id");
+                log_debug("GUY breaking due to not enough data to read topic_id");
                 break;
             }
             pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
@@ -1112,19 +1124,20 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_partitions, first,
                                                 VARINT_BYTES_NUM_PARTITIONS);
             if (ret != RET_DONE) {
+                log_debug("GUY returning %d from read_varint_or_s32 in NUM_PARTITIONS", ret);
                 return ret;
             }
-            offset += 26 * num_of_partitions; // Skip partitions TODO variable length partitions
+            offset += 16 * num_of_partitions; // Skip partitions TODO variable length partitions
 
-            // Continue parsing topics, we'll move to the next state when num_of_topics reaches 0
+            // Continue parsing topics, we'll move ot the next state when num_of_topics reaches 0
             num_of_topics--;
-            break;
         default:
             break;
         }
     }
 
     response->carry_over_offset = offset - orig_offset;
+    log_debug("GUY returning RET_LOOP_END at end of function");
     return RET_LOOP_END;
 }
 

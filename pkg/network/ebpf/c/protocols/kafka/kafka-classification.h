@@ -61,7 +61,7 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
         return false;
     }
     bpf_memset(client_id, 0, CLIENT_ID_SIZE_TO_VALIDATE);
-    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
+    pktbuf_read_into_buffer_client_id(client_id, pkt, offset);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
     CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
@@ -72,6 +72,9 @@ PKTBUF_READ_INTO_BUFFER(client_software_string, CLIENT_SOFTWARE_STRING_SIZE_TO_V
 // Verifies the specified string is valid (up to CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE bytes from the given offset)
 // valid means composed only from characters from [a-zA-Z0-9._-].
 static __always_inline bool is_valid_client_software_string(pktbuf_t pkt, u32 offset, u16 real_string_size) {
+    if (real_string_size == 0) {
+        return true;
+    }
     const u32 key = 0;
     // Use a buffer from per-cpu array as the stack is limited.
     char *client_software_string = bpf_map_lookup_elem(&kafka_client_software, &key);
@@ -528,6 +531,7 @@ static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_
     } else if (kafka_header.client_id_size < -1) {
         return false;
     }
+
     return is_kafka_request(&kafka_header, pkt, offset);
 }
 
