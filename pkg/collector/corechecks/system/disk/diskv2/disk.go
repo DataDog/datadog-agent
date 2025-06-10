@@ -282,9 +282,29 @@ func processRegExpSlices(slices [][]string, ignoreCase bool) ([]regexp.Regexp, e
 	return regExpList, nil
 }
 
+func processRegExpSlicesWholeWord(slices [][]string, ignoreCase bool) ([]regexp.Regexp, error) {
+	regExpList := []regexp.Regexp{}
+	for _, slice := range slices {
+		for _, val := range slice {
+			expr := fmt.Sprintf("^%s$", val)
+			if re, err := compileRegExp(expr, ignoreCase); err == nil {
+				regExpList = append(regExpList, *re)
+			} else {
+				return regExpList, err
+			}
+		}
+	}
+	return regExpList, nil
+}
+
 func (c *Check) configureExcludeDevice() error {
 	c.excludedDevices = []regexp.Regexp{}
-	if regExpList, err := processRegExpSlices([][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist, c.instanceConfig.ExcludedDisks}, defaultIgnoreCase()); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist}, defaultIgnoreCase()); err == nil {
+		c.excludedDevices = append(c.excludedDevices, regExpList...)
+	} else {
+		return err
+	}
+	if regExpList, err := processRegExpSlicesWholeWord([][]string{c.instanceConfig.ExcludedDisks}, true); err == nil {
 		c.excludedDevices = append(c.excludedDevices, regExpList...)
 	} else {
 		return err
@@ -326,7 +346,12 @@ func (c *Check) configureExcludeFileSystem() error {
 			}
 		}
 	}
-	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist, c.instanceConfig.ExcludedFileSystems}, true); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist}, true); err == nil {
+		c.excludedFilesystems = append(c.excludedFilesystems, regExpList...)
+	} else {
+		return err
+	}
+	if regExpList, err := processRegExpSlicesWholeWord([][]string{c.instanceConfig.ExcludedFileSystems}, true); err == nil {
 		c.excludedFilesystems = append(c.excludedFilesystems, regExpList...)
 	} else {
 		return err
