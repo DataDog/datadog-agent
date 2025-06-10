@@ -249,6 +249,10 @@ func (c *APMCheck) InstanceConfig() string {
 	return c.instanceConfig
 }
 
+func (c *APMCheck) SetInstanceConfig(instanceConfig integration.Data) {
+	c.instanceConfig = string(instanceConfig)
+}
+
 // GetDiagnoses returns the diagnoses of the check
 func (c *APMCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 	return nil, nil

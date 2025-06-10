@@ -96,11 +96,12 @@ func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallba
 			updatedChecks = append(updatedChecks, check)
 			continue
 		}
-		if err := check.Configure(nil, 123, integration.Data(liveMessageCheck.InstanceConfig()), integration.Data(liveMessageCheck.InitConfig()), liveMessageCheck.ConfigSource()); err != nil {
-			log.Errorf("Failed to wrap live message check: %v. Using original check", err)
-			updatedChecks = append(updatedChecks, check)
-			continue
-		}
+		check.SetInstanceConfig(integration.Data(liveMessageCheck.InstanceConfig()))
+		// if err := check.Configure(nil, 123, integration.Data(liveMessageCheck.InstanceConfig()), integration.Data(liveMessageCheck.InitConfig()), liveMessageCheck.ConfigSource()); err != nil {
+		// 	log.Errorf("Failed to wrap live message check: %v. Using original check", err)
+		// 	updatedChecks = append(updatedChecks, check)
+		// 	continue
+		// }
 		fmt.Println("updated config is", check.InstanceConfig())
 		updatedChecks = append(updatedChecks, check)
 	}

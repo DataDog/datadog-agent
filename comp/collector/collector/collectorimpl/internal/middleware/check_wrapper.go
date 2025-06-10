@@ -39,6 +39,10 @@ func NewCheckWrapper(inner check.Check, senderManager sender.SenderManager) *Che
 	}
 }
 
+func (c *CheckWrapper) SetInstanceConfig(instanceConfig integration.Data) {
+	c.inner.SetInstanceConfig(instanceConfig)
+}
+
 // Run implements Check#Run
 func (c *CheckWrapper) Run() error {
 	c.runM.Lock()

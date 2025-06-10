@@ -229,6 +229,10 @@ func (c *CheckBase) InstanceConfig() string {
 	return c.instanceConfig
 }
 
+func (c *CheckBase) SetInstanceConfig(instanceConfig integration.Data) {
+	c.instanceConfig = string(instanceConfig)
+}
+
 // ID returns a unique ID for that check instance
 //
 // For checks that only support one instance, the default value is

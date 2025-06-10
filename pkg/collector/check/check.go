@@ -56,6 +56,8 @@ type Check interface {
 	GetDiagnoses() ([]diagnose.Diagnosis, error)
 	// IsHASupported returns if the check is compatible with High Availability
 	IsHASupported() bool
+	// SetInstanceConfig sets the instance configuration for the check.
+	SetInstanceConfig(instanceConfig integration.Data)
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check

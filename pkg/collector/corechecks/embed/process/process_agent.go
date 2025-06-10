@@ -56,6 +56,11 @@ type ProcessAgentCheck struct {
 	instanceConfig string
 }
 
+func (c *ProcessAgentCheck) SetInstanceConfig(instanceConfig integration.Data) {
+	// This check does not support multiple instances
+	log.Warnf("Process Agent check does not support multiple instances, ignoring instance config: %s", instanceConfig)
+}
+
 // String displays the Agent name
 func (c *ProcessAgentCheck) String() string {
 	return "Process Agent"
