@@ -58,7 +58,7 @@
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration
 /.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes
 /.github/workflows/update_dependencies.yml           @DataDog/agent-runtimes
-/.github/workflows/buildimages-update.yml            @DataDog/agent-delivery @DataDog/agent-runtimes
+/.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
 
 /.run                                                @DataDog/agent-devx
@@ -92,7 +92,7 @@
 
 /.gitlab/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx
-/.gitlab/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-delivery
+/.gitlab/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-delivery @DatadDog/agent-build
 /.gitlab/functional_test/include.yml                 @DataDog/agent-devx
 /.gitlab/functional_test/static_quality_gate.yml     @DataDog/agent-delivery
 /.gitlab/install_script_testing/install_script_testing.yml          @DataDog/agent-delivery @DataDog/container-ecosystems
@@ -174,10 +174,10 @@
 /.gitlab/source_test/windows.yml                     @DataDog/agent-devx @DataDog/windows-agent
 /.gitlab/source_test/go_generate_check.yml           @DataDog/agent-security
 
-/.gitlab/package_build/                              @DataDog/agent-delivery
-/.gitlab/package_build/windows.yml                   @DataDog/agent-delivery @DataDog/windows-agent
-/.gitlab/package_build/installer.yml                 @DataDog/agent-delivery @DataDog/fleet
-/.gitlab/packaging/                                  @DataDog/agent-delivery
+/.gitlab/package_build/                              @DataDog/agent-build
+/.gitlab/package_build/windows.yml                   @DataDog/agent-build @DataDog/windows-agent
+/.gitlab/package_build/installer.yml                 @DataDog/agent-build @DataDog/fleet
+/.gitlab/packaging/                                  @DataDog/agent-build
 
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
@@ -277,19 +277,19 @@
 
 /Makefile.trace                         @DataDog/agent-apm
 
-/omnibus/                               @DataDog/agent-delivery
-/omnibus/package-scripts/agent-rpm/     @DataDog/agent-delivery @DataDog/fleet
-/omnibus/package-scripts/agent-deb/     @DataDog/agent-delivery @DataDog/fleet
-/omnibus/package-scripts/installer-deb/ @DataDog/agent-delivery @DataDog/fleet
-/omnibus/package-scripts/installer-rpm/ @DataDog/agent-delivery @DataDog/fleet
+/omnibus/                               @DataDog/agent-build
+/omnibus/package-scripts/agent-rpm/     @DataDog/agent-build @DataDog/fleet
+/omnibus/package-scripts/agent-deb/     @DataDog/agent-build @DataDog/fleet
+/omnibus/package-scripts/installer-deb/ @DataDog/agent-build @DataDog/fleet
+/omnibus/package-scripts/installer-rpm/ @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-agent
 /omnibus/config/patches/openscap/                         @DataDog/agent-cspm
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
-/omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-delivery
+/omnibus/config/software/datadog-security-agent*.rb       @Datadog/agent-security @DataDog/agent-build
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
 /omnibus/config/software/sds.rb                           @DataDog/agent-log-pipelines
 /omnibus/config/software/snmp-traps.rb                    @DataDog/ndm-core
-/omnibus/config/templates/init-scripts-agent/             @DataDog/agent-delivery @DataDog/fleet
+/omnibus/config/templates/init-scripts-agent/             @DataDog/agent-build @DataDog/fleet
 /omnibus/resources/*/msi/                                 @DataDog/windows-agent
 
 # The following is managed by `dda inv lint-components` -- DO NOT EDIT
@@ -639,8 +639,8 @@
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/ebpf_verifier/                   @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
-/tasks/quality_gates.py                 @DataDog/agent-delivery
-/tasks/static_quality_gates/            @DataDog/agent-delivery
+/tasks/quality_gates.py                 @DataDog/agent-build
+/tasks/static_quality_gates/            @DataDog/agent-build
 /tasks/rtloader.py                      @DataDog/agent-runtimes
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
@@ -653,13 +653,13 @@
 /tasks/components.py                    @DataDog/agent-runtimes
 /tasks/components_templates             @DataDog/agent-runtimes
 /tasks/libs/ciproviders/                @DataDog/agent-devx
-/tasks/libs/common/omnibus.py           @DataDog/agent-delivery
-/tasks/omnibus.py                       @DataDog/agent-delivery
+/tasks/libs/common/omnibus.py           @DataDog/agent-build
+/tasks/omnibus.py                       @DataDog/agent-build
 /tasks/release.py                       @DataDog/agent-delivery
 /tasks/release_metrics/                 @DataDog/agent-delivery
 /tasks/libs/releasing/                  @DataDog/agent-delivery
 /tasks/unit_tests/components_tests.py   @DataDog/agent-runtimes
-/tasks/unit_tests/omnibus_tests.py      @DataDog/agent-delivery
+/tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
 /tasks/installer.py                     @DataDog/fleet
 /test/                                  @DataDog/agent-devx
@@ -680,7 +680,7 @@
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
-/test/new-e2e/tests/agent-platform            @DataDog/container-ecosystems @DataDog/agent-delivery @DataDog/agent-devx
+/test/new-e2e/tests/agent-platform            @DataDog/container-ecosystems @DataDog/agent-build @DataDog/agent-devx
 /test/new-e2e/tests/agent-runtimes            @DataDog/agent-runtimes
 /test/new-e2e/tests/agent-configuration       @DataDog/agent-configuration
 /test/new-e2e/tests/agent-metric-pipelines    @DataDog/agent-metric-pipelines
@@ -712,7 +712,7 @@
 /test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
 /test/new-e2e/tests/gpu                       @Datadog/ebpf-platform
 /test/otel/                                   @DataDog/opentelemetry-agent
-/test/static/                                 @DataDog/agent-delivery
+/test/static/                                 @DataDog/agent-build
 /test/system/                                 @DataDog/agent-runtimes
 /test/system/dogstatsd/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/apm_scripts/                 @DataDog/agent-apm
