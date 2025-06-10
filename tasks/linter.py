@@ -367,6 +367,18 @@ def full_gitlab_ci(
         jobowners=jobowners,
     )
 
+    if failures:
+        if len(failures) == 1:
+            grouped_failure = failures[0]
+        else:
+            grouped_failure = MultiGitlabLintFailure(failures)
+
+        with gitlab_section('GitlabCI Linter failures'):
+            print(grouped_failure.pretty_print())
+        raise Exit(code=grouped_failure.exit_code)
+
+    print(f'[{color_message("OK", Color.GREEN)}] All gitlabci linters passed successfully.')
+
 
 @task
 def gitlab_ci(ctx, configs_file: str | None = None, input_file=".gitlab-ci.yml", test="all", custom_context=None):
