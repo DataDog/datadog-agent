@@ -6,6 +6,7 @@
 package process
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +109,7 @@ func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 
 func assertFargateHostname(t assert.TestingT, payloads []*aggregator.ProcessPayload) {
 	for _, payload := range payloads {
-		assert.NotEmptyf(t, payload.HostName, "Fargate hostname should not be empty")
+		assert.Truef(t, strings.HasPrefix("fargate_task:", payload.HostName),
+			"hostname expected to start with 'fargate_task:', but got '%s'", payload.HostName)
 	}
 }
