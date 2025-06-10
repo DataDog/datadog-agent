@@ -102,7 +102,7 @@ func TestZapLoggerOtel_Warn(t *testing.T) {
 	t.Run("Warn", func(t *testing.T) {
 		err := zapLogger.Warn("warn message")
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		require.Equal(t, 1, recorded.Len())
 		entry := recorded.All()[0]
 		assert.Equal(t, zapcore.WarnLevel, entry.Level)
@@ -113,7 +113,7 @@ func TestZapLoggerOtel_Warn(t *testing.T) {
 		recorded.TakeAll() // Clear previous logs
 		err := zapLogger.Warnf("warn %s %d", "message", 789)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		require.Equal(t, 1, recorded.Len())
 		entry := recorded.All()[0]
 		assert.Equal(t, zapcore.WarnLevel, entry.Level)
@@ -127,7 +127,7 @@ func TestZapLoggerOtel_Error(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		err := zapLogger.Error("error message")
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		require.Equal(t, 1, recorded.Len())
 		entry := recorded.All()[0]
 		assert.Equal(t, zapcore.ErrorLevel, entry.Level)
@@ -138,7 +138,7 @@ func TestZapLoggerOtel_Error(t *testing.T) {
 		recorded.TakeAll() // Clear previous logs
 		err := zapLogger.Errorf("error %s %d", "message", 101)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		require.Equal(t, 1, recorded.Len())
 		entry := recorded.All()[0]
 		assert.Equal(t, zapcore.ErrorLevel, entry.Level)
@@ -152,7 +152,7 @@ func TestZapLoggerOtel_Critical(t *testing.T) {
 	t.Run("Critical", func(t *testing.T) {
 		err := zapLogger.Critical("critical message")
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		require.Equal(t, 1, recorded.Len())
 		entry := recorded.All()[0]
 		assert.Equal(t, zapcore.ErrorLevel, entry.Level)
@@ -169,7 +169,7 @@ func TestZapLoggerOtel_Critical(t *testing.T) {
 	t.Run("Criticalf", func(t *testing.T) {
 		err := zapLogger.Criticalf("critical %s %d", "message", 202)
 
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 		require.Equal(t, 1, recorded.Len())
 		entry := recorded.All()[0]
 		assert.Equal(t, zapcore.ErrorLevel, entry.Level)
@@ -246,6 +246,6 @@ func BenchmarkZapLoggerOtel_Critical(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		zapLogger.Critical("benchmark critical message")
+		_ = zapLogger.Critical("benchmark critical message")
 	}
 }
