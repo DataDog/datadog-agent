@@ -32,6 +32,8 @@ const (
 	TraceAgent = "trace_agent"
 	// OTelAgent is the OpenTelemetry Collector flavor
 	OTelAgent = "otel_agent"
+	// ChecksAgent is the Checks Agent flavor
+	ChecksAgent = "checks_agent"
 	// SystemProbe is the System Probe flavor
 	SystemProbe = "system_probe"
 )
@@ -47,6 +49,7 @@ var agentFlavors = map[string]string{
 	ProcessAgent:    "Process Agent",
 	TraceAgent:      "Trace Agent",
 	OTelAgent:       "OpenTelemetry Collector",
+	ChecksAgent:     "Checks Agent",
 	SystemProbe:     "System Probe",
 }
 
