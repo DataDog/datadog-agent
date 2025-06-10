@@ -98,6 +98,7 @@ func getFlagsKFilter(tableName string, flags ...uint32) (activeKFilter, error) {
 	return newKFilterWithUInt32Flags(tableName, flags...)
 }
 
+// creates flags kfilter from the given enum values, this only works for enums whose maximum value is less than 64
 func getEnumsKFilters(tableName string, enums ...uint64) (activeKFilter, error) {
 	var flags []uint64
 	for _, enum := range enums {
@@ -191,4 +192,5 @@ func init() {
 	KFilterGetters["chdir"] = fimKFiltersGetter(model.FileChdirEventType, []eval.Field{"file"})
 	KFilterGetters["bpf"] = bpfKFiltersGetter
 	KFilterGetters["sysctl"] = sysctlKFiltersGetter
+	KFilterGetters["connect"] = connectKFiltersGetter
 }

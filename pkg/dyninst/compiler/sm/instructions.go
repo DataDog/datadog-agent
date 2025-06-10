@@ -88,16 +88,10 @@ func makeInstruction(op Op) codeFragment {
 			bytes: binary.LittleEndian.AppendUint32(nil, uint32(op.Pointee.GetID())),
 		}
 
-	case ProcessArrayPrepOp:
+	case ProcessArrayDataPrepOp:
 		return staticInstruction{
-			name:  "SM_OP_PROCESS_ARRAY_PREP",
-			bytes: binary.LittleEndian.AppendUint32(nil, op.Array.Count),
-		}
-
-	case ProcessArrayRepeatOp:
-		return staticInstruction{
-			name:  "SM_OP_PROCESS_ARRAY_PREP",
-			bytes: binary.LittleEndian.AppendUint32(nil, op.OffsetShift),
+			name:  "SM_OP_PROCESS_ARRAY_DATA_PREP",
+			bytes: binary.LittleEndian.AppendUint32(nil, op.ArrayByteLen),
 		}
 
 	case ProcessSliceOp:
@@ -118,7 +112,7 @@ func makeInstruction(op Op) codeFragment {
 	case ProcessSliceDataRepeatOp:
 		return staticInstruction{
 			name:  "SM_OP_PROCESS_SLICE_DATA_REPEAT",
-			bytes: binary.LittleEndian.AppendUint32(nil, op.OffsetShift),
+			bytes: binary.LittleEndian.AppendUint32(nil, op.ElemByteLen),
 		}
 
 	case ProcessStringOp:

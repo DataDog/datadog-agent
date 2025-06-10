@@ -92,19 +92,14 @@ type ProcessPointerOp struct {
 	Pointee ir.Type
 }
 
-type ProcessArrayPrepOp struct {
-	baseOp
-	Array ir.ArrayType
-}
-
-type ProcessArrayRepeatOp struct {
-	baseOp
-	OffsetShift uint32
-}
-
 type ProcessSliceOp struct {
 	baseOp
 	SliceData *ir.GoSliceDataType
+}
+
+type ProcessArrayDataPrepOp struct {
+	baseOp
+	ArrayByteLen uint32
 }
 
 type ProcessSliceDataPrepOp struct {
@@ -113,7 +108,7 @@ type ProcessSliceDataPrepOp struct {
 
 type ProcessSliceDataRepeatOp struct {
 	baseOp
-	OffsetShift uint32
+	ElemByteLen uint32
 }
 
 type ProcessStringOp struct {
