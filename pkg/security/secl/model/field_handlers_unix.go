@@ -249,6 +249,19 @@ func (ev *Event) resolveFields(forADs bool) {
 		}
 	case "bpf":
 	case "capset":
+	case "cgroup_write":
+		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.CgroupWrite.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.CgroupWrite.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.CgroupWrite.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.CgroupWrite.File)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.CgroupWrite.File)
+		}
 	case "chdir":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields)
