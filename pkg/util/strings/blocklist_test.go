@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package server
+package strings
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 
 func TestNewBlocklist(t *testing.T) {
 	check := func(data []string) []string {
-		b := newBlocklist(data, true)
+		b := NewBlocklist(data, true)
 		return b.data
 	}
 
@@ -26,7 +26,7 @@ func TestNewBlocklist(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "b", "bb"}))
 }
 
-func TestIsMetricBlocklisted(t *testing.T) {
+func TestIsStringBlocked(t *testing.T) {
 	cases := []struct {
 		result      bool
 		name        string
@@ -47,8 +47,8 @@ func TestIsMetricBlocklisted(t *testing.T) {
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%v-%v-%v", c.name, c.blocklist, c.matchPrefix),
 			func(t *testing.T) {
-				b := newBlocklist(c.blocklist, c.matchPrefix)
-				assert.Equal(t, c.result, b.test(c.name))
+				b := NewBlocklist(c.blocklist, c.matchPrefix)
+				assert.Equal(t, c.result, b.Test(c.name))
 			})
 	}
 }
@@ -67,12 +67,12 @@ func randomString(size uint) string {
 func BenchmarkBlocklist(b *testing.B) {
 	words := []string{
 		"foo",
-		"longer.metric.but.still.small",
+		"longer.name.but.still.small",
 		"very.long.string.with.some.good.amount.of.chars.for.a.metric",
 		"bar",
 	}
 	for i := 1000; i <= 10000; i += 1000 {
-		b.Run(fmt.Sprintf("statsd-blocklist-%d", i), func(b *testing.B) {
+		b.Run(fmt.Sprintf("blocklist-%d", i), func(b *testing.B) {
 			var values []string
 			for range i {
 				values = append(values, randomString(50))
@@ -90,9 +90,9 @@ func benchmarkBlocklist(b *testing.B, words, values []string) {
 	words[0] = values[0]
 	words[3] = values[100]
 
-	blocklist := newBlocklist(values, false)
+	blocklist := NewBlocklist(values, false)
 
 	for n := 0; n < b.N; n++ {
-		blocklist.test(words[n%len(words)])
+		blocklist.Test(words[n%len(words)])
 	}
 }

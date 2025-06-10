@@ -30,7 +30,7 @@ type cCodeSerializer struct {
 
 // CommentFunction comments a stack machine function prior to its body.
 func (s *cCodeSerializer) CommentFunction(id sm.FunctionID, pc uint32) error {
-	_, err := fmt.Fprintf(s.out, "\t// 0x%x: %s\n", pc, id.String())
+	_, err := fmt.Fprintf(s.out, "\n\t// 0x%x: %s\n", pc, id.String())
 	return err
 }
 
