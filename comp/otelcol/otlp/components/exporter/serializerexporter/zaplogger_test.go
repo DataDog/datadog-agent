@@ -17,7 +17,7 @@ import (
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-func TestZapLoggerOtel_Interface(t *testing.T) {
+func TestZapLoggerOtel_Interface(_ *testing.T) {
 	// Verify that ZapLoggerOtel implements tracelog.Logger interface
 	var _ tracelog.Logger = &ZapLoggerOtel{}
 }
