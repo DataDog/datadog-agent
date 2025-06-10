@@ -112,7 +112,7 @@ class MultiGitlabLintFailure(GitlabLintFailure):
         else:
             entry_point = "global"
         entry_point = color_message(entry_point, Color.BOLD)
-        return f'[{level_out}] {entry_point} - Multiple failures:\n{self.details})'
+        return f'[{level_out}] {entry_point} - Multiple failures:\n{self.details}'
 
     @property
     def details(self):
