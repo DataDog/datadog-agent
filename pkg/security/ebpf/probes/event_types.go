@@ -530,7 +530,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						UID:          SecurityAgentUID,
-						EBPFFuncName: "cgroup_sysctl",
+						EBPFFuncName: SysCtlProbeFunctionName,
 					},
 				},
 				hookFunc("hook_proc_sys_call_handler"),
