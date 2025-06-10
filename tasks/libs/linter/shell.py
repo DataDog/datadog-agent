@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from tempfile import TemporaryDirectory
 
-from tasks.libs.linter.gitlab_exceptions import FailureLevel, GitlabLintFailure, MultiGitlabLintFailure
+from tasks.libs.linter.gitlab_exceptions import (
+    FailureLevel,
+    MultiGitlabLintFailure,
+    SingleGitlabLintFailure,
+)
 
 # - SC2086 corresponds to using variables in this way $VAR instead of "$VAR" (used in every jobs).
 # - SC2016 corresponds to avoid using '$VAR' inside single quotes since it doesn't expand.
@@ -57,10 +61,10 @@ def shellcheck_linter(
             if res.stderr or res.stdout:
                 if res.return_code or not only_errors:
                     results.append(
-                        GitlabLintFailure(
-                            details=f"Shellcheck failed ! {res.stderr} - {res.stdout}".strip(),
+                        SingleGitlabLintFailure(
+                            _details=f"Shellcheck failed ! {res.stderr} - {res.stdout}".strip(),
                             failing_job_name=script_name,
-                            level=FailureLevel.ERROR if res.return_code != 0 else FailureLevel.WARNING,
+                            _level=FailureLevel.ERROR if res.return_code != 0 else FailureLevel.WARNING,
                         )
                     )
 

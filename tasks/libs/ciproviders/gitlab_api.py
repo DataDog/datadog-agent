@@ -26,7 +26,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function
-from tasks.libs.linter.gitlab_exceptions import FailureLevel, GitlabLintFailure
+from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
 
 BASE_URL = "https://gitlab.ddbuild.io"
@@ -781,16 +781,16 @@ def test_gitlab_configuration(entry_point: str, config_object: dict, context=Non
     config_dump = yaml.safe_dump(config_object)
     res = agent.ci_lint.create({"content": config_dump, "dry_run": True, "include_jobs": True})
     if len(res.warnings) > 0:
-        raise GitlabLintFailure(
+        raise SingleGitlabLintFailure(
             entry_point=entry_point,
-            level=FailureLevel.WARNING,
-            details=f"Gitlab CI configuration has warnings: {res.warnings}",
+            _level=FailureLevel.WARNING,
+            _details=f"Gitlab CI configuration has warnings: {res.warnings}",
         )
     if not res.valid:
-        raise GitlabLintFailure(
+        raise SingleGitlabLintFailure(
             entry_point=entry_point,
-            level=FailureLevel.ERROR,
-            details=f"Gitlab CI configuration is invalid: {res.errors}",
+            _level=FailureLevel.ERROR,
+            _details=f"Gitlab CI configuration is invalid: {res.errors}",
         )
 
 

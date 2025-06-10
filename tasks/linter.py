@@ -40,7 +40,7 @@ from tasks.libs.linter.gitlab import (
     load_or_generate_gitlab_ci_diff,
     shellcheck_gitlab_ci_jobs,
 )
-from tasks.libs.linter.gitlab_exceptions import GitlabLintFailure, MultiGitlabLintFailure
+from tasks.libs.linter.gitlab_exceptions import GitlabLintFailure, MultiGitlabLintFailure, SingleGitlabLintFailure
 from tasks.libs.linter.go import run_lint_go
 from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, shellcheck_linter
 from tasks.libs.owners.parsing import read_owners
@@ -237,7 +237,7 @@ def github_actions_shellcheck(
                     # We suppose all jobs are bash like scripts and not powershell or other exotic shells
                     script = '#!/bin/bash\n' + script.strip() + '\n'
                     scripts[f'{file.removeprefix(".github/workflows/")}-{job_name}-{step_name}'] = script
-
+    # TODO[@Ishirui]: Fix this - does not raise Exit anymore, only a GitlabLintFailure (which also fails but less pretty)
     shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, only_errors)
 
 
@@ -291,7 +291,7 @@ def full_gitlab_ci(
         print(f'[{color_message("INFO", Color.BLUE)}] No changed jobs to lint, skipping')
         return
 
-    failures = []
+    failures: list[SingleGitlabLintFailure] = []
     gitlabci_run_sublinter_helper(
         lint_and_test_gitlab_ci_config,
         failures=failures,
@@ -383,7 +383,7 @@ def gitlab_ci(ctx, configs_file: str | None = None, input_file=".gitlab-ci.yml",
     )
     try:
         lint_and_test_gitlab_ci_config(configs, test=test, custom_context=custom_context)
-    except (GitlabLintFailure, MultiGitlabLintFailure) as e:
+    except GitlabLintFailure as e:
         print(e.pretty_print())
         raise Exit(code=e.exit_code) from e
 
@@ -435,7 +435,7 @@ def gitlab_ci_shellcheck(
             fail_fast=fail_fast,
             only_errors=only_errors,
         )
-    except (GitlabLintFailure, MultiGitlabLintFailure) as e:
+    except GitlabLintFailure as e:
         print(e.pretty_print())
         raise Exit(code=e.exit_code) from e
     print(f'[{color_message("OK", Color.GREEN)}] Shellcheck passed for all gitlab ci jobs.')
@@ -627,7 +627,7 @@ def gitlab_ci_jobs_codeowners(ctx, path_codeowners='.github/CODEOWNERS', all_fil
 
     try:
         _gitlab_ci_jobs_codeowners_lint(modified_yml_files, gitlab_owners)
-    except (GitlabLintFailure, MultiGitlabLintFailure) as e:
+    except GitlabLintFailure as e:
         print(e.pretty_print())
         raise Exit(code=e.exit_code) from e
     print(f'[{color_message("OK", Color.GREEN)}] All checked job files have a CODEOWNER defined in {path_codeowners}.')

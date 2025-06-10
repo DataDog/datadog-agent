@@ -22,7 +22,12 @@ from tasks.libs.ciproviders.gitlab_api import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import gitlab_section
-from tasks.libs.linter.gitlab_exceptions import FailureLevel, GitlabLintFailure, MultiGitlabLintFailure
+from tasks.libs.linter.gitlab_exceptions import (
+    FailureLevel,
+    GitlabLintFailure,
+    MultiGitlabLintFailure,
+    SingleGitlabLintFailure,
+)
 from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
 
 
@@ -55,7 +60,7 @@ def gitlabci_lint_task_template(
 
     try:
         task_body(jobs=jobs, full_config=full_config)
-    except (GitlabLintFailure, MultiGitlabLintFailure) as e:
+    except GitlabLintFailure as e:
         print(e.pretty_print())
         raise Exit(code=e.exit_code) from e
     print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
@@ -63,7 +68,7 @@ def gitlabci_lint_task_template(
 
 def gitlabci_run_sublinter_helper(
     sublinter: Callable,
-    failures: list[GitlabLintFailure],
+    failures: list[SingleGitlabLintFailure],
     fail_fast: bool,
     info_message: str,
     success_message: str,
@@ -75,15 +80,12 @@ def gitlabci_run_sublinter_helper(
     print(f'[{color_message("INFO", Color.BLUE)}] {info_message}')
     try:
         sublinter(*args, **kwargs)
-    except (GitlabLintFailure, MultiGitlabLintFailure) as e:
-        if isinstance(e, MultiGitlabLintFailure):
-            failures.extend(e.failures)
-        else:
-            failures.append(e)
-
+    except GitlabLintFailure as e:
+        failures.extend(e.get_individual_failures())
         if fail_fast and e.level == FailureLevel.ERROR:
             print(e.pretty_print())
             raise Exit(code=e.exit_code) from e
+
     print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
 
 
@@ -172,10 +174,10 @@ def check_change_paths_valid_gitlab_ci_jobs(jobs: list[tuple[str, dict]]):
             files = glob(path, recursive=True)
             if len(files) == 0:
                 failures.append(
-                    GitlabLintFailure(
-                        details=f"Path '{path}' does not match any files in the repository",
+                    SingleGitlabLintFailure(
+                        _details=f"Path '{path}' does not match any files in the repository",
                         failing_job_name=job_name,
-                        level=FailureLevel.ERROR,
+                        _level=FailureLevel.ERROR,
                     )
                 )
     if failures:
@@ -299,10 +301,10 @@ def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]
             contains_valid_change_rule(rule) for rule in job['rules'] if isinstance(rule, dict)
         ):
             failures.append(
-                GitlabLintFailure(
-                    details=f"Job does not contain a valid change paths rule{', but is allow-listed' if job_name in tests_without_change_path_allow_list else ''}.",
+                SingleGitlabLintFailure(
+                    _details=f"Job does not contain a valid change paths rule{', but is allow-listed' if job_name in tests_without_change_path_allow_list else ''}.",
                     failing_job_name=job_name,
-                    level=FailureLevel.WARNING
+                    _level=FailureLevel.WARNING
                     if job_name in tests_without_change_path_allow_list
                     else FailureLevel.ERROR,
                 )
@@ -327,10 +329,10 @@ def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_co
 
         if error:
             failures.append(
-                GitlabLintFailure(
-                    details=f"Job is missing `needs` or `rules` key{', but is allow-listed' if to_ignore else ''}.",
+                SingleGitlabLintFailure(
+                    _details=f"Job is missing `needs` or `rules` key{', but is allow-listed' if to_ignore else ''}.",
                     failing_job_name=job_name,
-                    level=FailureLevel.WARNING if to_ignore else FailureLevel.ERROR,
+                    _level=FailureLevel.WARNING if to_ignore else FailureLevel.ERROR,
                 )
             )
 
@@ -350,10 +352,10 @@ def check_owners_gitlab_ci_jobs(
         owners = [name for (kind, name) in jobowners.of(job) if kind == 'TEAM']
         if not owners:
             failures.append(
-                GitlabLintFailure(
-                    details=f"Job does not have any non-default owners defined{', but is allow-listed' if job in ci_linters_config.job_owners_jobs else ''}.",
+                SingleGitlabLintFailure(
+                    _details=f"Job does not have any non-default owners defined{', but is allow-listed' if job in ci_linters_config.job_owners_jobs else ''}.",
                     failing_job_name=job,
-                    level=FailureLevel.WARNING if job in ci_linters_config.job_owners_jobs else FailureLevel.ERROR,
+                    _level=FailureLevel.WARNING if job in ci_linters_config.job_owners_jobs else FailureLevel.ERROR,
                 )
             )
 
@@ -422,10 +424,10 @@ def _gitlab_ci_jobs_codeowners_lint(modified_yml_files, gitlab_owners):
         teams = [team for kind, team in gitlab_owners.of(path) if kind == 'TEAM']
         if not teams:
             failures.append(
-                GitlabLintFailure(
-                    details=f"File '{path}' does not have any matching non-default CODEOWNERS rule",
+                SingleGitlabLintFailure(
+                    _details=f"File '{path}' does not have any matching non-default CODEOWNERS rule",
                     failing_job_name=path,
-                    level=FailureLevel.ERROR,
+                    _level=FailureLevel.ERROR,
                 )
             )
 
