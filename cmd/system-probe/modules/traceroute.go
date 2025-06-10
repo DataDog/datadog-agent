@@ -129,16 +129,16 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	}
 	protocol := query.Get("protocol")
 	tcpMethod := query.Get("tcp_method")
-	tcpSynCompatibilityMode := query.Get("tcp_syn_compatibility_mode")
+	tcpSynParisTracerouteMode := query.Get("tcp_syn_paris_traceroute_mode")
 
 	return tracerouteutil.Config{
-		DestHostname:            host,
-		DestPort:                uint16(port),
-		MaxTTL:                  uint8(maxTTL),
-		Timeout:                 time.Duration(timeout),
-		Protocol:                payload.Protocol(protocol),
-		TCPMethod:               payload.TCPMethod(tcpMethod),
-		TCPSynCompatibilityMode: tcpSynCompatibilityMode == "true",
+		DestHostname:              host,
+		DestPort:                  uint16(port),
+		MaxTTL:                    uint8(maxTTL),
+		Timeout:                   time.Duration(timeout),
+		Protocol:                  payload.Protocol(protocol),
+		TCPMethod:                 payload.TCPMethod(tcpMethod),
+		TCPSynParisTracerouteMode: tcpSynParisTracerouteMode == "true",
 	}, nil
 }
 

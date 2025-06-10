@@ -19,6 +19,7 @@ import (
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -54,6 +55,7 @@ type dependencies struct {
 
 	SenderManager    sender.SenderManager
 	MetricSerializer option.Option[serializer.MetricSerializer]
+	AgentTelemetry   option.Option[agenttelemetry.Component]
 }
 
 type collectorImpl struct {
@@ -64,6 +66,7 @@ type collectorImpl struct {
 
 	senderManager    sender.SenderManager
 	metricSerializer option.Option[serializer.MetricSerializer]
+	agentTelemetry   option.Option[agenttelemetry.Component]
 	checkInstances   int64
 
 	// state is 'started' or 'stopped'
@@ -123,6 +126,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		hostname:           deps.Hostname,
 		senderManager:      deps.SenderManager,
 		metricSerializer:   deps.MetricSerializer,
+		agentTelemetry:     deps.AgentTelemetry,
 		checks:             make(map[checkid.ID]*middleware.CheckWrapper),
 		state:              atomic.NewUint32(stopped),
 		checkInstances:     int64(0),
@@ -199,7 +203,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
-	ch := middleware.NewCheckWrapper(inner, c.senderManager)
+	ch := middleware.NewCheckWrapper(inner, c.senderManager, c.agentTelemetry)
 
 	var emptyID checkid.ID
 
@@ -234,17 +238,31 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 
 // StopCheck halts a check and remove the instance
 func (c *collectorImpl) StopCheck(id checkid.ID) error {
+	var ch check.Check
+	var collectorScheduler *scheduler.Scheduler
+	var collectorRunner *runner.Runner
+
+	// This lock is needed because stop() can be called concurrently and sets
+	// c.runner and c.scheduler to nil
+	c.m.RLock()
 	if !c.started() {
+		c.m.RUnlock()
 		return fmt.Errorf("the collector is not running")
 	}
 
-	ch, found := c.get(id)
+	ch, found := c.checks[id]
 	if !found {
+		c.m.RUnlock()
 		return fmt.Errorf("cannot find a check with ID %s", id)
 	}
 
+	// These two are not nil because we checked that the collector is started
+	collectorScheduler = c.scheduler
+	collectorRunner = c.runner
+	c.m.RUnlock()
+
 	// unschedule the instance
-	if err := c.scheduler.Cancel(id); err != nil {
+	if err := collectorScheduler.Cancel(id); err != nil {
 		return fmt.Errorf("an error occurred while canceling the check schedule: %s", err)
 	}
 
@@ -259,7 +277,7 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 		stats.SetStateCancelling()
 	}
 
-	if err := c.runner.StopCheck(id); err != nil {
+	if err := collectorRunner.StopCheck(id); err != nil {
 		// still attempt to cancel the check before returning the error
 		_ = c.cancelCheck(ch, c.cancelCheckTimeout)
 		return fmt.Errorf("an error occurred while stopping the check: %s", err)

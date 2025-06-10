@@ -182,7 +182,9 @@ func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader,
 		var err error
 		device, err = sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerIDFunc)
 		if err != nil {
-			log.Warnf("error getting GPU device for process %d: %s", pid, err)
+			if logLimitProbe.ShouldLog() {
+				log.Warnf("error getting GPU device for process %d: %s", pid, err)
+			}
 			sc.telemetry.missingDevices.Inc()
 			return nil, err
 		}
@@ -201,7 +203,9 @@ func (sc *streamCollection) memoizedContainerID(header *gpuebpf.CudaEventHeader)
 		cgroup := unix.ByteSliceToString(header.Cgroup[:])
 		containerID, err := cgroups.ContainerFilter("", cgroup)
 		if err != nil {
-			log.Warnf("error getting container ID for cgroup %s: %s", cgroup, err)
+			if logLimitProbe.ShouldLog() {
+				log.Warnf("error getting container ID for cgroup %s: %s", cgroup, err)
+			}
 
 			sc.telemetry.missingContainers.Inc("error")
 			return ""

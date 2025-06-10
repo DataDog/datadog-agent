@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -134,6 +135,7 @@ func TestOTelExtFlareBuilder(t *testing.T) {
 	reqs := Requires{
 		Lc:     compdef.NewTestLifecycle(t),
 		Config: cfg,
+		Client: ipcmock.New(t).GetClient(),
 	}
 	provs, _ := NewComponent(reqs)
 	col := provs.Comp.(*collectorImpl)

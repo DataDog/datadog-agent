@@ -14,26 +14,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/intern"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Interner is used to intern strings to save memory allocations.
+var Interner = intern.NewStringInterner()
 
 // Key is an identifier for a group of Redis transactions
 type Key struct {
 	types.ConnectionKey
 	Command   CommandType
-	KeyName   string
+	KeyName   *intern.StringValue
 	Truncated bool
-}
-
-// NewKey creates a new redis key
-func NewKey(saddr, daddr util.Address, sport, dport uint16, command CommandType, keyName string, truncated bool) Key {
-	return Key{
-		ConnectionKey: types.NewConnectionKey(saddr, daddr, sport, dport),
-		Command:       command,
-		KeyName:       keyName,
-		Truncated:     truncated,
-	}
 }
 
 // RequestStats stores Redis request statistics, grouped by whether an error occurred.

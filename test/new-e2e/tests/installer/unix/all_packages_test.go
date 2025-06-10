@@ -411,6 +411,12 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		case "TESTING_APT_REPO_VERSION", "TESTING_APT_URL", "TESTING_APT_KEY", "TESTING_YUM_URL", "TESTING_YUM_VERSION_PATH":
 			defaultRepoEnv[key] = value
 			environments = append(environments, fmt.Sprintf("%s: %s", key, value))
+		case "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER":
+			playbookStringSuffix += fmt.Sprintf("    datadog_installer_version: %s\n", value)
+			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
+		case "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT":
+			playbookStringSuffix += fmt.Sprintf("    datadog_apm_inject_version: %s\n", value)
+			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		default:
 			environments = append(environments, fmt.Sprintf("%s: \"%s\"", key, value))
 		}

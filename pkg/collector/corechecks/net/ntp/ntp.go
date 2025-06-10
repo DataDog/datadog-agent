@@ -109,7 +109,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 		if err != nil {
 			return err
 		}
-		log.Debugf("Detected local defined servers: [ %s ]", strings.Join(defaultDatadogPool, ", "))
+		log.Debugf("Detected local defined servers: [ %s ]", strings.Join(localNtpServers, ", "))
 	}
 
 	if len(localNtpServers) > 0 {

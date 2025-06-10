@@ -296,7 +296,7 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 	defer mappingLock.Unlock()
 
 	for _, p := range mgr.Probes {
-		if !p.IsRunning() {
+		if p == nil || !p.IsRunning() {
 			continue
 		}
 
@@ -314,4 +314,20 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 			probeIDToFDMappings[ebpf.ProgramID(p.ID())] = fd
 		}
 	}
+}
+
+func resetMapping[K comparable, V any](m map[K]V) {
+	for key := range m {
+		delete(m, key)
+	}
+}
+
+// ResetAllMappings removes all mappings. This is useful in tests to reset state
+func ResetAllMappings() {
+	resetMapping(mapNameMapping)
+	resetMapping(mapModuleMapping)
+	resetMapping(progNameMapping)
+	resetMapping(progModuleMapping)
+	resetMapping(probeIDToFDMappings)
+	resetMapping(progIgnoredIDs)
 }

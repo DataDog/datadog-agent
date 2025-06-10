@@ -224,3 +224,8 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 func (pc *ProcessCacheEntry) Hash() string {
 	return strconv.Itoa(int(pc.Pid))
 }
+
+// ParentScope returns the parent entity scope
+func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
+	return pc.Ancestor, pc.Ancestor != nil
+}

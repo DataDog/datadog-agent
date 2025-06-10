@@ -8,7 +8,6 @@ package dogstatsdcapture
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"time"
@@ -18,8 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -60,6 +60,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -75,35 +76,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func dogstatsdCapture(_ log.Component, config config.Component, cliParams *cliParams) error {
+func dogstatsdCapture(_ log.Component, config config.Component, cliParams *cliParams, ipc ipc.Component) error {
 	fmt.Printf("Starting a dogstatsd traffic capture session...\n\n")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	token, err := security.FetchAuthToken(config)
-	if err != nil {
-		return fmt.Errorf("unable to fetch authentication token: %w", err)
-	}
-
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		"authorization": []string{fmt.Sprintf("Bearer %s", ipc.GetAuthToken())}, // TODO IPC: replace with GRPC Client
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
-
-	// NOTE: we're using InsecureSkipVerify because the gRPC server only
-	// persists its TLS certs in memory, and we currently have no
-	// infrastructure to make them available to clients. This is NOT
-	// equivalent to grpc.WithInsecure(), since that assumes a non-TLS
-	// connection.
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
 
 	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
 		fmt.Sprintf(":%v", pkgconfigsetup.Datadog().GetInt("cmd_port")),
-		grpc.WithTransportCredentials(creds),
+		grpc.WithTransportCredentials(credentials.NewTLS(ipc.GetTLSClientConfig())),
 	)
 	if err != nil {
 		return err

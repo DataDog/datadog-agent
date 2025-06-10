@@ -231,7 +231,7 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.refreshInterval = time.Duration(params.RefreshInterval) * time.Second
 	r.refreshIntervalScatter = params.RefreshIntervalScatter
 	if r.refreshInterval != 0 {
-		r.startRefreshRoutine()
+		r.startRefreshRoutine(nil)
 	}
 
 	r.commandAllowGroupExec = params.GroupExecPerm
@@ -255,13 +255,20 @@ func isEnc(str string) (bool, string) {
 	return false, ""
 }
 
-func (r *secretResolver) startRefreshRoutine() {
+func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 	if r.ticker != nil || r.refreshInterval == 0 {
 		return
 	}
 
 	if r.refreshIntervalScatter {
-		r.scatterDuration = time.Duration(rand.Int63n(int64(r.refreshInterval))) / time.Second * time.Second
+		var int63 int64
+		if rd == nil {
+			int63 = rand.Int63n(int64(r.refreshInterval))
+		} else {
+			int63 = rd.Int63n(int64(r.refreshInterval))
+		}
+		// Scatter when the refresh happens within the interval, with a minimum of 1 second
+		r.scatterDuration = time.Duration(int63) + time.Second
 		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
 	} else {
 		r.scatterDuration = r.refreshInterval
@@ -413,6 +420,12 @@ var (
 		"api_key",
 		"app_key",
 		"additional_endpoints",
+		"orchestrator_additional_endpoints",
+		"profiling_additional_endpoints",
+		"debugger_additional_endpoints",
+		"debugger_diagnostics_additional_endpoints",
+		"symdb_additional_endpoints",
+		"events_additional_endpoints",
 	}
 	// tests override this to test refresh logic
 	allowlistEnabled = true
@@ -701,9 +714,9 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 
 	fmt.Fprintf(w, "\n")
 	if r.refreshInterval > 0 {
-		fmt.Fprintf(w, "'secret_refresh interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
+		fmt.Fprintf(w, "'secret_refresh_interval' is enabled: the first refresh will happen %s after startup and then every %s\n", r.scatterDuration, r.refreshInterval)
 	} else {
-		fmt.Fprintf(w, "'secret_refresh interval' is disabled\n")
+		fmt.Fprintf(w, "'secret_refresh_interval' is disabled\n")
 	}
 
 }

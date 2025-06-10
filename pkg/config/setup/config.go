@@ -313,6 +313,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
+	// If false, the core check will be skipped.
+	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
+	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
+
+	// If true, then the go loader will be prioritized over the python loader.
+	config.BindEnvAndSetDefault("prioritize_go_check_loader", false)
+
 	// If true, then new version of disk v2 check will be used.
 	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
 	config.BindEnvAndSetDefault("use_diskv2_check", false)
@@ -484,7 +491,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.disable_intra_vpc_collection", false)
 	config.BindEnvAndSetDefault("network_path.collector.source_excludes", map[string][]string{})
 	config.BindEnvAndSetDefault("network_path.collector.dest_excludes", map[string][]string{})
-	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_compatibility_mode", false)
+	config.BindEnvAndSetDefault("network_path.collector.tcp_syn_paris_traceroute_mode", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// HA Agent
@@ -825,6 +832,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
+
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
 
 	// Declare other keys that don't have a default/env var.
@@ -1190,7 +1199,7 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	// Autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
-	config.BindEnvAndSetDefault("autoscaling.workload.limit", 100)
+	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
 	config.BindEnv("autoscaling.failover.metrics")
 }
 
@@ -1602,6 +1611,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.dbm_tag", "datadoghq.com/dbm:true")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.enabled", false)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.discovery_interval", 300)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.region", "")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.query_timeout", 10)
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.tags", []string{"datadoghq.com/scrape:true"})
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.dbm_tag", "datadoghq.com/dbm:true")
 
 	config.BindEnvAndSetDefault("logs_config.dd_port", 10516)
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
@@ -1855,8 +1870,8 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
-		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceEnvVar)
-		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceEnvVar)
+		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceAgentRuntime)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -1865,7 +1880,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
+		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
 
@@ -2698,7 +2713,8 @@ func getObsPipelineURLForPrefix(datatype DataType, prefix string, config pkgconf
 // IsRemoteConfigEnabled returns true if Remote Configuration should be enabled
 func IsRemoteConfigEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Remote Config for GovCloud
-	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
+	isFipsAgent, _ := pkgfips.Enabled()
+	if cfg.GetBool("fips.enabled") || isFipsAgent || cfg.GetString("site") == "ddog-gov.com" {
 		return false
 	}
 	return cfg.GetBool("remote_configuration.enabled")

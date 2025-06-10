@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -139,6 +140,7 @@ type APIServer struct {
 	policiesStatus     []*api.PolicyStatus
 	msgSender          MsgSender
 	connEstablished    *atomic.Bool
+	envAsTags          []string
 
 	// os release data
 	kernelVersion string
@@ -382,6 +384,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 	tags = append(tags, rule.Tags...)
 	tags = append(tags, eventTags...)
 	tags = append(tags, common.QueryAccountIDTag())
+	tags = append(tags, a.envAsTags...)
 
 	// model event or custom event ? if model event use queuing so that tags and actions can be handled
 	if ev, ok := event.(*model.Event); ok {
@@ -530,7 +533,7 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 		PIDCacheSize:        a.probe.Config.Probe.PIDCacheSize,
 	}
 
-	report, err := kfilters.NewFilterReport(cfg, ruleSet)
+	report, err := kfilters.ComputeFilters(cfg, ruleSet)
 	if err != nil {
 		return nil, err
 	}
@@ -605,6 +608,18 @@ func (a *APIServer) getGlobalTags() []string {
 	return globalTags
 }
 
+func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
+	tags := []string{}
+
+	for _, env := range cfg.EnvAsTags {
+		value := os.Getenv(env)
+		if value != "" {
+			tags = append(tags, fmt.Sprintf("%s:%s", env, value))
+		}
+	}
+	return tags
+}
+
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
@@ -623,6 +638,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		stopChan:        make(chan struct{}),
 		msgSender:       msgSender,
 		connEstablished: atomic.NewBool(false),
+		envAsTags:       getEnvAsTags(cfg),
 	}
 
 	as.collectOSReleaseData()

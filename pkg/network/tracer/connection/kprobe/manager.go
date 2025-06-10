@@ -16,7 +16,7 @@ import (
 )
 
 var mainProbes = []probes.ProbeFuncName{
-	probes.NetDevQueue,
+	probes.NetDevQueueTracepoint,
 	probes.ProtocolClassifierEntrySocketFilter,
 	probes.ProtocolClassifierTLSClientSocketFilter,
 	probes.ProtocolClassifierTLSServerSocketFilter,
@@ -103,6 +103,11 @@ func initManager(mgr *ddebpf.Manager, runtimeTracer bool) error {
 		probes.UnderscoredSKBFreeDatagramLocked,
 		probes.SKBConsumeUDP,
 	}, funcNameToProbe)...)
+
+	// add Probe for net_dev_queue attached via raw tracepoint
+	mgr.Probes = append(mgr.Probes,
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.NetDevQueueRawTracepoint, UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
+	)
 
 	if !runtimeTracer {
 		// the runtime compiled tracer has no need for separate probes targeting specific kernel versions, since it can

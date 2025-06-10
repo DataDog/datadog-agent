@@ -222,6 +222,21 @@
       "type": "object",
       "description": "CGroupContextSerializer serializes a cgroup context to JSON"
     },
+    "CGroupWriteEvent": {
+      "properties": {
+        "file": {
+          "$ref": "#/$defs/File",
+          "description": "File pointing to the cgroup"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "PID of the process added to the cgroup"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "CGroupWriteEventSerializer serializes a cgroup_write event"
+    },
     "ConnectEvent": {
       "properties": {
         "addr": {
@@ -1184,6 +1199,10 @@
           "$ref": "#/$defs/File",
           "description": "File information of the interpreter"
         },
+        "cgroup": {
+          "$ref": "#/$defs/CGroupContext",
+          "description": "CGroup context"
+        },
         "container": {
           "$ref": "#/$defs/ContainerContext",
           "description": "Container context"
@@ -1322,6 +1341,10 @@
         "interpreter": {
           "$ref": "#/$defs/File",
           "description": "File information of the interpreter"
+        },
+        "cgroup": {
+          "$ref": "#/$defs/CGroupContext",
+          "description": "CGroup context"
         },
         "container": {
           "$ref": "#/$defs/ContainerContext",
@@ -1650,6 +1673,25 @@
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
+    "SetSockOptEvent": {
+      "properties": {
+        "level": {
+          "type": "integer",
+          "description": "Level at which the option is defined"
+        },
+        "optname": {
+          "type": "integer",
+          "description": "Name of the option being set"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "level",
+        "optname"
+      ],
+      "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
+    },
     "SignalEvent": {
       "properties": {
         "type": {
@@ -1829,6 +1871,9 @@
           "$ref": "#/$defs/SyscallArgs"
         },
         "rmdir": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "setsockopt": {
           "$ref": "#/$defs/SyscallArgs"
         }
       },
@@ -2010,6 +2055,12 @@
     },
     "sysctl": {
       "$ref": "#/$defs/SysCtlEvent"
+    },
+    "setsockopt": {
+      "$ref": "#/$defs/SetSockOptEvent"
+    },
+    "cgroup_write": {
+      "$ref": "#/$defs/CGroupWriteEvent"
     }
   },
   "additionalProperties": false,

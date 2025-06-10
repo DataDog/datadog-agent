@@ -21,6 +21,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -246,7 +247,7 @@ func TestCollection(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Create ipc component for the client
-			ipcmock.New(t)
+			ipcComp := ipcmock.New(t)
 
 			overrides := map[string]interface{}{
 				"language_detection.enabled":               true,
@@ -269,7 +270,7 @@ func TestCollection(t *testing.T) {
 			server := newMockServer(ctx, test.serverResponses, test.errorResponse)
 			defer server.stop()
 
-			grpcServer := grpc.NewServer()
+			grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(ipcComp.GetTLSServerConfig())))
 			pbgo.RegisterProcessEntityStreamServer(grpcServer, server)
 
 			lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -291,7 +292,7 @@ func TestCollection(t *testing.T) {
 					Reader: mockStore.GetConfig(),
 					port:   port,
 				},
-				Insecure: true,
+				IPC: ipcComp,
 			}
 
 			mockStore.Notify(test.preEvents)

@@ -401,6 +401,12 @@
               "description": "Duration in nanoseconds"
             }
           ]
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "inherited": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
