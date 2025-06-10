@@ -8,7 +8,7 @@ import tasks.libs.cws.common as common
 class EventTypeProperty:
     name: str
     definition: str
-    doc_link: str
+    doc_link: str  # noqa: F841
 
 
 @dataclass
@@ -16,14 +16,14 @@ class EventType:
     name: str
     kind: str
     definition: str
-    min_agent_version: str
+    min_agent_version: str  # noqa: F841
     experimental: bool
     properties: list[EventTypeProperty]
 
 
 @dataclass
 class Example:
-    expression: str
+    expression: str  # noqa: F841
     description: str
 
 
@@ -31,11 +31,11 @@ class Example:
 class PropertyDocumentation:
     name: str
     link: str
-    datatype: str
+    datatype: str  # noqa: F841
     definition: str
-    prefixes: list[str]
+    prefixes: list[str]  # noqa: F841
     constants: str
-    constants_link: str
+    constants_link: str  # noqa: F841
     examples: list[Example]
 
 

@@ -14,19 +14,19 @@ class SchemaParameter:
 @dataclass
 class DefinitionReference:
     name: str
-    anchor: str
+    anchor: str  # noqa: F841
 
 
 @dataclass
 class DefinitionFieldDescription:
-    field_name: str
+    field_name: str  # noqa: F841
     description: str
 
 
 @dataclass
 class SchemaDefinition:
     name: str
-    schema: str
+    schema: str  # noqa: F841
     references: list[DefinitionReference]
     descriptions: list[DefinitionFieldDescription]
 
