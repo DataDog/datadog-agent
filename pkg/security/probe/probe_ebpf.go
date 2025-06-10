@@ -616,7 +616,7 @@ func (p *EBPFProbe) Start() error {
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
-	if p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
+	if p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
 		// start sysctl snapshot loop
 		go p.startSysCtlSnapshotLoop()
 	}
