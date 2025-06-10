@@ -75,6 +75,8 @@ const (
 	sslWriteExArgsMap   = "ssl_write_ex_args"
 	bioNewSocketArgsMap = "bio_new_socket_args"
 	fdBySSLBioMap       = "fd_by_ssl_bio"
+	sslSockByCtxMap     = "ssl_sock_by_ctx"
+	sslCtxByTupMap      = "ssl_ctx_by_tuple"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -241,12 +243,6 @@ var gnuTLSProbes = []manager.ProbesSelector{
 		},
 	},
 }
-
-const (
-	sslSockByCtxMap    = "ssl_sock_by_ctx"
-	sslCtxByTupMap     = "ssl_ctx_by_tuple"
-	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
-)
 
 var sharedLibrariesMaps = []*manager.Map{
 	{
