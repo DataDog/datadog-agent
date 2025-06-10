@@ -95,7 +95,7 @@ func (v *multiVMSuite) SetupSuite() {
 
 	// This will require a reboot to apply the policy
 	// Reboot will be done once everything else is configured on certificateHost
-	err = windowsCommon.SetRegistryDWORDValue(certificateHost, `HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System`,
+	err = windowsCommon.SetNewItemDWORDProperty(certificateHost, `HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System`,
 		"LocalAccountTokenFilterPolicy", 1)
 	v.Require().NoError(err)
 
@@ -111,6 +111,10 @@ func (v *multiVMSuite) SetupSuite() {
 
 	// When setting, LocalAccountTokenFilterPolicy, we need to reboot the host to apply the policy
 	err = RebootHost(certificateHost)
+	v.Require().NoError(err)
+
+	// Reconnect to the host
+	err = certificateHost.Reconnect()
 	v.Require().NoError(err)
 
 	agentPackage, err := windowsAgent.GetPackageFromEnv()
