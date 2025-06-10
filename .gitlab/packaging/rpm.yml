@@ -131,8 +131,6 @@ ot_agent_rpm-x64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["datadog-otel-agent-x64"]
-  variables:
-    DD_PROJECT: agent
 
 ot_agent_rpm-arm64-a7:
   extends: [.package_ot_rpm_common, .package_rpm_arm64]
@@ -140,8 +138,6 @@ ot_agent_rpm-arm64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["datadog-otel-agent-arm64"]
-  variables:
-    DD_PROJECT: agent
 
 installer_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_arm64]
