@@ -86,8 +86,8 @@ bool Three::init()
     // Configure Python executable if provided
     if (!_pythonExe.empty()) {
         // Set the program name
-        // Removing the setup of `program_name` doesn't break any test. 
-        // Thus, it might be not required but we keep it to ensure that nothing else breaks.
+        // While removing `program_name` does not currently cause any test failures,
+        // we retain it as a precaution to avoid unforeseen issues in environments or cases not covered by tests.
         status = PyConfig_SetBytesString(&_config, &_config.program_name, _pythonExe.c_str());
         if (PyStatus_Exception(status)) {
             setError("Failed to set program name" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
@@ -96,10 +96,10 @@ bool Three::init()
         }
         
         // Set the executable path
-        // If we remove the setup of `executable`, the test `TestSysExecutableValue` 
-        // located at `./rtloader/test/rtloader/rtloader_test.go:77` fails but only on Windows.
-        // The path of the Python executable isn't mocked or is overwritten, the reason is unclear.
-        // Here's a GitHub issue that tackles the same problem in another context: https://github.com/python/cpython/issues/124241
+        // If we remove `executable`, it causes the test `TestSysExecutableValue` 
+        // (located at ./rtloader/test/rtloader/rtloader_test.go:77) to fail on Windows.
+        // The root cause is unclear; it may be due to the executable path not being properly mocked or being overwritten elsewhere.  
+        // For related discussion, see: https://github.com/python/cpython/issues/124241  
         status = PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str());
         if (PyStatus_Exception(status)) {
             setError("Failed to set executable path" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
