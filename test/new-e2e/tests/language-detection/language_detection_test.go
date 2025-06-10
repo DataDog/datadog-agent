@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -42,8 +41,6 @@ type languageDetectionSuite struct {
 }
 
 func TestLanguageDetectionSuite(t *testing.T) {
-	flake.Mark(t)
-
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(processConfigStr),
 	}

@@ -154,7 +154,6 @@ found:
 		if err != nil {
 			return state{}, fmt.Errorf("failed to parse config from directory name: %w", err)
 		}
-		configs[cfg] = struct{}{}
 		files, err := os.ReadDir(path.Join(binariesDir, file.Name()))
 		if err != nil {
 			return state{}, fmt.Errorf("failed to read program directory: %w", err)
@@ -172,6 +171,8 @@ found:
 				continue
 			}
 			programConfigs[file.Name()]++
+			// Only count the config if there's at least one program for it.
+			configs[cfg] = struct{}{}
 		}
 	}
 	numConfigs := len(configs)

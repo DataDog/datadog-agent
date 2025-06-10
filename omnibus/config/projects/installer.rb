@@ -88,7 +88,7 @@ else
 
   dependency 'installer'
 
-  generate_distro_package = false
+  generate_distro_package = ENV.has_key?("OMNIBUS_FORCE_PACKAGES")
 end
 
 
