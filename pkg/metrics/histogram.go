@@ -51,7 +51,9 @@ var (
 	defaultPercentiles = []int(nil)
 )
 
-func parsePercentiles(percentiles []string) []int {
+// ParsePercentiles represents a string percentile in
+// an integer percentile (e.g. "0.95" -> 95, "0.85" -> 85
+func ParsePercentiles(percentiles []string) []int {
 	res := []int{}
 	for _, p := range percentiles {
 		i, err := strconv.ParseFloat(p, 64)
@@ -83,7 +85,7 @@ func NewHistogram(interval int64, config pkgconfigmodel.Config) *Histogram {
 		if err != nil {
 			log.Errorf("Could not Unmarshal histogram configuration: %s", err)
 		} else {
-			defaultPercentiles = parsePercentiles(c)
+			defaultPercentiles = ParsePercentiles(c)
 			sort.Ints(defaultPercentiles)
 		}
 	}
