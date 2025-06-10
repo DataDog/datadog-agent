@@ -31,10 +31,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/proto"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
@@ -54,7 +56,6 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	logscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -134,11 +135,6 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 			},
-			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-				return func() (string, error) {
-					return security.FetchAuthToken(c)
-				}
-			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
 
@@ -147,6 +143,8 @@ func RunChecksAgent(cliParams *CLIParams, defaultConfPath string, fct interface{
 
 		pidimpl.Module(),
 		fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
+		agenttelemetryfx.Module(),
+		ipcfx.ModuleReadWrite(),
 	)
 }
 
