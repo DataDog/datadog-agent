@@ -36,7 +36,6 @@ def build(
     skip_assets=False,
     policies_version=None,
     major_version='7',
-    strip_binary=False,
 ):
     """
     Build Cluster Agent
@@ -56,7 +55,6 @@ def build(
         development,
         skip_assets,
         major_version=major_version,
-        strip_binary=strip_binary,
     )
 
     if policies_version is None:

@@ -22,7 +22,6 @@ def build(
     race=False,
     development=True,
     skip_assets=False,
-    strip_binary=False,
 ):
     """
     Build Cluster Agent for Cloud Foundry
@@ -41,7 +40,6 @@ def build(
         race,
         development,
         skip_assets,
-        strip_binary=strip_binary,
     )
 
 
