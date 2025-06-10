@@ -2963,8 +2963,15 @@ func TestObfuscatorCacheKey(t *testing.T) {
 	opts.KeepSQLAlias = false
 	oq3, err := obfuscator.ObfuscateSQLStringWithOptions(in, &opts, "")
 	require.NoError(t, err)
-	require.NotNil(t, oq2)
+	require.NotNil(t, oq3)
 	assert.NotEqual(t, oq3.Query, oq.Query)
 	assert.Equal(t, obfuscator.queryCache.Metrics.Hits(), uint64(1))
 
+	// Test that with explicit optsStr cache is not
+	opts.KeepSQLAlias = false
+	oq4, err := obfuscator.ObfuscateSQLStringWithOptions(in, &opts, "{opts}")
+	require.NoError(t, err)
+	require.NotNil(t, oq4)
+	assert.NotEqual(t, oq4.Query, oq.Query)
+	assert.Equal(t, obfuscator.queryCache.Metrics.Hits(), uint64(1))
 }
