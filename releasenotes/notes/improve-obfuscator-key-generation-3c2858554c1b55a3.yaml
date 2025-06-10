@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Improve the obfuscator key generation to be more memory efficient.
+    Improve the memory efficiency of obfuscator key generation.
