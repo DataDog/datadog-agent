@@ -26,6 +26,7 @@ from tasks.libs.common.constants import GITHUB_REPO_NAME
 from tasks.libs.common.git import get_default_branch, get_file_modifications, get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.gitlab import (
+    ALL_GITLABCI_SUBLINTERS,
     _gitlab_ci_jobs_codeowners_lint,
     check_change_paths_exist_gitlab_ci_jobs,
     check_change_paths_valid_gitlab_ci_jobs,
@@ -33,14 +34,18 @@ from tasks.libs.linter.gitlab import (
     check_owners_gitlab_ci_jobs,
     extract_gitlab_ci_jobs,
     gitlabci_lint_task_template,
-    gitlabci_run_sublinter_helper,
     lint_and_test_gitlab_ci_config,
     list_get_parameter_calls,
     load_or_generate_gitlab_ci_configs,
     load_or_generate_gitlab_ci_diff,
     shellcheck_gitlab_ci_jobs,
 )
-from tasks.libs.linter.gitlab_exceptions import GitlabLintFailure, MultiGitlabLintFailure, SingleGitlabLintFailure
+from tasks.libs.linter.gitlab_exceptions import (
+    FailureLevel,
+    GitlabLintFailure,
+    MultiGitlabLintFailure,
+    SingleGitlabLintFailure,
+)
 from tasks.libs.linter.go import run_lint_go
 from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, shellcheck_linter
 from tasks.libs.owners.parsing import read_owners
@@ -277,95 +282,54 @@ def full_gitlab_ci(
         test: The context preset to test the gitlab ci with containing environment variables.
         custom_context: A custom context to test the gitlab ci config with.
         shellcheck_exclude: A comma separated list of shellcheck error codes to exclude.
-        shellcheck_shellcheck_args: Additional arguments to pass to shellcheck.
+        shellcheck_args: Additional arguments to pass to shellcheck.
         shellcheck_only_errors: Show only shellcheck errors, not warnings.
         path_jobowners: Path to a JOBOWNERS file defining which jobs are owned by which teams
     """
-    full_config: dict[str, dict]
+    configs: dict[str, dict]
     jobs: list[tuple[str, dict]]
     if use_diff:
         _, _, diff = load_or_generate_gitlab_ci_diff(ctx, configs_or_diff_file)
         jobs = extract_gitlab_ci_jobs(diff=diff)
-        full_config = diff.after  # type: ignore
+        configs = diff.after  # type: ignore
     else:
         configs = load_or_generate_gitlab_ci_configs(ctx, configs_or_diff_file)
         jobs = extract_gitlab_ci_jobs(configs=configs)
-        full_config = configs  # type: ignore
 
     if not jobs:
         print(f'[{color_message("INFO", Color.BLUE)}] No changed jobs to lint, skipping')
         return
 
     failures: list[SingleGitlabLintFailure] = []
-    gitlabci_run_sublinter_helper(
-        lint_and_test_gitlab_ci_config,
-        failures=failures,
-        fail_fast=fail_fast,
-        info_message='Running main gitlabci config linter...',
-        success_message='All contexts tested successfully.',
-        configs=full_config,
-        test=test,
-        custom_context=custom_context,
-    )
-
-    gitlabci_run_sublinter_helper(
-        shellcheck_gitlab_ci_jobs,
-        failures=failures,
-        fail_fast=fail_fast,
-        info_message='Running shellcheck on gitlabci scripts...',
-        success_message='All scripts checked successfully.',
-        ctx=ctx,
-        jobs=jobs,
-        exclude=shellcheck_exclude,
-        verbose=shellcheck_verbose,
-        shellcheck_args=shellcheck_args,
-        only_errors=shellcheck_only_errors,
-    )
-
-    gitlabci_run_sublinter_helper(
-        check_change_paths_valid_gitlab_ci_jobs,
-        failures=failures,
-        fail_fast=fail_fast,
-        info_message='Checking change: paths: rules defined in gitlabci jobs are valid...',
-        success_message='All change: paths: rules defined in gitlabci jobs are valid.',
-        jobs=jobs,
-    )
-    gitlabci_run_sublinter_helper(
-        check_change_paths_exist_gitlab_ci_jobs,
-        failures=failures,
-        fail_fast=fail_fast,
-        info_message='Checking gitlabci jobs have defined change: paths: rules...',
-        success_message='All gitlabci jobs have defined change: paths: rules.',
-        jobs=jobs,
-    )
-
     ci_linters_config = CILintersConfig(
         lint=True,
-        all_jobs=full_config_get_all_leaf_jobs(full_config),
-        all_stages=full_config_get_all_stages(full_config),
+        all_jobs=full_config_get_all_leaf_jobs(configs),
+        all_stages=full_config_get_all_stages(configs),
     )
-
-    gitlabci_run_sublinter_helper(
-        check_needs_rules_gitlab_ci_jobs,
-        failures=failures,
-        fail_fast=fail_fast,
-        info_message='Checking gitlabci jobs have defined needs: and rules: sections...',
-        success_message='All gitlabci jobs have defined needs: and rules: sections.',
-        jobs=jobs,
-        ci_linters_config=ci_linters_config,
-    )
-
     jobowners = read_owners(path_jobowners, remove_default_pattern=True)
-    gitlabci_run_sublinter_helper(
-        check_owners_gitlab_ci_jobs,
-        failures=failures,
-        fail_fast=fail_fast,
-        info_message='Checking gitlabci jobs have defined codeowners...',
-        success_message='All gitlabci jobs have defined codeowners.',
-        jobs=jobs,
-        ci_linters_config=ci_linters_config,
-        jobowners=jobowners,
-    )
+
+    all_args = {
+        "configs": configs,
+        "test": test,
+        "custom_context": custom_context,
+        "ctx": ctx,
+        "jobs": jobs,
+        "exclude": shellcheck_exclude,
+        "verbose": shellcheck_verbose,
+        "shellcheck_args": shellcheck_args,
+        "only_errors": shellcheck_only_errors,
+        "ci_linters_config": ci_linters_config,
+        "jobowners": jobowners,
+    }
+
+    for sublinter in ALL_GITLABCI_SUBLINTERS:
+        try:
+            sublinter(**all_args)
+        except GitlabLintFailure as e:
+            if fail_fast and e.level == FailureLevel.ERROR:
+                print(e.pretty_print())
+                raise Exit(code=e.exit_code) from e
+            failures.extend(e.get_individual_failures())
 
     if failures:
         if len(failures) == 1:
@@ -403,8 +367,6 @@ def gitlab_ci(ctx, configs_file: str | None = None, input_file=".gitlab-ci.yml",
     except GitlabLintFailure as e:
         print(e.pretty_print())
         raise Exit(code=e.exit_code) from e
-
-    print(f'[{color_message("OK", Color.GREEN)}] All contexts tested successfully.')
 
 
 @task
@@ -455,7 +417,6 @@ def gitlab_ci_shellcheck(
     except GitlabLintFailure as e:
         print(e.pretty_print())
         raise Exit(code=e.exit_code) from e
-    print(f'[{color_message("OK", Color.GREEN)}] Shellcheck passed for all gitlab ci jobs.')
 
 
 ## === SSM-related === ##
@@ -543,7 +504,6 @@ def gitlab_change_paths(
 
     gitlabci_lint_task_template(
         body,
-        success_message="All rule:changes:paths from gitlab-ci are valid.",
         ctx=ctx,
         configs_or_diff_file=configs_or_diff_file,
         use_diff=use_diff,
@@ -581,7 +541,6 @@ def gitlab_ci_jobs_needs_rules(
 
     gitlabci_lint_task_template(
         body,
-        success_message="All checked jobs have a `needs` and a `rules` section.",
         ctx=ctx,
         configs_or_diff_file=configs_or_diff_file,
         use_diff=use_diff,
@@ -607,7 +566,6 @@ def job_change_path(ctx, configs_or_diff_file: str | None = None, use_diff: bool
 
     gitlabci_lint_task_template(
         body,
-        success_message=f"All jobs matching '{job_pattern}' have a change path rule.",
         ctx=ctx,
         configs_or_diff_file=configs_or_diff_file,
         use_diff=use_diff,
@@ -676,7 +634,6 @@ def gitlab_ci_jobs_owners(
 
     gitlabci_lint_task_template(
         body,
-        success_message=f"All checked jobs have an owner defined in {path_jobowners}.')",
         ctx=ctx,
         configs_or_diff_file=configs_or_diff_file,
         use_diff=use_diff,

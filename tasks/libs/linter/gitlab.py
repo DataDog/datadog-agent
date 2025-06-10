@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import re
 from collections.abc import Callable
 from glob import glob
@@ -30,11 +31,31 @@ from tasks.libs.linter.gitlab_exceptions import (
 )
 from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
 
+ALL_GITLABCI_SUBLINTERS: list[Callable] = []
+
 
 # === Task code bodies === #
+def gitlabci_sublinter(info_message: str, success_message: str):
+    """Decorator for registering a gitlabci sublinter, and setting up some common config options."""
+
+    # Weird pattern here, but it is necessary for implementing "parametrized" decorators
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            print(f'[{color_message("INFO", Color.BLUE)}] {info_message}')
+            func(*args, **kwargs)
+
+            # We never get here if the function raises an exception
+            print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
+
+        ALL_GITLABCI_SUBLINTERS.append(wrapper)
+        return wrapper
+
+    return decorator
+
+
 def gitlabci_lint_task_template(
     task_body: Callable,
-    success_message: str,
     ctx,
     configs_or_diff_file: str | None = None,
     use_diff: bool = False,
@@ -63,37 +84,12 @@ def gitlabci_lint_task_template(
     except GitlabLintFailure as e:
         print(e.pretty_print())
         raise Exit(code=e.exit_code) from e
-    print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
 
 
-def gitlabci_run_sublinter_helper(
-    sublinter: Callable,
-    failures: list[SingleGitlabLintFailure],
-    fail_fast: bool,
-    info_message: str,
-    success_message: str,
-    *args,
-    **kwargs,
-):
-    """Helper function used in `full_gitlab_ci` to run a 'sublinter' (i.e. a linting task) and
-    handle any failures."""
-    print(f'[{color_message("INFO", Color.BLUE)}] {info_message}')
-    try:
-        sublinter(*args, **kwargs)
-    except GitlabLintFailure as e:
-        failures.extend(e.get_individual_failures())
-        if fail_fast and e.level == FailureLevel.ERROR:
-            print(e.pretty_print())
-            raise Exit(code=e.exit_code) from e
-
-    print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
-
-
-def lint_and_test_gitlab_ci_config(
-    configs: dict[str, dict],
-    test="all",
-    custom_context=None,
-):
+@gitlabci_sublinter(
+    info_message='Running main gitlabci config linter...', success_message='All contexts tested successfully.'
+)
+def lint_and_test_gitlab_ci_config(configs: dict[str, dict], test="all", custom_context=None, *args, **kwargs):
     """Lints and tests the validity of the gitlabci config object passed in argument.
 
     Args:
@@ -120,6 +116,10 @@ def lint_and_test_gitlab_ci_config(
                 test_gitlab_configuration(entry_point=config_filename, config_object=config_object)
 
 
+@gitlabci_sublinter(
+    info_message='Running shellcheck on gitlabci scripts...',
+    success_message='All scripts checked successfully.',
+)
 def shellcheck_gitlab_ci_jobs(
     ctx,
     jobs: list[tuple[str, dict]],
@@ -128,6 +128,8 @@ def shellcheck_gitlab_ci_jobs(
     shellcheck_args="",
     fail_fast: bool = False,
     only_errors: bool = False,
+    *args,
+    **kwargs,
 ):
     """Lints the scripts for the given job objects using shellcheck.
 
@@ -166,7 +168,11 @@ def shellcheck_gitlab_ci_jobs(
     shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, only_errors)
 
 
-def check_change_paths_valid_gitlab_ci_jobs(jobs: list[tuple[str, dict]]):
+@gitlabci_sublinter(
+    info_message='Checking change: paths: rules defined in gitlabci jobs are valid...',
+    success_message='All change: paths: rules defined in gitlabci jobs are valid.',
+)
+def check_change_paths_valid_gitlab_ci_jobs(jobs: list[tuple[str, dict]], *args, **kwargs):
     """Verifies that rules: changes: paths in the given jobs match existing files in the repo"""
     failures = []
     for job_name, job in jobs:
@@ -186,7 +192,11 @@ def check_change_paths_valid_gitlab_ci_jobs(jobs: list[tuple[str, dict]]):
         raise MultiGitlabLintFailure(failures=failures)
 
 
-def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]]]):
+@gitlabci_sublinter(
+    info_message='Checking gitlabci jobs have defined change: paths: rules...',
+    success_message='All gitlabci jobs have defined change: paths: rules.',
+)
+def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]]], *args, **kwargs):
     """Verifies that the jobs passed in contain a change path rule in the given config."""
     tests_without_change_path_allow_list = {
         'generate-fips-e2e-pipeline',
@@ -317,7 +327,11 @@ def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]
         raise MultiGitlabLintFailure(failures=failures)
 
 
-def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_config: CILintersConfig):
+@gitlabci_sublinter(
+    info_message='Checking gitlabci jobs have defined needs: and rules: sections...',
+    success_message='All gitlabci jobs have defined needs: and rules: sections.',
+)
+def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_config: CILintersConfig, *args, **kwargs):
     """Verifies that the specified jobs contain `needs` and also `rules`."""
     # Verify the jobs
     failures = []
@@ -343,8 +357,12 @@ def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_co
         raise MultiGitlabLintFailure(failures=failures)
 
 
+@gitlabci_sublinter(
+    info_message='Checking gitlabci jobs have defined codeowners...',
+    success_message='All gitlabci jobs have defined codeowners.',
+)
 def check_owners_gitlab_ci_jobs(
-    jobs: list[tuple[str, dict]], ci_linters_config: CILintersConfig, jobowners: CodeOwners
+    jobs: list[tuple[str, dict]], ci_linters_config: CILintersConfig, jobowners: CodeOwners, *args, **kwargs
 ):
     job_names = [name for (name, _) in jobs]
     failures = []
