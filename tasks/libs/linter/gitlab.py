@@ -325,7 +325,7 @@ def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]
                 SingleGitlabLintFailure(
                     _details=f"Job does not contain a valid change paths rule{', but is allow-listed' if job_name in tests_without_change_path_allow_list else ''}.",
                     failing_job_name=job_name,
-                    _level=FailureLevel.WARNING
+                    _level=FailureLevel.IGNORED
                     if job_name in tests_without_change_path_allow_list
                     else FailureLevel.ERROR,
                 )
@@ -357,7 +357,7 @@ def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_co
                 SingleGitlabLintFailure(
                     _details=f"Job is missing `needs` or `rules` key{', but is allow-listed' if to_ignore else ''}.",
                     failing_job_name=job_name,
-                    _level=FailureLevel.WARNING if to_ignore else FailureLevel.ERROR,
+                    _level=FailureLevel.IGNORED if to_ignore else FailureLevel.ERROR,
                 )
             )
 
@@ -384,7 +384,7 @@ def check_owners_gitlab_ci_jobs(
                 SingleGitlabLintFailure(
                     _details=f"Job does not have any non-default owners defined{', but is allow-listed' if job in ci_linters_config.job_owners_jobs else ''}.",
                     failing_job_name=job,
-                    _level=FailureLevel.WARNING if job in ci_linters_config.job_owners_jobs else FailureLevel.ERROR,
+                    _level=FailureLevel.IGNORED if job in ci_linters_config.job_owners_jobs else FailureLevel.ERROR,
                 )
             )
 

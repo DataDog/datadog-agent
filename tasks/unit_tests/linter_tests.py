@@ -176,7 +176,7 @@ class TestGitlabCIJobsOwners(unittest.TestCase):
 
         with self.assertRaises(GitlabLintFailure) as cm:
             linter.check_owners_gitlab_ci_jobs([('somejob', {}), ('someotherjob', {})], config, CodeOwners(jobowners))
-        self.assertEqual(cm.exception.level, FailureLevel.WARNING)
+        self.assertEqual(cm.exception.level, FailureLevel.IGNORED)
 
 
 class TestGitlabCIJobsCodeowners(unittest.TestCase):
