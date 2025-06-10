@@ -1,5 +1,5 @@
 ---
 enhancements:
   - |
-    Agent upgrades will now persist non-core integrations by default.
+    Agent upgrades now persist non-core integrations by default.
     This behavior can be disabled by creating a file flag under `/etc/datadog-agent/.skip_install_python_third_party_deps`.
