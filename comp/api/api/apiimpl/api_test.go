@@ -6,7 +6,6 @@
 package apiimpl
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -52,25 +51,6 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		Module(),
 		fx.Replace(params),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
-		fx.Provide(func() api.AgentEndpointProvider {
-			return api.AgentEndpointProvider{
-				Provider: nil,
-			}
-		}),
-		telemetryimpl.MockModule(),
-		config.MockModule(),
-		grpcNonefx.Module(),
-		fx.Options(fxOptions...),
-	)
-}
-
-func testAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
-	return fxutil.TestApp[testdeps](
-		Module(),
-		fx.Replace(params),
-		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		fx.Supply(context.Background()),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
 			return api.AgentEndpointProvider{
