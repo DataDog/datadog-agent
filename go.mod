@@ -292,7 +292,7 @@ require (
 	github.com/google/wire v0.6.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
