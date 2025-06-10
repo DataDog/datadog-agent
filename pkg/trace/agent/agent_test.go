@@ -174,7 +174,12 @@ func TestStopWaits(t *testing.T) {
 	cancel()
 	wg.Wait() // Wait for agent to completely exit
 
-	mtw := agnt.TraceWriter.(*mockTraceWriter)
+	mtw, ok := agnt.TraceWriter.(*mockTraceWriter)
+	if !ok {
+		t.Fatal("Expected mockTraceWriter")
+	}
+	mtw.mu.Lock()
+	defer mtw.mu.Unlock()
 
 	assert := assert.New(t)
 	assert.Len(mtw.payloads, 1)
