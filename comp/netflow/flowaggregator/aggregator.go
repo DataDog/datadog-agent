@@ -233,15 +233,14 @@ func (agg *FlowAggregator) flushLoop() {
 			agg.flushLoopDone <- struct{}{}
 			return
 		// automatic flush sequence
-		case <-flushFlowsToSendTicker:
-			now := time.Now()
+		case now := <-flushFlowsToSendTicker:
 			if !lastFlushTime.IsZero() {
 				flushInterval := now.Sub(lastFlushTime)
 				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
 			}
 			lastFlushTime = now
 
-			flushStartTime := time.Now()
+			flushStartTime := now
 			agg.flush()
 			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
 			agg.sender.Commit()
