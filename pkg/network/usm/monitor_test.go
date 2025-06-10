@@ -132,7 +132,7 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 
 	// Iterate through active connections until we find connection created above
 	require.Eventuallyf(t, func() bool {
-		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+		stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
 
 		for key, reqStats := range stats {
 			if key.Method == http.MethodGet && strings.HasSuffix(key.Path.Content.Get(), "/test") && (key.SrcPort == 8080 || key.DstPort == 8080) {
@@ -186,7 +186,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	// then we are using a variable to check if "we ever found it" among the iterations.
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
-		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+		stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
 		for req := range abortedRequests {
 			checkRequestIncluded(t, stats, req, false)
 		}
@@ -308,7 +308,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationSlowResponse() {
 
 			// Ensure all captured transactions get sent to user-space
 			time.Sleep(10 * time.Millisecond)
-			checkRequestIncluded(t, getHTTPLikeProtocolStats(monitor, protocols.HTTP), req, tt.shouldCapture)
+			checkRequestIncluded(t, getHTTPLikeProtocolStats(t, monitor, protocols.HTTP), req, tt.shouldCapture)
 		})
 	}
 }
@@ -404,7 +404,7 @@ func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	time.Sleep(100 * time.Millisecond)
 
 	// Assert that the HTTP request was correctly handled despite its forceful termination
-	stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+	stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
 	url, err := url.Parse("http://127.0.0.1:8080/200/foobar")
 	require.NoError(t, err)
 	checkRequestIncluded(t, stats, &nethttp.Request{URL: url, Method: nethttp.MethodGet}, true)
@@ -495,7 +495,7 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	requestsExist := make([]bool, len(requests))
 
 	assert.Eventually(t, func() bool {
-		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+		stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
 
 		if len(stats) == 0 {
 			return false

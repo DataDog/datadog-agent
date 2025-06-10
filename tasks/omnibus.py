@@ -17,6 +17,7 @@ from tasks.libs.common.omnibus import (
     omnibus_compute_cache_key,
     send_build_metrics,
     send_cache_miss_event,
+    send_cache_mutation_event,
     should_retry_bundle_install,
 )
 from tasks.libs.common.user_interactions import yes_no_question
@@ -258,6 +259,9 @@ def build(
         and host_distribution != "ociru"
         and "OMNIBUS_PACKAGE_ARTIFACT_DIR" not in os.environ
     )
+    remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
+    use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
+    cache_state = None
     aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
@@ -272,15 +276,12 @@ def build(
         # which effectively drops whatever was in omnibus_cache_dir
         install_directory = install_directory.lstrip('/')
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
-        remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
         # generated one.
         with gitlab_section("Manage omnibus cache", collapsed=True):
-            use_remote_cache = remote_cache_name is not None
             if use_remote_cache:
-                cache_state = None
                 cache_key = omnibus_compute_cache_key(ctx)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
                 bundle_dir = tempfile.TemporaryDirectory()
@@ -321,15 +322,20 @@ def build(
         stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
         # Purge the cache manually as omnibus will stick to not restoring a tag when
         # a mismatch is detected, but will keep the old cached tags.
-        # Do this before checking for tag differences, in order to remove staled tags
+        # Do this before checking for tag differences, in order to remove stale tags
         # in case they were included in the bundle in a previous build
         for _, tag in enumerate(stale_tags.split(os.linesep)):
             ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
-        with timed(quiet=True) as durations['Updating omnibus cache']:
-            if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
-                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
-                ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
-                bundle_dir.cleanup()
+        if use_remote_cache:
+            if cache_state is None:
+                with timed(quiet=True) as durations['Updating omnibus cache']:
+                    ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
+                    ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+                    bundle_dir.cleanup()
+            elif ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+                send_cache_mutation_event(
+                    ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                )
 
     # Output duration information for different steps
     print("Build component timing:")
@@ -435,6 +441,24 @@ def build_repackaged_agent(ctx, log_level="info"):
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+    # Set up compiler flags (assumes an environment based on our glibc-targeting toolchains)
+    if architecture == "amd64":
+        env.update(
+            {
+                "DD_CC": "x86_64-unknown-linux-gnu-gcc",
+                "DD_CXX": "x86_64-unknown-linux-gnu-g++",
+                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake",
+            }
+        )
+    elif architecture == "arm64":
+        env.update(
+            {
+                "DD_CC": "aarch64-unknown-linux-gnu-gcc",
+                "DD_CXX": "aarch64-unknown-linux-gnu-g++",
+                "DD_CMAKE_TOOLCHAIN": "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake",
+            }
+        )
+
     print("Using the following package as a base:", env['OMNIBUS_REPACKAGE_SOURCE_URL'])
 
     bundle_install_omnibus(ctx, None, env)

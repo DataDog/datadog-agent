@@ -12,7 +12,7 @@
 '@datadog/network-device-monitoring': NDMII
 '@datadog/ndm-core': NDMII
 '@datadog/ndm-integrations': NDINT
-'@datadog/container-intake': CTK
+'@datadog/container-experiences': CXP
 '@datadog/agent-metrics-logs': AMLII
 '@datadog/agent-metric-pipelines': AGTMETRICS
 '@datadog/agent-log-pipelines': AGNTLOG

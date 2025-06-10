@@ -9,22 +9,23 @@ package diskv2
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/benbjohnson/clock"
+	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	yaml "gopkg.in/yaml.v2"
-
-	"regexp"
-
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/benbjohnson/clock"
-	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
 const (
@@ -154,6 +155,11 @@ func (c *Check) Run() error {
 
 // Configure parses the check configuration and init the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+	if flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("disk_check.use_core_loader") && !pkgconfigsetup.Datadog().GetBool("use_diskv2_check") {
+		// if use_diskv2_check, then do not skip the core check
+		return fmt.Errorf("%w: disk core check is disabled", check.ErrSkipCheckInstance)
+	}
+
 	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err

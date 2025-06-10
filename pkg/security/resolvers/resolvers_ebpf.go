@@ -11,9 +11,10 @@ package resolvers
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 	"os"
 	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -337,8 +338,10 @@ func (r *EBPFResolvers) snapshotBoundSockets() error {
 		return err
 	}
 
+	boundSocketSnapshotter := procfs.NewBoundSocketSnapshotter()
+
 	for _, proc := range processes {
-		bs, err := procfs.GetBoundSockets(proc)
+		bs, err := boundSocketSnapshotter.GetBoundSockets(proc)
 		if err != nil {
 			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
 			continue

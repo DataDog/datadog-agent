@@ -106,3 +106,14 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 
 	assert.Equal(t, []string{"key1", "key4", "key3"}, resolver.GetAPIKeys())
 }
+
+func TestScrubKeys(t *testing.T) {
+	keys := []string{
+		"abcdefghijklmnopqrstuvwxyzkey001",
+		"abcdefghijklmnopqrstuvwxyzkey002",
+		"shortkey",
+	}
+	keys = scrubKeys(keys)
+
+	assert.Equal(t, []string{"***************************ey001", "***************************ey002", "********"}, keys)
+}

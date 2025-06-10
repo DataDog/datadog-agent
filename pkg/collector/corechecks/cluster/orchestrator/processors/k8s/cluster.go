@@ -175,6 +175,7 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 			ClusterName: pctx.Cfg.KubeClusterName,
 			ClusterId:   pctx.ClusterID,
 			GroupId:     pctx.MsgGroupID,
+			HostName:    pctx.HostName,
 			Manifests: []*model.Manifest{
 				{
 					Content:         yaml,

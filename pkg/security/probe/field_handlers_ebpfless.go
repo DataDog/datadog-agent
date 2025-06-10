@@ -489,3 +489,13 @@ func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg6Str(_ *model.Event, _ *model
 func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg6Uint(_ *model.Event, _ *model.OnDemandEvent) int {
 	return 0
 }
+
+// ResolveConnectHostnames resolves the hostnames of a connect event
+func (fh *EBPFLessFieldHandlers) ResolveConnectHostnames(_ *model.Event, e *model.ConnectEvent) []string {
+	return e.Hostnames
+}
+
+// ResolveAcceptHostnames resolves the hostnames of an accept event
+func (fh *EBPFLessFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.AcceptEvent) []string {
+	return e.Hostnames
+}

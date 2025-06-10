@@ -61,6 +61,11 @@ func (c *ContainerContext) Hash() string {
 	return string(c.ContainerID)
 }
 
+// ParentScope returns the parent entity scope
+func (c *ContainerContext) ParentScope() (eval.VariableScope, bool) {
+	return nil, false
+}
+
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
 	Name           string                     `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
