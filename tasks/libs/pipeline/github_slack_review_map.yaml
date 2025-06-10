@@ -6,6 +6,7 @@
 # because the '@' symbol is reserved in YAML.
 '@datadog/agent-all': '#datadog-agent-pipelines'
 '@datadog/agent-apm': '#apm-agent'
+'@datadog/agent-build': '#agent-build-reviews'
 '@datadog/agent-configuration': '#agent-configuration'
 '@datadog/agent-cspm': '#security-and-compliance-agent'
 '@datadog/agent-delivery': '#agent-delivery-reviews'
