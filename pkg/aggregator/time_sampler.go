@@ -16,6 +16,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
@@ -124,7 +125,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.Blocklist) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
 
@@ -156,7 +157,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 		// Note: rawSeries is reused at each call
-		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature)
+		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, blocklist)
 	})
 }
 
@@ -164,6 +165,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	rawSeries []*metrics.Serie,
 	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie,
+	blocklist *utilstrings.Blocklist,
 ) {
 	// clear the map. Reuse serieBySignature
 	for k := range serieBySignature {
@@ -195,6 +197,12 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	}
 
 	for _, serie := range serieBySignature {
+		// it is the final stage before flushing the series to the serialisation
+		// part of the pipeline but also, here is a stage where all series have been
+		// generated & processed (even the ones generated from a histogram metric).
+		if blocklist != nil && blocklist.Test(serie.Name) {
+			continue
+		}
 		serieSink.Append(serie)
 	}
 }
@@ -218,11 +226,11 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink) {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.Blocklist) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
-	s.flushSeries(cutoffTime, series)
+	s.flushSeries(cutoffTime, series, blocklist)
 	s.flushSketches(cutoffTime, sketches)
 	// expiring contexts
 	s.contextResolver.expireContexts(int64(timestamp))
