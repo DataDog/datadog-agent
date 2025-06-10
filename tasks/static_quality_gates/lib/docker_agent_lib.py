@@ -106,7 +106,9 @@ def generic_docker_agent_quality_gate(gate_name, arch, jmx=False, flavor="agent"
                 "orange",
             )
         )
-    image_suffixes = "-7" if flavor == "agent" else "" + "-jmx" if jmx else "" + image_suffix if image_suffix else ""
+    image_suffixes = (
+        ("-7" if flavor == "agent" else "") + ("-jmx" if jmx else "") + (image_suffix if image_suffix else "")
+    )
     if flavor != "dogstatsd" and is_nightly_run:
         flavor += "-nightly"
     url = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
