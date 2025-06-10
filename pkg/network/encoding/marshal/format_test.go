@@ -21,7 +21,7 @@ func TestFormatRouteIdx(t *testing.T) {
 	tests := []struct {
 		desc                string
 		via                 *network.Via
-		routesIn, routesOut map[string]RouteIdx
+		routesIn, routesOut map[network.Via]RouteIdx
 		idx                 int32
 	}{
 		{
@@ -38,32 +38,41 @@ func TestFormatRouteIdx(t *testing.T) {
 			desc:     "empty routes, non-nil via",
 			via:      &network.Via{Subnet: network.Subnet{Alias: "foo"}},
 			idx:      0,
-			routesIn: map[string]RouteIdx{},
-			routesOut: map[string]RouteIdx{
-				"foo": {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
+			routesIn: map[network.Via]RouteIdx{},
+			routesOut: map[network.Via]RouteIdx{
+				{Subnet: network.Subnet{Alias: "foo"}}: {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
 			},
 		},
 		{
 			desc: "non-empty routes, non-nil via with existing alias",
 			via:  &network.Via{Subnet: network.Subnet{Alias: "foo"}},
 			idx:  0,
-			routesIn: map[string]RouteIdx{
-				"foo": {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
+			routesIn: map[network.Via]RouteIdx{
+				{Subnet: network.Subnet{Alias: "foo"}}: {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
 			},
-			routesOut: map[string]RouteIdx{
-				"foo": {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
+			routesOut: map[network.Via]RouteIdx{
+				{Subnet: network.Subnet{Alias: "foo"}}: {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
 			},
 		},
 		{
 			desc: "non-empty routes, non-nil via with non-existing alias",
 			via:  &network.Via{Subnet: network.Subnet{Alias: "bar"}},
 			idx:  1,
-			routesIn: map[string]RouteIdx{
-				"foo": {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
+			routesIn: map[network.Via]RouteIdx{
+				{Subnet: network.Subnet{Alias: "foo"}}: {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
 			},
-			routesOut: map[string]RouteIdx{
-				"foo": {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
-				"bar": {Idx: 1, Route: model.Route{Subnet: &model.Subnet{Alias: "bar"}}},
+			routesOut: map[network.Via]RouteIdx{
+				{Subnet: network.Subnet{Alias: "foo"}}: {Idx: 0, Route: model.Route{Subnet: &model.Subnet{Alias: "foo"}}},
+				{Subnet: network.Subnet{Alias: "bar"}}: {Idx: 1, Route: model.Route{Subnet: &model.Subnet{Alias: "bar"}}},
+			},
+		},
+		{
+			desc:     "with interface mac address",
+			via:      &network.Via{Interface: network.Interface{HardwareAddr: "ab:cd:ef:00:11:22"}},
+			idx:      0,
+			routesIn: map[network.Via]RouteIdx{},
+			routesOut: map[network.Via]RouteIdx{
+				{Interface: network.Interface{HardwareAddr: "ab:cd:ef:00:11:22"}}: {Idx: 0, Route: model.Route{Interface: &model.Interface{HardwareAddr: "ab:cd:ef:00:11:22"}}},
 			},
 		},
 	}

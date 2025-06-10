@@ -37,12 +37,6 @@ func (n *noopAutoConfig) AddConfigProvider(providers.ConfigProvider, bool, time.
 
 func (n *noopAutoConfig) LoadAndRun(context.Context) {}
 
-func (n *noopAutoConfig) ForceRanOnceFlag() {}
-
-func (n *noopAutoConfig) HasRunOnce() bool {
-	return false
-}
-
 func (n *noopAutoConfig) GetAllConfigs() []integration.Config {
 	return []integration.Config{}
 }

@@ -25,7 +25,7 @@ import (
 const (
 	databricksInjectorVersion   = "0.40.0-1"
 	databricksJavaTracerVersion = "1.49.0-1"
-	databricksAgentVersion      = "7.63.3-1"
+	databricksAgentVersion      = "7.66.0-1"
 	fetchTimeoutDuration        = 5 * time.Second
 )
 
@@ -133,7 +133,8 @@ func setupCommonHostTags(s *common.Setup) {
 	setIfExists(s, "DB_DRIVER_IP", "spark_host_ip", nil)
 	setIfExists(s, "DB_INSTANCE_TYPE", "databricks_instance_type", nil)
 	setClearIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)
-	setClearIfExists(s, "DATABRICKS_RUNTIME_VERSION", "databricks_runtime_version", nil)
+	setClearIfExists(s, "DATABRICKS_RUNTIME_VERSION", "databricks_runtime", nil)
+	setClearIfExists(s, "SPARK_SCALA_VERSION", "scala_version", nil)
 	setIfExists(s, "DD_JOB_NAME", "job_name", func(v string) string {
 		return jobNameRegex.ReplaceAllString(v, "_")
 	})
@@ -407,18 +408,7 @@ func fetchClusterTags(client *http.Client, host, token, clusterID string, s *com
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Create a copy of the custom tags
-	tags := make(map[string]string)
-	for k, v := range clusterResponse.CustomTags {
-		tags[k] = v
-	}
-
-	// Add spark_version as runtime tag if available
-	if clusterResponse.SparkVersion != "" {
-		tags["runtime"] = clusterResponse.SparkVersion
-	}
-
-	return tags, nil
+	return clusterResponse.CustomTags, nil
 }
 
 func fetchJobTags(client *http.Client, host, token, jobID string, s *common.Setup) (map[string]string, error) {

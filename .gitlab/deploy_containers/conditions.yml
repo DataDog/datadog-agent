@@ -1,4 +1,3 @@
-
 # Rule to make job manual when running deploy pipelines, or automatic and on success on RC pipelines
 #
 ## Note on CI_COMMIT_TAGS
@@ -20,12 +19,14 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
+      OTEL_AGENT_REPOSITORY: ddot-collector-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/ && $FORCE_MANUAL != "true"
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/ && $FORCE_MANUAL == "true"
@@ -33,12 +34,14 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -49,12 +52,14 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
   - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -67,12 +72,14 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
+      OTEL_AGENT_REPOSITORY: ddot-collector-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -87,6 +94,7 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
@@ -99,6 +107,7 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
@@ -107,6 +116,7 @@
     when: on_success
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release

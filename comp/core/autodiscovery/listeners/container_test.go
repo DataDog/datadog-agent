@@ -144,7 +144,6 @@ func TestCreateContainerService(t *testing.T) {
 			Annotations: map[string]string{
 				fmt.Sprintf("ad.datadoghq.com/%s.exclude", kubernetesContainer.Name):         `false`,
 				fmt.Sprintf("ad.datadoghq.com/%s.exclude", kubernetesExcludedContainer.Name): `true`,
-				tolerateUnreadyAnnotation: `true`,
 			},
 		},
 		Containers: []workloadmeta.OrchestratorContainer{
@@ -294,7 +293,7 @@ func TestCreateContainerService(t *testing.T) {
 						},
 						hosts: map[string]string{"pod": pod.IP},
 						ports: []ContainerPort{},
-						ready: true,
+						ready: pod.Ready,
 					},
 				},
 			},

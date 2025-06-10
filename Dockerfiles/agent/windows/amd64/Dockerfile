@@ -1,7 +1,10 @@
 ARG BASE_IMAGE=mcr.microsoft.com/powershell:lts-windowsservercore-1809
 FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
 LABEL baseimage.os "windows server core"
 LABEL baseimage.name "${BASE_IMAGE}"
+LABEL org.opencontainers.image.base.name "${BASE_IMAGE}"
+LABEL org.opencontainers.image.title="Datadog Agent"
 
 ARG WITH_JMX="false"
 ARG VARIANT="unknown"
@@ -11,6 +14,9 @@ ARG GENERAL_ARTIFACTS_CACHE_BUCKET_URL
 ARG WITH_FIPS
 
 LABEL maintainer "Datadog <package@datadoghq.com>"
+LABEL org.opencontainers.image.authors="Datadog <package@datadoghq.com>"
+LABEL org.opencontainers.image.source="https://github.com/DataDog/datadog-agent"
+LABEL org.opencontainers.image.vendor="Datadog, Inc."
 
 USER ContainerAdministrator
 

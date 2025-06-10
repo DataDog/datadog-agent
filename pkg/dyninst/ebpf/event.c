@@ -2,6 +2,8 @@
 #define __EVENT_H__
 
 #include "bpf_helpers.h"
+#include "bpf_tracing.h"
+#include "kconfig.h"
 #include "compiler.h"
 #include "context.h"
 #include "framing.h"
@@ -10,6 +12,9 @@
 #include "scratch.h"
 
 char _license[] SEC("license") = "GPL";
+
+extern const probe_params_t probe_params[];
+extern const uint32_t num_probe_params;
 
 SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t start = bpf_ktime_get_ns();
@@ -54,15 +59,15 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   __maybe_unused int chase_steps = 0;
   uint64_t stack_hash = 0;
   global_ctx.stack_walk->regs = *regs;
-  global_ctx.stack_walk->stack.pcs.pcs[0] = regs->ip;
-  global_ctx.stack_walk->stack.fps[0] = regs->bp;
+  global_ctx.stack_walk->stack.pcs.pcs[0] = regs->DWARF_PC_REG;
+  global_ctx.stack_walk->stack.fps[0] = regs->DWARF_BP_REG;
   if (params->frameless) {
     if (bpf_probe_read_user(&global_ctx.stack_walk->stack.pcs.pcs[1],
                             sizeof(global_ctx.stack_walk->stack.pcs.pcs[1]),
                             (void*)(regs->sp))) {
       return 1;
     }
-    global_ctx.stack_walk->stack.fps[1] = regs->bp;
+    global_ctx.stack_walk->stack.fps[1] = regs->DWARF_BP_REG;
     global_ctx.stack_walk->idx_shift = 1;
   }
   global_ctx.stack_walk->stack.pcs.len =
@@ -88,8 +93,16 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   global_ctx.regs = &global_ctx.stack_walk->regs;
 
   frame_data_t frame_data = {
-      .fp = global_ctx.regs->bp,
-      .stack_idx = 0,
+// Stack layout is slightly different in Go between arm64 and x86_64.
+// https://tip.golang.org/src/cmd/compile/abi-internal#architecture-specifics
+#if defined(bpf_target_arm64)
+    .cfa = global_ctx.regs->DWARF_BP_REG,
+#elif defined(bpf_target_x86)
+    .cfa = global_ctx.regs->DWARF_BP_REG + 16,
+#else
+    #error "Unsupported architecture"
+#endif
+    .stack_idx = 0,
   };
   if (params->stack_machine_pc != 0) {
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
