@@ -49,7 +49,7 @@ func TestKeyvaultBackend(t *testing.T) {
 		"secret_id":    "key1",
 		"force_string": false,
 	}
-	keyvaultSecretsBackend, err := NewKeyVaultBackend("keyvault-backend", keyvaultBackendParams)
+	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
 
 	// Top-level keys are not fetchable
@@ -87,7 +87,7 @@ func TestKeyvaultBackend_ForceString(t *testing.T) {
 		"secret_id":    "key1",
 		"force_string": true,
 	}
-	keyvaultSecretsBackend, err := NewKeyVaultBackend("keyvault-backend", keyvaultBackendParams)
+	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
 
 	secretOutput := keyvaultSecretsBackend.GetSecretOutput("_")
@@ -115,7 +115,7 @@ func TestKeyvaultBackend_NotJSON(t *testing.T) {
 		"secret_id":    "key1",
 		"force_string": false,
 	}
-	keyvaultSecretsBackend, err := NewKeyVaultBackend("keyvault-backend", keyvaultBackendParams)
+	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
 
 	// Top-level keys are not fetchable
@@ -148,7 +148,7 @@ func TestKeyVaultBackend_issue39434(t *testing.T) {
 		"secret_id":    "key1",
 		"force_string": false,
 	}
-	keyvaultSecretsBackend, err := NewKeyVaultBackend("keyvault-backend", keyvaultBackendParams)
+	keyvaultSecretsBackend, err := NewKeyVaultBackend(keyvaultBackendParams)
 	assert.NoError(t, err)
 
 	// Top-level keys are not fetchable

@@ -17,10 +17,9 @@ The backend configuration for JSON file secrets has the following pattern:
 
 ```yaml
 ---
-backends:
-  {backendId}:
-    backend_type: file.yaml
-    file_path: /path/to/yaml/file
+secret_backend_type: file.yaml
+secret_backend_config:
+  file_path: /path/to/yaml/file
 ```
 
 The backend secret is referenced in your Datadog Agent configuration files using the **ENC** notation.
@@ -28,7 +27,7 @@ The backend secret is referenced in your Datadog Agent configuration files using
 ```yaml
 # /etc/datadog-agent/datadog.yaml
 
-api_key: "ENC[{backendId}:{yaml_property_name}]"
+api_key: "ENC[{yaml_property_name}]"
 
 ```
 
@@ -55,14 +54,13 @@ The following example will access the YAML secret from the Datadog Agent configu
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
-api_key: "ENC[agent_secret:api_key]" 
+api_key: "ENC[api_key]" 
 ```
 
 ```yaml
-# /opt/datadog-secret-backend/datadog-secret-backend.yaml
+# /etc/datadog-agent/datadog.yaml
 ---
-backends:
-  agent_secret:
-    backend_type: file.yaml
-    file_path: /opt/production-secrets/secrets.yaml
+secret_backend_type: file.yaml
+secret_backend_config:
+  file_path: /opt/production-secrets/secrets.yaml
 ```

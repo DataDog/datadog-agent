@@ -77,7 +77,7 @@ func TestSSMParameterStoreBackend_Parameters(t *testing.T) {
 		"backend_type": "aws.ssm",
 		"parameters":   []string{"/group1/key1", "/group1/nest/key2"},
 	}
-	ssmParameterStoreSecretsBackend, err := NewSSMParameterStoreBackend("ssmParameterStore-backend", ssmParameterStoreBackendParams)
+	ssmParameterStoreSecretsBackend, err := NewSSMParameterStoreBackend(ssmParameterStoreBackendParams)
 	assert.NoError(t, err)
 
 	secretOutput := ssmParameterStoreSecretsBackend.GetSecretOutput("/group1/key1")
@@ -105,7 +105,7 @@ func TestSSMParameterStoreBackend_ParametersByPath(t *testing.T) {
 		"backend_type":   "aws.ssm",
 		"parameter_path": "/group1",
 	}
-	ssmParameterStoreSecretsBackend, err := NewSSMParameterStoreBackend("ssmParameterStore-backend", ssmParameterStoreBackendParams)
+	ssmParameterStoreSecretsBackend, err := NewSSMParameterStoreBackend(ssmParameterStoreBackendParams)
 	assert.NoError(t, err)
 
 	secretOutput := ssmParameterStoreSecretsBackend.GetSecretOutput("/group1/key1")

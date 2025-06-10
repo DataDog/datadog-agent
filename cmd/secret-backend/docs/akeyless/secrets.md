@@ -25,13 +25,12 @@ The backend configuration for Akeyless follows this pattern:
 
 ```yaml
 ---
-backends:
-  akeyless:
-    backend_type: 'akeyless'
-    akeyless_url: 'https://api.akeyless.io'
-    akeyless_session:
-      akeyless_access_id: 'abcdef123456**********'
-      akeyless_access_key: 'abcdef123456**********'
+secret_backend_type: 'akeyless'
+secret_backend_config:
+  akeyless_url: 'https://api.akeyless.io'
+  akeyless_session:
+    akeyless_access_id: 'abcdef123456**********'
+    akeyless_access_key: 'abcdef123456**********'
 ```
 
 **backend_type** must be set to `akeyless` and both **akeyless_access_id** and **akeyless_access_key** must be provided in each backend configuration.
@@ -41,7 +40,7 @@ The backend secret is referenced in your Datadog Agent configuration files using
 ```yaml
 # /etc/datadog-agent/datadog.yaml
 
-api_key: "ENC[{backendId}:{secret-path}"
+api_key: "ENC[{secret-path}]"
 
 ```
 
@@ -67,22 +66,21 @@ Each of the following examples will access the secret from the Datadog Agent con
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
-api_key: "ENC[akeyless:/secret-folder/datadog-sample-key]" 
+api_key: "ENC[/secret-folder/datadog-sample-key]" 
 ```
 
 **Akeyless Authentication with Access ID and Access Key**
 
 
 ```yaml
-# /opt/datadog-secret-backend/datadog-secret-backend.yaml
+# /etc/datadog-agent/datadog.yaml
 ---
-backends:
-  akeyless:
-    backend_type: 'akeyless'
-    akeyless_url: 'https://api.akeyless.io'
-    akeyless_session:
-      akeyless_access_id: 'abcdef123456**********'
-      akeyless_access_key: 'abcdef123456**********'
+secret_backend_type: 'akeyless'
+secret_backend_config:
+  akeyless_url: 'https://api.akeyless.io'
+  akeyless_session:
+    akeyless_access_id: 'abcdef123456**********'
+    akeyless_access_key: 'abcdef123456**********'
 ```
 
 Multiple secret backends, of the same or different types, can be defined in your `datadog-secret-backend` yaml configuration. As a result, you can leverage multiple supported backends (file.yaml, file.json, aws.ssm, and aws.secrets, azure.keyvault) in your Datadog Agent configuration.

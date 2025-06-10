@@ -25,26 +25,25 @@ type YamlBackendConfig struct {
 
 // YamlBackend represents backend for YAML file
 type YamlBackend struct {
-	BackendID string
-	Config    YamlBackendConfig
-	Secret    map[string]string
+	Config YamlBackendConfig
+	Secret map[string]string
 }
 
 // NewYAMLBackend returns a new YAML backend
-func NewYAMLBackend(backendID string, bc map[string]interface{}) (
+func NewYAMLBackend(bc map[string]interface{}) (
 	*YamlBackend, error) {
 
 	backendConfig := YamlBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendID).
+		log.Error().Err(err).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
 
 	content, err := os.ReadFile(backendConfig.FilePath)
 	if err != nil {
-		log.Error().Err(err).Str("backend_id", backendID).
+		log.Error().Err(err).
 			Str("file_path", backendConfig.FilePath).
 			Msg("failed to read yaml secret file")
 		return nil, err
@@ -52,16 +51,15 @@ func NewYAMLBackend(backendID string, bc map[string]interface{}) (
 
 	secretValue := make(map[string]string, 0)
 	if err := yaml.Unmarshal(content, secretValue); err != nil {
-		log.Error().Err(err).Str("backend_id", backendID).
+		log.Error().Err(err).
 			Str("file_path", backendConfig.FilePath).
 			Msg("failed to unmarshal yaml secret")
 		return nil, err
 	}
 
 	backend := &YamlBackend{
-		BackendID: backendID,
-		Config:    backendConfig,
-		Secret:    secretValue,
+		Config: backendConfig,
+		Secret: secretValue,
 	}
 	return backend, nil
 }
@@ -74,7 +72,6 @@ func (b *YamlBackend) GetSecretOutput(secretKey string) secret.Output {
 	es := secret.ErrKeyNotFound.Error()
 
 	log.Error().
-		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
 		Str("file_path", b.Config.FilePath).
 		Str("secret_key", secretKey).
