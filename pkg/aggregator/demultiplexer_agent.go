@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
@@ -473,6 +474,14 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.
 // GetEventPlatformForwarder returns underlying events and service checks channels.
 func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
 	return d.aggregator.GetEventPlatformForwarder()
+}
+
+// SetTimeSamplersBlocklist triggers a reconfiguration of the blocklist
+// applied in the time samplers.
+func (d *AgentDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
+	for _, worker := range d.statsd.workers {
+		worker.blocklistChan <- blocklist
+	}
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly

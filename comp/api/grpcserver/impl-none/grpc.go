@@ -16,21 +16,8 @@ import (
 type server struct {
 }
 
-// catch all mux
-
-type catchAllMux struct {
-}
-
-func (c *catchAllMux) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, "Not Found (catchAllMux)", http.StatusNotFound)
-}
-
 func (s *server) BuildServer() http.Handler {
 	return nil
-}
-
-func (s *server) BuildGatewayMux(_ string) (http.Handler, error) {
-	return &catchAllMux{}, nil
 }
 
 // Provides defines the output of the grpc component
