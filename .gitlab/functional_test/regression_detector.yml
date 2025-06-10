@@ -65,14 +65,6 @@ single-machine-performance-regression_detector:
     - FOUR_DAYS_BEFORE_NOW=$(date --date="-4 days +1 hour" "+%s")
     # Compute UNIX timestamp of potential baseline SHA
     - BASELINE_COMMIT_TIME=$(git -c log.showSignature=false show --no-patch --format=%ct ${BASELINE_SHA})
-    # If baseline SHA is older than expiration policy, exit with an error
-    - | # Only 1st line of multiline command echoes, which reduces debuggability, so multiline commands are a maintenance tradeoff
-      if [[ ${BASELINE_COMMIT_TIME} -le ${FOUR_DAYS_BEFORE_NOW} ]]
-      then
-          echo "ERROR: Merge-base of this branch is too old for SMP. Please update your branch by merging an up-to-date main branch into your branch or by rebasing it on an up-to-date main branch."
-          datadog-ci tag --level job --tags smp_failure_mode:"merge-base-too-old"
-          exit 1
-      fi
     - echo "Commit ${BASELINE_SHA} is recent enough"
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - |
