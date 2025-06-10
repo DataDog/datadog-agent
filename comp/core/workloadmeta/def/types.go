@@ -95,6 +95,7 @@ const (
 	// SourceProcessLanguageCollector represents processes entities detected
 	// by the ProcessLanguageCollector.
 	SourceProcessLanguageCollector Source = "process_language_collector"
+	SourceProcessCollector         Source = "process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -1199,10 +1200,21 @@ var _ Entity = &ContainerImageMetadata{}
 type Process struct {
 	EntityID // EntityID.ID is the PID
 
+	Pid          int32
 	NsPid        int32
+	Ppid         int32
+	Name         string
+	Cwd          string
+	Exe          string
+	Comm         string
+	Cmdline      []string
+	Uids         []int32
+	Gids         []int32
 	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
+	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
+	Owner *EntityID // Owner is a reference to a container in WLM
 }
 
 var _ Entity = &Process{}
@@ -1238,6 +1250,7 @@ func (p Process) String(_ bool) string {
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	// TODO: add new fields once the new wlm process collector can be enabled
 
 	return sb.String()
 }
@@ -1398,10 +1411,10 @@ type GPU struct {
 	// specific.
 	Device string
 
-	//DriverVersion is the version of the driver used for the gpu device
+	// DriverVersion is the version of the driver used for the gpu device
 	DriverVersion string
 
-	//ActivePIDs is the list of process IDs that are using the GPU.
+	// ActivePIDs is the list of process IDs that are using the GPU.
 	ActivePIDs []int
 
 	// Index is the index of the GPU in the host system. This is useful as sometimes
@@ -1420,7 +1433,7 @@ type GPU struct {
 	// this is a number that represents number of SMs * number of cores per SM (depends on the model)
 	TotalCores int
 
-	//TotalMemory is the total available memory for the device in bytes
+	// TotalMemory is the total available memory for the device in bytes
 	TotalMemory uint64
 
 	// MaxClockRates contains the maximum clock rates for SM and Memory

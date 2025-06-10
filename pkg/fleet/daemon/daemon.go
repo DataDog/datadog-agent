@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -83,7 +83,7 @@ type daemonImpl struct {
 	stopChan chan struct{}
 
 	env             *env.Env
-	installer       func(*env.Env) installertypes.Installer
+	installer       func(*env.Env) installer.Installer
 	rc              *remoteConfig
 	catalog         catalog
 	catalogOverride catalog
@@ -93,8 +93,8 @@ type daemonImpl struct {
 	taskDB          *taskDB
 }
 
-func newInstaller(installerBin string) func(env *env.Env) installertypes.Installer {
-	return func(env *env.Env) installertypes.Installer {
+func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
+	return func(env *env.Env) installer.Installer {
 		return exec.NewInstallerExec(env, installerBin)
 	}
 }
@@ -139,7 +139,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	return newDaemon(rc, installer, env, taskDB), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installertypes.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
 		rc:              rc,

@@ -61,6 +61,7 @@ class TestState:
         "skip": "Only run tests not matching the regular expression",
         "agent_image": 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
+        "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
     },
 )
 def run(
@@ -93,6 +94,7 @@ def run(
     logs_folder="e2e_logs",
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
+    stack_name_suffix="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -134,6 +136,9 @@ def run(
 
     if parsed_params:
         env_vars["E2E_STACK_PARAMS"] = json.dumps(parsed_params)
+
+    if stack_name_suffix:
+        env_vars["E2E_STACK_NAME_SUFFIX"] = stack_name_suffix
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 

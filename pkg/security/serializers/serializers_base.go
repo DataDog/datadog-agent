@@ -33,6 +33,17 @@ type ContainerContextSerializer struct {
 	Variables Variables `json:"variables,omitempty"`
 }
 
+// CGroupContextSerializer serializes a cgroup context to JSON
+// easyjson:json
+type CGroupContextSerializer struct {
+	// CGroup ID
+	ID string `json:"id,omitempty"`
+	// CGroup manager
+	Manager string `json:"manager,omitempty"`
+	// Variables values
+	Variables Variables `json:"variables,omitempty"`
+}
+
 // Variables serializes the variable values
 // easyjson:json
 type Variables map[string]interface{}
@@ -474,6 +485,7 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 	if rule != nil && rule.Opts.VariableStore != nil {
 		store := rule.Opts.VariableStore
 		for name, variable := range store.Variables {
+			// do not serialize hardcoded variables like process.pid
 			if _, found := model.SECLVariables[name]; found {
 				continue
 			}

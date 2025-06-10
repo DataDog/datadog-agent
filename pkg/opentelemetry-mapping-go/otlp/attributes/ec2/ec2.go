@@ -20,7 +20,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 )
 
 var (
@@ -50,7 +50,7 @@ func isDefaultHostname(hostname string) bool {
 // HostnameFromAttrs gets a valid hostname from labels
 // if available
 func HostnameFromAttrs(attrs pcommon.Map) (string, bool) {
-	if hostID, ok := attrs.Get(conventions.AttributeHostID); ok {
+	if hostID, ok := attrs.Get(string(conventions.HostIDKey)); ok {
 		return hostID.Str(), true
 	}
 
@@ -62,11 +62,11 @@ func HostnameFromAttrs(attrs pcommon.Map) (string, bool) {
 func HostInfoFromAttributes(attrs pcommon.Map) (hostInfo *HostInfo) {
 	hostInfo = &HostInfo{}
 
-	if hostID, ok := attrs.Get(conventions.AttributeHostID); ok {
+	if hostID, ok := attrs.Get(string(conventions.HostIDKey)); ok {
 		hostInfo.InstanceID = hostID.Str()
 	}
 
-	if hostName, ok := attrs.Get(conventions.AttributeHostName); ok {
+	if hostName, ok := attrs.Get(string(conventions.HostNameKey)); ok {
 		hostInfo.EC2Hostname = hostName.Str()
 	}
 

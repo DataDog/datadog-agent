@@ -240,6 +240,9 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)
 		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveAcceptHostnames(ev, &ev.Accept)
+		}
 	case "bind":
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
@@ -308,6 +311,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "connect":
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveConnectHostnames(ev, &ev.Connect)
 		}
 	case "dns":
 	case "exec":
@@ -865,6 +871,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveSetgidGroup(ev, &ev.SetGID)
 		_ = ev.FieldHandlers.ResolveSetgidEGroup(ev, &ev.SetGID)
 		_ = ev.FieldHandlers.ResolveSetgidFSGroup(ev, &ev.SetGID)
+	case "setsockopt":
 	case "setuid":
 		_ = ev.FieldHandlers.ResolveSetuidUser(ev, &ev.SetUID)
 		_ = ev.FieldHandlers.ResolveSetuidEUser(ev, &ev.SetUID)
@@ -1128,12 +1135,14 @@ func (ev *Event) resolveFields(forADs bool) {
 }
 
 type FieldHandlers interface {
+	ResolveAcceptHostnames(ev *Event, e *AcceptEvent) []string
 	ResolveAsync(ev *Event) bool
 	ResolveCGroupID(ev *Event, e *CGroupContext) string
 	ResolveCGroupManager(ev *Event, e *CGroupContext) string
 	ResolveCGroupVersion(ev *Event, e *CGroupContext) int
 	ResolveChownGID(ev *Event, e *ChownEvent) string
 	ResolveChownUID(ev *Event, e *ChownEvent) string
+	ResolveConnectHostnames(ev *Event, e *ConnectEvent) []string
 	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
 	ResolveContainerID(ev *Event, e *ContainerContext) string
 	ResolveContainerRuntime(ev *Event, e *ContainerContext) string
@@ -1211,6 +1220,9 @@ type FieldHandlers interface {
 }
 type FakeFieldHandlers struct{}
 
+func (dfh *FakeFieldHandlers) ResolveAcceptHostnames(ev *Event, e *AcceptEvent) []string {
+	return []string(e.Hostnames)
+}
 func (dfh *FakeFieldHandlers) ResolveAsync(ev *Event) bool { return bool(ev.Async) }
 func (dfh *FakeFieldHandlers) ResolveCGroupID(ev *Event, e *CGroupContext) string {
 	return string(e.CGroupID)
@@ -1225,6 +1237,9 @@ func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string {
 	return string(e.Group)
 }
 func (dfh *FakeFieldHandlers) ResolveChownUID(ev *Event, e *ChownEvent) string { return string(e.User) }
+func (dfh *FakeFieldHandlers) ResolveConnectHostnames(ev *Event, e *ConnectEvent) []string {
+	return []string(e.Hostnames)
+}
 func (dfh *FakeFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
 	return int(e.CreatedAt)
 }

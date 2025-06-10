@@ -774,7 +774,7 @@ func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]m
 	found := make(map[string]map[postgres.Operation]int)
 	require.Eventually(t, func() bool {
 		statsObj, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		postgresProtocolStats, exists := statsObj[protocols.Postgres]
 		if !exists {
 			return false

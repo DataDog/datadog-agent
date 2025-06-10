@@ -6,13 +6,13 @@
 package checks
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"math"
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -46,18 +46,19 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface) *ProcessCheck {
+func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	check := &ProcessCheck{
-		config:           config,
-		scrubber:         procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:    NewLookupIDProbe(config),
-		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
-		wmeta:            wmeta,
-		gpuSubscriber:    gpuSubscriber,
-		statsd:           statsd,
+		config:              config,
+		scrubber:            procutil.NewDefaultDataScrubber(),
+		lookupIdProbe:       NewLookupIDProbe(config),
+		serviceExtractor:    parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
+		wmeta:               wmeta,
+		gpuSubscriber:       gpuSubscriber,
+		statsd:              statsd,
+		grpcServerTLSConfig: grpcServerTLSConfig,
 	}
 
 	return check
@@ -130,7 +131,7 @@ type ProcessCheck struct {
 
 	gpuSubscriber gpusubscriber.Component
 
-	warnOnceECSLinuxFargateMisconfig sync.Once
+	grpcServerTLSConfig *tls.Config
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -181,7 +182,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 		// The server is only needed on the process agent
 		if !p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
-			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
+			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor, p.grpcServerTLSConfig)
 			err = p.workloadMetaServer.Start()
 			if err != nil {
 				return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)
@@ -298,11 +299,6 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
-
-	// warn customer if "pidMode":"task" is not set in ecs linux fargate
-	p.warnOnceECSLinuxFargateMisconfig.Do(func() {
-		warnECSFargateMisconfig(containers)
-	})
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
