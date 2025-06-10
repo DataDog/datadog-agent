@@ -376,6 +376,9 @@ type UprobeAttacher struct {
 	// scansPerPid is a map of PIDs to the number of times we have scanned them, to avoid re-scanning them
 	// too many times when EnablePeriodicScanNewProcesses is true
 	scansPerPid map[uint32]int
+
+	// attachLimiter is used to limit the number of times we log warnings about attachment errors
+	attachLimiter *log.Limit
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
@@ -408,6 +411,7 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		inspector:              inspector,
 		processMonitor:         processMonitor,
 		scansPerPid:            make(map[uint32]int),
+		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
 	}
 
 	utils.AddAttacher(moduleName, name, ua)
@@ -629,7 +633,9 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 func (ua *UprobeAttacher) handleProcessStart(pid uint32) {
 	err := ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
 	if ua.shouldLogRegistryError(err) {
-		log.Warnf("could not attach to process %d: %v", pid, err)
+		if ua.attachLimiter.ShouldLog() {
+			log.Warnf("could not attach to process %d: %v", pid, err)
+		}
 	}
 }
 
@@ -644,7 +650,9 @@ func (ua *UprobeAttacher) handleLibraryOpen(libpath sharedlibraries.LibPath) {
 
 	err := ua.AttachLibrary(string(path), libpath.Pid)
 	if ua.shouldLogRegistryError(err) {
-		log.Warnf("could not attach to library %s (PID %d): %v", path, libpath.Pid, err)
+		if ua.attachLimiter.ShouldLog() {
+			log.Warnf("could not attach to library %s (PID %d): %v", path, libpath.Pid, err)
+		}
 	}
 }
 
