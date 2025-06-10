@@ -238,6 +238,9 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 				if err != nil {
 					return nil, fmt.Errorf("failed to unmarshal datadog exporter config\n%w", err)
 				}
+				if ddcfg == nil {
+					ddcfg = datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
+				}
 				if strings.Contains(ddcfg.Logs.Endpoint, "http-intake") && !strings.Contains(ddcfg.Logs.Endpoint, "agent-http-intake") {
 					// datadogconfig.Config sets logs endpoint to https://http-intake.logs.{DD_SITE} by default
 					// while in converged agent we want https://agent-http-intake.logs.{DD_SITE}
