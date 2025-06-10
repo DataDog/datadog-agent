@@ -276,8 +276,9 @@ func (agg *FlowAggregator) flushLoop() {
 }
 
 // Flush flushes the aggregator
-func (agg *FlowAggregator) flush(flushTime time.Time) {
+func (agg *FlowAggregator) flush() {
 	flowsContexts, nilFlowContexts, noRollupCount, srcRollupCount, dstRollupCount := agg.flowAcc.getFlowContextCounts()
+	flushTime := agg.TimeNowFunction()
 	flowsToFlush, flowStats := agg.flowAcc.flush()
 
 	for _, flowStat := range flowStats {
