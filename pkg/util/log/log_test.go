@@ -614,3 +614,145 @@ func TestLoggerScrubbingCount(t *testing.T) {
 		})
 	}
 }
+
+func TestChangeLogLevel(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
+	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
+	assert.NoError(t, err)
+
+	SetupLogger(l, DebugStr)
+
+	testCases := []struct {
+		logLevel    LogLevel
+		logLevelStr string
+	}{
+		{TraceLvl, TraceStr},
+		{DebugLvl, DebugStr},
+		{InfoLvl, InfoStr},
+		{WarnLvl, WarnStr},
+		{ErrorLvl, ErrorStr},
+		{CriticalLvl, CriticalStr},
+		{Off, OffStr},
+	}
+
+	for _, tc := range testCases {
+		t.Run("change log level to "+tc.logLevelStr, func(t *testing.T) {
+			assert.NoError(t, ChangeLogLevel(l, tc.logLevelStr))
+			level, _ := GetLogLevel()
+			assert.Equal(t, tc.logLevel, level)
+		})
+	}
+}
+
+func TestChangeLogLevelWithInvalidStr(t *testing.T) {
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+
+	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
+	l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
+	assert.NoError(t, err)
+
+	SetupLogger(l, DebugStr)
+	assert.NotNil(t, logger.Load())
+
+	err = ChangeLogLevel(l, "invalidLogLevel") // Providing an invalid log level should return an error
+	assert.Error(t, err)
+}
+
+func TestShouldLog(t *testing.T) {
+	testCases := []struct {
+		logLevelStr string
+		// Expected results for each log level in the order
+		// [TraceLvl, DebugLvl, InfoLvl, WarnLvl, ErrorLvl, CriticalLvl, Off]
+		expectedShouldLog []bool
+	}{
+		{
+			TraceStr,
+			[]bool{true, true, true, true, true, true, true},
+		},
+		{
+			DebugStr,
+			[]bool{false, true, true, true, true, true, true},
+		},
+		{
+			InfoStr,
+			[]bool{false, false, true, true, true, true, true},
+		},
+		{
+			WarnStr,
+			[]bool{false, false, false, true, true, true, true},
+		},
+		{
+			ErrorStr,
+			[]bool{false, false, false, false, true, true, true},
+		},
+		{
+			CriticalStr,
+			[]bool{false, false, false, false, false, true, true},
+		},
+		{
+			OffStr,
+			[]bool{false, false, false, false, false, false, true},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run("should log when log level is "+tc.logLevelStr, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)
+			l, err := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %ExtraTextContext%Msg\n")
+			assert.NoError(t, err)
+
+			SetupLogger(l, tc.logLevelStr)
+			assert.NotNil(t, logger.Load())
+
+			for i, logLevel := range []LogLevel{TraceLvl, DebugLvl, InfoLvl, WarnLvl, ErrorLvl, CriticalLvl, Off} {
+				shouldLog := ShouldLog(logLevel)
+				expected := tc.expectedShouldLog[i]
+				assert.Equal(t, expected, shouldLog, "expected ShouldLog(%s) to be %v when log level is %q", logLevel.String(), expected, tc.logLevelStr)
+			}
+		})
+	}
+}
+
+func TestShouldLogWithoutLogger(t *testing.T) {
+	logger.Store(nil) // Ensure logger is nil
+	assert.False(t, ShouldLog(DebugLvl))
+}
+
+func TestValidateLogLevel(t *testing.T) {
+	testCases := []struct {
+		logLevelStr string
+		expected    string
+	}{
+		// Constant log levels
+		{TraceStr, TraceStr},
+		{DebugStr, DebugStr},
+		{InfoStr, InfoStr},
+		{WarnStr, WarnStr},
+		{ErrorStr, ErrorStr},
+		{CriticalStr, CriticalStr},
+		{OffStr, OffStr},
+
+		// Uppercase versions
+		{"TRACE", "trace"},
+		{"Debug", "debug"},
+
+		// agent5 specific "Warning" log level
+		{"warning", "warn"},
+	}
+
+	for _, tc := range testCases {
+		t.Run("validate "+tc.logLevelStr, func(t *testing.T) {
+			valid, err := ValidateLogLevel(tc.logLevelStr)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expected, valid, "expected ValidateLogLevel(%s) to return %s", tc.logLevelStr, tc.expected)
+		})
+	}
+}
