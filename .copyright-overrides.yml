@@ -45,6 +45,7 @@ go.opencensus.io: Copyright 2018, OpenCensus Authors
 go.opencensus.io/*: Copyright 2018, OpenCensus Authors
 github.com/grpc-ecosystem/go-grpc-prometheus: Copyright 2016 Michal Witkowski. All Rights Reserved.
 github.com/grpc-ecosystem/go-grpc-middleware: Copyright (c) The go-grpc-middleware Authors.
+github.com/grpc-ecosystem/grpc-gateway: Copyright (c) 2015, Gengo, Inc.
 google.golang.org/grpc: Copyright 2014 gRPC authors.
 google.golang.org/grpc/*: Copyright 2014 gRPC authors.
 github.com/skydive-project/go-debouncer: Copyright (C) 2018 Red Hat, Inc.
