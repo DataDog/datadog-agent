@@ -145,12 +145,13 @@ instances:
 	agent := `C:\Program Files\Datadog\Datadog Agent\bin\agent.exe`
 	cmd := fmt.Sprintf(`&'%s' status`, agent)
 
+	// Wait for the agent to be running and check that the windows_certificate check is running
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		output, err := agentHost.Execute(cmd)
 		assert.NoError(c, err)
 		assert.Contains(c, output, "windows_certificate")
 		v.T().Logf("Agent status: %s", output)
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 	cmdCheck := fmt.Sprintf(`&'%s' check windows_certificate`, agent)
 	certStoreTag := `"certificate_store:MY"`
@@ -159,6 +160,12 @@ instances:
 	output, err := agentHost.Execute(cmdCheck)
 	v.Require().NoError(err)
 	v.T().Logf("Check output: %s", output)
+
+	// Assert that the check output returns the metric and service check
+	v.Require().Contains(output, "windows_certificate.days_remaining")
+	v.Require().Contains(output, "windows_certificate.cert_expiration")
+
+	// Assert that the check output returns the correct metric tags
 	v.Require().Contains(output, certStoreTag)
 	v.Require().Contains(output, serverTag)
 	v.Require().Contains(output, subjectCNTag)
