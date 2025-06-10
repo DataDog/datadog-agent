@@ -22,6 +22,7 @@ def build_common(
     skip_assets,
     go_mod="readonly",
     major_version="7",
+    strip_binary=False,
 ):
     """
     Build Cluster Agent
@@ -33,6 +34,8 @@ def build_common(
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
     ldflags, gcflags, env = get_build_flags(ctx, static=False, major_version=major_version)
+    if strip_binary:
+        ldflags += " -s -w"
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags '{build_tags}' -o {bin_name} "
     cmd += "-gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/cluster-agent{suffix}"

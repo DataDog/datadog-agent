@@ -14,7 +14,16 @@ BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent-cloudfoundry")
 
 
 @task
-def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False, development=True, skip_assets=False):
+def build(
+    ctx,
+    rebuild=False,
+    build_include=None,
+    build_exclude=None,
+    race=False,
+    development=True,
+    skip_assets=False,
+    strip_binary=False,
+):
     """
     Build Cluster Agent for Cloud Foundry
 
@@ -32,6 +41,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False
         race,
         development,
         skip_assets,
+        strip_binary=strip_binary,
     )
 
 
