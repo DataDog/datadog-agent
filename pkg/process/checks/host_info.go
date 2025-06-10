@@ -30,6 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// function for getting the fargate hostname
+var getFargateHost = fargate.GetFargateHost
+
 // HostInfo describes details of host information shared between various checks
 type HostInfo struct {
 	SystemInfo *model.SystemInfo
@@ -58,17 +61,8 @@ func CollectHostInfo(config pkgconfigmodel.Reader, hostnameComp hostnameinterfac
 }
 
 func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostnameinterface.Component, ipc ipc.Component) (string, error) {
-	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
-	if fargate.IsFargateInstance() {
-		hostname, err := fargate.GetFargateHost(context.Background())
-		if err == nil {
-			return hostname, nil
-		}
-		log.Errorf("failed to get Fargate host: %v", err)
-	}
-
-	// use the common agent hostname utility when not running in the process-agent
-	if flavor.GetFlavor() != flavor.ProcessAgent {
+	// use the common agent hostname utility when not running in the process-agent or when running in Fargate
+	if flavor.GetFlavor() != flavor.ProcessAgent && !fargate.IsFargateInstance() {
 		hostName, err := hostnameComp.Get(context.TODO())
 		if err != nil {
 			return "", fmt.Errorf("error while getting hostname: %v", err)
@@ -97,6 +91,15 @@ func resolveHostName(config pkgconfigmodel.Reader, hostnameComp hostnameinterfac
 // getHostname attempts to resolve the hostname in the following order: the main datadog agent via grpc, the main agent
 // via cli and lastly falling back to os.Hostname() if it is unavailable
 func getHostname(ctx context.Context, ddAgentBin string, grpcConnectionTimeout time.Duration, ipc ipc.Component) (string, error) {
+	// Fargate is handled as an exceptional case (there is no concept of a host, so we use the ARN in-place).
+	if fargate.IsFargateInstance() {
+		hostname, err := getFargateHost(context.Background())
+		if err == nil {
+			return hostname, nil
+		}
+		log.Errorf("failed to get Fargate host: %v", err)
+	}
+
 	// Get the hostname via gRPC from the main agent if a hostname has not been set either from config/fargate
 	hostname, err := getHostnameFromGRPC(ctx, ddgrpc.GetDDAgentClient, ipc.GetTLSClientConfig(), grpcConnectionTimeout)
 	if err == nil {
