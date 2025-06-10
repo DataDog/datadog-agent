@@ -154,9 +154,21 @@ func TestStopWaits(t *testing.T) {
 		Duration: (500 * time.Millisecond).Nanoseconds(),
 	}
 
-	agnt.In <- &api.Payload{
+	// Use select to avoid blocking if channel is closed
+	payload := &api.Payload{
 		TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+	}
+
+	select {
+	case agnt.In <- payload:
+		// Successfully sent payload
+	case <-ctx.Done():
+		// Context cancelled before we could send
+		t.Fatal("Context cancelled before payload could be sent")
+	case <-time.After(100 * time.Millisecond):
+		// Timeout - this shouldn't happen in normal operation
+		t.Fatal("Timeout sending payload to agent")
 	}
 
 	cancel()
