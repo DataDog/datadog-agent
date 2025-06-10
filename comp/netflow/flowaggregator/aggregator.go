@@ -41,13 +41,13 @@ const (
 var (
 	flowContextBuckets = []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
-	telemetryFlowContextNumberOfUses = telemetry.NewHistogram(
-		"netflow.aggregator", "flow_context_number_of_uses", nil,
-		"Number of times a flow context is used before being flushed", flowContextBuckets,
+	telemetryFlowContextNumUses = telemetry.NewHistogram(
+		"netflow.aggregator", "flow_context_num_uses", nil,
+		"Number of times a flow context has been used when it is being flushed", flowContextBuckets,
 	)
-	telemetryFlowContextFlowsAggregated = telemetry.NewHistogram(
-		"netflow.aggregator", "flow_context_flows_aggregated", nil,
-		"Number of flows aggregated into a flow context before being flushed", flowContextBuckets,
+	telemetryFlowContextNumFlowsAggregated = telemetry.NewHistogram(
+		"netflow.aggregator", "flow_context_num_flows_aggregated", nil,
+		"Number of flows aggregated into a flow context when it is being flushed", flowContextBuckets,
 	)
 
 	durationSecondsBuckets              = []float64{30, 60, 90, 120, 150, 180, 210, 240, 270, 300}
@@ -276,20 +276,19 @@ func (agg *FlowAggregator) flushLoop() {
 }
 
 // Flush flushes the aggregator
-func (agg *FlowAggregator) flush() {
+func (agg *FlowAggregator) flush(flushTime time.Time) {
 	flowsContexts, nilFlowContexts, noRollupCount, srcRollupCount, dstRollupCount := agg.flowAcc.getFlowContextCounts()
-	flushTime := agg.TimeNowFunction()
 	flowsToFlush, flowStats := agg.flowAcc.flush()
 
 	for _, flowStat := range flowStats {
-		// JMW? agg.sender.Histogram(metricPrefix+"aggregator.flow_context_number_of_uses", float64(flowStat.numberOfUses), "", nil)
+		// JMW? agg.sender.Histogram(metricPrefix+"aggregator.flow_context_number_of_uses", float64(flowStat.numUses), "", nil)
 		// JMW? agg.sender.Histogram(metricPrefix+"aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
-		telemetryFlowContextNumberOfUses.Observe(float64(flowStat.numberOfUses))
-		telemetryFlowContextFlowsAggregated.Observe(float64(flowStat.flowsAggregated))
+		telemetryFlowContextNumUses.Observe(float64(flowStat.numUses))
+		telemetryFlowContextNumFlowsAggregated.Observe(float64(flowStat.numFlowsAggregated))
 		telemetryFlowContextDurationSeconds.Observe(float64(flowStat.flowDurationSeconds))
 
-		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_number_of_uses", float64(flowStat.numberOfUses), "", nil)
-		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_flows_aggregated", float64(flowStat.flowsAggregated), "", nil)
+		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_number_of_uses", float64(flowStat.numUses), "", nil)
+		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_flows_aggregated", float64(flowStat.numFlowsAggregated), "", nil)
 		agg.sender.Distribution("datadog.netflow.aggregator.flow_context_duration_seconds", float64(flowStat.flowDurationSeconds), "", nil)
 	}
 

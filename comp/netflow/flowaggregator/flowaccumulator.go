@@ -23,14 +23,14 @@ type flowContext struct {
 	flow                *common.Flow
 	nextFlush           time.Time
 	lastSuccessfulFlush time.Time
-	numberOfUses        uint64
-	flowsAggregated     uint64
+	numUses             uint64
+	numFlowsAggregated  uint64
 }
 
 // flowStat tracks statistics about flows being processed
 type flowStat struct {
-	numberOfUses        uint64
-	flowsAggregated     uint64
+	numUses             uint64
+	numFlowsAggregated  uint64
 	flowDurationSeconds uint64
 }
 
@@ -62,8 +62,8 @@ func newFlowContext(flow *common.Flow) flowContext {
 		//nextFlush: now.Add(300 * time.Second), //JMWJMW - breaks unit tests
 		// JMW add a config option, true or false, true = use now + aggregatorFlushInterval for nextFlush, false = use now for nextFlush
 		// JMW add a config option, number of seconds to wait before flushing a new flow (set nextFlush to now + this config option)
-		numberOfUses:    1,
-		flowsAggregated: 1,
+		numUses:            1,
+		numFlowsAggregated: 1,
 	}
 }
 
@@ -103,7 +103,7 @@ func (f *flowAccumulator) flush() ([]*common.Flow, []flowStat) {
 		if flowCtx.flow == nil && (flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now)) {
 			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
-			f.logger.Infof("JMW Deleting flow context (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s, numberOfUses=%d)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flowCtx.numberOfUses)
+			f.logger.Infof("JMW Deleting flow context (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s, numUses=%d)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String(), flowCtx.numUses)
 			// JMW metric
 			delete(f.flows, key)
 			continue
@@ -116,8 +116,8 @@ func (f *flowAccumulator) flush() ([]*common.Flow, []flowStat) {
 
 			// Create stats for this flow
 			stats := flowStat{
-				numberOfUses:        flowCtx.numberOfUses,
-				flowsAggregated:     flowCtx.flowsAggregated,
+				numUses:             flowCtx.numUses,
+				numFlowsAggregated:  flowCtx.numFlowsAggregated,
 				flowDurationSeconds: flowCtx.flow.EndTimestamp - flowCtx.flow.StartTimestamp,
 			}
 			flowStats = append(flowStats, stats)
@@ -162,9 +162,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	if aggFlow.flow == nil {
 		// flowToAdd is for the same hash as an aggregated flow that has been flushed
 		// JMW add metric to see how many flow contexts are reused, how many are new when this method is called
-		aggFlow.numberOfUses++
-		aggFlow.flowsAggregated = 1
-		f.logger.Infof("JMW Reusing flow (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s, numberOfUses=%d)", aggHash, aggFlow.lastSuccessfulFlush.String(), aggFlow.nextFlush.String(), aggFlow.numberOfUses)
+		aggFlow.numUses++
+		aggFlow.numFlowsAggregated = 1
+		f.logger.Infof("JMW Reusing flow (key=0x%x, lastSuccessfulFlush=%s, nextFlush=%s, numUses=%d)", aggHash, aggFlow.lastSuccessfulFlush.String(), aggFlow.nextFlush.String(), aggFlow.numUses)
 		aggFlow.flow = flowToAdd
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 	} else {
@@ -179,7 +179,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		aggFlow.flow.EndTimestamp = common.Max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
 		aggFlow.flow.SequenceNum = common.Max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
 		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
-		aggFlow.flowsAggregated++
+		aggFlow.numFlowsAggregated++
 
 		// keep first non-null value for custom fields
 		if flowToAdd.AdditionalFields != nil {
