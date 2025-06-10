@@ -174,6 +174,7 @@ type WebhookForCommands struct {
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
+	timeout         int32
 }
 
 func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {
@@ -186,6 +187,7 @@ func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForComma
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Connect},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
+		timeout:         pkgconfigsetup.Datadog().GetInt32("admission_controller.cws_instrumentation.timeout"),
 	}
 }
 
@@ -217,7 +219,7 @@ func (w *WebhookForCommands) Resources() map[string][]string {
 
 // Timeout returns the timeout for the webhook
 func (w *WebhookForCommands) Timeout() int32 {
-	return 0
+	return w.timeout
 }
 
 // Operations returns the operations on the resources specified for which
