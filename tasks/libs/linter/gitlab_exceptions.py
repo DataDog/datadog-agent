@@ -52,7 +52,7 @@ class GitlabLintFailure(ABC, Exception):
         self.override_level(FailureLevel.IGNORED)
 
     @abstractmethod
-    def pretty_print(self) -> str:
+    def pretty_print(self, min_level: FailureLevel = FailureLevel.IGNORED) -> str:
         """Outputs a nice string detailing the failure, meant for CLI output."""
 
     @abstractmethod
@@ -87,8 +87,10 @@ class SingleGitlabLintFailure(GitlabLintFailure):
         """Details about the failure."""
         return self._level_override or self._level
 
-    def pretty_print(self) -> str:
+    def pretty_print(self, min_level: FailureLevel = FailureLevel.IGNORED) -> str:
         """Outputs a nice string detailing the failure, meant for CLI output."""
+        if self.level < min_level:
+            return ""
         level_out = self.level.pretty_print()
 
         # Build the entrypoint/job name string
@@ -114,7 +116,7 @@ class MultiGitlabLintFailure(GitlabLintFailure):
 
     failures: list[SingleGitlabLintFailure]
 
-    def pretty_print(self) -> str:
+    def pretty_print(self, min_level: FailureLevel = FailureLevel.IGNORED) -> str:
         """Outputs a nice string detailing the failure, meant for CLI output."""
         level_out = self.level.pretty_print()
         if len(self.entry_points) > 1:
@@ -124,7 +126,11 @@ class MultiGitlabLintFailure(GitlabLintFailure):
         else:
             entry_point = "global"
         entry_point = color_message(entry_point, Color.BOLD)
-        return f'[{level_out}] {entry_point} - Multiple failures:\n{self.details}'
+
+        shown_failures = "\n".join(
+            f"    - {failure.pretty_print()}" for failure in self.failures if failure.level >= min_level
+        )
+        return f'[{level_out}] {entry_point} - Multiple failures:\n{shown_failures}'
 
     @property
     def details(self):

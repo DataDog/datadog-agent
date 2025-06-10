@@ -63,10 +63,7 @@ def gitlabci_sublinter(info_message: str, success_message: str, run_on_prepush: 
 
 
 def gitlabci_lint_task_template(
-    task_body: Callable,
-    ctx,
-    configs_or_diff_file: str | None = None,
-    use_diff: bool = False,
+    task_body: Callable, ctx, configs_or_diff_file: str | None = None, use_diff: bool = False, verbosity: int = 0
 ):
     """Generic task template for gitlabci linting tasks.
 
@@ -87,10 +84,12 @@ def gitlabci_lint_task_template(
     if not jobs:
         return
 
+    min_level = [FailureLevel.ERROR, FailureLevel.WARNING, FailureLevel.IGNORED][verbosity]
+
     try:
         task_body(jobs=jobs, full_config=full_config)
     except GitlabLintFailure as e:
-        print(e.pretty_print())
+        print(e.pretty_print(min_level=min_level))
         raise Exit(code=e.exit_code) from e
 
 
