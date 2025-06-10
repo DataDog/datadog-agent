@@ -27,6 +27,7 @@ from tasks.libs.common.git import get_default_branch, get_file_modifications, ge
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
+    PREPUSH_GITLABCI_SUBLINTERS,
     _gitlab_ci_jobs_codeowners_lint,
     check_change_paths_exist_gitlab_ci_jobs,
     check_change_paths_valid_gitlab_ci_jobs,
@@ -308,7 +309,8 @@ def full_gitlab_ci(
             "jobowners": jobowners,
         }
 
-        for sublinter in ALL_GITLABCI_SUBLINTERS:
+        to_run = ALL_GITLABCI_SUBLINTERS if running_in_ci() else PREPUSH_GITLABCI_SUBLINTERS
+        for sublinter in to_run:
             try:
                 sublinter(**all_args)
             except GitlabLintFailure as e:

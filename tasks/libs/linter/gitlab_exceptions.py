@@ -13,6 +13,7 @@ class FailureLevel(int, Enum):
     CRITICAL = 3  # Something went wrong while linting
     ERROR = 2  # The linter found something wrong with the file being linted
     WARNING = 1  # Same as error, but this failure is accepted and should not fail anything
+    IGNORED = -1  # The linter found something wrong, but it is ignored by the config
 
     def pretty_print(self) -> str:
         """Outputs a nice string detailing the failure level, meant for CLI output."""
@@ -23,11 +24,14 @@ FAILURE_LEVEL_COLORS = {
     FailureLevel.CRITICAL: Color.RED,
     FailureLevel.ERROR: Color.RED,
     FailureLevel.WARNING: Color.ORANGE,
+    FailureLevel.IGNORED: Color.GREY,
 }
 
 
 class GitlabLintFailure(ABC, Exception):
     """Base abstract class for representing gitlabci linting failures."""
+
+    _level_override: FailureLevel | None = None
 
     @property
     @abstractmethod
@@ -38,6 +42,14 @@ class GitlabLintFailure(ABC, Exception):
     @abstractmethod
     def level(self) -> FailureLevel:
         """The level of the failure, WARNING, ERROR, or CRITICAL."""
+
+    def override_level(self, level: FailureLevel) -> None:
+        """Override the level of the failure."""
+        self._level_override = level
+
+    def ignore(self) -> None:
+        """Mark the failure as ignored."""
+        self.override_level(FailureLevel.IGNORED)
 
     @abstractmethod
     def pretty_print(self) -> str:
@@ -50,7 +62,7 @@ class GitlabLintFailure(ABC, Exception):
     @property
     def exit_code(self) -> int:
         """Returns the exit code for this failure based on the failure level."""
-        return 0 if self.level == FailureLevel.WARNING else 1
+        return 0 if self.level in (FailureLevel.WARNING, FailureLevel.IGNORED) else 1
 
 
 @dataclass
@@ -73,7 +85,7 @@ class SingleGitlabLintFailure(GitlabLintFailure):
     @property
     def level(self) -> FailureLevel:
         """Details about the failure."""
-        return self._level
+        return self._level_override or self._level
 
     def pretty_print(self) -> str:
         """Outputs a nice string detailing the failure, meant for CLI output."""
@@ -122,7 +134,7 @@ class MultiGitlabLintFailure(GitlabLintFailure):
     @property
     def level(self) -> FailureLevel:
         """Returns the highest level of failure."""
-        return max(failure.level for failure in self.failures)
+        return self._level_override or max(failure.level for failure in self.failures)
 
     def get_individual_failures(self) -> list[SingleGitlabLintFailure]:
         """Returns a list of individual failures if this is a multi-failure exception."""

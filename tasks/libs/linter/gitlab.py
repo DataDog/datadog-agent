@@ -32,10 +32,11 @@ from tasks.libs.linter.gitlab_exceptions import (
 from tasks.libs.linter.shell import DEFAULT_SHELLCHECK_EXCLUDES, flatten_script, shellcheck_linter
 
 ALL_GITLABCI_SUBLINTERS: list[Callable] = []
+PREPUSH_GITLABCI_SUBLINTERS: list[Callable] = []
 
 
 # === Task code bodies === #
-def gitlabci_sublinter(info_message: str, success_message: str):
+def gitlabci_sublinter(info_message: str, success_message: str, run_on_prepush: bool = True, allow_fail: bool = False):
     """Decorator for registering a gitlabci sublinter, and setting up some common config options."""
 
     # Weird pattern here, but it is necessary for implementing "parametrized" decorators
@@ -43,12 +44,19 @@ def gitlabci_sublinter(info_message: str, success_message: str):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             print(f'[{color_message("INFO", Color.BLUE)}] {info_message}')
-            func(*args, **kwargs)
+            try:
+                func(*args, **kwargs)
+            except GitlabLintFailure as e:
+                if allow_fail:
+                    e.ignore()
+                raise e
 
             # We never get here if the function raises an exception
             print(f"[{color_message('OK', Color.GREEN)}] {success_message}")
 
         ALL_GITLABCI_SUBLINTERS.append(wrapper)
+        if run_on_prepush:
+            PREPUSH_GITLABCI_SUBLINTERS.append(wrapper)
         return wrapper
 
     return decorator
@@ -119,6 +127,8 @@ def lint_and_test_gitlab_ci_config(full_config: dict[str, dict], test="all", cus
 @gitlabci_sublinter(
     info_message='Running shellcheck on gitlabci scripts...',
     success_message='All scripts checked successfully.',
+    run_on_prepush=False,
+    allow_fail=True,
 )
 def shellcheck_gitlab_ci_jobs(
     ctx,
@@ -195,6 +205,7 @@ def check_change_paths_valid_gitlab_ci_jobs(jobs: list[tuple[str, dict]], *args,
 @gitlabci_sublinter(
     info_message='Checking gitlabci jobs have defined change: paths: rules...',
     success_message='All gitlabci jobs have defined change: paths: rules.',
+    allow_fail=True,
 )
 def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]]], *args, **kwargs):
     """Verifies that the jobs passed in contain a change path rule in the given config."""
