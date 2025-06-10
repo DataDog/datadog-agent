@@ -51,7 +51,7 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) SetupSuite() {
 	host := s.Env().RemoteHost
 
 	s.T().Log("*** Resetting driver verifer")
-	host.Execute("verifier /reset")
+	host.Execute("verifier /standard /driver ddnpm.sys")
 	s.T().Log("*** Restarting after driver verifer reset")
 	host.Execute("Restart-Computer -Force")
 	s.T().Log("*** Reset done")
