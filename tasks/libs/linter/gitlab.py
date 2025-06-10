@@ -89,14 +89,14 @@ def gitlabci_lint_task_template(
 @gitlabci_sublinter(
     info_message='Running main gitlabci config linter...', success_message='All contexts tested successfully.'
 )
-def lint_and_test_gitlab_ci_config(configs: dict[str, dict], test="all", custom_context=None, *args, **kwargs):
+def lint_and_test_gitlab_ci_config(full_config: dict[str, dict], test="all", custom_context=None, *args, **kwargs):
     """Lints and tests the validity of the gitlabci config object passed in argument.
 
     Args:
         test: The context preset to test the gitlab ci file with containing environment variables.
         custom_context: A custom context to test the gitlab ci file with.
     """
-    for config_filename, config_object in configs.items():
+    for config_filename, config_object in full_config.items():
         with gitlab_section(f"Testing {config_filename}", echo=True):
             # Only the main config should be tested with all contexts
             if config_filename == ".gitlab-ci.yml":

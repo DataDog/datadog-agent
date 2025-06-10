@@ -32,12 +32,10 @@ from tasks.libs.linter.gitlab import (
     check_change_paths_valid_gitlab_ci_jobs,
     check_needs_rules_gitlab_ci_jobs,
     check_owners_gitlab_ci_jobs,
-    extract_gitlab_ci_jobs,
     gitlabci_lint_task_template,
     lint_and_test_gitlab_ci_config,
     list_get_parameter_calls,
     load_or_generate_gitlab_ci_configs,
-    load_or_generate_gitlab_ci_diff,
     shellcheck_gitlab_ci_jobs,
 )
 from tasks.libs.linter.gitlab_exceptions import (
@@ -286,62 +284,50 @@ def full_gitlab_ci(
         shellcheck_only_errors: Show only shellcheck errors, not warnings.
         path_jobowners: Path to a JOBOWNERS file defining which jobs are owned by which teams
     """
-    configs: dict[str, dict]
-    jobs: list[tuple[str, dict]]
-    if use_diff:
-        _, _, diff = load_or_generate_gitlab_ci_diff(ctx, configs_or_diff_file)
-        jobs = extract_gitlab_ci_jobs(diff=diff)
-        configs = diff.after  # type: ignore
-    else:
-        configs = load_or_generate_gitlab_ci_configs(ctx, configs_or_diff_file)
-        jobs = extract_gitlab_ci_jobs(configs=configs)
 
-    if not jobs:
-        print(f'[{color_message("INFO", Color.BLUE)}] No changed jobs to lint, skipping')
-        return
+    def body(jobs, full_config, **kwargs):
+        failures: list[SingleGitlabLintFailure] = []
+        ci_linters_config = CILintersConfig(
+            lint=True,
+            all_jobs=full_config_get_all_leaf_jobs(full_config),
+            all_stages=full_config_get_all_stages(full_config),
+        )
+        jobowners = read_owners(path_jobowners, remove_default_pattern=True)
 
-    failures: list[SingleGitlabLintFailure] = []
-    ci_linters_config = CILintersConfig(
-        lint=True,
-        all_jobs=full_config_get_all_leaf_jobs(configs),
-        all_stages=full_config_get_all_stages(configs),
-    )
-    jobowners = read_owners(path_jobowners, remove_default_pattern=True)
+        all_args = {
+            "full_config": full_config,
+            "test": test,
+            "custom_context": custom_context,
+            "ctx": ctx,
+            "jobs": jobs,
+            "exclude": shellcheck_exclude,
+            "verbose": shellcheck_verbose,
+            "shellcheck_args": shellcheck_args,
+            "only_errors": shellcheck_only_errors,
+            "ci_linters_config": ci_linters_config,
+            "jobowners": jobowners,
+        }
 
-    all_args = {
-        "configs": configs,
-        "test": test,
-        "custom_context": custom_context,
-        "ctx": ctx,
-        "jobs": jobs,
-        "exclude": shellcheck_exclude,
-        "verbose": shellcheck_verbose,
-        "shellcheck_args": shellcheck_args,
-        "only_errors": shellcheck_only_errors,
-        "ci_linters_config": ci_linters_config,
-        "jobowners": jobowners,
-    }
+        for sublinter in ALL_GITLABCI_SUBLINTERS:
+            try:
+                sublinter(**all_args)
+            except GitlabLintFailure as e:
+                if fail_fast and e.level == FailureLevel.ERROR:
+                    print(e.pretty_print())
+                    raise Exit(code=e.exit_code) from e
+                failures.extend(e.get_individual_failures())
 
-    for sublinter in ALL_GITLABCI_SUBLINTERS:
-        try:
-            sublinter(**all_args)
-        except GitlabLintFailure as e:
-            if fail_fast and e.level == FailureLevel.ERROR:
-                print(e.pretty_print())
-                raise Exit(code=e.exit_code) from e
-            failures.extend(e.get_individual_failures())
+        if failures:
+            if len(failures) == 1:
+                grouped_failure = failures[0]
+            else:
+                grouped_failure = MultiGitlabLintFailure(failures)
 
-    if failures:
-        if len(failures) == 1:
-            grouped_failure = failures[0]
-        else:
-            grouped_failure = MultiGitlabLintFailure(failures)
+            raise grouped_failure
 
-        with gitlab_section('GitlabCI Linter failures'):
-            print(grouped_failure.pretty_print())
-        raise Exit(code=grouped_failure.exit_code)
+        print(f'[{color_message("OK", Color.GREEN)}] All gitlabci linters passed successfully.')
 
-    print(f'[{color_message("OK", Color.GREEN)}] All gitlabci linters passed successfully.')
+    gitlabci_lint_task_template(body, ctx=ctx, configs_or_diff_file=configs_or_diff_file, use_diff=use_diff)
 
 
 @task
@@ -393,18 +379,8 @@ def gitlab_ci_shellcheck(
         fail_fast: If True, will stop at the first error.
         only_errors: Show only errors, not warnings.
     """
-    if use_diff:
-        _, _, diff = load_or_generate_gitlab_ci_diff(ctx, configs_or_diff_file)
-        jobs = extract_gitlab_ci_jobs(diff=diff)
-    else:
-        configs = load_or_generate_gitlab_ci_configs(ctx, configs_or_diff_file)
-        jobs = extract_gitlab_ci_jobs(configs=configs)
 
-    # No change, info already printed in extract_gitlab_ci_jobs
-    if not jobs:
-        return
-
-    try:
+    def body(jobs, **kwargs):
         shellcheck_gitlab_ci_jobs(
             ctx,
             jobs,
@@ -414,9 +390,13 @@ def gitlab_ci_shellcheck(
             fail_fast=fail_fast,
             only_errors=only_errors,
         )
-    except GitlabLintFailure as e:
-        print(e.pretty_print())
-        raise Exit(code=e.exit_code) from e
+
+    gitlabci_lint_task_template(
+        body,
+        ctx=ctx,
+        configs_or_diff_file=configs_or_diff_file,
+        use_diff=use_diff,
+    )
 
 
 ## === SSM-related === ##
