@@ -237,8 +237,13 @@ def github_actions_shellcheck(
                     # We suppose all jobs are bash like scripts and not powershell or other exotic shells
                     script = '#!/bin/bash\n' + script.strip() + '\n'
                     scripts[f'{file.removeprefix(".github/workflows/")}-{job_name}-{step_name}'] = script
-    # TODO[@Ishirui]: Fix this - does not raise Exit anymore, only a GitlabLintFailure (which also fails but less pretty)
-    shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, only_errors)
+
+    try:
+        shellcheck_linter(ctx, scripts, exclude, shellcheck_args, fail_fast, only_errors)
+    # shellcheck_linter raises GitlabLintFailure, bit of a misnomer here as we are using it for github actions
+    except GitlabLintFailure as e:
+        print(e.pretty_print())
+        raise Exit(code=e.exit_code) from e
 
 
 # === GITLAB === #
