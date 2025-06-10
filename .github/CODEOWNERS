@@ -644,6 +644,7 @@
 /tasks/rtloader.py                      @DataDog/agent-runtimes
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
+/tasks/libs/cws/                        @DataDog/agent-security
 /tasks/sds.py                           @DataDog/agent-log-pipelines
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
