@@ -392,7 +392,6 @@ func (a *Agent) Process(p *api.Payload) {
 			if a.SpanModifier != nil {
 				a.SpanModifier.ModifySpan(chunk, span)
 			}
-			time.Sleep(100 * time.Millisecond)
 			a.obfuscateSpan(span)
 			a.Truncate(span)
 			if p.ClientComputedTopLevel {
