@@ -8,7 +8,7 @@ require 'pathname'
 
 name 'installer'
 
-source path: '..'
+source path: '..',
        options: {
          exclude: ["**/testdata/**/*"],
        }
