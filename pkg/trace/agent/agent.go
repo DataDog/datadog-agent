@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -184,7 +185,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 func (a *Agent) Run() {
 	a.Timing.Start()
 	defer a.Timing.Stop()
-	for _, starter := range []interface{ Start() }{
+	for i, starter := range []interface{ Start() }{
 		a.Receiver,
 		a.Concentrator,
 		a.ClientStatsAggregator,
@@ -194,6 +195,7 @@ func (a *Agent) Run() {
 		a.RemoteConfigHandler,
 		a.DebugServer,
 	} {
+		fmt.Println("Starting", i)
 		starter.Start()
 	}
 
@@ -205,13 +207,18 @@ func (a *Agent) Run() {
 	// up processing, but just expand memory.
 	workers := max(runtime.GOMAXPROCS(0), 1)
 
+	fmt.Printf("Got workers, %d\n", workers)
+
 	log.Infof("Processing Pipeline configured with %d workers", workers)
 	a.processWg.Add(workers)
 	for i := 0; i < workers; i++ {
+		fmt.Printf("Starting worker %d\n", i)
 		go a.work()
 	}
 
+	fmt.Println("Starting loop")
 	a.loop()
+	fmt.Println("Loop exited")
 }
 
 // FlushSync flushes traces synchronously. This method only works when the agent is configured in synchronous flushing
