@@ -19,7 +19,7 @@ include:
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - go test ./pkg/trace/agent -tags "kubelet zlib jmx python consul oracle test fargateprocess zstd orchestrator ec2 otlp trivy_no_javadb bundle_installer grpcnotrace kubeapiserver zk etcd clusterchecks"
+    - go test ./pkg/trace/agent -v -tags "kubelet zlib jmx python consul oracle test fargateprocess zstd orchestrator ec2 otlp trivy_no_javadb bundle_installer grpcnotrace kubeapiserver zk etcd clusterchecks"
   artifacts:
     expire_in: 2 weeks
     when: always
