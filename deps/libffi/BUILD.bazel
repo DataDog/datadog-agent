@@ -5,6 +5,7 @@ configure_make(
     configure_options = [
         "--disable-doc",
         "--disable-static",
+        "--disable-multi-os-directory",
     ],
     lib_source = "@libffi//:all",
     out_shared_libs = select({
