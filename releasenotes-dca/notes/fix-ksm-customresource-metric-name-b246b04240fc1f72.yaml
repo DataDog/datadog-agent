@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    Fixed a bug in the Kubernetes State Metrics (KSM) check where custom resource
+    Fix a bug in the Kubernetes State Metrics (KSM) check where custom resource
     metrics were incorrectly named using the `kubernetes_state.customresource.<name>`
     pattern instead of the intended `kubernetes_state_customresource.<prefix>_<name>` format.
 
