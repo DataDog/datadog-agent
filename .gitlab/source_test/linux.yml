@@ -61,20 +61,6 @@ tests_deb-x64-py3:
   variables:
     CONDA_ENV: ddpy3
 
-tests_nodetreemodel:
-  extends:
-    - .rtloader_tests
-    - .linux_tests
-    - .linux_x64
-  after_script:
-    - !reference [.upload_junit_source]
-    - !reference [.upload_coverage]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
-  variables:
-    CONDA_ENV: ddpy3
-    DD_CONF_NODETREEMODEL: enable
-  allow_failure: true
-
 tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests

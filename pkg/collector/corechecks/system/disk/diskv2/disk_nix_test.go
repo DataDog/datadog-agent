@@ -8,6 +8,7 @@
 package diskv2_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -82,7 +83,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreRe
 func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLowercaseDevicesAreReported(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithDiskPartitions(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
 		return map[string]gopsutil_disk.IOCountersStat{
 			"/dev/SDA1": {
 				Name:       "sda1",
@@ -103,7 +104,7 @@ func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLower
 				WriteTime:  150,
 			},
 		}, nil
-	}), func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "/dev/SDA1",
@@ -183,7 +184,7 @@ func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenO
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "",
@@ -217,7 +218,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturn
 func TestGivenADiskCheckWithAllPartitionsFalseConfigured_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "",
@@ -252,7 +253,7 @@ func TestGivenADiskCheckWithAllPartitionsFalseConfigured_WhenCheckRunsAndPartiti
 func TestGivenADiskCheckWithAllPartitionsTrueConfigured_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "",
@@ -343,7 +344,7 @@ device_whitelist:
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithIso9660FileSystems(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "cdrom",
@@ -376,7 +377,7 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithTracefsFileSystems(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "trace",
@@ -480,6 +481,58 @@ excluded_filesystems:
 	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(1953125), "", []string{"device:tmpfs", "device_name:tmpfs"})
 	m.AssertNotCalled(t, "Gauge", "system.disk.total", float64(7812500), "", []string{"device:shm", "device_name:shm"})
+}
+
+func TestGivenADiskCheckWithExcludedFileSystemsIncorrectlyConfigured_WhenCheckIsConfigured_ThenErrorIsReturned(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	initConfig := integration.Data([]byte(`
+excluded_filesystems:
+  - tmpfs(.*
+`))
+
+	err := diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, initConfig, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestGivenADiskCheckWithExcludedFileSystemsConfiguredWithTmpfs_WhenCheckRuns_ThenUsageMetricsAreReportedForPartitionsWithDevTmpfsFileSystem(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "devtmpfs",
+				Mountpoint: "/",
+				Fstype:     "devtmpfs",
+				Opts:       []string{"rw", "relatime"},
+			},
+			{
+				Device:     "/dev/sda2",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+excluded_filesystems:
+  - tmpfs
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(97656250), "", []string{"device:devtmpfs", "device_name:devtmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(68359375), "", []string{"device:devtmpfs", "device_name:devtmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(29296875), "", []string{"device:devtmpfs", "device_name:devtmpfs"})
+	m.AssertMetric(t, "Gauge", "system.disk.total", float64(48828125), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.used", float64(29296875), "", []string{"device:/dev/sda2", "device_name:sda2"})
+	m.AssertMetric(t, "Gauge", "system.disk.free", float64(19531250), "", []string{"device:/dev/sda2", "device_name:sda2"})
 }
 
 func TestGivenADiskCheckWithFileSystemExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
