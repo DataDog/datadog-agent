@@ -1747,7 +1747,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)}.Error())
 			},
 		},
 		{
@@ -1763,7 +1763,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)}.Error())
 			},
 		},
 		{
@@ -1803,7 +1803,7 @@ broken
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
+				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
 			},
 		},
 		{
