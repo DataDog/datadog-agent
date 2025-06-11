@@ -88,6 +88,7 @@ type diskInstanceConfig struct {
 	DeviceTagRe          map[string]string `yaml:"device_tag_re"`
 	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
 	Timeout              uint16            `yaml:"timeout"`
+	ProcMountInfoPath    string            `yaml:"proc_mountinfo_path"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -413,9 +414,10 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	ctx := context.WithValue(context.Background(),
-		common.EnvKey, common.EnvMap{common.HostProcMountinfo: "/proc/self/mountinfo"},
-	)
+	ctx := context.Background()
+	if c.instanceConfig.ProcMountInfoPath != "" {
+		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
+	}
 	partitions, err := c.diskPartitionsWithContext(ctx, c.instanceConfig.IncludeAllDevices)
 	if err != nil {
 		log.Warnf("Unable to get disk partitions: %s", err)
@@ -721,6 +723,7 @@ func newCheck() check.Check {
 			DeviceTagRe:          make(map[string]string),
 			LowercaseDeviceTag:   false,
 			Timeout:              5,
+			ProcMountInfoPath:    "",
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},
