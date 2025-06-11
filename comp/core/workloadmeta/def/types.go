@@ -1315,7 +1315,10 @@ func (p Process) String(_ bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
-	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	if p.Language != nil {
+		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	}
+
 	// TODO: add new fields once the new wlm process collector can be enabled
 
 	return sb.String()
