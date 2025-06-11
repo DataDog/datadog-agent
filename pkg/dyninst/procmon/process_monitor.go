@@ -36,6 +36,7 @@ type ProcessesUpdate struct {
 type ProcessUpdate struct {
 	ProcessID  ProcessID
 	Executable Executable
+	Service    string
 }
 
 // ProcessMonitor encapsulates the logic of processing events from an event

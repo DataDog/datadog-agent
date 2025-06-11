@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,20 +37,17 @@ func makeDebouncer(idlePeriod time.Duration) debouncer {
 }
 
 type debouncerProcess struct {
-	processID   actuator.ProcessID
-	executable  actuator.Executable
+	procmon.ProcessUpdate
 	runtimeID   string
 	lastUpdated time.Time
 	files       []remoteConfigFile
 }
 
 func (c *debouncer) track(
-	processID actuator.ProcessID,
-	executable actuator.Executable,
+	proc procmon.ProcessUpdate,
 ) {
-	c.processes[processID] = &debouncerProcess{
-		processID:  processID,
-		executable: executable,
+	c.processes[proc.ProcessID] = &debouncerProcess{
+		ProcessUpdate: proc,
 	}
 }
 
@@ -71,7 +69,7 @@ func (c *debouncer) addInFlight(
 	if p.runtimeID != "" && p.runtimeID != file.RuntimeID {
 		log.Warnf(
 			"rcscrape: process %v: runtime ID mismatch: %s != %s",
-			p.processID, p.runtimeID, file.RuntimeID,
+			p.ProcessID, p.runtimeID, file.RuntimeID,
 		)
 		clear(p.files)
 	}
@@ -80,7 +78,7 @@ func (c *debouncer) addInFlight(
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef(
 			"rcscrape: process %v: got update for %s",
-			p.processID, file.ConfigPath,
+			p.ProcessID, file.ConfigPath,
 		)
 	}
 	return nil
@@ -119,12 +117,9 @@ func (c *debouncer) coalesceInFlight(now time.Time) []ProcessUpdate {
 		slices.SortFunc(probes, ir.CompareProbeIDs)
 		probes = slices.CompactFunc(probes, eqProbeIDs)
 		updates = append(updates, ProcessUpdate{
-			ProcessUpdate: actuator.ProcessUpdate{
-				ProcessID:  procID,
-				Executable: process.executable,
-				Probes:     probes,
-			},
-			RuntimeID: process.runtimeID,
+			ProcessUpdate: process.ProcessUpdate,
+			Probes:        probes,
+			RuntimeID:     process.runtimeID,
 		})
 	}
 	slices.SortFunc(updates, func(a, b ProcessUpdate) int {

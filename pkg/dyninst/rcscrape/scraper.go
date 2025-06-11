@@ -65,8 +65,9 @@ func NewScraper(
 // ProcessUpdate is a wrapper around an actuator.ProcessUpdate that includes
 // the runtime ID of the process.
 type ProcessUpdate struct {
-	actuator.ProcessUpdate
+	procmon.ProcessUpdate
 	RuntimeID string
+	Probes    []ir.ProbeDefinition
 }
 
 // GetUpdates returns the current set of updates.
@@ -136,7 +137,7 @@ func (s *Scraper) trackUpdate(update procmon.ProcessesUpdate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, process := range update.Processes {
-		s.mu.debouncer.track(process.ProcessID, process.Executable)
+		s.mu.debouncer.track(process)
 	}
 	for _, process := range update.Removals {
 		s.mu.debouncer.untrack(process)
