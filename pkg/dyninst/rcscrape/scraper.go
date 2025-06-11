@@ -124,7 +124,8 @@ func (s *scraperSink) HandleEvent(ev output.Event) error {
 	}
 	s.scraper.mu.Lock()
 	defer s.scraper.mu.Unlock()
-	return s.scraper.mu.debouncer.addInFlight(now, s.processID, rcFile)
+	s.scraper.mu.debouncer.addInFlight(now, s.processID, rcFile)
+	return nil
 }
 
 func (s *scraperSink) Close() {

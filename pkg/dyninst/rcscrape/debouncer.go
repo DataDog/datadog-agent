@@ -59,7 +59,7 @@ func (c *debouncer) addInFlight(
 	now time.Time,
 	processID actuator.ProcessID,
 	file remoteConfigFile,
-) (err error) {
+) {
 	p, ok := c.processes[processID]
 	if !ok {
 		// Update corresponds to an untracked process.
@@ -81,7 +81,6 @@ func (c *debouncer) addInFlight(
 			p.ProcessID, file.ConfigPath,
 		)
 	}
-	return nil
 }
 
 func (c *debouncer) coalesceInFlight(now time.Time) []ProcessUpdate {
