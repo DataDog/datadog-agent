@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 const (
@@ -503,10 +504,14 @@ func getAttributeTypeName(oid string) string {
 	}
 }
 
-var netAddConnection = func(remoteName, localName, password, username string) error {
-	return wNetAddConnection2(remoteName, localName, password, username)
+func netAddConnection(remoteName, localName, password, username string) error {
+	netResource, err := winutil.CreateNetResource(remoteName, localName, "", "", 0, 0, 0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to create NetResource: %v", err)
+	}
+	return winutil.WNetAddConnection2(&netResource, password, username, 0)
 }
 
-var netCancelConnection = func(name string) error {
-	return wNetCancelConnection2(name)
+func netCancelConnection(name string) error {
+	return winutil.WNetCancelConnection2(name)
 }
