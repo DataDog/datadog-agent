@@ -188,6 +188,11 @@ func (dca *datadogclusteragent) getConfigs(data map[string]interface{}) {
 	if yaml, err := dca.marshalAndScrub(dca.conf.AllSettings()); err == nil {
 		data["full_configuration"] = yaml
 	}
+	if yaml, err := retrieveHelmValues(); err == nil {
+		data["helm_values"] = yaml
+	} else {
+		dca.log.Warnf("could not retrieve helm values: %s", err)
+	}
 }
 
 func (dca *datadogclusteragent) marshalAndScrub(data interface{}) (string, error) {
