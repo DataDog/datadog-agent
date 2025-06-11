@@ -42,53 +42,57 @@ When `force_string: false` is defined, or when the backend setting `force_string
 ### Azure Service Principal With Client Credentials
 ```yaml
 ---
-secret_backend_type: azure.keyvault
-secret_backend_config:
-  secret_id: apikey
-  keyvaulturl: "https://my-keyvault.vault.azure.net"
-  force_string: true
-  azure_session:
-    azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
-    azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"
-    azure_client_secret: "averyrandomsecrethere"
+backends:
+  keyvault1:
+    secret_id: apikey
+    backend_type: azure.keyvault
+    keyvaulturl: "https://my-keyvault.vault.azure.net"
+    force_string: true
+    azure_session:
+      azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
+      azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"
+      azure_client_secret: "averyrandomsecrethere"
 ```
 
 ### Azure Service Principal With Certificate and Certificate Password
 ```yaml
 ---
-secret_backend_type: azure.keyvault
-secret_backend_config:
-  secret_id: apikey
-  keyvaulturl: "https://my-keyvault.vault.azure.net"
-  force_string: true
-  azure_session:
-    azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
-    azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"
-    azure_certificate_path: "/path/to/certificate.pem"
-    azure_certificate_password: "asecretcertificatepassword"
+backends:
+  keyvault1:
+    secret_id: apikey
+    backend_type: azure.keyvault
+    keyvaulturl: "https://my-keyvault.vault.azure.net"
+    force_string: true
+    azure_session:
+      azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
+      azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"
+      azure_certificate_path: "/path/to/certificate.pem"
+      azure_certificate_password: "asecretcertificatepassword"
 ```
 
 ### Azure Service Principal With Certificate Without Certificate Password
 ```yaml
 ---
-secret_backend_type: azure.keyvault
-secret_backend_config:
-  secret_id: apikey
-  keyvaulturl: "https://my-keyvault.vault.azure.net"
-  force_string: true
-  azure_session:
-    azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
-    azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"
-    azure_certificate_path: "/path/to/certificate.pem"
+backends:
+  keyvault1:
+    secret_id: apikey
+    backend_type: azure.keyvault
+    keyvaulturl: "https://my-keyvault.vault.azure.net"
+    force_string: true
+    azure_session:
+      azure_tenant_id: "1234abcd-5e6f-7g8h-9ijk-lmnopqrstuv0"
+      azure_client_id: "0vutsrqp-onml-kji9-h8g7-f6e5dcba4321"
+      azure_certificate_path: "/path/to/certificate.pem"
 ```
 
 ### Azure Managed Identity
 ```yaml
 ---
-secret_backend_type: azure.keyvault
-secret_backend_config:
-  secret_id: apikey
-  keyvaulturl: "https://my-keyvault.vault.azure.net"
+backends:
+  keyvault1:
+    secret_id: apikey
+    backend_type: azure.keyvault
+    keyvaulturl: "https://my-keyvault.vault.azure.net"
 ```
 
 Review the [azure.keyvault](keyvault.md) backend documentation examples of configurations for Datadog Agent secrets.

@@ -15,7 +15,6 @@
 
 github.com/Azure/azure-sdk-for-go: Copyright (c) Microsoft Corporation.
 github.com/Azure/go-autorest: Copyright 2015 Microsoft Corporation
-github.com/aws/aws-sdk-go: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/aws/aws-sdk-go-v2: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/aws/smithy-go: "Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 github.com/cenkalti/backoff/v3: "Copyright (c) 2014 Cenk Altı"

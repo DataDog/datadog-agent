@@ -62,32 +62,32 @@ The following `aws_session` settings are available on all supported AWS Service 
 
 In most cases, you'll need to specify `aws_region` to correspond to the region hosting the target Parameter Store (aws.ssm) or Secrets Manager (aws.secrets) secret.
 
-When handling single strings, the backend configuration setting `force_string: true` will coerce the secret as a string value. As a result, there will be a single secretId of `_` for the backend and can be accessed in the Datadog Agent yaml as `ENC[_]`.
+When handling single strings, the backend configuration setting `force_string: true` will coerce the secret as a string value. As a result, there will be a single secretId of `_` for the backend and can be accessed in the Datadog Agent yaml as `ENC[{backendId}:_]`.
 
 
 ## Example Session Configurations
 
-### AWS IAM User Access Key for an SSM parameter in us-east-1
+### AWS IAM User Access Key for an SSM parameter in us-east-2
 ```yaml
 ---
-secret_backend_type: aws.ssm
-secret_backend_config:
-  parameters: 
-    - /DatadogAgent/Production/ParameterKey1
-    - /DatadogAgent/Production/ParameterKey2
-    - /DatadogAgent/Production/ParameterKey3
-  aws_session:
-    aws_region: us-east-1
+backends:
+  my-ssm-secret:
+    backend_type: aws.ssm
+    aws_session:
+      aws_region: us-east-2
+    parameters: 
+      - /My/Secret/Path/To/Secret
 ```
 
 ### AWS Credential Provider Profile for a Secrets Manager secret in us-east-1
 ```yaml
 ---
-secret_backend_type: aws.secrets
-secret_backend_config:
-  secret_id: My-Secret-Backend-Secret
-  aws_session:
-    aws_region: us-east-1
+backends:
+  my-ssm-secret:
+    backend_type: aws.secrets
+    aws_session:
+      aws_region: us-east-1
+    secret_id: 'datadog-agent'
 ```
 
 Review the [aws.ssm](ssm.md) and [aws.secrets](secrets.md) backend documentation examples of configurations for Datadog Agent secrets.

@@ -9,6 +9,11 @@ package backend
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
+	"github.com/rs/zerolog/log"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-secret-backend/backend/akeyless"
 	"github.com/DataDog/datadog-secret-backend/backend/aws"
@@ -18,81 +23,142 @@ import (
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
-// Backend represents the common interface for the secret backends
+// Backend represents the common interface for all secret backends
 type Backend interface {
 	GetSecretOutput(string) secret.Output
 }
 
-// GenericConnector encapsulate all known backends
-type GenericConnector struct {
-	Backend Backend
+// Backends encapsulate all known backends
+type Backends struct {
+	Backends map[string]Backend
 }
 
-// InitBackend initialize the backend based on their configuration
-func (g *GenericConnector) InitBackend(backendType string, backendConfig map[string]interface{}, backendSecrets []string) {
-	backendConfig["backend_type"] = backendType
-	switch backendType {
+type configurations struct {
+	Configs map[string]map[string]interface{} `yaml:"backends"`
+}
+
+// NewBackends returns a new Backends
+func NewBackends(configFile string) Backends {
+	backends := Backends{
+		Backends: make(map[string]Backend, 0),
+	}
+
+	configYAML, err := os.ReadFile(configFile)
+	if err != nil {
+		log.Fatal().Err(err).Str("config_file", configFile).
+			Msg("failed to read configuration file")
+	}
+
+	backendConfigs := &configurations{}
+	if err := yaml.Unmarshal(configYAML, backendConfigs); err != nil {
+		log.Fatal().Err(err).Str("config_file", configFile).
+			Msg("failed to unmarshal configuration yaml")
+	}
+
+	for k, v := range backendConfigs.Configs {
+		backends.InitBackend(k, v)
+	}
+
+	return backends
+}
+
+// InitBackend initialize all the backends based on their configuration
+func (b *Backends) InitBackend(backendID string, config map[string]interface{}) {
+	if _, ok := b.Backends[backendID]; ok {
+		return
+	}
+
+	if _, ok := config["backend_type"].(string); !ok {
+		log.Error().Str("backend_id", backendID).
+			Msg("undefined secret backend type in configuration")
+
+		b.Backends[backendID] = &ErrorBackend{
+			BackendID: backendID,
+			Error:     fmt.Errorf("undefined secret backend type in configuration"),
+		}
+		return
+	}
+
+	switch backendType := config["backend_type"].(string); backendType {
 	case "aws.secrets":
-		backend, err := aws.NewSecretsManagerBackend(backendConfig)
+		backend, err := aws.NewSecretsManagerBackend(backendID, config)
 		if err != nil {
-			g.Backend = NewErrorBackend(err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			g.Backend = backend
+			b.Backends[backendID] = backend
 		}
 	case "aws.ssm":
-		backend, err := aws.NewSSMParameterStoreBackend(backendConfig)
+		backend, err := aws.NewSSMParameterStoreBackend(backendID, config)
 		if err != nil {
-			g.Backend = NewErrorBackend(err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			g.Backend = backend
+			b.Backends[backendID] = backend
 		}
 	case "azure.keyvault":
-		backend, err := azure.NewKeyVaultBackend(backendConfig)
+		backend, err := azure.NewKeyVaultBackend(backendID, config)
 		if err != nil {
-			g.Backend = NewErrorBackend(err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			g.Backend = backend
+			b.Backends[backendID] = backend
 		}
 	case "hashicorp.vault":
-		backend, err := hashicorp.NewVaultBackend(backendConfig, backendSecrets)
+		backend, err := hashicorp.NewVaultBackend(backendID, config)
 		if err != nil {
-			g.Backend = NewErrorBackend(err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			g.Backend = backend
+			b.Backends[backendID] = backend
 		}
 	case "file.yaml":
-		backend, err := file.NewYAMLBackend(backendConfig)
+		backend, err := file.NewYAMLBackend(backendID, config)
 		if err != nil {
-			g.Backend = NewErrorBackend(err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			g.Backend = backend
+			b.Backends[backendID] = backend
 		}
 	case "file.json":
-		backend, err := file.NewJSONBackend(backendConfig)
+		backend, err := file.NewJSONBackend(backendID, config)
 		if err != nil {
-			g.Backend = NewErrorBackend(err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			g.Backend = backend
+			b.Backends[backendID] = backend
 		}
 	case "akeyless":
-		backend, err := akeyless.NewAkeylessBackend(backendConfig)
+		backend, err := akeyless.NewAkeylessBackend(backendID, config)
 		if err != nil {
-			g.Backend = NewErrorBackend(err)
+			b.Backends[backendID] = NewErrorBackend(backendID, err)
 		} else {
-			g.Backend = backend
+			b.Backends[backendID] = backend
 		}
 	default:
-		g.Backend = &ErrorBackend{
-			Error: fmt.Errorf("unsupported backend type: %s", backendType),
+		log.Error().Str("backend_id", backendID).Str("backend_type", backendType).
+			Msg("unsupported backend type")
+
+		b.Backends[backendID] = &ErrorBackend{
+			BackendID: backendID,
+			Error:     fmt.Errorf("unsupported backend type: %s", backendType),
 		}
 	}
 }
 
-// GetSecretOutputs returns a the value for a list of given secrets of form "<secret key>"
-func (g *GenericConnector) GetSecretOutputs(secrets []string) map[string]secret.Output {
+// GetSecretOutputs returns a the value for a list of given secrets of form "<backendID>:<secret key>"
+func (b *Backends) GetSecretOutputs(secrets []string) map[string]secret.Output {
 	secretOutputs := make(map[string]secret.Output, 0)
-	for _, secretKey := range secrets {
-		secretOutputs[secretKey] = g.Backend.GetSecretOutput(secretKey)
+
+	for _, s := range secrets {
+		segments := strings.SplitN(s, ":", 2)
+		backendID := segments[0]
+		secretKey := segments[1]
+
+		if _, ok := b.Backends[backendID]; !ok {
+			log.Error().Str("backend_id", backendID).Str("secret_key", secretKey).
+				Msg("undefined backend")
+
+			b.Backends[backendID] = &ErrorBackend{
+				BackendID: backendID,
+				Error:     fmt.Errorf("undefined backend"),
+			}
+		}
+		secretOutputs[s] = b.Backends[backendID].GetSecretOutput(secretKey)
 	}
 	return secretOutputs
 }

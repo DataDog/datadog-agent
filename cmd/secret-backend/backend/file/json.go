@@ -25,18 +25,19 @@ type JSONBackendConfig struct {
 
 // JSONBackend represents backend for JSON file
 type JSONBackend struct {
-	Config JSONBackendConfig
-	Secret map[string]string
+	BackendID string
+	Config    JSONBackendConfig
+	Secret    map[string]string
 }
 
 // NewJSONBackend returns a new JSON backend
-func NewJSONBackend(bc map[string]interface{}) (
+func NewJSONBackend(backendID string, bc map[string]interface{}) (
 	*JSONBackend, error) {
 
 	backendConfig := JSONBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
@@ -44,6 +45,7 @@ func NewJSONBackend(bc map[string]interface{}) (
 	content, err := os.ReadFile(backendConfig.FilePath)
 	if err != nil {
 		log.Error().Err(err).Str("file_path", backendConfig.FilePath).
+			Str("backend_id", backendID).
 			Msg("failed to read json secret file")
 		return nil, err
 	}
@@ -56,8 +58,9 @@ func NewJSONBackend(bc map[string]interface{}) (
 	}
 
 	backend := &JSONBackend{
-		Config: backendConfig,
-		Secret: secretValue,
+		BackendID: backendID,
+		Config:    backendConfig,
+		Secret:    secretValue,
 	}
 	return backend, nil
 }
@@ -70,6 +73,7 @@ func (b *JSONBackend) GetSecretOutput(secretKey string) secret.Output {
 	es := secret.ErrKeyNotFound.Error()
 
 	log.Error().
+		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
 		Str("file_path", b.Config.FilePath).
 		Str("secret_key", secretKey).

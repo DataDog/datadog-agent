@@ -24,6 +24,7 @@ type VaultBackendConfig struct {
 	BackendType  string                    `mapstructure:"backend_type"`
 	VaultAddress string                    `mapstructure:"vault_address"`
 	SecretPath   string                    `mapstructure:"secret_path"`
+	Secrets      []string                  `mapstructure:"secrets"`
 	VaultTLS     *VaultTLSConfig           `mapstructure:"vault_tls_config"`
 }
 
@@ -39,16 +40,17 @@ type VaultTLSConfig struct {
 
 // VaultBackend is a backend to fetch secrets from Hashicorp vault
 type VaultBackend struct {
-	Config VaultBackendConfig
-	Secret map[string]string
+	BackendID string
+	Config    VaultBackendConfig
+	Secret    map[string]string
 }
 
 // NewVaultBackend returns a new backend for Hashicorp vault
-func NewVaultBackend(bc map[string]interface{}, inputSecrets []string) (*VaultBackend, error) {
+func NewVaultBackend(backendID string, bc map[string]interface{}) (*VaultBackend, error) {
 	backendConfig := VaultBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
@@ -66,7 +68,7 @@ func NewVaultBackend(bc map[string]interface{}, inputSecrets []string) (*VaultBa
 		}
 		err := clientConfig.ConfigureTLS(tlsConfig)
 		if err != nil {
-			log.Error().Err(err).
+			log.Error().Err(err).Str("backend_id", backendID).
 				Msg("failed to initialize vault tls configuration")
 			return nil, err
 		}
@@ -74,48 +76,48 @@ func NewVaultBackend(bc map[string]interface{}, inputSecrets []string) (*VaultBa
 
 	client, err := api.NewClient(clientConfig)
 	if err != nil {
-		log.Error().Err(err).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Msg("failed to create vault client")
 		return nil, err
 	}
 
 	authMethod, err := NewVaultConfigFromBackendConfig(backendConfig.VaultSession)
 	if err != nil {
-		log.Error().Err(err).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Msg("failed to initialize vault session")
 		return nil, err
 	}
 	if authMethod != nil {
 		authInfo, err := client.Auth().Login(context.TODO(), authMethod)
 		if err != nil {
-			log.Error().Err(err).
+			log.Error().Err(err).Str("backend_id", backendID).
 				Msg("failed to created auth info")
 			return nil, err
 		}
 		if authInfo == nil {
-			log.Error().Err(err).
+			log.Error().Err(err).Str("backend_id", backendID).
 				Msg("No auth info returned")
-			return nil, errors.New("no auth info returned")
+			return nil, errors.New("No auth info returned")
 		}
 	} else if backendConfig.VaultToken != "" {
 		client.SetToken(backendConfig.VaultToken)
 	} else {
-		log.Error().
+		log.Error().Str("backend_id", backendID).
 			Msg("No auth method or token provided")
-		return nil, errors.New("no auth method or token provided")
+		return nil, errors.New("No auth method or token provided")
 	}
 
 	secret, err := client.Logical().Read(backendConfig.SecretPath)
 	if err != nil {
-		log.Error().Err(err).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Msg("Failed to read secret")
 		return nil, err
 	}
 	secretValue := make(map[string]string, 0)
 
 	if backendConfig.SecretPath != "" {
-		if len(inputSecrets) > 0 {
-			for _, item := range inputSecrets {
+		if len(backendConfig.Secrets) > 0 {
+			for _, item := range backendConfig.Secrets {
 				if data, ok := secret.Data[item]; ok {
 					secretValue[item] = data.(string)
 				}
@@ -124,8 +126,9 @@ func NewVaultBackend(bc map[string]interface{}, inputSecrets []string) (*VaultBa
 	}
 
 	backend := &VaultBackend{
-		Config: backendConfig,
-		Secret: secretValue,
+		BackendID: backendID,
+		Config:    backendConfig,
+		Secret:    secretValue,
 	}
 	return backend, nil
 }
@@ -138,7 +141,9 @@ func (b *VaultBackend) GetSecretOutput(secretKey string) secret.Output {
 	es := secret.ErrKeyNotFound.Error()
 
 	log.Error().
+		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
+		Strs("secrets", b.Config.Secrets).
 		Str("secret_path", b.Config.SecretPath).
 		Str("secret_key", secretKey).
 		Msg("failed to retrieve secrets")

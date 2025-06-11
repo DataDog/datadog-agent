@@ -14,7 +14,7 @@ import (
 )
 
 func TestErrorBackend(t *testing.T) {
-	backend := NewErrorBackend(fmt.Errorf("test error"))
+	backend := NewErrorBackend("test", fmt.Errorf("test error"))
 
 	output := backend.GetSecretOutput("test")
 	assert.NotNil(t, output.Error)

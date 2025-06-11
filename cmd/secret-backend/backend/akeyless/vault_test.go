@@ -73,7 +73,7 @@ func TestAkeylessBackend(t *testing.T) {
 		"akeyless_url": ts.URL,
 	}
 
-	akeylessBackend, err := NewAkeylessBackend(akeylessBackendParams)
+	akeylessBackend, err := NewAkeylessBackend("akeyless-backend", akeylessBackendParams)
 	if err != nil {
 		t.Fatalf("failed to create akeyless backend: %v", err)
 	}

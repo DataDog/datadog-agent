@@ -41,18 +41,19 @@ type SSMParameterStoreBackendConfig struct {
 
 // SSMParameterStoreBackend represents backend for AWS SSM
 type SSMParameterStoreBackend struct {
-	Config SSMParameterStoreBackendConfig
-	Secret map[string]string
+	BackendID string
+	Config    SSMParameterStoreBackendConfig
+	Secret    map[string]string
 }
 
 // NewSSMParameterStoreBackend returns a new AWS SSM backend
-func NewSSMParameterStoreBackend(bc map[string]interface{}) (
+func NewSSMParameterStoreBackend(backendID string, bc map[string]interface{}) (
 	*SSMParameterStoreBackend, error) {
 
 	backendConfig := SSMParameterStoreBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
-		log.Error().Err(err).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func NewSSMParameterStoreBackend(bc map[string]interface{}) (
 
 	cfg, err := NewConfigFromBackendConfig(backendConfig.Session)
 	if err != nil {
-		log.Error().Err(err).
+		log.Error().Err(err).Str("backend_id", backendID).
 			Msg("failed to initialize aws session")
 		return nil, err
 	}
@@ -80,6 +81,7 @@ func NewSSMParameterStoreBackend(bc map[string]interface{}) (
 			out, err := pager.NextPage(context.TODO())
 			if err != nil {
 				log.Error().Err(err).
+					Str("backend_id", backendID).
 					Str("backend_type", backendConfig.BackendType).
 					Str("parameter_path", backendConfig.ParameterPath).
 					Strs("parameters", backendConfig.Parameters).
@@ -105,6 +107,7 @@ func NewSSMParameterStoreBackend(bc map[string]interface{}) (
 		out, err := client.GetParameters(context.TODO(), input)
 		if err != nil {
 			log.Error().Err(err).
+				Str("backend_id", backendID).
 				Str("backend_type", backendConfig.BackendType).
 				Strs("parameters", backendConfig.Parameters).
 				Str("aws_access_key_id", backendConfig.Session.AccessKeyID).
@@ -121,8 +124,9 @@ func NewSSMParameterStoreBackend(bc map[string]interface{}) (
 	}
 
 	backend := &SSMParameterStoreBackend{
-		Config: backendConfig,
-		Secret: secretValue,
+		BackendID: backendID,
+		Config:    backendConfig,
+		Secret:    secretValue,
 	}
 	return backend, nil
 }
@@ -135,6 +139,7 @@ func (b *SSMParameterStoreBackend) GetSecretOutput(secretKey string) secret.Outp
 	es := secret.ErrKeyNotFound.Error()
 
 	log.Error().
+		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
 		Strs("parameters", b.Config.Parameters).
 		Str("parameter_path", b.Config.ParameterPath).

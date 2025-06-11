@@ -54,7 +54,7 @@ func TestSecretsManagerBackend(t *testing.T) {
 		"secret_id":    "key1",
 		"force_string": false,
 	}
-	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend("secretsManager-backend", secretsManagerBackendParams)
 	assert.NoError(t, err)
 
 	// Top-level keys are not fetchable
@@ -92,7 +92,7 @@ func TestSecretsManagerBackend_ForceString(t *testing.T) {
 		"secret_id":    "key1",
 		"force_string": true,
 	}
-	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend("secretsManager-backend", secretsManagerBackendParams)
 	assert.NoError(t, err)
 
 	secretOutput := secretsManagerSecretsBackend.GetSecretOutput("_")
@@ -120,7 +120,7 @@ func TestSecretsManagerBackend_NotJSON(t *testing.T) {
 		"secret_id":    "key1",
 		"force_string": false,
 	}
-	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend("secretsManager-backend", secretsManagerBackendParams)
 	assert.NoError(t, err)
 
 	// Top-level keys are not fetchable

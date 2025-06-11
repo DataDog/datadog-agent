@@ -20,9 +20,8 @@ require (
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/goware/modvendor v0.5.0
-	github.com/hashicorp/vault/api v1.20.0
+	github.com/hashicorp/vault/api v1.16.0
 	github.com/hashicorp/vault/api/auth/approle v0.6.0
-	github.com/hashicorp/vault/api/auth/aws v0.10.0
 	github.com/hashicorp/vault/api/auth/ldap v0.6.0
 	github.com/hashicorp/vault/api/auth/userpass v0.6.0
 	github.com/mitchellh/mapstructure v1.5.0
@@ -341,7 +340,7 @@ require (
 	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.9 // indirect
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.7 // indirect
-	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
+	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/hashicorp/vault v1.19.3
 	github.com/hhatto/gorst v0.0.0-20181029133204-ca9f730cac5b // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect

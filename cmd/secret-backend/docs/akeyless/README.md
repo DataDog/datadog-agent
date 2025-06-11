@@ -38,12 +38,13 @@ The backend configuration for Akeyless follows this pattern:
 
 ```yaml
 ---
-secret_backend_type: 'akeyless'
-secret_backend_config:
-  akeyless_url: 'https://api.akeyless.io'
-  akeyless_session:
-    akeyless_access_id: 'abcdef123456**********'
-    akeyless_access_key: 'abcdef123456**********'
+backends:
+  akeyless:
+    backend_type: 'akeyless'
+    akeyless_url: 'https://api.akeyless.io'
+    akeyless_session:
+      akeyless_access_id: 'abcdef123456**********'
+      akeyless_access_key: 'abcdef123456**********'
 ```
 
 Review the [akeyless.secrets](secrets.md) backend documentation examples of configurations for Datadog Agent secrets.

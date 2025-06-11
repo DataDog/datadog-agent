@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
-const appVersion = "1.0.0"
+const appVersion = "0.1.11"
 
 func init() {
 	zerolog.TimestampFunc = func() time.Time {
@@ -42,8 +42,11 @@ func init() {
 
 func main() {
 	program, _ := os.Executable()
+	programPath := filepath.Dir(program)
+	defaultConfigFile := filepath.Join(programPath, "datadog-secret-backend.yaml")
 
 	version := flag.Bool("version", false, "Print the version info")
+	configFile := flag.String("config", defaultConfigFile, "Path to backend configuration yaml")
 
 	flag.Parse()
 
@@ -62,12 +65,8 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to unmarshal input")
 	}
 
-	backend := &backend.GenericConnector{}
-	if inputPayload.Config == nil {
-		inputPayload.Config = make(map[string]interface{})
-	}
-	backend.InitBackend(inputPayload.Type, inputPayload.Config, inputPayload.Secrets)
-	secretOutputs := backend.GetSecretOutputs(inputPayload.Secrets)
+	backends := backend.NewBackends(*configFile)
+	secretOutputs := backends.GetSecretOutputs(inputPayload.Secrets)
 
 	output, err := json.Marshal(secretOutputs)
 	if err != nil {

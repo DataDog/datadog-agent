@@ -11,10 +11,8 @@ import "errors"
 
 // Input represents a secret to be resolved
 type Input struct {
-	Secrets []string               `json:"secrets"`
-	Version string                 `json:"version"`
-	Type    string                 `json:"type"`
-	Config  map[string]interface{} `json:"config"`
+	Secrets []string `json:"secrets"`
+	Version string   `json:"version"`
 }
 
 // Output represents a resolved secret

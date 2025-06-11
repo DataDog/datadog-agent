@@ -49,30 +49,32 @@ The backend configuration for AWS SSM Parameter Store secrets has the following 
 
 ```yaml
 ---
-secret_backend_type: aws.ssm
-secret_backend_config:
-  parameters: 
-    - /DatadogAgent/Production/ParameterKey1
-    - /DatadogAgent/Production/ParameterKey2
-    - /DatadogAgent/Production/ParameterKey3
-  parameter_path: /DatadogAgent/Production
-  aws_session:
-    aws_region: us-east-1
+backends:
+  {backendId}:
+    backend_type: aws.ssm
+    aws_session:
+      aws_region: {regionName}
+      # ... additional session settings
+    parameter_path: /Path/To/Parameters
+    parameters:
+      - /Path/To/Parameters/Parameter1
+      - /Path/To/Parameters/Parameter2
+      - /Path/To/Parameters/Parameter3
 ```
 
-**secret_backend_type** must be set to `aws.ssm` and either or both of **parameter_path** and **parameters** must be provided in each backend configuration.
+**backend_type** must be set to `aws.ssm` and either or both of **parameter_path** and **parameters** must be provided in each backend configuration.
 
 The backend secret is referenced in your Datadog Agent configuration files using the **ENC** notation.
 
 ```yaml
 # /etc/datadog-agent/datadog.yaml
 
-api_key: ENC[{parameter_full_path}]
+api_key: ENC[{backendId}:{parameter_full_path}]
 
 ```
 
 AWS System Manager Parameter store supports a heirachical model. Parameters can be specified individually using **parameters**, or recursively fetched using a matching
- prefix path with **parameter_path**. For example, assuming the AWS System Manager Parameter Store paths
+ prefix path with **parameter_path**. For example, assuming a secret with a **backend_id** of `MySecretBackend` and the AWS System Manager Parameter Store paths
 
 ```sh
 /DatadogAgent/Production/ParameterKey1 = ParameterStringValue1
@@ -83,37 +85,39 @@ AWS System Manager Parameter store supports a heirachical model. Parameters can 
 The parameters can be fetched using **parameter_path**:
 
 ```yaml
-# /etc/datadog-agent/datadog.yaml
+# /opt/datadog-secret-backend/datadog-secret-backend.yaml
 ---
-secret_backend_type: aws.ssm
-secret_backend_config:
-  parameter_path: /DatadogAgent/Production
-  aws_session:
-    aws_region: us-east-1
+backends:
+  MySecretBackend:
+    backend_type: aws.ssm
+    parameter_path: /DatadogAgent/Production
+    aws_session:
+      aws_region: us-east-1
 ```
 
 or fetched using **parameters**:
 
 ```yaml
-# /etc/datadog-agent/datadog.yaml
+# /opt/datadog-secret-backend/datadog-secret-backend.yaml
 ---
-secret_backend_type: aws.ssm
-secret_backend_config:
-  parameters: 
-    - /DatadogAgent/Production/ParameterKey1
-    - /DatadogAgent/Production/ParameterKey2
-    - /DatadogAgent/Production/ParameterKey3
-  aws_session:
-    aws_region: us-east-1
+backends:
+  MySecretBackend:
+    backend_type: aws.ssm
+    parameters: 
+      - /DatadogAgent/Production/ParameterKey1
+      - /DatadogAgent/Production/ParameterKey2
+      - /DatadogAgent/Production/ParameterKey3
+    aws_session:
+      aws_region: us-east-1
 ```
 
 and finally accessed in the Datadog Agent:
 
 ```yaml
-# /etc/datadog-agent/datadog.yaml
-property1: "ENC[/DatadogAgent/Production/ParameterKey1]"
-property2: "ENC[/DatadogAgent/Production/ParameterKey2]"
-property3: "ENC[/DatadogAgent/Production/ParameterKey3]"
+# /etc/datadog-agent/datadog.yml
+property1: "ENC[MySecretBackend:/DatadogAgent/Production/ParameterKey1]"
+property2: "ENC[MySecretBackend:/DatadogAgent/Production/ParameterKey2]"
+property3: "ENC[MySecretBackend:/DatadogAgent/Production/ParameterKey3]"
 ```
 
 Currently, `StringList` parameter store values will be retained as a comma-separated list. `SecureString` will be properly decrypted automatically, assuming the `aws_session` credentials have appropriate rights to the KMS key used to encrypt the `SecureString` value.
@@ -142,17 +146,18 @@ Each of the following examples will access the secret from the Datadog Agent con
 ## The Datadog API key to associate your Agent's data with your organization.
 ## Create a new API key here: https://app.datadoghq.com/account/settings
 #
-api_key: "ENC[/DatadogAgent/Production/api_key]" 
+api_key: "ENC[agent_secret:/DatadogAgent/Production/api_key]" 
 ```
 
 **AWS IAM User Access Key with SSM parameter_path recursive fetch**
 
 ```yaml
-# /etc/datadog-agent/datadog.yaml
+# /opt/datadog-secret-backend/datadog-secret-backend.yaml
 ---
-secret_backend_type: aws.ssm
-secret_backend_config:
-parameter_path: /DatadogAgent/Production
-aws_session:
-  aws_region: us-east-1
+backends:
+  agent_secret:
+    backend_type: aws.secrets
+    aws_session:
+      aws_region: us-east-1 # set to region of the Secrets Manager secret
+    parameter_path: /DatadogAgent/Production
 ```

@@ -42,18 +42,20 @@ type SecretsManagerBackendConfig struct {
 
 // SecretsManagerBackend represents backend for AWS Secret Manager
 type SecretsManagerBackend struct {
-	Config SecretsManagerBackendConfig
-	Secret map[string]string
+	BackendID string
+	Config    SecretsManagerBackendConfig
+	Secret    map[string]string
 }
 
 // NewSecretsManagerBackend returns a new AWS Secret Manager backend
-func NewSecretsManagerBackend(bc map[string]interface{}) (
+func NewSecretsManagerBackend(backendID string, bc map[string]interface{}) (
 	*SecretsManagerBackend, error) {
 
 	backendConfig := SecretsManagerBackendConfig{}
 	err := mapstructure.Decode(bc, &backendConfig)
 	if err != nil {
 		log.Error().Err(err).
+			Str("backend_id", backendID).
 			Msg("failed to map backend configuration")
 		return nil, err
 	}
@@ -61,6 +63,7 @@ func NewSecretsManagerBackend(bc map[string]interface{}) (
 	cfg, err := NewConfigFromBackendConfig(backendConfig.Session)
 	if err != nil {
 		log.Error().Err(err).
+			Str("backend_id", backendID).
 			Msg("failed to initialize aws session")
 		return nil, err
 	}
@@ -73,6 +76,7 @@ func NewSecretsManagerBackend(bc map[string]interface{}) (
 	out, err := client.GetSecretValue(context.TODO(), input)
 	if err != nil {
 		log.Error().Err(err).
+			Str("backend_id", backendID).
 			Str("backend_type", backendConfig.BackendType).
 			Str("secret_id", backendConfig.SecretID).
 			Str("aws_access_key_id", backendConfig.Session.AccessKeyID).
@@ -91,8 +95,9 @@ func NewSecretsManagerBackend(bc map[string]interface{}) (
 	}
 
 	backend := &SecretsManagerBackend{
-		Config: backendConfig,
-		Secret: secretValue,
+		BackendID: backendID,
+		Config:    backendConfig,
+		Secret:    secretValue,
 	}
 	return backend, nil
 }
@@ -105,6 +110,7 @@ func (b *SecretsManagerBackend) GetSecretOutput(secretKey string) secret.Output 
 	es := secret.ErrKeyNotFound.Error()
 
 	log.Error().
+		Str("backend_id", b.BackendID).
 		Str("backend_type", b.Config.BackendType).
 		Str("secret_id", b.Config.SecretID).
 		Str("secret_key", secretKey).

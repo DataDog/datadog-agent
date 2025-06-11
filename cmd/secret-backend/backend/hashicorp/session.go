@@ -9,7 +9,6 @@ package hashicorp
 import (
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/api/auth/approle"
-	"github.com/hashicorp/vault/api/auth/aws"
 	"github.com/hashicorp/vault/api/auth/ldap"
 	"github.com/hashicorp/vault/api/auth/userpass"
 )
@@ -22,9 +21,6 @@ type VaultSessionBackendConfig struct {
 	VaultPassword     string `mapstructure:"vault_password"`
 	VaultLDAPUserName string `mapstructure:"vault_ldap_username"`
 	VaultLDAPPassword string `mapstructure:"vault_ldap_password"`
-	VaultAuthType     string `mapstructure:"vault_auth_type"`
-	VaultAWSRole      string `mapstructure:"vault_aws_role"`
-	AWSRegion         string `mapstructure:"aws_region"`
 }
 
 // NewVaultConfigFromBackendConfig returns a AuthMethod for Hashicorp vault based on the configuration
@@ -59,19 +55,6 @@ func NewVaultConfigFromBackendConfig(sessionConfig VaultSessionBackendConfig) (a
 				return nil, err
 			}
 		}
-	}
-
-	if sessionConfig.VaultAuthType == "aws" && sessionConfig.VaultAWSRole != "" {
-		opts := []aws.LoginOption{
-			aws.WithIAMAuth(),
-			aws.WithRole(sessionConfig.VaultAWSRole),
-		}
-
-		if sessionConfig.AWSRegion != "" {
-			opts = append(opts, aws.WithRegion(sessionConfig.AWSRegion))
-		}
-
-		return aws.NewAWSAuth(opts...)
 	}
 
 	return auth, err

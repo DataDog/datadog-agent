@@ -38,9 +38,10 @@ key2: value2
 		"backend_type": "file.yaml",
 		"file_path":    secretsFilepath,
 	}
-	yamlSecretsBackend, err := NewYAMLBackend(yamlSecretsBackendParams)
+	yamlSecretsBackend, err := NewYAMLBackend("yaml-backend", yamlSecretsBackendParams)
 	assert.NoError(t, err)
 
+	assert.Equal(t, "yaml-backend", yamlSecretsBackend.BackendID)
 	assert.Equal(t, "file.yaml", yamlSecretsBackend.Config.BackendType)
 	assert.Equal(t, secretsFilepath, yamlSecretsBackend.Config.FilePath)
 

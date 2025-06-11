@@ -12,11 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-secret-backend/secret"
 	"github.com/hashicorp/vault/api"
-	"github.com/hashicorp/vault/api/auth/aws"
 	"github.com/hashicorp/vault/http"
 	"github.com/hashicorp/vault/vault"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestVaultBackend(t *testing.T) {
@@ -30,16 +28,16 @@ func TestVaultBackend(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create a new Vault backend.
-	inputSecrets := []string{"key1", "key2"}
 	backendConfig := map[string]interface{}{
 		"vault_address": client.Address(),
 		"secret_path":   "secret/foo",
+		"secrets":       []string{"key1", "key2"},
 		"backend_type":  "hashicorp.vault",
 		// Note: we're not testing the whole "session" part of the backend here as we're using the root token.
 		"vault_token": token,
 	}
 
-	secretsBackend, err := NewVaultBackend(backendConfig, inputSecrets)
+	secretsBackend, err := NewVaultBackend("vault-backend", backendConfig)
 	assert.NoError(t, err)
 
 	secretOutput := secretsBackend.GetSecretOutput("key1")
@@ -62,16 +60,16 @@ func TestVaultBackend_KeyNotFound(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create a new Vault backend.
-	inputSecrets := []string{"key_noexist"}
 	backendConfig := map[string]interface{}{
 		"vault_address": client.Address(),
 		"secret_path":   "secret/foo",
+		"secrets":       []string{"key_noexist"},
 		"backend_type":  "hashicorp.vault",
 		// Note: we're not testing the whole "session" part of the backend here as we're using the root token.
 		"vault_token": token,
 	}
 
-	secretsBackend, err := NewVaultBackend(backendConfig, inputSecrets)
+	secretsBackend, err := NewVaultBackend("vault-backend", backendConfig)
 	assert.NoError(t, err)
 
 	// Check that the keys are not found.
@@ -110,93 +108,4 @@ func createTestVault(t *testing.T) (net.Listener, *api.Client, string) {
 	client.SetToken(rootToken)
 
 	return ln, client, rootToken
-}
-
-func TestNewVaultConfigFromBackendConfig_AWSAuth(t *testing.T) {
-	tests := []struct {
-		name          string
-		sessionConfig VaultSessionBackendConfig
-		expectAuth    bool
-		expectError   bool
-		validateAuth  func(t *testing.T, auth interface{})
-	}{
-		{
-			name: "AWS auth with role only",
-			sessionConfig: VaultSessionBackendConfig{
-				VaultAuthType: "aws",
-				VaultAWSRole:  "test-role",
-			},
-			expectAuth:  true,
-			expectError: false,
-			validateAuth: func(t *testing.T, auth interface{}) {
-				awsAuth, ok := auth.(*aws.AWSAuth)
-				require.True(t, ok, "Expected AWSAuth type")
-				assert.NotNil(t, awsAuth)
-			},
-		},
-		{
-			name: "AWS auth with role and region",
-			sessionConfig: VaultSessionBackendConfig{
-				VaultAuthType: "aws",
-				VaultAWSRole:  "test-role",
-				AWSRegion:     "us-west-2",
-			},
-			expectAuth:  true,
-			expectError: false,
-			validateAuth: func(t *testing.T, auth interface{}) {
-				awsAuth, ok := auth.(*aws.AWSAuth)
-				require.True(t, ok, "Expected AWSAuth type")
-				assert.NotNil(t, awsAuth)
-			},
-		},
-		{
-			name: "AWS auth type without role should return nil",
-			sessionConfig: VaultSessionBackendConfig{
-				VaultAuthType: "aws",
-				// VaultAWSRole is empty
-			},
-			expectAuth:  false,
-			expectError: false,
-		},
-		{
-			name: "Non-AWS auth type should not create AWS auth",
-			sessionConfig: VaultSessionBackendConfig{
-				VaultAuthType: "userpass",
-				VaultAWSRole:  "test-role", // This should be ignored
-			},
-			expectAuth:  false,
-			expectError: false,
-		},
-		{
-			name: "Empty auth type with AWS role should not create AWS auth",
-			sessionConfig: VaultSessionBackendConfig{
-				VaultAWSRole: "test-role",
-				// VaultAuthType is empty
-			},
-			expectAuth:  false,
-			expectError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			auth, err := NewVaultConfigFromBackendConfig(tt.sessionConfig)
-
-			if tt.expectError {
-				assert.Error(t, err)
-				return
-			}
-
-			assert.NoError(t, err)
-
-			if tt.expectAuth {
-				assert.NotNil(t, auth, "Expected non-nil auth method")
-				if tt.validateAuth != nil {
-					tt.validateAuth(t, auth)
-				}
-			} else {
-				assert.Nil(t, auth, "Expected nil auth method")
-			}
-		})
-	}
 }
