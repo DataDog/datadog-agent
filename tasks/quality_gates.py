@@ -266,7 +266,7 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
         current_branch.name,
         branch_name,
         milestone_version,
-        ["team/agent-delivery", "qa/skip-qa", "changelog/no-changelog"],
+        ["team/agent-build", "qa/skip-qa", "changelog/no-changelog"],
     )
 
 
@@ -277,7 +277,7 @@ def notify_threshold_update(pr_url):
     emojis = client.emoji_list()
     waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
     message = f'Hello :{random.choice(waves)}:\nA new quality gates threshold <{pr_url}/s|update PR> has been generated !\nPlease take a look, thanks !'
-    client.chat_postMessage(channel='#agent-delivery-reviews', text=message)
+    client.chat_postMessage(channel='#agent-build-reviews', text=message)
 
 
 @task
