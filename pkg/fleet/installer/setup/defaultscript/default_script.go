@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultInjectorVersion = "0.35.0-1"
+	defaultInjectorVersion = "0.40.0-1"
 )
 
 var (
@@ -89,9 +89,14 @@ func SetupDefaultScript(s *common.Setup) error {
 		s.Config.DatadogYAML.DDURL = url
 	}
 
-	// Install packages
+	// Install agent package
 	installAgentPackage(s)
-	installAPMPackages(s)
+
+	// Optionally setup SSI
+	err := SetupAPMSSIScript(s)
+	if err != nil {
+		return fmt.Errorf("failed to setup APM SSI script: %w", err)
+	}
 
 	return nil
 }
