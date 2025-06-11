@@ -259,7 +259,7 @@ func (m *mutatorCore) newInitContainerMutators(
 	if securityContext != nil {
 		nsLabels, err := getNamespaceLabels(m.wmeta, nsName)
 		if err != nil {
-			log.Warn("error getting labels for namespace=%s: %s", nsName, err)
+			log.Warnf("error getting labels for namespace=%s: %s", nsName, err)
 		} else if val, ok := nsLabels["pod-security.kubernetes.io/enforce"]; ok && val == "restricted" {
 			// https://datadoghq.atlassian.net/browse/INPLAT-492
 			securityContext = defaultRestrictedSecurityContext
