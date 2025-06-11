@@ -194,7 +194,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.65.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.65.1
 	go.opentelemetry.io/collector/consumer/xconsumer v0.127.0 // indirect
 	go.opentelemetry.io/collector/exporter/xexporter v0.127.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.127.0 // indirect
