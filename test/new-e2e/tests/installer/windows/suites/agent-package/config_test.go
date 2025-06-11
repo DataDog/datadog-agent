@@ -16,6 +16,7 @@ import (
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 type testAgentConfigSuite struct {
@@ -53,14 +54,10 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	}
 
 	// Start config experiment
-	_, err := s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
-	s.Require().NoError(err)
-	s.AssertSuccessfulConfigStartExperiment(config.ID)
+	s.mustStartConfigExperiment(config)
 
 	// Promote config experiment
-	_, err = s.Installer().PromoteConfigExperiment(consts.AgentPackage)
-	s.Require().NoError(err)
-	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
+	s.mustPromoteConfigExperiment(config)
 }
 
 // TestConfigUpgradeFailure tests that the Agent's config can be rolled back
@@ -83,25 +80,22 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 
 	// Start config experiment, block until services stop
 	s.waitForDaemonToStop(func() {
-		_, err := s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
-		s.Require().NoError(err)
+		s.Installer().StartConfigExperiment(consts.AgentPackage, config)
+		// Cannot check for error here, since the daemon restarts and kills the connection
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
-	// Assert services failed to start with invalid config
-	s.Require().Host(s.Env().RemoteHost).
-		HasAService(consts.ServiceName).
-		WithStatus("Stopped")
-
-	// Stop config experiment
-	_, err := s.Installer().RemoveConfigExperiment(consts.AgentPackage)
-	s.Require().NoError(err)
-	s.AssertSuccessfulConfigStopExperiment()
-
-	// Wait for services to be running again
+	// Wait for watchdog to restart the services with the stable config
 	s.WaitForServicesWithBackoff("Running", backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10),
 		consts.ServiceName,
 		"datadogagent",
 	)
+	s.AssertSuccessfulConfigStopExperiment()
+
+	// backend will send stop experiment now
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopConfigExperiment(consts.AgentPackage)
+		s.AssertSuccessfulConfigStopExperiment()
+	})
 }
 
 // TestConfigUpgradeNewAgents tests that config experiments can enable security agent and system probe
@@ -140,26 +134,112 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 		},
 	}
 
-	// Start config experiment
-	_, err = s.Installer().InstallConfigExperiment(consts.AgentPackage, config)
-	s.Require().NoError(err)
-	s.AssertSuccessfulConfigStartExperiment(config.ID)
-
-	// Promote config experiment
-	_, err = s.Installer().PromoteConfigExperiment(consts.AgentPackage)
-	s.Require().NoError(err)
-	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
+	// Start config experiment (restarts the services)
+	s.mustStartConfigExperiment(config)
 
 	// Wait for all services to be running
 	// 30*10 -> 300 seconds (5 minutes)
-	b := backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10)
-	err = s.WaitForServicesWithBackoff("Running", b,
+	expectedServices := []string{
 		"datadogagent",
 		"datadog-system-probe",
 		"datadog-security-agent",
 		"datadog-process-agent",
 		"ddnpm",
 		"ddprocmon",
-	)
+	}
+	b := backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10)
+	err = s.WaitForServicesWithBackoff("Running", b, expectedServices...)
 	s.Require().NoError(err, "Failed waiting for services to start")
+
+	// Promote config experiment (restarts the services)
+	s.mustPromoteConfigExperiment(config)
+
+	// Wait for all services to be running
+	// 30*10 -> 300 seconds (5 minutes)
+	err = s.WaitForServicesWithBackoff("Running", b, expectedServices...)
+	s.Require().NoError(err, "Failed waiting for services to start")
+}
+
+// TestRevertsConfigExperimentWhenServiceDies tests that the watchdog will revert
+// to stable config when the service dies.
+func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+
+	// Act
+	config := installerwindows.ConfigExperiment{
+		ID: "config-1",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_level": "debug"}`),
+			},
+		},
+	}
+
+	// Start config experiment (restarts the services)
+	s.mustStartConfigExperiment(config)
+
+	// Stop the agent service to trigger watchdog rollback
+	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
+
+	// Assert
+	s.AssertSuccessfulConfigStopExperiment()
+
+	// backend will send stop experiment now
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopConfigExperiment(consts.AgentPackage)
+		s.AssertSuccessfulConfigStopExperiment()
+	})
+}
+
+// TestRevertsConfigExperimentWhenTimeout tests that the watchdog will revert
+// to stable config when the timeout expires.
+func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
+	// Arrange
+	s.setAgentConfig()
+	s.installCurrentAgentVersion()
+	// lower timeout to 2 minutes
+	s.setWatchdogTimeout(2)
+
+	// Act
+	config := installerwindows.ConfigExperiment{
+		ID: "config-1",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_level": "debug"}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	s.mustStartConfigExperiment(config)
+
+	// wait for the timeout
+	s.waitForDaemonToStop(func() {}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+
+	// Assert
+	s.AssertSuccessfulConfigStopExperiment()
+
+	// backend will send stop experiment now
+	s.assertDaemonStaysRunning(func() {
+		s.Installer().StopConfigExperiment(consts.AgentPackage)
+		s.AssertSuccessfulConfigStopExperiment()
+	})
+}
+
+func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows.ConfigExperiment) {
+	s.Installer().StartConfigExperiment(consts.AgentPackage, config)
+	// Cannot check for error here, since the daemon restarts and kills the connection
+
+	s.AssertSuccessfulConfigStartExperiment(config.ID)
+}
+
+func (s *testAgentConfigSuite) mustPromoteConfigExperiment(config installerwindows.ConfigExperiment) {
+	s.Installer().PromoteConfigExperiment(consts.AgentPackage)
+	// Cannot check for error here, since the daemon restarts and kills the connection
+
+	s.AssertSuccessfulConfigPromoteExperiment(config.ID)
 }
