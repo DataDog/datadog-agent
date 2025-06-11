@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 	"unsafe"
@@ -64,7 +65,8 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	tempDir, err := os.MkdirTemp(os.TempDir(), "dyninst-integration-test-")
 	require.NoError(t, err)
 	defer func() {
-		if t.Failed() {
+		preserve, _ := strconv.ParseBool(os.Getenv("KEEP_TEMP"))
+		if preserve || t.Failed() {
 			t.Logf("leaving temp dir %s for inspection", tempDir)
 		} else {
 			require.NoError(t, os.RemoveAll(tempDir))
@@ -81,6 +83,30 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 			ID: "intArg",
 			Where: &config.Where{
 				MethodName: "main.intArg",
+			},
+		},
+		&config.LogProbe{
+			ID: "stringArg",
+			Where: &config.Where{
+				MethodName: "main.stringArg",
+			},
+		},
+		&config.LogProbe{
+			ID: "sliceArg",
+			Where: &config.Where{
+				MethodName: "main.sliceArg",
+			},
+		},
+		&config.LogProbe{
+			ID: "arrayArg",
+			Where: &config.Where{
+				MethodName: "main.arrayArg",
+			},
+		},
+		&config.LogProbe{
+			ID: "inlined",
+			Where: &config.Where{
+				MethodName: "main.inlined",
 			},
 		},
 	}
@@ -105,24 +131,24 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, codeDump.Close()) }()
 
-	bpfObj, err := compiler.CompileBPFProgram(*irp, codeDump)
+	compiledBPF, err := compiler.CompileBPFProgram(irp, codeDump)
 	require.NoError(t, err)
-	defer func() { bpfObj.Close() }()
+	defer func() { compiledBPF.Obj.Close() }()
 
 	bpfObjDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.o"))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, bpfObjDump.Close()) }()
-	_, err = io.Copy(bpfObjDump, bpfObj)
+	_, err = io.Copy(bpfObjDump, compiledBPF.Obj)
 	require.NoError(t, err)
 
-	spec, err := ebpf.LoadCollectionSpecFromReader(bpfObj)
+	spec, err := ebpf.LoadCollectionSpecFromReader(compiledBPF.Obj)
 	require.NoError(t, err)
 
 	bpfCollection, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{})
 	require.NoError(t, err)
 	defer func() { bpfCollection.Close() }()
 
-	bpfProg, ok := bpfCollection.Programs["probe_run_with_cookie"]
+	bpfProg, ok := bpfCollection.Programs[compiledBPF.ProgramName]
 	require.True(t, ok)
 
 	sampleLink, err := link.OpenExecutable(sampleServicePath)
@@ -142,22 +168,31 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	err = sampleProc.Start()
 	require.NoError(t, err)
 
-	bpfProbe, err := sampleLink.Uprobe(
-		"main.intArg",
-		bpfProg,
-		&link.UprobeOptions{
-			PID: os.Getpid(),
-		},
-	)
+	textSection, err := obj.TextSectionHeader()
 	require.NoError(t, err)
-	defer func() { require.NoError(t, bpfProbe.Close()) }()
-
-	attached, err := sampleLink.Uprobe("main.intArg", bpfProg, &link.UprobeOptions{
-		PID:    sampleProc.Process.Pid,
-		Cookie: 0,
-	})
-	require.NoError(t, err)
-	defer func() { require.NoError(t, attached.Close()) }()
+	var allAttached []link.Link
+	for _, attachpoint := range compiledBPF.Attachpoints {
+		// Despite the name, Uprobe expects an offset in the object file, and not the virtual address.
+		addr := attachpoint.PC - textSection.Addr + textSection.Offset
+		t.Logf("attaching @0x%x cookie=%d", addr, attachpoint.Cookie)
+		attached, err := sampleLink.Uprobe(
+			"",
+			bpfProg,
+			&link.UprobeOptions{
+				PID:     sampleProc.Process.Pid,
+				Address: addr,
+				Offset:  0,
+				Cookie:  attachpoint.Cookie,
+			},
+		)
+		require.NoError(t, err)
+		allAttached = append(allAttached, attached)
+	}
+	defer func() {
+		for _, a := range allAttached {
+			require.NoError(t, a.Close())
+		}
+	}()
 
 	// Trigger the function calls.
 	sampleStdin.Write([]byte("\n"))
@@ -174,24 +209,31 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, bpfOutDump.Close()) }()
 
-	require.Greater(t, rd.AvailableBytes(), 0)
-	record, err := rd.Read()
-	require.NoError(t, err)
-	bpfOutDump.Write(record.RawSample)
+	// Inlined function is called twice, hence extra event.
+	for range len(probes) + 1 {
+		t.Logf("reading ringbuf item")
+		require.Greater(t, rd.AvailableBytes(), 0)
+		record, err := rd.Read()
+		require.NoError(t, err)
+		bpfOutDump.Write(record.RawSample)
 
-	header := (*output.EventHeader)(unsafe.Pointer(&record.RawSample[0]))
-	require.Equal(t, uint32(len(record.RawSample)), header.Data_byte_len)
+		header := (*output.EventHeader)(unsafe.Pointer(&record.RawSample[0]))
+		require.Equal(t, uint32(len(record.RawSample)), header.Data_byte_len)
+		t.Logf("header: %#v", *header)
 
-	pos := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len)
-	di := (*output.DataItemHeader)(unsafe.Pointer(&record.RawSample[pos]))
-	typ, ok := irp.Types[ir.TypeID(di.Type)]
-	require.True(t, ok)
-	require.IsType(t, &ir.EventRootType{}, typ)
-	require.Equal(t, di.Length, typ.GetByteSize())
-
-	expectedTotalLen := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len) + uint32(unsafe.Sizeof(*di)) + uint32(di.Length)
-	if expectedTotalLen%8 > 0 {
-		expectedTotalLen += 8 - expectedTotalLen%8
+		pos := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len)
+		for pos < header.Data_byte_len {
+			di := (*output.DataItemHeader)(unsafe.Pointer(&record.RawSample[pos]))
+			typ, ok := irp.Types[ir.TypeID(di.Type)]
+			if !ok {
+				t.Fatalf("unknown type: %d", di.Type)
+			}
+			pos += uint32(unsafe.Sizeof(*di))
+			t.Logf("di: %s @0x%x: %#v", typ.GetName(), di.Address, record.RawSample[pos:pos+uint32(di.Length)])
+			pos += uint32(di.Length)
+			if pos%8 > 0 {
+				pos += 8 - pos%8
+			}
+		}
 	}
-	require.Equal(t, expectedTotalLen, header.Data_byte_len)
 }

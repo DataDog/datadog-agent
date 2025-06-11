@@ -526,3 +526,50 @@ func WithDevEnvOverrides(prefix string) PackageOption {
 		return nil
 	}
 }
+
+// SetConfigExperiment sets the config catalog for the Datadog Installer daemon.
+func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string, error) {
+	serializedConfig, err := json.Marshal(map[string]ConfigExperiment{
+		config.ID: config,
+	})
+	if err != nil {
+		return "", err
+	}
+	// Escape quotes in the JSON string to handle PowerShell quoting properly
+	configStr := strings.ReplaceAll(string(serializedConfig), `"`, `\"`)
+	return d.execute(fmt.Sprintf("daemon set-config-catalog '%s'", configStr))
+}
+
+// StartConfigExperiment starts a config experiment using the provided InstallerConfig through the daemon.
+// It first sets the config catalog and then starts the experiment.
+func (d *DatadogInstaller) StartConfigExperiment(packageName string, config ConfigExperiment) (string, error) {
+	// First set the config catalog
+	_, err := d.SetConfigExperiment(config)
+	if err != nil {
+		return "", err
+	}
+	// Then start the config experiment
+	return d.execute(fmt.Sprintf("daemon start-config-experiment %s %s", packageName, config.ID))
+}
+
+// PromoteConfigExperiment promotes a config experiment through the daemon.
+func (d *DatadogInstaller) PromoteConfigExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon promote-config-experiment %s", packageName))
+}
+
+// StopConfigExperiment stops a config experiment through the daemon.
+func (d *DatadogInstaller) StopConfigExperiment(packageName string) (string, error) {
+	return d.execute(fmt.Sprintf("daemon stop-config-experiment %s", packageName))
+}
+
+// ConfigExperiment represents a configuration experiment for the Datadog Installer.
+type ConfigExperiment struct {
+	ID    string                 `json:"id"`
+	Files []ConfigExperimentFile `json:"files"`
+}
+
+// ConfigExperimentFile represents a configuration file in a config experiment.
+type ConfigExperimentFile struct {
+	Path     string          `json:"path"`
+	Contents json.RawMessage `json:"contents"`
+}

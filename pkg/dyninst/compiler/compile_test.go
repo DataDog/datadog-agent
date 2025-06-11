@@ -70,9 +70,8 @@ func TestCompileBPFProgram(t *testing.T) {
 				IsParameter: false,
 			},
 		},
-		Lines: []ir.SubprogramLine{},
 	}
-	p := ir.Program{
+	p := &ir.Program{
 		ID: 123,
 		Probes: []*ir.Probe{
 			{
@@ -123,7 +122,7 @@ func TestCompileBPFProgram(t *testing.T) {
 		t.Fatalf("Failed to compile BPF program: %v", err)
 	}
 
-	spec, err := ebpf.LoadCollectionSpecFromReader(obj)
+	spec, err := ebpf.LoadCollectionSpecFromReader(obj.Obj)
 	if err != nil {
 		t.Fatalf("Failed to load ebpf spec: %v", err)
 	}
@@ -136,15 +135,15 @@ func TestCompileBPFProgram(t *testing.T) {
 			LogDisabled: false,
 		},
 	}
-	bpfObj, err := ebpf.NewCollectionWithOptions(spec, opts)
+	compiledBPF, err := ebpf.NewCollectionWithOptions(spec, opts)
 	if err != nil {
 		t.Fatalf("Failed to load ebpf obj: %v", err)
 	}
-	t.Log(bpfObj)
+	t.Log(compiledBPF)
 
-	prog, ok := bpfObj.Programs["probe_run_with_cookie"]
+	prog, ok := compiledBPF.Programs["probe_run_with_cookie"]
 	if !ok {
-		t.Fatalf("Failed to find ebpf program: %v", bpfObj)
+		t.Fatalf("Failed to find ebpf program: %v", compiledBPF)
 	}
 	t.Log(prog)
 }
