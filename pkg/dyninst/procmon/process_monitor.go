@@ -38,6 +38,15 @@ type ProcessUpdate struct {
 	ProcessID  ProcessID
 	Executable Executable
 	Service    string
+	GitInfo    GitInfo
+}
+
+// GitInfo is information about the git repository and commit sha of the process.
+type GitInfo struct {
+	// CommitSha is the git commit sha of the process.
+	CommitSha string
+	// RepositoryURL is the git repository url of the process.
+	RepositoryURL string
 }
 
 // ProcessMonitor encapsulates the logic of processing events from an event
