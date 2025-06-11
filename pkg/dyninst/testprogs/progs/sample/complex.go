@@ -60,15 +60,15 @@ type interfaceComplexityC struct {
 
 //go:noinline
 //nolint:all
-func test_interface_complexity(a interfaceComplexityA) {}
+func testInterfaceComplexity(a interfaceComplexityA) {}
 
 //go:noinline
 //nolint:all
-func test_multiple_struct_tiers(a tierA) {}
+func testMultipleStructTiers(a tierA) {}
 
 //nolint:all
 //go:noinline
-func test_multiple_dereferences(o outer) {}
+func testMultipleDereferences(o outer) {}
 
 type bigStruct struct {
 	x      []*string
@@ -78,7 +78,7 @@ type bigStruct struct {
 
 //nolint:all
 //go:noinline
-func test_big_struct(b bigStruct) {}
+func testBigStruct(b bigStruct) {}
 
 type circularReferenceType struct {
 	t *circularReferenceType
@@ -86,14 +86,14 @@ type circularReferenceType struct {
 
 //nolint:all
 //go:noinline
-func test_circular_type(x circularReferenceType) {}
+func testCircularType(x circularReferenceType) {}
 
 //nolint:all
 //go:noinline
-func test_interface_and_int(a int, b error, c uint) {}
+func testInterfaceAndInt(a int, b error, c uint) {}
 
 //nolint:all
-func ExecuteComplexFuncs() {
+func executeComplexFuncs() {
 	o := outer{
 		A: &middle{
 			B: &inner{
@@ -107,13 +107,13 @@ func ExecuteComplexFuncs() {
 	str := "abc"
 	s := []*string{&str}
 
-	test_big_struct(bigStruct{
+	testBigStruct(bigStruct{
 		x:      s,
 		z:      5,
 		writer: io.Discard,
 	})
 
-	test_multiple_struct_tiers(tierA{
+	testMultipleStructTiers(tierA{
 		a: 1,
 		b: tierB{
 			c: 2,
@@ -124,13 +124,13 @@ func ExecuteComplexFuncs() {
 			},
 		},
 	})
-	test_multiple_dereferences(o)
+	testMultipleDereferences(o)
 
 	circ := circularReferenceType{}
 	circ.t = &circ
-	test_circular_type(circ)
+	testCircularType(circ)
 
-	test_interface_complexity(interfaceComplexityA{
+	testInterfaceComplexity(interfaceComplexityA{
 		b: 1,
 		c: interfaceComplexityB{
 			d: 2,
@@ -141,6 +141,6 @@ func ExecuteComplexFuncs() {
 		},
 	})
 
-	test_interface_and_int(1, errors.New("two"), 3)
+	testInterfaceAndInt(1, errors.New("two"), 3)
 
 }

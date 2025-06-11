@@ -8,88 +8,88 @@ package main
 
 //nolint:all
 //go:noinline
-func test_single_byte(x byte) {}
+func testSingleByte(x byte) {}
 
 //nolint:all
 //go:noinline
-func test_single_rune(x rune) {}
+func testSingleRune(x rune) {}
 
 //nolint:all
 //go:noinline
-func test_single_bool(x bool) {}
+func testSingleBool(x bool) {}
 
 //nolint:all
 //go:noinline
-func test_single_int(x int) {}
+func testSingleInt(x int) {}
 
 //nolint:all
 //go:noinline
-func test_single_int8(x int8) {}
+func testSingleInt8(x int8) {}
 
 //nolint:all
 //go:noinline
-func test_single_int16(x int16) {}
+func testSingleInt16(x int16) {}
 
 //nolint:all
 //go:noinline
-func test_single_int32(x int32) {}
+func testSingleInt32(x int32) {}
 
 //nolint:all
 //go:noinline
-func test_single_int64(x int64) {}
+func testSingleInt64(x int64) {}
 
 //nolint:all
 //go:noinline
-func test_single_uint(x uint) {}
+func testSingleUint(x uint) {}
 
 //nolint:all
 //go:noinline
-func test_single_uint8(x uint8) {}
+func testSingleUint8(x uint8) {}
 
 //nolint:all
 //go:noinline
-func test_single_uint16(x uint16) {}
+func testSingleUint16(x uint16) {}
 
 //nolint:all
 //go:noinline
-func test_single_uint32(x uint32) {}
+func testSingleUint32(x uint32) {}
 
 //nolint:all
 //go:noinline
-func test_single_uint64(x uint64) {}
+func testSingleUint64(x uint64) {}
 
 //nolint:all
 //go:noinline
-func test_single_float32(x float32) {}
+func testSingleFloat32(x float32) {}
 
 //nolint:all
 //go:noinline
-func test_single_float64(x float64) {}
+func testSingleFloat64(x float64) {}
 
 type typeAlias uint16
 
 //nolint:all
 //go:noinline
-func test_type_alias(x typeAlias) {}
+func testTypeAlias(x typeAlias) {}
 
 //nolint:all
-func ExecuteBasicFuncs() {
-	test_single_int8(-8)
-	test_single_int16(-16)
-	test_single_int32(-32)
-	test_single_int64(-64)
+func executeBasicFuncs() {
+	testSingleInt8(-8)
+	testSingleInt16(-16)
+	testSingleInt32(-32)
+	testSingleInt64(-64)
 
-	test_single_uint8(8)
-	test_single_uint16(16)
-	test_single_uint32(32)
-	test_single_uint64(64)
-	test_single_float32(1.32)
-	test_single_float64(-1.646464)
+	testSingleUint8(8)
+	testSingleUint16(16)
+	testSingleUint32(32)
+	testSingleUint64(64)
+	testSingleFloat32(1.32)
+	testSingleFloat64(-1.646464)
 
-	test_single_bool(true)
-	test_single_byte('a')
-	test_single_rune(1)
-	test_single_int(-1512)
-	test_single_uint(1512)
-	test_type_alias(typeAlias(3))
+	testSingleBool(true)
+	testSingleByte('a')
+	testSingleRune(1)
+	testSingleInt(-1512)
+	testSingleUint(1512)
+	testTypeAlias(typeAlias(3))
 }

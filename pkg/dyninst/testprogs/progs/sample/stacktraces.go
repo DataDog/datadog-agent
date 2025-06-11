@@ -9,51 +9,51 @@ import "fmt"
 
 //nolint:all
 //go:noinline
-func stack_A() {
-	stack_B()
+func stackA() {
+	stackB()
 }
 
 //nolint:all
 //go:noinline
-func stack_B() {
-	stack_C()
+func stackB() {
+	stackC()
 }
 
 //nolint:all
 //go:noinline
-func stack_C() string {
+func stackC() string {
 	return fmt.Sprintf("hello %d!", 1)
 }
 
 //nolint:all
 //go:noinline
-func call_inlined_func_chain() {
-	inline_me_1()
+func callInlinedFuncChain() {
+	inlineMe1()
 }
 
 //nolint:all
-func inline_me_1() {
-	inline_me_2()
+func inlineMe1() {
+	inlineMe2()
 }
 
 //nolint:all
-func inline_me_2() {
-	inline_me_3()
+func inlineMe2() {
+	inlineMe3()
 }
 
 //nolint:all
-func inline_me_3() {
-	not_inlined()
+func inlineMe3() {
+	notInlined()
 }
 
 //nolint:all
 //go:noinline
-func not_inlined() string {
+func notInlined() string {
 	return fmt.Sprintf("hello %d!", 42)
 }
 
 //nolint:all
-func ExecuteStackAndInlining() {
-	stack_A()
-	call_inlined_func_chain()
+func executeStackAndInlining() {
+	stackA()
+	callInlinedFuncChain()
 }

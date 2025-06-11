@@ -15,17 +15,17 @@ type triggerVerifierErrorForTesting byte
 
 //nolint:all
 //go:noinline
-func test_channel(c chan bool) {}
+func testChannel(c chan bool) {}
 
 //nolint:all
 //go:noinline
-func test_trigger_verifier_error(t triggerVerifierErrorForTesting) {}
+func testTriggerVerifierError(t triggerVerifierErrorForTesting) {}
 
-// return_goroutine_id gets the goroutine ID and returns it
+// ReturnGoroutineId gets the goroutine ID and returns it
 //
 //nolint:all
 //go:noinline
-func Return_goroutine_id() uint64 {
+func returnGoroutineId() uint64 {
 	b := make([]byte, 64)
 	b = b[:runtime.Stack(b, false)]
 	b = bytes.TrimPrefix(b, []byte("goroutine "))
@@ -36,9 +36,9 @@ func Return_goroutine_id() uint64 {
 
 //nolint:all
 //go:noinline
-func ExecuteOther() {
+func executeOther() {
 	x := make(chan bool)
-	test_channel(x)
+	testChannel(x)
 
-	test_trigger_verifier_error(1)
+	testTriggerVerifierError(1)
 }

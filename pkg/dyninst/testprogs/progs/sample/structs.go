@@ -17,115 +17,115 @@ type hasUnsupportedFields struct {
 
 //nolint:all
 //go:noinline
-func test_struct_with_unsupported_fields(a hasUnsupportedFields) {}
+func testStructWithUnsupportedFields(a hasUnsupportedFields) {}
 
 //nolint:all
 //go:noinline
-func (r *receiver) test_pointer_method_receiver(a int) {}
+func (r *receiver) testPointerMethodReceiver(a int) {}
 
 //nolint:all
 //go:noinline
-func (r receiver) test_method_receiver(a int) {}
+func (r receiver) testMethodReceiver(a int) {}
 
 //nolint:all
 //go:noinline
-func test_struct_with_array(a structWithAnArray) {}
+func testStructWithArray(a structWithAnArray) {}
 
 //nolint:all
 //go:noinline
-func test_struct_with_a_slice(s structWithASlice) {}
+func testStructWithASlice(s structWithASlice) {}
 
 //nolint:all
 //go:noinline
-func test_struct_with_an_empty_slice(s structWithASlice) {}
+func testStructWithAnEmptySlice(s structWithASlice) {}
 
 //nolint:all
 //go:noinline
-func test_struct_with_a_nil_slice(s structWithASlice) {}
+func testStructWithANilSlice(s structWithASlice) {}
 
 //nolint:all
 //go:noinline
-func test_pointer_to_struct_with_a_slice(s *structWithASlice) {}
+func testPointerToStructWithASlice(s *structWithASlice) {}
 
 //nolint:all
 //go:noinline
-func test_pointer_to_struct_with_a_string(s *structWithAString) {}
+func testPointerToStructWithAString(s *structWithAString) {}
 
 //nolint:all
 //go:noinline
-func test_struct(x aStruct) {}
+func testStruct(x aStruct) {}
 
 //nolint:all
 //go:noinline
-func test_struct_with_arrays(s structWithTwoArrays) {}
+func testStructWithArrays(s structWithTwoArrays) {}
 
 //nolint:all
 //go:noinline
-func test_nonembedded_struct(x nStruct) {}
+func testNonembeddedStruct(x nStruct) {}
 
 //nolint:all
 //go:noinline
-func test_multiple_embedded_struct(b bStruct) {}
+func testMultipleEmbeddedStruct(b bStruct) {}
 
 //nolint:all
 //go:noinline
-func test_no_string_struct(c cStruct) {}
+func testNoStringStruct(c cStruct) {}
 
 //nolint:all
 //go:noinline
-func test_struct_and_byte(w byte, x aStruct) {}
+func testStructAndByte(w byte, x aStruct) {}
 
 //nolint:all
 //go:noinline
-func test_nested_pointer(x *anotherStruct) {}
+func testNestedPointer(x *anotherStruct) {}
 
 //nolint:all
 //go:noinline
-func test_ten_strings(x tenStrings) {}
+func testTenStrings(x tenStrings) {}
 
 //nolint:all
 //go:noinline
-func test_string_struct(t threestrings) {}
+func testStringStruct(t threestrings) {}
 
 //nolint:all
 //go:noinline
-func test_deep_struct(t deepStruct1) {}
+func testDeepStruct(t deepStruct1) {}
 
 //nolint:all
 //go:noinline
-func test_empty_struct(e emptyStruct) {}
+func testEmptyStruct(e emptyStruct) {}
 
 //nolint:all
 //go:noinline
-func test_lots_of_fields(l lotsOfFields) {}
+func testLotsOfFields(l lotsOfFields) {}
 
 //nolint:all
-func ExecuteStructFuncs() {
+func executeStructFuncs() {
 	ts := threestrings{"a", "bb", "ccc"}
-	test_string_struct(ts)
+	testStringStruct(ts)
 
 	n := nStruct{true, 1, 2}
-	test_nonembedded_struct(n)
+	testNonembeddedStruct(n)
 
 	s := aStruct{aBool: true, aString: "one", aNumber: 2, nested: nestedStruct{anotherInt: 3, anotherString: "four"}}
-	test_struct(s)
+	testStruct(s)
 
 	b := bStruct{aInt16: 42, nested: s, aBool: true, aInt32: 31}
-	test_multiple_embedded_struct(b)
+	testMultipleEmbeddedStruct(b)
 
 	ns := structWithNoStrings{aUint8: 9, aBool: true}
 	cs := cStruct{aInt32: 4, aUint: 1, nested: ns}
-	test_no_string_struct(cs)
+	testNoStringStruct(cs)
 
-	test_nested_pointer(&anotherStruct{&nestedStruct{anotherInt: 42, anotherString: "xyz"}})
-	test_ten_strings(tenStrings{})
-	test_struct_and_byte('a', s)
-	test_struct_with_array(structWithAnArray{[5]uint8{1, 2, 3, 4, 5}})
-	test_struct_with_a_slice(structWithASlice{1, []uint8{2, 3, 4}, 5})
-	test_struct_with_an_empty_slice(structWithASlice{9, []uint8{}, 5})
-	test_struct_with_a_nil_slice(structWithASlice{9, nil, 5})
-	test_pointer_to_struct_with_a_slice(&structWithASlice{5, []uint8{2, 3, 4}, 5})
-	test_pointer_to_struct_with_a_string(&structWithAString{5, "abcdef"})
+	testNestedPointer(&anotherStruct{&nestedStruct{anotherInt: 42, anotherString: "xyz"}})
+	testTenStrings(tenStrings{})
+	testStructAndByte('a', s)
+	testStructWithArray(structWithAnArray{[5]uint8{1, 2, 3, 4, 5}})
+	testStructWithASlice(structWithASlice{1, []uint8{2, 3, 4}, 5})
+	testStructWithAnEmptySlice(structWithASlice{9, []uint8{}, 5})
+	testStructWithANilSlice(structWithASlice{9, nil, 5})
+	testPointerToStructWithASlice(&structWithASlice{5, []uint8{2, 3, 4}, 5})
+	testPointerToStructWithAString(&structWithAString{5, "abcdef"})
 
 	tenStr := tenStrings{
 		first:   "one",
@@ -139,7 +139,7 @@ func ExecuteStructFuncs() {
 		ninth:   "nine",
 		tenth:   "ten",
 	}
-	test_ten_strings(tenStr)
+	testTenStrings(tenStr)
 
 	deep := deepStruct1{
 		1, deepStruct2{
@@ -155,26 +155,26 @@ func ExecuteStructFuncs() {
 		},
 	}
 
-	test_empty_struct(emptyStruct{})
-	test_deep_struct(deep)
+	testEmptyStruct(emptyStruct{})
+	testDeepStruct(deep)
 
 	fields := lotsOfFields{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}
-	test_lots_of_fields(fields)
+	testLotsOfFields(fields)
 
 	rcvr := receiver{1}
-	rcvr.test_method_receiver(2)
+	rcvr.testMethodReceiver(2)
 
 	ptrRcvr := &receiver{3}
-	ptrRcvr.test_pointer_method_receiver(4)
+	ptrRcvr.testPointerMethodReceiver(4)
 
 	sta := structWithTwoArrays{
 		a: [3]uint64{1, 2, 3},
 		b: 4,
 		c: [5]int64{6, 7, 8, 9, 10},
 	}
-	test_struct_with_arrays(sta)
+	testStructWithArrays(sta)
 
-	test_struct_with_unsupported_fields(hasUnsupportedFields{
+	testStructWithUnsupportedFields(hasUnsupportedFields{
 		b: 1,
 		c: 2.0,
 		d: []uint8{3, 4, 5},

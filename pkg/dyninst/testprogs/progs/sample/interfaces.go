@@ -45,7 +45,7 @@ type itab struct {
 
 //nolint:all
 //go:noinline
-func test_interface(b behavior) string {
+func testInterface(b behavior) string {
 	ptr := unsafe.Pointer(&b)
 	iface := (*iface)(ptr)
 	hash := fmt.Sprintf("iface.tab.hash = %#x", iface.tab.hash)
@@ -57,11 +57,11 @@ func test_interface(b behavior) string {
 
 //nolint:all
 //go:noinline
-func test_error(e error) {}
+func testError(e error) {}
 
 //nolint:all
-func ExecuteInterfaceFuncs() {
-	test_interface(firstBehavior{"foo"})
-	test_interface(secondBehavior{42})
-	test_error(errors.New("blah"))
+func executeInterfaceFuncs() {
+	testInterface(firstBehavior{"foo"})
+	testInterface(secondBehavior{42})
+	testError(errors.New("blah"))
 }

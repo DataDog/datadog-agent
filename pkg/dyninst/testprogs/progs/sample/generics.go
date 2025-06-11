@@ -16,7 +16,7 @@ func (x typeWithGenerics[V]) Guess(value V) bool {
 }
 
 //nolint:all
-func ExecuteGenericFuncs() {
+func executeGenericFuncs() {
 	x := typeWithGenerics[string]{Value: "generics work"}
 	x.Guess("generics work")
 

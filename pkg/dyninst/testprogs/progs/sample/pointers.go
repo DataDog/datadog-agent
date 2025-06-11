@@ -35,11 +35,11 @@ type reallyComplexType struct {
 
 //nolint:all
 //go:noinline
-func test_pointer_to_simple_struct(a *structWithTwoValues) {}
+func testPointerToSimpleStruct(a *structWithTwoValues) {}
 
 //nolint:all
 //go:noinline
-func test_linked_list(a node) {}
+func testLinkedList(a node) {}
 
 type node struct {
 	val int
@@ -48,85 +48,85 @@ type node struct {
 
 //nolint:all
 //go:noinline
-func test_pointer_loop(a *node) {}
+func testPointerLoop(a *node) {}
 
 //nolint:all
 //go:noinline
-func test_unsafe_pointer(x unsafe.Pointer) {}
+func testUnsafePointer(x unsafe.Pointer) {}
 
 //nolint:all
 //go:noinline
-func test_array_pointer(x *[2]uint) {}
+func testArrayPointer(x *[2]uint) {}
 
 //nolint:all
 //go:noinline
-func test_uint_pointer(x *uint) {}
+func testUintPointer(x *uint) {}
 
 //nolint:all
 //go:noinline
-func test_struct_pointer(x *nStruct) {}
+func testStructPointer(x *nStruct) {}
 
 //nolint:all
 //go:noinline
-func test_nil_struct_pointer(z uint, x *nStruct, a int) {}
+func testNilStructPointer(z uint, x *nStruct, a int) {}
 
 //nolint:all
 //go:noinline
-func test_complex_type(z *reallyComplexType) {}
+func testComplexType(z *reallyComplexType) {}
 
 //nolint:all
 //go:noinline
-func test_struct_with_pointer(x structWithPointer) {}
+func testStructWithPointer(x structWithPointer) {}
 
 //nolint:all
 //go:noinline
-func test_struct_with_struct_pointer(b swsp) {}
+func testStructWithStructPointer(b swsp) {}
 
 //nolint:all
 //go:noinline
-func test_struct_with_string_pointer(z spws) {}
+func testStructWithStringPointer(z spws) {}
 
 //nolint:all
 //go:noinline
-func test_string_pointer(z *string) {}
+func testStringPointer(z *string) {}
 
 //nolint:all
 //go:noinline
-func test_string_slice_pointer(a *[]string) {}
+func testStringSlicePointer(a *[]string) {}
 
 //nolint:all
 //go:noinline
-func test_nil_pointer(z *bool, a uint) {}
+func testNilPointer(z *bool, a uint) {}
 
 //nolint:all
 //go:noinline
-func test_pointer_to_pointer(u **int) {}
+func testPointerToPointer(u **int) {}
 
 //nolint:all
-func ExecutePointerFuncs() {
+func executePointerFuncs() {
 	var u64F uint64 = 5
 	swp := structWithPointer{a: &u64F}
-	test_struct_with_pointer(swp)
+	testStructWithPointer(swp)
 
 	r := "abc"
 	z := spws{3, &r}
 
 	var uintToPointTo uint = 1
-	test_uint_pointer(&uintToPointTo)
+	testUintPointer(&uintToPointTo)
 
 	n := nStruct{true, 1, 2}
-	test_struct_pointer(&n)
-	test_nil_struct_pointer(4, nil, 5)
+	testStructPointer(&n)
+	testNilStructPointer(4, nil, 5)
 	ssaw := swsp{
 		a: 1,
 		b: &n,
 	}
-	test_struct_with_struct_pointer(ssaw)
-	test_struct_with_string_pointer(z)
-	test_string_pointer(&r)
+	testStructWithStructPointer(ssaw)
+	testStructWithStringPointer(z)
+	testStringPointer(&r)
 
 	x := structWithTwoValues{9, true}
-	test_pointer_to_simple_struct(&x)
+	testPointerToSimpleStruct(&x)
 
 	rct := reallyComplexType{
 		pointerToStructWithAPointerToAStruct: &ssaw,
@@ -134,7 +134,7 @@ func ExecutePointerFuncs() {
 		aString:                              "hello",
 		aStringPtr:                           &r,
 	}
-	test_complex_type(&rct)
+	testComplexType(&rct)
 
 	b := node{
 		val: 1,
@@ -146,26 +146,26 @@ func ExecutePointerFuncs() {
 			},
 		},
 	}
-	test_linked_list(b)
+	testLinkedList(b)
 
-	test_unsafe_pointer(unsafe.Pointer(&b))
+	testUnsafePointer(unsafe.Pointer(&b))
 
 	aruint := [2]uint{1, 2}
-	test_array_pointer(&aruint)
+	testArrayPointer(&aruint)
 
 	stringSlice := []string{"aaa", "bbb", "ccc", "ddd"}
-	test_string_slice_pointer(&stringSlice)
+	testStringSlicePointer(&stringSlice)
 
-	test_nil_pointer(nil, 1)
+	testNilPointer(nil, 1)
 
 	u := 9
 	up := &u
 	upp := &up
-	test_pointer_to_pointer(upp)
+	testPointerToPointer(upp)
 
 	self := &node{
 		val: 1,
 	}
 	self.b = self
-	test_pointer_loop(self)
+	testPointerLoop(self)
 }

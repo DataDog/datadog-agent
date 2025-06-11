@@ -11,7 +11,7 @@ package main
 
 //nolint:all
 //go:noinline
-func test_over_limit_parameters(
+func testOverLimitParameters(
 	a, b, c, d, e, f, g,
 	h, i, j, k, l, m, n,
 	o, p, q, r, s, t, u byte) {
@@ -19,76 +19,76 @@ func test_over_limit_parameters(
 
 //nolint:all
 //go:noinline
-func test_combined_byte(w byte, x byte, y float32) {}
+func testCombinedByte(w byte, x byte, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_rune(w byte, x rune, y float32) {}
+func testCombinedRune(w byte, x rune, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_string(w byte, x string, y float32) {}
+func testCombinedString(w byte, x string, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_bool(w byte, x bool, y float32) {}
+func testCombinedBool(w byte, x bool, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_int(w byte, x int, y float32) {}
+func testCombinedInt(w byte, x int, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_int8(w byte, x int8, y float32) {}
+func testCombinedInt8(w byte, x int8, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_int16(w byte, x int16, y float32) {}
+func testCombinedInt16(w byte, x int16, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_int32(w byte, x int32, y float32) {}
+func testCombinedInt32(w byte, x int32, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_int64(w byte, x int64, y float32) {}
+func testCombinedInt64(w byte, x int64, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_uint(w byte, x uint, y float32) {}
+func testCombinedUint(w byte, x uint, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_uint8(w byte, x uint8, y float32) {}
+func testCombinedUint8(w byte, x uint8, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_uint16(w byte, x uint16, y float32) {}
+func testCombinedUint16(w byte, x uint16, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_uint32(w byte, x uint32, y float32) {}
+func testCombinedUint32(w byte, x uint32, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_combined_uint64(w byte, x uint64, y float32) {}
+func testCombinedUint64(w byte, x uint64, y float32) {}
 
 //nolint:all
 //go:noinline
-func test_multiple_simple_params(a bool, b byte, c rune, d uint, e string) {}
+func testMultipleSimpleParams(a bool, b byte, c rune, d uint, e string) {}
 
 //nolint:all
 //go:noinline
-func test_multiple_composite_params(a [3]string, b aStruct, c []int, d map[string]string, e []nestedStruct) {
+func testMultipleCompositeParams(a [3]string, b aStruct, c []int, d map[string]string, e []nestedStruct) {
 }
 
 //nolint:all
-func ExecuteMultiParamFuncs() {
-	test_multiple_simple_params(false, 42, 'z', 1337, "xyz")
+func executeMultiParamFuncs() {
+	testMultipleSimpleParams(false, 42, 'z', 1337, "xyz")
 
 	// fails because slices and maps are not supported
 	// also crashes because of stack overflow
-	// test_multiple_composite_params(
+	// testMultipleCompositeParams(
 	// 	[3]string{"one", "two", "three"},
 	// 	aStruct{},
 	// 	[]int{24, 42},
@@ -97,21 +97,21 @@ func ExecuteMultiParamFuncs() {
 	// )
 
 	// all of these fail because floats are not supported
-	test_combined_byte(2, 3, 3.0)
-	test_combined_rune(2, 'b', 3.0)
-	test_combined_string(2, "boo", 3.0)
-	test_combined_bool(2, true, 3.0)
-	test_combined_int(2, 3, 3.0)
-	test_combined_int8(2, 38, 3.0)
-	test_combined_int16(2, 316, 3.0)
-	test_combined_int32(2, 332, 3.0)
-	test_combined_int64(2, 364, 3.0)
-	test_combined_uint(2, 12, 3.0)
-	test_combined_uint8(2, 128, 3.0)
-	test_combined_uint16(2, 1216, 3.0)
-	test_combined_uint32(2, 1232, 3.0)
-	test_combined_uint64(2, 1264, 3.0)
-	test_over_limit_parameters(1, 2, 3, 4, 5, 6, 7,
+	testCombinedByte(2, 3, 3.0)
+	testCombinedRune(2, 'b', 3.0)
+	testCombinedString(2, "boo", 3.0)
+	testCombinedBool(2, true, 3.0)
+	testCombinedInt(2, 3, 3.0)
+	testCombinedInt8(2, 38, 3.0)
+	testCombinedInt16(2, 316, 3.0)
+	testCombinedInt32(2, 332, 3.0)
+	testCombinedInt64(2, 364, 3.0)
+	testCombinedUint(2, 12, 3.0)
+	testCombinedUint8(2, 128, 3.0)
+	testCombinedUint16(2, 1216, 3.0)
+	testCombinedUint32(2, 1232, 3.0)
+	testCombinedUint64(2, 1264, 3.0)
+	testOverLimitParameters(1, 2, 3, 4, 5, 6, 7,
 		8, 9, 10, 11, 12, 13, 14,
 		15, 16, 17, 18, 19, 20, 21)
 

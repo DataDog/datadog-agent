@@ -26,59 +26,59 @@ func expandSlice(x []int) {
 
 //nolint:all
 //go:noinline
-func test_uint_slice(u []uint) {}
+func testUintSlice(u []uint) {}
 
 //nolint:all
 //go:noinline
-func test_empty_slice(u []uint) {}
+func testEmptySlice(u []uint) {}
 
 //nolint:all
 //go:noinline
-func test_slice_of_slices(u [][]uint) {}
+func testSliceOfSlices(u [][]uint) {}
 
 //nolint:all
 //go:noinline
-func test_struct_slice(xs []structWithNoStrings, a int) {}
+func testStructSlice(xs []structWithNoStrings, a int) {}
 
 //nolint:all
 //go:noinline
-func test_empty_slice_of_structs(xs []structWithNoStrings, a int) {}
+func testEmptySliceOfStructs(xs []structWithNoStrings, a int) {}
 
 //nolint:all
 //go:noinline
-func test_nil_slice_of_structs(xs []structWithNoStrings, a int) {}
+func testNilSliceOfStructs(xs []structWithNoStrings, a int) {}
 
 //nolint:all
 //go:noinline
-func test_string_slice(s []string) {}
+func testStringSlice(s []string) {}
 
 //nolint:all
 //go:noinline
-func test_nil_slice_with_other_params(a int8, s []bool, x uint) {}
+func testNilSliceWithOtherParams(a int8, s []bool, x uint) {}
 
 //nolint:all
 //go:noinline
-func test_nil_slice(xs []uint16) {}
+func testNilSlice(xs []uint16) {}
 
 //nolint:all
-func ExecuteSliceFuncs() {
+func executeSliceFuncs() {
 	originalSlice := []int{1, 2, 3}
 	expandSlice(originalSlice)
 	sprintSlice(originalSlice)
 
-	test_string_slice([]string{"abc", "xyz", "123"})
-	test_uint_slice([]uint{1, 2, 3})
-	test_struct_slice([]structWithNoStrings{{42, true}, {24, true}}, 3)
-	test_empty_slice_of_structs([]structWithNoStrings{}, 2)
-	test_nil_slice_of_structs([]structWithNoStrings{}, 5)
+	testStringSlice([]string{"abc", "xyz", "123"})
+	testUintSlice([]uint{1, 2, 3})
+	testStructSlice([]structWithNoStrings{{42, true}, {24, true}}, 3)
+	testEmptySliceOfStructs([]structWithNoStrings{}, 2)
+	testNilSliceOfStructs([]structWithNoStrings{}, 5)
 
-	test_slice_of_slices([][]uint{
+	testSliceOfSlices([][]uint{
 		{4},
 		{5, 6},
 		{7, 8, 9},
 	})
-	test_empty_slice([]uint{})
+	testEmptySlice([]uint{})
 
-	test_nil_slice_with_other_params(1, nil, 5)
-	test_nil_slice(nil)
+	testNilSliceWithOtherParams(1, nil, 5)
+	testNilSlice(nil)
 }
