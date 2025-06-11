@@ -450,16 +450,17 @@ var defaultRestrictedSecurityContext = &corev1.SecurityContext{
 }
 
 func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityContext, error) {
-	securityContext := corev1.SecurityContext{}
 	confKey := "admission_controller.auto_instrumentation.init_security_context"
-
 	if datadogConfig.IsSet(confKey) {
 		confValue := datadogConfig.GetString(confKey)
+		var securityContext corev1.SecurityContext
 		err := json.Unmarshal([]byte(confValue), &securityContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get init security context from configuration, %s=`%s`: %v", confKey, confValue, err)
 		}
+
+		return &securityContext, nil
 	}
 
-	return &securityContext, nil
+	return nil, nil
 }

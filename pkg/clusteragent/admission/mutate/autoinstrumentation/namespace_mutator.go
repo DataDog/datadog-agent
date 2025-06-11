@@ -256,7 +256,7 @@ func (m *mutatorCore) newInitContainerMutators(
 	nsName string,
 ) containerMutators {
 	securityContext := m.config.initSecurityContext
-	if securityContext != nil {
+	if securityContext == nil {
 		nsLabels, err := getNamespaceLabels(m.wmeta, nsName)
 		if err != nil {
 			log.Warnf("error getting labels for namespace=%s: %s", nsName, err)
@@ -266,10 +266,15 @@ func (m *mutatorCore) newInitContainerMutators(
 		}
 	}
 
-	return containerMutators{
+	mutators := []containerMutator{
 		containerResourceRequirements{requirements},
-		containerSecurityContext{securityContext},
 	}
+
+	if securityContext != nil {
+		mutators = append(mutators, containerSecurityContext{securityContext})
+	}
+
+	return mutators
 }
 
 // newInjector creates an injector instance for this pod.
