@@ -225,10 +225,10 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 							Tags:     []string{"test"},
 							Language: "go",
 						},
-					},
-					Template: "test log message",
-					Segments: []json.RawMessage{
-						json.RawMessage("test log message"),
+						Template: "test log message",
+						Segments: []json.RawMessage{
+							json.RawMessage("test log message"),
+						},
 					},
 				}
 				probes = append(probes, probe)
@@ -266,7 +266,6 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 
 								Language: "go",
 							},
-							CaptureSnapshot: true,
 						},
 					}
 					probes = append(probes, probe)

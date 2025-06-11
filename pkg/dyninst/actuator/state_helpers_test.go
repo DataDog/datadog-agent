@@ -120,7 +120,6 @@ func TestDeepCopyState(t *testing.T) {
 				Tags:       []string{"test-tag"},
 				EvaluateAt: "test-evaluate-at",
 			},
-			CaptureSnapshot: true,
 		},
 	}
 	s.programIDAlloc = 5

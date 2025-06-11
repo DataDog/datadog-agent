@@ -8,6 +8,8 @@ Probes:
         maxReferenceDepth: 3
         maxFieldCount: 0
         maxCollectionSize: 0
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
@@ -23,6 +25,8 @@ Probes:
         maxReferenceDepth: 5
         maxFieldCount: 0
         maxCollectionSize: 0
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 3}
       events:
@@ -34,6 +38,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.bigMapArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 12}
       events:
@@ -46,6 +52,8 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.inlined}
       sampling: {snapshotsPerSecond: 2}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
@@ -61,6 +69,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.intArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 4}
       events:
@@ -72,6 +82,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.intArrayArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 7}
       events:
@@ -83,6 +95,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArrayArgFrameless}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 10}
       events:
@@ -94,6 +108,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.intSliceArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 6}
       events:
@@ -105,6 +121,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.mapArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 11}
       events:
@@ -116,6 +134,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 5}
       events:
@@ -127,6 +147,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArrayArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 9}
       events:
@@ -138,6 +160,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringSliceArg}
+      template: ""
+      segments: []
       captureSnapshot: true
       subprogram: {subprogram: 8}
       events:
