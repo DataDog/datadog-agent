@@ -14,6 +14,7 @@
 #include "sock.h"
 #include "sockfd.h"
 #include "pid_tgid.h"
+#include "protocols/tls/native-tls.h"
 
 SEC("kprobe/tcp_close")
 int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
@@ -35,16 +36,7 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
         bpf_map_delete_elem(&pid_fd_by_tuple, &t);
     }
 
-    void **ssl_ctx_ptr = bpf_map_lookup_elem(&ssl_ctx_by_tuple, &t);
-    if (ssl_ctx_ptr) {
-        void *ssl_ctx = *ssl_ctx_ptr;
-        // Delete from tuple -> ctx map first
-        bpf_map_delete_elem(&ssl_ctx_by_tuple, &t);
-        // Then delete from original ctx -> sock_t map
-        if (ssl_ctx) {
-            bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
-        }
-    }
+    ssl_tcp_close_cleanup(&t);
 
     // The cleanup of the map happens either during TCP termination or during the TLS shutdown event.
     // TCP termination is managed by the socket filter, thus it cannot clean TLS entries,
