@@ -326,7 +326,7 @@ func RemoveProbeFDMapping(probeID uint32) {
 	mappingLock.Lock()
 	defer mappingLock.Unlock()
 
-	delete(probeIDToFDMappings, probeID)
+	delete(probeIDToFDMappings, ebpf.ProgramID(probeID))
 }
 
 // ResetAllMappings removes all mappings. This is useful in tests to reset state
