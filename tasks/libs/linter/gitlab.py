@@ -22,7 +22,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     test_gitlab_configuration,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.utils import gitlab_section
+from tasks.libs.common.utils import gitlab_section, running_in_ci
 from tasks.libs.linter.gitlab_exceptions import (
     FailureLevel,
     GitlabLintFailure,
@@ -152,6 +152,12 @@ def shellcheck_gitlab_ci_jobs(
     Note:
         Will raise an Exit if any errors are found.
     """
+    # TODO[@agent-devx]: Remove this once we have shellcheck in CI
+    if running_in_ci():
+        # Shellcheck is not installed in the CI environment, so we skip it
+        print(f'[{color_message("INFO", Color.BLUE)}] Skipping shellcheck in CI environment')
+        return
+
     scripts = {}
     for job, content in jobs:
         # Skip jobs that are not executed
