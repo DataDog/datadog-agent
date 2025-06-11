@@ -135,6 +135,8 @@ func TestStopWaits(t *testing.T) {
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Obfuscation.Cache.Enabled = true
 	cfg.Obfuscation.Cache.MaxSize = 1_000
+	cfg.ReceiverPort = 0
+	cfg.ReceiverSocket = t.TempDir() + "/trace-agent-test.sock"
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	fmt.Println("New TestAgent started")
