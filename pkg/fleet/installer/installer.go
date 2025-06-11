@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -280,7 +281,14 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if !shouldInstallPredicate(dbPkg, pkg) {
 		return nil
 	}
-	err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, false)
+	upgrade := !errors.Is(err, db.ErrPackageNotFound) && dbPkg.Version != pkg.Version
+	if upgrade {
+		err = i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, true)
+		if err != nil {
+			return fmt.Errorf("could not prepare package: %w", err)
+		}
+	}
+	err = i.hooks.PreInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade)
 	if err != nil {
 		return fmt.Errorf("could not prepare package: %w", err)
 	}
@@ -314,7 +322,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not configure package: %w", err)
 	}
-	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, false, args)
+	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
@@ -516,12 +524,12 @@ func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string,
 		)
 	}
 
-	switch runtime.GOOS {
-	case "windows":
-		return nil // TODO: start config experiment for Windows
-	default:
-		return i.hooks.PostStartExperiment(ctx, pkg)
+	// HACK: close so package can be updated as watchdog runs
+	if pkg == packageDatadogAgent && runtime.GOOS == "windows" {
+		i.db.Close()
 	}
+
+	return i.hooks.PostStartConfigExperiment(ctx, pkg)
 }
 
 // RemoveConfigExperiment removes an experiment.
@@ -529,11 +537,20 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	err := i.hooks.PreStopExperiment(ctx, pkg)
+	repository := i.configs.Get(pkg)
+	state, err := repository.GetState()
+	if err != nil {
+		return fmt.Errorf("could not get repository state: %w", err)
+	}
+	if !state.HasExperiment() {
+		// Return early
+		return nil
+	}
+
+	err = i.hooks.PreStopConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	repository := i.configs.Get(pkg)
 	err = repository.DeleteExperiment(ctx)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -561,7 +578,7 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	if err != nil {
 		log.Warnf("could not write user-facing config symlinks: %v", err)
 	}
-	return i.hooks.PostPromoteExperiment(ctx, pkg)
+	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
 
 // Purge removes all packages.
@@ -752,10 +769,6 @@ func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err er
 func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
 	defer func() { span.Finish(err) }()
-	// TODO: Windows support
-	if runtime.GOOS == "windows" {
-		return nil
-	}
 	state, err := i.configs.GetState(pkg)
 	if err != nil {
 		return fmt.Errorf("could not get config repository state: %w", err)
@@ -800,6 +813,12 @@ func configNameAllowed(file string) bool {
 	return false
 }
 
+func cleanConfigName(p string) string {
+	// intentionally not using filepath.Clean so that the
+	// path maintains forward slashes on Windows
+	return path.Clean(p)
+}
+
 type configFile struct {
 	Path     string          `json:"path"`
 	Contents json.RawMessage `json:"contents"`
@@ -812,7 +831,7 @@ func (i *installerImpl) writeConfig(dir string, rawConfig []byte) error {
 		return fmt.Errorf("could not unmarshal config files: %w", err)
 	}
 	for _, file := range files {
-		file.Path = filepath.Clean(file.Path)
+		file.Path = cleanConfigName(file.Path)
 		if !configNameAllowed(file.Path) {
 			return fmt.Errorf("config file %s is not allowed", file)
 		}

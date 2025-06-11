@@ -168,10 +168,15 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (map[string][]APIKeys, error)
 	return mergeAdditionalEndpoints(keysPerDomain, additionalEndpoints)
 }
 
-// BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix
+var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|ddog-gov\.com$`)
+
+// BuildURLWithPrefix will return an HTTP(s) URL for a site given a certain prefix.
+// If the site is a datadog well-known one, it is suffixed with a dot to make it a FQDN.
+// Using FQDN will prevent useless DNS queries built with the search domains of `/etc/resolv.conf`.
+// https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 func BuildURLWithPrefix(prefix, site string) string {
 	site = strings.TrimSpace(site)
-	if !strings.HasSuffix(site, ".") {
+	if wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}
 	return prefix + site
@@ -244,7 +249,7 @@ func GetMRFInfraEndpoint(c pkgconfigmodel.Reader) (string, error) {
 
 // ddURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed with the Agent
 // version (see AddAgentVersionToDomain).
-var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+var ddURLRegexp = regexp.MustCompile(`^app(\.mrf)?(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)(\.)?$`)
 
 // getDomainPrefix provides the right prefix for agent X.Y.Z
 func getDomainPrefix(app string) string {

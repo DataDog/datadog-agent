@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io"
 	"math/bits"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -457,9 +456,6 @@ func TestProcessContext(t *testing.T) {
 	test.Run(t, "args-overflow-list-50", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
-		// force seed to have something we can reproduce
-		rand.Seed(1)
-
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
 		for i := 0; i != nArgs; i++ {
@@ -506,9 +502,6 @@ func TestProcessContext(t *testing.T) {
 
 	test.Run(t, "args-overflow-list-500", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
-
-		// force seed to have something we can reproduce
-		rand.Seed(1)
 
 		// number of args overflow
 		nArgs, args := 1024, []string{"-al"}
@@ -612,9 +605,6 @@ func TestProcessContext(t *testing.T) {
 	test.Run(t, "envs-overflow-list-50", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
 
-		// force seed to have something we can reproduce
-		rand.Seed(1)
-
 		// number of envs overflow
 		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}
 		var buf bytes.Buffer
@@ -671,9 +661,6 @@ func TestProcessContext(t *testing.T) {
 
 	test.Run(t, "envs-overflow-list-500", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"-al"}
-
-		// force seed to have something we can reproduce
-		rand.Seed(1)
 
 		// number of envs overflow
 		nEnvs, envs := 1024, []string{"LD_LIBRARY_PATH=/tmp/lib"}

@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"runtime"
 	"slices"
 	"strings"
@@ -106,12 +107,16 @@ func (p *pendingMsg) toJSON() ([]byte, error) {
 		return nil, err
 	}
 
-	return mergeJSON(backendEventJSON, eventJSON), nil
+	return mergeJSON(backendEventJSON, eventJSON)
 }
 
-func mergeJSON(j1, j2 []byte) []byte {
+func mergeJSON(j1, j2 []byte) ([]byte, error) {
+	if len(j1) == 0 || len(j2) == 0 {
+		return nil, errors.New("malformed json")
+	}
+
 	data := append(j1[:len(j1)-1], ',')
-	return append(data, j2[1:]...)
+	return append(data, j2[1:]...), nil
 }
 
 // APIServer represents a gRPC server in charge of receiving events sent by
@@ -135,6 +140,7 @@ type APIServer struct {
 	policiesStatus     []*api.PolicyStatus
 	msgSender          MsgSender
 	connEstablished    *atomic.Bool
+	envAsTags          []string
 
 	// os release data
 	kernelVersion string
@@ -378,6 +384,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 	tags = append(tags, rule.Tags...)
 	tags = append(tags, eventTags...)
 	tags = append(tags, common.QueryAccountIDTag())
+	tags = append(tags, a.envAsTags...)
 
 	// model event or custom event ? if model event use queuing so that tags and actions can be handled
 	if ev, ok := event.(*model.Event); ok {
@@ -419,12 +426,16 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 			}
 		} else {
 			if eventJSON, err = json.Marshal(event); err != nil {
-				seclog.Errorf("failed to marshal event: %v", err)
+				seclog.Errorf("failed to marshal event: %v : %+v", err, event)
 				return
 			}
 		}
 
-		data := mergeJSON(backendEventJSON, eventJSON)
+		data, err := mergeJSON(backendEventJSON, eventJSON)
+		if err != nil {
+			seclog.Errorf("failed to merge event json: %v", err)
+			return
+		}
 
 		seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", ruleID, string(data))
 
@@ -505,7 +516,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 }
 
 // GetRuleSetReport reports the ruleset loaded
-func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportResultMessage, error) {
+func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportParams) (*api.GetRuleSetReportMessage, error) {
 	if a.cwsConsumer == nil || a.cwsConsumer.ruleEngine == nil {
 		return nil, errors.New("no rule engine")
 	}
@@ -522,13 +533,13 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 		PIDCacheSize:        a.probe.Config.Probe.PIDCacheSize,
 	}
 
-	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	report, err := kfilters.ComputeFilters(cfg, ruleSet)
 	if err != nil {
 		return nil, err
 	}
 
-	return &api.GetRuleSetReportResultMessage{
-		RuleSetReportMessage: api.FromKFiltersToProtoRuleSetReport(report),
+	return &api.GetRuleSetReportMessage{
+		RuleSetReportMessage: api.FromFilterReportToProtoRuleSetReportMessage(report),
 	}, nil
 }
 
@@ -597,6 +608,18 @@ func (a *APIServer) getGlobalTags() []string {
 	return globalTags
 }
 
+func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
+	tags := []string{}
+
+	for _, env := range cfg.EnvAsTags {
+		value := os.Getenv(env)
+		if value != "" {
+			tags = append(tags, fmt.Sprintf("%s:%s", env, value))
+		}
+	}
+	return tags
+}
+
 // NewAPIServer returns a new gRPC event server
 func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender, client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
@@ -615,6 +638,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		stopChan:        make(chan struct{}),
 		msgSender:       msgSender,
 		connEstablished: atomic.NewBool(false),
+		envAsTags:       getEnvAsTags(cfg),
 	}
 
 	as.collectOSReleaseData()

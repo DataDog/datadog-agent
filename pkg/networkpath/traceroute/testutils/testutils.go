@@ -148,8 +148,9 @@ func CreateMockTCPPacket(ipHeader *ipv4.Header, tcpLayer *layers.TCP, includeHea
 }
 
 // CreateMockIPv4Layer creates a mock IPv4 layer for testing
-func CreateMockIPv4Layer(srcIP, dstIP net.IP, protocol layers.IPProtocol) *layers.IPv4 {
+func CreateMockIPv4Layer(packetID uint16, srcIP, dstIP net.IP, protocol layers.IPProtocol) *layers.IPv4 {
 	return &layers.IPv4{
+		Id:       packetID,
 		SrcIP:    srcIP,
 		DstIP:    dstIP,
 		Version:  4,

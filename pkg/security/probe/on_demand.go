@@ -74,7 +74,11 @@ func (sm *OnDemandProbesManager) getHookNameFromID(id int) string {
 		return ""
 	}
 
-	return sm.hookPoints[id].Name
+	hookPoint := sm.hookPoints[id]
+	if hookPoint.IsSyscall {
+		return "syscall:" + hookPoint.Name
+	}
+	return hookPoint.Name
 }
 
 func (sm *OnDemandProbesManager) updateProbes() {

@@ -138,6 +138,30 @@ func (h *testHooks) PostPromoteExperiment(ctx context.Context, pkg string) error
 	return nil
 }
 
+func (h *testHooks) PostStartConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PreStopConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
+func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg)
+	return nil
+}
+
 func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 	return os.DirFS(filepath.Join(i.userConfigsDir, f.Package))
 }
@@ -160,6 +184,31 @@ func TestInstallStable(t *testing.T) {
 		assert.False(t, state.HasExperiment())
 		fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 		fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV1), installer.ConfigFS(fixtures.FixtureSimpleV1))
+	})
+}
+
+func TestInstallUpgrade(t *testing.T) {
+	doTestInstallers(t, func(instFactory installFnFactory, t *testing.T) {
+		s := fixtures.NewServer(t)
+		installer := newTestPackageManager(t, s, t.TempDir())
+		defer installer.db.Close()
+
+		preInstallCall := installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false).Return(nil)
+		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, false, mock.Anything).Return(nil).NotBefore(preInstallCall)
+
+		err := instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
+		assert.NoError(t, err)
+
+		preRemoveCall := installer.testHooks.On("PreRemove", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil)
+		preInstallCall = installer.testHooks.On("PreInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true).Return(nil).NotBefore(preRemoveCall)
+		installer.testHooks.On("PostInstall", testCtx, fixtures.FixtureSimpleV1.Package, packages.PackageTypeOCI, true, mock.Anything).Return(nil).NotBefore(preInstallCall)
+
+		err = instFactory(installer)(testCtx, s.PackageURL(fixtures.FixtureSimpleV2), nil)
+		assert.NoError(t, err)
+		r := installer.packages.Get(fixtures.FixtureSimpleV1.Package)
+		state, err := r.GetState()
+		assert.NoError(t, err)
+		assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
 	})
 }
 
@@ -469,4 +518,16 @@ func TestWriteConfigSymlinks(t *testing.T) {
 	assert.FileExists(t, filepath.Join(userDir, "datadog.yaml"))
 	assert.NoFileExists(t, filepath.Join(userDir, "datadog.yaml.override"))
 	assert.NoFileExists(t, filepath.Join(userDir, "conf.d.override"))
+}
+
+func TestConfigNames(t *testing.T) {
+	// test that the config name is allowed after cleaning
+	// e.g. b/c filepath.Clean on Windows will convert forward slashes to backslashes
+	t.Run("allowed-after-clean", func(t *testing.T) {
+		for _, f := range allowedConfigFiles {
+			cleaned := cleanConfigName(f)
+			assert.Equal(t, cleaned, f)
+			assert.True(t, configNameAllowed(cleaned), "config name %s should be allowed", cleaned)
+		}
+	})
 }

@@ -52,6 +52,11 @@ func NewFakeEvent() *Event {
 	}
 }
 
+// ResolveProcessCacheEntryFromPID stub implementation
+func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	return GetPlaceholderProcessCacheEntry(pid, pid, false)
+}
+
 // Event represents an event sent from the kernel
 // genaccessors
 // gengetter: GetContainerCreatedAt
@@ -112,9 +117,10 @@ type Event struct {
 	LoginUIDWrite LoginUIDWriteEvent `field:"-"`
 
 	// network syscalls
-	Bind    BindEvent    `field:"bind" event:"bind"`       // [7.37] [Network] A bind was executed
-	Connect ConnectEvent `field:"connect" event:"connect"` // [7.60] [Network] A connect was executed
-	Accept  AcceptEvent  `field:"accept" event:"accept"`   // [7.63] [Network] An accept was executed
+	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed
+	Connect    ConnectEvent    `field:"connect" event:"connect"`       // [7.60] [Network] A connect was executed
+	Accept     AcceptEvent     `field:"accept" event:"accept"`         // [7.63] [Network] An accept was executed
+	SetSockOpt SetSockOptEvent `field:"setsockopt" event:"setsockopt"` // [7.68] [Network] A setsockopt was executed
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -125,6 +131,7 @@ type Event struct {
 	LoadModule   LoadModuleEvent   `field:"load_module" event:"load_module"`     // [7.35] [Kernel] A new kernel module was loaded
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 	SysCtl       SysCtlEvent       `field:"sysctl" event:"sysctl"`               // [7.65] [Kernel] A sysctl parameter was read or modified
+	CgroupWrite  CgroupWriteEvent  `field:"cgroup_write" event:"cgroup_write"`   // [7.68] [Kernel] A process migrated another process to a cgroup
 
 	// network events
 	DNS                DNSEvent                `field:"dns" event:"dns"`                                   // [7.36] [Network] A DNS request was sent
@@ -141,7 +148,6 @@ type Event struct {
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
 	CgroupTracing    CgroupTracingEvent    `field:"-"`
-	CgroupWrite      CgroupWriteEvent      `field:"-"`
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
@@ -191,6 +197,11 @@ func (cg *CGroupContext) IsContainer() bool {
 // Hash returns a unique key for the entity
 func (cg *CGroupContext) Hash() string {
 	return string(cg.CGroupID)
+}
+
+// ParentScope returns the parent entity scope
+func (cg *CGroupContext) ParentScope() (eval.VariableScope, bool) {
+	return nil, false
 }
 
 // SyscallEvent contains common fields for all the event
@@ -387,6 +398,11 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() string {
 	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
+}
+
+// ParentScope returns the parent entity scope
+func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
+	return pc.Ancestor, pc.Ancestor != nil
 }
 
 // ExecEvent represents a exec event
@@ -735,8 +751,8 @@ type CgroupTracingEvent struct {
 
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
-	File        FileEvent `field:"file"` // Path to the cgroup
-	Pid         uint32    `field:"-"`    // PID of the process added to the cgroup
+	File        FileEvent `field:"file"` // File pointing to the cgroup
+	Pid         uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
 	CGroupFlags uint32    `field:"-"`    // CGroup flags
 }
 
@@ -772,19 +788,19 @@ type BindEvent struct {
 type ConnectEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`          // Connection address
-	Hostnames  []string      `field:"addr.hostname"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
-	AddrFamily uint16        `field:"addr.family"`   // SECLDoc[addr.family] Definition:`Address family`
-	Protocol   uint16        `field:"protocol"`      // SECLDoc[protocol] Definition:`Socket Protocol`
+	Addr       IPPortContext `field:"addr"`                                                       // Connection address
+	Hostnames  []string      `field:"addr.hostname,handler:ResolveConnectHostnames,opts:skip_ad"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`                                                // SECLDoc[addr.family] Definition:`Address family`
+	Protocol   uint16        `field:"protocol"`                                                   // SECLDoc[protocol] Definition:`Socket Protocol`
 }
 
 // AcceptEvent represents an accept event
 type AcceptEvent struct {
 	SyscallEvent
 
-	Addr       IPPortContext `field:"addr"`          // Connection address
-	Hostnames  []string      `field:"addr.hostname"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
-	AddrFamily uint16        `field:"addr.family"`   // SECLDoc[addr.family] Definition:`Address family`
+	Addr       IPPortContext `field:"addr"`                                                      // Connection address
+	Hostnames  []string      `field:"addr.hostname,handler:ResolveAcceptHostnames,opts:skip_ad"` // SECLDoc[addr.hostname] Definition:`Address hostname (if available)`
+	AddrFamily uint16        `field:"addr.family"`                                               // SECLDoc[addr.family] Definition:`Address family`
 }
 
 // NetDevice represents a network device
@@ -824,19 +840,29 @@ type PathKey struct {
 	PathID  uint32 `field:"-"`
 }
 
+// OnDemandPerArgSize is the size of each argument in Data in the on-demand event
+const OnDemandPerArgSize = 64
+
+// OnDemandParsedArgsCount is the number of parsed arguments in the on-demand event
+const OnDemandParsedArgsCount = 6
+
 // OnDemandEvent identifies an on-demand event generated from on-demand probes
 type OnDemandEvent struct {
-	ID       uint32    `field:"-"`
-	Name     string    `field:"name,handler:ResolveOnDemandName"`
-	Data     [256]byte `field:"-"`
-	Arg1Str  string    `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
-	Arg1Uint uint64    `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
-	Arg2Str  string    `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
-	Arg2Uint uint64    `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
-	Arg3Str  string    `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
-	Arg3Uint uint64    `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
-	Arg4Str  string    `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
-	Arg4Uint uint64    `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+	ID       uint32                                             `field:"-"`
+	Name     string                                             `field:"name,handler:ResolveOnDemandName" op_override:"OnDemandNameOverrides"`
+	Data     [OnDemandParsedArgsCount * OnDemandPerArgSize]byte `field:"-"`
+	Arg1Str  string                                             `field:"arg1.str,handler:ResolveOnDemandArg1Str"`
+	Arg1Uint uint64                                             `field:"arg1.uint,handler:ResolveOnDemandArg1Uint"`
+	Arg2Str  string                                             `field:"arg2.str,handler:ResolveOnDemandArg2Str"`
+	Arg2Uint uint64                                             `field:"arg2.uint,handler:ResolveOnDemandArg2Uint"`
+	Arg3Str  string                                             `field:"arg3.str,handler:ResolveOnDemandArg3Str"`
+	Arg3Uint uint64                                             `field:"arg3.uint,handler:ResolveOnDemandArg3Uint"`
+	Arg4Str  string                                             `field:"arg4.str,handler:ResolveOnDemandArg4Str"`
+	Arg4Uint uint64                                             `field:"arg4.uint,handler:ResolveOnDemandArg4Uint"`
+	Arg5Str  string                                             `field:"arg5.str,handler:ResolveOnDemandArg5Str"`
+	Arg5Uint uint64                                             `field:"arg5.uint,handler:ResolveOnDemandArg5Uint"`
+	Arg6Str  string                                             `field:"arg6.str,handler:ResolveOnDemandArg6Str"`
+	Arg6Uint uint64                                             `field:"arg6.uint,handler:ResolveOnDemandArg6Uint"`
 }
 
 // LoginUIDWriteEvent is used to propagate login UID updates to user space
@@ -966,4 +992,11 @@ type SysCtlEvent struct {
 	OldValueTruncated bool   `field:"old_value_truncated"` // SECLDoc[old_value_truncated] Definition:`Indicates that the old value field is truncated`
 	Value             string `field:"value"`               // SECLDoc[value] Definition:`New and/or current value for the system control parameter depending on the action type`
 	ValueTruncated    bool   `field:"value_truncated"`     // SECLDoc[value_truncated] Definition:`Indicates that the value field is truncated`
+}
+
+// SetSockOptEvent represents a set socket option event
+type SetSockOptEvent struct {
+	SyscallEvent
+	Level   uint32 `field:"level"`   // SECLDoc[level] Definition:`Socket level`
+	OptName uint32 `field:"optname"` // SECLDoc[optname] Definition:`Socket option name`
 }

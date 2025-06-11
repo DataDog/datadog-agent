@@ -8,7 +8,6 @@ package rules
 
 import (
 	"context"
-	json "encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -356,10 +355,11 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-	report, err := e.probe.ApplyRuleSet(rs)
+	filterReport, err := e.probe.ApplyRuleSet(rs)
 	if err != nil {
 		return err
 	}
+	seclog.Debugf("Filter Report: %s", filterReport)
 
 	e.currentRuleSet.Store(rs)
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
@@ -371,9 +371,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	// reset the probe process killer state once the new ruleset is loaded
 	e.probe.OnNewRuleSetLoaded(rs)
 
-	content, _ := json.Marshal(report)
-	seclog.Debugf("Policy report: %s", content)
-
 	// set the rate limiters on sending events to the backend
 	e.rateLimiter.Apply(rs, events.AllCustomRuleIDs())
 
@@ -384,7 +381,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, policies)
+		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, rs, policies, filterReport)
 		e.policyMonitor.SetPolicies(policies)
 	}
 

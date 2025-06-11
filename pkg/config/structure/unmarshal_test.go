@@ -108,7 +108,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30 file} of *nodetreemodel.leafNodeImpl`)
+	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30`)
 
 	confYaml = `
 user:
@@ -128,7 +128,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher] file} of *nodetreemodel.leafNodeImpl`)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher]`)
 
 	confYaml = `
 user:
@@ -136,7 +136,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30 file} of *nodetreemodel.leafNodeImpl`)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30`)
 
 }
 
@@ -1481,4 +1481,34 @@ func TestMapGetChildNotFound(t *testing.T) {
 	inner, ok := n.(nodetreemodel.InnerNode)
 	assert.True(t, ok)
 	assert.Equal(t, inner.ChildrenKeys(), []string{"a", "b"})
+}
+
+func TestUnmarshalKeyWithPointerToBool(t *testing.T) {
+	confYaml := `
+feature_flags:
+  enabled: true
+  disabled: false
+  missing: false
+`
+
+	type FeatureFlags struct {
+		Enabled  *bool `yaml:"enabled"`
+		Disabled *bool `yaml:"disabled"`
+		Missing  *bool `yaml:"missing"`
+	}
+
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("feature_flags")
+
+	flags := FeatureFlags{}
+
+	err := UnmarshalKey(mockConfig, "feature_flags", &flags)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, flags.Enabled)
+	assert.NotNil(t, flags.Disabled)
+	assert.NotNil(t, flags.Missing)
+	assert.Equal(t, true, *flags.Enabled)
+	assert.Equal(t, false, *flags.Disabled)
+	assert.Equal(t, false, *flags.Missing)
 }

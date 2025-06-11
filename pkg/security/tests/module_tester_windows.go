@@ -126,7 +126,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if err != nil {
 		return nil, err
 	}
-	if _, err = setTestPolicy(commonCfgDir, nil, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 	statsdClient := statsdclient.NewStatsdClient()

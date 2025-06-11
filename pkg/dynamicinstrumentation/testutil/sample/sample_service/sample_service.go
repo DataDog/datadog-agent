@@ -14,7 +14,7 @@ import (
 	"os/signal"
 	"time"
 
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/testutil/sample"
 )
@@ -38,8 +38,12 @@ func main() {
 			ddAgentHost = "localhost"
 		}
 		// Start the tracer and defer the Stop method.
-		tracer.Start(tracer.WithAgentAddr(net.JoinHostPort(ddAgentHost, "8126")),
+		err := tracer.Start(tracer.WithAgentAddr(net.JoinHostPort(ddAgentHost, "8126")),
 			tracer.WithDebugMode(true))
+		if err != nil {
+			log.Printf("error starting tracer: %s", err)
+		}
+		defer tracer.Stop()
 	}
 
 	ticker := time.NewTicker(time.Second / 2)

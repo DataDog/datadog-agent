@@ -25,7 +25,6 @@ dependency "libxml2"
 dependency "libxslt"
 dependency "libtool"
 dependency "libgcrypt"
-dependency "gnutls"
 dependency "openssl3"
 
 version("1.3.1") { source sha256: "10f48384d4fd1afc05fea545b74fbf7c152582f0a895c189f164d55270400c63" }
@@ -43,7 +42,6 @@ build do
 
   update_config_guess
   configure_options = [
-    "--enable-docs",
     "--disable-static",
     "--disable-pedantic",
   ]

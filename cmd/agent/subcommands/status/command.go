@@ -19,10 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -72,6 +74,7 @@ The --list flag can be used to list all available status sections.`,
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
@@ -110,16 +113,16 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
+func statusCmd(logger log.Component, _ sysprobeconfig.Component, cliParams *cliParams, client ipc.HTTPClient) error {
 	if cliParams.list {
-		return redactError(requestSections(config))
+		return redactError(requestSections(client))
 	}
 
 	if len(cliParams.args) < 1 {
-		return redactError(requestStatus(config, cliParams))
+		return redactError(requestStatus(cliParams, client))
 	}
 
-	return componentStatusCmd(logger, config, cliParams)
+	return componentStatusCmd(logger, cliParams, client)
 }
 
 func setIpcURL(cliParams *cliParams) url.Values {
@@ -158,7 +161,7 @@ func renderResponse(res []byte, cliParams *cliParams) error {
 	return nil
 }
 
-func requestStatus(config config.Component, cliParams *cliParams) error {
+func requestStatus(cliParams *cliParams, client ipc.HTTPClient) error {
 
 	if !cliParams.prettyPrintJSON && !cliParams.jsonStatus {
 		fmt.Printf("Getting the status from the agent.\n\n")
@@ -166,12 +169,12 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 
 	v := setIpcURL(cliParams)
 
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status")
+	endpoint, err := client.NewIPCEndpoint("/agent/status")
 	if err != nil {
 		return err
 	}
 
-	res, err := endpoint.DoGet(apiutil.WithValues(v))
+	res, err := endpoint.DoGet(ipchttp.WithValues(v))
 	if err != nil {
 		return err
 	}
@@ -185,23 +188,23 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	return nil
 }
 
-func componentStatusCmd(_ log.Component, config config.Component, cliParams *cliParams) error {
+func componentStatusCmd(_ log.Component, cliParams *cliParams, client ipc.HTTPClient) error {
 	if len(cliParams.args) > 1 {
 		return fmt.Errorf("only one section must be specified")
 	}
 
-	return redactError(componentStatus(config, cliParams, cliParams.args[0]))
+	return redactError(componentStatus(cliParams, cliParams.args[0], client))
 }
 
-func componentStatus(config config.Component, cliParams *cliParams, component string) error {
+func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClient) error {
 
 	v := setIpcURL(cliParams)
 
-	endpoint, err := apiutil.NewIPCEndpoint(config, fmt.Sprintf("/agent/%s/status", component))
+	endpoint, err := client.NewIPCEndpoint(fmt.Sprintf("/agent/%s/status", component))
 	if err != nil {
 		return err
 	}
-	res, err := endpoint.DoGet(apiutil.WithValues(v))
+	res, err := endpoint.DoGet(ipchttp.WithValues(v))
 	if err != nil {
 		return err
 	}
@@ -215,8 +218,8 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	return nil
 }
 
-func requestSections(config config.Component) error {
-	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status/sections")
+func requestSections(client ipc.HTTPClient) error {
+	endpoint, err := client.NewIPCEndpoint("/agent/status/sections")
 	if err != nil {
 		return err
 	}

@@ -1359,13 +1359,14 @@ func (e *SyscallsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *OnDemandEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 260 {
+	const eventSize = 4 + OnDemandParsedArgsCount*OnDemandPerArgSize
+	if len(data) < eventSize {
 		return 0, ErrNotEnoughData
 	}
 
 	e.ID = binary.NativeEndian.Uint32(data[0:4])
-	SliceToArray(data[4:260], e.Data[:])
-	return 260, nil
+	SliceToArray(data[4:eventSize], e.Data[:])
+	return eventSize, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
@@ -1503,4 +1504,20 @@ func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 	cursor += newValueLen
 
 	return cursor, nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Level = binary.NativeEndian.Uint32(data[0:4])
+	e.OptName = binary.NativeEndian.Uint32(data[4:8])
+	return 8 + read, nil
 }

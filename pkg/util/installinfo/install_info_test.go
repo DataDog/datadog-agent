@@ -290,3 +290,35 @@ install_method:
 		})
 	}
 }
+
+func TestScrubFromEnvVars(t *testing.T) {
+	t.Setenv("DD_INSTALL_INFO_TOOL", "./my_installer.sh --password=hunter2")
+	t.Setenv("DD_INSTALL_INFO_TOOL_VERSION", "2.5.0 password=hunter2")
+	t.Setenv("DD_INSTALL_INFO_INSTALLER_VERSION", "3.7.1 password=hunter2")
+
+	info, ok := getFromEnvVars()
+	assert.True(t, ok)
+
+	assert.Equal(t, "./my_installer.sh --password=********", info.Tool)
+	assert.Equal(t, "2.5.0 password=********", info.ToolVersion)
+	assert.Equal(t, "3.7.1 password=********", info.InstallerVersion)
+}
+
+func TestScrubFromPath(t *testing.T) {
+	installInfoYaml := `install_method:
+  tool: "./my_installer.sh --password=hunter2"
+  tool_version: "2.5.0 password=hunter2"
+  installer_version: "3.7.1 password=hunter2"
+`
+	f, err := os.CreateTemp("", "install-info.yaml")
+	require.NoError(t, err)
+	f.WriteString(installInfoYaml)
+	defer os.Remove(f.Name())
+
+	info, err := getFromPath(f.Name())
+	require.NoError(t, err)
+
+	assert.Equal(t, "./my_installer.sh --password=********", info.Tool)
+	assert.Equal(t, "2.5.0 password=********", info.ToolVersion)
+	assert.Equal(t, "3.7.1 password=********", info.InstallerVersion)
+}

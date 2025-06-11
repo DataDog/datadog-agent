@@ -40,13 +40,7 @@ type Payload struct {
 	UnencodedSize int
 }
 
-func NewPayload(messages []*Message, encoded []byte, encoding string, unencodedSize int) *Payload {
-	messageMetas := make([]*MessageMetadata, len(messages))
-	for i, m := range messages {
-		// Split the metadata from the message content to avoid holding the entire message in memory
-		meta := m.MessageMetadata
-		messageMetas[i] = &meta
-	}
+func NewPayload(messageMetas []*MessageMetadata, encoded []byte, encoding string, unencodedSize int) *Payload {
 	return &Payload{
 		MessageMetas:  messageMetas,
 		Encoded:       encoded,

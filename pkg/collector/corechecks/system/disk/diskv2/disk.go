@@ -9,22 +9,23 @@ package diskv2
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
+
+	"github.com/benbjohnson/clock"
+	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	yaml "gopkg.in/yaml.v2"
-
-	"regexp"
-
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/benbjohnson/clock"
-	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
 const (
@@ -154,6 +155,11 @@ func (c *Check) Run() error {
 
 // Configure parses the check configuration and init the check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+	if flavor.GetFlavor() == flavor.DefaultAgent && !pkgconfigsetup.Datadog().GetBool("disk_check.use_core_loader") && !pkgconfigsetup.Datadog().GetBool("use_diskv2_check") {
+		// if use_diskv2_check, then do not skip the core check
+		return fmt.Errorf("%w: disk core check is disabled", check.ErrSkipCheckInstance)
+	}
+
 	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
@@ -273,9 +279,29 @@ func processRegExpSlices(slices [][]string, ignoreCase bool) ([]regexp.Regexp, e
 	return regExpList, nil
 }
 
+func processRegExpSlicesWholeWord(slices [][]string, ignoreCase bool) ([]regexp.Regexp, error) {
+	regExpList := []regexp.Regexp{}
+	for _, slice := range slices {
+		for _, val := range slice {
+			expr := fmt.Sprintf("^%s$", val)
+			if re, err := compileRegExp(expr, ignoreCase); err == nil {
+				regExpList = append(regExpList, *re)
+			} else {
+				return regExpList, err
+			}
+		}
+	}
+	return regExpList, nil
+}
+
 func (c *Check) configureExcludeDevice() error {
 	c.excludedDevices = []regexp.Regexp{}
-	if regExpList, err := processRegExpSlices([][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist, c.instanceConfig.ExcludedDisks}, defaultIgnoreCase()); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist}, defaultIgnoreCase()); err == nil {
+		c.excludedDevices = append(c.excludedDevices, regExpList...)
+	} else {
+		return err
+	}
+	if regExpList, err := processRegExpSlicesWholeWord([][]string{c.instanceConfig.ExcludedDisks}, true); err == nil {
 		c.excludedDevices = append(c.excludedDevices, regExpList...)
 	} else {
 		return err
@@ -317,7 +343,12 @@ func (c *Check) configureExcludeFileSystem() error {
 			}
 		}
 	}
-	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist, c.instanceConfig.ExcludedFileSystems}, true); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist}, true); err == nil {
+		c.excludedFilesystems = append(c.excludedFilesystems, regExpList...)
+	} else {
+		return err
+	}
+	if regExpList, err := processRegExpSlicesWholeWord([][]string{c.instanceConfig.ExcludedFileSystems}, true); err == nil {
 		c.excludedFilesystems = append(c.excludedFilesystems, regExpList...)
 	} else {
 		return err

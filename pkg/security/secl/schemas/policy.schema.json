@@ -104,28 +104,6 @@
       "type": "object",
       "description": "HashDefinition describes the 'hash' section of a rule action"
     },
-    "HookPointArg": {
-      "properties": {
-        "n": {
-          "type": "integer",
-          "description": "Zero-based argument index"
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "uint",
-            "null-terminated-string"
-          ]
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "n",
-        "kind"
-      ],
-      "description": "HookPointArg represents the definition of a hook point argument"
-    },
     "KillDefinition": {
       "properties": {
         "signal": {
@@ -230,28 +208,6 @@
         "id"
       ],
       "description": "MacroDefinition holds the definition of a macro"
-    },
-    "OnDemandHookPoint": {
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "syscall": {
-          "type": "boolean"
-        },
-        "args": {
-          "items": {
-            "$ref": "#/$defs/HookPointArg"
-          },
-          "type": "array"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "name"
-      ],
-      "description": "OnDemandHookPoint represents a hook point definition"
     },
     "OverrideOptions": {
       "properties": {
@@ -430,6 +386,9 @@
             "cgroup"
           ]
         },
+        "scope_field": {
+          "type": "string"
+        },
         "size": {
           "type": "integer"
         },
@@ -445,6 +404,12 @@
               "description": "Duration in nanoseconds"
             }
           ]
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "inherited": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -468,12 +433,6 @@
     "rules": {
       "items": {
         "$ref": "#/$defs/RuleDefinition"
-      },
-      "type": "array"
-    },
-    "hooks": {
-      "items": {
-        "$ref": "#/$defs/OnDemandHookPoint"
       },
       "type": "array"
     }

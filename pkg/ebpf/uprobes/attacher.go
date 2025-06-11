@@ -823,9 +823,9 @@ func parseSymbolFromEBPFProbeName(probeName string) (symbol string, isManualRetu
 // callback.
 func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*AttachRule, procInfo *ProcInfo) error {
 	if ua.config.ExcludeTargets&ExcludeBuildkit != 0 && isBuildKit(procInfo) {
-		return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
+		return fmt.Errorf("%w: process %d is buildkitd, skipping", utils.ErrEnvironment, fpath.PID)
 	} else if ua.config.ExcludeTargets&ExcludeContainerdTmp != 0 && isContainerdTmpMount(fpath.HostPath) {
-		return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
+		return fmt.Errorf("%w: path %s from process %d is tempmount of containerd, skipping", utils.ErrEnvironment, fpath.HostPath, fpath.PID)
 	}
 
 	symbolsToRequest, err := ua.computeSymbolsToRequest(matchingRules)

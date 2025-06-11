@@ -7,19 +7,17 @@
 package agentimpl
 
 import (
-	"context"
 	"crypto/subtle"
 	"errors"
-	"fmt"
 	"net/http"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -61,6 +59,7 @@ type Requires struct {
 	Collector           option.Option[collector.Component]
 	RemoteAgentRegistry remoteagentregistry.Component
 	Telemetry           telemetry.Component
+	Hostname            hostnameinterface.Component
 }
 
 type server struct {
@@ -76,6 +75,7 @@ type server struct {
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
 	telemetry           telemetry.Component
+	hostname            hostnameinterface.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -94,7 +94,7 @@ func (s *server) BuildServer() http.Handler {
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
 	grpcServer := googleGrpc.NewServer(opts...)
-	pb.RegisterAgentServer(grpcServer, &agentServer{})
+	pb.RegisterAgentServer(grpcServer, &agentServer{hostname: s.hostname})
 	pb.RegisterAgentSecureServer(grpcServer, &serverSecure{
 		configService:    s.configService,
 		configServiceMRF: s.configServiceMRF,
@@ -111,25 +111,6 @@ func (s *server) BuildServer() http.Handler {
 	})
 
 	return grpcServer
-}
-
-func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
-	dopts := []googleGrpc.DialOption{googleGrpc.WithTransportCredentials(credentials.NewTLS(s.IPC.GetTLSClientConfig()))}
-	ctx := context.Background()
-	gwmux := runtime.NewServeMux()
-	err := pb.RegisterAgentHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	err = pb.RegisterAgentSecureHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent secure handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	return gwmux, nil
 }
 
 // Provides defines the output of the grpc component
@@ -153,6 +134,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			autodiscovery:       reqs.AutoConfig,
 			configComp:          reqs.Cfg,
 			telemetry:           reqs.Telemetry,
+			hostname:            reqs.Hostname,
 		},
 	}
 	return provides, nil

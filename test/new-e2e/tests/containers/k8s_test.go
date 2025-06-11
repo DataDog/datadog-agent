@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -43,6 +43,7 @@ const (
 	kubeDeploymentDogstatsdUDP              = "dogstatsd-udp"
 	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
 	kubeDeploymentDogstatsdUDPExternalData  = "dogstatsd-udp-external-data-only"
+	kubeDeploymentDogstatsdUDSWithCSI       = "dogstatsd-uds-with-csi"
 	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
 	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
@@ -498,11 +499,11 @@ func (suite *k8sSuite) TestNginx() {
 				`^container_id:`,
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
-				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
-				`^image_tag:main$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
@@ -584,11 +585,11 @@ func (suite *k8sSuite) TestNginx() {
 				`^dirname:/var/log/pods/workload-nginx_nginx-`,
 				`^display_container_name:nginx`,
 				`^filename:[[:digit:]]+.log$`,
-				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
-				`^image_id:ghcr.io/datadog/apps-nginx-server@sha256:`,
-				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
-				`^image_tag:main$`,
+				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
@@ -627,9 +628,11 @@ func (suite *k8sSuite) TestRedis() {
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^display_container_name:redis`,
-				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
-				`^image_name:public.ecr.aws/docker/library/redis$`,
-				fmt.Sprintf(`^image_tag:%s$`, redis.RedisVersion),
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+				`^image_id:ghcr\.io/datadog/redis@sha256:`,
+				`^image_name:ghcr\.io/datadog/redis$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
@@ -682,10 +685,12 @@ func (suite *k8sSuite) TestRedis() {
 				`^container_name:redis$`,
 				`^dirname:/var/log/pods/workload-redis_redis-`,
 				`^display_container_name:redis`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^filename:[[:digit:]]+.log$`,
-				`^image_id:public.ecr.aws/docker/library/redis@sha256:`,
-				`^image_name:public.ecr.aws/docker/library/redis$`,
-				fmt.Sprintf(`^image_tag:%s$`, redis.RedisVersion),
+				`^image_id:ghcr\.io/datadog/redis@sha256:`,
+				`^image_name:ghcr\.io/datadog/redis$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:redis$`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
@@ -723,10 +728,10 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
-				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
@@ -738,7 +743,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^runtime:containerd$`,
-				`^short_image:stress-ng$`,
+				`^short_image:apps-stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 155000000,
@@ -760,10 +765,10 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
-				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
@@ -775,7 +780,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
 				`^runtime:containerd$`,
-				`^short_image:stress-ng$`,
+				`^short_image:apps-stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 200000000,
@@ -797,11 +802,11 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
-				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -811,7 +816,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^short_image:stress-ng$`,
+				`^short_image:apps-stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 250000000,
@@ -833,11 +838,11 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_id:`,
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
-				`^image_name:ghcr.io/colinianking/stress-ng$`,
-				`^image_tag:409201de7458c639c68088d28ec8270ef599fe47$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:stress-ng$`,
 				`^kube_deployment:stress-ng$`,
 				`^kube_namespace:workload-cpustress$`,
@@ -847,7 +852,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
 				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
 				`^pod_phase:running$`,
-				`^short_image:stress-ng$`,
+				`^short_image:apps-stress-ng$`,
 			},
 			Value: &testMetricExpectValueArgs{
 				Max: 0.2,
@@ -937,6 +942,8 @@ func (suite *k8sSuite) TestDogstatsdInAgent() {
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
 	// Test with UDP + External Data
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPExternalData)
+	// Test with UDS + CSI Driver
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDSWithCSI)
 }
 
 func (suite *k8sSuite) TestDogstatsdStandalone() {
@@ -961,11 +968,11 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 				`^container_id:`,
 				`^container_name:dogstatsd$`,
 				`^display_container_name:dogstatsd`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
-				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
-				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
-				`^image_tag:main$`,
+				`^image_id:ghcr\.io/datadog/apps-dogstatsd@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:dogstatsd$`,
 				`^kube_deployment:` + regexp.QuoteMeta(kubeDeployment) + `$`,
 				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
@@ -998,11 +1005,11 @@ func (suite *k8sSuite) TestPrometheus() {
 				`^container_name:prometheus$`,
 				`^display_container_name:prometheus`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/datadog/apps-prometheus@sha256:`,
-				`^image_name:ghcr.io/datadog/apps-prometheus$`,
-				`^image_tag:main$`,
+				`^image_id:ghcr\.io/datadog/apps-prometheus@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-prometheus$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:prometheus$`,
 				`^kube_deployment:prometheus$`,
 				`^kube_namespace:workload-prometheus$`,
@@ -1039,11 +1046,11 @@ func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
 				`^container_name:prometheus$`,
 				`^display_container_name:prometheus`,
 				`^endpoint:http://.*:8080/metrics$`,
-				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
-				`^image_id:ghcr.io/datadog/apps-prometheus@sha256:`,
-				`^image_name:ghcr.io/datadog/apps-prometheus$`,
-				`^image_tag:main$`,
+				`^image_id:ghcr\.io/datadog/apps-prometheus@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-prometheus$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_container_name:prometheus$`,
 				`^kube_deployment:prometheus$`,
 				`^kube_namespace:workload-prometheus$`,
@@ -1275,11 +1282,11 @@ func (suite *k8sSuite) TestContainerImage() {
 
 		expectedTags := []*regexp.Regexp{
 			regexp.MustCompile(`^architecture:(amd|arm)64$`),
-			regexp.MustCompile(`^git\.commit\.sha:`),
+			regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
 			regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
 			regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
 			regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
-			regexp.MustCompile(`^image_tag:main$`),
+			regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 			regexp.MustCompile(`^os_name:linux$`),
 			regexp.MustCompile(`^short_image:apps-nginx-server$`),
 		}
@@ -1387,11 +1394,11 @@ func (suite *k8sSuite) TestSBOM() {
 
 			expectedTags := []*regexp.Regexp{
 				regexp.MustCompile(`^architecture:(amd|arm)64$`),
-				regexp.MustCompile(`^git\.commit\.sha:`),
+				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
 				regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
 				regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
 				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
-				regexp.MustCompile(`^image_tag:main$`),
+				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^os_name:linux$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
@@ -1403,7 +1410,7 @@ func (suite *k8sSuite) TestSBOM() {
 			})
 
 			if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
-				assert.Equal(c, "ghcr.io/datadog/apps-nginx-server:main", properties["aquasecurity:trivy:RepoTag"])
+				assert.Equal(c, "ghcr.io/datadog/apps-nginx-server:"+apps.Version, properties["aquasecurity:trivy:RepoTag"])
 			}
 
 			if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
@@ -1660,11 +1667,11 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				regexp.MustCompile(`^container_id:`),
 				regexp.MustCompile(`^container_name:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^display_container_name:` + kubeDeployment + `_` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
-				regexp.MustCompile(`^git.commit.sha:`),
+				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
 				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`),
 				regexp.MustCompile(`^image_id:`), // field is inconsistent. it can be a hash or an image + hash
-				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen$`),
-				regexp.MustCompile(`^image_tag:main$`),
+				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-tracegen$`),
+				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
 				regexp.MustCompile(`^kube_container_name:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^kube_deployment:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^kube_namespace:` + kubeNamespaceTracegenWorkload + `$`),

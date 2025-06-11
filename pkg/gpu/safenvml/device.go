@@ -81,6 +81,8 @@ type SafeDevice interface {
 	GetUUID() (string, error)
 	// GetUtilizationRates returns the utilization rates for the device
 	GetUtilizationRates() (nvml.Utilization, error)
+	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
+	IsMigDeviceHandle() (bool, error)
 }
 
 // DeviceInfo holds common cached properties for a GPU device

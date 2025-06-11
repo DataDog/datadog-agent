@@ -15,6 +15,7 @@ import (
 	metricsevent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 var (
@@ -133,7 +134,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, blocklist *blocklist) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, blocklist *utilstrings.Blocklist) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 
@@ -141,7 +142,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if blocklist != nil && blocklist.test(metricName) {
+	if blocklist != nil && blocklist.Test(metricName) {
 		return []metrics.MetricSample{}
 	}
 

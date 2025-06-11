@@ -618,7 +618,7 @@ func (s *testAgentUpgradeFromGASuite) createStableAgent() (*installerwindows.Age
 	previousOCI, err := installerwindows.NewPackageConfig(
 		installerwindows.WithName(consts.AgentPackage),
 		installerwindows.WithVersion(previousVersion),
-		installerwindows.WithRegistry("install.datad0g.com"),
+		installerwindows.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
