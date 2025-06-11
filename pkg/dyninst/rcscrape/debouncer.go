@@ -60,6 +60,9 @@ func (c *debouncer) addInFlight(
 	processID actuator.ProcessID,
 	file remoteConfigFile,
 ) {
+	if file.ConfigContent == "" {
+		return
+	}
 	p, ok := c.processes[processID]
 	if !ok {
 		// Update corresponds to an untracked process.

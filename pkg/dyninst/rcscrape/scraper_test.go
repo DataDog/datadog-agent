@@ -143,6 +143,7 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 		require.NoError(t, err)
 		rcsFiles[mkPath(t, probe.GetID())] = marshaled
 	}
+	rcsFiles[mkPath(t, "empty")] = []byte{}
 	rcHandler.UpdateRemoteConfig(rcsFiles)
 	waitForExpected(t, rcScraper, newUpdate)
 }
