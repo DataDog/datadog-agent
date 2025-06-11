@@ -119,7 +119,7 @@ repos:
     - id: gitlab-configuration
       name: gitlab-configuration
       description: Lint and test GitLab CI configuration files
-      entry: "dda inv linter.full-gitlab-ci -t main"
+      entry: "dda inv linter.full-gitlab-ci -t main --pre-push-linters --fail-fast"
       language: system
       require_serial: true
       files: .*gitlab.*\.yml$

@@ -259,6 +259,7 @@ def full_gitlab_ci(
     use_diff: bool = False,
     verbosity: int = 0,
     fail_fast: bool = False,
+    pre_push_linters: bool = False,
     *,
     test: str = "all",
     custom_context: str = "",
@@ -279,6 +280,7 @@ def full_gitlab_ci(
         use_diff: If True, will lint only the changed jobs, otherwise will lint the full gitlabci config file.
         verbosity: The verbosity level of the linter, 0 will print only errors, 1 for warnings, 2 for info and ignored failures.
         fail_fast: If True, will stop at the first linting failure.
+        pre_push_linters: If True, will run only the linters configured to run on pre-push, otherwise will run all linters.
         test: The context preset to test the gitlab ci with containing environment variables.
         custom_context: A custom context to test the gitlab ci config with.
         shellcheck_exclude: A comma separated list of shellcheck error codes to exclude.
@@ -310,7 +312,7 @@ def full_gitlab_ci(
             "jobowners": jobowners,
         }
 
-        to_run = ALL_GITLABCI_SUBLINTERS if running_in_ci() else PREPUSH_GITLABCI_SUBLINTERS
+        to_run = PREPUSH_GITLABCI_SUBLINTERS if pre_push_linters else ALL_GITLABCI_SUBLINTERS
         for sublinter in to_run:
             try:
                 sublinter(**all_args)

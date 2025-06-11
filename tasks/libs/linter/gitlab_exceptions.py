@@ -10,7 +10,6 @@ from tasks.libs.common.color import Color, color_message
 class FailureLevel(int, Enum):
     """Enum for different criticalities of gitlabci linting failures."""
 
-    CRITICAL = 3  # Something went wrong while linting
     ERROR = 2  # The linter found something wrong with the file being linted
     WARNING = 1  # Same as error, but this failure is accepted and should not fail anything
     IGNORED = -1  # The linter found something wrong, but it is ignored by the config
@@ -21,7 +20,6 @@ class FailureLevel(int, Enum):
 
 
 FAILURE_LEVEL_COLORS = {
-    FailureLevel.CRITICAL: Color.RED,
     FailureLevel.ERROR: Color.RED,
     FailureLevel.WARNING: Color.ORANGE,
     FailureLevel.IGNORED: Color.GREY,
@@ -41,7 +39,7 @@ class GitlabLintFailure(ABC, Exception):
     @property
     @abstractmethod
     def level(self) -> FailureLevel:
-        """The level of the failure, WARNING, ERROR, or CRITICAL."""
+        """The level of the failure, WARNING, ERROR, or IGNORED."""
 
     def override_level(self, level: FailureLevel) -> None:
         """Override the level of the failure."""
@@ -119,10 +117,8 @@ class MultiGitlabLintFailure(GitlabLintFailure):
     def pretty_print(self, min_level: FailureLevel = FailureLevel.IGNORED) -> str:
         """Outputs a nice string detailing the failure, meant for CLI output."""
         level_out = self.level.pretty_print()
-        if len(self.entry_points) > 1:
+        if len(self.entry_points) >= 1:
             entry_point = ", ".join(self.entry_points)
-        elif len(self.entry_points) == 1:
-            entry_point = next(iter(self.entry_points))
         else:
             entry_point = "global"
         entry_point = color_message(entry_point, Color.BOLD)
