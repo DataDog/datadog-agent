@@ -13,19 +13,26 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	collectorID   = "process-collector"
-	componentName = "workloadmeta-process"
+	collectorID       = "process-collector"
+	componentName     = "workloadmeta-process"
+	cacheValidityNoRT = 2 * time.Second
 )
 
 type collector struct {
@@ -34,8 +41,11 @@ type collector struct {
 	catalog                workloadmeta.AgentType
 	clock                  clock.Clock
 	processProbe           procutil.Probe
+	config                 pkgconfigmodel.Reader
+	systemProbeConfig      pkgconfigmodel.Reader
 	processEventsCh        chan *Event
 	lastCollectedProcesses map[int32]*procutil.Process
+	containerProvider      proccontainers.ContainerProvider
 }
 
 // Event is a message type used to communicate with the stream function asynchronously
@@ -44,21 +54,30 @@ type Event struct {
 	Deleted []*workloadmeta.Process
 }
 
-func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe) collector {
+func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.Clock, processProbe procutil.Probe, config pkgconfigmodel.Reader, systemProbeConfig pkgconfigmodel.Reader) collector {
 	return collector{
 		id:                     id,
 		catalog:                catalog,
 		clock:                  clock,
 		processProbe:           processProbe,
+		config:                 config,
+		systemProbeConfig:      systemProbeConfig,
 		processEventsCh:        make(chan *Event),
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
 	}
 }
 
+type dependencies struct {
+	fx.In
+	Config    config.Component
+	Sysconfig sysprobeconfig.Component
+}
+
 // NewProcessCollectorProvider returns a new process collector provider and an error.
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
-func NewProcessCollectorProvider() (workloadmeta.CollectorProvider, error) {
-	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe())
+func NewProcessCollectorProvider(deps dependencies) (workloadmeta.CollectorProvider, error) {
+	// process probe is not yet componentized, so we can't use fx injection for that
+	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), procutil.NewProcessProbe(), deps.Config, deps.Sysconfig)
 	return workloadmeta.CollectorProvider{
 		Collector: &collector,
 	}, nil
@@ -69,11 +88,16 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewProcessCollectorProvider)
 }
 
-// isEnabled returns a boolean indicating if the process collector is enabled and what collection interval to use if it is.
+// isEnabled returns a boolean indicating if the process collector is enabled
 func (c *collector) isEnabled() bool {
 	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
 	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
 	return false
+}
+
+// isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
+func (c *collector) isLanguageCollectionEnabled() bool {
+	return c.config.GetBool("language_detection.enabled")
 }
 
 // collectionIntervalConfig returns the configured collection interval
@@ -87,6 +111,14 @@ func (c *collector) collectionIntervalConfig() time.Duration {
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if c.isEnabled() {
+
+		if c.containerProvider == nil {
+			containerProvider, err := proccontainers.GetSharedContainerProvider()
+			if err != nil {
+				return err
+			}
+			c.containerProvider = containerProvider
+		}
 		c.store = store
 		go c.collect(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
 		go c.stream(ctx)
@@ -95,6 +127,44 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	return nil
+}
+
+// createdProcessesToWorkloadMetaProcesses helper function to convert createdProcs with container data into wlm entities
+func createdProcessesToWorkloadmetaProcesses(createdProcs []*procutil.Process, pidToCid map[int]string, languages []*languagemodels.Language) []*workloadmeta.Process {
+	wlmProcs := make([]*workloadmeta.Process, len(createdProcs))
+	isLanguageDataAvailable := len(languages) == len(createdProcs) // language data is not always available, so we have to check
+	for i, proc := range createdProcs {
+		wlmProcs[i] = processToWorkloadMetaProcess(proc)
+		if isLanguageDataAvailable {
+			wlmProcs[i].Language = languages[i] // assuming order of language slice (not ideal but works for now)
+		}
+
+		// enrich with container data if possible
+		cid, exists := pidToCid[int(proc.Pid)]
+		if exists {
+			wlmProcs[i].ContainerID = cid // existing behaviour which we will maintain until the collector is enabled
+			// storing container id as an entity field
+			wlmProcs[i].Owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   cid,
+			}
+		}
+	}
+	return wlmProcs
+}
+
+// deletedProcessesToWorkloadMetaProcesses helper function to convert deletedProcs into wlm entities. wlm only uses the EventType, Source, ID, and Kind for deletion events
+func deletedProcessesToWorkloadmetaProcesses(deletedProcs []*procutil.Process) []*workloadmeta.Process {
+	wlmProcs := make([]*workloadmeta.Process, len(deletedProcs))
+	for i, proc := range deletedProcs {
+		wlmProcs[i] = &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(proc.Pid)),
+			},
+		}
+	}
+	return wlmProcs
 }
 
 // processCacheDifference returns new processes that exist in procCacheA and not in procCacheB
@@ -121,6 +191,18 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 	return newProcs
 }
 
+// detectLanguages collects languages from given processes if language collection is enabled
+func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemodels.Language {
+	if c.isLanguageCollectionEnabled() {
+		languageInterfaceProcs := make([]languagemodels.Process, len(processes))
+		for i, proc := range processes {
+			languageInterfaceProcs[i] = languagemodels.Process(proc)
+		}
+		return languagedetection.DetectLanguage(languageInterfaceProcs, c.systemProbeConfig)
+	}
+	return nil
+}
+
 // collect captures all the required process data for the process check
 func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker) {
 	// TODO: implement the full collection logic for the process collector. Once collection is done, submit events.
@@ -137,18 +219,17 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 				return
 			}
 
+			// some processes are in a container so we want to store the container_id for them
+			pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
+			// TODO: potentially scrub process data here instead of in the check?
+
 			// categorize the processes into events for workloadmeta
 			createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-			wlmCreatedProcs := make([]*workloadmeta.Process, len(createdProcs))
-			for i, proc := range createdProcs {
-				wlmCreatedProcs[i] = processToWorkloadMetaProcess(proc)
-			}
+			languages := c.detectLanguages(createdProcs)
+			wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
 
 			deletedProcs := processCacheDifference(c.lastCollectedProcesses, procs)
-			wlmDeletedProcs := make([]*workloadmeta.Process, len(deletedProcs))
-			for i, proc := range deletedProcs {
-				wlmDeletedProcs[i] = processToWorkloadMetaProcess(proc)
-			}
+			wlmDeletedProcs := deletedProcessesToWorkloadmetaProcesses(deletedProcs)
 
 			// send these events to the channel
 			c.processEventsCh <- &Event{

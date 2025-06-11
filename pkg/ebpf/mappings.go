@@ -10,6 +10,7 @@ package ebpf
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -308,10 +309,31 @@ func AddProbeFDMappings(mgr *manager.Manager) {
 		if specs[0].Type != ebpf.Kprobe {
 			continue
 		}
+		progType, _, _ := strings.Cut(specs[0].SectionName, "/")
+		switch progType {
+		case "uprobe", "uretprobe":
+			continue
+		}
 
 		fd, err := p.PerfEventFD()
 		if err == nil {
 			probeIDToFDMappings[ebpf.ProgramID(p.ID())] = fd
 		}
 	}
+}
+
+func resetMapping[K comparable, V any](m map[K]V) {
+	for key := range m {
+		delete(m, key)
+	}
+}
+
+// ResetAllMappings removes all mappings. This is useful in tests to reset state
+func ResetAllMappings() {
+	resetMapping(mapNameMapping)
+	resetMapping(mapModuleMapping)
+	resetMapping(progNameMapping)
+	resetMapping(progModuleMapping)
+	resetMapping(probeIDToFDMappings)
+	resetMapping(progIgnoredIDs)
 }

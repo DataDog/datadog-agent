@@ -7,6 +7,7 @@ package collector
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"testing"
 	"time"
@@ -18,10 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -49,10 +51,10 @@ type collectorTest struct {
 	mockProvider *proccontainersmock.MockContainerProvider
 }
 
-func acquireStream(t *testing.T, port int) pbgo.ProcessEntityStream_StreamEntitiesClient {
+func acquireStream(t *testing.T, port int, tlsConfig *tls.Config) pbgo.ProcessEntityStream_StreamEntitiesClient {
 	t.Helper()
 
-	cc, err := grpc.Dial(fmt.Sprintf("localhost:%v", port), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+	cc, err := grpc.Dial(fmt.Sprintf("localhost:%v", port), grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = cc.Close()
@@ -86,6 +88,8 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		"workloadmeta.local_process_collector.collection_interval": 15 * time.Second,
 	}
 
+	ipcMock := ipcmock.New(t)
+
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{Overrides: overrides}),
@@ -95,7 +99,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 
 	// pass actual config component
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(store.GetConfig())
-	grpcServer := workloadmetaExtractor.NewGRPCServer(store.GetConfig(), wlmExtractor)
+	grpcServer := workloadmetaExtractor.NewGRPCServer(store.GetConfig(), wlmExtractor, ipcMock.GetTLSServerConfig())
 
 	mockProcessData, probe := checks.NewProcessDataWithMockProbe(t)
 	mockProcessData.Register(wlmExtractor)
@@ -123,7 +127,7 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		probe:        probe,
 		clock:        mockClock,
 		store:        store,
-		stream:       acquireStream(t, port),
+		stream:       acquireStream(t, port, ipcMock.GetTLSClientConfig()),
 		mockProvider: mockProvider,
 	}
 }

@@ -32,7 +32,6 @@ import (
 type Rule struct {
 	*PolicyRule
 	*eval.Rule
-	NoDiscarder bool
 }
 
 // DiscarderInvalidReport is a report of an invalid discarder
@@ -311,7 +310,7 @@ func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 			continue
 		}
 
-		_, rule, err := IsDiscarder(ctx, field, bucket.GetRules())
+		_, rule, err := rs.IsDiscarder(ctx, field, bucket.GetRules())
 		if err != nil {
 			if errors.As(err, &errFieldNotFound) {
 				report.Invalid = append(report.Invalid, DiscarderInvalidReport{
@@ -459,7 +458,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 				}
 
 				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
-					errs = multierror.Append(errs, fmt.Errorf("conflicting types for variable '%s'", varName))
+					errs = multierror.Append(errs, fmt.Errorf("conflicting types for variable '%s': %s != %s", varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))
 					continue
 				}
 
@@ -496,6 +495,11 @@ func GetRuleEventType(rule *eval.Rule) (eval.EventType, error) {
 	}
 
 	return eventType, nil
+}
+
+// WithExcludedRuleFromDiscarders set excluded rule from discarders
+func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map[eval.RuleID]bool) {
+	rs.opts.ExcludedRuleFromDiscarders = excludedRuleFromDiscarders
 }
 
 func (rs *RuleSet) isActionAvailable(eventType eval.EventType, action *Action) bool {
@@ -590,6 +594,13 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		}
 
 		if action.Def.Set != nil {
+			// compile scope field
+			if len(action.Def.Set.ScopeField) > 0 {
+				if err := action.CompileScopeField(rs.model); err != nil {
+					return "", &ErrRuleLoad{Rule: pRule, Err: err}
+				}
+			}
+
 			if field := action.Def.Set.Field; field != "" {
 				if _, found := rs.fieldEvaluators[field]; !found {
 					evaluator, err := rs.model.GetEvaluator(field, "", 0)
@@ -679,9 +690,12 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 }
 
 // GetApprovers returns all approvers
-func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, map[eval.EventType]*Rule, error) {
-	approvers := make(map[eval.EventType]Approvers)
-	rules := make(map[eval.EventType]*Rule)
+func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, map[eval.EventType]*Rule, []*Rule, error) {
+	var (
+		approvers        = make(map[eval.EventType]Approvers)
+		acceptModeRules  = make(map[eval.EventType]*Rule)
+		noDiscarderRules []*Rule
+	)
 
 	for _, eventType := range rs.GetEventTypes() {
 		caps, exists := fieldCaps[eventType]
@@ -689,23 +703,24 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 			continue
 		}
 
-		eventTypeApprovers, rule, err := rs.GetEventTypeApprovers(eventType, caps)
-		if err != nil || len(eventTypeApprovers) == 0 {
+		evtApprovers, rule, evtNoDiscarderRules, err := rs.GetEventTypeApprovers(eventType, caps)
+		if err != nil || len(evtApprovers) == 0 {
 			// report the first rule avoiding to generate an approver
-			rules[eventType] = rule
+			acceptModeRules[eventType] = rule
 			continue
 		}
-		approvers[eventType] = eventTypeApprovers
+		approvers[eventType] = evtApprovers
+		noDiscarderRules = append(noDiscarderRules, evtNoDiscarderRules...)
 	}
 
-	return approvers, rules, nil
+	return approvers, acceptModeRules, noDiscarderRules, nil
 }
 
 // GetEventTypeApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *Rule, error) {
+func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *Rule, []*Rule, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
-		return nil, nil, ErrNoEventTypeBucket{EventType: eventType}
+		return nil, nil, nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
 	// all the rules needs to be of the same type
@@ -727,12 +742,12 @@ func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 }
 
 // IsDiscarder partially evaluates an Event against a field
-func IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, *Rule, error) {
+func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, *Rule, error) {
 	var isDiscarder bool
 
 	for _, rule := range rules {
 		// ignore rule that can't generate discarders
-		if rule.NoDiscarder {
+		if _, exists := rs.opts.ExcludedRuleFromDiscarders[rule.ID]; exists {
 			continue
 		}
 
@@ -748,6 +763,9 @@ func IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rule) (bool, *Rul
 
 func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.PolicyRule.Actions {
+		// set context scope field evaluator
+		ctx.SetScopeFieldEvaluator(action.ScopeFieldEvaluator)
+
 		if !action.IsAccepted(ctx) {
 			continue
 		}
@@ -777,7 +795,6 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 						value = evaluator.Eval(ctx)
 					}
 				}
-
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
 						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
@@ -794,6 +811,8 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 			}
 
 		}
+
+		ctx.PerActionReset()
 	}
 
 	return nil
@@ -917,13 +936,11 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 			}
 		}
 
-		if rs.opts.SupportedDiscarders != nil {
-			if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
-				continue
-			}
+		if _, exists := rs.opts.SupportedDiscarders[field]; !exists {
+			continue
 		}
 
-		if isDiscarder, _, _ := IsDiscarder(ctx, field, bucket.rules); isDiscarder {
+		if isDiscarder, _, _ := rs.IsDiscarder(ctx, field, bucket.rules); isDiscarder {
 			rs.NotifyDiscarderFound(event, field, eventType)
 		}
 	}
@@ -943,7 +960,7 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 				break
 			}
 
-			if isDiscarder, _, _ := IsDiscarder(dctx, entry.Field, bucket.rules); !isDiscarder {
+			if isDiscarder, _, _ := rs.IsDiscarder(dctx, entry.Field, bucket.rules); !isDiscarder {
 				isMultiDiscarder = false
 				break
 			}

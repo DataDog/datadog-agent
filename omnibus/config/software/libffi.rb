@@ -16,7 +16,7 @@
 
 name "libffi"
 
-default_version "3.2.1"
+default_version "3.4.8"
 
 license "MIT"
 license_file "LICENSE"
@@ -25,9 +25,9 @@ skip_transitive_dependency_licensing true
 # Is libtool actually necessary? Doesn't configure generate one?
 dependency "libtool" unless windows?
 
-version("3.2.1") { source sha256: "d06ebb8e1d9a22d19e38d63fdb83954253f39bedc5d46232a05645685722ca37" }
+version("3.4.8") { source sha256: "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b" }
 
-source url: "https://sourceware.org/ftp/libffi/libffi-#{version}.tar.gz"
+source url: "https://github.com/libffi/libffi/releases/download/v#{version}/libffi-#{version}.tar.gz"
 
 relative_path "libffi-#{version}"
 
@@ -36,17 +36,7 @@ build do
 
   env["INSTALL"] = "/opt/freeware/bin/install" if aix?
 
-  configure_command = ["--disable-static", "--disable-docs"]
-
-  # AIX's old version of patch doesn't like the patch here
-  unless aix?
-    # Patch to disable multi-os-directory via configure flag (don't use /lib64)
-    # Works on all platforms, and is compatible on 32bit platforms as well
-    if version == "3.2.1"
-      patch source: "libffi-3.2.1-disable-multi-os-directory.patch", plevel: 1, env: env
-      configure_command << "--disable-multi-os-directory"
-    end
-  end
+  configure_command = ["--disable-static", "--disable-docs", "--disable-multi-os-directory"]
 
   configure(*configure_command, env: env)
 
@@ -58,9 +48,4 @@ build do
     make "-j #{workers}", env: env
     make "-j #{workers} install", env: env
   end
-
-  # libffi's default install location of header files is awful...
-  mkdir "#{install_dir}/embedded/include"
-  copy "#{install_dir}/embedded/lib/libffi-#{version}/include/*", "#{install_dir}/embedded/include/"
-
 end

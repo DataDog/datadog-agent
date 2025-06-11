@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"math"
@@ -45,18 +46,19 @@ const (
 )
 
 // NewProcessCheck returns an instance of the ProcessCheck.
-func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface) *ProcessCheck {
+func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigmodel.Reader, wmeta workloadmetacomp.Component, gpuSubscriber gpusubscriber.Component, statsd statsd.ClientInterface, grpcServerTLSConfig *tls.Config) *ProcessCheck {
 	serviceExtractorEnabled := true
 	useWindowsServiceName := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	useImprovedAlgorithm := sysprobeYamlConfig.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
 	check := &ProcessCheck{
-		config:           config,
-		scrubber:         procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:    NewLookupIDProbe(config),
-		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
-		wmeta:            wmeta,
-		gpuSubscriber:    gpuSubscriber,
-		statsd:           statsd,
+		config:              config,
+		scrubber:            procutil.NewDefaultDataScrubber(),
+		lookupIdProbe:       NewLookupIDProbe(config),
+		serviceExtractor:    parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
+		wmeta:               wmeta,
+		gpuSubscriber:       gpuSubscriber,
+		statsd:              statsd,
+		grpcServerTLSConfig: grpcServerTLSConfig,
 	}
 
 	return check
@@ -128,6 +130,8 @@ type ProcessCheck struct {
 	statsd         statsd.ClientInterface
 
 	gpuSubscriber gpusubscriber.Component
+
+	grpcServerTLSConfig *tls.Config
 }
 
 // Init initializes the singleton ProcessCheck.
@@ -178,7 +182,7 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool
 
 		// The server is only needed on the process agent
 		if !p.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
-			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
+			p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor, p.grpcServerTLSConfig)
 			err = p.workloadMetaServer.Start()
 			if err != nil {
 				return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)

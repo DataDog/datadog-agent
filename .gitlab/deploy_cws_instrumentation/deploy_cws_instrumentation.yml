@@ -16,6 +16,14 @@ include:
     - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
     - export IMG_DESTINATIONS="${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}"
 
+.deploy_mutable_cws-instrumentation_tags_base:
+  extends: .docker_publish_job_definition
+  stage: deploy_cws_instrumentation
+  dependencies: []
+  before_script:
+    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - export IMG_TAG_REFERENCE=${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}
+
 # will push the `7.xx.y-rc.z` tags
 deploy_containers-cws-instrumentation-rc-versioned:
   extends: .deploy_containers-cws-instrumentation-base
@@ -23,10 +31,13 @@ deploy_containers-cws-instrumentation-rc-versioned:
 
 # will update the `rc` tag
 deploy_containers-cws-instrumentation-rc-mutable:
-  extends: .deploy_containers-cws-instrumentation-base
+  extends: .deploy_mutable_cws-instrumentation_tags_base
   rules: !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-cws-instrumentation-rc-versioned
+      artifacts: false
   variables:
-    VERSION: rc
+    IMG_NEW_TAGS: rc
 
 # will push the `7.xx.y` tags
 deploy_containers-cws-instrumentation-final-versioned:
@@ -35,7 +46,10 @@ deploy_containers-cws-instrumentation-final-versioned:
 
 # will update the `latest` tag
 deploy_containers-cws-instrumentation-latest:
-  extends: .deploy_containers-cws-instrumentation-base
+  extends: .deploy_mutable_cws-instrumentation_tags_base
   rules: !reference [.on_deploy_manual_final]
+  needs:
+    - job: deploy_containers-cws-instrumentation-final-versioned
+      artifacts: false
   variables:
-    VERSION: latest
+    IMG_NEW_TAGS: latest

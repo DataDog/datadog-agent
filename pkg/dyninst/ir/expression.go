@@ -35,9 +35,9 @@ type LocationOp struct {
 	Offset uint32
 
 	// The size of the data to extract in bytes.
-	Size uint32
+	ByteSize uint32
 }
 
-func (LocationOp) irOp() {}
+func (*LocationOp) irOp() {}
 
 // TODO: Define expressions as needed for probe generation.

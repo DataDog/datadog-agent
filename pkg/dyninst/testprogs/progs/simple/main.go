@@ -14,6 +14,10 @@ func main() {
 	bigMapArg(map[string]bigStruct{"b": {Field1: 1}})
 	stringSliceArg([]string{"c"})
 	intSliceArg([]int{1})
+	stringArg("d")
+	inlined(1)
+	// Passing inlined function as an argument forces out-of-line instantation.
+	funcArg(inlined)
 }
 
 //go:noinline
@@ -48,6 +52,20 @@ func stringSliceArg(s []string) {
 }
 
 //go:noinline
+func stringArg(s string) {
+	fmt.Println(s)
+}
+
+//go:noinline
 func intSliceArg(s []int) {
 	fmt.Println(s)
+}
+
+func inlined(x int) {
+	fmt.Println(x)
+}
+
+//go:noinline
+func funcArg(f func(int)) {
+	f(2)
 }
