@@ -867,18 +867,23 @@ api_key:
 {{ end }}
 ## @param secret_backend_type - string - optional
 ## @env DD_SECRET_BACKEND_TYPE - string - optional
-## SET this option if you are using the default secret backend.
-## `secret_backend_type` is the type of backend you use to store your secrets.
-## Currently, the possible values are: "aws.secrets", "aws.ssm", "azure.keyvault", "hashicorp.vault",
+## This feature is in preview.
+##
+## `secret_backend_type` is the type of backend where secrets are stored.
+## Supported backends are: "aws.secrets", "aws.ssm", "azure.keyvault", "hashicorp.vault",
 ## "file.json", "file.yaml"
-## For more information see: https://github.com/DataDog/datadog-secret-backend/blob/main/README.md
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
+##
+## This option is ignored if 'secret_backend_command' is set.
 #
 # secret_backend_type: <BACKEND_TYPE>
 
 ## @param secret_backend_config - map - optional
 ## @env DD_SECRET_BACKEND_CONFIG - map - optional
-## SET this option if you are using the default secret backend.
-## If secret_backend_config is set, specify the config that is needed to pull secrets from the backend.
+## This feature is in preview.
+##
+## The section contains information required to resolved secrets.
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
 #
 # secret_backend_config:
 #   <KEY_1>: <VALUE_1>

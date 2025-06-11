@@ -1097,7 +1097,7 @@ func TestBackendTypeWithInvalidConfig(t *testing.T) {
 
 	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
 	assert.Nil(t, err)
-	log.SetupLogger(l, "error")
+	log.SetupLogger(l, "warn")
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 	r := newEnabledSecretResolver(tel)
 

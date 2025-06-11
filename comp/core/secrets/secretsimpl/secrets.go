@@ -39,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -156,7 +155,7 @@ type secretResolver struct {
 	backendArguments        []string
 	backendTimeout          int
 	commandAllowGroupExec   bool
-	defaultBackendUsed      bool
+	embeddedBackendUsed     bool
 	removeTrailingLinebreak bool
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
@@ -290,21 +289,18 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 		}
 	}
 	r.backendCommand = params.Command
-	r.defaultBackendUsed = false
+	r.embeddedBackendUsed = false
+	if r.backendCommand != "" && r.backendType != "" {
+		log.Warnf("Both 'secret_backend_command' and 'secret_backend_type' are set, 'secret_backend_type' will be ignored")
+	}
 	// only use the backend type option if the backend command is not set
 	if r.backendType != "" && r.backendCommand == "" {
 		if runtime.GOOS == "windows" {
 			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "secret-generic-connector.exe")
 		} else {
-			nonWindowsPath := path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
-			permission, _ := filesystem.NewPermission()
-			err := permission.RestrictAccessToUser(nonWindowsPath)
-			if err != nil {
-				log.Warnf("Cannot give the user access to %s: %s", nonWindowsPath, err)
-			}
-			r.backendCommand = nonWindowsPath
+			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
 		}
-		r.defaultBackendUsed = true
+		r.embeddedBackendUsed = true
 	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
@@ -343,7 +339,7 @@ func validateTypeAndConfig(backendType string, backendConfig map[string]interfac
 	for key, val := range backendConfig {
 		allowedVal, ok := allowed[key]
 		if !ok {
-			return fmt.Errorf("unsupported key '%s' for backend '%s'", key, backendType)
+			return log.Warnf("unsupported key '%s' for backend '%s'", key, backendType)
 		}
 
 		// If value in the allowed map is another map (nested config), validate nested keys
@@ -355,7 +351,7 @@ func validateTypeAndConfig(backendType string, backendConfig map[string]interfac
 
 			for nestedKey := range nestedConfig {
 				if _, ok := nestedAllowed[nestedKey]; !ok {
-					return fmt.Errorf("unsupported nested key '%s.%s' for backend '%s'", key, nestedKey, backendType)
+					return log.Warnf("unsupported nested key '%s.%s' for backend '%s'", key, nestedKey, backendType)
 				}
 			}
 		}
@@ -790,10 +786,10 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 		return
 	}
 	permissions := "OK, the executable has the correct permissions"
-	if !r.defaultBackendUsed {
+	if !r.embeddedBackendUsed {
 		err = checkRights(r.backendCommand, r.commandAllowGroupExec)
 		if err != nil {
-			permissions = fmt.Sprintf("error: %s", err)
+			permissions = "error: the executable does not have the correct permissions"
 		}
 	}
 

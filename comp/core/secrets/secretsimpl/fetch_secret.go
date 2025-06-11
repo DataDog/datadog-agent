@@ -112,8 +112,6 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 	if r.backendType != "" {
 		payload["type"] = r.backendType
 	}
-	// the backend config map can't be directly added to the payload, because there could be a
-	// "secrets" key in the backend config map, which would override the secrets key in the payload
 	if len(r.backendConfig) > 0 {
 		payload["config"] = r.backendConfig
 	}
