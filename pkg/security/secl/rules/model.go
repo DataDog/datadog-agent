@@ -146,9 +146,11 @@ type SetDefinition struct {
 	Expression   string                 `yaml:"expression" json:"expression,omitempty"`
 	Append       bool                   `yaml:"append" json:"append,omitempty"`
 	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
+	ScopeField   string                 `yaml:"scope_field" json:"scope_field,omitempty"`
 	Size         int                    `yaml:"size" json:"size,omitempty"`
 	TTL          *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
 	Private      bool                   `yaml:"private" json:"private,omitempty"`
+	Inherited    bool                   `yaml:"inherited" json:"inherited,omitempty"`
 }
 
 // KillDefinition describes the 'kill' section of a rule action

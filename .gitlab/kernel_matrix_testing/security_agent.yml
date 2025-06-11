@@ -159,6 +159,7 @@ kmt_run_secagent_tests_x64:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_x64_peds:
   extends:
@@ -201,6 +202,7 @@ kmt_run_secagent_tests_x64_peds:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_x64_required:
   extends:
@@ -221,7 +223,7 @@ kmt_run_secagent_tests_x64_required:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 kmt_run_secagent_tests_x64_ad:
   extends:
     - .kmt_run_secagent_tests
@@ -241,7 +243,7 @@ kmt_run_secagent_tests_x64_ad:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 kmt_run_secagent_tests_x64_ebpfless:
   extends:
     - .kmt_run_secagent_tests
@@ -261,6 +263,7 @@ kmt_run_secagent_tests_x64_ebpfless:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_x64_docker:
   extends:
@@ -300,7 +303,7 @@ kmt_run_secagent_tests_x64_docker:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 kmt_run_secagent_tests_arm64:
   extends:
     - .kmt_run_secagent_tests
@@ -335,6 +338,7 @@ kmt_run_secagent_tests_arm64:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_arm64_peds:
   extends:
@@ -370,6 +374,7 @@ kmt_run_secagent_tests_arm64_peds:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_arm64_ad:
   extends:
@@ -390,6 +395,7 @@ kmt_run_secagent_tests_arm64_ad:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_arm64_ebpfless:
   extends:
@@ -410,6 +416,7 @@ kmt_run_secagent_tests_arm64_ebpfless:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
+    - !reference [.suggest_kmt_retry_command]
 
 kmt_run_secagent_tests_arm64_docker:
   extends:
@@ -444,7 +451,7 @@ kmt_run_secagent_tests_arm64_docker:
   after_script:
     - !reference [.collect_outcomes_kmt]
     - !reference [.upload_junit_kmt]
-
+    - !reference [.suggest_kmt_retry_command]
 .kmt_secagent_cleanup:
   extends:
     - .kmt_cleanup

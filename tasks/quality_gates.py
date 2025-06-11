@@ -13,7 +13,7 @@ from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch
+from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
 from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.lib.gates_lib import GateMetricHandler, byte_to_string
@@ -178,15 +178,17 @@ def parse_and_trigger_gates(ctx, config_path=GATE_CONFIG_PATH):
 
     metric_handler.generate_metric_reports(ctx, branch=branch)
 
-    github = GithubAPI()
-    if github.get_pr_for_branch(branch).totalCount > 0:
-        ancestor = get_common_ancestor(ctx, "HEAD")
-        metric_handler.generate_relative_size(ctx, ancestor=ancestor)
-        display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
+    # We don't need a PR notification nor gate failures on release branches
+    if not is_a_release_branch(ctx, branch):
+        github = GithubAPI()
+        if github.get_pr_for_branch(branch).totalCount > 0:
+            ancestor = get_common_ancestor(ctx, "HEAD")
+            metric_handler.generate_relative_size(ctx, ancestor=ancestor)
+            display_pr_comment(ctx, final_state == "success", gate_states, metric_handler, ancestor)
 
-    # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
-    if final_state != "success" and not nightly_run:
-        raise Exit(code=1)
+        # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
+        if final_state != "success" and not nightly_run:
+            raise Exit(code=1)
 
 
 def get_gate_new_limit_threshold(current_gate, current_key, max_key, metric_handler, exception_bump=False):
@@ -297,7 +299,7 @@ def exception_threshold_bump(ctx):
     :param ctx:
     :return:
     """
-    current_branch_name = get_current_branch()
+    current_branch_name = get_current_branch(ctx)
     ancestor_commit = get_common_ancestor(ctx, "HEAD")
     repo = get_gitlab_repo()
     with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):

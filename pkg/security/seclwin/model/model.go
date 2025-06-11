@@ -61,6 +61,11 @@ func (c *ContainerContext) Hash() string {
 	return string(c.ContainerID)
 }
 
+// ParentScope returns the parent entity scope
+func (c *ContainerContext) ParentScope() (eval.VariableScope, bool) {
+	return nil, false
+}
+
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
 	Name           string                     `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
@@ -605,6 +610,7 @@ type AWSSecurityCredentials struct {
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
+	ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 

@@ -57,6 +57,12 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ fun
 	return ev.ProcessCacheEntry, true
 }
 
+// ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
+func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntryFromPID(_ uint32) *model.ProcessCacheEntry {
+	// not supported yet, we're missing NSID
+	return nil
+}
+
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFLessFieldHandlers) ResolveFilePath(_ *model.Event, f *model.FileEvent) string {
 	return f.PathnameStr
@@ -488,4 +494,14 @@ func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg6Str(_ *model.Event, _ *model
 // ResolveOnDemandArg6Uint resolves the uint value of the sixth argument of hooked function
 func (fh *EBPFLessFieldHandlers) ResolveOnDemandArg6Uint(_ *model.Event, _ *model.OnDemandEvent) int {
 	return 0
+}
+
+// ResolveConnectHostnames resolves the hostnames of a connect event
+func (fh *EBPFLessFieldHandlers) ResolveConnectHostnames(_ *model.Event, e *model.ConnectEvent) []string {
+	return e.Hostnames
+}
+
+// ResolveAcceptHostnames resolves the hostnames of an accept event
+func (fh *EBPFLessFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.AcceptEvent) []string {
+	return e.Hostnames
 }

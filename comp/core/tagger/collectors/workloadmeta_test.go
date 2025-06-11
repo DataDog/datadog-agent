@@ -1533,6 +1533,16 @@ func TestHandleECSTask(t *testing.T) {
 					},
 					StandardTags: []string{},
 				},
+				{
+					Source:               taskSource,
+					EntityID:             types.GetGlobalEntityID(),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ecs_cluster_name:ecs-cluster",
+					},
+					StandardTags: []string{},
+				},
 			},
 		},
 		{

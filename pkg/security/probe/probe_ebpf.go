@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -118,6 +119,7 @@ type EBPFProbe struct {
 
 	// internals
 	event          *model.Event
+	dnsLayer       *layers.DNS
 	monitors       *EBPFMonitors
 	profileManager *securityprofile.Manager
 	fieldHandlers  *EBPFFieldHandlers
@@ -615,7 +617,7 @@ func (p *EBPFProbe) Start() error {
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
-	if p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
+	if p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
 		// start sysctl snapshot loop
 		go p.startSysCtlSnapshotLoop()
 	}
@@ -655,6 +657,21 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	}
 
 	p.Walk(entryToEvent)
+
+	// order events so that they're dispatched in creation time order
+	sort.Slice(events, func(i, j int) bool {
+		eventA := events[i]
+		eventB := events[j]
+
+		tsA := eventA.ProcessContext.ExecTime
+		tsB := eventB.ProcessContext.ExecTime
+		if tsA.IsZero() || tsB.IsZero() || tsA.Equal(tsB) {
+			return eventA.PIDContext.Pid < eventB.PIDContext.Pid
+		}
+
+		return tsA.Before(tsB)
+	})
+
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
@@ -974,13 +991,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	case model.ShortDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
-			var dnsLayer = new(layers.DNS)
-			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
+			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Errorf("failed to decode DNS response: %s", err)
 				return
 			}
 
-			p.addToDNSResolver(dnsLayer)
+			p.addToDNSResolver(p.dnsLayer)
 		}
 		return
 	}
@@ -1325,23 +1341,22 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 			offset += read
 
-			var dnsLayer = new(layers.DNS)
-			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
+			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Warnf("failed to decode DNS response: %s", err)
 				return
 			}
-			p.addToDNSResolver(dnsLayer)
+			p.addToDNSResolver(p.dnsLayer)
 			event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
 			event.DNS = model.DNSEvent{
-				ID: dnsLayer.ID,
+				ID: p.dnsLayer.ID,
 				Question: model.DNSQuestion{
-					Name:  string(dnsLayer.Questions[0].Name),
-					Class: uint16(dnsLayer.Questions[0].Class),
-					Type:  uint16(dnsLayer.Questions[0].Type),
+					Name:  string(p.dnsLayer.Questions[0].Name),
+					Class: uint16(p.dnsLayer.Questions[0].Class),
+					Type:  uint16(p.dnsLayer.Questions[0].Type),
 					Size:  uint16(len(data[offset:])),
 				},
 				Response: &model.DNSResponse{
-					ResponseCode: uint8(dnsLayer.ResponseCode),
+					ResponseCode: uint8(p.dnsLayer.ResponseCode),
 				},
 			}
 		}
@@ -1376,12 +1391,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		if p.config.Probe.DNSResolutionEnabled {
-			ip, ok := netip.AddrFromSlice(event.Accept.Addr.IPNet.IP)
-			if ok {
-				event.Accept.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
-			}
-		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1391,12 +1400,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if _, err = event.Connect.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode connect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
-		}
-		if p.config.Probe.DNSResolutionEnabled {
-			ip, ok := netip.AddrFromSlice(event.Connect.Addr.IPNet.IP)
-			if ok {
-				event.Connect.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
-			}
 		}
 	case model.SyscallsEventType:
 		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
@@ -1422,6 +1425,11 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.SysCtlEventType:
 		if _, err = event.SysCtl.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode sysctl event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case model.SetSockOptEventType:
+		if _, err = event.SetSockOpt.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	}
@@ -1476,16 +1484,14 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 
 	seclog.Tracef("New discarder of type %s for field %s", eventType, field)
 
-	if handlers, ok := allDiscarderHandlers[eventType]; ok {
-		for _, handler := range handlers {
-			discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
+	if handler, ok := allDiscarderHandlers[field]; ok {
+		discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
 
-			if discarderPushed {
-				p.discarderPushedCallbacksLock.RLock()
-				defer p.discarderPushedCallbacksLock.RUnlock()
-				for _, cb := range p.discarderPushedCallbacks {
-					cb(eventType, ev, field)
-				}
+		if discarderPushed {
+			p.discarderPushedCallbacksLock.RLock()
+			defer p.discarderPushedCallbacksLock.RUnlock()
+			for _, cb := range p.discarderPushedCallbacks {
+				cb(eventType, ev, field)
 			}
 		}
 	}
@@ -2256,6 +2262,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "raw_packet_limiter_rate",
 			Value: uint64(p.config.Probe.NetworkRawPacketLimiterRate),
 		},
+		manager.ConstantEditor{
+			Name:  "raw_packet_filter",
+			Value: utils.BoolTouint64(p.config.Probe.NetworkRawPacketFilter != "none"),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
@@ -2363,7 +2373,7 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	}
 
 	if !p.config.RuntimeSecurity.SysCtlEnabled {
-		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetSysCtlProbeFunctionName())
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
 	return nil
 }
@@ -2434,6 +2444,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		playSnapShotState:    atomic.NewBool(false),
+		dnsLayer:             new(layers.DNS),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

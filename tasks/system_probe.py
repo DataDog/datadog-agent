@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import glob
+import itertools
 import json
 import os
 import platform
@@ -55,10 +56,11 @@ TEST_PACKAGES_LIST = [
     "./pkg/collector/corechecks/servicediscovery/module/...",
     "./pkg/process/monitor/...",
     "./pkg/dynamicinstrumentation/...",
+    "./pkg/dyninst/...",
     "./pkg/gpu/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
-    "./pkg/networkpath/traceroute/filter/...",
+    "./pkg/networkpath/traceroute/packets/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -430,6 +432,7 @@ def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
         "pkg/network/tracer/offsetguess_test.go": "offsetguess-test",
         "pkg/security/ebpf/compile.go": "runtime-security",
         "pkg/dynamicinstrumentation/codegen/compile.go": "dynamicinstrumentation",
+        "pkg/dyninst/compiler/compile.go": "dyninst_event",
         "pkg/gpu/compile.go": "gpu",
     }
 
@@ -529,7 +532,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
             ],
-            "pkg/collector/corechecks/servicediscovery/module/kern_types.go": [
+            "pkg/collector/corechecks/servicediscovery/core/kern_types.go": [
                 "pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-types.h",
             ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
@@ -550,6 +553,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/dynamicinstrumentation/ditypes/ebpf.go": ["pkg/dynamicinstrumentation/codegen/c/base_event.h"],
             "pkg/gpu/ebpf/kprobe_types.go": [
                 "pkg/gpu/ebpf/c/types.h",
+            ],
+            "pkg/dyninst/output/framing.go": [
+                "pkg/dyninst/ebpf/framing.h",
             ],
         }
         # TODO this uses the system clang, rather than the version-pinned copy we ship. Will this cause problems?
@@ -1006,7 +1012,21 @@ def go_package_dirs(packages, build_tags):
 
     format_arg = '{{ .Dir }}'
     buildtags_arg = ",".join(build_tags)
-    packages_arg = " ".join(packages)
+
+    # Prepend module path if the package path is relative
+    # and doesn't start with ./ (which go list handles correctly for local paths)
+    if not is_windows:
+        full_path_packages = []
+        module_path = "github.com/DataDog/datadog-agent/"
+        for pkg in packages:
+            if not pkg.startswith(".") and not pkg.startswith(module_path):
+                full_path_packages.append(module_path + pkg)
+            else:
+                full_path_packages.append(pkg)
+        packages_arg = " ".join(full_path_packages)
+    else:
+        packages_arg = " ".join(packages)
+
     cmd = f"go list -find -f \"{format_arg}\" -mod=readonly -tags \"{buildtags_arg}\" {packages_arg}"
 
     target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
@@ -1406,12 +1426,15 @@ def run_ninja(
         kernel_release,
         with_unit_test,
     )
+
+    # generate full compilation database for easy clangd integration
+    with open("compile_commands.json", "w") as compiledb:
+        ctx.run(f"ninja -f {nf_path} -t compdb", out_stream=compiledb)
+
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
     else:
-        with open("compile_commands.json", "w") as compiledb:
-            ctx.run(f"ninja -f {nf_path} -t compdb {target}", out_stream=compiledb)
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
@@ -2124,3 +2147,118 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
 
     ctx.run(f"mkdir -p {output_dir}")
     ctx.run(f"kubectl {ns_arg} cp {pod_name}:/tmp/gpu-events.ndjson -c system-probe {output_dir}/gpu-events.ndjson")
+
+
+@task
+def build_dyninst_test_programs(ctx: Context, output_root: Path = "."):
+    nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
+    with open(nf_path, "w") as nf:
+        nw = NinjaWriter(nf)
+        # NB: This mirrors the ninja setup used in the kmt.py file. The choice
+        # not to parallelize the build there at all is suspect, but we'll copy
+        # it here for now.
+        nw.pool(name="gobuild", depth=1)
+        nw.rule(
+            name="gobin",
+            command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
+        )
+        ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
+    ctx.run(f"ninja -d explain -v -f {nf_path}")
+
+
+def ninja_add_dyninst_test_programs(
+    ctx: Context,
+    nw: NinjaWriter,
+    output_root: Path,
+    go_path: str,
+):
+    """
+    This function is used to add the dyninst test programs to the ninja file.
+
+    It is used to build the test programs for the dyninst test suite across
+    the relevant architectures and go versions.
+    """
+
+    dd_module = "github.com/DataDog/datadog-agent"
+    testprogs_path = "pkg/dyninst/testprogs"
+    progs_path = f"{testprogs_path}/progs"
+    progs_prefix = f"{dd_module}/{progs_path}/"
+    output_base = f"{output_root}/{testprogs_path}/binaries"
+    build_tags = ["test", "linux_bpf"]
+
+    # Find the dependencies of the test programs.
+    tags_flag = f"-tags \"{','.join(build_tags)}\""
+    list_format = "{{ .ImportPath }} {{ .Module.Main }}: {{ join .Deps \" \" }}"
+    # Run from within the progs directory so that the go list command can find
+    # the go.mod file.
+    with ctx.cd(progs_path):
+        list_cmd = f"go list -test -f '{list_format}' {tags_flag} ./..."
+        # Disable GOWORK because our testprogs go.mod isn't listed there.
+        env = {"GOWORK": "off"}
+        res = ctx.run(list_cmd, hide=True, env=env)
+    if res.return_code != 0:
+        raise Exit(message=f"Failed to list dependencies: {res.stderr}")
+    pkg_deps = {}
+    for line in res.stdout.splitlines():
+        pkg_main, deps = line.split(": ", 1)
+        pkg, main = pkg_main.split(" ", 1)
+        pkg = pkg.removeprefix(progs_prefix)
+        if bool(main):
+            deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
+            pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
+
+    # In the future, we may want to support multiple go versions.
+    go_versions = ["go1.24.3"]
+    archs = ["amd64", "arm64"]
+
+    # Avoiding cgo aids in reproducing the build environment. It's less good in
+    # some ways because it's not likely that other folks build without CGO.
+    # Eventually we're going to want a better story for how to test against a
+    # variety of go binaries.
+    outputs = set()
+    for pkg, go_version, arch in itertools.product(
+        pkg_deps.keys(),
+        go_versions,
+        archs,
+    ):
+        direct = glob.glob(f"{progs_path}/{pkg}/*.go")
+        go_files = set(direct)
+        for dep in pkg_deps[pkg]:
+            dep_files = glob.glob(f"{progs_path}/{dep}/*.go")
+            dep_files = [p for p in dep_files if not p.endswith("test.go")]
+            go_files.update(os.path.abspath(p) for p in dep_files)
+        config_str = f"arch={arch},toolchain={go_version}"
+        output_path = f"{output_base}/{config_str}/{pkg}"
+        output_path = os.path.abspath(output_path)
+        outputs.add(output_path)
+        pkg_path = os.path.abspath(f"./{progs_path}/{pkg}")
+        nw.build(
+            inputs=[pkg_path],
+            outputs=[output_path],
+            implicit=list(go_files),
+            rule="gobin",
+            pool="gobuild",
+            variables={
+                "go": go_path,
+                # Run from within the package directory so that the go build
+                # command finds the go.mod file.
+                "chdir": f"cd {pkg_path}",
+                "tags": tags_flag,
+                "ldflags": "-ldflags=\"-extldflags '-static'\"",
+                "env": " ".join(
+                    [
+                        "CGO_ENABLED=0",
+                        f"GOARCH={arch}",
+                        "GOOS=linux",
+                        f"GOTOOLCHAIN={go_version}",
+                        "GOWORK=off",
+                    ]
+                ),
+            },
+        )
+
+    # Remove any previously built binaries that are no longer needed.
+    for path in glob.glob(f"{output_base}/*/*"):
+        path = os.path.abspath(path)
+        if os.path.isfile(path) and path not in outputs:
+            os.remove(path)

@@ -1,7 +1,7 @@
 static_quality_gates:
   stage: functional_test
   rules:
-    - !reference [.on_main]
+    - !reference [.on_main_or_release_branch]
     - !reference [.on_dev_branches]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64

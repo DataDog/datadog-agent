@@ -296,6 +296,14 @@
       annotations:
         - $EXTERNAL_LINKS_PATH
 
+.suggest_kmt_retry_command:
+  - |
+    if [ "$CI_JOB_STATUS" != "success" ]; then
+      echo "This test job failed. KMT automatically retries tests, so we don't allow direct retries of this job."
+      echo "However, if you're confident that the problem is not related to the tests, you can retry the job by running:"
+      echo "dda inv kmt.retry-failed-pipeline --pipeline-id $CI_PIPELINE_ID"
+    fi
+
 notify_ebpf_complexity_changes:
   extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
@@ -339,5 +347,6 @@ notify_ebpf_complexity_changes:
     - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
   script:
     - dda inv -- -e ebpf.generate-complexity-summary-for-pr --gitlab-config-file artifacts/after.gitlab-ci.yml

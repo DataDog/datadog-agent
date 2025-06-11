@@ -37,6 +37,19 @@ func NewFakeEvent() *Event {
 	}
 }
 
+// ResolveProcessCacheEntryFromPID stub implementation
+func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	return GetPlaceholderProcessCacheEntry(pid)
+}
+
+var processContextZero = ProcessCacheEntry{}
+
+// GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
+func GetPlaceholderProcessCacheEntry(pid uint32) *ProcessCacheEntry {
+	processContextZero.Pid = pid
+	return &processContextZero
+}
+
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
 	if m.ExtraValidateFieldFnc != nil {
@@ -223,4 +236,9 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 // Hash returns a unique key for the entity
 func (pc *ProcessCacheEntry) Hash() string {
 	return strconv.Itoa(int(pc.Pid))
+}
+
+// ParentScope returns the parent entity scope
+func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
+	return pc.Ancestor, pc.Ancestor != nil
 }

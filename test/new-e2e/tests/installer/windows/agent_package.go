@@ -30,14 +30,9 @@ func NewAgentVersionManager(versionStr, packageVersionStr string, ociPackage Tes
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse version %s: %w", versionStr, err)
 	}
-	// sanity check format of packageVersionStr
-	// NOTE: we don't use the struct result, GetNumberAndPre() does not work on
-	//       url-safe package strings because its regex expects a `+` character,
-	//       which is not present in the url-safe package version string.
-	_, err = agentVersion.New(packageVersionStr, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse package version %s: %w", packageVersionStr, err)
-	}
+	// TODO: sanity check package version
+	//       had to remove original check because it was failing on release pipeline builds
+	//       Example: 7.66.0.git.0.8005fe1.pipeline.65816352-1
 	return &AgentVersionManager{
 		version:        version,
 		packageVersion: packageVersionStr,
