@@ -44,8 +44,8 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-if [ -x /usr/bin/datadog-installer ]; then
-    installerPath="/usr/bin/datadog-installer"
+if [ -x /opt/datadog-packages/run/datadog-installer-ssi ]; then
+    installerPath="/opt/datadog-packages/run/datadog-installer-ssi"
 else
     installerPath="/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
 fi

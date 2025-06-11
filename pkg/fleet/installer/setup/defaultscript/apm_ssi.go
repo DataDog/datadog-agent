@@ -24,7 +24,7 @@ func SetupAPMSSIScript(s *common.Setup) error {
 
 	// Copy installer to /usr/bin/datadog-installer if agent isn't installed
 	if _, noInstallAgent := os.LookupEnv("DD_NO_AGENT_INSTALL"); noInstallAgent {
-		s.Packages.CopyInstallerToBin = true
+		s.Packages.WriteSSIInstaller()
 	}
 
 	return nil

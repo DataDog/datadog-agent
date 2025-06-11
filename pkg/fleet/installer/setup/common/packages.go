@@ -75,8 +75,8 @@ func resolvePackages(env *env.Env, packages Packages) []packageWithVersion {
 
 // Packages is a list of packages to install
 type Packages struct {
-	install            map[string]packageWithVersion
-	CopyInstallerToBin bool // CopyInstallerToBin indicates whether the installer should be copied to /usr/bin/datadog-installer
+	install          map[string]packageWithVersion
+	copyInstallerSSI bool
 }
 
 type packageWithVersion struct {
@@ -92,9 +92,14 @@ func (p *Packages) Install(pkg string, version string) {
 	}
 }
 
-func copyInstallerToBin(s *Setup) error {
-	destinationPath := "/usr/bin/datadog-installer"
-	s.Out.WriteString("Writing installer to /usr/bin/datadog-installer...\n")
+// WriteSSIInstaller marks that the installer should be copied to /opt/datadog-packages/run/datadog-installer-ssi
+// Use this when installing SSI without the agent, so that the installer can be used later to remove the packages.
+func (p *Packages) WriteSSIInstaller() {
+	p.copyInstallerSSI = true
+}
+
+func copyInstallerSSI() error {
+	destinationPath := "/opt/datadog-packages/run/datadog-installer-ssi"
 
 	// Get the current executable path
 	currentExecutable, err := os.Executable()
@@ -141,6 +146,5 @@ func copyInstallerToBin(s *Setup) error {
 		return fmt.Errorf("failed to set permissions on destination file: %w", err)
 	}
 
-	s.Out.WriteString("Successfully copied installer to /usr/bin/datadog-installer\n")
 	return nil
 }

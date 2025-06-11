@@ -130,8 +130,8 @@ func (s *Setup) Run() (err error) {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
 	}
-	if s.Packages.CopyInstallerToBin {
-		if err := copyInstallerToBin(s); err != nil {
+	if s.Packages.copyInstallerSSI {
+		if err := copyInstallerSSI(); err != nil {
 			return err
 		}
 	}

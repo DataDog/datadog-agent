@@ -54,8 +54,8 @@ func (s *installScriptSSISuite) TestInstall() {
 	)
 	s.host.AssertPackageNotInstalledByInstaller("datadog-agent")
 
-	// Check the installer exists in /usr/bin
-	state.AssertFileExists("/usr/bin/datadog-installer", 0755, "root", "root")
+	// Check the installer exists in /opt/datadog-packages/run
+	state.AssertFileExists("/opt/datadog-packages/run/datadog-installer-ssi", 0755, "root", "root")
 
 	// Config files exist
 	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "root", "root")

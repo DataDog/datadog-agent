@@ -49,7 +49,7 @@ var (
 	scriptTestsWithSkippedFlavors = []installerScriptTestsWithSkippedFlavors{
 		{t: testDatabricksScript},
 		{t: testDefaultScript, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7}},
-		{t: testSSIScript, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
+		{t: testSSIScript},
 	}
 )
 
