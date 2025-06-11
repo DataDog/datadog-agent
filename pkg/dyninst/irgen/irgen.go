@@ -152,7 +152,7 @@ func GenerateIR(
 			},
 		})
 	}
-	slices.SortFunc(issues, compareProbes)
+	slices.SortFunc(issues, ir.CompareProbeIDs)
 
 	return &ir.Program{
 		ID:          programID,
@@ -164,27 +164,14 @@ func GenerateIR(
 	}, nil
 }
 
-type probeIDer interface {
-	GetID() string
-	GetVersion() int
-}
-
-func compareProbes[A, B probeIDer](a A, b B) int {
-	return cmp.Or(
-		cmp.Compare(a.GetID(), b.GetID()),
-		cmp.Compare(b.GetVersion(), a.GetVersion()), // reverse version order
-	)
-}
-
 func findUnusedConfigs(
 	successes []*ir.Probe,
 	failures []ir.ProbeIssue,
 	configs []ir.ProbeDefinition,
-) []ir.ProbeDefinition {
-	slices.SortFunc(configs, compareProbes)
-	slices.SortFunc(failures, compareProbes)
-	slices.SortFunc(successes, compareProbes)
-	var unused []ir.ProbeDefinition
+) (unused []ir.ProbeDefinition) {
+	slices.SortFunc(successes, ir.CompareProbeIDs)
+	slices.SortFunc(failures, ir.CompareProbeIDs)
+	slices.SortFunc(configs, ir.CompareProbeIDs)
 	for _, config := range configs {
 		var inSuccesses, inFailures bool
 		successes, inSuccesses = skipPast(successes, config)
@@ -196,8 +183,8 @@ func findUnusedConfigs(
 	return unused
 }
 
-func skipPast[A, B probeIDer](items []A, target B) (_ []A, found bool) {
-	idx, found := slices.BinarySearchFunc(items, target, compareProbes)
+func skipPast[A, B ir.ProbeIDer](items []A, target B) (_ []A, found bool) {
+	idx, found := slices.BinarySearchFunc(items, target, ir.CompareProbeIDs)
 	if found {
 		idx++
 	}
