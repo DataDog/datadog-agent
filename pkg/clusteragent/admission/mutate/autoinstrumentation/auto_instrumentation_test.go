@@ -106,9 +106,9 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			pod:  common.FakePod("java-pod"),
 		},
 		{
-			name:                    "nominal case: java",
-			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			name:                  "nominal case: java",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: commonRegistry + "/apm-inject:0",
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -116,9 +116,9 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                    "nominal case: java & python",
-			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			name:                  "nominal case: java & python",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: commonRegistry + "/apm-inject:0",
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -133,7 +133,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					"admission.datadoghq.com/apm-inject.version": "v0",
 				},
 			}.Create(),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
+			expectedInjectorImage: commonRegistry + "/apm-inject:v0",
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -147,7 +147,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					"admission.datadoghq.com/apm-inject.custom-image": "docker.io/library/apm-inject-package:v27",
 				},
 			}.Create(),
-			expectedInjectorImage:   "docker.io/library/apm-inject-package:v27",
+			expectedInjectorImage: "docker.io/library/apm-inject-package:v27",
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -162,7 +162,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					"admission.datadoghq.com/apm-inject.debug":   "true",
 				},
 			}.Create(),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
+			expectedInjectorImage: commonRegistry + "/apm-inject:v0",
 			expectedLibConfigEnvs: map[string]string{
 				"DD_APM_INSTRUMENTATION_DEBUG": "true",
 				"DD_TRACE_STARTUP_LOGS":        "true",
@@ -182,7 +182,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 					"admission.datadoghq.com/apm-inject.debug":   "false",
 				},
 			}.Create(),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:v0",
+			expectedInjectorImage: commonRegistry + "/apm-inject:v0",
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -190,9 +190,9 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                    "config injector-image-override",
-			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.16-1",
+			name:                  "config injector-image-override",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -203,11 +203,11 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                    "config language detected env vars",
-			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0.16-1",
-			expectedLangsDetected:   "python",
-			expectedInstallType:     "k8s_lib_injection",
+			name:                  "config language detected env vars",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0.16-1",
+			expectedLangsDetected: "python",
+			expectedInstallType:   "k8s_lib_injection",
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
@@ -224,10 +224,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                    "language detected for a different container",
-			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
-			expectedLangsDetected:   "",
+			name:                  "language detected for a different container",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
+			expectedLangsDetected: "",
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{
 					libs: []libInfo{
@@ -240,10 +240,10 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			},
 		},
 		{
-			name:                    "language detected but no languages found",
-			pod:                     common.FakePod("java-pod"),
-			expectedInjectorImage:   "gcr.io/datadoghq/apm-inject:0",
-			expectedLangsDetected:   "",
+			name:                  "language detected but no languages found",
+			pod:                   common.FakePod("java-pod"),
+			expectedInjectorImage: "gcr.io/datadoghq/apm-inject:0",
+			expectedLangsDetected: "",
 			libInfo: extractedPodLibInfo{
 				languageDetection: &libInfoLanguageDetection{},
 				libs: []libInfo{
@@ -342,7 +342,7 @@ func TestInjectAutoInstruConfigV2(t *testing.T) {
 			pod: common.FakePodSpec{
 				Containers: []corev1.Container{{Name: "istio-proxy"}},
 			}.Create(),
-			expectedInjectorImage:   commonRegistry + "/apm-inject:0",
+			expectedInjectorImage: commonRegistry + "/apm-inject:0",
 			libInfo: extractedPodLibInfo{
 				libs: []libInfo{
 					java.libInfo("", "gcr.io/datadoghq/dd-lib-java-init:v1"),
@@ -2259,7 +2259,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				},
 			},
 			expectedInjectedLibraries: defaultLibraries,
-				wantErr:                   true,
+			wantErr:                   true,
 			wantWebhookInitErr:        false,
 		},
 		{
@@ -2333,7 +2333,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				},
 			},
 			expectedInjectedLibraries: map[string]string{"python": "latest"},
-				wantErr:                   false,
+			wantErr:                   false,
 			wantWebhookInitErr:        false,
 		},
 		{
@@ -2370,7 +2370,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				},
 			},
 			expectedInjectedLibraries: map[string]string{"js": "latest"},
-				wantErr:                   false,
+			wantErr:                   false,
 			wantWebhookInitErr:        false,
 		},
 		{
@@ -2606,7 +2606,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 			}.Create(),
 			expectedEnvs:              nil,
 			expectedInjectedLibraries: map[string]string{},
-				wantErr:                   false,
+			wantErr:                   false,
 			wantWebhookInitErr:        false,
 			setupConfig:               funcs{enableAPMInstrumentation, disableNamespaces("ns")},
 		},
@@ -2645,7 +2645,7 @@ func TestInjectAutoInstrumentationV1(t *testing.T) {
 				},
 			),
 			expectedInjectedLibraries: defaultLibraries,
-				wantErr:                   false,
+			wantErr:                   false,
 			wantWebhookInitErr:        false,
 			setupConfig:               funcs{enableAPMInstrumentation, enabledNamespaces("ns")},
 		},
