@@ -76,42 +76,41 @@ func NewActuator(
 
 // runDispatcher runs in a separate goroutine and processes messages from the
 // ringbuffer and to hand them to the dispatcher.
-func (a *Actuator) runDispatcher() (err error) {
+func (a *Actuator) runDispatcher() (retErr error) {
 	defer func() {
-		if err != nil {
-			go a.shutdown(fmt.Errorf("error in dispatcher: %w", err))
+		if retErr != nil {
+			go a.shutdown(fmt.Errorf("error in dispatcher: %w", retErr))
 		}
 	}()
-	for {
+	reader := a.loader.OutputReader()
+	inShutdown := func() bool {
 		select {
 		case <-a.shuttingDown:
-			return
+			return true
 		default:
+			return false
 		}
-
+	}
+	for {
+		if inShutdown() {
+			return nil
+		}
 		rec := recordPool.Get().(*ringbuf.Record)
-		if err := a.loader.OutputReader().ReadInto(rec); err != nil {
+		if err := reader.ReadInto(rec); err != nil {
 			if errors.Is(err, ringbuf.ErrFlushed) {
 				continue
 			}
-			return err
+			return fmt.Errorf("error reading message: %w", err)
 		}
-		message := Message{rec: rec}
-		err = a.sink.HandleMessage(message)
 		// TODO: Improve error handling here.
 		//
 		// Perhaps we want to find a way to only partially fail. Alternatively,
 		// this interface should not be delivering errors at all.
-		if err != nil {
-			select {
-			case <-a.shuttingDown:
-				recordPool.Put(rec)
-				return
-			default:
-				log.Errorf("Error handling message: %v", err)
-				go a.shutdown(fmt.Errorf("error handling message: %w", err))
-				return
-			}
+		if err := a.sink.HandleMessage(Message{
+			rec: rec,
+		}); err != nil && !inShutdown() {
+			log.Errorf("error handling message: %v", err)
+			return fmt.Errorf("error handling message: %w", err)
 		}
 	}
 }

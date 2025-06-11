@@ -55,6 +55,7 @@ type ProcessID struct {
 
 	// Service is the service name for the process.
 	Service string
+
 	// Realistically this should include something about the start time of
 	// the process to be robust to PID wraparound. This is less of a problem
 	// these days now that pids in linux are 32 bits, but technically it's
