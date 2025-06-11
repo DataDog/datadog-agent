@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.65.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.27.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.27.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.28.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.127.0
 	github.com/stretchr/testify v1.10.0
