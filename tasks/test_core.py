@@ -68,19 +68,9 @@ class TestResult(ExecResult):
         # Path to the junit file output by gotestsum (only present if specified in dda inv test)
         self.junit_file_path = None
 
-    def get_failure(self, flavor):
-        failure_string = ""
-
-        if not self.failed:
-            return self.failed, failure_string
-
-        if self.result_json_path is None or not os.path.exists(self.result_json_path):
-            failure_string += "No result json saved, cannot determine whether tests failed or not."
-            return self.failed, failure_string
-
-        failure_string = self.failure_string(flavor)
-        failed_packages = set()
-        failed_tests = defaultdict(set)
+    def get_failing_tests(self) -> tuple[set[str], dict[str, set[str]]]:
+        failed_packages: set[str] = set()
+        failed_tests: dict[str, set[str]] = defaultdict(set)
 
         # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
         # here, in system-probe.py, and in libs/pipeline_notifications.py
@@ -114,6 +104,22 @@ class TestResult(ExecResult):
                     elif action == "pass" and name in failed_tests.get(package, set()):
                         # The test was retried and succeeded, removing from the list of tests to report
                         failed_tests[package].remove(name)
+
+        return failed_packages, failed_tests
+
+    def get_failure(self, flavor):
+        failure_string = ""
+
+        if not self.failed:
+            return self.failed, failure_string
+
+        if self.result_json_path is None or not os.path.exists(self.result_json_path):
+            failure_string += "No result json saved, cannot determine whether tests failed or not."
+            return self.failed, failure_string
+
+        failure_string = self.failure_string(flavor)
+
+        failed_packages, failed_tests = self.get_failing_tests()
 
         if not failed_packages:
             failure_string += "The test command failed, but no test failures detected in the result json."
