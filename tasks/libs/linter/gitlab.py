@@ -36,7 +36,9 @@ PREPUSH_GITLABCI_SUBLINTERS: list[Callable] = []
 
 
 # === Task code bodies === #
-def gitlabci_sublinter(info_message: str, success_message: str, run_on_prepush: bool = True, allow_fail: bool = False):
+def gitlabci_sublinter(
+    name: str, info_message: str, success_message: str, run_on_prepush: bool = True, allow_fail: bool = False
+):
     """Decorator for registering a gitlabci sublinter, and setting up some common config options."""
 
     # Weird pattern here, but it is necessary for implementing "parametrized" decorators
@@ -47,6 +49,7 @@ def gitlabci_sublinter(info_message: str, success_message: str, run_on_prepush: 
             try:
                 func(*args, **kwargs)
             except GitlabLintFailure as e:
+                e.set_linter_name(name)
                 if allow_fail:
                     e.ignore()
                 raise e
@@ -94,7 +97,9 @@ def gitlabci_lint_task_template(
 
 
 @gitlabci_sublinter(
-    info_message='Running main gitlabci config linter...', success_message='All contexts tested successfully.'
+    name="config-check",
+    info_message='Running main gitlabci config linter...',
+    success_message='All contexts tested successfully.',
 )
 def lint_and_test_gitlab_ci_config(full_config: dict[str, dict], test="all", custom_context=None, *args, **kwargs):
     """Lints and tests the validity of the gitlabci config object passed in argument.
@@ -104,7 +109,7 @@ def lint_and_test_gitlab_ci_config(full_config: dict[str, dict], test="all", cus
         custom_context: A custom context to test the gitlab ci file with.
     """
     for config_filename, config_object in full_config.items():
-        with gitlab_section(f"Testing {config_filename}", echo=True):
+        with gitlab_section(f"Testing {config_filename}", echo=True, collapsed=True):
             # Only the main config should be tested with all contexts
             if config_filename == ".gitlab-ci.yml":
                 all_contexts = []
@@ -124,6 +129,7 @@ def lint_and_test_gitlab_ci_config(full_config: dict[str, dict], test="all", cus
 
 
 @gitlabci_sublinter(
+    name="shellcheck",
     info_message='Running shellcheck on gitlabci scripts...',
     success_message='All scripts checked successfully.',
     run_on_prepush=False,
@@ -184,6 +190,7 @@ def shellcheck_gitlab_ci_jobs(
 
 
 @gitlabci_sublinter(
+    name="change-paths-valid",
     info_message='Checking change: paths: rules defined in gitlabci jobs are valid...',
     success_message='All change: paths: rules defined in gitlabci jobs are valid.',
 )
@@ -208,6 +215,7 @@ def check_change_paths_valid_gitlab_ci_jobs(jobs: list[tuple[str, dict]], *args,
 
 
 @gitlabci_sublinter(
+    name="change-paths-defined",
     info_message='Checking gitlabci jobs have defined change: paths: rules...',
     success_message='All gitlabci jobs have defined change: paths: rules.',
     allow_fail=True,
@@ -344,6 +352,7 @@ def check_change_paths_exist_gitlab_ci_jobs(jobs: list[tuple[str, dict[str, Any]
 
 
 @gitlabci_sublinter(
+    name="needs-rules-defined",
     info_message='Checking gitlabci jobs have defined needs: and rules: sections...',
     success_message='All gitlabci jobs have defined needs: and rules: sections.',
 )
@@ -374,8 +383,9 @@ def check_needs_rules_gitlab_ci_jobs(jobs: list[tuple[str, dict]], ci_linters_co
 
 
 @gitlabci_sublinter(
-    info_message='Checking gitlabci jobs have defined codeowners...',
-    success_message='All gitlabci jobs have defined codeowners.',
+    name="jobowners-exist",
+    info_message='Checking gitlabci jobs have defined JOBOWNERS...',
+    success_message='All gitlabci jobs have defined JOBOWNERS.',
 )
 def check_owners_gitlab_ci_jobs(
     jobs: list[tuple[str, dict]], ci_linters_config: CILintersConfig, jobowners: CodeOwners, *args, **kwargs

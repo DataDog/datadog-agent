@@ -313,22 +313,44 @@ def full_gitlab_ci(
         }
 
         to_run = PREPUSH_GITLABCI_SUBLINTERS if pre_push_linters else ALL_GITLABCI_SUBLINTERS
+        min_level = [FailureLevel.ERROR, FailureLevel.WARNING, FailureLevel.IGNORED][verbosity]
         for sublinter in to_run:
             try:
                 sublinter(**all_args)
             except GitlabLintFailure as e:
+                with gitlab_section(f'GitlabCI linter "{e._linter_name}" failures', collapsed=True, echo=True):
+                    # Show everything regardless of verbosity if we are running in CI
+                    print(
+                        e.pretty_print(
+                            min_level=FailureLevel.IGNORED if running_in_ci() else min_level, show_linter_name=False
+                        )
+                    )
+                    print(
+                        f'{color_message("Result:", Color.BOLD)} {color_message("PASS", Color.GREEN) if e.exit_code == 0 else color_message("FAIL", Color.RED)} ({e.level.pretty_print()})'
+                    )
                 if fail_fast and e.level == FailureLevel.ERROR:
-                    print(e.pretty_print())
                     raise Exit(code=e.exit_code) from e
                 failures.extend(e.get_individual_failures())
 
+        # Custom handling for errors, bypassing the default behavior in gitlabci_lint_task_template
         if failures:
-            if len(failures) == 1:
-                grouped_failure = failures[0]
-            else:
-                grouped_failure = MultiGitlabLintFailure(failures)
+            with gitlab_section('GitlabCI linter summary', echo=True):
+                # Group failures by linter name
+                grouped_linter_failures: defaultdict[str, list[SingleGitlabLintFailure]] = defaultdict(list)
+                for failure in failures:
+                    if failure.level >= min_level:
+                        grouped_linter_failures[failure._linter_name].append(failure)
 
-            raise grouped_failure
+                for linter, linter_failures in grouped_linter_failures.items():
+                    with gitlab_section(f'GitlabCI linter "{linter}" failures', echo=True):
+                        for failure in linter_failures:
+                            print(failure.pretty_print(min_level=min_level, show_linter_name=False))
+
+                summary_failure = MultiGitlabLintFailure(failures=failures)
+                print(
+                    f'{color_message("Result:", Color.BOLD)} {color_message("PASS", Color.GREEN) if summary_failure.exit_code == 0 else color_message("FAIL", Color.RED)} ({summary_failure.level.pretty_print()})'
+                )
+            raise Exit(code=summary_failure.exit_code)
 
         print(f'[{color_message("OK", Color.GREEN)}] All gitlabci linters passed successfully.')
 
