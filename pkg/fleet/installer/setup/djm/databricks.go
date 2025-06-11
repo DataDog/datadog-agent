@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -223,21 +224,63 @@ func setClearHostTag(s *common.Setup, tagKey, value string) {
 }
 
 func setupGPUIntegration(s *common.Setup) {
-	if os.Getenv("GPU_MONITORING_ENABLED") != "" {
-		s.Out.WriteString("GPU monitoring enabled via GPU_MONITORING_ENABLED environment variable\n")
+	gpuEnabled := os.Getenv("GPU_MONITORING_ENABLED")
 
-		s.Config.DatadogYAML.CollectGPUTags = true
-		s.Config.DatadogYAML.EnableNVMLDetection = true
-
-		if s.Config.SystemProbeYAML == nil {
-			s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
-		}
-		s.Config.SystemProbeYAML.GPUMonitoringConfig = config.GPUMonitoringConfig{
-			Enabled: true,
-		}
-
-		s.Span.SetTag("gpu_monitoring_enabled", "true")
+	if gpuEnabled != "1" && gpuEnabled != "true" {
+		return
 	}
+
+	s.Out.WriteString("GPU monitoring enabled via GPU_MONITORING_ENABLED environment variable\n")
+
+	s.Config.DatadogYAML.CollectGPUTags = true
+	s.Config.DatadogYAML.EnableNVMLDetection = true
+
+	if s.Config.SystemProbeYAML == nil {
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
+	}
+	s.Config.SystemProbeYAML.GPUMonitoringConfig = config.GPUMonitoringConfig{
+		Enabled: true,
+	}
+
+	s.Span.SetTag("gpu_monitoring_enabled", "true")
+
+	// NVML is not initialized when the databricks init script executes.
+	// This causes the GPU integration to fail initialisation, we must retry after
+	// a timeout so the NVML checks are passing and the GPU integration starts polling metrics.
+	scheduleDelayedAgentRestart(s, 30*time.Second)
+}
+
+// scheduleDelayedAgentRestart schedules an agent restart after the specified delay
+func scheduleDelayedAgentRestart(s *common.Setup, delay time.Duration) {
+	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", delay))
+
+	script := fmt.Sprintf(`#!/bin/bash
+echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] GPU restart script started, waiting %v..." >> /tmp/datadog-gpu-restart.log
+sleep %d
+echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting Datadog agent for GPU monitoring..." >> /tmp/datadog-gpu-restart.log
+service datadog-agent restart >> /tmp/datadog-gpu-restart.log 2>&1
+if [ $? -eq 0 ]; then
+    echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Successfully restarted Datadog agent for GPU monitoring" >> /tmp/datadog-gpu-restart.log
+else
+    echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Failed to restart agent for GPU monitoring" >> /tmp/datadog-gpu-restart.log
+fi
+`, delay, int(delay.Seconds()))
+
+	scriptFile := "/tmp/datadog-gpu-restart.sh"
+	err := os.WriteFile(scriptFile, []byte(script), 0755)
+	if err != nil {
+		s.Out.WriteString(fmt.Sprintf("Failed to write restart script: %v\n", err))
+		return
+	}
+
+	cmd := exec.Command("bash", "-c", fmt.Sprintf("nohup %s > /dev/null 2>&1 &", scriptFile))
+	err = cmd.Run()
+	if err != nil {
+		s.Out.WriteString(fmt.Sprintf("Failed to start background restart script: %v\n", err))
+		return
+	}
+
+	s.Out.WriteString("GPU restart script started in background (check /tmp/datadog-gpu-restart.log)\n")
 }
 
 func setupDatabricksDriver(s *common.Setup) {
