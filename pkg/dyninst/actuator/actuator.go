@@ -76,11 +76,11 @@ func (a *Actuator) NewTenant(
 
 // NewActuator creates a new Actuator instance.
 func NewActuator(loader Loader) *Actuator {
-	shutdownCh := make(chan struct{})
+	shuttingDownCh := make(chan struct{})
 	eventCh := make(chan event)
 	a := &Actuator{
 		events:       eventCh,
-		shuttingDown: shutdownCh,
+		shuttingDown: shuttingDownCh,
 		loader:       loader,
 	}
 	a.mu.sinks = make(map[ir.ProgramID]Sink)
@@ -88,7 +88,7 @@ func NewActuator(loader Loader) *Actuator {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		a.runEventProcessor(eventCh, shutdownCh)
+		a.runEventProcessor(eventCh, shuttingDownCh)
 	}()
 	a.wg.Add(1)
 	go func() {
@@ -200,13 +200,13 @@ func (a *Actuator) runEventProcessor(
 	for !state.isShutdown() {
 		event := <-eventCh
 		if _, isShutdown := event.(eventShutdown); isShutdown {
-			log.Debugf("Received shutdown event")
+			log.Debugf("received shutdown event")
 			close(shuttingDownCh)
 		}
 		log.Tracef("event: %v", event)
 		err := handleEvent(state, (*effects)(a), event)
 		if err != nil {
-			log.Errorf("Error handling event %T: %v", event, err)
+			log.Errorf("error handling event %T: %v", event, err)
 
 			// Trigger shutdown on error. Cannot run directly on this goroutine
 			// because it will deadlock. Note that if we're already shutting
@@ -444,7 +444,9 @@ func attachToProcess(
 // detachFromProcess detaches a program from a process.
 func (a *effects) detachFromProcess(ap *attachedProgram) {
 	tenant := a.getTenant(ap.tenantID)
+	a.wg.Add(1)
 	go func() {
+		defer a.wg.Done()
 		for _, link := range ap.attachedLinks {
 			if err := link.Close(); err != nil {
 				// What else is there to do if this fails?
@@ -474,6 +476,12 @@ func (a *Actuator) Shutdown() error {
 
 func (a *Actuator) shutdown(err error) {
 	a.shutdownOnce.Do(func() {
+		defer log.Debugf("actuator shut down")
+		if err != nil {
+			log.Infof("shutting down actuator due to error: %v", err)
+		} else {
+			log.Debugf("shutting down actuator")
+		}
 		a.events <- eventShutdown{}
 		a.shutdownErr = err
 
