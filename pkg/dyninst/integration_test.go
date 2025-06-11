@@ -12,6 +12,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,11 +22,14 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
@@ -52,12 +56,32 @@ func TestDyninst(t *testing.T) {
 		"simple": {},
 		"sample": {},
 	}
+
+	// The debug variants of the tests spew logs to the trace_pipe, so we need
+	// to clear it after the tests to avoid interfering with other tests.
+	// Leave the option to disable this behavior for debugging purposes.
+	dontClear, _ := strconv.ParseBool(os.Getenv("DONT_CLEAR_TRACE_PIPE"))
+	if !dontClear {
+		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			for {
+				deadline := time.Now().Add(100 * time.Millisecond)
+				require.NoError(t, tp.SetReadDeadline(deadline))
+				n, err := io.Copy(io.Discard, tp)
+				require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+				if n == 0 {
+					break
+				}
+			}
+			require.NoError(t, tp.Close())
+		})
+	}
 	for _, svc := range programs {
 		if _, ok := integrationTestPrograms[svc]; !ok {
 			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
-
 		for _, cfg := range cfgs {
 			t.Run(svc+"-"+cfg.String(), func(t *testing.T) {
 				if cfg.GOARCH != runtime.GOARCH {
@@ -66,15 +90,29 @@ func TestDyninst(t *testing.T) {
 						runtime.GOARCH,
 					)
 				}
+
+				t.Parallel()
 				bin := testprogs.MustGetBinary(t, svc, cfg)
 
 				expectedOutput := getExpectedDecodedOutputOfProbes(t, svc)
 				probes := testprogs.MustGetProbeDefinitions(t, svc)
-				for i := range probes {
-					// Run each probe individually
-					t.Run(probes[i].GetID(), func(t *testing.T) {
+				for _, debug := range []bool{false, true} {
+					if testing.Short() && debug {
+						t.Skip("skipping debug mode in short mode")
+					}
+					t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
 						t.Parallel()
-						testDyninst(t, svc, bin, probes[i:i+1], expectedOutput)
+						for i := range probes {
+							probes := probes[i : i+1]
+							probe := probes[0]
+							// Run each probe individually.
+							t.Run(probe.GetID(), func(t *testing.T) {
+								t.Parallel()
+								testDyninst(
+									t, svc, bin, probes, expectedOutput, debug,
+								)
+							})
+						}
 					})
 				}
 			})
@@ -88,8 +126,8 @@ func testDyninst(
 	sampleServicePath string,
 	probes []ir.ProbeDefinition,
 	expOut map[string]string,
+	debug bool,
 ) {
-	t.Logf("Testing with actuator")
 	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
 	defer cleanup()
 
@@ -105,14 +143,16 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { assert.NoError(t, objectFile.Close()) }()
 
-	reporter := makeTestReporter(t)
-	loader, err := loader.NewLoader(
-		// Add following to help debug this test.
-		// loader.WithDebugLevel(100),
+	loaderOpts := []loader.Option{
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
 		}),
-	)
+	}
+	if debug {
+		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
+	}
+	reporter := makeTestReporter(t)
+	loader, err := loader.NewLoader(loaderOpts...)
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
 	require.NoError(t, err)
