@@ -91,30 +91,8 @@ func (c *debouncer) coalesceInFlight(now time.Time) []ProcessUpdate {
 			process.lastUpdated.Add(c.idlePeriod).After(now) {
 			continue
 		}
-		delete(c.processes, procID)
-		slices.SortFunc(process.files, func(a, b remoteConfigFile) int {
-			return cmp.Compare(a.ConfigPath, b.ConfigPath)
-		})
-		process.files = slices.CompactFunc(process.files, sameConfigPath)
-		probes := make([]ir.ProbeDefinition, 0, len(process.files))
-		for _, file := range process.files {
-			// TODO: Optimize away this copy of the underlying data by either
-			// using unsafe or changing rcjson to use an io.Reader and reusing
-			// a strings.Reader.
-			probe, err := rcjson.UnmarshalProbe([]byte(file.ConfigContent))
-			if err != nil {
-				// TODO: Rate limit this warning in some form.
-				log.Warnf(
-					"process %v: failed to unmarshal probe %s: %v",
-					procID, file.ConfigPath, err,
-				)
-				continue
-			}
-			probes = append(probes, probe)
-		}
-		// Collapse duplicates if they somehow showed up.
-		slices.SortFunc(probes, ir.CompareProbeIDs)
-		probes = slices.CompactFunc(probes, eqProbeIDs)
+		probes := computeProbeDefinitions(procID, process.files)
+		process.files, process.lastUpdated = nil, time.Time{}
 		updates = append(updates, ProcessUpdate{
 			ProcessUpdate: process.ProcessUpdate,
 			Probes:        probes,
@@ -125,6 +103,36 @@ func (c *debouncer) coalesceInFlight(now time.Time) []ProcessUpdate {
 		return cmp.Compare(a.ProcessID.PID, b.ProcessID.PID)
 	})
 	return updates
+}
+
+func computeProbeDefinitions(
+	procID actuator.ProcessID,
+	files []remoteConfigFile,
+) []ir.ProbeDefinition {
+	slices.SortFunc(files, func(a, b remoteConfigFile) int {
+		return cmp.Compare(a.ConfigPath, b.ConfigPath)
+	})
+	files = slices.CompactFunc(files, sameConfigPath)
+	probes := make([]ir.ProbeDefinition, 0, len(files))
+	for _, file := range files {
+		// TODO: Optimize away this copy of the underlying data by either
+		// using unsafe or changing rcjson to use an io.Reader and reusing
+		// a strings.Reader.
+		probe, err := rcjson.UnmarshalProbe([]byte(file.ConfigContent))
+		if err != nil {
+			// TODO: Rate limit this warning in some form.
+			log.Warnf(
+				"process %v: failed to unmarshal probe %s: %v",
+				procID, file.ConfigPath, err,
+			)
+			continue
+		}
+		probes = append(probes, probe)
+	}
+	// Collapse duplicates if they somehow showed up.
+	slices.SortFunc(probes, ir.CompareProbeIDs)
+	probes = slices.CompactFunc(probes, eqProbeIDs)
+	return probes
 }
 
 func sameConfigPath(a, b remoteConfigFile) bool {

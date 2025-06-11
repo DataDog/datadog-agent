@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
@@ -122,7 +122,32 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 		rcsFiles[mkPath(t, probe.GetID())] = marshaled
 	}
 	rcHandler.UpdateRemoteConfig(rcsFiles)
-	exp := append(probes[:0:0], probes...)
+
+	waitForExpected(t, rcScraper, append(probes[:0:0], probes...))
+
+	// Make sure that the scraper handles more updates correctly.
+	newUpdate := append(probes[:0:0], probes...)
+	for _, probe := range probes {
+		var toMarshal ir.ProbeDefinition
+		switch p := probe.(type) {
+		case *rcjson.SnapshotProbe:
+			copied := *p
+			copied.ID += "_updated"
+			toMarshal = &copied
+		default:
+			t.Fatalf("unexpected probe type %T", p)
+		}
+
+		newUpdate = append(newUpdate, toMarshal)
+		marshaled, err := json.Marshal(toMarshal)
+		require.NoError(t, err)
+		rcsFiles[mkPath(t, probe.GetID())] = marshaled
+	}
+	rcHandler.UpdateRemoteConfig(rcsFiles)
+	waitForExpected(t, rcScraper, newUpdate)
+}
+
+func waitForExpected(t *testing.T, rcScraper *rcscrape.Scraper, exp []ir.ProbeDefinition) {
 	slices.SortFunc(exp, ir.CompareProbeIDs)
 	require.Eventually(t, func() bool {
 		updates := rcScraper.GetUpdates()
@@ -131,8 +156,9 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 		}
 		got := updates[0].Probes
 		slices.SortFunc(got, ir.CompareProbeIDs)
-		return assert.Equal(t, exp, got)
-	}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, exp, got)
+		return true
+	}, 10*time.Second, 100*time.Microsecond)
 }
 
 func formatConfigPath(
