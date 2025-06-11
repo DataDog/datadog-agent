@@ -721,7 +721,8 @@ func newCheck() check.Check {
 			DeviceTagRe:          make(map[string]string),
 			LowercaseDeviceTag:   false,
 			Timeout:              5,
-			ProcMountInfoPath:    "",
+			// Match psutil exactly setting default value (https://github.com/giampaolo/psutil/blob/3d21a43a47ab6f3c4a08d235d2a9a55d4adae9b1/psutil/_pslinux.py#L1277)
+			ProcMountInfoPath: "/proc/self/mounts",
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},
