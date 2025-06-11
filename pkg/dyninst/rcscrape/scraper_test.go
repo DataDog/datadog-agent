@@ -71,27 +71,16 @@ func TestScrapeRemoteConfig(t *testing.T) {
 }
 
 func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Config) {
-	var cleanupFuncs []func()
-	cleanup := func() {
-		for _, f := range cleanupFuncs {
-			f()
-		}
-	}
-	defer func() {
-		if t.Failed() {
-			cleanup()
-		}
-	}()
 	tmpDir, cleanupTmpDir := dyninsttest.PrepTmpDir(
 		t, strings.ReplaceAll(t.Name(), "/", "_"),
 	)
-	cleanupFuncs = append(cleanupFuncs, cleanupTmpDir)
+	defer cleanupTmpDir()
 
 	prog := testprogs.MustGetBinary(t, program, cfg)
 	probes := testprogs.MustGetProbeDefinitions(t, program)
 	rcHandler := dyninsttest.NewMockAgentRCServer()
 	rcServer := httptest.NewServer(rcHandler)
-	cleanupFuncs = append(cleanupFuncs, rcServer.Close)
+	defer rcServer.Close()
 	serverURL, err := url.Parse(rcServer.URL)
 	require.NoError(t, err)
 	host, port, err := net.SplitHostPort(serverURL.Host)
@@ -115,10 +104,10 @@ func runScrapeRemoteConfigTest(t *testing.T, program string, cfg testprogs.Confi
 	child.Env = env
 	err = child.Start()
 	require.NoError(t, err)
-	cleanupFuncs = append(cleanupFuncs, func() {
+	defer func() {
 		_ = child.Process.Kill()
 		_ = child.Wait()
-	})
+	}()
 	loader, err := loader.NewLoader()
 	require.NoError(t, err)
 	a := actuator.NewActuator(loader)
