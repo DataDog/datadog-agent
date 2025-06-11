@@ -38,6 +38,9 @@ deploy_containers-cws-instrumentation-rc-versioned:
 deploy_containers-cws-instrumentation-rc-mutable:
   extends: .deploy_mutable_cws-instrumentation_tags_base
   rules: !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-cws-instrumentation-rc-versioned
+      artifacts: false
   variables:
     IMG_NEW_TAGS: rc
 
@@ -50,5 +53,8 @@ deploy_containers-cws-instrumentation-final-versioned:
 deploy_containers-cws-instrumentation-latest:
   extends: .deploy_mutable_cws-instrumentation_tags_base
   rules: !reference [.on_deploy_manual_final]
+  needs:
+    - job: deploy_containers-cws-instrumentation-final-versioned
+      artifacts: false
   variables:
     IMG_NEW_TAGS: latest
