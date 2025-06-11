@@ -109,7 +109,7 @@ func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 
 func assertFargateHostname(t assert.TestingT, payloads []*aggregator.ProcessPayload) {
 	for _, payload := range payloads {
-		assert.Truef(t, strings.HasPrefix("fargate_task:", payload.HostName),
+		assert.Truef(t, strings.HasPrefix(payload.HostName, "fargate_task:"),
 			"hostname expected to start with 'fargate_task:', but got '%s'", payload.HostName)
 	}
 }
