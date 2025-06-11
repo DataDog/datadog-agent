@@ -972,6 +972,13 @@ func (ua *UprobeAttacher) computeSymbolsToRequest(rules []*AttachRule) ([]Symbol
 
 func (ua *UprobeAttacher) detachFromBinary(fpath utils.FilePath) error {
 	for _, probeID := range ua.fileIDToAttachedProbes[fpath.ID] {
+		// remove probe fd mapping before it is closed to prevent race with ebpf check
+		probe, _ := ua.manager.GetProbe(probeID)
+		if probe != nil {
+			systemID := probe.ID()
+			ebpf.RemoveProbeFDMapping(systemID)
+		}
+
 		err := ua.manager.DetachHook(probeID)
 		if err != nil {
 			return fmt.Errorf("error detaching probe %+v: %w", probeID, err)
