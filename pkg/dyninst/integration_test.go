@@ -48,9 +48,13 @@ func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	programs := testprogs.MustGetPrograms(t)
+	var integrationTestPrograms = map[string]struct{}{
+		"simple": {},
+		"sample": {},
+	}
 	for _, svc := range programs {
-		if svc == "busyloop" {
-			t.Logf("busyloop is not used in integration test")
+		if _, ok := integrationTestPrograms[svc]; !ok {
+			t.Logf("%s is not used in integration tests", svc)
 			continue
 		}
 
