@@ -55,7 +55,6 @@ func (v *diskCheckSuite) TestCheckDisk() {
 			`init_config:
 instances:
   - use_mount: false
-    proc_mountinfo_path: "/proc/self/mounts"
 `,
 			``,
 		},
