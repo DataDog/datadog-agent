@@ -458,7 +458,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 				}
 
 				if existingVariable := rs.evalOpts.VariableStore.Get(varName); existingVariable != nil && reflect.TypeOf(variable) != reflect.TypeOf(existingVariable) {
-					errs = multierror.Append(errs, fmt.Errorf("conflicting types for variable '%s'", varName))
+					errs = multierror.Append(errs, fmt.Errorf("conflicting types for variable '%s': %s != %s", varName, reflect.TypeOf(variable), reflect.TypeOf(existingVariable)))
 					continue
 				}
 
@@ -594,6 +594,13 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		}
 
 		if action.Def.Set != nil {
+			// compile scope field
+			if len(action.Def.Set.ScopeField) > 0 {
+				if err := action.CompileScopeField(rs.model); err != nil {
+					return "", &ErrRuleLoad{Rule: pRule, Err: err}
+				}
+			}
+
 			if field := action.Def.Set.Field; field != "" {
 				if _, found := rs.fieldEvaluators[field]; !found {
 					evaluator, err := rs.model.GetEvaluator(field, "", 0)
@@ -756,6 +763,9 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rul
 
 func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.PolicyRule.Actions {
+		// set context scope field evaluator
+		ctx.SetScopeFieldEvaluator(action.ScopeFieldEvaluator)
+
 		if !action.IsAccepted(ctx) {
 			continue
 		}
@@ -785,7 +795,6 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 						value = evaluator.Eval(ctx)
 					}
 				}
-
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
 						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
@@ -802,6 +811,8 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 			}
 
 		}
+
+		ctx.PerActionReset()
 	}
 
 	return nil

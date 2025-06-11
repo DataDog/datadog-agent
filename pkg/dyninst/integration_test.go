@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"testing"
 	"time"
 	"unsafe"
@@ -64,7 +65,8 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	tempDir, err := os.MkdirTemp(os.TempDir(), "dyninst-integration-test-")
 	require.NoError(t, err)
 	defer func() {
-		if t.Failed() {
+		preserve, _ := strconv.ParseBool(os.Getenv("KEEP_TEMP"))
+		if preserve || t.Failed() {
 			t.Logf("leaving temp dir %s for inspection", tempDir)
 		} else {
 			require.NoError(t, os.RemoveAll(tempDir))
@@ -93,6 +95,18 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 			ID: "sliceArg",
 			Where: &config.Where{
 				MethodName: "main.sliceArg",
+			},
+		},
+		&config.LogProbe{
+			ID: "arrayArg",
+			Where: &config.Where{
+				MethodName: "main.arrayArg",
+			},
+		},
+		&config.LogProbe{
+			ID: "inlined",
+			Where: &config.Where{
+				MethodName: "main.inlined",
 			},
 		},
 	}
@@ -195,7 +209,8 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, bpfOutDump.Close()) }()
 
-	for range len(probes) {
+	// Inlined function is called twice, hence extra event.
+	for range len(probes) + 1 {
 		t.Logf("reading ringbuf item")
 		require.Greater(t, rd.AvailableBytes(), 0)
 		record, err := rd.Read()
@@ -209,7 +224,6 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 		pos := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len)
 		for pos < header.Data_byte_len {
 			di := (*output.DataItemHeader)(unsafe.Pointer(&record.RawSample[pos]))
-			t.Logf("header: %#v", *di)
 			typ, ok := irp.Types[ir.TypeID(di.Type)]
 			if !ok {
 				t.Fatalf("unknown type: %d", di.Type)

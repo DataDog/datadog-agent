@@ -10,6 +10,7 @@ package eval
 
 import (
 	"fmt"
+	"net"
 	"reflect"
 	"regexp"
 	"slices"
@@ -224,12 +225,53 @@ func isVariableName(str string) (string, bool) {
 }
 
 func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+	var variableEvaluator interface{}
 	variable := opts.VariableStore.Get(varname)
-	if variable == nil {
-		return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
+	if variable != nil {
+		return variable.GetEvaluator(), pos, nil
 	}
 
-	return variable.GetEvaluator(), pos, nil
+	if strings.HasSuffix(varname, ".length") {
+		trimmedVariable := strings.TrimSuffix(varname, ".length")
+		if variable = opts.VariableStore.Get(trimmedVariable); variable != nil {
+			variableEvaluator = variable.GetEvaluator()
+			switch evaluator := variableEvaluator.(type) {
+			case *StringArrayEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.([]string))
+					},
+				}, pos, nil
+			case *StringEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.(string))
+					},
+				}, pos, nil
+			case *IntArrayEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.([]int))
+					},
+				}, pos, nil
+			case *CIDRArrayEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.([]net.IPNet))
+					},
+				}, pos, nil
+			default:
+				return nil, pos, NewError(pos, "'length' cannot be used on '%s'", trimmedVariable)
+			}
+		}
+
+	}
+
+	return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 }
 
 func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
