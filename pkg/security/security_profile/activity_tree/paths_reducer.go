@@ -68,40 +68,42 @@ func (r *PathsReducer) ReducePath(path string, fileEvent *model.FileEvent, node 
 	var ctx *callbackContext
 
 	for _, pattern := range r.patterns {
-		currentPath := path
-		if ctx != nil {
-			currentPath = ctx.path
-		}
-
-		if pattern.PreCheck != nil && fileEvent != nil && !pattern.PreCheck(currentPath, fileEvent) {
-			continue
-		}
-
-		if pattern.Hint != "" && !strings.Contains(currentPath, pattern.Hint) {
-			continue
-		}
-
-		allMatches := pattern.Pattern.FindAllStringSubmatchIndex(currentPath, -1)
-
-		if len(allMatches) == 0 {
-			continue
-		}
-
-		// if no regex matches, we fully skip the callbackContext allocation
-		if ctx == nil {
-			ctx = &callbackContext{
-				path:        path,
-				fileEvent:   fileEvent,
-				processNode: node,
+		utils.PprofDoWithoutContext(pattern.Labels, func() {
+			currentPath := path
+			if ctx != nil {
+				currentPath = ctx.path
 			}
-		}
 
-		for matchSet := len(allMatches) - 1; matchSet >= 0; matchSet-- {
-			if pattern.Callback != nil {
-				ctx.groups = allMatches[matchSet]
-				pattern.Callback(ctx)
+			if pattern.PreCheck != nil && fileEvent != nil && !pattern.PreCheck(currentPath, fileEvent) {
+				return
 			}
-		}
+
+			if pattern.Hint != "" && !strings.Contains(currentPath, pattern.Hint) {
+				return
+			}
+
+			allMatches := pattern.Pattern.FindAllStringSubmatchIndex(currentPath, -1)
+
+			if len(allMatches) == 0 {
+				return
+			}
+
+			// if no regex matches, we fully skip the callbackContext allocation
+			if ctx == nil {
+				ctx = &callbackContext{
+					path:        path,
+					fileEvent:   fileEvent,
+					processNode: node,
+				}
+			}
+
+			for matchSet := len(allMatches) - 1; matchSet >= 0; matchSet-- {
+				if pattern.Callback != nil {
+					ctx.groups = allMatches[matchSet]
+					pattern.Callback(ctx)
+				}
+			}
+		})
 	}
 
 	if ctx != nil {
