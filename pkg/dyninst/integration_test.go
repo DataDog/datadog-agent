@@ -8,6 +8,7 @@
 package dyninst_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -19,12 +20,14 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/alecthomas/assert/v2"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
@@ -53,7 +56,7 @@ func TestDyninst(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
 			}
-			bin := testprogs.GetBinary(t, "simple", cfg)
+			bin := testprogs.GetBinary(t, "sample", cfg)
 			testDyninst(t, bin)
 		})
 	}
@@ -77,7 +80,7 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
 
-	probes := testprogs.GetProbeCfgs(t, "simple")
+	probes := testprogs.GetProbeCfgs(t, "sample")
 
 	obj, err := object.NewElfObject(binary)
 	require.NoError(t, err)
@@ -178,7 +181,7 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	defer func() { require.NoError(t, bpfOutDump.Close()) }()
 
 	// Inlined function is called twice, hence extra event.
-	for range len(probes) + 1 {
+	for i := range len(probes) + 1 {
 		t.Logf("reading ringbuf item")
 		require.Greater(t, rd.AvailableBytes(), 0)
 		record, err := rd.Read()
@@ -203,5 +206,18 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 				pos += 8 - pos%8
 			}
 		}
+
+		// Decode the data with the corresponding IR used to generate it
+		b := []byte{}
+		out := bytes.NewBuffer(b)
+		decoder, err := decode.NewDecoder(irp)
+		assert.NoError(t, err)
+		require.NotNil(t, decoder)
+
+		err = decoder.Decode(record.RawSample, out)
+		if err != nil {
+			t.Logf("error decoding: %s", err)
+		}
+		t.Logf("Decoded output for probe %s:\n %s", probes[i].GetID(), out.String())
 	}
 }
