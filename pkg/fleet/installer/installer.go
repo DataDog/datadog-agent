@@ -919,11 +919,14 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 
 // ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
-	err := paths.EnsureInstallerDataDir()
-	if err != nil {
-		return fmt.Errorf("error ensuring repositories exist: %w", err)
-	}
-	err = os.MkdirAll(paths.PackagesPath, 0755)
+	// TODO: should we call paths.EnsureInstallerDataDir() here?
+	//       It should probably be anywhere that the below directories must be created,
+	//       but it feels wrong to have the constructor perform work like this.
+	//       For example, "read only" subcommands like `get-states` will end up
+	//       iterating the filesystem tree to apply permissions, and every
+	//       subprocess during experiments will repeat the work, even though it should
+	//       only be needed at install/setup time.
+	err := os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}
