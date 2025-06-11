@@ -6,7 +6,11 @@
 package writer
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -84,7 +88,8 @@ type TraceWriter struct {
 	mu         sync.Mutex
 	compressor compression.Component
 
-	minConvertPayloads int // minimum number of payloads to convert to IDX format
+	minConvertPayloads int    // minimum number of payloads to convert to IDX format
+	testPayloadPath    string // path where to write test payload files (empty means current directory)
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -266,6 +271,11 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	}
 	payloads = payloads[numToConvert:]
 
+	// Write converted payloads to local file for testing if we have conversions and minConvertPayloads > 0
+	if w.minConvertPayloads > 0 && numToConvert > 0 {
+		w.writePayloadsToFile(idxPayloads)
+	}
+
 	log.Debugf("Serializing %d tracer payloads.", len(payloads))
 	p := pb.AgentPayload{
 		AgentVersion:       w.agentVersion,
@@ -328,6 +338,58 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 	}
 	sendPayloads(w.senders, p, w.syncMode)
 
+}
+
+// writePayloadsToFile writes the converted IDX payloads to a local JSON file for testing
+func (w *TraceWriter) writePayloadsToFile(idxPayloads []*idx.TracerPayload) {
+	if len(idxPayloads) == 0 {
+		return
+	}
+
+	// Create a simple structure to hold the payloads in JSON format
+	type TestPayloadData struct {
+		Timestamp   time.Time            `json:"timestamp"`
+		NumPayloads int                  `json:"num_payloads"`
+		Payloads    []*idx.TracerPayload `json:"payloads"`
+	}
+
+	data := TestPayloadData{
+		Timestamp:   time.Now(),
+		NumPayloads: len(idxPayloads),
+		Payloads:    idxPayloads,
+	}
+
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		log.Errorf("Error marshaling IDX payloads to JSON: %v", err)
+		return
+	}
+
+	// Generate filename with timestamp to avoid conflicts
+	filename := fmt.Sprintf("trace_payloads_%d.json", time.Now().Unix())
+
+	// Use configurable path if provided, otherwise use current directory
+	var fullPath string
+	if w.testPayloadPath != "" {
+		fullPath = filepath.Join(w.testPayloadPath, filename)
+	} else {
+		fullPath = filename
+	}
+
+	file, err := os.Create(fullPath)
+	if err != nil {
+		log.Errorf("Error creating payload test file %s: %v", fullPath, err)
+		return
+	}
+	defer file.Close()
+
+	_, err = file.Write(jsonData)
+	if err != nil {
+		log.Errorf("Error writing to payload test file %s: %v", fullPath, err)
+		return
+	}
+
+	log.Infof("Successfully wrote %d converted payloads to %s for testing", len(idxPayloads), fullPath)
 }
 
 func (w *TraceWriter) report() {

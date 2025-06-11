@@ -6,11 +6,14 @@
 package writer
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"testing"
@@ -526,4 +529,100 @@ func BenchmarkSerialize(b *testing.B) {
 			}
 		})
 	}
+}
+
+func TestTraceWriterLocalFileOutput(t *testing.T) {
+	srv := newTestServer()
+	defer srv.Close()
+
+	t.Run("file_created_when_conversions_enabled", func(t *testing.T) {
+		// Create a temporary directory for test files
+		tmpDir := t.TempDir()
+
+		cfg := &config.AgentConfig{
+			Hostname:   testHostname,
+			DefaultEnv: testEnv,
+			Endpoints: []*config.Endpoint{{
+				APIKey: "123",
+				Host:   srv.URL,
+			}},
+			TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+			SynchronousFlushing: true,
+			MinConvertPayloads:  2, // Set to convert 2 payloads to IDX format
+		}
+
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		tw.testPayloadPath = tmpDir // Set the output path to temp directory
+		defer tw.Stop()
+
+		// Send test spans that will trigger conversion and file write
+		testSpans := []*SampledChunks{
+			randomSampledSpans(20, 8),
+			randomSampledSpans(10, 0),
+			randomSampledSpans(40, 5),
+		}
+
+		for _, ss := range testSpans {
+			tw.WriteChunks(ss)
+		}
+
+		err := tw.FlushSync()
+		assert.Nil(t, err)
+
+		// Check that a JSON file was created
+		files, err := filepath.Glob(filepath.Join(tmpDir, "trace_payloads_*.json"))
+		assert.Nil(t, err)
+		assert.Len(t, files, 1, "Expected exactly one trace payload file to be created")
+
+		// Verify the file contains valid JSON with expected structure
+		if len(files) > 0 {
+			data, err := os.ReadFile(files[0])
+			assert.Nil(t, err)
+
+			var payloadData map[string]interface{}
+			err = json.Unmarshal(data, &payloadData)
+			assert.Nil(t, err)
+
+			// Verify structure
+			assert.Contains(t, payloadData, "timestamp")
+			assert.Contains(t, payloadData, "num_payloads")
+			assert.Contains(t, payloadData, "payloads")
+
+			// Should have converted exactly min(minConvertPayloads, totalPayloads) = min(2, 3) = 2 payloads
+			assert.Equal(t, float64(2), payloadData["num_payloads"])
+		}
+	})
+
+	t.Run("no_file_when_conversions_disabled", func(t *testing.T) {
+		// Create a separate temporary directory for this test
+		tmpDir := t.TempDir()
+
+		// Set minConvertPayloads to 0 to disable conversions
+		cfg := &config.AgentConfig{
+			Hostname:   testHostname,
+			DefaultEnv: testEnv,
+			Endpoints: []*config.Endpoint{{
+				APIKey: "123",
+				Host:   srv.URL,
+			}},
+			TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
+			SynchronousFlushing: true,
+			MinConvertPayloads:  0, // Disable conversions
+		}
+
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
+		tw.testPayloadPath = tmpDir // Set the output path to temp directory
+		defer tw.Stop()
+
+		testSpans := randomSampledSpans(20, 8)
+		tw.WriteChunks(testSpans)
+
+		err := tw.FlushSync()
+		assert.Nil(t, err)
+
+		// No files should be created since conversions are disabled
+		files, err := filepath.Glob(filepath.Join(tmpDir, "trace_payloads_*.json"))
+		assert.Nil(t, err)
+		assert.Len(t, files, 0, "No trace payload files should be created when conversions are disabled")
+	})
 }
