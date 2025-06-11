@@ -59,17 +59,29 @@ deploy_deb_testing-a7_x64:
       "lint_linux-x64",
     ]
   script:
-    - *setup_apt_signing_key
     - set +x # make sure we don't output the creds to the build log
 
     - *setup_signing_keys_package
 
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
-    - DEB_GPG_KEY_ID=58FB522F
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/dev/gpg-client-v1.0.0-linux-amd64.tar.gz .
+    - tar -xzf gpg-client-v1.0.0-linux-amd64.tar.gz
+    - mv gpg-vault-linux-amd64 /usr/bin/gpg-vault
+
+    # Set up gpg shim
+    - echo '#!/bin/bash' > /usr/bin/gpg
+    - echo 'GPG_VAULT_COMPAT_MODE=true /usr/bin/gpg-vault $@' >> /usr/bin/gpg
+    - chmod +x /usr/bin/gpg
+
+    - DEB_GPG_KEY_ID=crypto/k8s/keys/k8s_gitlab-runner_datadog-agent_testing-signing-key
+    - /usr/bin/gpg-vault export-public-key $DEB_GPG_KEY_ID > gpg-public-key.asc
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*amd64.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a amd64 --sign=$DEB_GPG_KEY_ID --gpg_options="--digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 7 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+  artifacts:
+    paths:
+      - gpg-public-key.asc
+    expire_in: 1 week
 
 deploy_deb_testing-a7_arm64:
   rules:
@@ -80,15 +92,27 @@ deploy_deb_testing-a7_arm64:
     - .deploy_deb_testing-a7
   needs: ["installer_deb-arm64", "agent_deb-arm64-a7", "agent_deb-arm64-a7-fips", "lint_linux-arm64"]
   script:
-    - *setup_apt_signing_key
     - set +x # make sure we don't output the creds to the build log
 
     - *setup_signing_keys_package
 
-    - printf -- "$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh ci.datadog-agent.test-key-58FB522F)" | gpg --import --batch
-    - DEB_GPG_KEY_ID=58FB522F
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
-    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+    - aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/dev/gpg-client-v1.0.0-linux-arm64.tar.gz .
+    - tar -xzf gpg-client-v1.0.0-linux-arm64.tar.gz
+    - mv gpg-vault-linux-arm64 /usr/bin/gpg-vault
+
+    # Set up gpg shim
+    - echo '#!/bin/bash' > /usr/bin/gpg
+    - echo 'GPG_VAULT_COMPAT_MODE=true /usr/bin/gpg-vault $@' >> /usr/bin/gpg
+    - chmod +x /usr/bin/gpg
+
+    - DEB_GPG_KEY_ID=crypto/k8s/keys/k8s_gitlab-runner_datadog-agent_testing-signing-key
+    - /usr/bin/gpg-vault export-public-key $DEB_GPG_KEY_ID > gpg-public-key.asc
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-*_7*arm64.deb
+    - deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-arm64" -m 7 -b $DEB_TESTING_S3_BUCKET -a arm64 --sign=$DEB_GPG_KEY_ID --gpg_options="--digest-algo sha512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
+  artifacts:
+    paths:
+      - gpg-public-key.asc
+    expire_in: 1 week
 
 .deploy_rpm_testing-a7:
   stage: e2e_deploy
