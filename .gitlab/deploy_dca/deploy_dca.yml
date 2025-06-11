@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/common/container_publish_job_templates.yml
-
 #
 # DCA image tagging & manifest publication
 #

@@ -41,24 +41,9 @@ installer_trigger_auto_staging_release:
   rules:
     - !reference [.on_deploy_installer]
 
-# installer_trigger_auto_staging_release_on_failure:
-#   extends: .installer_release_management_trigger
-#   timeout: 2h 30m
-#   variables:
-#     TARGET_REPO: staging
-#   rules:
-#     - !reference [.on_deploy_installer_failure]
-
 installer_trigger_manual_prod_release:
   extends: .installer_release_management_trigger
   variables:
     TARGET_REPO: prod
   rules:
     - !reference [.on_deploy_installer_stable_or_beta_manual_auto_on_stable]
-
-# installer_trigger_manual_prod_release_on_failure:
-#   extends: .installer_release_management_trigger
-#   variables:
-#     TARGET_REPO: prod
-#   rules:
-#     - !reference [.on_deploy_installer_stable_on_failure]

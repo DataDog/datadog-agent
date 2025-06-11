@@ -9,8 +9,10 @@ stages:
 include:
   - .gitlab/common/shared.yml
   - .gitlab/common/trigger_distribution_conditions.yml
+  - .gitlab/common/container_publish_job_templates.yml
   - .gitlab/deploy_containers/deploy_containers_a7.yml
   - .gitlab/deploy_containers/deploy_mutable_image_tags.yml
+  - .gitlab/deploy_containers/deploy_ot_standalone.yml
   - .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation.yml
   - .gitlab/deploy_dca/deploy_dca.yml
   - .gitlab/deploy_packages/winget.yml

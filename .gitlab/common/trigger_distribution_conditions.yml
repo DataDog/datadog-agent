@@ -43,18 +43,21 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
+      OTEL_AGENT_REPOSITORY: ddot-collector-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -65,6 +68,7 @@
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -80,12 +84,14 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
+      OTEL_AGENT_REPOSITORY: ddot-collector-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -102,6 +108,7 @@
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
       IMG_REGISTRIES: internal-aws-ddbuild
@@ -119,6 +126,7 @@
     allow_failure: true
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       CWS_INSTRUMENTATION_REPOSITORY: ci/datadog-agent/cws-instrumentation-release
