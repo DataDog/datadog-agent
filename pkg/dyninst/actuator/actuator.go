@@ -171,11 +171,13 @@ func (a *Actuator) getSink(progID ir.ProgramID) (Sink, bool) {
 // HandleUpdate processes an update to process instrumentation configuration.
 // This is the single public API for updating the actuator state.
 func (t *Tenant) HandleUpdate(update ProcessesUpdate) {
-	log.Debugf("sending update: %v", update)
+	if log.ShouldLog(log.TraceLvl) {
+		logUpdate := update
+		log.Tracef("sending update: %v", &logUpdate)
+	}
 
-	// Make sure we don't send the update event if we're shutting down.
 	select {
-	case <-t.a.shuttingDown:
+	case <-t.a.shuttingDown: // prioritize shutdown
 	default:
 		select {
 		case <-t.a.shuttingDown:
@@ -190,7 +192,9 @@ func (t *Tenant) HandleUpdate(update ProcessesUpdate) {
 
 // runEventProcessor runs in a separate goroutine and processes events sequentially
 // to maintain state machine consistency. Only this goroutine accesses state.
-func (a *Actuator) runEventProcessor(eventCh <-chan event, shuttingDownCh chan<- struct{}) {
+func (a *Actuator) runEventProcessor(
+	eventCh <-chan event, shuttingDownCh chan<- struct{},
+) {
 	defer a.loader.OutputReader().Flush()
 	state := newState()
 	for !state.isShutdown() {
@@ -199,7 +203,7 @@ func (a *Actuator) runEventProcessor(eventCh <-chan event, shuttingDownCh chan<-
 			log.Debugf("Received shutdown event")
 			close(shuttingDownCh)
 		}
-		log.Debugf("event: %v", event)
+		log.Tracef("event: %v", event)
 		err := handleEvent(state, (*effects)(a), event)
 		if err != nil {
 			log.Errorf("Error handling event %T: %v", event, err)
@@ -308,7 +312,7 @@ func generateIR(
 	objFile, err := object.NewElfObject(elfFile)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"failed to create object interface for %s: %w", executable.Path, err,
+			"failed to read object file for %s: %w", executable.Path, err,
 		)
 	}
 
