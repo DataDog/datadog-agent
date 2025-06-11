@@ -40,6 +40,7 @@ type MatchingValuePos struct {
 	Offset int
 	Length int
 	Value  interface{}
+	Field  string
 }
 
 // Context describes the context used during a rule evaluation
@@ -163,6 +164,7 @@ func (m MatchingValuePos) IsZero() bool {
 func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingValuePos {
 	pos := MatchingValuePos{
 		Value: m.Value,
+		Field: m.Field,
 	}
 
 	// take the more accurate offset to start with

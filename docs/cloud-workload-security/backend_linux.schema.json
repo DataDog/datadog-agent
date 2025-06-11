@@ -908,6 +908,9 @@
         },
         "value": {
           "type": "string"
+        },
+        "field": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
