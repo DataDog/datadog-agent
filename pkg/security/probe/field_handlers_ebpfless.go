@@ -57,6 +57,12 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ fun
 	return ev.ProcessCacheEntry, true
 }
 
+// ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
+func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntryFromPID(_ uint32) *model.ProcessCacheEntry {
+	// not supported yet, we're missing NSID
+	return nil
+}
+
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFLessFieldHandlers) ResolveFilePath(_ *model.Event, f *model.FileEvent) string {
 	return f.PathnameStr
