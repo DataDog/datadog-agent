@@ -148,6 +148,8 @@ deploy_suse_rpm_testing_x64-a7:
     ]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR_SUSE
   script:
@@ -196,6 +198,9 @@ deploy_windows_testing-a7:
       $OMNIBUS_PACKAGE_DIR s3://$WIN_S3_BUCKET/$WINDOWS_TESTING_S3_BUCKET
       --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
       full=id=3a6e02b08553fd157ae3fb918945dd1eaae5a1aa818940381ef07a430cf25732
+  variables:
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
 
 deploy_windows_testing-a7-fips:
   rules:
