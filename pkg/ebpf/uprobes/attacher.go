@@ -625,7 +625,10 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 	}
 
 	var unknownErr *utils.UnknownAttachmentError
-	return errors.As(err, &unknownErr)
+	if errors.As(err, &unknownErr) {
+		return ua.attachLimiter.ShouldLog()
+	}
+	return false
 }
 
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error
@@ -633,9 +636,7 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 func (ua *UprobeAttacher) handleProcessStart(pid uint32) {
 	err := ua.AttachPIDWithOptions(pid, false) // Do not try to attach to libraries on process start, it hasn't loaded them yet
 	if ua.shouldLogRegistryError(err) {
-		if ua.attachLimiter.ShouldLog() {
-			log.Warnf("could not attach to process %d: %v", pid, err)
-		}
+		log.Warnf("could not attach to process %d: %v", pid, err)
 	}
 }
 
@@ -650,9 +651,7 @@ func (ua *UprobeAttacher) handleLibraryOpen(libpath sharedlibraries.LibPath) {
 
 	err := ua.AttachLibrary(string(path), libpath.Pid)
 	if ua.shouldLogRegistryError(err) {
-		if ua.attachLimiter.ShouldLog() {
-			log.Warnf("could not attach to library %s (PID %d): %v", path, libpath.Pid, err)
-		}
+		log.Warnf("could not attach to library %s (PID %d): %v", path, libpath.Pid, err)
 	}
 }
 
