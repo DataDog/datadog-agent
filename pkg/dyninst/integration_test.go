@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
@@ -48,6 +49,8 @@ func skipIfKernelNotSupported(t *testing.T) {
 	}
 }
 
+var tempDir string
+
 func TestDyninst(t *testing.T) {
 	skipIfKernelNotSupported(t)
 	cfgs := testprogs.GetCommonConfigs(t)
@@ -57,35 +60,41 @@ func TestDyninst(t *testing.T) {
 				t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
 			}
 			bin := testprogs.GetBinary(t, "sample", cfg)
-			testDyninst(t, bin)
+			t.Logf("loading binary")
+			var err error
+			tempDir, err = os.MkdirTemp(os.TempDir(), "dyninst-integration-test-")
+			require.NoError(t, err)
+			defer func() {
+				preserve, _ := strconv.ParseBool(os.Getenv("KEEP_TEMP"))
+				if preserve || t.Failed() {
+					t.Logf("leaving temp dir %s for inspection", tempDir)
+				} else {
+					require.NoError(t, os.RemoveAll(tempDir))
+				}
+			}()
+
+			// Load the binary and generate the IR.
+			probes := testprogs.GetProbeCfgs(t, "sample")
+			for i := range probes {
+				t.Run(probes[i].GetID(), func(t *testing.T) {
+					testDyninst(t, bin, probes[i])
+				})
+			}
 		})
 	}
 }
 
-func testDyninst(t *testing.T, sampleServicePath string) {
-	t.Logf("loading binary")
-	tempDir, err := os.MkdirTemp(os.TempDir(), "dyninst-integration-test-")
-	require.NoError(t, err)
-	defer func() {
-		preserve, _ := strconv.ParseBool(os.Getenv("KEEP_TEMP"))
-		if preserve || t.Failed() {
-			t.Logf("leaving temp dir %s for inspection", tempDir)
-		} else {
-			require.NoError(t, os.RemoveAll(tempDir))
-		}
-	}()
+func testDyninst(t *testing.T, sampleServicePath string, probe config.Probe) {
 
-	// Load the binary and generate the IR.
 	binary, err := safeelf.Open(sampleServicePath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
 
-	probes := testprogs.GetProbeCfgs(t, "sample")
-
 	obj, err := object.NewElfObject(binary)
 	require.NoError(t, err)
 
-	irp, err := irgen.GenerateIR(1, obj, probes)
+	t.Logf("Generating IR for probe %s\n", probe.GetID())
+	irp, err := irgen.GenerateIR(1, obj, []config.Probe{probe})
 	require.NoError(t, err)
 
 	irDump, err := os.Create(filepath.Join(tempDir, "probe.ir.yaml"))
@@ -181,43 +190,41 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	defer func() { require.NoError(t, bpfOutDump.Close()) }()
 
 	// Inlined function is called twice, hence extra event.
-	for i := range len(probes) + 1 {
-		t.Logf("reading ringbuf item")
-		require.Greater(t, rd.AvailableBytes(), 0)
-		record, err := rd.Read()
-		require.NoError(t, err)
-		bpfOutDump.Write(record.RawSample)
+	t.Logf("reading ringbuf item")
+	require.Greater(t, rd.AvailableBytes(), 0)
+	record, err := rd.Read()
+	require.NoError(t, err)
+	bpfOutDump.Write(record.RawSample)
 
-		header := (*output.EventHeader)(unsafe.Pointer(&record.RawSample[0]))
-		require.Equal(t, uint32(len(record.RawSample)), header.Data_byte_len)
-		t.Logf("header: %#v", *header)
+	header := (*output.EventHeader)(unsafe.Pointer(&record.RawSample[0]))
+	require.Equal(t, uint32(len(record.RawSample)), header.Data_byte_len)
+	t.Logf("header: %#v", *header)
 
-		pos := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len)
-		for pos < header.Data_byte_len {
-			di := (*output.DataItemHeader)(unsafe.Pointer(&record.RawSample[pos]))
-			typ, ok := irp.Types[ir.TypeID(di.Type)]
-			if !ok {
-				t.Fatalf("unknown type: %d", di.Type)
-			}
-			pos += uint32(unsafe.Sizeof(*di))
-			t.Logf("di: %s @0x%x: %#v", typ.GetName(), di.Address, record.RawSample[pos:pos+uint32(di.Length)])
-			pos += uint32(di.Length)
-			if pos%8 > 0 {
-				pos += 8 - pos%8
-			}
+	pos := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len)
+	for pos < header.Data_byte_len {
+		di := (*output.DataItemHeader)(unsafe.Pointer(&record.RawSample[pos]))
+		typ, ok := irp.Types[ir.TypeID(di.Type)]
+		if !ok {
+			t.Fatalf("unknown type: %d", di.Type)
 		}
-
-		// Decode the data with the corresponding IR used to generate it
-		b := []byte{}
-		out := bytes.NewBuffer(b)
-		decoder, err := decode.NewDecoder(irp)
-		assert.NoError(t, err)
-		require.NotNil(t, decoder)
-
-		err = decoder.Decode(record.RawSample, out)
-		if err != nil {
-			t.Logf("error decoding: %s", err)
+		pos += uint32(unsafe.Sizeof(*di))
+		t.Logf("di: %s @0x%x: %#v", typ.GetName(), di.Address, record.RawSample[pos:pos+uint32(di.Length)])
+		pos += uint32(di.Length)
+		if pos%8 > 0 {
+			pos += 8 - pos%8
 		}
-		t.Logf("Decoded output for probe %s:\n %s", probes[i].GetID(), out.String())
 	}
+
+	// Decode the data with the corresponding IR used to generate it
+	b := []byte{}
+	out := bytes.NewBuffer(b)
+	decoder, err := decode.NewDecoder(irp)
+	assert.NoError(t, err)
+	require.NotNil(t, decoder)
+
+	err = decoder.Decode(record.RawSample, out)
+	if err != nil {
+		t.Logf("error decoding: %s", err)
+	}
+	t.Logf("Decoded output for probe %s:\n %s", probe.GetID(), out.String())
 }
