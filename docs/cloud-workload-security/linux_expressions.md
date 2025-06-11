@@ -41,6 +41,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed (does not trigger on fork syscalls). | 7.27 |
 | `exit` | Process | A process was terminated | 7.38 |
+| `fsmount` | File | [Experimental] A filesystem was mounted with fsmount (not attached to the main tree yet) | 7.42 |
 | `imds` | Network | An IMDS event was captured | 7.55 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
@@ -794,6 +795,19 @@ A process was terminated
 | [`exit.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`exit.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`exit.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+
+### Event `fsmount`
+
+_This event type is experimental and may change in the future._
+
+A filesystem was mounted with fsmount (not attached to the main tree yet)
+
+| Property | Definition |
+| -------- | ------------- |
+| [`fsmount.fd`](#fsmount-fd-doc) | File descriptor passed to the syscall |
+| [`fsmount.flags`](#fsmount-flags-doc) | Flags passed to the syscall |
+| [`fsmount.mount_attrs`](#fsmount-mount_attrs-doc) | Mount attributes passed to the syscall |
+| [`fsmount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
 ### Event `imds`
 
@@ -2794,8 +2808,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 26 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 27 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `fsmount` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -3352,6 +3366,27 @@ Definition: Cause of the process termination (one of EXITED, SIGNALED, COREDUMPE
 Type: int
 
 Definition: Exit code of the process or number of the signal that caused the process to terminate
+
+
+
+### `fsmount.fd` {#fsmount-fd-doc}
+Type: int
+
+Definition: File descriptor passed to the syscall
+
+
+
+### `fsmount.flags` {#fsmount-flags-doc}
+Type: int
+
+Definition: Flags passed to the syscall
+
+
+
+### `fsmount.mount_attrs` {#fsmount-mount_attrs-doc}
+Type: int
+
+Definition: Mount attributes passed to the syscall
 
 
 

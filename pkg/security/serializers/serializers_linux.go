@@ -495,6 +495,17 @@ type MountEventSerializer struct {
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 }
 
+// FsmountEventSerializer serializes an fsmount event to JSON
+// easyjson:json
+type FsmountEventSerializer struct {
+	// File descriptor passed to the syscall
+	Fd int32 `json:"fd"`
+	// Flags passed to the syscall
+	Flags uint32 `json:"flags"`
+	// Mount attributes passed to the syscall
+	MountAttrs uint32 `json:"mount_attrs"`
+}
+
 // SecurityProfileContextSerializer serializes the security profile context in an event
 // easyjson:json
 type SecurityProfileContextSerializer struct {
@@ -701,6 +712,7 @@ type EventSerializer struct {
 	*BindEventSerializer          `json:"bind,omitempty"`
 	*ConnectEventSerializer       `json:"connect,omitempty"`
 	*MountEventSerializer         `json:"mount,omitempty"`
+	*FsmountEventSerializer       `json:"fsmount,omitempty"`
 	*SyscallsEventSerializer      `json:"syscalls,omitempty"`
 	*UserContextSerializer        `json:"usr,omitempty"`
 	*SyscallContextSerializer     `json:"syscall,omitempty"`
@@ -1111,6 +1123,14 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	return mountSerializer
 }
 
+func newFsmountEventSerializer(e *model.Event) *FsmountEventSerializer {
+	return &FsmountEventSerializer{
+		Fd:         e.Fsmount.Fd,
+		Flags:      e.Fsmount.Flags,
+		MountAttrs: e.Fsmount.MountAttrs,
+	}
+}
+
 func newNetworkDeviceSerializer(deviceCtx *model.NetworkDeviceContext, e *model.Event) *NetworkDeviceSerializer {
 	return &NetworkDeviceSerializer{
 		NetNS:   deviceCtx.NetNS,
@@ -1512,6 +1532,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Mount.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
 			ctx.Mount = args
 		})
+	case model.FileFsmountEventType:
+		s.FsmountEventSerializer = newFsmountEventSerializer(event)
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Fsmount.Retval)
 	case model.FileUmountEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			NewMountID: event.Umount.MountID,

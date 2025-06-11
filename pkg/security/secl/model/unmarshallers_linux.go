@@ -476,6 +476,45 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
 }
 
+// ToMount transforms an fsmount event to be used with the mount resolver
+func (e *FsmountEvent) ToMount() *Mount {
+	return &Mount{
+		Origin:      MountOriginFsmount,
+		MountID:     e.MountID,
+		Device:      e.Device,
+		RootPathKey: e.RootPathKey,
+		RootStr:     "/",
+	}
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *FsmountEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := e.SyscallEvent.UnmarshalBinary(data)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	n, err := e.RootPathKey.UnmarshalBinary(data)
+	if err != nil {
+		return read, err
+	}
+
+	read += n
+	data = data[n:]
+
+	if len(data) < 16 {
+		return n, ErrNotEnoughData
+	}
+
+	e.Fd = int32(binary.NativeEndian.Uint32(data[0:4]))
+	e.Flags = binary.NativeEndian.Uint32(data[4:8])
+	e.Device = binary.NativeEndian.Uint32(data[8:12])
+	e.MountAttrs = binary.NativeEndian.Uint32(data[12:16])
+	e.MountID = e.RootPathKey.MountID
+	read += 16
+	return read, nil
+}
+
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := e.Mount.UnmarshalBinary(data)
