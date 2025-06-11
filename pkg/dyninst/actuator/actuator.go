@@ -258,7 +258,7 @@ func (a *effects) loadProgram(
 			})
 			return
 		}
-		sink, err := tenant.reporter.ReportLoaded(processID, ir)
+		sink, err := tenant.reporter.ReportLoaded(processID, executable, ir)
 		if err != nil {
 			loaded.Close()
 			a.sendEvent(eventProgramLoadingFailed{
@@ -348,7 +348,6 @@ func (a *effects) attachToProcess(
 
 		attached, err := attachToProcess(
 			tenant.id, loaded, executable, processID,
-			tenant.reporter,
 		)
 		if err != nil {
 			tenant.reporter.ReportAttachingFailed(processID, loaded.ir, err)
@@ -380,11 +379,7 @@ func attachToProcess(
 	loaded *loadedProgram,
 	executable Executable,
 	processID ProcessID,
-	reporter Reporter,
 ) (*attachedProgram, error) {
-
-	// Tell the reporter we're about to attach the probes.
-	reporter.ReportAttaching(processID, executable, loaded.ir)
 
 	// A silly thing here is that it's going to call, under the hood,
 	// safeelf.Open twice: once for the link package and once for finding the

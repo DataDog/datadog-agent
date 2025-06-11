@@ -133,9 +133,6 @@ func (r *irGenErrorReporter) errf(format string, args ...any) {
 func (r *irGenErrorReporter) ReportAttached(actuator.ProcessID, *ir.Program) {
 	r.errf("ReportAttached should not be called")
 }
-func (r *irGenErrorReporter) ReportAttaching(actuator.ProcessID, actuator.Executable, *ir.Program) {
-	r.errf("ReportAttaching should not be called")
-}
 func (r *irGenErrorReporter) ReportAttachingFailed(actuator.ProcessID, *ir.Program, error) {
 	r.errf("ReportAttachingFailed should not be called")
 }
@@ -151,6 +148,7 @@ func (r *irGenErrorReporter) ReportIRGenFailed(processID actuator.ProcessID, err
 }
 func (r *irGenErrorReporter) ReportLoaded(
 	actuator.ProcessID,
+	actuator.Executable,
 	*ir.Program,
 ) (actuator.Sink, error) {
 	r.errf("ReportLoaded should not be called")

@@ -336,12 +336,8 @@ type testReporter struct {
 	sink     testMessageSink
 }
 
-// ReportAttaching implements actuator.Reporter.
-func (r *testReporter) ReportAttaching(actuator.ProcessID, actuator.Executable, *ir.Program) {
-}
-
 // ReportLoaded implements actuator.Reporter.
-func (r *testReporter) ReportLoaded(_ actuator.ProcessID, p *ir.Program) (actuator.Sink, error) {
+func (r *testReporter) ReportLoaded(_ actuator.ProcessID, _ actuator.Executable, p *ir.Program) (actuator.Sink, error) {
 	r.sink = testMessageSink{
 		irp: p,
 		ch:  make(chan output.Event, 100),
