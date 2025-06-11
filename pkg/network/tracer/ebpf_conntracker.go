@@ -195,10 +195,10 @@ func (e *ebpfConntracker) dumpInitialTables(ctx context.Context, cfg *config.Con
 	}
 
 	// Remove probe-fd mapping before detach to prevent race with ebpfCheck
-	probe, _ := ua.manager.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: probes.ConntrackFillInfo})
+	probe, _ := e.m.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: probes.ConntrackFillInfo})
 	if probe != nil {
 		systemID := probe.ID()
-		ebpf.RemoveProbeFDMapping(systemID)
+		ddebpf.RemoveProbeFDMapping(systemID)
 	}
 
 	if err := e.m.DetachHook(manager.ProbeIdentificationPair{EBPFFuncName: probes.ConntrackFillInfo}); err != nil {
