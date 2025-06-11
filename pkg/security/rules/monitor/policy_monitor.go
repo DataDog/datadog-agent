@@ -212,6 +212,7 @@ type RuleSetAction struct {
 	Expression   string      `json:"expression,omitempty"`
 	Append       bool        `json:"append,omitempty"`
 	Scope        string      `json:"scope,omitempty"`
+	ScopeField   string      `json:"scope_field,omitempty"`
 	Size         int         `json:"size,omitempty"`
 	TTL          string      `json:"ttl,omitempty"`
 	Inherited    bool        `json:"inherited,omitempty"`
@@ -306,6 +307,7 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 				Scope:        string(action.Def.Set.Scope),
 				Size:         action.Def.Set.Size,
 				Inherited:    action.Def.Set.Inherited,
+				ScopeField:   action.Def.Set.ScopeField,
 			}
 			if action.Def.Set.TTL != nil {
 				ruleAction.Set.TTL = action.Def.Set.TTL.String()
