@@ -589,8 +589,25 @@ func setFleetPoliciesDir(path string) error {
 
 // postStartConfigExperimentDatadogAgent runs post start scripts for a config experiment.
 //
-// Sets the fleet_policies_dir registry key to the experiment config path and restarts the agent service.
-func postStartConfigExperimentDatadogAgent(_ HookContext) error {
+// Function requirements:
+//   - be its own process, not run within the daemon
+//
+// Rollback notes:
+// The config experiment uses a watchdog to monitor the Agent service.
+// If the service fails to start or stops running, the watchdog will restore
+// the stable config using the remove-config-experiment command.
+// This ensures the system remains in a consistent state even if the experiment
+// config causes issues.
+//   - If the new config is working properly then it will receive "promote"
+//     from the backend and will set an event to stop the watchdog.
+//   - If the new config fails to start the Agent, then after a timeout the
+//     watchdog will restore the stable config.
+func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
+	// open event that signal the end of the experiment
+	// this will terminate other running instances of the watchdog
+	// this allows for running multiple experiments in sequence
+	_ = setWatchdogStopEvent()
+
 	// Set the registry key to point to the experiment config
 	experimentPath := filepath.Join(paths.ConfigsPath, "datadog-agent", "experiment")
 	err := setFleetPoliciesDir(experimentPath)
@@ -601,8 +618,51 @@ func postStartConfigExperimentDatadogAgent(_ HookContext) error {
 	// Start the agent service to pick up the new config
 	err = winutil.RestartService("datadogagent")
 	if err != nil {
+		// Agent failed to start, restore stable config
+		restoreErr := restoreStableConfigFromExperiment(ctx)
+		if restoreErr != nil {
+			log.Error(restoreErr)
+			err = fmt.Errorf("%w, %w", err, restoreErr)
+		}
 		return fmt.Errorf("failed to start agent service: %w", err)
 	}
+
+	// Start watchdog to monitor the agent service
+	timeout := getWatchdogTimeout()
+	err = startWatchdog(ctx, time.Now().Add(timeout))
+	if err != nil {
+		log.Errorf("Config watchdog failed: %s", err)
+		// If watchdog fails, restore stable config
+		restoreErr := restoreStableConfigFromExperiment(ctx)
+		if restoreErr != nil {
+			log.Error(restoreErr)
+			err = fmt.Errorf("%w, %w", err, restoreErr)
+		}
+		return err
+	}
+
+	return nil
+}
+
+// restoreStableConfigFromExperiment restores the stable config using the remove-config-experiment command.
+//
+// call remove-config-experiment to:
+//   - restore stable config
+//   - update repository state / remove experiment link
+//
+// The updated repository state will cause the stable daemon to skip the stop-experiment
+// operation received from the backend, which avoids restarting the services again.
+func restoreStableConfigFromExperiment(ctx HookContext) error {
+	env := getenv()
+	installer, err := newInstallerExec(env)
+	if err != nil {
+		return fmt.Errorf("failed to create installer exec: %w", err)
+	}
+	err = installer.RemoveConfigExperiment(ctx, ctx.Package)
+	if err != nil {
+		return fmt.Errorf("failed to restore stable config: %w", err)
+	}
+
 	return nil
 }
 
@@ -610,6 +670,11 @@ func postStartConfigExperimentDatadogAgent(_ HookContext) error {
 //
 // Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
 func preStopConfigExperimentDatadogAgent(_ HookContext) error {
+	// set watchdog stop to make sure the watchdog stops
+	// don't care if it fails cause we will proceed with the stop anyway
+	// this will just stop a watchdog that is running
+	_ = setWatchdogStopEvent()
+
 	// Set the registry key to point to the previous stable config
 	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
 	err := setFleetPoliciesDir(stablePath)
@@ -629,9 +694,17 @@ func preStopConfigExperimentDatadogAgent(_ HookContext) error {
 //
 // Sets the fleet_policies_dir registry key to the stable config path and restarts the agent service.
 func postPromoteConfigExperimentDatadogAgent(_ HookContext) error {
+	err := setWatchdogStopEvent()
+	if err != nil {
+		// if we can't set the event it means the watchdog has failed
+		// In this case, we were already promoting the experiment
+		// so we can continue without error
+		log.Errorf("failed to set premote event: %s", err)
+	}
+
 	// Set the registry key to point to the stable config (which now contains the promoted experiment)
 	stablePath := filepath.Join(paths.ConfigsPath, "datadog-agent", "stable")
-	err := setFleetPoliciesDir(stablePath)
+	err = setFleetPoliciesDir(stablePath)
 	if err != nil {
 		return err
 	}

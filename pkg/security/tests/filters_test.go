@@ -9,7 +9,9 @@
 package tests
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -21,6 +23,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
@@ -1126,5 +1129,69 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 
 	if err == nil {
 		t.Errorf("shouldn't get an event")
+	}
+}
+
+func TestFilterConnectAddrFamily(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_connect",
+			Expression: `connect.addr.port == 4242`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	socketPath, _, err := test.Path("test-afunix.sock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(socketPath)
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+
+	go listener.Accept()
+
+	err = test.GetProbeEvent(func() error {
+		return runSyscallTesterFunc(
+			context.Background(),
+			t,
+			syscallTester,
+			"connect",
+			"AF_UNIX",
+			socketPath,
+			"tcp",
+		)
+	}, func(event *model.Event) bool {
+		addressFamilyIntf, err := event.GetFieldValue("connect.addr.family")
+		if !assert.NoError(t, err) {
+			return false
+		}
+		addressFamily, ok := addressFamilyIntf.(int)
+		if !assert.True(t, ok) {
+			return false
+		}
+		assert.Containsf(t, []int{unix.AF_INET, unix.AF_INET6}, addressFamily, "should not get a connect event with address family other than AF_INET or AF_INET6")
+		return false
+	}, 2*time.Second, model.ConnectEventType)
+	if err != nil {
+		if _, ok := err.(ErrTimeout); !ok {
+			t.Fatal(err)
+		}
 	}
 }
