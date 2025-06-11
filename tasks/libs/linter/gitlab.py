@@ -500,9 +500,9 @@ def extract_gitlab_ci_jobs(
     # Dict of entrypoint -> config object, of the format returned by `get_all_gitlab_ci_configurations`
 
     # Unfortunately a MultiGitlabCIDiff is not always truthy (see its __bool__), so we have to check explicitely
-    assert (configs is not None or diff is not None) and not (configs is not None and diff is not None), (
-        "Please pass exactly one of a config object or a diff object"
-    )
+    assert (configs is not None or diff is not None) and not (
+        configs is not None and diff is not None
+    ), "Please pass exactly one of a config object or a diff object"
 
     if diff is not None:
         jobs = [(job, contents) for _, job, contents, _ in diff.iter_jobs(added=True, modified=True, only_leaves=True)]
