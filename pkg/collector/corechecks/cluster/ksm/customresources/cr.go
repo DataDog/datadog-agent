@@ -79,7 +79,7 @@ func GetCustomMetricNamesMapper(resources []customresourcestate.Resource) (mappe
 		for _, generator := range customResource.Metrics {
 			if generator.Each.Type == metric.Gauge ||
 				generator.Each.Type == metric.StateSet {
-				if customResource.GetMetricNamePrefix() == "kube_customresource_" {
+				if customResource.GetMetricNamePrefix() == "kube_customresource" {
 					mapper[customResource.GetMetricNamePrefix()+"_"+generator.Name] = "customresource." + generator.Name
 				} else {
 					mapper[customResource.GetMetricNamePrefix()+"_"+generator.Name] = "customresource." + customResource.GetMetricNamePrefix() + "_" + generator.Name
