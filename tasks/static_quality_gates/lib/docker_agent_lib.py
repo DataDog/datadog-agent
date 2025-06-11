@@ -153,6 +153,7 @@ def get_images_content_diff(ctx, url_1, url_2):
                 ctx.run(f"cd {src_folder} && tar -tvf {image} -C ./out", hide=True)
         else:
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
+    ctx.run("ls image1/out image2/out image1 image2") # debug
     # Compare both image content
     _diff("image1/out", "image2/out")
 
