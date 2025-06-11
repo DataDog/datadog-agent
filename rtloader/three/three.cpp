@@ -94,12 +94,12 @@ bool Three::init()
             PyConfig_Clear(&_config);
             return false;
         }
-        
+
         // Set the executable path
-        // If we remove `executable`, it causes the test `TestSysExecutableValue` 
+        // If we remove `executable`, it causes the test `TestSysExecutableValue`
         // (located at ./rtloader/test/rtloader/rtloader_test.go:77) to fail on Windows.
-        // The root cause is unclear; it may be due to the executable path not being properly mocked or being overwritten elsewhere.  
-        // For related discussion, see: https://github.com/python/cpython/issues/124241  
+        // The root cause is unclear; it may be due to the executable path not being properly mocked or being
+        // overwritten elsewhere. For related discussion, see: https://github.com/python/cpython/issues/124241
         status = PyConfig_SetBytesString(&_config, &_config.executable, _pythonExe.c_str());
         if (PyStatus_Exception(status)) {
             setError("Failed to set executable path" + (status.err_msg ? ": " + std::string(status.err_msg) : ""));
