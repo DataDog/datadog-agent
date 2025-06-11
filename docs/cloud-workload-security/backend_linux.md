@@ -919,6 +919,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "value": {
                     "type": "string"
+                },
+                "field": {
+                    "type": "string"
                 }
             },
             "additionalProperties": false,
@@ -3500,6 +3503,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer"
         },
         "value": {
+            "type": "string"
+        },
+        "field": {
             "type": "string"
         }
     },
