@@ -35,7 +35,7 @@ deploy_containers-dca:
   rules: !reference [.on_deploy_manual_auto_on_rc]
 
 deploy_containers-dca-rc:
-  extends: .deploy_mutable_dca_tags-base  
+  extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_rc]
   needs:
     - job: deploy_containers-dca
