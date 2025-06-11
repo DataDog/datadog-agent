@@ -94,9 +94,10 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
 
   frame_data_t frame_data = {
 // Stack layout is slightly different in Go between arm64 and x86_64.
+// Established based on following documentation and machine code reads:
 // https://tip.golang.org/src/cmd/compile/abi-internal#architecture-specifics
 #if defined(bpf_target_arm64)
-    .cfa = global_ctx.regs->DWARF_BP_REG,
+    .cfa = global_ctx.regs->DWARF_BP_REG + 8,
 #elif defined(bpf_target_x86)
     .cfa = global_ctx.regs->DWARF_BP_REG + 16,
 #else
