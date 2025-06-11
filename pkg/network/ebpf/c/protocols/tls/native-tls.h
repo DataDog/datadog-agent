@@ -557,23 +557,6 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     return 0;
 }
 
-static __always_inline void ssl_tcp_close_cleanup(conn_tuple_t *t) {
-    if (!t) {
-        return;
-    }
-
-    void **ssl_ctx_ptr = bpf_map_lookup_elem(&ssl_ctx_by_tuple, t);
-    if (ssl_ctx_ptr) {
-        void *ssl_ctx = *ssl_ctx_ptr;
-        // Delete from tuple -> ctx map first
-        bpf_map_delete_elem(&ssl_ctx_by_tuple, t);
-        // Then delete from original ctx -> sock_t map
-        if (ssl_ctx) {
-            bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
-        }
-    }
-}
-
 static __always_inline void delete_pid_in_maps() {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 

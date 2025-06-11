@@ -65,6 +65,8 @@ const (
 	sockFDLookupArgsMap                    = "sockfd_lookup_args"
 	tupleByPidFDMap                        = "tuple_by_pid_fd"
 	pidFDByTupleMap                        = "pid_fd_by_tuple"
+	sslCtxByTupleMap                       = "ssl_ctx_by_tuple"
+	sslSockByCtxMap                        = "ssl_sock_by_ctx"
 
 	sockFDLookup    = "kprobe__sockfd_lookup_light"
 	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
@@ -102,6 +104,8 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 			{Name: sockFDLookupArgsMap},
 			{Name: tupleByPidFDMap},
 			{Name: pidFDByTupleMap},
+			{Name: sslCtxByTupleMap},
+			{Name: sslSockByCtxMap},
 		},
 		Probes: []*manager.Probe{
 			{
@@ -422,6 +426,14 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 			MaxEntries: e.cfg.MaxTrackedConnections,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		sslCtxByTupleMap: {
+			MaxEntries: e.cfg.MaxTrackedConnections,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		sslSockByCtxMap: {
+			MaxEntries: e.cfg.MaxTrackedConnections,
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 
 	if e.connectionProtocolMap != nil {
@@ -566,6 +578,24 @@ func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName s
 		iter := currentMap.Iterate()
 		var key http.ConnTuple
 		var value netebpf.PIDFD
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case sslCtxByTupleMap: // maps/ssl_ctx_by_tuple (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.void *
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'uintptr // C.void *'\n")
+		iter := currentMap.Iterate()
+		var key http.ConnTuple
+		var value uintptr
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
+		iter := currentMap.Iterate()
+		var key uintptr // C.void *
+		var value http.SslSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}

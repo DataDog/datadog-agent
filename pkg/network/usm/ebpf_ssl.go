@@ -74,8 +74,6 @@ const (
 	sslWriteExArgsMap   = "ssl_write_ex_args"
 	bioNewSocketArgsMap = "bio_new_socket_args"
 	fdBySSLBioMap       = "fd_by_ssl_bio"
-	sslCtxByTupleMap    = "ssl_ctx_by_tuple"
-	sslSockByCtxMap     = "ssl_sock_by_ctx"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -264,12 +262,6 @@ var sharedLibrariesMaps = []*manager.Map{
 	},
 	{
 		Name: sslCtxByPIDTGIDMap,
-	},
-	{
-		Name: sslCtxByTupleMap,
-	},
-	{
-		Name: sslSockByCtxMap,
 	},
 }
 
@@ -511,14 +503,6 @@ func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Confi
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	options.MapSpecEditors[sslCtxByTupleMap] = manager.MapSpecEditor{
-		MaxEntries: cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
-	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
-		MaxEntries: cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
 	options.ActivatedProbes = append(options.ActivatedProbes, &manager.ProbeSelector{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "kprobe__tcp_sendmsg"},
 	})
@@ -608,24 +592,6 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 		iter := currentMap.Iterate()
 		var key uint64
 		var value uintptr // C.void *
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			spew.Fdump(w, key, value)
-		}
-
-	case sslCtxByTupleMap: // maps/ssl_ctx_by_tuple (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.void *
-		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'uintptr // C.void *'\n")
-		iter := currentMap.Iterate()
-		var key http.ConnTuple
-		var value uintptr
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			spew.Fdump(w, key, value)
-		}
-
-	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
-		io.WriteString(w, "Map: '"+mapName+"', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
-		iter := currentMap.Iterate()
-		var key uintptr // C.void *
-		var value http.SslSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
@@ -733,18 +699,13 @@ func deleteDeadPidsInSSLCtxMap(manager *manager.Manager, alivePIDs map[uint32]st
 	value := make([]byte, sslCtxByPIDTGIDMapObj.ValueSize())
 	iter := sslCtxByPIDTGIDMapObj.Iterate()
 
-	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value[0])) {
+	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 		pid := uint32(key >> 32)
 		if _, exists := alivePIDs[pid]; !exists {
-			// Use the SSL context pointer to clean up ssl_sock_by_ctx map
-			if len(value) >= int(unsafe.Sizeof(uintptr(0))) {
-				ctxPtr := *(*uintptr)(unsafe.Pointer(&value[0]))
-				_ = sslSockByCtxMapObj.Delete(unsafe.Pointer(&ctxPtr))
-			}
+			_ = sslSockByCtxMapObj.Delete(unsafe.Pointer(&value))
 			keysToDelete = append(keysToDelete, key)
 		}
 	}
-
 	for _, k := range keysToDelete {
 		_ = sslCtxByPIDTGIDMapObj.Delete(unsafe.Pointer(&k))
 	}
