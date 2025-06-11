@@ -105,16 +105,9 @@ stages:
 
 test_job:
   stage: setup
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_x64${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
   tags: ["windows-v2:2022"]
   script:
-    - $WINIMAGE = "registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_x64_test_only:v67148003-ce386901"
-    - docker pull $WINIMAGE
-    - docker pull registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_x64_test_only:v67150087-9d4b5732
-    - docker pull registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_x64_test_only:v67150252-b1d03ea2
-    - docker pull registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_x64_test_only:v67153658-6cb791d4
-    - docker pull registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_x64_test_only:v67160599-7aef868a
-    - docker history $WINIMAGE
+    - Install-PackageProvider NuGet -Force
 
 variables:
   # Directory in which we execute the omnibus build.

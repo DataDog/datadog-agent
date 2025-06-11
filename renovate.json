@@ -15,7 +15,7 @@
         "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}"
       },
       {
-        "matchDepNames": ["buildimages"],
+        "matchDepNames": ["buildimages", "windows"],
         "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main"
       }
     ],
@@ -28,11 +28,21 @@
         "customType": "regex",
         "fileMatch": [".gitlab-ci.yml"],
         "matchStrings": [
-          "  CI_IMAGE_[^:]*: (?<currentValue>v.*)"
+          "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
         ],
         "depNameTemplate": "buildimages",
         "versioningTemplate": "loose",
         "datasourceTemplate": "custom.buildimages"
+      },
+      {
+        "customType": "regex",
+        "fileMatch": [".gitlab-ci.yml"],
+        "matchStrings": [
+          "  CI_IMAGE_WIN_[^:]*: (?<currentValue>v.*)"
+        ],
+        "depNameTemplate": "windows",
+        "versioningTemplate": "loose",
+        "datasourceTemplate": "custom.windows"
       },
       {
         "customType": "regex",
@@ -69,6 +79,12 @@
     "customDatasources": {
       "buildimages": {
         "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-deb_x64/tags",
+        "transformTemplates": [
+          "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
+        ]
+      },
+      "windows": {
+        "defaultRegistryUrlTemplate": "https://hub.docker.com/v2/namespaces/datadog/repositories/agent-buildimages-windows_x64/tags",
         "transformTemplates": [
           "{\"releases\": $map(results, function($v) { {\"version\": $v.name, \"releaseTimestamp\": $v.last_updated } }) }"
         ]
