@@ -130,22 +130,18 @@ func TestFormatTrace(t *testing.T) {
 }
 
 func TestStopWaits(t *testing.T) {
-	fmt.Println("TestStopWaits starting")
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	cfg.Obfuscation.Cache.Enabled = true
 	cfg.Obfuscation.Cache.MaxSize = 1_000
 	ctx, cancel := context.WithCancel(context.Background())
 	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-	fmt.Println("New TestAgent started")
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		fmt.Println("Run the trace agent")
 		defer wg.Done()
 		agnt.Run()
-		fmt.Println("Trace agent run exited")
 	}()
 
 	now := time.Now()
@@ -164,12 +160,9 @@ func TestStopWaits(t *testing.T) {
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 	}
 
-	fmt.Println("Try to send payload to the trace agent")
-
 	select {
 	case agnt.In <- payload:
 		// Successfully sent payload
-		fmt.Println("Payload sent to the trace agent")
 	case <-ctx.Done():
 		// Context cancelled before we could send
 		t.Fatal("Context cancelled before payload could be sent")
@@ -179,11 +172,8 @@ func TestStopWaits(t *testing.T) {
 	}
 
 	cancel()
-	fmt.Println("Cancelled the context")
 	wg.Wait() // Wait for agent to completely exit
-	fmt.Println("Trace agent completely exited")
 
-	fmt.Println("Get the mock trace writer")
 	mtw, ok := agnt.TraceWriter.(*mockTraceWriter)
 	if !ok {
 		t.Fatal("Expected mockTraceWriter")
@@ -191,13 +181,9 @@ func TestStopWaits(t *testing.T) {
 	mtw.mu.Lock()
 	defer mtw.mu.Unlock()
 
-	fmt.Println("Let's do some assertions")
-
 	assert := assert.New(t)
 	assert.Len(mtw.payloads, 1)
 	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", mtw.payloads[0].TracerPayload.Chunks[0].Spans[0].Meta["sql.query"])
-	fmt.Println("Test is done")
-
 }
 
 func TestProcess(t *testing.T) {
