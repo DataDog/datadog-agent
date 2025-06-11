@@ -10,6 +10,7 @@ package dyninsttest
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -28,13 +29,43 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
+
+// SetupLogging is used to have a consistent logging setup for all tests.
+// It is best to call this in TestMain.
+func SetupLogging() {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "debug"
+	}
+	const defaultFormat = "%l %Date(15:04:05.000000000) @%File:%Line| %Msg%n"
+	var format string
+	switch formatFromEnv := os.Getenv("DD_LOG_FORMAT"); formatFromEnv {
+	case "":
+		format = defaultFormat
+	case "json":
+		format = `{"time":%Ns,"level":"%Level","msg":"%Msg","path":"%RelFile","func":"%Func","line":%Line}%n`
+	case "json-short":
+		format = `{"t":%Ns,"l":"%Lev","m":"%Msg"}%n`
+	default:
+		format = formatFromEnv
+	}
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
+		os.Stderr, log.TraceLvl, format,
+	)
+	if err != nil {
+		panic(fmt.Errorf("failed to create logger: %w", err))
+	}
+	log.SetupLogger(logger, logLevel)
+}
 
 // PrepTmpDir creates a temporary directory and a suitable cleanup function.
 func PrepTmpDir(t *testing.T, prefix string) (string, func()) {
 	dir, err := os.MkdirTemp(os.TempDir(), prefix)
 	require.NoError(t, err)
+	t.Logf("using temp dir %s", dir)
 	return dir, func() {
 		preserve, _ := strconv.ParseBool(os.Getenv("KEEP_TEMP"))
 		if preserve || t.Failed() {
