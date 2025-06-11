@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
 // PathsReducer is used to reduce the paths in an activity tree according to predefined heuristics
@@ -24,6 +25,7 @@ type PathsReducer struct {
 
 // PatternReducer is used to reduce the paths in an activity tree according to a given pattern
 type PatternReducer struct {
+	Labels   utils.LabelSet
 	Pattern  *regexp.Regexp
 	Hint     string
 	PreCheck func(path string, fileEvent *model.FileEvent) bool
@@ -113,6 +115,7 @@ func (r *PathsReducer) ReducePath(path string, fileEvent *model.FileEvent, node 
 func getPathsReducerPatterns() []PatternReducer {
 	return []PatternReducer{
 		{
+			Labels:  name2Label("process_pid"),
 			Pattern: regexp.MustCompile(`/proc/(\d+)/`), // process PID
 			Hint:    "proc",
 			Callback: func(ctx *callbackContext) {
@@ -131,6 +134,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
+			Labels:  name2Label("task_tid"),
 			Pattern: regexp.MustCompile(`/task/(\d+)/`), // process TID
 			Hint:    "task",
 			Callback: func(ctx *callbackContext) {
@@ -139,6 +143,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
+			Labels:  name2Label("kubepods_slice_scope"),
 			Pattern: regexp.MustCompile(`kubepods-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
 			Hint:    "kubepods",
 			PreCheck: func(_ string, fileEvent *model.FileEvent) bool {
@@ -150,6 +155,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
+			Labels:  name2Label("cri_containerd_slice_scope"),
 			Pattern: regexp.MustCompile(`cri-containerd-([^/]*)\.(?:slice|scope)`), // kubernetes cgroup
 			Hint:    "cri-containerd",
 			PreCheck: func(_ string, fileEvent *model.FileEvent) bool {
@@ -161,6 +167,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
+			Labels:  name2Label("container_id"),
 			Pattern: regexp.MustCompile(containerutils.ContainerIDPatternStr), // container ID
 			PreCheck: func(path string, _ *model.FileEvent) bool {
 				var count int
@@ -182,6 +189,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
+			Labels:  name2Label("block_device"),
 			Pattern: regexp.MustCompile(`/sys/devices/virtual/block/(?:dm-|loop)([0-9]+)`), // block devices
 			Hint:    "devices",
 			PreCheck: func(_ string, fileEvent *model.FileEvent) bool {
@@ -193,6 +201,7 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 		{
+			Labels:  name2Label("kubernetes_serviceaccount"),
 			Pattern: regexp.MustCompile(`secrets/kubernetes\.io/serviceaccount/([0-9._]+)`), // service account token date
 			Hint:    "serviceaccount",
 			Callback: func(ctx *callbackContext) {
@@ -201,6 +210,14 @@ func getPathsReducerPatterns() []PatternReducer {
 			},
 		},
 	}
+}
+
+func name2Label(name string) utils.LabelSet {
+	ls, err := utils.NewLabelSet("pattern_name", name)
+	if err != nil {
+		panic(err)
+	}
+	return ls
 }
 
 func isHexChar(c byte) bool {
