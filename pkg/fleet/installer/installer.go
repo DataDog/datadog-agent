@@ -919,7 +919,11 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 
 // ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
-	err := os.MkdirAll(paths.PackagesPath, 0755)
+	err := paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("error ensuring repositories exist: %w", err)
+	}
+	err = os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}
