@@ -10,8 +10,17 @@ workflow:
         GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_release_branch
     - <<: *if_deploy
-    - !reference [.if_deploy_installer]
+    - <<: *if_deploy_installer
     - if: $CI_COMMIT_TAG == null
+
+.if_release_branch: &if_release_branch
+  if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+
+.if_main_branch: &if_main_branch
+  if: $CI_COMMIT_BRANCH == "main"
+
+.if_triggered_pipeline: &if_triggered_pipeline
+  if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
