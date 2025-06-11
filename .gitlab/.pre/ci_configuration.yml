@@ -56,6 +56,7 @@ lint_gitlab_ci:
   tags: ["arch:arm64"]
   needs: [compute_gitlab_ci_config]
   script:
+    - exit 1
     - status=0
     - dda inv -- -e linter.gitlab-ci-jobs-needs-rules --config-file artifacts/after.gitlab-ci.yml || status=1
     - dda inv -- -e linter.gitlab-ci-jobs-owners --config-file artifacts/after.gitlab-ci.yml || status=1
