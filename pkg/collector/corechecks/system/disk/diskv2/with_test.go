@@ -22,12 +22,6 @@ func WithClock(c check.Check, clock clock.Clock) check.Check {
 	return c
 }
 
-// WithDiskPartitions sets a diskPartitions call on the Check and returns the updated Check.
-func WithDiskPartitions(c check.Check, f func(bool) ([]gopsutil_disk.PartitionStat, error)) check.Check {
-	c.(*Check).diskPartitions = f
-	return c
-}
-
 // WithDiskPartitionsWithContext sets a diskPartitionsWithContext call on the Check and returns the updated Check.
 func WithDiskPartitionsWithContext(c check.Check, f func(context.Context, bool) ([]gopsutil_disk.PartitionStat, error)) check.Check {
 	c.(*Check).diskPartitionsWithContext = f

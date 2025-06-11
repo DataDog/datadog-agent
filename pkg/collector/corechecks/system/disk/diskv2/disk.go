@@ -115,7 +115,6 @@ func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 type Check struct {
 	core.CheckBase
 	clock                     clock.Clock
-	diskPartitions            func(bool) ([]gopsutil_disk.PartitionStat, error)
 	diskPartitionsWithContext func(context.Context, bool) ([]gopsutil_disk.PartitionStat, error)
 	diskUsage                 func(string) (*gopsutil_disk.UsageStat, error)
 	diskIOCounters            func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
@@ -681,7 +680,6 @@ func newCheck() check.Check {
 	return &Check{
 		CheckBase:                 core.NewCheckBase(CheckName),
 		clock:                     clock.New(),
-		diskPartitions:            gopsutil_disk.Partitions,
 		diskPartitionsWithContext: gopsutil_disk.PartitionsWithContext,
 		diskUsage:                 gopsutil_disk.Usage,
 		diskIOCounters:            gopsutil_disk.IOCounters,
