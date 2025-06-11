@@ -609,6 +609,7 @@
 /comp/core/workloadmeta/collectors/internal/kubemetadata  @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/nvml          @DataDog/ebpf-platform
 /comp/core/workloadmeta/collectors/internal/podman        @DataDog/container-platform @DataDog/container-integrations
+/comp/core/workloadmeta/collectors/internal/process       @DataDog/container-experiences @DataDog/container-platform
 /comp/core/tagger/collectors            @DataDog/container-platform @DataDog/container-integrations
 /pkg/sbom/                              @DataDog/agent-security @DataDog/container-integrations
 /pkg/networkpath/                       @DataDog/Networks
@@ -644,6 +645,7 @@
 /tasks/rtloader.py                      @DataDog/agent-runtimes
 /tasks/security_agent.py                @DataDog/agent-security
 /tasks/sbomgen.py                       @DataDog/agent-security
+/tasks/libs/cws/                        @DataDog/agent-security
 /tasks/sds.py                           @DataDog/agent-log-pipelines
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
