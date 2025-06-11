@@ -278,7 +278,7 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	// After establishing a connection to the remote server, we open its Local Machine registry key
 	remoteRegKey, err = registry.OpenRemoteKey(server, registry.LOCAL_MACHINE)
 	if err != nil {
-		log.Errorf("Error opening remote registry key: %v", err)
+		log.Errorf("Error opening remote registry key for server %s: %v For more information see, https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regconnectregistryw#remarks", server, err)
 		return nil, err
 	}
 	log.Debugf("Remote registry opened successfully")
@@ -287,7 +287,7 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	// Once the remote registry is opened, we use its handle to open the registry key of the certificate store
 	certStoreKey, err = registry.OpenKey(remoteRegKey, registryPath, registry.READ)
 	if err != nil {
-		log.Errorf("Error opening %s registry key: %v", registryPath, err)
+		log.Errorf("Error opening %s registry key for server %s: %v For more information see, https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regopenkeyexw", registryPath, server, err)
 		return nil, err
 	}
 	log.Debugf("%s registry key opened successfully", registryPath)
