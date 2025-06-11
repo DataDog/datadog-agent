@@ -284,10 +284,10 @@ func (a *registryAuditor) cleanupRegistry() {
 		if entry.LastUpdated.Before(expireBefore) {
 			if a.tailedSources[path] {
 				a.log.Debugf("TTL for %s is expired but it is still tailed, keeping in registry.", path)
-				continue
+			} else {
+				a.log.Debugf("TTL for %s is expired, removing from registry.", path)
+				delete(a.registry, path)
 			}
-			a.log.Debugf("TTL for %s is expired, removing from registry.", path)
-			delete(a.registry, path)
 		}
 	}
 }
