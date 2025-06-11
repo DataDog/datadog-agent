@@ -1010,7 +1010,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
+		if err := p.handleNewMount(eventType, event, &event.UnshareMountNS.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
 		}
 		return
@@ -1062,6 +1062,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return
 		}
+
+		event.Exec.FileEvent.PathnameStr = p.fieldHandlers.ResolveFilePath(event, &event.Exec.FileEvent)
+		event.Exec.FileEvent.BasenameStr = p.fieldHandlers.ResolveFileBasename(event, &event.Exec.FileEvent)
 	}
 
 	if !p.setProcessContext(eventType, event, newEntryCb) {
@@ -1070,12 +1073,23 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	switch eventType {
 
+	case model.FileFsmountEventType:
+		if _, err = event.Fsmount.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		if err := p.handleNewMount(eventType, event, event.Fsmount.ToMount()); err != nil {
+			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
+			return
+		}
+
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
+		if err := p.handleNewMount(eventType, event, &event.Mount.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return
 		}
@@ -1995,7 +2009,7 @@ func (p *EBPFProbe) FlushNetworkNamespace(namespace *netns.NetworkNamespace) {
 	p.Resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager)
 }
 
-func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
+func (p *EBPFProbe) handleNewMount(eventType model.EventType, ev *model.Event, m *model.Mount) error {
 	// There could be entries of a previous mount_id in the cache for instance,
 	// runc does the following : it bind mounts itself (using /proc/exe/self),
 	// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
@@ -2005,9 +2019,12 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
 	// Resolve mount point
-	if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
-		return fmt.Errorf("failed to set mount point: %w", err)
+	if eventType != model.FileFsmountEventType {
+		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
+			return fmt.Errorf("failed to set mount point: %w", err)
+		}
 	}
+
 	// Resolve root
 	if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
 		return fmt.Errorf("failed to set mount root: %w", err)

@@ -760,6 +760,30 @@
       ],
       "description": "FlowSerializer defines a new flow serializer"
     },
+    "FsmountEvent": {
+      "properties": {
+        "fd": {
+          "type": "integer",
+          "description": "File descriptor passed to the syscall"
+        },
+        "flags": {
+          "type": "integer",
+          "description": "Flags passed to the syscall"
+        },
+        "mount_attrs": {
+          "type": "integer",
+          "description": "Mount attributes passed to the syscall"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "fd",
+        "flags",
+        "mount_attrs"
+      ],
+      "description": "FsmountEventSerializer serializes an fsmount event to JSON"
+    },
     "IMDSEvent": {
       "properties": {
         "type": {
@@ -2077,6 +2101,9 @@
     },
     "mount": {
       "$ref": "#/$defs/MountEvent"
+    },
+    "fsmount": {
+      "$ref": "#/$defs/FsmountEvent"
     },
     "syscalls": {
       "$ref": "#/$defs/SyscallsEvent"

@@ -3033,6 +3033,35 @@
       ]
     },
     {
+      "name": "fsmount",
+      "definition": "A filesystem was mounted with fsmount (not attached to the main tree yet)",
+      "type": "File",
+      "from_agent_version": "7.42",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "fsmount.fd",
+          "definition": "File descriptor passed to the syscall",
+          "property_doc_link": "fsmount-fd-doc"
+        },
+        {
+          "name": "fsmount.flags",
+          "definition": "Flags passed to the syscall",
+          "property_doc_link": "fsmount-flags-doc"
+        },
+        {
+          "name": "fsmount.mount_attrs",
+          "definition": "Mount attributes passed to the syscall",
+          "property_doc_link": "fsmount-mount_attrs-doc"
+        },
+        {
+          "name": "fsmount.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "imds",
       "definition": "An IMDS event was captured",
       "type": "Network",
@@ -11155,6 +11184,7 @@
         "chmod",
         "chown",
         "connect",
+        "fsmount",
         "link",
         "load_module",
         "mkdir",
@@ -12197,6 +12227,42 @@
       "definition": "Exit code of the process or number of the signal that caused the process to terminate",
       "prefixes": [
         "exit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "fsmount.fd",
+      "link": "fsmount-fd-doc",
+      "type": "int",
+      "definition": "File descriptor passed to the syscall",
+      "prefixes": [
+        "fsmount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "fsmount.flags",
+      "link": "fsmount-flags-doc",
+      "type": "int",
+      "definition": "Flags passed to the syscall",
+      "prefixes": [
+        "fsmount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "fsmount.mount_attrs",
+      "link": "fsmount-mount_attrs-doc",
+      "type": "int",
+      "definition": "Mount attributes passed to the syscall",
+      "prefixes": [
+        "fsmount"
       ],
       "constants": "",
       "constants_link": "",

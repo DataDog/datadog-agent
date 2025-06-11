@@ -103,6 +103,7 @@ type Event struct {
 	SetXAttr    SetXAttrEvent  `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
 	RemoveXAttr SetXAttrEvent  `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent    `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
+	Fsmount     FsmountEvent  `field:"fsmount" event:"fsmount"`         // [7.42] [File] [Experimental] A filesystem was mounted with fsmount (not attached to the main tree yet)
 	Mount       MountEvent     `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
 	Chdir       ChdirEvent     `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 	Setrlimit   SetrlimitEvent `field:"setrlimit" event:"setrlimit"`     // [7.68] [Process] A setrlimit command was executed
@@ -501,7 +502,7 @@ type ArgsEnvsEvent struct {
 	ArgsEnvs
 }
 
-// Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
+// Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32  `field:"-"`
 	Device         uint32  `field:"-"`
@@ -531,6 +532,19 @@ type MountEvent struct {
 	SyscallSourcePath     string `field:"syscall.source.path,ref:mount.syscall.str1"`     // SECLDoc[syscall.source.path] Definition:`Source path argument of the syscall`
 	SyscallMountpointPath string `field:"syscall.mountpoint.path,ref:mount.syscall.str2"` // SECLDoc[syscall.mountpoint.path] Definition:`Mount point path argument of the syscall`
 	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
+}
+
+// FsmountEvent represents an fsmount event
+type FsmountEvent struct {
+	SyscallEvent
+
+	Fd         int32  `field:"fd"`          // SECLDoc[fd] Definition:`File descriptor passed to the syscall`
+	Flags      uint32 `field:"flags"`       // SECLDoc[flags] Definition:`Flags passed to the syscall`
+	MountAttrs uint32 `field:"mount_attrs"` // SECLDoc[mount_attrs] Definition:`Mount attributes passed to the syscall`
+
+	MountID     uint32  `field:"-"`
+	Device      uint32  `field:"-"`
+	RootPathKey PathKey `field:"-"`
 }
 
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace

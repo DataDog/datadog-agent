@@ -117,6 +117,8 @@ const (
 	SetrlimitEventType
 	// SetSockOptEventType is sent when a socket option is set
 	SetSockOptEventType
+	// FileFsmountEventType Mount event
+	FileFsmountEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -283,6 +285,8 @@ func (t EventType) String() string {
 		return "dns_response"
 	case SetSockOptEventType:
 		return "setsockopt"
+	case FileFsmountEventType:
+		return "fsmount"
 	default:
 		return "unknown"
 	}
