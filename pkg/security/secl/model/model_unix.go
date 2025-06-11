@@ -103,6 +103,7 @@ type Event struct {
 	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
 	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
+	Fsmount     FsmountEvent  `field:"fsmount" event:"fsmount"`         // [7.42] [File] [Experimental] A filesystem was mounted with fsmount (not attached to the main tree yet)
 	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
@@ -522,6 +523,22 @@ type MountEvent struct {
 	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath"` // SECLDoc[mountpoint.path] Definition:`Path of the mount point`
 	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // SECLDoc[source.path] Definition:`Source path of a bind mount`
 	MountRootPath                  string `field:"root.path,handler:ResolveMountRootPath"`        // SECLDoc[root.path] Definition:`Root path of the mount`
+	MountPointPathResolutionError  error  `field:"-"`
+	MountSourcePathResolutionError error  `field:"-"`
+	MountRootPathResolutionError   error  `field:"-"`
+
+	// Syscall context aliases
+	SyscallSourcePath     string `field:"syscall.source.path,ref:mount.syscall.str1"`     // SECLDoc[syscall.source.path] Definition:`Source path argument of the syscall`
+	SyscallMountpointPath string `field:"syscall.mountpoint.path,ref:mount.syscall.str2"` // SECLDoc[syscall.mountpoint.path] Definition:`Mount point path argument of the syscall`
+	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
+}
+
+// MountEvent represents a mount event
+type FsmountEvent struct {
+	SyscallEvent
+	SyscallContext
+	Mount
+	MountRootPath                  string `field:"root.path,handler:ResolveMountRootPath"` // SECLDoc[root.path] Definition:`Root path of the mount`
 	MountPointPathResolutionError  error  `field:"-"`
 	MountSourcePathResolutionError error  `field:"-"`
 	MountRootPathResolutionError   error  `field:"-"`

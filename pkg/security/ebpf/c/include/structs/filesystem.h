@@ -22,4 +22,10 @@ struct mount_fields_t {
     char fstype[FSTYPE_LEN];
 };
 
+struct fsmount_fields_t {
+    struct path_key_t root_key;
+    dev_t device;
+    char fstype[FSTYPE_LEN];
+};
+
 #endif

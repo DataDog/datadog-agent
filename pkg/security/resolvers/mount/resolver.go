@@ -373,7 +373,8 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 	cache[mountID] = true
 
 	if mount.ParentPathKey.MountID == 0 {
-		return "", source, mount.Origin, ErrMountUndefined
+		// Detached mount
+		return "/", source, mount.Origin, nil
 	}
 
 	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, pid, cache)

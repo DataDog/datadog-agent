@@ -35,6 +35,8 @@ const (
 	FileRemoveXAttrEventType
 	// FileChdirEventType chdir event
 	FileChdirEventType
+	// FileFsmountEventType Mount event
+	FileFsmountEventType
 	// FileMountEventType Mount event
 	FileMountEventType
 	// FileUmountEventType Umount event
