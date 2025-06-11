@@ -124,12 +124,25 @@ func EnsureInstallerDataDir() error {
 			return fmt.Errorf("failed to create DatadogInstallerData: %w", err)
 		}
 
+		// The root directory now exists with the correct permissions
+		// we still need to ensure the subdirectories have the correct permissions.
+
+		// Create subdirectories that inherit permissions from the parent
+		_ = os.Mkdir(RootTmpDir, 0)
+		err = resetPermissionsForTree(RootTmpDir)
+		if err != nil {
+			return fmt.Errorf("failed to reset permissions for RootTmpDir: %w", err)
+		}
+
 		// Create subdirectories that have different permissions (global read)
+		// PackagesPath should only contain files from public OCI packages
 		_ = os.Mkdir(PackagesPath, 0)
 		err = SetRepositoryPermissions(PackagesPath)
 		if err != nil {
 			return fmt.Errorf("failed to create PackagesPath: %w", err)
 		}
+		// ConfigsPath has generated configuration files but will not contain secrets.
+		// To support options that are secrets, we will need to fetch them from a secret store.
 		_ = os.Mkdir(ConfigsPath, 0)
 		err = SetRepositoryPermissions(ConfigsPath)
 		if err != nil {
@@ -478,4 +491,19 @@ func SetRepositoryPermissions(path string) error {
 // https://learn.microsoft.com/en-us/windows/win32/msi/administrative-installation
 func GetAdminInstallerBinaryPath(path string) string {
 	return filepath.Join(path, "ProgramFiles64Folder", "Datadog", "Datadog Agent", "bin", "datadog-installer.exe")
+}
+
+// resetPermissionsForTree sets the owner/group to Administrators, enables inheritance, and removes all explicit ACEs.
+func resetPermissionsForTree(path string) error {
+	// set owner/group to Administrators
+	admins, err := windows.CreateWellKnownSid(windows.WinBuiltinAdministratorsSid)
+	if err != nil {
+		return err
+	}
+	// set owner, group, and disable protection (enable inheritance) on the DACL
+	var flags windows.SECURITY_INFORMATION
+	flags |= windows.OWNER_SECURITY_INFORMATION
+	flags |= windows.GROUP_SECURITY_INFORMATION
+	flags |= windows.UNPROTECTED_DACL_SECURITY_INFORMATION
+	return TreeResetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, flags, admins, admins, nil, nil, false)
 }
