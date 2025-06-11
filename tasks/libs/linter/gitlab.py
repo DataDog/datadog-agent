@@ -158,7 +158,7 @@ def shellcheck_gitlab_ci_jobs(
     Note:
         Will raise an Exit if any errors are found.
     """
-    # TODO[@agent-devx]: Remove this once we have shellcheck in CI
+    # TODO(@agent-devx): Remove this once we have shellcheck in CI
     if running_in_ci():
         # Shellcheck is not installed in the CI environment, so we skip it
         print(f'[{color_message("INFO", Color.BLUE)}] Skipping shellcheck in CI environment')
