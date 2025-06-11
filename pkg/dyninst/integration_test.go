@@ -256,7 +256,11 @@ func testDyninst(
 	symbolicator := symbol.NewGoSymbolicator(symbolTable)
 	require.NotNil(t, symbolicator)
 
-	decoder, err := decode.NewDecoder(sink.irp, symbolicator)
+	cachingSymbolicator, err := symbol.NewCachingSymbolicator(symbolicator, 10000)
+	require.NotNil(t, symbolicator)
+	require.NoError(t, err)
+
+	decoder, err := decode.NewDecoder(sink.irp)
 	require.NoError(t, err)
 	b := []byte{}
 	decodeOut := bytes.NewBuffer(b)
@@ -272,15 +276,13 @@ func testDyninst(
 			Event:       ev,
 			ServiceName: service,
 		}
-		err = decoder.Decode(event, decodeOut)
+		_, err := decoder.Decode(event, cachingSymbolicator, decodeOut)
 		require.NoError(t, err)
 		t.Logf("decoded output: \n%s\n", decodeOut.String())
 		redacted := redactJSON(t, decodeOut.Bytes())
 		t.Logf("redacted output: \n%s\n", string(redacted))
 
 		outputToCompare := expOut[probes[0].GetID()]
-		assert.JSONEq(t, outputToCompare, string(redacted))
-
 		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
 			expOut[probes[0].GetID()] = string(redacted)
 			outputName := getOutputFilename(service)
@@ -289,6 +291,8 @@ func testDyninst(
 			} else {
 				t.Logf("output saved to: %s", outputName)
 			}
+		} else {
+			assert.JSONEq(t, outputToCompare, string(redacted))
 		}
 	}
 }
@@ -336,6 +340,7 @@ var redactors = []jsonRedactor{
 
 	redactPtr("/debugger/snapshot/id", []byte(`"<id>"`)),
 	redactPtr("/debugger/snapshot/timestamp", []byte(`"<ts>"`)),
+	redactPtr("/timestamp", []byte(`"<ts>"`)),
 	redactPtrPrefixSuffix("/debugger/snapshot/captures/", "/address", []byte(`"<addr>"`)),
 }
 
