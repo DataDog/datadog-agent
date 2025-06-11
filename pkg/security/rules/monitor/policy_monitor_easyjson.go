@@ -1120,6 +1120,8 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.Append = bool(in.Bool())
 		case "scope":
 			out.Scope = string(in.String())
+		case "scope_field":
+			out.ScopeField = string(in.String())
 		case "size":
 			out.Size = int(in.Int())
 		case "ttl":
@@ -1217,6 +1219,16 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.RawString(prefix)
 		}
 		out.String(string(in.Scope))
+	}
+	if in.ScopeField != "" {
+		const prefix string = ",\"scope_field\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.ScopeField))
 	}
 	if in.Size != 0 {
 		const prefix string = ",\"size\":"
