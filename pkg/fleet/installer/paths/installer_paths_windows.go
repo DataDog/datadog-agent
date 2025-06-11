@@ -90,8 +90,6 @@ func init() {
 //
 // bootstrap runs before the MSI, so it must create the directory with the correct permissions.
 func EnsureInstallerDataDir() error {
-	targetDir := DatadogInstallerData
-
 	// Desired permissions:
 	// - OWNER: Administrators
 	// - GROUP: Administrators
@@ -120,10 +118,32 @@ func EnsureInstallerDataDir() error {
 	}
 
 	return winio.RunWithPrivileges(privilegesRequired, func() error {
-		return secureCreateDirectory(targetDir, sddl)
+		// Create root path: `C:\ProgramData\Datadog\Installer`
+		err := secureCreateDirectory(DatadogInstallerData, sddl)
+		if err != nil {
+			return fmt.Errorf("failed to create DatadogInstallerData: %w", err)
+		}
+
+		// Create subdirectories that have different permissions (global read)
+		_ = os.Mkdir(PackagesPath, 0)
+		err = SetRepositoryPermissions(PackagesPath)
+		if err != nil {
+			return fmt.Errorf("failed to create PackagesPath: %w", err)
+		}
+		_ = os.Mkdir(ConfigsPath, 0)
+		err = SetRepositoryPermissions(ConfigsPath)
+		if err != nil {
+			return fmt.Errorf("failed to create ConfigsPath: %w", err)
+		}
+
+		return nil
 	})
 }
 
+// secureCreateDirectory creates a directory with the specified SDDL string.
+//
+// If the directory already exists and it is owned by Administrators or SYSTEM, the permissions
+// are set to the expected state. If the directory is owned by an unknown party, an error is returned.
 func secureCreateDirectory(path string, sddl string) error {
 	// Try to create the directory with the desired permissions.
 	// We avoid TOCTOU issues because CreateDirectory fails if the directory already exists.
@@ -155,11 +175,13 @@ func secureCreateDirectory(path string, sddl string) error {
 		return err
 	}
 
-	// The owner is Administrators or SYSTEM, so we can be resonably sure the directory and its
+	// The owner is Administrators or SYSTEM, so we can be reasonably sure the directory and its
 	// original permissions were created by an Administrator. If the Administrator created
 	// the directory insecurely, we'll reset the permissions here, but we can't account
-	// for damage that might have already been done.
-	err = treeResetNamedSecurityInfoWithSDDL(path, sddl)
+	// for created/changed files in the tree during that time. The caller may opt to reset the
+	// permissions recursively, but this is not done here as we have paths that have children
+	// with different permissions.
+	err = setNamedSecurityInfoWithSDDL(path, sddl)
 	if err != nil {
 		return err
 	}
@@ -240,6 +262,14 @@ func createDirectoryWithSDDL(path string, sddl string) error {
 	return nil
 }
 
+func setNamedSecurityInfoWithSDDL(root string, sddl string) error {
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil {
+		return err
+	}
+	return setNamedSecurityInfoFromSecurityDescriptor(root, sd)
+}
+
 func treeResetNamedSecurityInfoWithSDDL(root string, sddl string) error {
 	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
@@ -248,24 +278,24 @@ func treeResetNamedSecurityInfoWithSDDL(root string, sddl string) error {
 	return treeResetNamedSecurityInfoFromSecurityDescriptor(root, sd)
 }
 
-func treeResetNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.SECURITY_DESCRIPTOR) error {
+func getSecurityInfoFromSecurityDescriptor(sd *windows.SECURITY_DESCRIPTOR) (windows.SECURITY_INFORMATION, *windows.SID, *windows.SID, *windows.ACL, *windows.ACL, error) {
 	var flags windows.SECURITY_INFORMATION
 	control, _, err := sd.Control()
 	if err != nil {
-		return err
+		return 0, nil, nil, nil, nil, err
 	}
 	flags |= securityInformationFromControlFlags(control)
 
 	owner, _, err := sd.Owner()
 	if err != nil {
-		return err
+		return 0, nil, nil, nil, nil, err
 	}
 	if owner != nil {
 		flags |= windows.OWNER_SECURITY_INFORMATION
 	}
 	group, _, err := sd.Group()
 	if err != nil {
-		return err
+		return 0, nil, nil, nil, nil, err
 	}
 	if group != nil {
 		flags |= windows.GROUP_SECURITY_INFORMATION
@@ -273,7 +303,7 @@ func treeResetNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.S
 	dacl, _, err := sd.DACL()
 	if err != nil {
 		if err != windows.ERROR_OBJECT_NOT_FOUND {
-			return err
+			return 0, nil, nil, nil, nil, err
 		}
 	} else {
 		flags |= windows.DACL_SECURITY_INFORMATION
@@ -281,10 +311,26 @@ func treeResetNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.S
 	sacl, _, err := sd.SACL()
 	if err != nil {
 		if err != windows.ERROR_OBJECT_NOT_FOUND {
-			return err
+			return 0, nil, nil, nil, nil, err
 		}
 	} else {
 		flags |= windows.SACL_SECURITY_INFORMATION
+	}
+	return flags, owner, group, dacl, sacl, nil
+}
+
+func setNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.SECURITY_DESCRIPTOR) error {
+	flags, owner, group, dacl, sacl, err := getSecurityInfoFromSecurityDescriptor(sd)
+	if err != nil {
+		return err
+	}
+	return windows.SetNamedSecurityInfo(root, windows.SE_FILE_OBJECT, flags, owner, group, dacl, sacl)
+}
+
+func treeResetNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.SECURITY_DESCRIPTOR) error {
+	flags, owner, group, dacl, sacl, err := getSecurityInfoFromSecurityDescriptor(sd)
+	if err != nil {
+		return err
 	}
 	err = TreeResetNamedSecurityInfo(
 		root,
