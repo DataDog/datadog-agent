@@ -47,7 +47,7 @@ require (
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.27.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.27.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.27.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.28.0
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/DataDog/viper v1.14.0
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
