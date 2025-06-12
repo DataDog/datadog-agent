@@ -120,7 +120,7 @@ func NewController(
 		DeleteFunc: c.limitHeap.DeleteFromHeap,
 	})
 	store.RegisterObserver(autoscaling.Observer{
-		DeleteFunc: c.unsetTelemetry,
+		DeleteFunc: unsetTelemetry,
 	})
 	c.store = store
 	c.podWatcher = podWatcher
@@ -499,7 +499,7 @@ func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.Pod
 	trackLocalFallbackEnabled(*activeHorizontalSource, *podAutoscalerInternal)
 }
 
-func (c *Controller) unsetTelemetry(key, _ string) {
+func unsetTelemetry(key, _ string) {
 	ns, autoscalerName, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		log.Debugf("Unable to split key %s to delete telemetry: %v", key, err)
