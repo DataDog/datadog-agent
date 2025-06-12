@@ -1,6 +1,6 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.68.0",
+    "current_milestone": "7.69.0",
     "dependencies": {
         "OMNIBUS_RUBY_VERSION": "49bffd5cbf5f4fc8a357afca145482111c8880ee",
         "JMXFETCH_VERSION": "0.49.7",
