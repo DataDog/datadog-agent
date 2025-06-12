@@ -107,6 +107,14 @@ func GetSamplingPriority(t *pb.TraceChunk) (SamplingPriority, bool) {
 	return SamplingPriority(t.Priority), true
 }
 
+func GetSamplingPriorityV1(t *idx.InternalTraceChunk) (SamplingPriority, bool) {
+	// TODO: would this be PriorityNone?
+	if t.Priority == int32(PriorityNone) {
+		return 0, false
+	}
+	return SamplingPriority(t.Priority), true
+}
+
 // GetGlobalRate gets the cumulative sample rate of the trace to which this span belongs to.
 func GetGlobalRate(s *pb.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateGlobal, 1.0)
@@ -214,6 +222,21 @@ func weightRoot(s *pb.Span) float32 {
 		clientRate = 1
 	}
 	preSamplerRate, ok := s.Metrics[KeySamplingRatePreSampler]
+	if !ok || preSamplerRate <= 0.0 || preSamplerRate > 1.0 {
+		preSamplerRate = 1
+	}
+	return float32(1.0 / (preSamplerRate * clientRate))
+}
+
+func weightRootV1(s *idx.InternalSpan) float32 {
+	if s == nil {
+		return 1
+	}
+	clientRate, ok := s.GetAttributeAsFloat64(KeySamplingRateGlobal)
+	if !ok || clientRate <= 0.0 || clientRate > 1.0 {
+		clientRate = 1
+	}
+	preSamplerRate, ok := s.GetAttributeAsFloat64(KeySamplingRatePreSampler)
 	if !ok || preSamplerRate <= 0.0 || preSamplerRate > 1.0 {
 		preSamplerRate = 1
 	}

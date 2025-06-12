@@ -13,6 +13,7 @@ import (
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -49,6 +50,13 @@ type SampledChunks struct {
 	SpanCount int64
 	// EventCount specifies the total number of events found in Traces.
 	EventCount int64
+}
+
+type SampledChunksV1 struct {
+	TracerPayload *idx.InternalTracerPayload
+	Size          int
+	SpanCount     int64
+	EventCount    int64
 }
 
 // TraceWriter implements TraceWriter interface, and buffers traces and APM events, flushing them to the Datadog API.

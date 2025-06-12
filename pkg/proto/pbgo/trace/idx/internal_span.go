@@ -85,6 +85,14 @@ type InternalTracerPayload struct {
 	Chunks []*InternalTraceChunk
 }
 
+func (tp *InternalTracerPayload) Hostname() string {
+	return tp.Strings.Get(tp.HostnameRef)
+}
+
+func (tp *InternalTracerPayload) AppVersion() string {
+	return tp.Strings.Get(tp.AppVersionRef)
+}
+
 func (tp *InternalTracerPayload) LanguageName() string {
 	return tp.Strings.Get(tp.LanguageNameRef)
 }
@@ -161,12 +169,51 @@ type InternalTraceChunk struct {
 	DecisionMakerRef uint32
 }
 
+// TODO: add a test to verify we have all fields
+func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
+	return &InternalTraceChunk{
+		Strings:          c.Strings,
+		Priority:         c.Priority,
+		OriginRef:        c.OriginRef,
+		Attributes:       c.Attributes,
+		Spans:            c.Spans,
+		DroppedTrace:     c.DroppedTrace,
+		TraceID:          c.TraceID,
+		DecisionMakerRef: c.DecisionMakerRef,
+	}
+}
+
 func (c *InternalTraceChunk) Origin() string {
 	return c.Strings.Get(c.OriginRef)
 }
 
 func (c *InternalTraceChunk) SetOrigin(origin string) {
 	c.OriginRef = c.Strings.Add(origin)
+}
+
+func (c *InternalTraceChunk) DecisionMaker() string {
+	return c.Strings.Get(c.DecisionMakerRef)
+}
+
+func (c *InternalTraceChunk) SetDecisionMaker(decisionMaker string) {
+	c.DecisionMakerRef = c.Strings.Add(decisionMaker)
+}
+
+// GetAttributeAsString returns the attribute as a string, or an empty string if the attribute is not found
+func (c *InternalTraceChunk) GetAttributeAsString(key string) (string, bool) {
+	if attr, ok := c.Attributes[c.Strings.Lookup(key)]; ok {
+		return attr.AsString(c.Strings), true
+	}
+	return "", false
+}
+
+func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
+	// TODO: How should we handle removing a tag? Can we just let the string dangle?
+	c.Attributes[c.Strings.Add(key)] = &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: c.Strings.Add(value),
+		},
+	}
 }
 
 // InternalSpan is a span structure that is optimized for trace-agent usage
@@ -207,6 +254,29 @@ type InternalSpan struct {
 	ComponentRef uint32
 	// the SpanKind of this span as defined in the OTEL Specification
 	Kind SpanKind
+}
+
+// TODO: add a test to verify we have all fields
+func (s *InternalSpan) ShallowCopy() *InternalSpan {
+	return &InternalSpan{
+		Strings:      s.Strings,
+		ServiceRef:   s.ServiceRef,
+		NameRef:      s.NameRef,
+		ResourceRef:  s.ResourceRef,
+		SpanID:       s.SpanID,
+		ParentID:     s.ParentID,
+		Start:        s.Start,
+		Duration:     s.Duration,
+		Error:        s.Error,
+		Attributes:   s.Attributes,
+		TypeRef:      s.TypeRef,
+		SpanLinks:    s.SpanLinks,
+		SpanEvents:   s.SpanEvents,
+		EnvRef:       s.EnvRef,
+		VersionRef:   s.VersionRef,
+		ComponentRef: s.ComponentRef,
+		Kind:         s.Kind,
+	}
 }
 
 // SpanKind returns the string representation of the span kind

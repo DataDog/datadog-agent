@@ -477,7 +477,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	now := time.Now()
 	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_v1_ms", now)
 	ts := p.Source
-	// sampledChunks := new(writer.SampledChunks)
+	sampledChunks := new(writer.SampledChunksV1)
 	statsInput := stats.NewStatsInputV1(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID(), p.ClientComputedStats, p.ProcessTags)
 
 	p.TracerPayload.SetEnv(normalize.NormalizeTagValue(p.TracerPayload.Env()))
@@ -494,7 +494,7 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		}
 	}
 
-	// gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
+	gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(p.ContainerTags)
 
 	// a.discardSpans(p)
 
@@ -557,42 +557,41 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		a.Replacer.ReplaceV1(chunk)
 
 		a.setRootSpanTagsV1(root)
+
+		pt := processedTraceV1(p, chunk, root, imageTag, gitCommitSha)
+		if !p.ClientComputedStats {
+			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
+		}
+
+		keep, numEvents := a.sampleV1(now, ts, pt)
+		// if !keep && len(pt.TraceChunk.Spans) == 0 {
+		// 	// The entire trace was dropped and no spans were kept.
+		// 	p.RemoveChunk(i)
+		// 	continue
+		// }
+		// p.ReplaceChunk(i, pt.TraceChunk)
+
+		// 	if !pt.TraceChunk.DroppedTrace {
+		// 		// Now that we know this trace has been sampled,
+		// 		// if this is the first trace we have processed since restart,
+		// 		// set a special set of tags on its root span to track that this
+		// 		// customer has successfully onboarded onto APM.
+		// 		a.setFirstTraceTags(root)
+		// 		sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
+		// 	}
+		sampledChunks.EventCount += int64(numEvents)
+		// sampledChunks.Size += pt.TraceChunk.Msgsize()
+		// 	i++
+
+		// 	if sampledChunks.Size > writer.MaxPayloadSize {
+		// 		// payload size is getting big; split and flush what we have so far
+		// 		sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
+		// 		i = 0
+		// 		sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
+		// 		a.TraceWriter.WriteChunks(sampledChunks)
+		// 		sampledChunks = new(writer.SampledChunks)
+		// 	}
 	}
-
-	// 	pt := processedTrace(p, chunk, root, imageTag, gitCommitSha)
-	// 	if !p.ClientComputedStats {
-	// 		statsInput.Traces = append(statsInput.Traces, *pt.Clone())
-	// 	}
-
-	// 	keep, numEvents := a.sample(now, ts, pt)
-	// 	if !keep && len(pt.TraceChunk.Spans) == 0 {
-	// 		// The entire trace was dropped and no spans were kept.
-	// 		p.RemoveChunk(i)
-	// 		continue
-	// 	}
-	// 	p.ReplaceChunk(i, pt.TraceChunk)
-
-	// 	if !pt.TraceChunk.DroppedTrace {
-	// 		// Now that we know this trace has been sampled,
-	// 		// if this is the first trace we have processed since restart,
-	// 		// set a special set of tags on its root span to track that this
-	// 		// customer has successfully onboarded onto APM.
-	// 		a.setFirstTraceTags(root)
-	// 		sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
-	// 	}
-	// 	sampledChunks.EventCount += int64(numEvents)
-	// 	sampledChunks.Size += pt.TraceChunk.Msgsize()
-	// 	i++
-
-	// 	if sampledChunks.Size > writer.MaxPayloadSize {
-	// 		// payload size is getting big; split and flush what we have so far
-	// 		sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
-	// 		i = 0
-	// 		sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
-	// 		a.TraceWriter.WriteChunks(sampledChunks)
-	// 		sampledChunks = new(writer.SampledChunks)
-	// 	}
-	// }
 	// sampledChunks.TracerPayload = p.TracerPayload
 	// sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
 	// if sampledChunks.Size > 0 {
@@ -626,6 +625,25 @@ func processedTrace(p *api.Payload, chunk *pb.TraceChunk, root *pb.Span, imageTa
 		TracerHostname:         p.TracerPayload.Hostname,
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.Chunks())),
 		GitCommitSha:           version.GetGitCommitShaFromTrace(root, chunk),
+	}
+	pt.ImageTag = imageTag
+	// Only override the GitCommitSha if it was not set in the trace.
+	if pt.GitCommitSha == "" {
+		pt.GitCommitSha = gitCommitSha
+	}
+	return pt
+}
+
+// processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
+func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string) *traceutil.ProcessedTraceV1 {
+	pt := &traceutil.ProcessedTraceV1{
+		TraceChunk:             chunk,
+		Root:                   root,
+		AppVersion:             p.TracerPayload.AppVersion(),
+		TracerEnv:              p.TracerPayload.Env(),
+		TracerHostname:         p.TracerPayload.Hostname(),
+		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
+		GitCommitSha:           version.GetGitCommitShaFromTraceV1(chunk),
 	}
 	pt.ImageTag = imageTag
 	// Only override the GitCommitSha if it was not set in the trace.
@@ -735,6 +753,33 @@ func (a *Agent) ProcessStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 
 // sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept
 // and the number of events in the trace
+func (a *Agent) sampleV1(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTraceV1) (keep bool, numEvents int) {
+	// We have a `keep` that is different from pt's `DroppedTrace` field as `DroppedTrace` will be sent to intake.
+	// For example: We want to maintain the overall trace level sampling decision for a trace with Analytics Events
+	// where a trace might be marked as DroppedTrace true, but we still sent analytics events in that ProcessedTrace.
+	keep, checkAnalyticsEvents := a.traceSamplingV1(now, ts, pt)
+
+	var events []*pb.Span
+	if checkAnalyticsEvents {
+		events = a.getAnalyzedEventsV1(pt, ts)
+	}
+	if !keep && !a.conf.ErrorTrackingStandalone {
+		modified := sampler.SingleSpanSamplingV1(pt)
+		if !modified {
+			// If there were no sampled spans, and we're not keeping the trace, let's use the analytics events
+			// This is OK because SSS is a replacement for analytics events so both should not be configured
+			// And when analytics events are fully gone we can get rid of all this
+			pt.TraceChunk.Spans = events
+		} else if len(events) > 0 {
+			log.Warnf("Detected both analytics events AND single span sampling in the same trace. Single span sampling wins because App Analytics is deprecated.")
+		}
+	}
+
+	return keep, len(events)
+}
+
+// sample performs all sampling on the processedTrace modifying it as needed and returning if the trace should be kept
+// and the number of events in the trace
 func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, numEvents int) {
 	// We have a `keep` that is different from pt's `DroppedTrace` field as `DroppedTrace` will be sent to intake.
 	// For example: We want to maintain the overall trace level sampling decision for a trace with Analytics Events
@@ -778,9 +823,30 @@ func isManualUserDrop(pt *traceutil.ProcessedTrace) bool {
 	return dm == manualSampling
 }
 
+// isManualUserDrop returns true if and only if the ProcessedTrace is marked as Priority User Drop
+// AND has a sampling decision maker of "Manual Sampling" (-4)
+//
+// Note: This does not work for traces with PriorityUserDrop, since most tracers do not set
+// the decision maker field for user drop scenarios.
+func isManualUserDropV1(pt *traceutil.ProcessedTraceV1) bool {
+	priority, _ := sampler.GetSamplingPriorityV1(pt.TraceChunk)
+	// Default priority is non-drop, so it's safe to ignore if the priority wasn't found
+	if priority != sampler.PriorityUserDrop {
+		return false
+	}
+	return pt.TraceChunk.DecisionMaker() == manualSampling
+}
+
 // traceSampling reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
 func (a *Agent) traceSampling(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTrace) (keep bool, checkAnalyticsEvents bool) {
 	sampled, check := a.runSamplers(now, ts, *pt)
+	pt.TraceChunk.DroppedTrace = !sampled
+	return sampled, check
+}
+
+// traceSamplingV1 reports whether the chunk should be kept as a trace, setting "DroppedTrace" on the chunk
+func (a *Agent) traceSamplingV1(now time.Time, ts *info.TagStats, pt *traceutil.ProcessedTraceV1) (keep bool, checkAnalyticsEvents bool) {
+	sampled, check := a.runSamplersV1(now, ts, *pt)
 	pt.TraceChunk.DroppedTrace = !sampled
 	return sampled, check
 }
@@ -884,11 +950,119 @@ func (a *Agent) runSamplers(now time.Time, ts *info.TagStats, pt traceutil.Proce
 	return false, true
 }
 
+// runSamplers runs the agent's configured samplers on pt and returns the sampling decision along
+// with the sampling rate.
+//
+// If the agent is set as Error Tracking Standalone, only the ErrorSampler is run (other samplers are bypassed).
+// Otherwise, the rare sampler is run first, catching all rare traces early. If the probabilistic sampler is
+// enabled, it is run on the trace, followed by the error sampler. Otherwise, If the trace has a
+// priority set, the sampling priority is used with the Priority Sampler. When there is no priority
+// set, the NoPrioritySampler is run. Finally, if the trace has not been sampled by the other
+// samplers, the error sampler is run.
+func (a *Agent) runSamplersV1(now time.Time, ts *info.TagStats, pt traceutil.ProcessedTraceV1) (keep bool, checkAnalyticsEvents bool) {
+	samplerName := sampler.NameUnknown
+	samplingPriority := sampler.PriorityNone
+	defer func() {
+		a.SamplerMetrics.RecordMetricsKey(keep, sampler.NewMetricsKey(pt.Root.Service(), pt.TracerEnv, samplerName, samplingPriority))
+	}()
+	// ETS: chunks that don't contain errors (or spans with exception span events) are all dropped.
+	if a.conf.ErrorTrackingStandalone {
+		samplerName = sampler.NameError
+		if traceContainsErrorV1(pt.TraceChunk.Spans, true) {
+			pt.TraceChunk.SetStringAttribute("_dd.error_tracking_standalone.error", "true")
+			return a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv), false
+		}
+		return false, false
+	}
+
+	// Run this early to make sure the signature gets counted by the RareSampler.
+	rare := a.RareSampler.SampleV1(now, pt.TraceChunk, pt.TracerEnv)
+
+	if a.conf.ProbabilisticSamplerEnabled {
+		samplerName = sampler.NameProbabilistic
+		if rare {
+			samplerName = sampler.NameRare
+			return true, true
+		}
+		if a.ProbabilisticSampler.SampleV1(pt.TraceChunk.TraceID, pt.Root) {
+			pt.TraceChunk.SetDecisionMaker(probabilitySampling)
+			return true, true
+		}
+		if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
+			samplerName = sampler.NameError
+			return a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv), true
+		}
+		return false, true
+	}
+
+	priority, hasPriority := sampler.GetSamplingPriorityV1(pt.TraceChunk)
+	if hasPriority {
+		samplerName = sampler.NamePriority
+		samplingPriority = priority
+		if traceChunkContainsProbabilitySamplingV1(pt.TraceChunk) {
+			samplerName = sampler.NameProbabilistic
+		}
+		ts.TracesPerSamplingPriority.CountSamplingPriority(priority)
+	} else {
+		samplerName = sampler.NameNoPriority
+		ts.TracesPriorityNone.Inc()
+	}
+	if a.conf.HasFeature("error_rare_sample_tracer_drop") {
+		// We skip analytics events when a trace is marked as manual drop (aka priority -1)
+		// Note that we DON'T skip single span sampling. We only do this for historical
+		// reasons and analytics events are deprecated so hopefully this can all go away someday.
+		if isManualUserDropV1(&pt) {
+			return false, false
+		}
+	} else { // This path to be deleted once manualUserDrop detection is available on all tracers for P < 1.
+		if priority < 0 {
+			return false, false
+		}
+	}
+
+	if rare {
+		samplerName = sampler.NameRare
+		return true, true
+	}
+
+	if hasPriority {
+		if a.PrioritySampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
+			return true, true
+		}
+	} else if a.NoPrioritySampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv) {
+		return true, true
+	}
+
+	if traceContainsErrorV1(pt.TraceChunk.Spans, false) {
+		samplerName = sampler.NameError
+		return a.ErrorsSampler.SampleV1(now, pt.TraceChunk, pt.Root, pt.TracerEnv), true
+	}
+
+	return false, true
+}
+
 func traceContainsError(trace pb.Trace, considerExceptionEvents bool) bool {
 	for _, span := range trace {
 		if span.Error != 0 || (considerExceptionEvents && spanContainsExceptionSpanEvent(span)) {
 			return true
 		}
+	}
+	return false
+}
+
+func traceContainsErrorV1(trace []*idx.InternalSpan, considerExceptionEvents bool) bool {
+	for _, span := range trace {
+		if span.Error || (considerExceptionEvents && spanContainsExceptionSpanEventV1(span)) {
+			return true
+		}
+	}
+	return false
+}
+
+func spanContainsExceptionSpanEventV1(span *idx.InternalSpan) bool {
+	// TODO: this could be a boolean attribute
+	if hasExceptionSpanEvents, ok := span.GetAttributeAsString("_dd.span_events.has_exception"); ok && hasExceptionSpanEvents == "true" {
+		return true
 	}
 	return false
 }
@@ -981,6 +1155,20 @@ func traceChunkContainsProbabilitySampling(chunk *pb.TraceChunk) bool {
 		return true
 	}
 	if spans := chunk.GetSpans(); len(spans) > 0 && spans[0].Meta[tagDecisionMaker] == probabilitySampling {
+		return true
+	}
+	return false
+}
+
+// traceChunkContainsProbabilitySampling returns true when trace has already
+// been sampled by the probabilistic sampler in the OTLPReceiver.
+// The probabilistic sampler in the OTLPReceiver returns `sampler.PriorityAutoKeep`
+// as a result of the sampling decision.
+func traceChunkContainsProbabilitySamplingV1(chunk *idx.InternalTraceChunk) bool {
+	if chunk == nil {
+		return false
+	}
+	if chunk.DecisionMaker() == probabilitySampling {
 		return true
 	}
 	return false
