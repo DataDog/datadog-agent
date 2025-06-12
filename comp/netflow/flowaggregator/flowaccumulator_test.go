@@ -19,8 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// MockTimeNow mocks time.Now
-var MockTimeNow = func() time.Time {
+var initialTime = func() time.Time {
 	layout := "2006-01-02 15:04:05"
 	str := "2000-01-01 00:00:00"
 	t, _ := time.Parse(layout, str)
@@ -100,19 +99,19 @@ func Test_flowAccumulator_add(t *testing.T) {
 	// Then
 	assert.Equal(t, 2, len(acc.flows))
 
-	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
-	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowA.flow.SrcAddr)
-	assert.Equal(t, []byte{10, 10, 10, 20}, wrappedFlowA.flow.DstAddr)
-	assert.Equal(t, uint64(30), wrappedFlowA.flow.Bytes)
-	assert.Equal(t, uint64(6), wrappedFlowA.flow.Packets)
-	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
-	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
-	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
-	assert.Equal(t, map[string]any{"custom_field": "test", "custom_field_2": "second_flow_field"}, wrappedFlowA.flow.AdditionalFields) // Keeping first value seen for key `custom_field`
+	flowCtxA := acc.flows[flowA1.AggregationHash()]
+	assert.Equal(t, []byte{10, 10, 10, 10}, flowCtxA.flow.SrcAddr)
+	assert.Equal(t, []byte{10, 10, 10, 20}, flowCtxA.flow.DstAddr)
+	assert.Equal(t, uint64(30), flowCtxA.flow.Bytes)
+	assert.Equal(t, uint64(6), flowCtxA.flow.Packets)
+	assert.Equal(t, uint64(1234568), flowCtxA.flow.StartTimestamp)
+	assert.Equal(t, uint64(1234579), flowCtxA.flow.EndTimestamp)
+	assert.Equal(t, synAckFlag, flowCtxA.flow.TCPFlags)
+	assert.Equal(t, map[string]any{"custom_field": "test", "custom_field_2": "second_flow_field"}, flowCtxA.flow.AdditionalFields) // Keeping first value seen for key `custom_field`
 
-	wrappedFlowB := acc.flows[flowB1.AggregationHash()]
-	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowB.flow.SrcAddr)
-	assert.Equal(t, []byte{10, 10, 10, 30}, wrappedFlowB.flow.DstAddr)
+	flowCtxB := acc.flows[flowB1.AggregationHash()]
+	assert.Equal(t, []byte{10, 10, 10, 10}, flowCtxB.flow.SrcAddr)
+	assert.Equal(t, []byte{10, 10, 10, 30}, flowCtxB.flow.DstAddr)
 }
 
 func Test_flowAccumulator_portRollUp(t *testing.T) {
@@ -201,14 +200,14 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	// Then
 	assert.Equal(t, 4, len(acc.flows))
 
-	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
-	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowA.flow.SrcAddr)
-	assert.Equal(t, []byte{10, 10, 10, 20}, wrappedFlowA.flow.DstAddr)
-	assert.Equal(t, uint64(30), wrappedFlowA.flow.Bytes)
-	assert.Equal(t, uint64(6), wrappedFlowA.flow.Packets)
-	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
-	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
-	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
+	flowCtxA := acc.flows[flowA1.AggregationHash()]
+	assert.Equal(t, []byte{10, 10, 10, 10}, flowCtxA.flow.SrcAddr)
+	assert.Equal(t, []byte{10, 10, 10, 20}, flowCtxA.flow.DstAddr)
+	assert.Equal(t, uint64(30), flowCtxA.flow.Bytes)
+	assert.Equal(t, uint64(6), flowCtxA.flow.Packets)
+	assert.Equal(t, uint64(1234568), flowCtxA.flow.StartTimestamp)
+	assert.Equal(t, uint64(1234579), flowCtxA.flow.EndTimestamp)
+	assert.Equal(t, synAckFlag, flowCtxA.flow.TCPFlags)
 
 	assert.Equal(t, uint64(20), acc.flows[flowB1.AggregationHash()].flow.Packets)
 	assert.Equal(t, int32(2001), acc.flows[flowB1.AggregationHash()].flow.DstPort)
@@ -222,7 +221,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 func Test_flowAccumulator_flush(t *testing.T) {
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
-	timeNow = MockTimeNow
+	timeNow = initialTime
 	zeroTime := time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
 	flushInterval := 60 * time.Second
 	flowContextTTL := 60 * time.Second
@@ -249,60 +248,60 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	// Then
 	assert.Equal(t, 1, len(acc.flows))
 
-	wrappedFlow := acc.flows[flow.AggregationHash()]
+	flowCtx := acc.flows[flow.AggregationHash()]
 
-	assert.Equal(t, MockTimeNow(), wrappedFlow.nextFlush)
-	assert.Equal(t, zeroTime, wrappedFlow.lastSuccessfulFlush)
+	assert.Equal(t, timeNow().Add(flushInterval), flowCtx.nextFlush)
+	assert.Equal(t, zeroTime, flowCtx.lastSuccessfulFlush)
 
 	// test first flush
 	// set flush time
-	flushTime1 := MockTimeNow().Add(10 * time.Second)
-	setMockTimeNow(flushTime1)
-	acc.flush()
-	wrappedFlow = acc.flows[flow.AggregationHash()]
-	assert.Equal(t, MockTimeNow().Add(acc.flowFlushInterval), wrappedFlow.nextFlush)
-	assert.Equal(t, MockTimeNow().Add(10*time.Second), wrappedFlow.lastSuccessfulFlush)
+	setMockTimeNow(initialTime().Add(flushInterval)) // t=60, nextFlush=60, lastSuccessfulFlush=0
+	acc.flush()                                      // flushed, nextFlush=120, lastSuccessfulFlush=60
+	flowCtx = acc.flows[flow.AggregationHash()]
+	expectedNextFlush := timeNow().Add(flushInterval)
+	assert.Equal(t, expectedNextFlush, flowCtx.nextFlush)
+
+	expectedLastSuccessfulFlush := timeNow()
+	assert.Equal(t, expectedLastSuccessfulFlush, flowCtx.lastSuccessfulFlush)
 
 	// test skip flush if nextFlush is not reached yet
-	flushTime2 := MockTimeNow().Add(15 * time.Second)
-	setMockTimeNow(flushTime2)
-	acc.flush()
-	wrappedFlow = acc.flows[flow.AggregationHash()]
-	assert.Equal(t, MockTimeNow().Add(acc.flowFlushInterval), wrappedFlow.nextFlush)
-	assert.Equal(t, MockTimeNow().Add(10*time.Second), wrappedFlow.lastSuccessfulFlush)
+	setMockTimeNow(initialTime().Add(flushInterval + (5 * time.Second))) // t=65, nextFlush=120, lastSuccessfulFlush=60
+	acc.flush()                                                          // NOT flushed
+	flowCtx = acc.flows[flow.AggregationHash()]
+	assert.Equal(t, expectedNextFlush, flowCtx.nextFlush)
+	assert.Equal(t, expectedLastSuccessfulFlush, flowCtx.lastSuccessfulFlush)
 
 	// test flush with no new flow after nextFlush is reached
-	flushTime3 := MockTimeNow().Add(acc.flowFlushInterval + (1 * time.Second))
-	setMockTimeNow(flushTime3)
-	acc.flush()
-	wrappedFlow = acc.flows[flow.AggregationHash()]
-	assert.Equal(t, MockTimeNow().Add(acc.flowFlushInterval*2), wrappedFlow.nextFlush)
-	// lastSuccessfulFlush time doesn't change because there is no new flow
-	assert.Equal(t, MockTimeNow().Add(10*time.Second), wrappedFlow.lastSuccessfulFlush)
+	setMockTimeNow(initialTime().Add(2 * flushInterval)) // t=120 nextFlush=120, lastSuccessfulFlush=60
+	acc.flush()                                          // flushed, nextFlush=180, lastSuccessfulFlush=120
+	expectedNextFlush = expectedNextFlush.Add(flushInterval)
+	flowCtx = acc.flows[flow.AggregationHash()]
+	assert.Equal(t, expectedNextFlush, flowCtx.nextFlush)
+	assert.Equal(t, expectedLastSuccessfulFlush, flowCtx.lastSuccessfulFlush)
 
 	// test flush with new flow after nextFlush is reached
-	flushTime4 := MockTimeNow().Add(acc.flowFlushInterval*2 + (1 * time.Second))
-	setMockTimeNow(flushTime4)
+	setMockTimeNow(initialTime().Add(3 * flushInterval)) // t=180 nextFlush=180, lastSuccessfulFlush=120
+	expectedLastSuccessfulFlush = timeNow()
+	expectedNextFlush = expectedLastSuccessfulFlush.Add(flushInterval)
 	acc.add(flow)
-	acc.flush()
-	wrappedFlow = acc.flows[flow.AggregationHash()]
-	assert.Equal(t, MockTimeNow().Add(acc.flowFlushInterval*3), wrappedFlow.nextFlush)
-	assert.Equal(t, flushTime4, wrappedFlow.lastSuccessfulFlush)
+	acc.flush() // flushed, nextFlush=240, lastSuccessfulFlush=180
+	flowCtx = acc.flows[flow.AggregationHash()]
+	assert.Equal(t, expectedNextFlush, flowCtx.nextFlush)
+	assert.Equal(t, expectedLastSuccessfulFlush, flowCtx.lastSuccessfulFlush)
 
 	// test flush with TTL reached (now+ttl is equal last successful flush) to clean up entry
-	flushTime5 := flushTime4.Add(flowContextTTL + 1*time.Second)
-	setMockTimeNow(flushTime5)
-	acc.flush()
+	setMockTimeNow(initialTime().Add(3*flushInterval + flowContextTTL + 1*time.Second)) // ts=241 nextFlush=240, lastSuccessfulFlush=180
+	acc.flush()                                                                         // NOT flushed, flowContext cleaned up
 	_, ok := acc.flows[flow.AggregationHash()]
 	assert.False(t, ok)
 
 	// test flush with TTL reached (now+ttl is after last successful flush) to clean up entry
-	setMockTimeNow(MockTimeNow())
+	setMockTimeNow(initialTime())
 	acc.add(flow)
-	acc.flush()
-	flushTime6 := MockTimeNow().Add(flowContextTTL + 1*time.Second)
-	setMockTimeNow(flushTime6)
-	acc.flush()
+	setMockTimeNow(initialTime().Add(flushInterval))                                  // ts=60 nextFlush=60, lastSuccessfulFlush=0
+	acc.flush()                                                                       // flushed, nextFlush=120, lastSuccessfulFlush=60
+	setMockTimeNow(initialTime().Add(flushInterval + flowContextTTL + 1*time.Second)) // ts=121 nextFlush=120, lastSuccessfulFlush=60
+	acc.flush()                                                                       // NOT flushed, flowContext cleaned up
 	_, ok = acc.flows[flow.AggregationHash()]
 	assert.False(t, ok)
 }
@@ -311,7 +310,7 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 	synFlag := uint32(2)
-	timeNow = MockTimeNow
+	timeNow = initialTime
 	flushInterval := 60 * time.Second
 	flowContextTTL := 60 * time.Second
 
