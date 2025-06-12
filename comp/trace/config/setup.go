@@ -653,7 +653,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	// undocumented - this is for internal testing only
 	if k := "apm_config.min_convert_payloads"; core.IsSet(k) {
 		c.MinConvertPayloads = core.GetInt(k)
-  }
+	}
 	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
 		c.OpenLineageProxy.APIVersion = core.GetInt(k)
 	}
