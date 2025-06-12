@@ -620,7 +620,7 @@ func TestLogNilInnerLogger(t *testing.T) {
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
-	Debug("debug message")
+	Debug("message")
 
 	// should write to the logs buffer
 	assert.Equal(t, 1, len(logsBuffer))
@@ -646,7 +646,7 @@ func TestChangeLogLevel(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %Msg\n")
+	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "")
 	SetupLogger(l, DebugStr)
 
 	testCases := []struct {
@@ -896,13 +896,13 @@ func TestRegisterAdditionalLoggerAlreadyRegistered(t *testing.T) {
 
 	// register a logger
 	lA, _ := LoggerFromWriterWithMinLevelAndFormat(nil, DebugLvl, "")
-	
+
 	err := RegisterAdditionalLogger("new logger", lA)
 	assert.NoError(t, err)
 
 	// register another logger with the same key
 	lB, _ := LoggerFromWriterWithMinLevelAndFormat(nil, DebugLvl, "")
-	
+
 	err = RegisterAdditionalLogger("new logger", lB)
 	assert.Error(t, err)
 	assert.Equal(t, "logger already registered with that name", err.Error())
@@ -941,7 +941,7 @@ func TestTraceNilLogger(t *testing.T) {
 	logsBuffer = []func(){}
 	logger.Store(nil)
 
-	logger.trace("trace message")
+	logger.trace("message")
 
 	// should not write to the logs buffer
 	assert.Equal(t, 0, len(logsBuffer))
@@ -957,55 +957,55 @@ func TestLogExtraLogger(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, TraceLvl, "[%LEVEL] %Msg\n")
+	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, TraceLvl, "[%LEVEL] %FuncShort: %Msg\n")
 	RegisterAdditionalLogger("extra logger", l)
 
 	// log messages
-	logger.trace("trace message")
-	logger.tracef("tracef message %d", 123)
-	logger.traceStackDepth("traceStackDepth message", 2)
+	logger.trace("message")
+	logger.tracef("message %d", 123)
+	logger.traceStackDepth("message", 2)
 
-	logger.debug("debug message")
-	logger.debugf("debugf message %d", 123)
-	logger.debugStackDepth("debugStackDepth message", 2)
+	logger.debug("message")
+	logger.debugf("message %d", 123)
+	logger.debugStackDepth("message", 2)
 
-	logger.info("info message")
-	logger.infof("infof message %d", 123)
-	logger.infoStackDepth("infoStackDepth message", 2)
+	logger.info("message")
+	logger.infof("message %d", 123)
+	logger.infoStackDepth("message", 2)
 
-	logger.warn("warn message")
-	logger.warnf("warnf message %d", 123)
-	logger.warnStackDepth("warnStackDepth message", 2)
+	logger.warn("message")
+	logger.warnf("message %d", 123)
+	logger.warnStackDepth("message", 2)
 
-	logger.error("error message")
-	logger.errorf("errorf message %d", 123)
-	logger.errorStackDepth("errorStackDepth message", 2)
+	logger.error("message")
+	logger.errorf("message %d", 123)
+	logger.errorStackDepth("message", 2)
 
-	logger.critical("critical message")
-	logger.criticalf("criticalf message %d", 123)
-	logger.criticalStackDepth("criticalStackDepth message", 2)
+	logger.critical("message")
+	logger.criticalf("message %d", 123)
+	logger.criticalStackDepth("message", 2)
 
 	w.Flush()
 
 	assert.Subset(t, strings.Split(b.String(), "\n"), []string{
-		"[TRACE] trace message",
-		"[TRACE] tracef message 123",
-		"[TRACE] traceStackDepth message",
-		"[DEBUG] debug message",
-		"[DEBUG] debugf message 123",
-		"[DEBUG] debugStackDepth message",
-		"[INFO] info message",
-		"[INFO] infof message 123",
-		"[INFO] infoStackDepth message",
-		"[WARN] warn message",
-		"[WARN] warnf message 123",
-		"[WARN] warnStackDepth message",
-		"[ERROR] error message",
-		"[ERROR] errorf message 123",
-		"[ERROR] errorStackDepth message",
-		"[CRITICAL] critical message",
-		"[CRITICAL] criticalf message 123",
-		"[CRITICAL] criticalStackDepth message",
+		"[TRACE] trace: message",
+		"[TRACE] tracef: message 123",
+		"[TRACE] traceStackDepth: message",
+		"[DEBUG] debug: message",
+		"[DEBUG] debugf: message 123",
+		"[DEBUG] debugStackDepth: message",
+		"[INFO] info: message",
+		"[INFO] infof: message 123",
+		"[INFO] infoStackDepth: message",
+		"[WARN] warn: message",
+		"[WARN] warnf: message 123",
+		"[WARN] warnStackDepth: message",
+		"[ERROR] error: message",
+		"[ERROR] errorf: message 123",
+		"[ERROR] errorStackDepth: message",
+		"[CRITICAL] critical: message",
+		"[CRITICAL] criticalf: message 123",
+		"[CRITICAL] criticalStackDepth: message",
 	})
 
 	// reset buffer state
@@ -1016,12 +1016,12 @@ func TestLogExtraLogger(t *testing.T) {
 func TestDisabledLogger(t *testing.T) {
 	SetupLogger(Disabled(), DebugStr)
 
-	Trace("trace message")
-	Debug("debug message")
-	Info("info message")
-	Warn("warn message")
-	Error("error message")
-	Critical("critical message")
+	Trace("message")
+	Debug("message")
+	Info("message")
+	Warn("message")
+	Error("message")
+	Critical("message")
 
 	Flush() // should not print any logs
 }
@@ -1029,12 +1029,12 @@ func TestDisabledLogger(t *testing.T) {
 func TestLoggerFlush(t *testing.T) {
 	SetupLogger(Default(), DebugStr)
 
-	Trace("trace message")
-	Debug("debug message")
-	Info("info message")
-	Warn("warn message")
-	Error("error message")
-	Critical("critical message")
+	Trace("message")
+	Debug("message")
+	Info("message")
+	Warn("message")
+	Error("message")
+	Critical("message")
 
 	Flush() // should print all logs except trace
 
@@ -1051,7 +1051,7 @@ func TestJMXLog(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %Msg\n")
+	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
 	SetupLogger(l, DebugStr)
 	SetupJMXLogger(l, DebugStr)
 
@@ -1061,8 +1061,8 @@ func TestJMXLog(t *testing.T) {
 	w.Flush()
 
 	assert.Subset(t, strings.Split(b.String(), "\n"), []string{
-		"[ERROR] jmx error message",
-		"[INFO] jmx info message",
+		"[ERROR] TestJMXLog: jmx error message",
+		"[INFO] TestJMXLog: jmx info message",
 	})
 
 	// reset buffer state
