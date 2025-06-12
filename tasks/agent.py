@@ -41,22 +41,6 @@ BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
 
-if sys.platform == "win32":
-    # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
-    # This dir contains `aws.rb` which will execute if we just call `aws`,
-    # so we need to be explicit about the executable extension/path
-    # NOTE: awscli seems to have a bug where running "aws.cmd", quoted, without a full path,
-    #       causes it to fail due to not searching the PATH.
-    # NOTE: The full path to `aws.cmd` is likely to contain spaces, so if the full path is
-    #       used instead, it must be quoted when passed to ctx.run.
-    # This unfortunately means that the quoting requirements are different if you use
-    # the full path or just the filename.
-    # aws.cmd -> awscli v1 from Python env
-    AWS_CMD = "aws.cmd"
-    # TODO: can we use use `aws.exe` from AWSCLIv2? E2E expects v2.
-else:
-    AWS_CMD = "aws"
-
 AGENT_CORECHECKS = [
     "container",
     "containerd",
@@ -782,7 +766,7 @@ def get_integrations_from_cache(ctx, python, bucket, branch, integrations_dir, t
     # and just to make sure we don't do any of-by-one errors that would break this).
     # WINDOWS NOTES: we have to not put the * in quotes, as there's no expansion on it, unlike on Linux
     exclude_wildcard = "*" if platform.system().lower() == "windows" else "'*'"
-    sync_command_prefix = f"{AWS_CMD} s3 sync s3://{bucket} {target_dir} --no-sign-request --exclude {exclude_wildcard}"
+    sync_command_prefix = f"aws s3 sync s3://{bucket} {target_dir} --no-sign-request --exclude {exclude_wildcard}"
     sync_commands = [[[sync_command_prefix], len(sync_command_prefix)]]
     for integration, hash in integrations_hashes.items():
         include_arg = " --include " + CACHED_WHEEL_FULL_PATH_PATTERN.format(
@@ -860,7 +844,7 @@ def upload_integration_to_cache(ctx, python, bucket, branch, integrations_dir, b
         hash=hash, python_version=python, branch=branch
     ) + os.path.basename(wheel_path)
     print(f"Caching wheel {target_name}")
-    ctx.run(f"{AWS_CMD} s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
+    ctx.run(f"aws s3 cp {wheel_path} s3://{bucket}/{target_name} --acl public-read")
 
 
 @task()

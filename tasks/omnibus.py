@@ -262,7 +262,6 @@ def build(
     remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
     use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
     cache_state = None
-    aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
         # the git repository itself will be located in a subfolder that replicates
@@ -288,7 +287,7 @@ def build(
                 bundle_path = os.path.join(bundle_dir.name, 'omnibus-git-cache-bundle')
                 with timed(quiet=True) as durations['Restoring omnibus cache']:
                     # Allow failure in case the cache was evicted
-                    if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
+                    if ctx.run(f"aws s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
                         print(f'Successfully retrieved cache {cache_key}')
                         try:
                             ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
@@ -330,7 +329,7 @@ def build(
             if cache_state is None:
                 with timed(quiet=True) as durations['Updating omnibus cache']:
                     ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
-                    ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+                    ctx.run(f"aws s3 cp --only-show-errors {bundle_path} {git_cache_url}")
                     bundle_dir.cleanup()
             elif ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
                 send_cache_mutation_event(

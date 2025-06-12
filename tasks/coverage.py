@@ -16,7 +16,6 @@ PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
 GO_COV_TEST_PATH = "test_with_coverage"
 COV_ARCHIVE_NAME = f"coverage_{get_distro()}.tgz"
-AWS_CMD = "aws.cmd" if sys.platform == 'win32' else "aws"
 BUCKET_CI_VAR = "S3_PERMANENT_ARTIFACTS_URI"
 
 
@@ -160,7 +159,7 @@ def upload_coverage_to_s3(ctx: Context):
     # Upload the archive to S3
     cache_uri = _get_coverage_cache_uri()
     commit_sha = os.getenv("CI_COMMIT_SHA") or get_commit_sha(ctx)
-    if ctx.run(f"{AWS_CMD} s3 cp {COV_ARCHIVE_NAME} {cache_uri}/{commit_sha}/", echo=True, warn=True):
+    if ctx.run(f"aws s3 cp {COV_ARCHIVE_NAME} {cache_uri}/{commit_sha}/", echo=True, warn=True):
         print(
             color_message(
                 f'Successfully uploaded coverage cache to {cache_uri}/{commit_sha}/{COV_ARCHIVE_NAME}', Color.GREEN
@@ -253,7 +252,7 @@ def apply_missing_coverage(ctx: Context, from_commit_sha: str, keep_temp_files: 
     cache_uri = _get_coverage_cache_uri()
     cache_key = f"{cache_uri}/{from_commit_sha}/{COV_ARCHIVE_NAME}"
     downloaded_archive = f"coverage_{from_commit_sha[:8]}.tgz"
-    if ctx.run(f"{AWS_CMD} s3 cp {cache_key} ./{downloaded_archive}", echo=True, warn=True):
+    if ctx.run(f"aws s3 cp {cache_key} ./{downloaded_archive}", echo=True, warn=True):
         print(color_message(f'Successfully retrieved coverage cache from commit {from_commit_sha}', Color.GREEN))
     else:
         raise Exit(color_message(f'Failed to restore coverage cache from {cache_key}', Color.RED), code=1)
