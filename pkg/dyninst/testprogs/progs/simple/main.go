@@ -6,15 +6,66 @@
 // Command simple is a basic go program to be used with dyninst tests.
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
 func main() {
-	fmt.Println("hello world")
+	_, err := fmt.Scanln()
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
+	intArg(0x0123456789abcdef)
+	stringArg("d")
+	intSliceArg([]int{1, 2, 3})
+	intArrayArg([3]int{1, 2, 3})
+	stringSliceArg([]string{"a", "b", "c"})
+	stringArrayArg([3]string{"a", "b", "c"})
+	inlined(1)
+	// Passing inlined function as an argument forces out-of-line instantation.
+	funcArg(inlined)
 	mapArg(map[string]int{"a": 1})
 	bigMapArg(map[string]bigStruct{"b": {Field1: 1}})
-	stringSliceArg([]string{"c"})
-	intSliceArg([]int{1})
-	stringArg("d")
+}
+
+//go:noinline
+func intArg(x int) {
+	fmt.Println(x)
+}
+
+//go:noinline
+func stringArg(s string) {
+	fmt.Println(s)
+}
+
+//go:noinline
+func intSliceArg(s []int) {
+	fmt.Println(s)
+}
+
+//go:noinline
+func intArrayArg(s [3]int) {
+	fmt.Println(s)
+}
+
+//go:noinline
+func stringSliceArg(s []string) {
+	fmt.Println(s)
+}
+
+//go:noinline
+func stringArrayArg(s [3]string) {
+	fmt.Println(s)
+}
+
+func inlined(x int) {
+	fmt.Println(x)
+}
+
+//go:noinline
+func funcArg(f func(int)) {
+	f(2)
 }
 
 //go:noinline
@@ -41,19 +92,4 @@ func bigMapArg(m map[string]bigStruct) {
 		v.data[0] = 1 // use data
 	}
 	fmt.Println(m)
-}
-
-//go:noinline
-func stringSliceArg(s []string) {
-	fmt.Println(s)
-}
-
-//go:noinline
-func stringArg(s string) {
-	fmt.Println(s)
-}
-
-//go:noinline
-func intSliceArg(s []int) {
-	fmt.Println(s)
 }

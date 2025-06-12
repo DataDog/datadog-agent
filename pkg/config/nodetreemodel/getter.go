@@ -49,8 +49,8 @@ func (c *ntmConfig) GetEnvVars() []string {
 	c.RLock()
 	defer c.RUnlock()
 	vars := make([]string, 0, len(c.configEnvVars))
-	for v := range c.configEnvVars {
-		vars = append(vars, v)
+	for _, v := range c.configEnvVars {
+		vars = append(vars, v...)
 	}
 	return vars
 }
