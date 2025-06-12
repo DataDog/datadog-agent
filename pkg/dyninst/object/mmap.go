@@ -70,7 +70,8 @@ func (m *MMappingElfFile) Close() error {
 
 // MMap mmaps a portion of the file into memory.
 func (m *MMappingElfFile) MMap(
-	section *safeelf.Section, offset, size uint64) (*MMappedData, error) {
+	section *safeelf.Section, offset, size uint64,
+) (*MMappedData, error) {
 	if section.Flags&safeelf.SHF_COMPRESSED != 0 {
 		return nil, fmt.Errorf("mmapping compressed sections is not supported")
 	}
@@ -79,6 +80,10 @@ func (m *MMappingElfFile) MMap(
 	}
 	offset += section.Offset
 
+	return m.mmap(offset, size)
+}
+
+func (m *MMappingElfFile) mmap(offset uint64, size uint64) (*MMappedData, error) {
 	// The offset must be page-aligned for mmap to work
 	pageSize := uint64(syscall.Getpagesize())
 	alignedOffset := (offset / pageSize) * pageSize

@@ -8,6 +8,7 @@
 package object
 
 import (
+	"bytes"
 	"compress/zlib"
 	"debug/dwarf"
 	"encoding/binary"
@@ -149,7 +150,7 @@ func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
 	if err != nil {
 		return nil, err
 	}
-	ds, err := loadDebugSections(mmf.Elf, mmf.f)
+	ds, err := loadDebugSections(mmf)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +192,7 @@ func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
 // which could be used to load the section into a file we then mmap or something
 // like that.
 
-func loadDebugSections(elfFile *safeelf.File, f io.ReaderAt) (*DebugSections, error) {
+func loadDebugSections(mef *MMappingElfFile) (*DebugSections, error) {
 	dwarfSuffix := func(s *safeelf.Section) string {
 		const debug = ".debug_"
 		const zdebug = ".zdebug_"
@@ -207,7 +208,7 @@ func loadDebugSections(elfFile *safeelf.File, f io.ReaderAt) (*DebugSections, er
 	// There are many DWARf sections, but these are the ones
 	// the debug/dwarf package started with.
 	var ds DebugSections
-	for _, s := range elfFile.Sections {
+	for _, s := range mef.Elf.Sections {
 		suffix := dwarfSuffix(s)
 		if suffix == "" {
 			continue
@@ -220,7 +221,7 @@ func loadDebugSections(elfFile *safeelf.File, f io.ReaderAt) (*DebugSections, er
 			return nil, fmt.Errorf("section %s already loaded", s.Name)
 		}
 
-		cr, err := sectionData(s, elfFile, f)
+		cr, err := sectionData(s, mef.Elf, mef.f)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get section data for %s: %w", s.Name, err)
 		}
@@ -232,7 +233,7 @@ func loadDebugSections(elfFile *safeelf.File, f io.ReaderAt) (*DebugSections, er
 		// like the stdlib when loading this data.
 		//
 		// 0: https://github.com/golang/go/blob/db55b83c/src/debug/elf/file.go#L1351-L1377
-		data, err := cr.data(f)
+		data, err := cr.data(mef)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"failed to get section data for %s: %w", s.Name, err,
@@ -262,7 +263,7 @@ type compressedFileRange struct {
 	uncompressedLength int64
 }
 
-func (r compressedFileRange) data(fileReaderAt io.ReaderAt) ([]byte, error) {
+func (r compressedFileRange) data(mef *MMappingElfFile) ([]byte, error) {
 	// We don't want to let an invalid section header cause us to load
 	// too much data into memory.
 	const maxSectionSize = 512 << 20 // 512MiB
@@ -281,15 +282,14 @@ func (r compressedFileRange) data(fileReaderAt io.ReaderAt) ([]byte, error) {
 	case compressionFormatUnknown:
 		return nil, fmt.Errorf("unknown compression format")
 	case compressionFormatNone:
-		reader = io.NewSectionReader(fileReaderAt, r.offset, r.compressedLength)
+		reader = io.NewSectionReader(mef.f, int64(r.offset), int64(r.compressedLength))
 	case compressionFormatZlib:
-		input := io.NewSectionReader(
-			fileReaderAt,
-			r.offset,
-			r.compressedLength,
-		)
-
-		zrd, err := zlib.NewReader(input)
+		md, err := mef.mmap(uint64(r.offset), uint64(r.compressedLength))
+		if err != nil {
+			return nil, fmt.Errorf("failed to mmap section: %w", err)
+		}
+		defer md.Close()
+		zrd, err := zlib.NewReader(bytes.NewReader(md.Data))
 		if err != nil {
 			return nil, fmt.Errorf("failed to create zlib reader: %w", err)
 		}
