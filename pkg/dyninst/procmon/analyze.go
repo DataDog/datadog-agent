@@ -192,7 +192,7 @@ var goSections = map[string]struct{}{
 // version of the trace agent that we care about, but for now we leave
 // that to later analysis of dwarf.
 func isGoElfBinaryWithDDTraceGo(f *os.File) (bool, error) {
-	elfFile, err := object.NewMMappingElfFile(f.Name())
+	elfFile, err := object.OpenMMappingElfFile(f.Name())
 	if err != nil {
 		log.Tracef("isGoElfBinary(%s): not an ELF file: %v", f.Name(), err)
 		return false, nil

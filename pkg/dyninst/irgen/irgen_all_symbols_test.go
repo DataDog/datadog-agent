@@ -9,6 +9,7 @@ package irgen_test
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -47,13 +48,15 @@ func TestIRGenAllProbes(t *testing.T) {
 	}
 }
 
-func testAllProbes(t *testing.T, sampleServicePath string) {
-	binary, err := safeelf.Open(sampleServicePath)
+func testAllProbes(t *testing.T, binPath string) {
+	binary, err := os.Open(binPath)
 	require.NoError(t, err)
-	symbols, err := binary.Symbols()
+	elf, err := safeelf.NewFile(binary)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
 	var probes []ir.ProbeDefinition
+	symbols, err := elf.Symbols()
+	require.NoError(t, err)
 	for i, s := range symbols {
 		// These automatically generated symbols cause problems.
 		if strings.HasPrefix(s.Name, "type:.") {
@@ -74,8 +77,9 @@ func testAllProbes(t *testing.T, sampleServicePath string) {
 		})
 	}
 
-	obj, err := object.NewElfObject(binary)
+	obj, err := object.OpenElfFile(binPath)
 	require.NoError(t, err)
+	defer func() { require.NoError(t, obj.Close()) }()
 	v, err := irgen.GenerateIR(1, obj, probes)
 	require.NoError(t, err)
 	require.NotNil(t, v)

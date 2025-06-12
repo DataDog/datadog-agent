@@ -35,8 +35,8 @@ func FindTextSectionHeader(f *safeelf.File) (*safeelf.SectionHeader, error) {
 //
 // This object is safe for concurrent use.
 type ElfFile struct {
-	// The underlying elf file.
-	*safeelf.File
+	// Underlying is the underlying elf file.
+	Underlying *MMappingElfFile
 
 	dwarfSections *DebugSections
 	dwarfData     *dwarf.Data
@@ -81,6 +81,11 @@ func (e *ElfFile) LoclistReader() (*loclist.Reader, error) {
 	}), nil
 }
 
+// Close implements File.
+func (e *ElfFile) Close() error {
+	return e.Underlying.Close()
+}
+
 var _ File = (*ElfFile)(nil)
 
 // PointerSize implements File.
@@ -94,8 +99,20 @@ func IsStrippedBinaryError(err error) bool {
 	return errors.As(err, &decodeErr)
 }
 
-// NewElfObject creates a new Binary from an elf file.
-func NewElfObject(elfFile *safeelf.File) (_ *ElfFile, retErr error) {
+// OpenElfFile opens an elf file from a path.
+func OpenElfFile(path string) (*ElfFile, error) {
+	mmf, err := OpenMMappingElfFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load elf file: %w", err)
+	}
+	return newElfObject(mmf)
+}
+
+// newElfObject creates a new Binary from an elf file.
+//
+// Note that this does not take ownership of the file -- it will not
+// be closed when the ElfFile is closed.
+func newElfObject(mmf *MMappingElfFile) (_ *ElfFile, retErr error) {
 	// The safeelf package also has functionality to load the DWARF sections
 	// but it doesn't provide enough control to get our hands on the sections
 	// we need to access later.
@@ -115,11 +132,11 @@ func NewElfObject(elfFile *safeelf.File) (_ *ElfFile, retErr error) {
 			retErr = fmt.Errorf("panic loading DWARF sections: %v", r)
 		}
 	}()
-	arch, err := bininspect.GetArchitecture(elfFile)
+	arch, err := bininspect.GetArchitecture(mmf.Elf)
 	if err != nil {
 		return nil, err
 	}
-	ds, err := loadDebugSections(elfFile)
+	ds, err := loadDebugSections(mmf.Elf)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +163,7 @@ func NewElfObject(elfFile *safeelf.File) (_ *ElfFile, retErr error) {
 		unitVersions = uv
 	}
 	return &ElfFile{
-		File:          elfFile,
+		Underlying:    mmf,
 		dwarfSections: ds,
 		dwarfData:     d,
 		architecture:  arch,

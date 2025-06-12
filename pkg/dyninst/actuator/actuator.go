@@ -335,22 +335,15 @@ func generateIR(
 	executable Executable,
 	probes []ir.ProbeDefinition,
 ) (*ir.Program, error) {
-	elfFile, err := safeelf.Open(executable.Path)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to open executable %s: %w", executable.Path, err,
-		)
-	}
-	defer elfFile.Close()
-
-	objFile, err := object.NewElfObject(elfFile)
+	elfFile, err := object.OpenElfFile(executable.Path)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to read object file for %s: %w", executable.Path, err,
 		)
 	}
+	defer elfFile.Close()
 
-	ir, err := irGenerator.GenerateIR(programID, objFile, probes)
+	ir, err := irGenerator.GenerateIR(programID, elfFile, probes)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to generate IR for %s: %w", executable.Path, err,

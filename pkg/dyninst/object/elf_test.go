@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // This is a very basic test of loading a Go elf object file
@@ -24,15 +23,11 @@ func TestElfObject(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, cfg := range cfgs {
 		binaryPath := testprogs.MustGetBinary(t, "simple", cfg)
-		elf, err := safeelf.Open(binaryPath)
-		require.NoError(t, err)
-		obj, err := object.NewElfObject(elf)
-		require.NoError(t, err)
-		dd, err := obj.DWARF()
+		obj, err := object.OpenElfFile(binaryPath)
 		require.NoError(t, err)
 		// Assert that some symbol we expect to exist is in there.
 		const targetFunction = "main.main"
-		findTargetSubprogram(t, dd, targetFunction)
+		findTargetSubprogram(t, obj.DwarfData(), targetFunction)
 	}
 }
 
