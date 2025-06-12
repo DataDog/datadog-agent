@@ -60,7 +60,7 @@ type inventorySoftware struct {
 
 	log             log.Component
 	sysProbeClient  SysProbeClient
-	cachedInventory []SoftwareMetadata
+	cachedInventory []winsoftware.SoftwareEntry
 }
 
 // Dependencies is the dependencies for the inventory software component.
