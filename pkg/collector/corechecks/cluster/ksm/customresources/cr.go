@@ -83,6 +83,7 @@ func GetCustomMetricNamesMapper(resources []customresourcestate.Resource) (mappe
 					mapper[customResource.GetMetricNamePrefix()+"_"+generator.Name] = "customresource." + generator.Name
 				} else {
 					mapper[customResource.GetMetricNamePrefix()+"_"+generator.Name] = "customresource." + customResource.GetMetricNamePrefix() + "_" + generator.Name
+				}
 			}
 		}
 	}
