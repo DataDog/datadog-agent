@@ -49,7 +49,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.27.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.27.1
 	github.com/DataDog/sketches-go v1.4.7
-	github.com/DataDog/viper v1.14.0
+	github.com/DataDog/viper v1.14.1-0.20250612143030-1b15c8822ed4
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
 	github.com/DataDog/watermarkpodautoscaler/apis v0.0.0-20250108152814-82e58d0231d1
 	github.com/DataDog/zstd v1.5.6
