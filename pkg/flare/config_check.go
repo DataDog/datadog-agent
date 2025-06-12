@@ -8,6 +8,7 @@ package flare
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/fatih/color"
 
@@ -43,13 +44,11 @@ func PrintConfigCheck(w io.Writer, cr integration.ConfigCheckResponse, withDebug
 			}
 		}
 		if len(cr.Unresolved) > 0 {
-			fmt.Fprintf(w, "\n=== %s Configs ===\n", color.YellowString("Unresolved"))
-			for ids, configs := range cr.Unresolved {
-				fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
-				fmt.Fprintf(w, "%s:\n", color.BlueString("Templates"))
-				for _, config := range configs {
-					fmt.Fprintln(w, config.String())
-				}
+			fmt.Fprintf(w, "\n=== %s configs (matched and unmatched) ===\n", color.MagentaString("Collected"))
+			for _, config := range cr.Unresolved {
+				adIdentifiers := strings.Join(config.ADIdentifiers, ",") // Will be empty for non-template configs
+				fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(adIdentifiers))
+				fmt.Fprintln(w, config.String())
 			}
 		}
 	}

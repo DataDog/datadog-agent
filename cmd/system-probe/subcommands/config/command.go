@@ -18,7 +18,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	fetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -107,11 +106,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func getClient(sysprobeconfig sysprobeconfig.Component) (settings.Client, error) {
 	cfg := sysprobeconfig.SysProbeObject()
 	hc := client.Get(cfg.SocketAddress)
-	return settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
+	return settingshttp.NewHTTPClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(settingshttp.LeaveConnectionOpen)), nil
 }
 
 func showRuntimeConfiguration(sysprobeconfig sysprobeconfig.Component, _ *cliParams) error {
-	runtimeConfig, err := fetcher.SystemProbeConfig(sysprobeconfig)
+	runtimeConfig, err := fetcher.SystemProbeConfig(sysprobeconfig, nil) // It's ok to pass nil here because the IPCClient is not used by SystemProbe API
 	if err != nil {
 		return err
 	}

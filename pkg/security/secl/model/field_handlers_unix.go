@@ -240,12 +240,28 @@ func (ev *Event) resolveFields(forADs bool) {
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Accept.Addr)
 		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveAcceptHostnames(ev, &ev.Accept)
+		}
 	case "bind":
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Bind.Addr)
 		}
 	case "bpf":
 	case "capset":
+	case "cgroup_write":
+		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.CgroupWrite.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.CgroupWrite.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.CgroupWrite.File.FileFields)
+		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolvePackageName(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolvePackageVersion(ev, &ev.CgroupWrite.File)
+		_ = ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.CgroupWrite.File)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.CgroupWrite.File)
+		}
 	case "chdir":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields)
@@ -308,6 +324,9 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "connect":
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveIsIPPublic(ev, &ev.Connect.Addr)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveConnectHostnames(ev, &ev.Connect)
 		}
 	case "dns":
 	case "exec":
@@ -389,6 +408,30 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exec.Process)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadataSize(ev, &ev.Exec.FileMetadata)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadataType(ev, &ev.Exec.FileMetadata)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadataIsExecutable(ev, &ev.Exec.FileMetadata)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadataArchitecture(ev, &ev.Exec.FileMetadata)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadataABI(ev, &ev.Exec.FileMetadata)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadataIsUPXPacked(ev, &ev.Exec.FileMetadata)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadataCompression(ev, &ev.Exec.FileMetadata)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveFileMetadataIsGarbleObfuscated(ev, &ev.Exec.FileMetadata)
+		}
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
 		}
@@ -865,6 +908,7 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveSetgidGroup(ev, &ev.SetGID)
 		_ = ev.FieldHandlers.ResolveSetgidEGroup(ev, &ev.SetGID)
 		_ = ev.FieldHandlers.ResolveSetgidFSGroup(ev, &ev.SetGID)
+	case "setsockopt":
 	case "setuid":
 		_ = ev.FieldHandlers.ResolveSetuidUser(ev, &ev.SetUID)
 		_ = ev.FieldHandlers.ResolveSetuidEUser(ev, &ev.SetUID)
@@ -1128,12 +1172,14 @@ func (ev *Event) resolveFields(forADs bool) {
 }
 
 type FieldHandlers interface {
+	ResolveAcceptHostnames(ev *Event, e *AcceptEvent) []string
 	ResolveAsync(ev *Event) bool
 	ResolveCGroupID(ev *Event, e *CGroupContext) string
 	ResolveCGroupManager(ev *Event, e *CGroupContext) string
 	ResolveCGroupVersion(ev *Event, e *CGroupContext) int
 	ResolveChownGID(ev *Event, e *ChownEvent) string
 	ResolveChownUID(ev *Event, e *ChownEvent) string
+	ResolveConnectHostnames(ev *Event, e *ConnectEvent) []string
 	ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int
 	ResolveContainerID(ev *Event, e *ContainerContext) string
 	ResolveContainerRuntime(ev *Event, e *ContainerContext) string
@@ -1145,6 +1191,14 @@ type FieldHandlers interface {
 	ResolveFileFieldsInUpperLayer(ev *Event, e *FileFields) bool
 	ResolveFileFieldsUser(ev *Event, e *FileFields) string
 	ResolveFileFilesystem(ev *Event, e *FileEvent) string
+	ResolveFileMetadataABI(ev *Event, e *FileMetadata) int
+	ResolveFileMetadataArchitecture(ev *Event, e *FileMetadata) int
+	ResolveFileMetadataCompression(ev *Event, e *FileMetadata) int
+	ResolveFileMetadataIsExecutable(ev *Event, e *FileMetadata) bool
+	ResolveFileMetadataIsGarbleObfuscated(ev *Event, e *FileMetadata) bool
+	ResolveFileMetadataIsUPXPacked(ev *Event, e *FileMetadata) bool
+	ResolveFileMetadataSize(ev *Event, e *FileMetadata) int
+	ResolveFileMetadataType(ev *Event, e *FileMetadata) int
 	ResolveFilePath(ev *Event, e *FileEvent) string
 	ResolveHashesFromEvent(ev *Event, e *FileEvent) []string
 	ResolveHostname(ev *Event, e *BaseEvent) string
@@ -1211,6 +1265,9 @@ type FieldHandlers interface {
 }
 type FakeFieldHandlers struct{}
 
+func (dfh *FakeFieldHandlers) ResolveAcceptHostnames(ev *Event, e *AcceptEvent) []string {
+	return []string(e.Hostnames)
+}
 func (dfh *FakeFieldHandlers) ResolveAsync(ev *Event) bool { return bool(ev.Async) }
 func (dfh *FakeFieldHandlers) ResolveCGroupID(ev *Event, e *CGroupContext) string {
 	return string(e.CGroupID)
@@ -1225,6 +1282,9 @@ func (dfh *FakeFieldHandlers) ResolveChownGID(ev *Event, e *ChownEvent) string {
 	return string(e.Group)
 }
 func (dfh *FakeFieldHandlers) ResolveChownUID(ev *Event, e *ChownEvent) string { return string(e.User) }
+func (dfh *FakeFieldHandlers) ResolveConnectHostnames(ev *Event, e *ConnectEvent) []string {
+	return []string(e.Hostnames)
+}
 func (dfh *FakeFieldHandlers) ResolveContainerCreatedAt(ev *Event, e *ContainerContext) int {
 	return int(e.CreatedAt)
 }
@@ -1257,6 +1317,30 @@ func (dfh *FakeFieldHandlers) ResolveFileFieldsUser(ev *Event, e *FileFields) st
 }
 func (dfh *FakeFieldHandlers) ResolveFileFilesystem(ev *Event, e *FileEvent) string {
 	return string(e.Filesystem)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadataABI(ev *Event, e *FileMetadata) int {
+	return int(e.ABI)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadataArchitecture(ev *Event, e *FileMetadata) int {
+	return int(e.Architecture)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadataCompression(ev *Event, e *FileMetadata) int {
+	return int(e.Compression)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadataIsExecutable(ev *Event, e *FileMetadata) bool {
+	return bool(e.IsExecutable)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadataIsGarbleObfuscated(ev *Event, e *FileMetadata) bool {
+	return bool(e.IsGarbleObfuscated)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadataIsUPXPacked(ev *Event, e *FileMetadata) bool {
+	return bool(e.IsUPXPacked)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadataSize(ev *Event, e *FileMetadata) int {
+	return int(e.Size)
+}
+func (dfh *FakeFieldHandlers) ResolveFileMetadataType(ev *Event, e *FileMetadata) int {
+	return int(e.Type)
 }
 func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
 	return string(e.PathnameStr)

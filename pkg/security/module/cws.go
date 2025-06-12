@@ -39,7 +39,7 @@ const (
 	selftestMaxRetry    = 25 // more than 5 minutes so that we can get host tags
 	selftestStartAfter  = 15 * time.Second
 	selftestDelay       = 15 * time.Second
-	selftestPassedDelay = 5 * time.Minute
+	selftestPassedDelay = 60 * time.Minute
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent

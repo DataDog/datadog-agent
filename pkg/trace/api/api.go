@@ -384,6 +384,7 @@ func (r *HTTPReceiver) Stop() error {
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
 	defer cancel()
 	if err := r.server.Shutdown(ctx); err != nil {
+		log.Warnf("Error shutting down HTTPReceiver: %v", err)
 		return err
 	}
 	r.wg.Wait()
@@ -578,6 +579,8 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 
 // handleTraces knows how to handle a bunch of traces
 func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.Request) {
+	r.wg.Add(1)
+	defer r.wg.Done()
 	tracen, err := traceCount(req)
 	if err == errInvalidHeaderTraceCountValue {
 		log.Errorf("Failed to count traces: %s", err)
