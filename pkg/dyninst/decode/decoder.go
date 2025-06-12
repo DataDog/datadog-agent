@@ -60,6 +60,16 @@ type typeAndAddr struct {
 	addr   uint64
 }
 
+// TypeIDToProbeEvent returns the probe event for the given type ID.
+func (d *Decoder) TypeIDToProbeEvent(typeID ir.TypeID) *ir.Event {
+	return d.probeEvents[typeID].event
+}
+
+// TypeIDToProbe returns the probe for the given type ID.
+func (d *Decoder) TypeIDToProbe(typeID ir.TypeID) *ir.Probe {
+	return d.probeEvents[typeID].probe
+}
+
 // Decode decodes the given event into the given writer.
 func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 
