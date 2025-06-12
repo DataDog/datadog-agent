@@ -55,6 +55,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     post_process_gitlab_ci_configuration,
     resolve_gitlab_ci_configuration,
 )
+from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
@@ -2472,3 +2473,52 @@ def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None 
             continue
 
     info(f"[+] All jobs retried, job IDs: {retried_jobs}")
+
+
+@task
+def start_microvms(
+    ctx,
+    infra_env,
+    instance_type_x86=None,
+    instance_type_arm=None,
+    x86_ami_id=None,
+    arm_ami_id=None,
+    destroy=False,
+    ssh_key_name=None,
+    ssh_key_path=None,
+    dependencies_dir=None,
+    shutdown_period=320,
+    stack_name="kernel-matrix-testing-system",
+    vmconfig=None,
+    local=False,
+    provision_instance=False,
+    provision_microvms=False,
+    run_agent=False,
+    agent_version=None,
+):
+    stacks.build_start_microvms_binary(ctx)
+    print(
+        color_message(
+            "[+] Creating and provisioning microVMs.\n[+] If you want to see the pulumi progress, set configParams.pulumi.verboseProgressStreams: true in ~/.test_infra_config.yaml",
+            "green",
+        )
+    )
+    ctx.run(stacks.start_microvms_cmd(
+        infra_env=infra_env,
+        instance_type_x86=instance_type_x86,
+        instance_type_arm=instance_type_arm,
+        x86_ami_id=x86_ami_id,
+        arm_ami_id=arm_ami_id,
+        destroy=destroy,
+        ssh_key_name=ssh_key_name,
+        ssh_key_path=ssh_key_path,
+        dependencies_dir=dependencies_dir,
+        shutdown_period=shutdown_period,
+        stack_name=stack_name,
+        vmconfig=vmconfig,
+        local=local,
+        provision_instance=provision_instance,
+        provision_microvms=provision_microvms,
+        run_agent=run_agent,
+        agent_version=agent_version,
+    ))
