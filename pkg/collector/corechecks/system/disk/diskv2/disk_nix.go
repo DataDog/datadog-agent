@@ -8,11 +8,13 @@
 package diskv2
 
 import (
+	"bufio"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -186,8 +188,105 @@ func (c *Check) sendInodesMetrics(sender sender.Sender, usage *gopsutil_disk.Usa
 	}
 }
 
-func (c *Check) loadRawDevices() (map[string]string, error) {
-	rawDevices := make(map[string]string)
+func (c *Check) getProcMountInfoPath() string {
+	hpmPath := c.instanceConfig.ProcMountInfoPath
+	if hpmPath == "" {
+		hpmPath = os.Getenv("HOST_PROC_MOUNTINFO")
+	}
+	return hpmPath
+}
 
+func readAllLines(filename string) ([]string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	return lines, nil
+}
+
+func readMountFile(root string) (lines []string, useMounts bool, filename string, err error) {
+	filename = path.Join(root, "mountinfo")
+	lines, err = readAllLines(filename)
+	if err != nil {
+		// if kernel does not support 1/mountinfo, fallback to 1/mounts (<2.6.26)
+		useMounts = true
+		filename = path.Join(root, "mounts")
+		lines, err = readAllLines(filename)
+		if err != nil {
+			return
+		}
+		return
+	}
+	return
+}
+
+func (c *Check) loadRawDevices() (map[string]string, error) {
+	// Determine base "/proc" root (HOST_PROC override)
+	hostProc := os.Getenv("HOST_PROC")
+	if hostProc == "" {
+		hostProc = "/proc"
+	}
+	// Default to /proc/1; but if user set a HOST_PROC_MOUNTINFO path, use its dirname
+	root := filepath.Join(hostProc, "1")
+	hpmPath := c.getProcMountInfoPath()
+	if hpmPath != "" {
+		root = filepath.Dir(hpmPath)
+	}
+	// Try reading mount data
+	lines, useMounts, filename, err := readMountFile(root)
+	if err != nil && hpmPath == "" {
+		// fallback to /proc/self
+		root = filepath.Join(hostProc, "self")
+		lines, useMounts, filename, err = readMountFile(root)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading mount file: %w", err)
+	}
+	// Build the map
+	rawDevices := make(map[string]string)
+	log.Debugf("mountfile [%s] lines: '%s'", filename, lines)
+	if !useMounts {
+		// Determine base "/sys" root (HOST_SYS override)
+		hostSys := os.Getenv("HOST_SYS")
+		if hostSys == "" {
+			hostSys = "/sys"
+		}
+		for _, line := range lines {
+			// a line of 1/mountinfo has the following structure:
+			// 36  35  98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
+			// (1) (2) (3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
+
+			// split the mountinfo line by the separator hyphen
+			parts := strings.Split(line, " - ")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("found invalid mountinfo line in file %s: %s ", filename, line)
+			}
+			fieldsFirstPart := strings.Fields(parts[0])
+			blockDeviceID := fieldsFirstPart[2]
+			fieldsSecondPart := strings.Fields(parts[1])
+			device := fieldsSecondPart[1]
+			// /dev/root is not the real device name
+			// so we get the real device name from its major/minor number
+			if device == "/dev/root" {
+				log.Debugf("/dev/root line: '%s'", line)
+				devpath, err := os.Readlink(path.Join(hostSys, "/dev/block", blockDeviceID))
+				if err == nil {
+					deviceResolved := strings.Replace(device, "root", filepath.Base(devpath), 1)
+					log.Debugf("device_resolved: '%s'", deviceResolved)
+					rawDevices[deviceResolved] = device
+				}
+			}
+		}
+	}
 	return rawDevices, nil
 }

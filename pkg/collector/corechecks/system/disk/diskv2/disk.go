@@ -432,7 +432,8 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			rawDevices = map[string]string{}
 		}
 	}
-	log.Debugf("partitions %s", partitions)
+	log.Debugf("partitions '%s'", partitions)
+	log.Debugf("rawDevices '%s'", rawDevices)
 	for _, partition := range partitions {
 		if rawDev, ok := rawDevices[partition.Device]; ok {
 			log.Debugf("Found [device: %s] in rawDevices as [rawDev: %s]", partition.Device, rawDev)
