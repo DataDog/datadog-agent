@@ -136,10 +136,7 @@ func (c *NetworkCheck) Run() error {
 	}
 
 	// _tcp_stats
-	err = c.submitTcpStats(sender)
-	if err != nil {
-		return err
-	}
+	c.submitTcpStats(sender)
 
 	sender.Commit()
 	return nil
@@ -217,7 +214,7 @@ func getTcpStats(protocolName string) (*mibTcpStats, error) {
 }
 
 // Collect metrics from Microsoft's TCPSTATS
-func (c *NetworkCheck) submitTcpStats(sender sender.Sender) error {
+func (c *NetworkCheck) submitTcpStats(sender sender.Sender) {
 	tcpStatsMapping := map[string]string{
 		"DwActiveOpens":  ".active_opens",
 		"DwPassiveOpens": ".passive_opens",
@@ -265,8 +262,6 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) error {
 	}
 	c.submitMetricsFromStruct(sender, "system.net.tcp4", tcp4Stats, tcpStatsMapping)
 	c.submitMetricsFromStruct(sender, "system.net.tcp6", tcp6Stats, tcpStatsMapping)
-
-	return nil
 }
 
 func (c *NetworkCheck) submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTcpStats, tcpStatsMapping map[string]string) {
