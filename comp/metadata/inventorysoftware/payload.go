@@ -10,18 +10,13 @@ package inventorysoftware
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winsoftware"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
-// SoftwareMetadata is the metadata for a software product
-type SoftwareMetadata struct {
-	ProductCode string            `json:"product_code"`
-	Metadata    map[string]string `json:"metadata"`
-}
-
 // Payload is the payload for the inventory software component
 type Payload struct {
-	Metadata []*SoftwareMetadata `json:"software_inventory_metadata"`
+	Metadata []winsoftware.SoftwareEntry `json:"software_inventory_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON

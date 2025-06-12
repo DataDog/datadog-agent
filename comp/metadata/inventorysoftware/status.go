@@ -50,7 +50,7 @@ func (is *inventorySoftware) populateStatus(status map[string]interface{}) {
 		_ = is.refreshCachedValues()
 	}
 	for _, inventory := range is.cachedInventory {
-		data[inventory.ProductCode] = inventory.Metadata
+		data[inventory.GetID()] = inventory
 	}
 	status["software_inventory_metadata"] = data
 }
