@@ -8,13 +8,16 @@
 package object
 
 import (
+	"bytes"
 	"debug/dwarf"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
+	"syscall"
 	"unsafe"
 
 	dlvdwarf "github.com/go-delve/delve/pkg/dwarf"
@@ -22,6 +25,7 @@ import (
 	"github.com/klauspost/compress/zlib"
 
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
@@ -271,11 +275,41 @@ func (r compressedFileRange) data(fileReaderAt io.ReaderAt) ([]byte, error) {
 	case compressionFormatNone:
 		reader = io.NewSectionReader(fileReaderAt, r.offset, r.compressedLength)
 	case compressionFormatZlib:
-		input := io.NewSectionReader(
-			fileReaderAt,
-			r.offset,
-			r.compressedLength,
-		)
+
+		// Attempt to mmap the relevant range of the file to avoid the overhead
+		// of reading the data into memory, and to provide a very efficient
+		// implementation of io.ByteReader to the decompression library.
+		var input io.Reader
+		if f, ok := fileReaderAt.(*os.File); ok && runtime.GOOS == "linux" {
+			// The offset must be page-aligned for mmap to work
+			pageSize := int64(syscall.Getpagesize())
+			alignedOffset := (r.offset / pageSize) * pageSize
+			offsetDelta := r.offset - alignedOffset
+			mmap, err := syscall.Mmap(
+				int(f.Fd()),
+				alignedOffset,
+				int(r.compressedLength+offsetDelta),
+				syscall.PROT_READ,
+				syscall.MAP_SHARED,
+			)
+			if err != nil {
+				log.Infof("failed to mmap section: %w", err)
+			} else {
+				// Make sure we call munmap with the address that the mmap
+				// syscall returned.
+				defer func(mmap []byte) { _ = syscall.Munmap(mmap) }(mmap)
+				// Adjust the slice to account for the offset delta
+				mmap = mmap[offsetDelta:]
+				mmap = mmap[:r.compressedLength]
+				input = bytes.NewReader(mmap)
+			}
+		}
+		// Fall back to just reading the file.
+		if input == nil {
+			input = io.NewSectionReader(
+				fileReaderAt, r.offset, r.compressedLength,
+			)
+		}
 
 		zrd, err := zlib.NewReader(input)
 		if err != nil {
