@@ -225,7 +225,7 @@ func (s *testAgentUpgradeSuite) TestExperimentCurrentVersionFails() {
 
 	// Act
 	_, err := s.StartExperimentCurrentVersion()
-	s.Require().ErrorContains(err, "cannot set new experiment to the same version as stable")
+	s.Require().ErrorContains(err, "cannot set new experiment to the same version as the current experiment")
 
 	// Assert
 	s.assertDaemonStaysRunning(func() {
