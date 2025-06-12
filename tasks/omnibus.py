@@ -59,7 +59,8 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         # make sure bundle install starts from a clean state
         try:
             os.remove("Gemfile.lock")
-        except Exception:
+        except FileNotFoundError:
+            # It's okay if the file doesn't exist - we just want to ensure it's not there
             pass
 
         cmd = "bundle install"
@@ -428,7 +429,7 @@ def build_repackaged_agent(ctx, log_level="info"):
     # The assumption here is that only nightlies from master are pushed to the nightly repository
     # and that simply picking up the highest pipeline ID will give us what we want without having to query Gitlab.
     packages_url = f"https://apt.datad0g.com/dists/nightly/7/binary-{architecture}/Packages"
-    with requests.get(packages_url, stream=True) as response:
+    with requests.get(packages_url, stream=True, timeout=10) as response:
         response.raise_for_status()
         lines = response.iter_lines(decode_unicode=True)
 
