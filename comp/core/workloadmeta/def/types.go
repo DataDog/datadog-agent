@@ -100,7 +100,7 @@ const (
 
 	// SourceServiceDiscovery represents service discovery data for processes
 	// detected by the process collector.
-	SourceServiceDiscovery         Source = "service_discovery"
+	SourceServiceDiscovery Source = "service_discovery"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -1258,6 +1258,26 @@ type Service struct {
 	LastHeartbeat int64
 }
 
+func (s Service) String() string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "GeneratedName:", s.GeneratedName)
+	_, _ = fmt.Fprintln(&sb, "GeneratedNameSource:", s.GeneratedNameSource)
+	_, _ = fmt.Fprintln(&sb, "AdditionalGeneratedNames:", s.AdditionalGeneratedNames)
+	_, _ = fmt.Fprintln(&sb, "ContainerServiceName:", s.ContainerServiceName)
+	_, _ = fmt.Fprintln(&sb, "ContainerServiceNameSource:", s.ContainerServiceNameSource)
+	_, _ = fmt.Fprintln(&sb, "ContainerTags:", s.ContainerTags)
+	_, _ = fmt.Fprintln(&sb, "TracerMetadata:", s.TracerMetadata)
+	_, _ = fmt.Fprintln(&sb, "DDService:", s.DDService)
+	_, _ = fmt.Fprintln(&sb, "DDServiceInjected:", s.DDServiceInjected)
+	_, _ = fmt.Fprintln(&sb, "CheckedContainerData:", s.CheckedContainerData)
+	_, _ = fmt.Fprintln(&sb, "Ports:", s.Ports)
+	_, _ = fmt.Fprintln(&sb, "APMInstrumentation:", s.APMInstrumentation)
+	_, _ = fmt.Fprintln(&sb, "Language:", s.Language)
+
+	return sb.String()
+}
+
 // Process is an Entity that represents a process
 type Process struct {
 	EntityID // EntityID.ID is the PID
@@ -1280,7 +1300,7 @@ type Process struct {
 	Owner *EntityID // Owner is a reference to a container in WLM
 
 	// Service contains service discovery information for this process
-	Service      *Service
+	Service *Service
 }
 
 var _ Entity = &Process{}
@@ -1317,6 +1337,9 @@ func (p Process) String(_ bool) string {
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
 	if p.Language != nil {
 		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	}
+	if p.Service != nil {
+		_, _ = fmt.Fprintln(&sb, "Service:", p.Service.String())
 	}
 
 	// TODO: add new fields once the new wlm process collector can be enabled

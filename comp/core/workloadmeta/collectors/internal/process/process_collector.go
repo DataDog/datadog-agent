@@ -131,7 +131,7 @@ func GetFxOptions() fx.Option {
 func (c *collector) isEnabled() bool {
 	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
 	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
-	return false
+	return true
 }
 
 // isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
