@@ -26,6 +26,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("bind"),
 		eval.EventType("bpf"),
 		eval.EventType("capset"),
+		eval.EventType("cgroup_write"),
 		eval.EventType("chdir"),
 		eval.EventType("chmod"),
 		eval.EventType("chown"),
@@ -50,6 +51,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("rmdir"),
 		eval.EventType("selinux"),
 		eval.EventType("setgid"),
+		eval.EventType("setsockopt"),
 		eval.EventType("setuid"),
 		eval.EventType("setxattr"),
 		eval.EventType("signal"),
@@ -399,6 +401,241 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.CgroupWrite.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.CgroupWrite.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.CgroupWrite.File.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.CgroupWrite.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "chdir.file.change_time":
@@ -16549,6 +16786,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setsockopt.level":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetSockOpt.Level)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.optname":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetSockOpt.OptName)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetSockOpt.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setuid.euid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -22467,6 +22737,27 @@ func (ev *Event) GetFields() []eval.Field {
 		"cgroup.id",
 		"cgroup.manager",
 		"cgroup.version",
+		"cgroup_write.file.change_time",
+		"cgroup_write.file.filesystem",
+		"cgroup_write.file.gid",
+		"cgroup_write.file.group",
+		"cgroup_write.file.hashes",
+		"cgroup_write.file.in_upper_layer",
+		"cgroup_write.file.inode",
+		"cgroup_write.file.mode",
+		"cgroup_write.file.modification_time",
+		"cgroup_write.file.mount_id",
+		"cgroup_write.file.name",
+		"cgroup_write.file.name.length",
+		"cgroup_write.file.package.name",
+		"cgroup_write.file.package.source_version",
+		"cgroup_write.file.package.version",
+		"cgroup_write.file.path",
+		"cgroup_write.file.path.length",
+		"cgroup_write.file.rights",
+		"cgroup_write.file.uid",
+		"cgroup_write.file.user",
+		"cgroup_write.pid",
 		"chdir.file.change_time",
 		"chdir.file.filesystem",
 		"chdir.file.gid",
@@ -23542,6 +23833,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setgid.fsgroup",
 		"setgid.gid",
 		"setgid.group",
+		"setsockopt.level",
+		"setsockopt.optname",
+		"setsockopt.retval",
 		"setuid.euid",
 		"setuid.euser",
 		"setuid.fsuid",
@@ -23971,6 +24265,48 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "cgroup.version":
 		return "", reflect.Int, "int", nil
+	case "cgroup_write.file.change_time":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.filesystem":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.gid":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.group":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.hashes":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.in_upper_layer":
+		return "cgroup_write", reflect.Bool, "bool", nil
+	case "cgroup_write.file.inode":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.mode":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.modification_time":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.mount_id":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.name":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.name.length":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.package.name":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.package.source_version":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.package.version":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.path":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.path.length":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.rights":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.uid":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.user":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.pid":
+		return "cgroup_write", reflect.Int, "int", nil
 	case "chdir.file.change_time":
 		return "chdir", reflect.Int, "int", nil
 	case "chdir.file.filesystem":
@@ -26121,6 +26457,12 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setgid", reflect.Int, "int", nil
 	case "setgid.group":
 		return "setgid", reflect.String, "string", nil
+	case "setsockopt.level":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.optname":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.retval":
+		return "setsockopt", reflect.Int, "int", nil
 	case "setuid.euid":
 		return "setuid", reflect.Int, "int", nil
 	case "setuid.euser":
@@ -27077,6 +27419,152 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "cgroup.version"}
 		}
 		ev.CGroupContext.CGroupVersion = int(rv)
+		return nil
+	case "cgroup_write.file.change_time":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.change_time"}
+		}
+		ev.CgroupWrite.File.FileFields.CTime = uint64(rv)
+		return nil
+	case "cgroup_write.file.filesystem":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.filesystem"}
+		}
+		ev.CgroupWrite.File.Filesystem = rv
+		return nil
+	case "cgroup_write.file.gid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.gid"}
+		}
+		ev.CgroupWrite.File.FileFields.GID = uint32(rv)
+		return nil
+	case "cgroup_write.file.group":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.group"}
+		}
+		ev.CgroupWrite.File.FileFields.Group = rv
+		return nil
+	case "cgroup_write.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.CgroupWrite.File.Hashes = append(ev.CgroupWrite.File.Hashes, rv)
+		case []string:
+			ev.CgroupWrite.File.Hashes = append(ev.CgroupWrite.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.hashes"}
+		}
+		return nil
+	case "cgroup_write.file.in_upper_layer":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.in_upper_layer"}
+		}
+		ev.CgroupWrite.File.FileFields.InUpperLayer = rv
+		return nil
+	case "cgroup_write.file.inode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.inode"}
+		}
+		ev.CgroupWrite.File.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "cgroup_write.file.mode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "cgroup_write.file.mode"}
+		}
+		ev.CgroupWrite.File.FileFields.Mode = uint16(rv)
+		return nil
+	case "cgroup_write.file.modification_time":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.modification_time"}
+		}
+		ev.CgroupWrite.File.FileFields.MTime = uint64(rv)
+		return nil
+	case "cgroup_write.file.mount_id":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.mount_id"}
+		}
+		ev.CgroupWrite.File.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "cgroup_write.file.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.name"}
+		}
+		ev.CgroupWrite.File.BasenameStr = rv
+		return nil
+	case "cgroup_write.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "cgroup_write.file.name.length"}
+	case "cgroup_write.file.package.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.package.name"}
+		}
+		ev.CgroupWrite.File.PkgName = rv
+		return nil
+	case "cgroup_write.file.package.source_version":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.package.source_version"}
+		}
+		ev.CgroupWrite.File.PkgSrcVersion = rv
+		return nil
+	case "cgroup_write.file.package.version":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.package.version"}
+		}
+		ev.CgroupWrite.File.PkgVersion = rv
+		return nil
+	case "cgroup_write.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.path"}
+		}
+		ev.CgroupWrite.File.PathnameStr = rv
+		return nil
+	case "cgroup_write.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "cgroup_write.file.path.length"}
+	case "cgroup_write.file.rights":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "cgroup_write.file.rights"}
+		}
+		ev.CgroupWrite.File.FileFields.Mode = uint16(rv)
+		return nil
+	case "cgroup_write.file.uid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.uid"}
+		}
+		ev.CgroupWrite.File.FileFields.UID = uint32(rv)
+		return nil
+	case "cgroup_write.file.user":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.user"}
+		}
+		ev.CgroupWrite.File.FileFields.User = rv
+		return nil
+	case "cgroup_write.pid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.pid"}
+		}
+		ev.CgroupWrite.Pid = uint32(rv)
 		return nil
 	case "chdir.file.change_time":
 		rv, ok := value.(int)
@@ -38366,6 +38854,27 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "setgid.group"}
 		}
 		ev.SetGID.Group = rv
+		return nil
+	case "setsockopt.level":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.level"}
+		}
+		ev.SetSockOpt.Level = uint32(rv)
+		return nil
+	case "setsockopt.optname":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.optname"}
+		}
+		ev.SetSockOpt.OptName = uint32(rv)
+		return nil
+	case "setsockopt.retval":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.retval"}
+		}
+		ev.SetSockOpt.SyscallEvent.Retval = int64(rv)
 		return nil
 	case "setuid.euid":
 		rv, ok := value.(int)

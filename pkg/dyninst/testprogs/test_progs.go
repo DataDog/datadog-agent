@@ -28,7 +28,6 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
-	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -88,6 +87,8 @@ type state struct {
 	progsSrcDir string
 	// Whether the source code is available.
 	haveSources bool
+	// The directory where the probe configs are stored.
+	probesCfgsDir string
 }
 
 var (
@@ -120,13 +121,9 @@ func initStateFromBinaries(
 	haveSources bool,
 	progsSrcDir string,
 ) (state, error) {
-	buildInfo, ok := debug.ReadBuildInfo()
-	if !ok {
-		return state{}, fmt.Errorf("failed to read build info")
-	}
 	pkgPath := strings.TrimPrefix(
 		reflect.TypeOf(Config{}).PkgPath(),
-		buildInfo.Main.Path+"/",
+		"github.com/DataDog/datadog-agent/",
 	)
 	const maxDirectoryDepth = 10
 	binariesDir := path.Join(".", pkgPath, "binaries")
@@ -141,6 +138,10 @@ found:
 	binariesDir, err := filepath.Abs(binariesDir)
 	if err != nil {
 		return state{}, fmt.Errorf("failed to get absolute path for binaries directory: %w", err)
+	}
+	probesCfgsDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/probes"))
+	if err != nil {
+		return state{}, fmt.Errorf("failed to get absolute path for probes directory: %w", err)
 	}
 	// Now we want to iterate over the binaries directory and read the
 	// packages names of the directories as well as parsing out the
@@ -159,7 +160,6 @@ found:
 		if err != nil {
 			return state{}, fmt.Errorf("failed to parse config from directory name: %w", err)
 		}
-		configs[cfg] = struct{}{}
 		files, err := os.ReadDir(path.Join(binariesDir, file.Name()))
 		if err != nil {
 			return state{}, fmt.Errorf("failed to read program directory: %w", err)
@@ -177,6 +177,8 @@ found:
 				continue
 			}
 			programConfigs[file.Name()]++
+			// Only count the config if there's at least one program for it.
+			configs[cfg] = struct{}{}
 		}
 	}
 	numConfigs := len(configs)
@@ -203,6 +205,7 @@ found:
 		binariesDir:   binariesDir,
 		progsSrcDir:   progsSrcDir,
 		haveSources:   haveSources,
+		probesCfgsDir: probesCfgsDir,
 	}, nil
 }
 

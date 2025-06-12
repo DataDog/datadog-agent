@@ -60,7 +60,7 @@ TEST_PACKAGES_LIST = [
     "./pkg/gpu/...",
     "./pkg/system-probe/config/...",
     "./comp/metadata/inventoryagent/...",
-    "./pkg/networkpath/traceroute/filter/...",
+    "./pkg/networkpath/traceroute/packets/...",
 ]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 # change `timeouts` in `test/new-e2e/system-probe/test-runner/main.go` if you change them here
@@ -532,7 +532,7 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             "pkg/network/protocols/events/types.go": [
                 "pkg/network/ebpf/c/protocols/events-types.h",
             ],
-            "pkg/collector/corechecks/servicediscovery/module/kern_types.go": [
+            "pkg/collector/corechecks/servicediscovery/core/kern_types.go": [
                 "pkg/collector/corechecks/servicediscovery/c/ebpf/runtime/discovery-types.h",
             ],
             "pkg/collector/corechecks/ebpf/probe/tcpqueuelength/tcp_queue_length_kern_types.go": [
@@ -2215,6 +2215,7 @@ def ninja_add_dyninst_test_programs(
     # some ways because it's not likely that other folks build without CGO.
     # Eventually we're going to want a better story for how to test against a
     # variety of go binaries.
+    outputs = set()
     for pkg, go_version, arch in itertools.product(
         pkg_deps.keys(),
         go_versions,
@@ -2229,6 +2230,7 @@ def ninja_add_dyninst_test_programs(
         config_str = f"arch={arch},toolchain={go_version}"
         output_path = f"{output_base}/{config_str}/{pkg}"
         output_path = os.path.abspath(output_path)
+        outputs.add(output_path)
         pkg_path = os.path.abspath(f"./{progs_path}/{pkg}")
         nw.build(
             inputs=[pkg_path],
@@ -2254,3 +2256,9 @@ def ninja_add_dyninst_test_programs(
                 ),
             },
         )
+
+    # Remove any previously built binaries that are no longer needed.
+    for path in glob.glob(f"{output_base}/*/*"):
+        path = os.path.abspath(path)
+        if os.path.isfile(path) and path not in outputs:
+            os.remove(path)
