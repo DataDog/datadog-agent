@@ -258,7 +258,6 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
     if remote_vms_in_config(vm_config):
         prefix = "aws-vault exec sso-sandbox-account-admin -- "
 
-
     build_start_microvms_binary(ctx)
     start_cmd = start_microvms_cmd(infra_env="aws/sandbox", stack_name=stack, destroy=True, local=True)
     ctx.run(f"{prefix}{start_cmd}", env=env)
