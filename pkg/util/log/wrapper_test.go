@@ -30,7 +30,7 @@ func TestWrapperMethods(t *testing.T) {
 
 	wrapper.Trace("trace message")
 	wrapper.Tracef("tracef message %d", 123)
-	
+
 	wrapper.Debug("debug message")
 	wrapper.Debugf("debugf message %d", 123)
 
