@@ -379,6 +379,18 @@ def run(
         test_profiler=None,
     )
 
+    washer = TestWasher(test_output_json_file=result_json)
+    failed_tests = washer.get_failing_tests()
+
+    # Remove any known flaky tests from the failed tests
+    known_flaky_failures = washer.get_flaky_failures()
+    to_retry = {  # noqa: F841
+        (package, test_name)
+        for package, tests in failed_tests.items()
+        for test_name in tests
+        if package not in known_flaky_failures or test_name not in known_flaky_failures[package]
+    }
+
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
     if running_in_ci():
