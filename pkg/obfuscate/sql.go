@@ -7,13 +7,16 @@ package obfuscate
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sqllexer "github.com/DataDog/go-sqllexer"
+	"github.com/outcaste-io/ristretto/z"
 )
 
 var questionMark = []byte("?")
@@ -295,7 +298,7 @@ func isSQLLexer(obfuscationMode ObfuscationMode) bool {
 // some elements such as comments and aliases and obfuscation attempts to hide sensitive information
 // in strings and numbers by redacting them.
 func (o *Obfuscator) ObfuscateSQLString(in string) (*ObfuscatedQuery, error) {
-	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL)
+	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL, o.sqlOptsStr)
 }
 
 // ObfuscateSQLStringForDBMS quantizes and obfuscates the given input SQL query string for a specific DBMS.
@@ -303,15 +306,23 @@ func (o *Obfuscator) ObfuscateSQLStringForDBMS(in string, dbms string) (*Obfusca
 	if isSQLLexer(o.opts.SQL.ObfuscationMode) {
 		o.opts.SQL.DBMS = dbms
 	}
-	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL)
+	return o.ObfuscateSQLStringWithOptions(in, &o.opts.SQL, o.sqlOptsStr)
 }
 
 // ObfuscateSQLStringWithOptions accepts an optional SQLOptions to change the behavior of the obfuscator
 // to quantize and obfuscate the given input SQL query string. Quantization removes some elements such as comments
 // and aliases and obfuscation attempts to hide sensitive information in strings and numbers by redacting them.
-func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig) (oq *ObfuscatedQuery, err error) {
-	if o.queryCache.Cache != nil {
-		cacheKey := fmt.Sprintf("%v:%s", opts, in)
+func (o *Obfuscator) ObfuscateSQLStringWithOptions(in string, opts *SQLConfig, optsStr string) (oq *ObfuscatedQuery, err error) {
+	var optsStrError error
+	if optsStr == "" {
+		var optsBytes []byte
+		// Ideally we should never fallback to this because it's expensive
+		log.Warn("falling back to JSON marshalling of SQLConfig options, this should be avoided if possible")
+		optsBytes, optsStrError = json.Marshal(opts)
+		optsStr = string(optsBytes)
+	}
+	if optsStrError == nil && o.queryCache.Cache != nil {
+		cacheKey := z.MemHashString(in) ^ z.MemHashString(optsStr)
 		if v, ok := o.queryCache.Get(cacheKey); ok {
 			return v.(*ObfuscatedQuery), nil
 		}
