@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -424,7 +425,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		return err
 	}
 	rawDevices := make(map[string]string)
-	if c.instanceConfig.PreserveRootDevice {
+	if runtime.GOOS == "linux" && c.instanceConfig.PreserveRootDevice {
 		rawDevices, err = c.loadRawDevices()
 		if err != nil {
 			log.Warnf("Error reading raw devices: %s", err)
