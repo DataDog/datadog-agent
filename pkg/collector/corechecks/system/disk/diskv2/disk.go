@@ -89,6 +89,7 @@ type diskInstanceConfig struct {
 	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
 	Timeout              uint16            `yaml:"timeout"`
 	ProcMountInfoPath    string            `yaml:"proc_mountinfo_path"`
+	PreserveRootDevice   bool              `yaml:"preserve_root_device"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -422,8 +423,20 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		log.Warnf("Unable to get disk partitions: %s", err)
 		return err
 	}
+	rawDevices := make(map[string]string)
+	if c.instanceConfig.PreserveRootDevice {
+		rawDevices, err = c.loadRawDevices()
+		if err != nil {
+			log.Warnf("Error reading raw devices: %s", err)
+			rawDevices = map[string]string{}
+		}
+	}
 	log.Debugf("partitions %s", partitions)
 	for _, partition := range partitions {
+		if rawDev, ok := rawDevices[partition.Device]; ok {
+			log.Debugf("Found [device: %s] in rawDevices as [rawDev: %s]", partition.Device, rawDev)
+			partition.Device = rawDev
+		}
 		log.Debugf("Checking partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 		if c.excludePartition(partition) {
 			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
@@ -723,6 +736,8 @@ func newCheck() check.Check {
 			Timeout:              5,
 			// Match psutil exactly setting default value (https://github.com/giampaolo/psutil/blob/3d21a43a47ab6f3c4a08d235d2a9a55d4adae9b1/psutil/_pslinux.py#L1277)
 			ProcMountInfoPath: "/proc/self/mounts",
+			// Match psutil reporting '/dev/root' from /proc/self/mounts by default
+			PreserveRootDevice: true,
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},

@@ -185,3 +185,9 @@ func (c *Check) sendInodesMetrics(sender sender.Sender, usage *gopsutil_disk.Usa
 		sender.Gauge(fmt.Sprintf(inodeMetric, "in_use"), usage.InodesUsedPercent/100, "", tags)
 	}
 }
+
+func (c *Check) loadRawDevices() (map[string]string, error) {
+	rawDevices := make(map[string]string)
+
+	return rawDevices, nil
+}
