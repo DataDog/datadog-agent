@@ -1304,7 +1304,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			if tt.buildMessages == nil {
 				msgs = appendMessages(msgs, 99, &fetchReq, &fetchResponse)
 			} else {
-				msgs = tt.buildMessages(fetchReq, fetchResponse)
+				msgs = append(msgs, tt.buildMessages(fetchReq, fetchResponse)...)
 			}
 
 			// TODO restore counter to verify events captured (disabled due to metadata transactions cause count to be +1)

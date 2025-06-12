@@ -536,12 +536,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     offset += response->carry_over_offset;
     response->carry_over_offset = 0;
 
-    __u8 abcd[5] = {0};
-    pktbuf_load_bytes(pkt, offset, abcd, sizeof(abcd));
-    log_debug("GUY abcd1 %02x%02x%02x", abcd[0], abcd[1], abcd[2]);
-    log_debug("GUY abcd2 %02x%02x", abcd[3], abcd[4]);
-
-    log_debug("GUY state: %d", response->state);
     switch (response->state) {
     case KAFKA_FETCH_RESPONSE_START:
         if (flexible) {
@@ -1131,7 +1125,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 log_debug("GUY returning %d from read_varint_or_s32 in NUM_PARTITIONS", ret);
                 return ret;
             }
-            offset += 117 * num_of_partitions; // Skip partitions TODO variable length partitions
+            offset += 26 * num_of_partitions; // Skip partitions TODO variable length partitions
 
             // Continue parsing topics, we'll move ot the next state when num_of_topics reaches 0
             num_of_topics--;

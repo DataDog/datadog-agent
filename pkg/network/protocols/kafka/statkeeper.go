@@ -8,7 +8,6 @@
 package kafka
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -60,8 +59,6 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		TopicName:      statKeeper.extractTopicName(&tx.Transaction),
 		ConnectionKey:  tx.ConnTuple(),
 	}
-
-	fmt.Println("Processing Kafka transaction:", key.RequestAPIKey, key.RequestVersion, key.TopicName.Get(), key.ConnectionKey)
 
 	statKeeper.statsMutex.Lock()
 	defer statKeeper.statsMutex.Unlock()
