@@ -89,6 +89,8 @@ type state struct {
 	haveSources bool
 	// The directory where the probe configs are stored.
 	probesCfgsDir string
+	// the directory where the expected output files are stored.
+	expectedOutputDir string
 }
 
 var (
@@ -142,6 +144,10 @@ found:
 	probesCfgsDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/probes"))
 	if err != nil {
 		return state{}, fmt.Errorf("failed to get absolute path for probes directory: %w", err)
+	}
+	expectedOutputDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/expected_output"))
+	if err != nil {
+		return state{}, fmt.Errorf("failed to get absolute path for expected output directory: %w", err)
 	}
 	// Now we want to iterate over the binaries directory and read the
 	// packages names of the directories as well as parsing out the
@@ -200,12 +206,13 @@ found:
 	})
 
 	return state{
-		commonConfigs: commonConfigs,
-		programs:      programs,
-		binariesDir:   binariesDir,
-		progsSrcDir:   progsSrcDir,
-		haveSources:   haveSources,
-		probesCfgsDir: probesCfgsDir,
+		commonConfigs:     commonConfigs,
+		programs:          programs,
+		binariesDir:       binariesDir,
+		progsSrcDir:       progsSrcDir,
+		haveSources:       haveSources,
+		probesCfgsDir:     probesCfgsDir,
+		expectedOutputDir: expectedOutputDir,
 	}, nil
 }
 

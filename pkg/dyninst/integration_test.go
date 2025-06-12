@@ -5,6 +5,15 @@
 
 //go:build linux_bpf
 
+// This test is used to run the dynamic instrumentation product on a sample binary from end to end.
+// Update test data by setting SAVE_OUTPUT=true and running the test.
+//
+// You can run individual probes for a given architecture and toolchain like so:
+// go test -run TestDyninst/test_single_int32_arch=arm64,toolchain=go1.24.3
+//
+// You can run all probes at once for a given architecture and toolchain like so:
+// go test -run TestDyninst/test_single_int32_arch=arm64,toolchain=go1.24.3/all
+
 package dyninst_test
 
 import (
@@ -75,20 +84,21 @@ func TestDyninst(t *testing.T) {
 
 			// Load the binary and generate the IR.
 			probes := testprogs.GetProbeCfgs(t, "sample")
+			expectedOutput := testprogs.GetExpectedOutput(t, "sample")
 			for i := range probes {
 				t.Run(probes[i].GetID(), func(t *testing.T) {
-					testSingleProbe(t, bin, probes[i])
+					testSingleProbe(t, bin, probes[i], expectedOutput)
 				})
 			}
 
 			t.Run("all", func(t *testing.T) {
-				testAllProbesAtOnce(t, bin, probes)
+				testAllProbesAtOnce(t, bin, probes, expectedOutput)
 			})
 		})
 	}
 }
 
-func testSingleProbe(t *testing.T, sampleServicePath string, probe config.Probe) {
+func testSingleProbe(t *testing.T, sampleServicePath string, probe config.Probe, expectedOutput map[string]string) {
 
 	binary, err := safeelf.Open(sampleServicePath)
 	require.NoError(t, err)
@@ -230,10 +240,18 @@ func testSingleProbe(t *testing.T, sampleServicePath string, probe config.Probe)
 	if err != nil {
 		t.Logf("error decoding: %s", err)
 	}
-	t.Logf("Decoded output for probe %s:\n %s", probe.GetID(), out.String())
+
+	assert.Equal(t, expectedOutput["main."+probe.GetID()], out.String())
+
+	// Save actual output to YAML file if SAVE_OUTPUT is set
+	if saveOutput, _ := strconv.ParseBool(os.Getenv("SAVE_OUTPUT")); saveOutput {
+		expectedOutput["main."+probe.GetID()] = out.String()
+		testprogs.SaveActualOutput(t, "sample", expectedOutput)
+	}
+
 }
 
-func testAllProbesAtOnce(t *testing.T, sampleServicePath string, probes []config.Probe) {
+func testAllProbesAtOnce(t *testing.T, sampleServicePath string, probes []config.Probe, expectedOutput map[string]string) {
 	t.Logf("loading binary")
 	tempDir, err := os.MkdirTemp(os.TempDir(), "dyninst-integration-test-")
 	require.NoError(t, err)
@@ -349,6 +367,13 @@ func testAllProbesAtOnce(t *testing.T, sampleServicePath string, probes []config
 	require.NoError(t, err)
 	defer func() { require.NoError(t, bpfOutDump.Close()) }()
 
+	// Have a 'reverse map' of probe output, to ensure all events are received
+	// and no unexpected events are received.
+	probeOutput := map[string]struct{}{}
+	for _, o := range expectedOutput {
+		probeOutput[o] = struct{}{}
+	}
+
 	// Inlined function is called twice, hence extra event.
 	for range len(probes) + 1 {
 		t.Logf("reading ringbuf item")
@@ -374,6 +399,22 @@ func testAllProbesAtOnce(t *testing.T, sampleServicePath string, probes []config
 			if pos%8 > 0 {
 				pos += 8 - pos%8
 			}
+		}
+
+		b := []byte{}
+		out := bytes.NewBuffer(b)
+		decoder, err := decode.NewDecoder(irp)
+		assert.NoError(t, err)
+		require.NotNil(t, decoder)
+
+		err = decoder.Decode(record.RawSample, out)
+		if err != nil {
+			t.Errorf("error decoding: %s", err)
+		}
+
+		_, ok := probeOutput[out.String()]
+		if !ok {
+			t.Errorf("unexpected output: %s", out.String())
 		}
 	}
 }

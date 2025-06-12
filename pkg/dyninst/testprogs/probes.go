@@ -52,3 +52,47 @@ func GetProbeCfgs(t *testing.T, name string) []config.Probe {
 	}
 	return probesCfgs
 }
+
+// GetExpectedOutput returns the expected output for a given service.
+func GetExpectedOutput(t *testing.T, name string) map[string]string {
+	expectedOutput := make(map[string]string)
+	state, err := getState()
+	if err != nil {
+		t.Fatalf("testprogs: %v", err)
+	}
+	yamlData, err := os.ReadFile(path.Join(state.expectedOutputDir, name+".yaml"))
+	if err != nil {
+		t.Fatalf("testprogs: %v", err)
+	}
+	err = yaml.Unmarshal(yamlData, &expectedOutput)
+	if err != nil {
+		t.Fatalf("testprogs: %v", err)
+	}
+	return expectedOutput
+}
+
+// SaveActualOutput saves the actual output for a given service.
+// The output is saved to the expected output directory with the same format as GetExpectedOutput.
+func SaveActualOutput(t *testing.T, name string, savedState map[string]string) {
+	state, err := getState()
+	if err != nil {
+		t.Logf("testprogs: %v", err)
+		return
+	}
+
+	actualOutputFile := path.Join(state.expectedOutputDir, name+".yaml")
+
+	actualOutputYAML, err := yaml.Marshal(savedState)
+	if err != nil {
+		t.Logf("error marshaling actual output to YAML: %s", err)
+		return
+	}
+
+	err = os.WriteFile(actualOutputFile, actualOutputYAML, 0644)
+	if err != nil {
+		t.Logf("error writing actual output file: %s", err)
+		return
+	}
+
+	t.Logf("actual output saved to: %s", actualOutputFile)
+}
