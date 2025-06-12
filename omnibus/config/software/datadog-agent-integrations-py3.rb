@@ -86,7 +86,7 @@ build do
     when linux_target?
       arm_target? ? "linux-aarch64" : "linux-x86_64"
     when osx_target?
-      "macos-x86_64"
+      arm_target? ? "macos-aarch64" : "macos-x86_64"
     when windows_target?
       "windows-x86_64"
   end + "_#{python_version}.txt"

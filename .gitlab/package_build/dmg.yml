@@ -23,9 +23,8 @@
     export GOMODCACHE=~/gomodcache
     mkdir -p $GOMODCACHE
 
-agent_dmg-x64-a7:
+.agent_dmg:
   stage: package_build
-  tags: ["macos:ventura-amd64", "specific:true"]
   needs: ["go_mod_tidy_check"]
   rules:
      - !reference [.on_macos_gui_change]
@@ -71,3 +70,11 @@ agent_dmg-x64-a7:
     - !reference [.macos_setup_cache]
     - bash .gitlab/package_build/build_agent_dmg.sh
     - !reference [.upload_sbom_artifacts]
+
+agent_dmg-x64-a7:
+  extends: .agent_dmg
+  tags: ["macos:ventura-amd64", "specific:true"]
+
+agent_dmg-arm64-a7:
+  extends: .agent_dmg
+  tags: ["macos:ventura-arm64", "specific:true"]
