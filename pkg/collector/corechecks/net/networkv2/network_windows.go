@@ -101,7 +101,6 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 	return net.Connections(kind)
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 func (n defaultNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
 	return getTcpStats(kind)
 }
@@ -235,33 +234,35 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) error {
 
 	tcp4Stats, err := c.net.TcpStats("tcp4")
 	if err != nil {
-		return err
+		log.Errorf("OSError getting TCP4 stats from GetTcpStatisticsEx: %s", err)
 	}
 
 	tcp6Stats, err := c.net.TcpStats("tcp6")
 	if err != nil {
-		return err
+		log.Errorf("OSError getting TCP6 stats from GetTcpStatisticsEx: %s", err)
 	}
 
 	// Create tcp metrics that are a sum of tcp4 and tcp6 metrics
-	tcpAllStats := &mibTcpStats{
-		DwRtoAlgorithm: tcp4Stats.DwRtoAlgorithm + tcp6Stats.DwRtoAlgorithm,
-		DwRtoMin:       tcp4Stats.DwRtoMin + tcp6Stats.DwRtoMin,
-		DwRtoMax:       tcp4Stats.DwRtoMax + tcp6Stats.DwRtoMax,
-		DwMaxConn:      tcp4Stats.DwMaxConn + tcp6Stats.DwMaxConn,
-		DwActiveOpens:  tcp4Stats.DwActiveOpens + tcp6Stats.DwActiveOpens,
-		DwPassiveOpens: tcp4Stats.DwPassiveOpens + tcp6Stats.DwPassiveOpens,
-		DwAttemptFails: tcp4Stats.DwAttemptFails + tcp6Stats.DwAttemptFails,
-		DwEstabResets:  tcp4Stats.DwEstabResets + tcp6Stats.DwEstabResets,
-		DwCurrEstab:    tcp4Stats.DwCurrEstab + tcp6Stats.DwCurrEstab,
-		DwInSegs:       tcp4Stats.DwInSegs + tcp6Stats.DwInSegs,
-		DwOutSegs:      tcp4Stats.DwOutSegs + tcp6Stats.DwOutSegs,
-		DwRetransSegs:  tcp4Stats.DwRetransSegs + tcp6Stats.DwRetransSegs,
-		DwInErrs:       tcp4Stats.DwInErrs + tcp6Stats.DwInErrs,
-		DwOutRsts:      tcp4Stats.DwOutRsts + tcp6Stats.DwOutRsts,
-		DwNumConns:     tcp4Stats.DwNumConns + tcp6Stats.DwNumConns,
+	if tcp4Stats != nil && tcp6Stats != nil {
+		tcpAllStats := &mibTcpStats{
+			DwRtoAlgorithm: tcp4Stats.DwRtoAlgorithm + tcp6Stats.DwRtoAlgorithm,
+			DwRtoMin:       tcp4Stats.DwRtoMin + tcp6Stats.DwRtoMin,
+			DwRtoMax:       tcp4Stats.DwRtoMax + tcp6Stats.DwRtoMax,
+			DwMaxConn:      tcp4Stats.DwMaxConn + tcp6Stats.DwMaxConn,
+			DwActiveOpens:  tcp4Stats.DwActiveOpens + tcp6Stats.DwActiveOpens,
+			DwPassiveOpens: tcp4Stats.DwPassiveOpens + tcp6Stats.DwPassiveOpens,
+			DwAttemptFails: tcp4Stats.DwAttemptFails + tcp6Stats.DwAttemptFails,
+			DwEstabResets:  tcp4Stats.DwEstabResets + tcp6Stats.DwEstabResets,
+			DwCurrEstab:    tcp4Stats.DwCurrEstab + tcp6Stats.DwCurrEstab,
+			DwInSegs:       tcp4Stats.DwInSegs + tcp6Stats.DwInSegs,
+			DwOutSegs:      tcp4Stats.DwOutSegs + tcp6Stats.DwOutSegs,
+			DwRetransSegs:  tcp4Stats.DwRetransSegs + tcp6Stats.DwRetransSegs,
+			DwInErrs:       tcp4Stats.DwInErrs + tcp6Stats.DwInErrs,
+			DwOutRsts:      tcp4Stats.DwOutRsts + tcp6Stats.DwOutRsts,
+			DwNumConns:     tcp4Stats.DwNumConns + tcp6Stats.DwNumConns,
+		}
+		c.submitMetricsFromStruct(sender, "system.net.tcp", tcpAllStats, tcpStatsMapping)
 	}
-	c.submitMetricsFromStruct(sender, "system.net.tcp", tcpAllStats, tcpStatsMapping)
 	c.submitMetricsFromStruct(sender, "system.net.tcp4", tcp4Stats, tcpStatsMapping)
 	c.submitMetricsFromStruct(sender, "system.net.tcp6", tcp6Stats, tcpStatsMapping)
 
@@ -269,6 +270,10 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) error {
 }
 
 func (c *NetworkCheck) submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTcpStats, tcpStatsMapping map[string]string) {
+	if tcpStats == nil {
+		return
+	}
+
 	s := reflect.ValueOf(tcpStats).Elem()
 	sType := s.Type()
 	for i := 0; i < s.NumField(); i++ {
