@@ -42,28 +42,42 @@ func NewDiscoveryWLM(store workloadmeta.Component, tagger tagger.Component) (*Di
 	}, nil
 }
 
-type fakeprocess struct {
-	pid       int
-	container *workloadmeta.Container
-}
-
-// getServices returns a list of processes that are running and have a
-// container.  This is temporary until we have a way to get the services from
-// the process collector.
-func (d *DiscoveryWLM) getServices() ([]fakeprocess, error) {
-	containers := d.wmeta.ListContainersWithFilter(func(container *workloadmeta.Container) bool {
-		return container.State.Running && container.PID > 0
-	})
-
-	procs := make([]fakeprocess, 0, len(containers))
-	for _, container := range containers {
-		procs = append(procs, fakeprocess{
-			pid:       int(container.PID),
-			container: container,
-		})
+// convertWLMServiceToModelService converts workloadmeta.Service to model.Service
+func convertWLMServiceToModelService(wlmService *workloadmeta.Service, pid int) *model.Service {
+	if wlmService == nil {
+		return nil
 	}
 
-	return procs, nil
+	return &model.Service{
+		PID:                        pid,
+		GeneratedName:              wlmService.GeneratedName,
+		GeneratedNameSource:        wlmService.GeneratedNameSource,
+		AdditionalGeneratedNames:   wlmService.AdditionalGeneratedNames,
+		ContainerServiceName:       wlmService.ContainerServiceName,
+		ContainerServiceNameSource: wlmService.ContainerServiceNameSource,
+		ContainerTags:              wlmService.ContainerTags,
+		TracerMetadata:             wlmService.TracerMetadata,
+		DDService:                  wlmService.DDService,
+		DDServiceInjected:          wlmService.DDServiceInjected,
+		CheckedContainerData:       wlmService.CheckedContainerData,
+		Ports:                      wlmService.Ports,
+		APMInstrumentation:         wlmService.APMInstrumentation,
+		Language:                   wlmService.Language,
+		Type:                       wlmService.Type,
+		CommandLine:                wlmService.CommandLine,
+		StartTimeMilli:             wlmService.StartTimeMilli,
+		ContainerID:                wlmService.ContainerID,
+		LastHeartbeat:              wlmService.LastHeartbeat,
+	}
+}
+
+// getServices returns a list of processes that have service information set.
+func (d *DiscoveryWLM) getServices() ([]*workloadmeta.Process, error) {
+	processes := d.wmeta.ListProcessesWithFilter(func(process *workloadmeta.Process) bool {
+		return process.Service != nil
+	})
+
+	return processes, nil
 }
 
 // DiscoverServices discovers services from the workloadmeta component.
@@ -75,11 +89,11 @@ func (d *DiscoveryWLM) DiscoverServices() (*model.ServicesResponse, error) {
 
 	log.Info("procs discovered", "procs", procs)
 
-	procMap := make(map[int32]*fakeprocess)
+	procMap := make(map[int32]*workloadmeta.Process)
 	pids := make([]int32, 0, len(procs))
 	for _, proc := range procs {
-		pids = append(pids, int32(proc.pid))
-		procMap[int32(proc.pid)] = &proc
+		pids = append(pids, proc.Pid)
+		procMap[proc.Pid] = proc
 	}
 
 	resp, err := d.discoveryCore.GetServices(core.Params{}, pids, nil, func(_ any, pid int32) *model.Service {
@@ -88,10 +102,19 @@ func (d *DiscoveryWLM) DiscoverServices() (*model.ServicesResponse, error) {
 			return info.ToModelService(pid, &model.Service{})
 		}
 
+		process := procMap[pid]
+		if process == nil || process.Service == nil {
+			return nil
+		}
+
+		// Convert the WLM service to a model.Service
+		modelService := convertWLMServiceToModelService(process.Service, int(pid))
+		if modelService == nil {
+			return nil
+		}
+
 		info = &core.ServiceInfo{
-			Service: model.Service{
-				ContainerID: procMap[pid].container.ID,
-			},
+			Service: *modelService,
 		}
 		d.discoveryCore.Cache[pid] = info
 		return info.ToModelService(pid, &model.Service{})

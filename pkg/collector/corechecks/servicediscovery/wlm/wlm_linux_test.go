@@ -8,6 +8,7 @@ package wlm
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -32,51 +32,63 @@ func TestDiscoveryWLM(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	self := os.Getpid()
+	self := int32(os.Getpid())
 
-	// Create test containers
-	containers := []struct {
-		id     string
-		pid    int
-		tags   []string
-		labels []string
+	// Create test processes with service information
+	processes := []struct {
+		pid         int32
+		containerID string
+		service     *workloadmeta.Service
 	}{
 		{
-			id:     "container1",
-			pid:    self,
-			tags:   []string{"service:web", "env:prod"},
-			labels: []string{"app:nginx"},
+			pid:         self,
+			containerID: "container1",
+			service: &workloadmeta.Service{
+				GeneratedName:       "web-service",
+				GeneratedNameSource: "process_name",
+				DDService:           "web",
+				ContainerID:         "container1",
+				ContainerTags:       []string{"service:web", "env:prod", "app:nginx"},
+				Ports:               []uint16{80, 443},
+				Language:            "go",
+				Type:                "web_service",
+			},
 		},
 		{
-			id:     "container2",
-			pid:    1002,
-			tags:   []string{"service:db", "env:prod"},
-			labels: []string{"app:postgres"},
+			pid:         1002,
+			containerID: "container2",
+			service: &workloadmeta.Service{
+				GeneratedName:       "db-service",
+				GeneratedNameSource: "process_name",
+				DDService:           "postgres",
+				ContainerID:         "container2",
+				ContainerTags:       []string{"service:db", "env:prod", "app:postgres"},
+				Ports:               []uint16{5432},
+				Language:            "c",
+				Type:                "db",
+			},
 		},
 	}
 
-	// Add containers to workloadmeta
-	for _, c := range containers {
-		container := &workloadmeta.Container{
+	// Add processes to workloadmeta
+	for _, p := range processes {
+		process := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainer,
-				ID:   c.id,
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(p.pid)),
 			},
-			PID:           c.pid,
-			CollectorTags: c.labels,
-			State:         workloadmeta.ContainerState{Running: true},
+			Pid:         p.pid,
+			ContainerID: p.containerID,
+			Service:     p.service,
 		}
-		mockWmeta.Set(container)
-
-		// Set tagger tags
-		mockTagger.SetTags(types.NewEntityID(types.ContainerID, c.id), "fake", nil, nil, c.tags, nil)
+		mockWmeta.Set(process)
 	}
 
 	// Create DiscoveryWLM instance
 	discovery, err := NewDiscoveryWLM(mockWmeta, mockTagger)
 	require.NoError(t, err)
 
-	// Get services
+	// Get services - call twice to test the caching behavior
 	_, err = discovery.DiscoverServices()
 	require.NoError(t, err)
 	resp, err := discovery.DiscoverServices()
@@ -84,24 +96,28 @@ func TestDiscoveryWLM(t *testing.T) {
 	require.NotNil(t, resp)
 
 	// Verify results
-	require.Len(t, resp.StartedServices, len(containers))
+	require.Len(t, resp.StartedServices, len(processes))
 
-	// Check each container's service info
-	for _, c := range containers {
+	// Check each process's service info
+	for _, p := range processes {
 		var found *model.Service
 		for i := range resp.StartedServices {
-			if resp.StartedServices[i].PID == c.pid {
+			if resp.StartedServices[i].PID == int(p.pid) {
 				found = &resp.StartedServices[i]
 				break
 			}
 		}
-		require.NotNil(t, found, "Service not found for container %s", c.id)
-		assert.Equal(t, c.pid, found.PID)
-		assert.Equal(t, c.id, found.ContainerID)
-		assert.ElementsMatch(t, append(c.tags, c.labels...), found.ContainerTags)
+		require.NotNil(t, found, "Service not found for process %d", p.pid)
+		assert.Equal(t, int(p.pid), found.PID)
+		assert.Equal(t, p.service.GeneratedName, found.GeneratedName)
+		assert.Equal(t, p.service.DDService, found.DDService)
+		assert.Equal(t, p.service.ContainerID, found.ContainerID)
+		assert.ElementsMatch(t, p.service.ContainerTags, found.ContainerTags)
+		assert.ElementsMatch(t, p.service.Ports, found.Ports)
+		assert.Equal(t, p.service.Language, found.Language)
 
-		if c.pid == self {
-			assert.NotEqual(t, 0, found.RSS)
+		if p.pid == self {
+			assert.NotEqual(t, uint64(0), found.RSS)
 		}
 	}
 }
