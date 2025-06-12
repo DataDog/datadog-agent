@@ -11,8 +11,3 @@ fixes:
     Fix a bug in the Kubernetes State Metrics (KSM) check where custom resource
     metrics were incorrectly named using the `kubernetes_state.customresource.<name>`
     pattern instead of the intended `kubernetes_state_customresource.<prefix>_<name>` format.
-
-    This fix ensures custom resource metrics are properly categorized and billed
-    as custom metrics. For example, a metric like 
-    `kubernetes_state.customresource.csinode` will now appear correctly as
-    `kubernetes_state_customresource.gotk_csinode`.
