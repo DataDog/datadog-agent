@@ -68,12 +68,10 @@ func state(_ *cliParams, config config.Component, ipc ipc.Component) error {
 	fmt.Println("Fetching the configuration and director repos state..")
 	// Call GRPC endpoint returning state tree
 
-	token := ipc.GetAuthToken()
-
 	ctx, closeFn := context.WithCancel(context.Background())
 	defer closeFn()
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
+		"authorization": []string{fmt.Sprintf("Bearer %s", ipc.GetAuthToken())}, // TODO IPC: use GRPC client
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
@@ -82,7 +80,7 @@ func state(_ *cliParams, config config.Component, ipc ipc.Component) error {
 		return err
 	}
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetTLSClientConfig)
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetTLSClientConfig())
 	if err != nil {
 		return err
 	}

@@ -52,6 +52,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
 		),
 	)
@@ -330,7 +331,8 @@ func TestFetchSecurityAgent(t *testing.T) {
 	defer func() {
 		fetchSecurityConfig = configFetcher.SecurityAgentConfig
 	}()
-	fetchSecurityConfig = func(config pkgconfigmodel.Reader) (string, error) {
+
+	fetchSecurityConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -352,7 +354,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_cspm_enabled"].(bool))
 	assert.False(t, ia.data["feature_cspm_host_benchmarks_enabled"].(bool))
 
-	fetchSecurityConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchSecurityConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `compliance_config:
   enabled: true
   host_benchmarks:
@@ -367,11 +369,11 @@ func TestFetchSecurityAgent(t *testing.T) {
 }
 
 func TestFetchProcessAgent(t *testing.T) {
-	defer func(original func(cfg pkgconfigmodel.Reader) (string, error)) {
+	defer func(original func(cfg pkgconfigmodel.Reader, client ipc.HTTPClient) (string, error)) {
 		fetchProcessConfig = original
 	}(fetchProcessConfig)
 
-	fetchProcessConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchProcessConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -395,7 +397,7 @@ func TestFetchProcessAgent(t *testing.T) {
 	// default to true in the process agent configuration
 	assert.True(t, ia.data["feature_processes_container_enabled"].(bool))
 
-	fetchProcessConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchProcessConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `
 process_config:
   process_collection:
@@ -418,7 +420,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	defer func() {
 		fetchTraceConfig = configFetcher.TraceAgentConfig
 	}()
-	fetchTraceConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchTraceConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the agent config was passed and not the system-probe config.
 		assert.False(
 			t,
@@ -444,7 +446,7 @@ func TestFetchTraceAgent(t *testing.T) {
 	}
 	assert.Equal(t, "", ia.data["config_apm_dd_url"].(string))
 
-	fetchTraceConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchTraceConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `
 apm_config:
   enabled: true
@@ -465,7 +467,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	defer func() {
 		fetchSystemProbeConfig = sysprobeConfigFetcher.SystemProbeConfig
 	}()
-	fetchSystemProbeConfig = func(config pkgconfigmodel.Reader) (string, error) {
+	fetchSystemProbeConfig = func(config pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		// test that the system-probe config was passed and not the agent config
 		assert.True(
 			t,
@@ -537,6 +539,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			sysprobeconfig.NoneModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
 		),
 	)
@@ -577,7 +580,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 	assert.False(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
 
 	// Testing an inventoryagent where we can contact the system-probe process
-	fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader) (string, error) {
+	fetchSystemProbeConfig = func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
 		return `
 runtime_security_config:
   enabled: true
