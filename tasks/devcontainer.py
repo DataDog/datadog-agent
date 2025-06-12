@@ -71,9 +71,6 @@ def setup(
 
     local_build_tags = ",".join(use_tags)
 
-    # Remove explicitly for out of date devcontainer.json files using the latest developer image
-    devcontainer.pop("remoteUser", None)
-
     devcontainer["name"] = "Datadog-Agent-DevEnv"
     if image:
         devcontainer["image"] = image
@@ -86,6 +83,7 @@ def setup(
         }
         if devcontainer.get("image"):
             del devcontainer["image"]
+    devcontainer["overrideCommand"] = False
     devcontainer["runArgs"] = [
         "--cap-add=SYS_PTRACE",
         "--security-opt",
@@ -95,7 +93,15 @@ def setup(
         "--name",
         "datadog_agent_devcontainer",
     ]
+    if sys.platform != "win32":
+        # Save the current user's UID and GID to a local `.env` file
+        with open(os.path.join(DEVCONTAINER_DIR, ".env"), "w") as f:
+            f.write(f"UID={os.getuid()}\n")
+            f.write(f"GID={os.getgid()}\n")
+        devcontainer["runArgs"].append("--env-file=.env")
+
     devcontainer["features"] = {}
+    devcontainer["remoteUser"] = "datadog"
     devcontainer["mounts"] = [
         "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached",
         "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
@@ -127,16 +133,14 @@ def setup(
     # onCreateCommond runs the install-tools and deps tasks only when the devcontainer is created and not each time
     # the container is started
     devcontainer["onCreateCommand"] = (
-        # SSH is used by default in other circumstances to access private repositories
-        # https://github.com/DataDog/datadog-agent-buildimages/blob/e15e4d4d7e71272c2e338260f5e7b0cdf552d72b/dev-envs/linux/ssh.sh#L31
-        f"git config --global --unset url.ssh://git@github.com/.insteadOf && "
-        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && "
-        f"dda inv -- -e install-tools && "
-        f"dda inv -- -e deps"
+        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && dda inv -- -e install-tools && dda inv -- -e deps"
     )
 
     devcontainer["containerEnv"] = {
         "GITLAB_TOKEN": "${localEnv:GITLAB_TOKEN}",
+        "RUNNING_IN_DEVCONTAINER": "true",
+        "HOST_UID": "${localEnv:UID}",
+        "HOST_GID": "${localEnv:GID}",
     }
 
     configure_skaffold(devcontainer, SkaffoldProfile(skaffoldProfile))
