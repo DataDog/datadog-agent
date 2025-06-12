@@ -13,9 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -233,14 +234,12 @@ func (agg *FlowAggregator) flushLoop() {
 			agg.flushLoopDone <- struct{}{}
 			return
 		// automatic flush sequence
-		case now := <-flushFlowsToSendTicker:
+		case flushStartTime := <-flushFlowsToSendTicker:
 			if !lastFlushTime.IsZero() {
-				flushInterval := now.Sub(lastFlushTime)
+				flushInterval := flushStartTime.Sub(lastFlushTime)
 				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
 			}
-			lastFlushTime = now
-
-			flushStartTime := now
+			lastFlushTime = flushStartTime
 			agg.flush()
 			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
 			agg.sender.Commit()
