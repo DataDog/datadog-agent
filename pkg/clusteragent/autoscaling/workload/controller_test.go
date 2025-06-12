@@ -763,7 +763,7 @@ func TestIsTimestampStale(t *testing.T) {
 
 	// no fallback policy, use default stale timestamp threshold
 	assert.False(t, isTimestampStale(currentTime, receivedTime, defaultStaleTimestampThreshold))
-	receivedTime = currentTime.Add(-1 * time.Minute * 11)
+	receivedTime = currentTime.Add(-1 * time.Minute * 31)
 	assert.True(t, isTimestampStale(currentTime, receivedTime, defaultStaleTimestampThreshold))
 
 	// fallback policy with stale recommendation threshold
