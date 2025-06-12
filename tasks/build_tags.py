@@ -244,7 +244,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = {"netgo", "osusergo"}
 
-OTEL_AGENT_TAGS = {"otlp"}
+OTEL_AGENT_TAGS = {"otlp", "zlib", "zstd"}
 
 # AGENT_TEST_TAGS lists the tags that have to be added to run tests
 AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
