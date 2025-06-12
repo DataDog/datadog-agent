@@ -264,6 +264,7 @@ variables:
   # This enables VPA for 10% of the jobs
   DD_ENABLE_VPA: true
   KUBERNETES_POD_ANNOTATIONS_2: "vpa.datadoghq.com/admission-ratio=1"
+  DD_VPA_TEMPLATE: gitlab-runner/vpa-template-rollup-max-cpu-p70-10percent,builtin-max-cpu
 
 #
 # Condition mixins for simplification of rules
