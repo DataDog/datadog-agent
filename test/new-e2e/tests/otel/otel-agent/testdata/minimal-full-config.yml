@@ -26,6 +26,7 @@ exporters:
       reporter_period: 30m0s
       tags: []
     hostname: otelcol-docker
+    hostname_detection_timeout: 25s
     idle_conn_timeout: "1m30s"
     logs:
       batch_wait: 5
@@ -132,24 +133,8 @@ processors:
 receivers:
   otlp:
     protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
-        keepalive:
-          enforcement_policy: {}
-          server_parameters: {}
-        read_buffer_size: 524288
-        transport: tcp
-      http:
-        cors: {}
-        endpoint: 0.0.0.0:4318
-        idle_timeout: 0s
-        logs_url_path: /v1/logs
-        metrics_url_path: /v1/metrics
-        read_header_timeout: 0s
-        response_headers: {}
-        tls: null
-        traces_url_path: /v1/traces
-        write_timeout: 0s
+      grpc: {}
+      http: {}
   prometheus/dd-autoconfigured:
     api_server: null
     config:
@@ -166,12 +151,14 @@ receivers:
         gogc: 75
       scrape_configs:
         - enable_compression: true
+          convert_classic_histograms_to_nhcb: false
           enable_http2: true
           fallback_scrape_protocol: PrometheusText0.0.4
           follow_redirects: true
           honor_timestamps: true
           job_name: datadog-agent
           metric_name_validation_scheme: legacy
+          metric_name_escaping_scheme: underscores
           metrics_path: /metrics
           scheme: http
           scrape_interval: 1m
