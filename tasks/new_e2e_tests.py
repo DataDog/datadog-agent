@@ -219,6 +219,7 @@ def build_binaries(
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
+        "max_retries": "Maximum number of retries for failed tests, default 3",
     },
 )
 def run(
@@ -253,6 +254,7 @@ def run(
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
     use_prebuilt_binaries=False,
+    max_retries=3,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -349,8 +351,8 @@ def run(
         "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
-        "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
-        "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
+        "run": ('-test.run ' + _create_test_selection_regex(clean_run)) if run else "",
+        "skip": ('-test.skip ' + _create_test_selection_regex(clean_skip)) if skip else "",
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else "",
         "platform": f"-platform {platform}" if platform else "",
@@ -366,30 +368,50 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    test_res = test_flavor(
-        ctx,
-        flavor=AgentFlavor.base,
-        build_tags=tags,
-        modules=[e2e_module],
-        args=args,
-        cmd=cmd,
-        env=env_vars,
-        junit_tar=junit_tar,
-        result_json=result_json,
-        test_profiler=None,
-    )
-
+    tries = 0
     washer = TestWasher(test_output_json_file=result_json)
-    failed_tests = washer.get_failing_tests()
+    while tries < max_retries + 1:
+        tries += 1
+        test_res = test_flavor(
+            ctx,
+            flavor=AgentFlavor.base,
+            build_tags=tags,
+            modules=[e2e_module],
+            args=args,
+            cmd=cmd,
+            env=env_vars,
+            junit_tar=junit_tar,
+            result_json=result_json,
+            test_profiler=None,
+        )
 
-    # Remove any known flaky tests from the failed tests
-    known_flaky_failures = washer.get_flaky_failures()
-    to_retry = {  # noqa: F841
-        (package, test_name)
-        for package, tests in failed_tests.items()
-        for test_name in tests
-        if package not in known_flaky_failures or test_name not in known_flaky_failures[package]
-    }
+        failed_tests = washer.get_failing_tests()
+
+        # Retry any failed tests that are not known to be flaky
+        known_flaky_failures = washer.get_flaky_failures()
+        to_retry = {
+            (package, test_name)
+            for package, tests in failed_tests.items()
+            for test_name in tests
+            if package not in known_flaky_failures or test_name not in known_flaky_failures[package]
+        }
+
+        if to_retry:
+            print(
+                color_message(
+                    f"Retrying {len(to_retry)} failed tests:\n- {'\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))}",
+                    "yellow",
+                )
+            )
+
+            # Retry the failed tests only
+            affected_packages = {
+                os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_retry
+            }
+            e2e_module.test_targets = list(affected_packages)
+            args["run"] = '-test.run ' + _create_test_selection_regex([test for _, test in to_retry])
+        else:
+            break
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
@@ -608,6 +630,26 @@ def write_result_to_log_files(logs_per_test, log_folder, test_depth=1):
         sanitized_test_name = re.sub(r"[^\w_. -]", "_", test)
         with open(f"{log_folder}/{sanitized_package_name}.{sanitized_test_name}.log", "w") as f:
             f.write("".join(logs))
+
+
+def _create_test_selection_regex(test_names: list[str]) -> str:
+    """
+    Create a regex to exact-match the tests in the targets list.
+    Ex: ["TestFoo", "TestBar"] -> "^(?:TestFoo|TestBar)$"
+    """
+    if not test_names:
+        return ""
+
+    # Remove any whitespace and eventual ^$ surrounding the test names
+    processed_names = [name.strip().strip("^$") for name in test_names]
+
+    # Join them with a pipe to create an OR regex
+    regex_body = "|".join(processed_names)
+    if len(processed_names) > 1:
+        # If we have more than one test, we need to group them with a non-capturing group
+        regex_body = f"(?:{regex_body})"
+
+    return f'"^{regex_body}$"'
 
 
 class TooManyLogsError(Exception):
