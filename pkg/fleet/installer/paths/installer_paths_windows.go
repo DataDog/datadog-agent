@@ -54,6 +54,16 @@ var (
 	RunPath string
 )
 
+// securityInfo holds the security information extracted from a security
+// descriptor for use in Windows API calls such as SetNamedSecurityInfo.
+type securityInfo struct {
+	Flags windows.SECURITY_INFORMATION
+	Owner *windows.SID
+	Group *windows.SID
+	DACL  *windows.ACL
+	SACL  *windows.ACL
+}
+
 func init() {
 	// Fetch environment variables, the paths are configurable.
 	// setup and experiment subcommands will respect the paths configured in the environment.
@@ -329,24 +339,24 @@ func treeResetNamedSecurityInfoWithSDDL(root string, sddl string) error {
 	return treeResetNamedSecurityInfoFromSecurityDescriptor(root, sd)
 }
 
-func getSecurityInfoFromSecurityDescriptor(sd *windows.SECURITY_DESCRIPTOR) (windows.SECURITY_INFORMATION, *windows.SID, *windows.SID, *windows.ACL, *windows.ACL, error) {
+func getSecurityInfoFromSecurityDescriptor(sd *windows.SECURITY_DESCRIPTOR) (*securityInfo, error) {
 	var flags windows.SECURITY_INFORMATION
 	control, _, err := sd.Control()
 	if err != nil {
-		return 0, nil, nil, nil, nil, err
+		return nil, err
 	}
 	flags |= securityInformationFromControlFlags(control)
 
 	owner, _, err := sd.Owner()
 	if err != nil {
-		return 0, nil, nil, nil, nil, err
+		return nil, err
 	}
 	if owner != nil {
 		flags |= windows.OWNER_SECURITY_INFORMATION
 	}
 	group, _, err := sd.Group()
 	if err != nil {
-		return 0, nil, nil, nil, nil, err
+		return nil, err
 	}
 	if group != nil {
 		flags |= windows.GROUP_SECURITY_INFORMATION
@@ -354,7 +364,7 @@ func getSecurityInfoFromSecurityDescriptor(sd *windows.SECURITY_DESCRIPTOR) (win
 	dacl, _, err := sd.DACL()
 	if err != nil {
 		if err != windows.ERROR_OBJECT_NOT_FOUND {
-			return 0, nil, nil, nil, nil, err
+			return nil, err
 		}
 	} else {
 		flags |= windows.DACL_SECURITY_INFORMATION
@@ -362,35 +372,41 @@ func getSecurityInfoFromSecurityDescriptor(sd *windows.SECURITY_DESCRIPTOR) (win
 	sacl, _, err := sd.SACL()
 	if err != nil {
 		if err != windows.ERROR_OBJECT_NOT_FOUND {
-			return 0, nil, nil, nil, nil, err
+			return nil, err
 		}
 	} else {
 		flags |= windows.SACL_SECURITY_INFORMATION
 	}
-	return flags, owner, group, dacl, sacl, nil
+	return &securityInfo{
+		Flags: flags,
+		Owner: owner,
+		Group: group,
+		DACL:  dacl,
+		SACL:  sacl,
+	}, nil
 }
 
 func setNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.SECURITY_DESCRIPTOR) error {
-	flags, owner, group, dacl, sacl, err := getSecurityInfoFromSecurityDescriptor(sd)
+	info, err := getSecurityInfoFromSecurityDescriptor(sd)
 	if err != nil {
 		return err
 	}
-	return windows.SetNamedSecurityInfo(root, windows.SE_FILE_OBJECT, flags, owner, group, dacl, sacl)
+	return windows.SetNamedSecurityInfo(root, windows.SE_FILE_OBJECT, info.Flags, info.Owner, info.Group, info.DACL, info.SACL)
 }
 
 func treeResetNamedSecurityInfoFromSecurityDescriptor(root string, sd *windows.SECURITY_DESCRIPTOR) error {
-	flags, owner, group, dacl, sacl, err := getSecurityInfoFromSecurityDescriptor(sd)
+	info, err := getSecurityInfoFromSecurityDescriptor(sd)
 	if err != nil {
 		return err
 	}
 	err = TreeResetNamedSecurityInfo(
 		root,
 		windows.SE_FILE_OBJECT,
-		flags,
-		owner,
-		group,
-		dacl,
-		sacl,
+		info.Flags,
+		info.Owner,
+		info.Group,
+		info.DACL,
+		info.SACL,
 		// Set to false to remove explicit ACEs from the subtree
 		false)
 	if err != nil {
