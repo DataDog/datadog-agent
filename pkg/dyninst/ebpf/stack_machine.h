@@ -554,19 +554,15 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     return 1;
   }
   const sm_opcode_t op = (sm_opcode_t)sm_read_program_uint8(sm);
-  LOG(4, "%8d %s %s", sm->pc - 1, padding(sm->pc_stack_pointer), op_code_name(op));
+  LOG(4, "%6x %s %s", sm->pc - 1, padding(sm->pc_stack_pointer), op_code_name(op));
   if (sm->pc >= stack_machine_code_len - stack_machine_code_max_op + 1) {
     return 1;
   }
   barrier_var(sm->pc);
   switch (op) {
-  case SM_OP_CHASE_POINTERS: {
-    data_item_header_t* elem = pointers_queue_pop(&sm->pointers_queue);
-    if (elem != NULL) {
-      // Loop as long as there are more pointers to chase.
-      sm->pc--;
-      sm_chase_pointer(ctx, *elem);
-    }
+  case SM_OP_ILLEGAL: {
+    LOG(1, "enqueue: illegal instruction");
+    return 1;
   } break;
 
   case SM_OP_CALL: {
@@ -578,191 +574,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
     sm->pc_stack_pointer++;
     sm->pc = next_pc;
-  } break;
-
-  case SM_OP_ENQUEUE_GO_EMPTY_INTERFACE: {
-    // resolved_go_interface_t r;
-    // if (!sm_resolve_go_empty_interface(ctx, &r)) {
-    //   return 1;
-    // }
-    // // Overwrite the type_addr with the go_runtime_type.
-    // if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
-    //   return 1;
-    // }
-    // *(uint64_t*)(&(*buf)[sm->offset + OFFSET_runtime_dot_eface___type]) =
-    //     r.go_runtime_type;
-    // if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
-    //   LOG(3, "enqueue: failed empty interface chase");
-    // }
-  } break;
-
-  case SM_OP_ENQUEUE_GO_INTERFACE: {
-    // resolved_go_interface_t r;
-    // if (!sm_resolve_go_interface(ctx, &r)) {
-    //   return 1;
-    // }
-    // if (r.go_runtime_type == 0) {
-    //   break;
-    // }
-    // // Overwrite the type_addr with the go_runtime_type.
-    // if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
-    //   return 1;
-    // }
-    // *(uint64_t*)(&(*buf)[sm->offset + OFFSET_runtime_dot_iface__tab]) =
-    //     r.go_runtime_type;
-    // if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
-    //   LOG(3, "enqueue: failed interface chase");
-    // }
-  } break;
-
-  case SM_OP_ENQUEUE_GO_HMAP_HEADER: {
-    // https://github.com/golang/go/blob/8d04110c/src/runtime/map.go#L105
-    const uint8_t same_size_grow = 8;
-
-    type_t buckets_array_type = (type_t)sm_read_program_uint32(sm);
-    uint32_t bucket_byte_len = sm_read_program_uint32(sm);
-
-    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-      return 1;
-    }
-    uint8_t flags = *(uint8_t*)&((*buf)[sm->buf_offset_0]);
-
-    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-      return 1;
-    }
-    uint8_t b = *(uint8_t*)&((*buf)[sm->buf_offset_0]);
-
-    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-      return 1;
-    }
-    target_ptr_t buckets_addr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
-
-    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-      return 1;
-    }
-    target_ptr_t oldbuckets_addr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
-
-    // We might have to chase two sets of buckets. Stack variable controls
-    // jumping to repeat this op.
-    uint32_t stack_top = sm->data_stack_pointer - 1;
-    if (stack_top >= ENQUEUE_STACK_DEPTH) {
-      LOG(2, "enqueue: stack out of bounds %d", stack_top);
-      return 1;
-    }
-    uint32_t* stage = &sm->data_stack[stack_top];
-
-    if (*stage == 2) {
-      // This is first iteration.
-      *stage = 1;
-      if (buckets_addr != 0) {
-        uint32_t num_buckets = 1 << b;
-        uint32_t buckets_size = num_buckets * bucket_byte_len;
-        if (!sm_record_pointer(ctx, buckets_array_type, buckets_addr,
-                               buckets_size)) {
-          LOG(3, "enqueue: failed map chase (new buckets)");
-        }
-        break;
-      }
-    }
-
-    // This is second iteration, or there were no new buckets.
-    *stage = 0;
-    if (oldbuckets_addr != 0) {
-      uint32_t num_buckets = 1 << b;
-      if ((flags & same_size_grow) == 0) {
-        num_buckets >>= 1;
-      }
-      uint32_t buckets_size = num_buckets * bucket_byte_len;
-      if (!sm_record_pointer(ctx, buckets_array_type, oldbuckets_addr,
-                             buckets_size)) {
-        LOG(3, "enqueue: failed map chase (old buckets)");
-      }
-    }
-  } break;
-
-  case SM_OP_ENQUEUE_GO_SWISS_MAP: {
-    type_t table_ptr_slice_type = (type_t)sm_read_program_uint32(sm);
-    type_t group_type = (type_t)sm_read_program_uint32(sm);
-    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-    sm->buf_offset_1 = sm->offset + sm_read_program_uint8(sm);
-
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-      return 1;
-    }
-    target_ptr_t dir_ptr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
-    if (!scratch_buf_bounds_check(&sm->buf_offset_1, sizeof(int64_t))) {
-      return 1;
-    }
-    int64_t dir_len = *(int64_t*)&((*buf)[sm->buf_offset_1]);
-
-    if (dir_len > 0) {
-      if (!sm_record_pointer(ctx, table_ptr_slice_type, dir_ptr, 8 * dir_len)) {
-        LOG(3, "enqueue: failed swiss map record (full)");
-      }
-    } else {
-      if (!sm_record_pointer(ctx, group_type, dir_ptr, ENQUEUE_LEN_SENTINEL)) {
-        LOG(3, "enqueue: failed swiss map record (inline)");
-      }
-    }
-  } break;
-
-  case SM_OP_ENQUEUE_GO_SWISS_MAP_GROUPS: {
-    type_t group_slice_type = (type_t)sm_read_program_uint32(sm);
-    uint32_t group_byte_len = sm_read_program_uint32(sm);
-
-    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
-      return 1;
-    }
-    target_ptr_t data = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
-
-    sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
-    if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(int64_t))) {
-      return 1;
-    }
-    uint64_t length_mask = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
-
-    if (!sm_record_pointer(ctx, group_slice_type, data,
-                           group_byte_len * (length_mask + 1))) {
-      LOG(3, "enqueue: failed swiss map groups record");
-    }
-  } break;
-
-  case SM_OP_ENQUEUE_GO_SUBROUTINE: {
-    // if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
-    //   return 1;
-    // }
-    // uint32_t orig_buf_len = scratch_buf_len(buf);
-    // // First serialize as "unknown subroutine" that just captures the entry pc.
-    // target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
-    // if (addr == 0) {
-    //   break;
-    // }
-    // sm->di_0.type = unresolved_go_subroutine_type;
-    // sm->di_0.length = 8;
-    // sm->di_0.address = addr;
-    // sm->buf_offset_0 = scratch_buf_serialize(buf, &sm->di_0, 8);
-    // if (!sm->buf_offset_0) {
-    //   LOG(3, "enqueue: failed to serialize subroutine");
-    //   break;
-    // }
-    // if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(uint64_t))) {
-    //   return 1;
-    // }
-    // uint64_t entry_pc = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
-    // type_t type = lookup_go_subroutine(entry_pc);
-    // if (type != TYPE_NONE) {
-    //   // We know the actual subroutine type. Drop the previously serialized
-    //   // message.
-    //   scratch_buf_set_len(buf, orig_buf_len);
-    //   if (!sm_record_pointer(ctx, type, addr, ENQUEUE_LEN_SENTINEL)) {
-    //     LOG(3, "enqueue: failed subroutine record");
-    //   }
-    // }
   } break;
 
   case SM_OP_RETURN: {
@@ -814,12 +625,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   } break;
 
 
-  case SM_OP_DEREFERENCE_CFA_OFFSET: {
+  case SM_OP_EXPR_DEREFERENCE_CFA: {
     int32_t cfa_offset = sm_read_program_uint32(sm);
     uint32_t data_len = sm_read_program_uint32(sm);
     uint32_t output_offset = sm_read_program_uint32(sm);
-    target_ptr_t addr =
-        (target_ptr_t)((int64_t)(sm->frame_data.fp) + 16 + cfa_offset);
+    target_ptr_t addr = (target_ptr_t)((int64_t)(sm->frame_data.cfa) + cfa_offset);
     if (!scratch_buf_dereference(buf, sm->offset + output_offset, data_len, addr)) {
       return 1;
     }
@@ -893,30 +703,30 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(5, "recorded scratch@0x%llx < [register expr]", sm->offset);
   } break;
 
-  case SM_OP_DEREFERENCE_PTR: {
-    uint32_t bias = sm_read_program_uint32(sm);
-    uint32_t byte_len = sm_read_program_uint32(sm);
-    buf_offset_t value_offset = sm->offset;
-    if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
-      return 1;
-    }
-    data_item_header_t di = {
-        .type = 0,
-        .length = byte_len,
-        .address = *(target_ptr_t*)&((*buf)[value_offset]) + bias};
-    if (di.address == 0) {
-      sm->offset = 0;
-    } else {
-      sm->offset = scratch_buf_serialize(buf, &di, byte_len);
-    }
-    if (!sm->offset) {
-      // Abort expression evaluation by returning early.
-      scratch_buf_set_len(buf, sm->expr_results_end_offset);
-      if (!sm_return(sm)) {
-        return 1;
-      }
-    }
-  } break;
+  // case SM_OP_EXPR_DEREFERENCE_PTR: {
+  //   uint32_t bias = sm_read_program_uint32(sm);
+  //   uint32_t byte_len = sm_read_program_uint32(sm);
+  //   buf_offset_t value_offset = sm->offset;
+  //   if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   data_item_header_t di = {
+  //       .type = 0,
+  //       .length = byte_len,
+  //       .address = *(target_ptr_t*)&((*buf)[value_offset]) + bias};
+  //   if (di.address == 0) {
+  //     sm->offset = 0;
+  //   } else {
+  //     sm->offset = scratch_buf_serialize(buf, &di, byte_len);
+  //   }
+  //   if (!sm->offset) {
+  //     // Abort expression evaluation by returning early.
+  //     scratch_buf_set_len(buf, sm->expr_results_end_offset);
+  //     if (!sm_return(sm)) {
+  //       return 1;
+  //     }
+  //   }
+  // } break;
 
   case SM_OP_PROCESS_POINTER: {
     type_t elem_type = (type_t)sm_read_program_uint32(sm);
@@ -952,6 +762,47 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(4, "enqueue: slice len %d", len)
   } break;
 
+  case SM_OP_PROCESS_ARRAY_DATA_PREP: {
+    uint32_t array_len = sm_read_program_uint32(sm);
+    // We need to iterate over the slice data, push the length on the data stack to control the loop.
+    sm_data_stack_push(sm, array_len);
+    LOG(4, "array data prep: %d", array_len);
+  } break;
+
+  case SM_OP_PROCESS_SLICE_DATA_PREP: {
+    if (sm->di_0.length == 0) {
+      // Nothing to do for an empty slice.
+      sm_return(sm);
+      break;
+    }
+
+    // We need to iterate over the slice data, push the length on the data stack to control the loop.
+    sm_data_stack_push(sm, sm->di_0.length);
+  } break;
+
+  case SM_OP_PROCESS_SLICE_DATA_REPEAT: {
+    uint32_t elem_byte_len = sm_read_program_uint32(sm);
+    sm->offset += elem_byte_len;
+    if (sm->data_stack_pointer == 0) {
+      LOG(2, "unexpected empty data stack during slice iteration");
+      return 1;
+    }
+    if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
+      LOG(2, "unexpected full data stack during slice iteration");
+      return 1;
+    }
+    uint32_t* remaining =  &sm->data_stack[sm->data_stack_pointer-1];
+    LOG(4, "remaining: %d", *remaining);
+    if (*remaining <= elem_byte_len) {
+      // End of the slice.
+      sm_data_stack_pop(sm);
+      break;
+    }
+    *remaining -= elem_byte_len;
+    // Jump back to a call instruction that directly preceedes this one.
+    sm->pc -= 5 + 5;
+  } break;
+
   case SM_OP_PROCESS_STRING: {
     type_t string_data_type = (type_t)sm_read_program_uint32(sm);
     LOG(4, "processing string @0x%llx", sm->offset);
@@ -985,6 +836,15 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   //   zero_data(buf, sm->offset, sm->di_0.length);
   // } break;
 
+  case SM_OP_CHASE_POINTERS: {
+    data_item_header_t* elem = pointers_queue_pop(&sm->pointers_queue);
+    if (elem != NULL) {
+      // Loop as long as there are more pointers to chase.
+      sm->pc--;
+      sm_chase_pointer(ctx, *elem);
+    }
+  } break;
+
   case SM_OP_PREPARE_EVENT_ROOT: {
     type_t typ = (type_t)sm_read_program_uint32(sm);
     uint32_t data_len = sm_read_program_uint32(sm);
@@ -1009,6 +869,191 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->offset = sm->buf_offset_0;
     zero_data(buf, sm->offset, data_len);
   } break;
+
+  // case SM_OP_ENQUEUE_GO_EMPTY_INTERFACE: {
+  //   resolved_go_interface_t r;
+  //   if (!sm_resolve_go_empty_interface(ctx, &r)) {
+  //     return 1;
+  //   }
+  //   // Overwrite the type_addr with the go_runtime_type.
+  //   if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   *(uint64_t*)(&(*buf)[sm->offset + OFFSET_runtime_dot_eface___type]) =
+  //       r.go_runtime_type;
+  //   if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
+  //     LOG(3, "enqueue: failed empty interface chase");
+  //   }
+  // } break;
+
+  // case SM_OP_ENQUEUE_GO_INTERFACE: {
+  //   resolved_go_interface_t r;
+  //   if (!sm_resolve_go_interface(ctx, &r)) {
+  //     return 1;
+  //   }
+  //   if (r.go_runtime_type == 0) {
+  //     break;
+  //   }
+  //   // Overwrite the type_addr with the go_runtime_type.
+  //   if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   *(uint64_t*)(&(*buf)[sm->offset + OFFSET_runtime_dot_iface__tab]) =
+  //       r.go_runtime_type;
+  //   if (!sm_record_go_interface_impl(ctx, r.go_runtime_type, r.addr)) {
+  //     LOG(3, "enqueue: failed interface chase");
+  //   }
+  // } break;
+
+  // case SM_OP_ENQUEUE_GO_HMAP_HEADER: {
+  //   // https://github.com/golang/go/blob/8d04110c/src/runtime/map.go#L105
+  //   const uint8_t same_size_grow = 8;
+
+  //   type_t buckets_array_type = (type_t)sm_read_program_uint32(sm);
+  //   uint32_t bucket_byte_len = sm_read_program_uint32(sm);
+
+  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   uint8_t flags = *(uint8_t*)&((*buf)[sm->buf_offset_0]);
+
+  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   uint8_t b = *(uint8_t*)&((*buf)[sm->buf_offset_0]);
+
+  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   target_ptr_t buckets_addr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
+
+  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   target_ptr_t oldbuckets_addr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
+
+  //   // We might have to chase two sets of buckets. Stack variable controls
+  //   // jumping to repeat this op.
+  //   uint32_t stack_top = sm->data_stack_pointer - 1;
+  //   if (stack_top >= ENQUEUE_STACK_DEPTH) {
+  //     LOG(2, "enqueue: stack out of bounds %d", stack_top);
+  //     return 1;
+  //   }
+  //   uint32_t* stage = &sm->data_stack[stack_top];
+
+  //   if (*stage == 2) {
+  //     // This is first iteration.
+  //     *stage = 1;
+  //     if (buckets_addr != 0) {
+  //       uint32_t num_buckets = 1 << b;
+  //       uint32_t buckets_size = num_buckets * bucket_byte_len;
+  //       if (!sm_record_pointer(ctx, buckets_array_type, buckets_addr,
+  //                              buckets_size)) {
+  //         LOG(3, "enqueue: failed map chase (new buckets)");
+  //       }
+  //       break;
+  //     }
+  //   }
+
+  //   // This is second iteration, or there were no new buckets.
+  //   *stage = 0;
+  //   if (oldbuckets_addr != 0) {
+  //     uint32_t num_buckets = 1 << b;
+  //     if ((flags & same_size_grow) == 0) {
+  //       num_buckets >>= 1;
+  //     }
+  //     uint32_t buckets_size = num_buckets * bucket_byte_len;
+  //     if (!sm_record_pointer(ctx, buckets_array_type, oldbuckets_addr,
+  //                            buckets_size)) {
+  //       LOG(3, "enqueue: failed map chase (old buckets)");
+  //     }
+  //   }
+  // } break;
+
+  // case SM_OP_ENQUEUE_GO_SWISS_MAP: {
+  //   type_t table_ptr_slice_type = (type_t)sm_read_program_uint32(sm);
+  //   type_t group_type = (type_t)sm_read_program_uint32(sm);
+  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+  //   sm->buf_offset_1 = sm->offset + sm_read_program_uint8(sm);
+
+  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   target_ptr_t dir_ptr = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
+  //   if (!scratch_buf_bounds_check(&sm->buf_offset_1, sizeof(int64_t))) {
+  //     return 1;
+  //   }
+  //   int64_t dir_len = *(int64_t*)&((*buf)[sm->buf_offset_1]);
+
+  //   if (dir_len > 0) {
+  //     if (!sm_record_pointer(ctx, table_ptr_slice_type, dir_ptr, 8 * dir_len)) {
+  //       LOG(3, "enqueue: failed swiss map record (full)");
+  //     }
+  //   } else {
+  //     if (!sm_record_pointer(ctx, group_type, dir_ptr, ENQUEUE_LEN_SENTINEL)) {
+  //       LOG(3, "enqueue: failed swiss map record (inline)");
+  //     }
+  //   }
+  // } break;
+
+  // case SM_OP_ENQUEUE_GO_SWISS_MAP_GROUPS: {
+  //   type_t group_slice_type = (type_t)sm_read_program_uint32(sm);
+  //   uint32_t group_byte_len = sm_read_program_uint32(sm);
+
+  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   target_ptr_t data = *(target_ptr_t*)&((*buf)[sm->buf_offset_0]);
+
+  //   sm->buf_offset_0 = sm->offset + sm_read_program_uint8(sm);
+  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(int64_t))) {
+  //     return 1;
+  //   }
+  //   uint64_t length_mask = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
+
+  //   if (!sm_record_pointer(ctx, group_slice_type, data,
+  //                          group_byte_len * (length_mask + 1))) {
+  //     LOG(3, "enqueue: failed swiss map groups record");
+  //   }
+  // } break;
+
+  // case SM_OP_ENQUEUE_GO_SUBROUTINE: {
+  //   if (!scratch_buf_bounds_check(&sm->offset, sizeof(target_ptr_t))) {
+  //     return 1;
+  //   }
+  //   uint32_t orig_buf_len = scratch_buf_len(buf);
+  //   // First serialize as "unknown subroutine" that just captures the entry pc.
+  //   target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
+  //   if (addr == 0) {
+  //     break;
+  //   }
+  //   sm->di_0.type = unresolved_go_subroutine_type;
+  //   sm->di_0.length = 8;
+  //   sm->di_0.address = addr;
+  //   sm->buf_offset_0 = scratch_buf_serialize(buf, &sm->di_0, 8);
+  //   if (!sm->buf_offset_0) {
+  //     LOG(3, "enqueue: failed to serialize subroutine");
+  //     break;
+  //   }
+  //   if (!scratch_buf_bounds_check(&sm->buf_offset_0, sizeof(uint64_t))) {
+  //     return 1;
+  //   }
+  //   uint64_t entry_pc = *(uint64_t*)&((*buf)[sm->buf_offset_0]);
+  //   type_t type = lookup_go_subroutine(entry_pc);
+  //   if (type != TYPE_NONE) {
+  //     // We know the actual subroutine type. Drop the previously serialized
+  //     // message.
+  //     scratch_buf_set_len(buf, orig_buf_len);
+  //     if (!sm_record_pointer(ctx, type, addr, ENQUEUE_LEN_SENTINEL)) {
+  //       LOG(3, "enqueue: failed subroutine record");
+  //     }
+  //   }
+  // } break;
 
   // case SM_OP_PREPARE_GO_CONTEXT: {
   //   uint32_t data_len = sm_read_program_uint32(sm);
@@ -1115,8 +1160,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   //   sm->go_context_offset = 0;
   //   sm->go_context_capture_bitmask = 0;
   // } break;
-
-  case SM_OP_ILLEGAL: LOG(1, "enqueue: illegal instruction") return 1;
 
   default: LOG(1, "enqueue: unknown instruction %d\n", op); return 1;
   }

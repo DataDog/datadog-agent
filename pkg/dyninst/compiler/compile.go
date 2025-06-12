@@ -32,7 +32,7 @@ type CompiledBPF struct {
 }
 
 // CompileBPFProgram compiles the eBPF program.
-func CompileBPFProgram(program ir.Program, extraCodeSink io.Writer) (CompiledBPF, error) {
+func CompileBPFProgram(program *ir.Program, extraCodeSink io.Writer) (CompiledBPF, error) {
 	generatedCode := bytes.NewBuffer(nil)
 	smProgram, err := sm.GenerateProgram(program)
 	if err != nil {
