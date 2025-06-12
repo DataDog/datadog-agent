@@ -76,6 +76,20 @@ func (c *NTPCheck) String() string {
 
 // for testing
 var getCloudProviderNTPHosts = cloudproviders.GetCloudProviderNTPHosts
+var getLocalDefinedNTPServersFunc = getLocalDefinedNTPServers
+
+// stringSlicesEqual compares two string slices for equality
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
+}
 
 func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() ([]string, error)) error {
 	var instance ntpInstanceConfig
@@ -150,7 +164,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 // Configure configure the data from the yaml
 func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	cfg := new(ntpConfig)
-	err := cfg.parse(data, initConfig, getLocalDefinedNTPServers)
+	err := cfg.parse(data, initConfig, getLocalDefinedNTPServersFunc)
 	if err != nil {
 		log.Errorf("Error parsing configuration file: %s", err)
 		return err
@@ -172,6 +186,24 @@ func (c *NTPCheck) Run() error {
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
+	}
+
+	// Re-discover NTP servers on every run for dynamic environments (e.g., DC promotions)
+	if c.cfg.instance.UseLocalDefinedServers {
+		servers, err := getLocalDefinedNTPServersFunc()
+		if err != nil {
+			log.Warnf("Could not re-discover NTP servers: %v", err)
+		} else if len(servers) > 0 {
+			// Check if servers have changed
+			if !stringSlicesEqual(c.cfg.instance.Hosts, servers) {
+				log.Infof("NTP servers changed from [%s] to [%s]",
+					strings.Join(c.cfg.instance.Hosts, ", "),
+					strings.Join(servers, ", "))
+				c.cfg.instance.Hosts = servers // Update the list of hosts for this run
+			} else {
+				log.Debugf("Re-discovered same NTP servers: [%s]", strings.Join(servers, ", "))
+			}
+		}
 	}
 
 	var serviceCheckStatus servicecheck.ServiceCheckStatus
