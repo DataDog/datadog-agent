@@ -216,7 +216,11 @@ var defaultProfiles = `
           aggregate_tags:
             - compression_kind
         - name: logs.sender_latency
-        - name: logs.auto_multi_line_aggregator_flush
+		- name: logs.truncated
+		  aggregate_tags:
+			- service
+			- source
+		- name: logs.auto_multi_line_aggregator_flush
           aggregate_tags:
             - truncated
             - line_type
