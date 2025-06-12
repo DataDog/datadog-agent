@@ -35,6 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// logLimitProbe is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
+var logLimitProbe = log.NewLogLimit(20, 10*time.Minute)
+
 const (
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
@@ -93,15 +96,6 @@ type ProbeDependencies struct {
 	// WorkloadMeta used to retrieve data about workloads (containers, processes) running
 	// on the host
 	WorkloadMeta workloadmeta.Component
-}
-
-// NewProbeDependencies creates a new ProbeDependencies instance
-func NewProbeDependencies(telemetry telemetry.Component, processMonitor uprobes.ProcessMonitor, workloadMeta workloadmeta.Component) (ProbeDependencies, error) {
-	return ProbeDependencies{
-		Telemetry:      telemetry,
-		ProcessMonitor: processMonitor,
-		WorkloadMeta:   workloadMeta,
-	}, nil
 }
 
 // Probe represents the GPU monitoring probe
@@ -216,6 +210,9 @@ func (p *Probe) start() error {
 	if err := p.attacher.Start(); err != nil {
 		return fmt.Errorf("error starting uprobes attacher: %w", err)
 	}
+
+	ddebpf.AddProbeFDMappings(p.m.Manager)
+
 	return nil
 }
 
@@ -223,7 +220,7 @@ func (p *Probe) start() error {
 func (p *Probe) Close() {
 	p.attacher.Stop()
 	_ = p.m.Stop(manager.CleanAll)
-	ddebpf.ClearNameMappings(consts.GpuModuleName)
+	ddebpf.ClearProgramIDMappings(consts.GpuModuleName)
 	p.consumer.Stop()
 	p.eventHandler.Stop()
 }
@@ -241,14 +238,14 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 	}
 
 	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
-	p.cleanupFinished()
+	p.cleanupFinished(now)
 
 	return stats, nil
 }
 
-func (p *Probe) cleanupFinished() {
+func (p *Probe) cleanupFinished(nowKtime int64) {
 	p.statsGenerator.cleanupFinishedAggregators()
-	p.streamHandlers.clean()
+	p.streamHandlers.clean(nowKtime)
 }
 
 func (p *Probe) initRCGPU(cfg *config.Config) error {
@@ -392,7 +389,8 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		SharedLibsLibset:               sharedlibraries.LibsetGPU,
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
-		EnableDetailedLogging:          true,
+		EnableDetailedLogging:          false,
+		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf,
 	}
 }
 

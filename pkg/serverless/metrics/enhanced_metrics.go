@@ -111,6 +111,7 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 			Tags:       args.Tags,
 			SampleRate: 1,
 			Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		})
 	}
 	args.Demux.AggregateSample(metrics.MetricSample{
@@ -120,6 +121,7 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       responseDurationMetric,
@@ -128,6 +130,7 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       producedBytesMetric,
@@ -136,6 +139,7 @@ func GenerateEnhancedMetricsFromRuntimeDoneLog(args GenerateEnhancedMetricsFromR
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  float64(args.End.UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 }
 
@@ -183,6 +187,7 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       memorySizeMetric,
@@ -191,6 +196,7 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       billedDurationMetric,
@@ -199,6 +205,7 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       durationMetric,
@@ -207,6 +214,7 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       estimatedCostMetric,
@@ -215,6 +223,7 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	if args.RuntimeStart.IsZero() || args.RuntimeEnd.IsZero() {
 		log.Debug("Impossible to compute aws.lambda.enhanced.post_runtime_duration due to an invalid interval")
@@ -227,6 +236,7 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 			Tags:       args.Tags,
 			SampleRate: 1,
 			Timestamp:  timestamp,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		})
 	}
 	if args.InitDurationMs > 0 {
@@ -237,6 +247,7 @@ func GenerateEnhancedMetricsFromReportLog(args GenerateEnhancedMetricsFromReport
 			Tags:       args.Tags,
 			SampleRate: 1,
 			Timestamp:  timestamp,
+			Source:     metrics.MetricSourceAwsLambdaEnhanced,
 		})
 	}
 }
@@ -298,6 +309,7 @@ func generateCPUEnhancedMetrics(args generateCPUEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuUserTimeMetric,
@@ -306,6 +318,7 @@ func generateCPUEnhancedMetrics(args generateCPUEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuTotalTimeMetric,
@@ -314,6 +327,7 @@ func generateCPUEnhancedMetrics(args generateCPUEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 }
 
@@ -325,6 +339,7 @@ func SendFailoverReasonMetric(tags []string, demux aggregator.Demultiplexer) {
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  float64(time.Now().UnixNano()) / float64(time.Second),
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 }
 
@@ -403,6 +418,7 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuTotalUtilizationMetric,
@@ -411,6 +427,7 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       numCoresMetric,
@@ -419,6 +436,7 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuMaxUtilizationMetric,
@@ -427,6 +445,7 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuMinUtilizationMetric,
@@ -435,6 +454,7 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 }
 
@@ -481,6 +501,7 @@ func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       txBytesMetric,
@@ -489,6 +510,7 @@ func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       totalNetworkMetric,
@@ -497,6 +519,7 @@ func generateNetworkEnhancedMetrics(args generateNetworkEnhancedMetricArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 }
 
@@ -517,6 +540,7 @@ func generateTmpEnhancedMetrics(args generateTmpEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       tmpMaxMetric,
@@ -525,6 +549,7 @@ func generateTmpEnhancedMetrics(args generateTmpEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 }
 
@@ -593,6 +618,7 @@ func generateFdEnhancedMetrics(args generateFdEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       fdUseMetric,
@@ -601,6 +627,7 @@ func generateFdEnhancedMetrics(args generateFdEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 }
 
@@ -613,6 +640,7 @@ func generateThreadEnhancedMetrics(args generateThreadEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       threadsUseMetric,
@@ -621,6 +649,7 @@ func generateThreadEnhancedMetrics(args generateThreadEnhancedMetricsArgs) {
 		Tags:       args.Tags,
 		SampleRate: 1,
 		Timestamp:  args.Time,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 }
 
@@ -715,6 +744,7 @@ func incrementEnhancedMetric(name string, tags []string, timestamp float64, demu
 		Tags:       tags,
 		SampleRate: 1,
 		Timestamp:  timestamp,
+		Source:     metrics.MetricSourceAwsLambdaEnhanced,
 	})
 }
 

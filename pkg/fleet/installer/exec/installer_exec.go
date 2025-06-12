@@ -50,7 +50,7 @@ func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command s
 	// Enforce the use of the installer when it is bundled with the agent.
 	env = append(env, "DD_BUNDLED_AGENT=installer")
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
-	span.SetTag("args", args)
+	span.SetTag("args", strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
 	env = append(env, telemetry.EnvFromContext(ctx)...)
@@ -327,62 +327,24 @@ func (iCmd *installerCmd) Run() error {
 	return fmt.Errorf("run failed: %w \n%s", installerError, err.Error())
 }
 
-// PostInstall runs post install scripts for a given package.
-func (i *InstallerExec) PostInstall(ctx context.Context, pkg string, caller string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "postinst", pkg, caller)
+// RunHook runs a hook for a given package.
+func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "hooks", hookContext)
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }
 
-// PreRemove runs pre remove scripts for a given package.
-func (i *InstallerExec) PreRemove(ctx context.Context, pkg string, caller string, update bool) (err error) {
-	args := []string{pkg, caller}
-	if update {
-		args = append(args, "--update")
-	}
-	cmd := i.newInstallerCmd(ctx, "prerm", args...)
+// StartPackageCommandDetached starts a package-specific command for a given package in the background with detached standard IO.
+func (i *InstallerExec) StartPackageCommandDetached(ctx context.Context, packageName string, command string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "package-command", packageName, command)
 	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
-// PreStartExperiment runs pre-start-experiment scripts for a given package.
-func (i *InstallerExec) PreStartExperiment(ctx context.Context, pkg string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "pre-start-experiment", pkg)
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
-// PostStartExperiment runs post-start-experiment scripts for a given package.
-func (i *InstallerExec) PostStartExperiment(ctx context.Context, pkg string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "post-start-experiment", pkg)
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
-// PreStopExperiment runs pre-stop-experiment scripts for a given package.
-func (i *InstallerExec) PreStopExperiment(ctx context.Context, pkg string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "pre-stop-experiment", pkg)
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
-// PostStopExperiment runs post-stop-experiment scripts for a given package.
-func (i *InstallerExec) PostStopExperiment(ctx context.Context, pkg string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "post-stop-experiment", pkg)
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
-// PrePromoteExperiment runs pre-promote-experiment scripts for a given package.
-func (i *InstallerExec) PrePromoteExperiment(ctx context.Context, pkg string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "pre-promote-experiment", pkg)
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
-// PostPromoteExperiment runs post-promote-experiment scripts for a given package.
-func (i *InstallerExec) PostPromoteExperiment(ctx context.Context, pkg string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "post-promote-experiment", pkg)
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
+	// We're running this process in the background, so we don't intend to collect any output from it.
+	// We set channels to nil here because os/exec waits on these pipes to close even after
+	// the process terminates which can cause us (or our parent) to be forever blocked
+	// by this child process or any children it creates, which may inherit any of these handles
+	// and keep them open.
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	return cmd.Start()
 }

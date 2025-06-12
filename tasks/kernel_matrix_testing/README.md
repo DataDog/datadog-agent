@@ -41,14 +41,14 @@ This will download all the resources required to launch the VMs, and install all
 # Initialize with specific VM images
 dda inv -e kmt.init --images=ubuntu_22.04,debian_10
 
-# Initialize with all available VM images
+# Initialize and download all available VM images for your architecture
 dda inv -e kmt.init --all-images
 
-# Or initialize without downloading any images (lite mode)
-dda inv -e kmt.init --lite
+# If you intend to use KMT *only* for managing remote VMs
+dda inv -e kmt.init --remote-setup-only
 ```
 
-The `--images` parameter is required unless `--lite` or `--all-images` is specified. You can use `dda inv -e kmt.ls` to see available images.
+The `--images` parameter is required unless `--remote-setup-only` or `--all-images` is specified. You can use `dda inv -e kmt.ls` to see available images.
 
 This command will also ask you for the default SSH key to use, so it does not need to be provided every time. You can configure the SSH key again at any time running `dda inv -e kmt.config-ssh-key`. See more details below
 
@@ -167,14 +167,10 @@ This will attempt to manually teardown all resources. Primarily we care about cl
 
 ### Initializing environment
 
+If you only want to initialize the directory structure, you may do a light setup without any parameters:
+
 ```bash
 dda inv -e kmt.init
-```
-
-If you only want to initialize the directory structure, you may do a 'lite' setup as follows:
-
-```bash
-dda inv -e kmt.init --lite
 ```
 
 ### Updating resources

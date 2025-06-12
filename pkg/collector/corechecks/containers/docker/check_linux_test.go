@@ -10,7 +10,7 @@ package docker
 import (
 	"testing"
 
-	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	dockerNetworkTypes "github.com/docker/docker/api/types/network"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
@@ -136,14 +136,14 @@ func TestDockerNetworkExtension(t *testing.T) {
 			},
 		},
 	})
-	container1RawDocker := dockerTypes.Container{
+	container1RawDocker := container.Summary{
 		ID:    "kube-host-network",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string            `json:",omitempty"`
 			Annotations map[string]string `json:",omitempty"`
 		}{NetworkMode: "host"},
-		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
+		NetworkSettings: &container.NetworkSettingsSummary{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
 				"host": {
 					NetworkID:  "someid",
@@ -167,27 +167,27 @@ func TestDockerNetworkExtension(t *testing.T) {
 			},
 		},
 	})
-	container2RawDocker := dockerTypes.Container{
+	container2RawDocker := container.Summary{
 		ID:    "kube-app",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string            `json:",omitempty"`
 			Annotations map[string]string `json:",omitempty"`
 		}{NetworkMode: "container:kube-app-pause"},
-		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
+		NetworkSettings: &container.NetworkSettingsSummary{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{},
 		},
 	}
 
 	// Container3 is only raw as it's excluded (pause container)
-	container3RawDocker := dockerTypes.Container{
+	container3RawDocker := container.Summary{
 		ID:    "kube-app-pause",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string            `json:",omitempty"`
 			Annotations map[string]string `json:",omitempty"`
 		}{NetworkMode: "none"},
-		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
+		NetworkSettings: &container.NetworkSettingsSummary{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
 				"none": {
 					NetworkID:  "someid",
@@ -217,14 +217,14 @@ func TestDockerNetworkExtension(t *testing.T) {
 			},
 		},
 	})
-	container4RawDocker := dockerTypes.Container{
+	container4RawDocker := container.Summary{
 		ID:    "docker-app",
 		State: string(workloadmeta.ContainerStatusRunning),
 		HostConfig: struct {
 			NetworkMode string            `json:",omitempty"`
 			Annotations map[string]string `json:",omitempty"`
 		}{NetworkMode: "ubuntu_default"},
-		NetworkSettings: &dockerTypes.SummaryNetworkSettings{
+		NetworkSettings: &container.NetworkSettingsSummary{
 			Networks: map[string]*dockerNetworkTypes.EndpointSettings{
 				"ubuntu_default": {
 					IPAddress: "172.18.0.2",
@@ -285,7 +285,7 @@ func TestNetworkCustomOnFailure(t *testing.T) {
 	networkExt := dockerNetworkExtension{procPath: "/proc"}
 
 	networkExt.preRun()
-	networkExt.processContainer(dockerTypes.Container{
+	networkExt.processContainer(container.Summary{
 		ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
 		Names:   []string{"agent"},
 		Image:   "datadog/agent",

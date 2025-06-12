@@ -72,7 +72,7 @@ func TestWinCrashReporting(t *testing.T) {
 	var p *probe.WinCrashStatus
 
 	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
-		utils.WriteAsJSON(rw, p)
+		utils.WriteAsJSON(rw, p, utils.CompactOutput)
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))
@@ -224,7 +224,7 @@ func TestCrashReportingStates(t *testing.T) {
 
 	mux.Handle("/windows_crash_detection/check", http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 		results := cp.Get()
-		utils.WriteAsJSON(rw, results)
+		utils.WriteAsJSON(rw, results, utils.CompactOutput)
 	}))
 	mux.Handle("/debug/stats", http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 	}))

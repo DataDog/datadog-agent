@@ -100,6 +100,9 @@ type Config struct {
 	// EventStreamUseKprobeFallback specifies whether to use fentry fallback can be used
 	EventStreamUseKprobeFallback bool
 
+	// EventStreamKretprobeMaxActive specifies the maximum number of active kretprobe at a given time
+	EventStreamKretprobeMaxActive int
+
 	// RuntimeCompilationEnabled defines if the runtime-compilation is enabled
 	RuntimeCompilationEnabled bool
 
@@ -143,6 +146,9 @@ type Config struct {
 
 	// NetworkRawPacketLimiterRate defines the rate at which raw packets should be sent to user space
 	NetworkRawPacketLimiterRate int
+
+	// NetworkRawPacketRestriction defines the global raw packet filter
+	NetworkRawPacketFilter string
 
 	// NetworkPrivateIPRanges defines the list of IP that should be considered private
 	NetworkPrivateIPRanges []string
@@ -200,12 +206,14 @@ func NewConfig() (*Config, error) {
 		EventStreamBufferSize:              getInt("event_stream.buffer_size"),
 		EventStreamUseFentry:               getBool("event_stream.use_fentry"),
 		EventStreamUseKprobeFallback:       getBool("event_stream.use_kprobe_fallback"),
+		EventStreamKretprobeMaxActive:      getInt("event_stream.kretprobe_max_active"),
 
 		EnvsWithValue:               getStringSlice("envs_with_value"),
 		NetworkEnabled:              getBool("network.enabled"),
 		NetworkIngressEnabled:       getBool("network.ingress.enabled"),
 		NetworkRawPacketEnabled:     getBool("network.raw_packet.enabled"),
 		NetworkRawPacketLimiterRate: getInt("network.raw_packet.limiter_rate"),
+		NetworkRawPacketFilter:      getString("network.raw_packet.filter"),
 		NetworkPrivateIPRanges:      getStringSlice("network.private_ip_ranges"),
 		NetworkExtraPrivateIPRanges: getStringSlice("network.extra_private_ip_ranges"),
 		StatsPollingInterval:        time.Duration(getInt("events_stats.polling_interval")) * time.Second,

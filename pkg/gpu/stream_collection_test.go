@@ -9,19 +9,19 @@ package gpu
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
-
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
-	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/nvml/testutil"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
 func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t)
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), config.New())
 
@@ -83,4 +83,83 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	require.Equal(t, pid, globalStream.metadata.pid)
 	require.Equal(t, globalStreamID, globalStream.metadata.streamID)
 	require.Equal(t, testutil.GPUUUIDs[selectedDevice], globalStream.metadata.gpuUUID)
+}
+
+func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	ctx := getTestSystemContext(t)
+	cfg := config.New()
+	cfg.MaxStreamInactivity = 1 * time.Second // Set inactivity threshold to 1 second
+	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
+
+	// Create two streams
+	pid1, pid2 := uint32(1), uint32(2)
+	streamID1, streamID2 := uint64(1), uint64(2)
+
+	header1 := &gpuebpf.CudaEventHeader{
+		Pid_tgid:  uint64(pid1)<<32 + uint64(pid1),
+		Stream_id: streamID1,
+	}
+	header2 := &gpuebpf.CudaEventHeader{
+		Pid_tgid:  uint64(pid2)<<32 + uint64(pid2),
+		Stream_id: streamID2,
+	}
+
+	// Create both streams
+	stream1, err := handlers.getStream(header1)
+	require.NoError(t, err)
+	require.NotNil(t, stream1)
+	stream2, err := handlers.getStream(header2)
+	require.NoError(t, err)
+	require.NotNil(t, stream2)
+
+	// Add an events to both streams to make them active
+	ktimeLaunch1 := uint64(1000)
+	launch := &gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
+			Pid_tgid:  header1.Pid_tgid,
+			Ktime_ns:  ktimeLaunch1,
+			Stream_id: streamID1,
+		},
+		Kernel_addr:     42,
+		Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+		Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+		Shared_mem_size: 100,
+	}
+	stream1.handleKernelLaunch(launch)
+
+	// Add an event to stream1 to make it active
+	ktimeLaunch2 := uint64(2000)
+	launch2 := &gpuebpf.CudaKernelLaunch{
+		Header: gpuebpf.CudaEventHeader{
+			Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
+			Pid_tgid:  header1.Pid_tgid,
+			Ktime_ns:  ktimeLaunch2,
+			Stream_id: streamID1,
+		},
+		Kernel_addr:     42,
+		Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+		Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+		Shared_mem_size: 100,
+	}
+	stream2.handleKernelLaunch(launch2)
+
+	// Clean at a time when stream2 should still be active but stream1 should be inactive
+	endTime := ktimeLaunch1 + uint64(cfg.MaxStreamInactivity.Nanoseconds()+1)
+	handlers.clean(int64(endTime))
+
+	// Verify stream1 is not present (inactive)
+	streamKey1 := streamKey{
+		pid:    pid1,
+		stream: streamID1,
+	}
+	require.NotContains(t, handlers.streams, streamKey1)
+
+	// Verify stream2 is still present (active)
+	streamKey2 := streamKey{
+		pid:    pid2,
+		stream: streamID2,
+	}
+	require.Contains(t, handlers.streams, streamKey2)
 }

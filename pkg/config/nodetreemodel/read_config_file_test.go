@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -204,7 +205,7 @@ c:
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, "unknown key from YAML: c.unknown", c.warnings[0])
+	assert.Equal(t, errors.New("unknown key from YAML: c.unknown"), c.warnings[0])
 
 	expected := &innerNode{
 		children: map[string]Node{
@@ -237,7 +238,7 @@ c: 1234
 	c := cfg.(*ntmConfig)
 
 	require.Len(t, c.warnings, 1)
-	assert.Equal(t, "invalid type from configuration for key 'c'", c.warnings[0])
+	assert.Equal(t, errors.New("invalid type from configuration for key 'c'"), c.warnings[0])
 
 	expected := &innerNode{
 		children: map[string]Node{
@@ -257,14 +258,18 @@ func TestToMapStringInterface(t *testing.T) {
 	assert.Error(t, err)
 	_, err = toMapStringInterface("test", "key")
 	assert.Error(t, err)
-	_, err = toMapStringInterface(map[int]string{1: "test"}, "key")
-	assert.Error(t, err)
-	_, err = toMapStringInterface(map[interface{}]string{1: "test"}, "key")
-	assert.Error(t, err)
-	_, err = toMapStringInterface(map[interface{}]string{1: "test", "test2": "test2"}, "key")
-	assert.Error(t, err)
 
-	data, err := toMapStringInterface(map[string]string{"test": "test"}, "key")
+	data, err := toMapStringInterface(map[int]string{1: "test"}, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"1": "test"}, data)
+	data, err = toMapStringInterface(map[interface{}]string{1: "test"}, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"1": "test"}, data)
+	data, err = toMapStringInterface(map[interface{}]string{1: "test", "test2": "test2"}, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"1": "test", "test2": "test2"}, data)
+
+	data, err = toMapStringInterface(map[string]string{"test": "test"}, "key")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]interface{}{"test": "test"}, data)
 

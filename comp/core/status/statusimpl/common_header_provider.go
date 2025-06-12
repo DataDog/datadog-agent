@@ -7,14 +7,13 @@ package statusimpl
 
 import (
 	"fmt"
-	htmlTemplate "html/template"
 	"io"
 	"maps"
 	"os"
 	"path"
 	"runtime"
+	"strconv"
 	"strings"
-	textTemplate "text/template"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,6 +21,8 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
+	htmlTemplate "github.com/DataDog/datadog-agent/pkg/template/html"
+	textTemplate "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -109,7 +110,8 @@ func populateConfig(config config.Component) map[string]string {
 	conf["confd_path"] = config.GetString("confd_path")
 	conf["additional_checksd"] = config.GetString("additional_checksd")
 
-	conf["fips_enabled"] = config.GetString("fips.enabled")
+	isFipsAgent, _ := fips.Enabled()
+	conf["fips_proxy_enabled"] = strconv.FormatBool(config.GetBool("fips.enabled") && !isFipsAgent)
 	conf["fips_local_address"] = config.GetString("fips.local_address")
 	conf["fips_port_range_start"] = config.GetString("fips.port_range_start")
 

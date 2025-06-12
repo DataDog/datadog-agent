@@ -42,15 +42,102 @@ type trapsConfig struct {
 	Namespace        string   `yaml:"namespace"`
 }
 
+// newEmptyMockConf returns an empty config appropriate for running tests
+// we can't use pkg/config/mock here because that package depends upon this one, so
+// this avoids a circular dependency
+func newEmptyMockConf(_ *testing.T) model.Config {
+	cfg := create.NewConfig("test")
+	cfg.SetTestOnlyDynamicSchema(true)
+	return cfg
+}
+
 // We don't use config mock here to not create cycle dependencies (same reason why config mock are not used in
 // pkg/config/{setup/model})
 func newConfigFromYaml(t *testing.T, yaml string) model.Config {
-	conf := create.NewConfig("datadog")
-
+	conf := newEmptyMockConf(t)
 	conf.SetConfigType("yaml")
 	err := conf.ReadConfig(bytes.NewBuffer([]byte(yaml)))
 	require.NoError(t, err)
 	return conf
+}
+
+type Person struct {
+	Name string
+	Age  int
+	Tags map[string]string
+	Jobs []string
+}
+
+func TestUnmarshalBasic(t *testing.T) {
+	confYaml := `
+user:
+  name: Bob
+  age:  30
+  tags:
+    hair: black
+  jobs:
+  - plumber
+  - teacher
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+
+	var person Person
+	err := unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.NoError(t, err)
+
+	assert.Equal(t, person.Name, "Bob")
+	assert.Equal(t, person.Age, 30)
+	assert.Equal(t, person.Tags, map[string]string{"hair": "black"})
+	assert.Equal(t, person.Jobs, []string{"plumber", "teacher"})
+}
+
+func TestUnmarshalErrors(t *testing.T) {
+	confYaml := `
+user:
+  name:
+    hair: black
+`
+	mockConfig := newConfigFromYaml(t, confYaml)
+	var person Person
+	err := unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [name]: scalar required, but input is not a leaf: &{map[hair:0x`)
+
+	confYaml = `
+user:
+  jobs: 30
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30`)
+
+	confYaml = `
+user:
+  age:
+  - plumber
+  - teacher
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `unable to cast []interface {}{"plumber", "teacher"} of type []interface {} to int`)
+
+	confYaml = `
+user:
+  tags:
+  - plumber
+  - teacher
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher]`)
+
+	confYaml = `
+user:
+  tags: 30
+`
+	mockConfig = newConfigFromYaml(t, confYaml)
+	err = unmarshalKeyReflection(mockConfig, "user", &person)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30`)
+
 }
 
 func TestUnmarshalKeyTrapsConfig(t *testing.T) {
@@ -1021,7 +1108,7 @@ feature:
 
 		err := unmarshalKeyReflection(mockConfig, "feature", &feature)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "can't copy into target: scalar required")
+		assert.Contains(t, err.Error(), "scalar required")
 	})
 }
 
@@ -1394,4 +1481,34 @@ func TestMapGetChildNotFound(t *testing.T) {
 	inner, ok := n.(nodetreemodel.InnerNode)
 	assert.True(t, ok)
 	assert.Equal(t, inner.ChildrenKeys(), []string{"a", "b"})
+}
+
+func TestUnmarshalKeyWithPointerToBool(t *testing.T) {
+	confYaml := `
+feature_flags:
+  enabled: true
+  disabled: false
+  missing: false
+`
+
+	type FeatureFlags struct {
+		Enabled  *bool `yaml:"enabled"`
+		Disabled *bool `yaml:"disabled"`
+		Missing  *bool `yaml:"missing"`
+	}
+
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("feature_flags")
+
+	flags := FeatureFlags{}
+
+	err := UnmarshalKey(mockConfig, "feature_flags", &flags)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, flags.Enabled)
+	assert.NotNil(t, flags.Disabled)
+	assert.NotNil(t, flags.Missing)
+	assert.Equal(t, true, *flags.Enabled)
+	assert.Equal(t, false, *flags.Disabled)
+	assert.Equal(t, false, *flags.Missing)
 }

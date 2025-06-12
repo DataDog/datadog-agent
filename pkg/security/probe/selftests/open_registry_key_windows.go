@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/net/context"
 )
 
 // WindowsOpenRegistryKeyTest defines a windows open registry key self test
@@ -37,12 +38,12 @@ func (o *WindowsOpenRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
 }
 
 // GenerateEvent generate an event
-func (o *WindowsOpenRegistryKeyTest) GenerateEvent() error {
+func (o *WindowsOpenRegistryKeyTest) GenerateEvent(ctx context.Context) error {
 	o.isSuccess = false
 
 	path := fmt.Sprintf("Registry::HKEY_LOCAL_MACHINE:\\%s", o.keyPath)
 
-	cmd := exec.Command(
+	cmd := exec.CommandContext(ctx,
 		"powershell",
 		"-c",
 		"Get-ItemProperty",

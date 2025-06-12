@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -85,7 +86,18 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 	}
 
 	var diagnoses []diagnose.Diagnosis
-	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
+	domainResolvers, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+	if err != nil {
+		return []diagnose.Diagnosis{
+			{
+				Status:      diagnose.DiagnosisSuccess,
+				Name:        "Resolver error",
+				Diagnosis:   "Unable to create domain resolver",
+				Remediation: "This is likely due to a bug",
+				RawError:    err.Error(),
+			},
+		}
+	}
 	numberOfWorkers := 1
 	client := forwarder.NewHTTPClient(pkgconfigsetup.Datadog(), numberOfWorkers, log)
 
@@ -136,7 +148,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 
 				if endpointInfo.Method == "HEAD" {
 					logURL = endpointInfo.Endpoint.Route
-					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, clientWithOneRedirects())
+					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, clientWithOneRedirects(pkgconfigsetup.Datadog(), numberOfWorkers, log))
 				} else {
 					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
@@ -206,7 +218,11 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 
 	// Add tracing and send the request
 	req = req.WithContext(ctx)
-	req.Header.Set("Content-Type", "application/json")
+	contentType := endpointInfo.ContentType
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("DD-API-KEY", apiKey)
 
 	resp, err := client.Do(req)
@@ -281,11 +297,15 @@ func noResponseHints(err error) string {
 	return ""
 }
 
-func clientWithOneRedirects() *http.Client {
+func clientWithOneRedirects(config config.Component, numberOfWorkers int, log log.Component) *http.Client {
 	return &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
+		Transport: forwarder.NewHTTPTransport(
+			config,
+			numberOfWorkers,
+			log),
 	}
 }
 

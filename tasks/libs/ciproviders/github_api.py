@@ -19,7 +19,15 @@ from tasks.libs.common.user_interactions import yes_no_question
 
 try:
     import semver
-    from github import Auth, Github, GithubException, GithubIntegration, GithubObject, PullRequest
+    from github import (
+        Auth,
+        Github,
+        GithubException,
+        GithubIntegration,
+        GithubObject,
+        InputGitTreeElement,
+        PullRequest,
+    )
     from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
@@ -64,11 +72,11 @@ class GithubAPI:
             "https://api.github.com/graphql",
             headers=headers,
             json={"query": query},
+            timeout=10,
         )
         if res.status_code == 200:
             return res.json()
-        else:
-            raise RuntimeError(f"Failed to query Github: {res.text}")
+        raise RuntimeError(f"Failed to query Github: {res.text}")
 
     def get_branch(self, branch_name):
         """
@@ -329,7 +337,7 @@ class GithubAPI:
             "Accept": "application/vnd.github.v3+json",
         }
         # Retrying this request if needed is handled by the caller
-        with requests.get(url, headers=headers, stream=True) as r:
+        with requests.get(url, headers=headers, stream=True, timeout=10) as r:
             r.raise_for_status()
             zip_target_path = os.path.join(destination_dir, f"{destination_file}.zip")
             with open(zip_target_path, "wb") as f:
@@ -485,6 +493,27 @@ class GithubAPI:
     def is_organization_member(self, user):
         organization = self._repository.organization
         return (user.company and 'datadog' in user.company.casefold()) or organization.has_in_members(user)
+
+    def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
+        # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
+        base_tree = self._repository.get_git_tree(tree['base_tree'])
+        git_tree = self._repository.create_git_tree(
+            [InputGitTreeElement(**blob) for blob in tree['tree']], base_tree=base_tree
+        )
+        commit = self._repository.create_git_commit(
+            commit_message,
+            git_tree,
+            [self._repository.get_git_commit(tree['base_tree'])],
+        )
+        # The update ref API endpoint is not available in PyGithub, so we need to use the raw API
+        data = {"sha": commit.sha, "force": False}
+        headers = {"Authorization": "Bearer " + self._auth.token, "Content-Type": "application/json"}
+        res = requests.patch(
+            url=f"{self._repository.url}/git/refs/heads/{branch_name}", json=data, headers=headers, timeout=10
+        )
+        if res.status_code == 200:
+            return res.json()
+        raise Exit(f"Failed to update the reference {branch_name} with commit {commit.sha}: {res.text}")
 
     def _chose_auth(self, public_repo):
         """
@@ -666,7 +695,7 @@ def get_github_teams(users):
 def query_teams(login):
     query = get_user_query(login)
     headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"}
-    response = requests.post("https://api.github.com/graphql", headers=headers, data=query)
+    response = requests.post("https://api.github.com/graphql", headers=headers, data=query, timeout=10)
     data = response.json()
     teams = []
     try:

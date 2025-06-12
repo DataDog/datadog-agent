@@ -146,27 +146,19 @@ type SetDefinition struct {
 	Expression   string                 `yaml:"expression" json:"expression,omitempty"`
 	Append       bool                   `yaml:"append" json:"append,omitempty"`
 	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
+	ScopeField   string                 `yaml:"scope_field" json:"scope_field,omitempty"`
 	Size         int                    `yaml:"size" json:"size,omitempty"`
 	TTL          *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
-}
-
-// KillDisarmerParamsDefinition describes the parameters of a kill action disarmer
-type KillDisarmerParamsDefinition struct {
-	MaxAllowed int                    `yaml:"max_allowed" json:"max_allowed,omitempty" jsonschema:"description=The maximum number of allowed kill actions within the period,example=5"`
-	Period     *HumanReadableDuration `yaml:"period" json:"period,omitempty" jsonschema:"description=The period of time during which the maximum number of allowed kill actions is calculated,example=1m"`
-}
-
-// KillDisarmerDefinition describes the 'disarmer' section of a kill action
-type KillDisarmerDefinition struct {
-	Container  *KillDisarmerParamsDefinition `yaml:"container" json:"container,omitempty"`
-	Executable *KillDisarmerParamsDefinition `yaml:"executable" json:"executable,omitempty"`
+	Private      bool                   `yaml:"private" json:"private,omitempty"`
+	Inherited    bool                   `yaml:"inherited" json:"inherited,omitempty"`
 }
 
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
-	Signal   string                  `yaml:"signal" json:"signal" jsonschema:"description=A valid signal name,example=SIGKILL,example=SIGTERM"`
-	Scope    string                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
-	Disarmer *KillDisarmerDefinition `yaml:"disarmer" json:"disarmer,omitempty"`
+	Signal                    string `yaml:"signal" json:"signal" jsonschema:"description=A valid signal name,example=SIGKILL,example=SIGTERM"`
+	Scope                     string `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
+	DisableContainerDisarmer  bool   `yaml:"disable_container_disarmer" json:"disable_container_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic container disarmer safeguard"`
+	DisableExecutableDisarmer bool   `yaml:"disable_executable_disarmer" json:"disable_executable_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic executable disarmer safeguard"`
 }
 
 // CoreDumpDefinition describes the 'coredump' action
@@ -188,23 +180,22 @@ type LogDefinition struct {
 
 // OnDemandHookPoint represents a hook point definition
 type OnDemandHookPoint struct {
-	Name      string         `yaml:"name" json:"name"`
-	IsSyscall bool           `yaml:"syscall" json:"syscall,omitempty"`
-	Args      []HookPointArg `yaml:"args" json:"args,omitempty"`
+	Name      string
+	IsSyscall bool
+	Args      []HookPointArg
 }
 
 // HookPointArg represents the definition of a hook point argument
 type HookPointArg struct {
-	N    int    `yaml:"n" json:"n" jsonschema:"description=Zero-based argument index"`
-	Kind string `yaml:"kind" json:"kind" jsonschema:"enum=uint,enum=null-terminated-string"`
+	N    int
+	Kind string
 }
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version            string              `yaml:"version,omitempty" json:"version"`
-	Macros             []*MacroDefinition  `yaml:"macros,omitempty" json:"macros,omitempty"`
-	Rules              []*RuleDefinition   `yaml:"rules" json:"rules"`
-	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks,omitempty" json:"hooks,omitempty"`
+	Version string             `yaml:"version,omitempty" json:"version"`
+	Macros  []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
+	Rules   []*RuleDefinition  `yaml:"rules" json:"rules"`
 }
 
 // HumanReadableDuration represents a duration that can unmarshalled from YAML from a human readable format (like `10m`)

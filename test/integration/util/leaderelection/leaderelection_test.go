@@ -58,7 +58,7 @@ func generateApiserverCompose(version string) error {
 		return err
 	}
 
-	newComposeFile := strings.Replace(string(apiserverCompose), "APIVERSION_PLACEHOLDER", version, -1)
+	newComposeFile := strings.ReplaceAll(string(apiserverCompose), "APIVERSION_PLACEHOLDER", version)
 
 	err = os.WriteFile(getApiserverComposePath(version), []byte(newComposeFile), os.ModePerm)
 	if err != nil {

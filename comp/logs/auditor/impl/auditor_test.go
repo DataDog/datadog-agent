@@ -6,6 +6,7 @@
 package auditorimpl
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -38,12 +40,13 @@ func (suite *AuditorTestSuite) SetupTest() {
 
 	configComponent := configmock.NewMock(suite.T())
 	logComponent := logmock.New(suite.T())
-
+	healthRegistrar := healthmock.NewMockRegistrar()
 	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
 
 	deps := Dependencies{
 		Config: configComponent,
 		Log:    logComponent,
+		Health: healthRegistrar,
 	}
 
 	suite.a = newAuditor(deps)
@@ -120,6 +123,32 @@ func (suite *AuditorTestSuite) TestAuditorCleansupRegistry() {
 	suite.a.cleanupRegistry()
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("43", suite.a.registry[otherpath].Offset)
+}
+
+func (suite *AuditorTestSuite) TestAuditorRegistryWriterSelection() {
+	// Test atomic write enabled
+	configComponent := configmock.NewMock(suite.T())
+	logComponent := logmock.New(suite.T())
+	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
+	configComponent.SetWithoutSource("logs_config.atomic_registry_write", true)
+	deps := Dependencies{
+		Config: configComponent,
+		Log:    logComponent,
+	}
+	auditor := newAuditor(deps)
+	suite.Equal("*auditorimpl.atomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
+
+	// Test atomic write disabled
+	configComponent = configmock.NewMock(suite.T())
+	logComponent = logmock.New(suite.T())
+	configComponent.SetWithoutSource("logs_config.run_path", suite.testRunPathDir)
+	configComponent.SetWithoutSource("logs_config.atomic_registry_write", false)
+	deps = Dependencies{
+		Config: configComponent,
+		Log:    logComponent,
+	}
+	auditor = newAuditor(deps)
+	suite.Equal("*auditorimpl.nonAtomicRegistryWriter", fmt.Sprintf("%T", auditor.registryWriter))
 }
 
 func TestScannerTestSuite(t *testing.T) {

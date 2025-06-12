@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package ntp implements the ntp check.
 package ntp
 
 import (
@@ -109,7 +109,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 		if err != nil {
 			return err
 		}
-		log.Debugf("Detected local defined servers: [ %s ]", strings.Join(defaultDatadogPool, ", "))
+		log.Debugf("Detected local defined servers: [ %s ]", strings.Join(localNtpServers, ", "))
 	}
 
 	if len(localNtpServers) > 0 {

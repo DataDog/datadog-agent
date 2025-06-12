@@ -6,26 +6,27 @@
 package profile
 
 import (
-	"github.com/stretchr/testify/require"
 	"path/filepath"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
 func Test_loadProfiles(t *testing.T) {
+	mockConfig := configmock.New(t)
 	tests := []struct {
-		name                   string
-		mockConfd              string
-		profiles               ProfileConfigMap
-		expectedProfileMetrics []string
-		expectedProfileNames   []string
-		expectedErr            string
+		name                      string
+		mockConfd                 string
+		profiles                  ProfileConfigMap
+		expectedProfileMetrics    []string
+		expectedProfileNames      []string
+		expectedHaveLegacyProfile bool
+		expectedErr               string
 	}{
 		{
 			name:      "OK Use init config profiles",
@@ -52,6 +53,7 @@ func Test_loadProfiles(t *testing.T) {
 			expectedProfileMetrics: []string{
 				"init_config_metric",
 			},
+			expectedHaveLegacyProfile: false,
 		},
 		{
 			name:      "OK init config contains invalid profiles with warnings logs",
@@ -67,7 +69,28 @@ func Test_loadProfiles(t *testing.T) {
 					},
 				},
 			},
-			expectedProfileNames: []string(nil), // invalid profiles are skipped
+			expectedProfileNames:      []string(nil), // invalid profiles are skipped
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name:      "OK init config contains legacy profiles",
+			mockConfd: "conf.d",
+			profiles: ProfileConfigMap{
+				"my-init-config-profile": ProfileConfig{
+					Definition: profiledefinition.ProfileDefinition{
+						Metrics: []profiledefinition.MetricsConfig{
+							{
+								MIB: "FOO-MIB",
+								Symbol: profiledefinition.SymbolConfig{
+									Name: "fooName",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedProfileNames:      []string(nil),
+			expectedHaveLegacyProfile: true,
 		},
 		// yaml profiles
 		{
@@ -77,20 +100,38 @@ func Test_loadProfiles(t *testing.T) {
 				"another_profile",
 				"f5-big-ip",
 			},
+			expectedHaveLegacyProfile: false,
 		},
 		{
-			name:                 "OK contains yaml profiles with warning logs",
-			mockConfd:            "does_non_exist.d",
-			expectedProfileNames: []string(nil),
+			name:                      "OK contains yaml profiles with warning logs",
+			mockConfd:                 "does_not_exist.d",
+			expectedProfileNames:      []string(nil),
+			expectedHaveLegacyProfile: false,
+		},
+		{
+			name:      "OK yaml profiles contains legacy profile (no OID)",
+			mockConfd: "legacy_no_oid.d",
+			expectedProfileNames: []string{
+				"valid",
+			},
+			expectedHaveLegacyProfile: true,
+		},
+		{
+			name:      "OK yaml profiles contains legacy profile (string symbol type)",
+			mockConfd: "legacy_symbol_type.d",
+			expectedProfileNames: []string{
+				"valid",
+			},
+			expectedHaveLegacyProfile: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			SetGlobalProfileConfigMap(nil)
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
-			pkgconfigsetup.Datadog().SetWithoutSource("confd_path", path)
+			mockConfig.SetWithoutSource("confd_path", path)
 
-			actualProfiles, err := loadProfiles(tt.profiles)
+			actualProfiles, haveLegacyProfile, err := loadProfiles(tt.profiles)
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			}
@@ -111,6 +152,8 @@ func Test_loadProfiles(t *testing.T) {
 				}
 				assert.ElementsMatch(t, tt.expectedProfileMetrics, metricsNames)
 			}
+
+			assert.Equal(t, tt.expectedHaveLegacyProfile, haveLegacyProfile)
 		})
 	}
 }

@@ -20,8 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+func init() { registerModule(EventMonitor) }
+
 // EventMonitor - Event monitor Factory
-var EventMonitor = module.Factory{
+var EventMonitor = &module.Factory{
 	Name:             config.EventMonitorModule,
 	ConfigNamespaces: eventMonitorModuleConfigNamespaces,
 	Fn:               createEventMonitorModule,

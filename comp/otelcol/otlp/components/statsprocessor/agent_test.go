@@ -63,7 +63,6 @@ func testTraceAgent(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	cfg.Features["enable_operation_and_resource_name_logic_v2"] = struct{}{}
 	out := make(chan *pb.StatsPayload, 10)
 	ctx := context.Background()
 	_, metricClient, timingReporter := setupMetricClient(t)

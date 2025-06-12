@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package corechecks provides common functionality for core checks.
 package corechecks
 
 import (
@@ -214,6 +214,7 @@ func (c *CheckBase) ConfigSource() string {
 	return c.source
 }
 
+// Loader returns the loader name for the check.
 func (*CheckBase) Loader() string {
 	return GoCheckLoaderName
 }

@@ -84,19 +84,19 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 		return rollbackNoop, nil
 	}
 
-	if err := writeFile(ft.pathTmp, res); err != nil {
+	if err = writeFile(ft.pathTmp, res); err != nil {
 		return nil, fmt.Errorf("could not write file %s: %s", ft.pathTmp, err)
 
 	}
 
 	// validate temporary file if validation function provided
 	if ft.validateTemp != nil {
-		if err := ft.validateTemp(); err != nil {
+		if err = ft.validateTemp(); err != nil {
 			return nil, fmt.Errorf("could not validate temporary file %s: %s", ft.pathTmp, err)
 		}
 	}
 
-	if err := os.Rename(ft.pathTmp, ft.path); err != nil {
+	if err = os.Rename(ft.pathTmp, ft.path); err != nil {
 		return nil, fmt.Errorf("could not rename temporary file %s to %s: %s", ft.pathTmp, ft.path, err)
 	}
 
@@ -111,8 +111,8 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 	// validate final file if validation function provided
 	if ft.validateFinal != nil {
 		if err = ft.validateFinal(); err != nil {
-			if err := rollback(); err != nil {
-				log.Errorf("could not rollback file %s: %s", ft.path, err)
+			if rollbackErr := rollback(); rollbackErr != nil {
+				log.Errorf("could not rollback file %s: %s", ft.path, rollbackErr)
 			}
 			return nil, err
 		}

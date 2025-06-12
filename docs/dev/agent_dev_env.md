@@ -135,7 +135,7 @@ This procedure ensures you not only get the correct version of `invoke`, but als
 
 ### Golang
 
-You must [install Golang](https://golang.org/doc/install) version `1.23.8`. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
+You must [install Golang](https://golang.org/doc/install) version `1.24.3`. Make sure that `$GOPATH/bin` is in your `$PATH` otherwise `invoke`
 cannot use any additional tool it might need.
 
 **Please note that versions of Golang that aren't an exact match to the version
@@ -229,7 +229,7 @@ It is optional but recommended to install `pre-commit` to run a number of checks
 
 #### Installation
 
-To install pre-commit, follow [these instructions](https://pre-commit.com/#installation). The `deva setup` automatically enables the hooks, but you can do it manually running: `pre-commit install`.
+To install pre-commit, follow [these instructions](https://pre-commit.com/#installation). The `dda setup` automatically enables the hooks, but you can do it manually running: `GOFLAGS=-buildvcs=false pre-commit install`.
 
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`.
 To install it, run:

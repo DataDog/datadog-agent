@@ -40,6 +40,7 @@ func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetS
 
 	fields := make(map[string]string)
 	fields["Started"] = s.started.Format(time.RFC3339)
+	fields["Version"] = "1.0.0"
 
 	return &pbcore.GetStatusDetailsResponse{
 		MainSection: &pbcore.StatusSection{

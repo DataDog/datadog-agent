@@ -190,7 +190,15 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
 		}
 
-		for _, loader := range s.loaders {
+		// TODO: Remove this special case to use Core loader by default for SNMP
+		loaderList := s.loaders
+		if config.Name == "snmp" && selectedInstanceLoader == "" {
+			if len(loaderList) == 2 && loaderList[0].Name() == "python" && loaderList[1].Name() == "core" {
+				loaderList = []check.Loader{loaderList[1], loaderList[0]}
+			}
+		}
+
+		for _, loader := range loaderList {
 			// the loader is skipped if the loader name is set and does not match
 			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
 				log.Debugf("Loader name %v does not match, skip loader %v for check %v", selectedInstanceLoader, loader.Name(), config.Name)

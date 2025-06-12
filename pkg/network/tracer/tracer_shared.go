@@ -5,7 +5,6 @@
 
 //go:build linux_bpf || (windows && npm)
 
-// Package tracer contains implementation for NPM's tracer.
 package tracer
 
 import (

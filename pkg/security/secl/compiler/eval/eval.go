@@ -10,6 +10,7 @@ package eval
 
 import (
 	"fmt"
+	"net"
 	"reflect"
 	"regexp"
 	"slices"
@@ -89,7 +90,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	accessor, err := state.model.GetEvaluator(field, regID)
+	evaluator, err := state.model.GetEvaluator(field, regID, obj.Pos.Offset)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
@@ -116,7 +117,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	return accessor, obj.Pos, nil
+	return evaluator, obj.Pos, nil
 }
 
 func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, lexer.Position, error) {
@@ -188,6 +189,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		evaluator := &CIDRValuesEvaluator{
 			Value:     values,
 			ValueType: IPNetValueType,
+			Offset:    array.Pos.Offset,
 		}
 		return evaluator, array.Pos, nil
 	} else if len(array.CIDRMembers) != 0 {
@@ -207,6 +209,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		evaluator := &CIDRValuesEvaluator{
 			Value:     values,
 			ValueType: IPNetValueType,
+			Offset:    array.Pos.Offset,
 		}
 		return evaluator, array.Pos, nil
 	}
@@ -222,12 +225,53 @@ func isVariableName(str string) (string, bool) {
 }
 
 func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+	var variableEvaluator interface{}
 	variable := opts.VariableStore.Get(varname)
-	if variable == nil {
-		return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
+	if variable != nil {
+		return variable.GetEvaluator(), pos, nil
 	}
 
-	return variable.GetEvaluator(), pos, nil
+	if strings.HasSuffix(varname, ".length") {
+		trimmedVariable := strings.TrimSuffix(varname, ".length")
+		if variable = opts.VariableStore.Get(trimmedVariable); variable != nil {
+			variableEvaluator = variable.GetEvaluator()
+			switch evaluator := variableEvaluator.(type) {
+			case *StringArrayEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.([]string))
+					},
+				}, pos, nil
+			case *StringEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.(string))
+					},
+				}, pos, nil
+			case *IntArrayEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.([]int))
+					},
+				}, pos, nil
+			case *CIDRArrayEvaluator:
+				return &IntEvaluator{
+					EvalFnc: func(ctx *Context) int {
+						v := evaluator.Eval(ctx)
+						return len(v.([]net.IPNet))
+					},
+				}, pos, nil
+			default:
+				return nil, pos, NewError(pos, "'length' cannot be used on '%s'", trimmedVariable)
+			}
+		}
+
+	}
+
+	return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 }
 
 func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
@@ -1238,7 +1282,8 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			return identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
 		case obj.Number != nil:
 			return &IntEvaluator{
-				Value: *obj.Number,
+				Value:  *obj.Number,
+				Offset: obj.Pos.Offset,
 			}, obj.Pos, nil
 		case obj.Variable != nil:
 			varname, ok := isVariableName(*obj.Variable)
@@ -1250,6 +1295,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
+				Offset:     obj.Pos.Offset,
 				isDuration: true,
 			}, obj.Pos, nil
 		case obj.String != nil:
@@ -1263,12 +1309,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			return &StringEvaluator{
 				Value:     str,
 				ValueType: ScalarValueType,
+				Offset:    obj.Pos.Offset,
 			}, obj.Pos, nil
 		case obj.Pattern != nil:
 			evaluator := &StringEvaluator{
 				Value:     *obj.Pattern,
 				ValueType: PatternValueType,
 				Weight:    PatternWeight,
+				Offset:    obj.Pos.Offset,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.Regexp != nil:
@@ -1276,6 +1324,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				Value:     *obj.Regexp,
 				ValueType: RegexpValueType,
 				Weight:    RegexpWeight,
+				Offset:    obj.Pos.Offset,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.IP != nil:
@@ -1287,6 +1336,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			evaluator := &CIDREvaluator{
 				Value:     *ipnet,
 				ValueType: IPNetValueType,
+				Offset:    obj.Pos.Offset,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.CIDR != nil:
@@ -1298,6 +1348,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			evaluator := &CIDREvaluator{
 				Value:     *ipnet,
 				ValueType: IPNetValueType,
+				Offset:    obj.Pos.Offset,
 			}
 			return evaluator, obj.Pos, nil
 		case obj.SubExpression != nil:

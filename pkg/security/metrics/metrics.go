@@ -84,6 +84,8 @@ var (
 	MetricRepeatedDNSResponsesFilteredOnKernel = newRuntimeMetric(".dns_response_collector.repeated_dns_responses_filtered_on_kernel")
 	// MetricDNSSameIDDifferentSize DNS responses that had the same ID but a different size
 	MetricDNSSameIDDifferentSize = newRuntimeMetric(".dns_response_collector.dns_same_id_different_size")
+	// MetricDiscardedDNSPackets DNS responses that were discarded because of not matching a rule
+	MetricDiscardedDNSPackets = newRuntimeMetric(".dns_response_collector.dns_discarded_packets")
 
 	// filtering metrics
 
@@ -341,6 +343,15 @@ var (
 	// Tags: -
 	MetricHashResolverHashCacheLen = newRuntimeMetric(".hash_resolver.cache_len")
 
+	// File resolver metrics
+
+	// MetricFileResolverCacheHit is the name of the metric used to report file resolver cache hits
+	// Tags: -
+	MetricFileResolverCacheHit = newRuntimeMetric(".file_resolver.cache_hit")
+	// MetricFileResolverCacheMiss is the name of the metric used to report file resolver cache misses
+	// Tags: -
+	MetricFileResolverCacheMiss = newRuntimeMetric(".file_resolver.cache_miss")
+
 	// Namespace resolver metrics
 
 	// MetricNamespaceResolverNetNSHandle is the name of the metric used to report the count of netns handles
@@ -370,12 +381,21 @@ var (
 
 	// Enforcement metrics
 
-	// MetricEnforcementProcessKilled is the name of the metric used to report the number of processes killed
+	// MetricEnforcementKillQueued is the name of the metric used to report the number of kill action queued
 	// Tags: rule_id
+	MetricEnforcementKillQueued = newRuntimeMetric(".enforcement.kill_queued")
+	// MetricEnforcementKillQueuedDiscarded is the name of the metric used to report the number of kill action queued which has been discarded due to a rule disarm
+	// Tags: rule_id
+	MetricEnforcementKillQueuedDiscarded = newRuntimeMetric(".enforcement.kill_queued_discarded")
+	// MetricEnforcementProcessKilled is the name of the metric used to report the number of processes killed
+	// Tags: rule_id, queued:true/false
 	MetricEnforcementProcessKilled = newRuntimeMetric(".enforcement.process_killed")
 	// MetricEnforcementRuleDisarmed is the name of the metric used to report that a rule was disarmed
 	// Tags: rule_id, disarmer_type ('executable', 'container')
 	MetricEnforcementRuleDisarmed = newRuntimeMetric(".enforcement.rule_disarmed")
+	// MetricEnforcementRuleDismantled is the name of the metric used to report that a rule was dismantled
+	// Tags: rule_id, disarmer_type ('executable', 'container')
+	MetricEnforcementRuleDismantled = newRuntimeMetric(".enforcement.rule_dismantled")
 	// MetricEnforcementRuleRearmed is the name of the metric used to report that a rule was rearmed
 	// Tags: rule_id
 	MetricEnforcementRuleRearmed = newRuntimeMetric(".enforcement.rule_rearmed")

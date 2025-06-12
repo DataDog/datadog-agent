@@ -11,10 +11,10 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
-func preRegister(_ *sysconfigtypes.Config, _ []Factory) error {
+func preRegister(_ *sysconfigtypes.Config, _ []*Factory) error {
 	return nil
 }
 
-func postRegister(_ *sysconfigtypes.Config, _ []Factory) error {
+func postRegister(_ *sysconfigtypes.Config, _ []*Factory) error {
 	return nil
 }

@@ -22,7 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -51,9 +51,10 @@ func TestProcessSysprobeStats(t *testing.T) {
 			return testutil.GetDeviceMock(index), nvml.SUCCESS
 		},
 	}
+	ddnvml.WithMockNVML(t, nvmlMock)
 
 	// Set device cache mock
-	deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)
+	deviceCache, err := ddnvml.NewDeviceCache()
 	require.NoError(t, err)
 	check.deviceCache = deviceCache
 

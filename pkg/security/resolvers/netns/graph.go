@@ -11,10 +11,10 @@ package netns
 import (
 	"fmt"
 	"os"
-	"text/template"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
 var (

@@ -36,11 +36,19 @@ jobs:
         if: ${{ !contains(github.event.pull_request.labels.*.name, 'dependencies-go-tools') }}
         run: dda inv -- -e security-agent.gen-mocks # generate both security agent and process mocks
       - name: Create commit
+        id: commit
         run: |
-          git config --global user.name "Login will be determined by the Github API based on the creator of the token"
-          git config --global user.email ""
-          git commit -am "[dependabot skip] Auto-generate go.sum and LICENSE-3rdparty.csv changes"
+          if git diff --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            git config --global user.name "Login will be determined by the Github API based on the creator of the token"
+            git config --global user.email ""
+            git commit -am "[dependabot skip] Auto-generate go.sum and LICENSE-3rdparty.csv changes"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
       - name: "Push signed commits"
+        if: steps.commit.outputs.has_changes == 'true'
         uses: asana/push-signed-commits@d615ca88d8e1a946734c24970d1e7a6c56f34897 # v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

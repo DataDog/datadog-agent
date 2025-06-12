@@ -63,7 +63,9 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUti
 // Provide provides the metrics related to a Kubelet pods
 func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) error {
 	// Collect raw data
-	pods, err := kc.GetLocalPodListWithMetadata(context.TODO())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Timeout)*time.Second)
+	pods, err := kc.GetLocalPodListWithMetadata(ctx)
+	cancel()
 	if err != nil {
 		return err
 	}

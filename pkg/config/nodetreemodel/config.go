@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -37,6 +38,8 @@ var sources = []model.Source{
 	model.SourceRC,
 	model.SourceCLI,
 }
+
+var splitKeyFunc = splitKey
 
 // ntmConfig implements Config
 // - wraps a tree of node that represent config data
@@ -68,6 +71,9 @@ type ntmConfig struct {
 	// - it's okay to modify the config schema after it gets built
 	// - unknown keys can be assigned and retrieved
 	allowDynamicSchema *atomic.Bool
+
+	// tree debugger is used by the Stringify method, useful for debugging and test assertions
+	td *treeDebugger
 
 	// defaults contains the settings with a default value
 	defaults InnerNode
@@ -126,7 +132,7 @@ type ntmConfig struct {
 	// yamlWarnings contains a list of warnings about loaded YAML file.
 	// TODO: remove 'findUnknownKeys' function from pkg/config/setup in favor of those warnings. We should return
 	// them from ReadConfig and ReadInConfig.
-	warnings []string
+	warnings []error
 }
 
 // NodeTreeConfig is an interface that gives access to nodes
@@ -231,6 +237,10 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 // SetWithoutSource assigns the value to the given key using source Unknown
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
+	v := reflect.ValueOf(value)
+	if v.Kind() == reflect.Struct {
+		panic("You cannot set a struct as a value")
+	}
 	c.Set(key, value, model.SourceUnknown)
 }
 
@@ -426,32 +436,48 @@ func (c *ntmConfig) mergeAllLayers() error {
 
 	c.root = root
 	// recompile allSettings now that we have the full config
-	c.allSettings = c.computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings("")
 	return nil
 }
 
-func (c *ntmConfig) computeAllSettings(node InnerNode, path string) []string {
+func (c *ntmConfig) computeAllSettings(path string) []string {
 	c.maybeRebuild()
 
-	knownKeys := []string{}
+	keySet := make(map[string]struct{})
+
+	// 1. Collect all known keys from schema
+	c.collectKeysFromNode(c.schema, path, keySet, true)
+
+	// 2. Collect all keys from merged tree (only ones with values)
+	c.collectKeysFromNode(c.root, "", keySet, false)
+
+	// 3. Collect all unknown keys, even if they have no value set
+	c.collectKeysFromNode(c.unknown, "", keySet, true)
+
+	var allKeys []string
+	for key := range maps.Keys(keySet) {
+		allKeys = append(allKeys, key)
+	}
+	slices.Sort(allKeys)
+	return allKeys
+}
+
+func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllKeys bool) {
 	for _, name := range node.ChildrenKeys() {
 		newPath := joinKey(path, name)
 
 		child, _ := node.GetChild(name)
+
 		if leaf, ok := child.(LeafNode); ok {
-			if leaf.Source() != model.SourceSchema {
-				knownKeys = append(knownKeys, newPath)
-			} else if c.leafAtPathFromNode(newPath, c.root) != missingLeaf {
-				knownKeys = append(knownKeys, newPath)
+			// Include all keys if requested
+			// For other nodes, only include if they have actual values
+			if includeAllKeys || leaf != missingLeaf {
+				keySet[newPath] = struct{}{}
 			}
 		} else if inner, ok := child.(InnerNode); ok {
-			knownKeys = append(knownKeys, c.computeAllSettings(inner, newPath)...)
-		} else {
-			log.Errorf("unknown node type in the tree: %T", child)
+			c.collectKeysFromNode(inner, newPath, keySet, includeAllKeys)
 		}
 	}
-	slices.Sort(knownKeys)
-	return knownKeys
 }
 
 // BuildSchema is called when Setup is complete, and the config is ready to be used
@@ -465,17 +491,17 @@ func (c *ntmConfig) buildSchema() {
 	c.buildEnvVars()
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
-		c.warnings = append(c.warnings, err.Error())
+		c.warnings = append(c.warnings, err)
 	}
-	c.allSettings = c.computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings("")
 }
 
 // Stringify stringifies the config, but only with the test build tag
-func (c *ntmConfig) Stringify(source model.Source) string {
+func (c *ntmConfig) Stringify(source model.Source, opts ...model.StringifyOption) string {
 	c.Lock()
 	defer c.Unlock()
 	// only does anything if the build tag "test" is enabled
-	text, err := c.toDebugString(source)
+	text, err := c.toDebugString(source, opts...)
 	if err != nil {
 		return fmt.Sprintf("Stringify error: %s", err)
 	}
@@ -488,13 +514,13 @@ func (c *ntmConfig) isReady() bool {
 
 func (c *ntmConfig) buildEnvVars() {
 	root := newInnerNode(nil)
-	envWarnings := []string{}
+	envWarnings := []error{}
 
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
-			if value, ok := os.LookupEnv(envVar); ok {
+			if value, ok := os.LookupEnv(envVar); ok && value != "" {
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
-					envWarnings = append(envWarnings, fmt.Sprintf("inserting env var: %s", err))
+					envWarnings = append(envWarnings, err)
 				} else {
 					// Stop looping since we set the config key with the value of the highest precedence env var
 					break
@@ -513,7 +539,7 @@ func (c *ntmConfig) insertNodeFromString(curr InnerNode, key string, envval stri
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envval)
 	}
-	parts := splitKey(key)
+	parts := splitKeyFunc(key)
 	_, err := curr.SetAt(parts, actualValue, model.SourceEnvVar)
 	return err
 }
@@ -614,7 +640,7 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	return hasNoneDefaultsLeaf(curr.(InnerNode))
 }
 
-// AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
+// AllKeysLowercased returns all keys lower-cased from the default tree, including keys that are merely marked as known
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
@@ -897,7 +923,7 @@ func (c *ntmConfig) BindEnvAndSetDefault(key string, val interface{}, envvars ..
 
 // Warnings just returns nil
 func (c *ntmConfig) Warnings() *model.Warnings {
-	return nil
+	return &model.Warnings{Errors: c.warnings}
 }
 
 // Object returns the config as a Reader interface

@@ -31,7 +31,6 @@ import (
 	"go.etcd.io/bbolt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -57,7 +56,6 @@ const (
 	maxFetchConfigsUntilLogLevelErrors = 5
 	// Number of /status calls where we get 503 or 504 errors until the log level is increased to ERROR
 	maxFetchOrgStatusUntilLogLevelErrors = 5
-	initialUpdateDeadline                = 1 * time.Hour
 )
 
 // Constraints on the maximum backoff time when errors occur
@@ -893,8 +891,9 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		return nil, err
 	}
 
-	// If we have made our initial update (or the deadline has expired)
-	if !s.firstUpdate || s.clock.Now().UTC().After(s.startupTime.UTC().Add(initialUpdateDeadline)) {
+	// We only want to check for this if we have successfully initialized the TUF database
+	if !s.firstUpdate {
+
 		// get the expiration time of timestamp.json
 		expires, err := s.uptane.TimestampExpires()
 		if err != nil {
@@ -1196,30 +1195,23 @@ func (c *HTTPClient) GetCDNConfigUpdate(
 	ctx context.Context,
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
-	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.GetCDNConfigUpdate")
-	defer span.Finish(tracer.WithError(err))
 	if !c.shouldUpdate() {
-		span.SetTag("use_cache", true)
-		return c.getUpdate(ctx, products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+		return c.getUpdate(products, currentTargetsVersion, currentRootVersion)
 	}
 
 	err = c.update(ctx)
 	if err != nil {
-		span.SetTag("cache_update_error", true)
 		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
 	}
 
-	u, err := c.getUpdate(ctx, products, currentTargetsVersion, currentRootVersion, cachedTargetFiles)
+	u, err := c.getUpdate(products, currentTargetsVersion, currentRootVersion)
 	return u, err
 }
 
 func (c *HTTPClient) update(ctx context.Context) error {
 	var err error
-	span, ctx := tracer.StartSpanFromContext(ctx, "HTTPClient.update")
-	defer span.Finish(tracer.WithError(err))
 	c.Lock()
 	defer c.Unlock()
 
@@ -1242,19 +1234,11 @@ func (c *HTTPClient) shouldUpdate() bool {
 }
 
 func (c *HTTPClient) getUpdate(
-	ctx context.Context,
 	products []string,
 	currentTargetsVersion, currentRootVersion uint64,
-	cachedTargetFiles []*pbgo.TargetFileMeta,
 ) (*state.Update, error) {
 	c.Lock()
 	defer c.Unlock()
-	span, _ := tracer.StartSpanFromContext(ctx, "HTTPClient.getUpdate")
-	defer span.Finish()
-	span.SetTag("products", products)
-	span.SetTag("current_targets_version", currentTargetsVersion)
-	span.SetTag("current_root_version", currentRootVersion)
-	span.SetTag("cached_target_files", cachedTargetFiles)
 
 	tufVersions, err := c.uptane.TUFVersionState()
 	if err != nil {
@@ -1276,7 +1260,6 @@ func (c *HTTPClient) getUpdate(
 		productsMap[product] = struct{}{}
 	}
 	configs := make([]string, 0)
-	expiredConfigs := make([]string, 0)
 	for path, meta := range directorTargets {
 		pathMeta, err := rdata.ParseConfigPath(path)
 		if err != nil {
@@ -1290,14 +1273,11 @@ func (c *HTTPClient) getUpdate(
 			return nil, err
 		}
 		if configExpired(configMetadata.Expires) {
-			expiredConfigs = append(expiredConfigs, path)
 			continue
 		}
 
 		configs = append(configs, path)
 	}
-	span.SetTag("configs.returned", configs)
-	span.SetTag("configs.expired", expiredConfigs)
 
 	// Gather the files and map-ify them for the state data structure
 	targetFiles, err := c.getTargetFiles(c.uptane, configs)

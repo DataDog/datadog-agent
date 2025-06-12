@@ -244,8 +244,9 @@ func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 	if err := recover(); err != nil || bs.T().Failed() {
 		bs.firstFailTest = "Initial provisioning SetupSuite" // This is required to handle skipDeleteOnFailure
 		defer func() {
+			bs.T().Logf("Calling TearDownSuite after SetupSuite failed with the following error: %v", err)
 			bs.TearDownSuite()
-			bs.T().Fatal("SetupSuite failed, aborted test suite and called TearDownSuite")
+			bs.T().Fatal("TearDownSuite called after SetupSuite failed")
 		}()
 
 		// run environment diagnose
@@ -320,10 +321,18 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 		bs.params.skipDeleteOnFailure, _ = runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
 	}
 
+	stackNameSuffix, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.StackNameSuffix, "")
+	if err != nil {
+		bs.T().Fatalf("unable to get stack name suffix: %v", err)
+	}
 	if bs.params.stackName == "" {
 		sType := reflect.TypeOf(self).Elem()
 		hash := utils.StrHash(sType.PkgPath()) // hash of PkgPath in order to have a unique stack name
 		bs.params.stackName = fmt.Sprintf("e2e-%s-%s", sType.Name(), hash)
+	}
+
+	if stackNameSuffix != "" {
+		bs.params.stackName = fmt.Sprintf("%s-%s", bs.params.stackName, stackNameSuffix)
 	}
 
 	bs.originalProvisioners = bs.params.provisioners

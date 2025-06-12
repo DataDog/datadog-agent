@@ -12,12 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
 func TestNewCheckConfig(t *testing.T) {
-	setup.Datadog().SetWithoutSource("network_devices.namespace", "my-namespace")
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data
@@ -343,6 +345,24 @@ tcp_method: prefer_SACK
 				Timeout:               setup.DefaultNetworkPathTimeout * time.Millisecond,
 				MaxTTL:                setup.DefaultNetworkPathMaxTTL,
 				TCPMethod:             payload.TCPConfigPreferSACK,
+			},
+		},
+		{
+			name: "Enabling TCP SYN compatibility mode",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+protocol: tcp
+tcp_syn_paris_traceroute_mode: true
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:              "1.2.3.4",
+				MinCollectionInterval:     time.Duration(60) * time.Second,
+				Namespace:                 "my-namespace",
+				Protocol:                  payload.ProtocolTCP,
+				Timeout:                   setup.DefaultNetworkPathTimeout * time.Millisecond,
+				MaxTTL:                    setup.DefaultNetworkPathMaxTTL,
+				TCPSynParisTracerouteMode: true,
 			},
 		},
 	}

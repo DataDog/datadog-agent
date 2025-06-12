@@ -9,7 +9,7 @@ def calculate_package_size(ctx, package_os, package_path, gate_name, metric_hand
     with tempfile.TemporaryDirectory() as extract_dir:
         extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=extract_dir)
         package_on_wire_size = file_size(path=package_path)
-        package_on_disk_size = directory_size(ctx, path=extract_dir)
+        package_on_disk_size = directory_size(path=extract_dir)
 
         metric_handler.register_metric(gate_name, "current_on_wire_size", package_on_wire_size)
         metric_handler.register_metric(gate_name, "current_on_disk_size", package_on_disk_size)

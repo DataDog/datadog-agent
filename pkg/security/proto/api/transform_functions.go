@@ -14,31 +14,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// FromProtoToKFiltersRuleSetReport transforms a proto to a kfilter rule set report
-func (protoRuleSetReport *RuleSetReportMessage) FromProtoToKFiltersRuleSetReport() *kfilters.ApplyRuleSetReport {
-	policies := make(map[eval.EventType]*kfilters.PolicyReport)
+// FromProtoToFilterReport transforms a proto to a kfilter filter report
+func (p *FilterReport) FromProtoToFilterReport() *kfilters.FilterReport {
+	approverReports := make(map[eval.EventType]*kfilters.ApproverReport)
 
-	for _, policy := range protoRuleSetReport.GetPolicies() {
-		approversToPrint := *policy.GetApprovers().FromProtoToKFiltersApprovers()
+	toAcceptModeRules := func(r []*AcceptModeRule) []kfilters.AcceptModeRule {
+		acceptModeRules := make([]kfilters.AcceptModeRule, len(r))
+		for i, rule := range r {
+			acceptModeRules[i] = kfilters.AcceptModeRule{
+				RuleID: rule.RuleID,
+			}
+		}
+		return acceptModeRules
+	}
+
+	for _, report := range p.GetApprovers() {
+		approversToPrint := *report.GetApprovers().FromProtoToApprovers()
 		if len(approversToPrint) == 0 {
 			approversToPrint = nil // This is here to ensure that the printed result is `"Approvers": null` and not `"Approvers": {}`
 		}
-		policies[policy.EventType] = &kfilters.PolicyReport{
-			Mode:      kfilters.PolicyMode(policy.GetMode()),
-			Approvers: approversToPrint,
+		approverReports[report.EventType] = &kfilters.ApproverReport{
+			Mode:            kfilters.PolicyMode(report.GetMode()),
+			Approvers:       approversToPrint,
+			AcceptModeRules: toAcceptModeRules(report.GetAcceptModeRules()),
 		}
 	}
 
-	wholeReport := &kfilters.ApplyRuleSetReport{Policies: policies}
+	wholeReport := &kfilters.FilterReport{ApproverReports: approverReports}
 
 	return wholeReport
 }
 
-// FromProtoToKFiltersApprovers transforms a proto to a kfilter approvers
-func (protoApprovers *Approvers) FromProtoToKFiltersApprovers() *rules.Approvers {
+// FromProtoToApprovers transforms a proto to a kfilter approvers
+func (p *Approvers) FromProtoToApprovers() *rules.Approvers {
 	approvers := make(rules.Approvers)
 
-	for _, approver := range protoApprovers.GetApproverDetails() {
+	for _, approver := range p.GetApproverDetails() {
 		// The protobuf approver value is always a string, but the client approver value can be a string or an int
 		var approverInterfaceVal interface{}
 		approverVal := approver.GetValue()
@@ -60,27 +71,41 @@ func (protoApprovers *Approvers) FromProtoToKFiltersApprovers() *rules.Approvers
 	return &approvers
 }
 
-// FromKFiltersToProtoRuleSetReport returns a pointer to a PolicyMessage
-func FromKFiltersToProtoRuleSetReport(ruleSetReport *kfilters.ApplyRuleSetReport) *RuleSetReportMessage {
-	var eventTypePolicy []*EventTypePolicy
+// FromFilterReportToProtoRuleSetReportMessage returns a pointer to a RuleSetReportMessage
+func FromFilterReportToProtoRuleSetReportMessage(filterReport *kfilters.FilterReport) *RuleSetReportMessage {
+	var reports []*ApproverReport
 
-	for key, policyReport := range ruleSetReport.Policies {
-		detail := &EventTypePolicy{
-			EventType: key,
-			Mode:      uint32(policyReport.Mode),
-			Approvers: FromKFiltersToProtoApprovers(policyReport.Approvers),
+	for key, report := range filterReport.ApproverReports {
+		protoReport := &ApproverReport{
+			EventType:       key,
+			Mode:            uint32(report.Mode),
+			Approvers:       FromApproversToProto(report.Approvers),
+			AcceptModeRules: FromAcceptModeRulesToProto(report.AcceptModeRules),
 		}
 
-		eventTypePolicy = append(eventTypePolicy, detail)
+		reports = append(reports, protoReport)
 	}
 
 	return &RuleSetReportMessage{
-		Policies: eventTypePolicy,
+		Filters: &FilterReport{
+			Approvers: reports,
+		},
 	}
 }
 
-// FromKFiltersToProtoApprovers transforms a kfilter to a proto approvers
-func FromKFiltersToProtoApprovers(approvers rules.Approvers) *Approvers {
+// FromAcceptModeRulesToProto transforms a kfilter to a proto accept mode rules
+func FromAcceptModeRulesToProto(acceptModeRules []kfilters.AcceptModeRule) []*AcceptModeRule {
+	protoAcceptModeRules := make([]*AcceptModeRule, len(acceptModeRules))
+	for i, rule := range acceptModeRules {
+		protoAcceptModeRules[i] = &AcceptModeRule{
+			RuleID: rule.RuleID,
+		}
+	}
+	return protoAcceptModeRules
+}
+
+// FromApproversToProto transforms a kfilter to a proto approvers
+func FromApproversToProto(approvers rules.Approvers) *Approvers {
 	protoApprovers := new(Approvers)
 
 	for field, filterValues := range approvers {

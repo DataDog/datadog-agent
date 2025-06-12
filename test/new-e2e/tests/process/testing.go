@@ -135,6 +135,14 @@ func assertProcessCollectedNew(
 	assertProcesses(t, procs, withIOStats, process)
 }
 
+func assertProcessCommandLineArgs(t require.TestingT, processes []*agentmodel.Process, processCMDArgs []string) {
+	for _, proc := range processes {
+		// command arguments include the first command/program which can differ depending on the path,
+		// so we compare the user provided arguments starting from index 1
+		assert.Equalf(t, proc.Command.Args[1:], processCMDArgs[1:], "process args do not match. Expected %+v", processCMDArgs)
+	}
+}
+
 // assertProcesses asserts that the given processes are collected by the process check
 func assertProcesses(t require.TestingT, procs []*agentmodel.Process, withIOStats bool, process string) {
 	// verify process data is populated
@@ -200,6 +208,14 @@ func findProcess(
 	}
 
 	return found, populated
+}
+
+func filterProcessPayloadsByName(payloads []*aggregator.ProcessPayload, processName string) []*agentmodel.Process {
+	var procs []*agentmodel.Process
+	for _, payload := range payloads {
+		procs = append(procs, filterProcesses(processName, payload.Processes)...)
+	}
+	return procs
 }
 
 // filterProcesses returns processes which match the given process name
@@ -381,20 +397,38 @@ func assertManualProcessDiscoveryCheck(t *testing.T, check string, process strin
 	assert.True(t, populated, "no %s process had all data populated", process)
 }
 
-func assertAPIKey(collect *assert.CollectT, apiKey string, agentClient agentclient.Agent, fakeIntakeClient *fakeintakeclient.Client, coreAgent bool) {
+func assertAPIKeyStatus(collect *assert.CollectT, apiKey string, agentClient agentclient.Agent, coreAgent bool) {
 	// Assert that the status has the correct API key
 	statusMap := getAgentStatus(collect, agentClient)
 	endpoints := statusMap.ProcessAgentStatus.Expvars.Map.Endpoints
 	if coreAgent {
 		endpoints = statusMap.ProcessComponentStatus.Expvars.Map.Endpoints
 	}
-	for _, key := range endpoints {
-		// Original key is obfuscated to the last 5 characters
-		assert.Equal(collect, key[0], apiKey[len(apiKey)-5:])
+	found := false
+	for _, epKeys := range endpoints {
+		for _, key := range epKeys {
+			// Original key is obfuscated to the last 5 characters
+			if key == apiKey[len(apiKey)-5:] {
+				found = true
+				break
+			}
+		}
 	}
+	require.True(collect, found, "API key %s not found in endpoints %+v", apiKey, endpoints)
+}
 
+func assertLastPayloadAPIKey(collect *assert.CollectT, expectedAPIKey string, fakeIntakeClient *fakeintakeclient.Client) {
 	// Assert that the last received payload has the correct API key
 	lastAPIKey, err := fakeIntakeClient.GetLastProcessPayloadAPIKey()
 	require.NoError(collect, err)
-	assert.Equal(collect, apiKey, lastAPIKey)
+	assert.Equal(collect, expectedAPIKey, lastAPIKey)
+}
+
+func assertAllPayloadsAPIKeys(collect *assert.CollectT, expectedAPIKeys []string, fakeIntakeClient *fakeintakeclient.Client) {
+	// Assert that all received payloads have the expected API keys
+	payloadKeys, err := fakeIntakeClient.GetAllProcessPayloadAPIKeys()
+	require.NoError(collect, err)
+	for _, expectedAPIKey := range expectedAPIKeys {
+		assert.Contains(collect, payloadKeys, expectedAPIKey)
+	}
 }

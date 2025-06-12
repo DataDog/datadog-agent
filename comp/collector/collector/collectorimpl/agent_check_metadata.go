@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -55,9 +54,9 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 
 // GetPayload builds a payload of all the agentchecks metadata
 func (c *collectorImpl) GetPayload(ctx context.Context) *Payload {
-	hostnameData, _ := hostname.Get(ctx)
+	hostnameData, _ := c.hostname.Get(ctx)
 
-	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config)
+	meta := hostMetadataUtils.GetMetaFromCache(ctx, c.config, c.hostname)
 	meta.Hostname = hostnameData
 
 	cp := hostMetadataUtils.GetCommonPayload(hostnameData, c.config)

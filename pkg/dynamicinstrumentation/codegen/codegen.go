@@ -14,9 +14,10 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"text/template"
 
 	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -98,7 +99,7 @@ func generateHeadersText(params []*ditypes.Parameter, out io.Writer) error {
 
 func generateParameterIndexText(index int, out io.Writer) error {
 	expr := ditypes.SetParameterIndexLocationExpression(uint16(index))
-	t, err := resolveLocationExpressionTemplate(expr)
+	t, err := resolveLocationExpressionTemplate(expr.Opcode)
 	if err != nil {
 		return err
 	}
@@ -129,7 +130,7 @@ func generateParametersTextViaLocationExpressions(params []*ditypes.Parameter, o
 	for i := range params {
 		collectedExpressions := collectLocationExpressions(params[i])
 		for _, locationExpression := range collectedExpressions {
-			template, err := resolveLocationExpressionTemplate(locationExpression)
+			template, err := resolveLocationExpressionTemplate(locationExpression.Opcode)
 			if err != nil {
 				return err
 			}
@@ -190,8 +191,8 @@ func collectSubLocationExpressions(location ditypes.LocationExpression) []ditype
 	return collectedExpressions
 }
 
-func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpression) (*template.Template, error) {
-	switch locationExpression.Opcode {
+var resolveLocationExpressionTemplate = funcs.MemoizeArg(func(opcode ditypes.LocationExpressionOpcode) (*template.Template, error) {
+	switch opcode {
 	case ditypes.OpReadUserRegister:
 		return template.New("read_register_location_expression").Parse(readRegisterTemplateText)
 	case ditypes.OpReadUserStack:
@@ -239,7 +240,7 @@ func resolveLocationExpressionTemplate(locationExpression ditypes.LocationExpres
 	default:
 		return nil, errors.New("invalid location expression opcode")
 	}
-}
+})
 
 func generateSliceHeader(slice *ditypes.Parameter, out io.Writer) error {
 	// Slices are defined with an "array" pointer as piece 0, which is a pointer to the actual

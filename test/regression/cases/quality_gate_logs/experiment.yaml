@@ -7,7 +7,7 @@ target:
   memory_allotment: 350 MiB
 
   environment:
-    DD_API_KEY: 00000001
+    DD_API_KEY: a0000001
     DD_HOSTNAME: smp-regression
 
   profiling_environment:
@@ -28,7 +28,7 @@ checks:
     description: "Memory usage"
     bounds:
       series: total_pss_bytes
-      upper_bound: "254 MiB"
+      upper_bound: "242 MiB"
 
   - name: lost_bytes
     description: "Allowable bytes not polled by log Agent"

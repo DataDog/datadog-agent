@@ -9,8 +9,6 @@ package util
 
 import (
 	"crypto/rand"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/hex"
 	"testing"
 )
@@ -71,21 +69,9 @@ func SetAuthTokenInMemory(t testing.TB) {
 	// convert the raw token to an hex string
 	token = hex.EncodeToString(key)
 
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(testIPCCert); !ok {
-		t.Fatalf("Unable to generate certPool from PERM IPC cert")
-	}
-
-	clientTLSConfig = &tls.Config{
-		RootCAs: certPool,
-	}
-
-	tlsCert, err := tls.X509KeyPair(testIPCCert, testIPCKey)
+	err = setTLSConfigs(testIPCCert, testIPCKey)
 	if err != nil {
-		t.Fatalf("Unable to generate x509 cert from PERM IPC cert and key: %v", err)
-	}
-	serverTLSConfig = &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
+		t.Fatalf("error while setting TLS configs: %v", err)
 	}
 
 	initSource = setAuthTokenInMemory

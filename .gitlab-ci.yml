@@ -163,51 +163,35 @@ variables:
   COMPARE_TO_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
-  RELEASE_VERSION: nightly
 
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
-  # SUFFIX variable to _test_only
-  DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v62029117-1ba50f31
-  DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v62029117-1ba50f31
-  DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v62029117-1ba50f31
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v62029117-1ba50f31
-  # New images to enable different version per image - not used yet
-  CI_IMAGE_BTF_GEN: v62029117-1ba50f31
+  # SUFFIX variable to
+  CI_IMAGE_BTF_GEN: v66293343-2eef00c4
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DEB_X64: v62029117-1ba50f31
+  CI_IMAGE_DEB_X64: v66293343-2eef00c4
   CI_IMAGE_DEB_X64_SUFFIX: ""
-  CI_IMAGE_DEB_ARM64: v62029117-1ba50f31
+  CI_IMAGE_DEB_ARM64: v66293343-2eef00c4
   CI_IMAGE_DEB_ARM64_SUFFIX: ""
-  CI_IMAGE_DEB_ARMHF: v62029117-1ba50f31
+  CI_IMAGE_DEB_ARMHF: v66293343-2eef00c4
   CI_IMAGE_DEB_ARMHF_SUFFIX: ""
-  CI_IMAGE_DD_AGENT_TESTING: v62029117-1ba50f31
-  CI_IMAGE_DD_AGENT_TESTING_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v62029117-1ba50f31
+  CI_IMAGE_DOCKER_X64: v66293343-2eef00c4
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v62029117-1ba50f31
+  CI_IMAGE_DOCKER_ARM64: v66293343-2eef00c4
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v62029117-1ba50f31
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v66293343-2eef00c4
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_17_X64: v62029117-1ba50f31
+  CI_IMAGE_LINUX_GLIBC_2_17_X64: v66293343-2eef00c4
   CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX: ""
-  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v62029117-1ba50f31
+  CI_IMAGE_LINUX_GLIBC_2_23_ARM64: v66293343-2eef00c4
   CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_X64: v62029117-1ba50f31
-  CI_IMAGE_SYSTEM_PROBE_X64_SUFFIX: ""
-  CI_IMAGE_SYSTEM_PROBE_ARM64: v62029117-1ba50f31
-  CI_IMAGE_SYSTEM_PROBE_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v62029117-1ba50f31
+  CI_IMAGE_RPM_X64: v66293343-2eef00c4
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v62029117-1ba50f31
+  CI_IMAGE_RPM_ARM64: v66293343-2eef00c4
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v62029117-1ba50f31
+  CI_IMAGE_RPM_ARMHF: v66293343-2eef00c4
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v62029117-1ba50f31
+  CI_IMAGE_WIN_LTSC2022_X64: v66293343-2eef00c4
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -229,43 +213,44 @@ variables:
 
   # Start aws ssm variables
   # They must be defined as environment variables in the GitLab CI/CD settings, to ease rotation if needed
-  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2  # agent-devx-infra
-  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-devx-infra
-  CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  CODECOV_TOKEN: ci.datadog-agent.codecov_token  # agent-devx-infra
-  DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-delivery
-  DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-delivery
-  DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login  # container-integrations
-  DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd  # container-integrations
-  RPM_GPG_KEY: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}  # agent-delivery
-  RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-delivery
-  VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url  # windows-agent
-  WINGET_PAT: ci.datadog-agent.winget_pat  # windows-agent
+  API_KEY_ORG2: ci.datadog-agent.datadog_api_key_org2 # agent-devx
+  CHANGELOG_COMMIT_SHA: ci.datadog-agent.gitlab_changelog_commit_sha # agent-devx
+  CHOCOLATEY_API_KEY: ci.datadog-agent.chocolatey_api_key # windows-agent
+  CODECOV_TOKEN: ci.datadog-agent.codecov_token # agent-devx
+  DEB_GPG_KEY: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID} # agent-delivery
+  DEB_SIGNING_PASSPHRASE: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID} # agent-delivery
+  DOCKER_REGISTRY_LOGIN: ci.datadog-agent.docker_hub_login # container-integrations
+  DOCKER_REGISTRY_PWD: ci.datadog-agent.docker_hub_pwd # container-integrations
+  RPM_GPG_KEY: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID} # agent-delivery
+  RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID} # agent-delivery
+  VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-agent
+  WINGET_PAT: ci.datadog-agent.winget_pat # windows-agent
   # End aws ssm variables
 
   # Start vault variables
-  AGENT_API_KEY_ORG2: agent-api-key-org-2  # agent-devx-infra
-  AGENT_APP_KEY_ORG2: agent-ci-app-key-org-2  # agent-devx-infra
-  AGENT_GITHUB_APP: agent-github-app  # agent-devx-infra
-  AGENT_QA_E2E: agent-qa-e2e  # agent-devx-loops
-  ATLASSIAN_WRITE: atlassian-write  # agent-devx-infra
-  CODECOV: codecov  # agent-devx-infra
-  DOCKER_REGISTRY_RO: dockerhub-readonly  # agent-delivery
-  E2E_AZURE: e2e-azure  # agent-devx-loops
-  E2E_GCP: e2e-gcp  # agent-devx-loops
-  GITLAB_TOKEN: gitlab-token  # agent-devx-infra
-  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2  # agent-devx-infra
-  MACOS_GITHUB_APP_1: macos-github-app-one  # agent-devx-infra
-  MACOS_GITHUB_APP_2: macos-github-app-two  # agent-devx-infra
-  SLACK_AGENT: slack-agent-ci  # agent-devx-infra
-  SMP_ACCOUNT: smp  # single-machine-performance
+  AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
+  AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
+  AGENT_GITHUB_APP: agent-github-app # agent-devx
+  AGENT_QA_E2E: agent-qa-e2e # agent-devx
+  ATLASSIAN_WRITE: atlassian-write # agent-devx
+  CODECOV: codecov # agent-devx
+  DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
+  E2E_AZURE: e2e-azure # agent-devx
+  E2E_GCP: e2e-gcp # agent-devx
+  GITLAB_TOKEN: gitlab-token # agent-devx
+  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
+  MACOS_GITHUB_APP_1: macos-github-app-one # agent-devx
+  MACOS_GITHUB_APP_2: macos-github-app-two # agent-devx
+  MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing # agent-delivery
+  MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account # agent-delivery
+  MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing # agent-delivery
+  MACOS_KEYCHAIN_PWD: ci-keychain # agent-delivery
+  SLACK_AGENT: slack-agent-ci # agent-devx
+  SMP_ACCOUNT: smp # single-machine-performance
   # End vault variables
 
   DD_PKG_VERSION: "latest"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
-
-  # Job cloning strategy
-  OVERRIDE_GIT_STRATEGY: "s3"
 
   # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
   ARTIFACT_DOWNLOAD_ATTEMPTS: 2
@@ -276,7 +261,6 @@ variables:
   FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
   FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
   FF_TIMESTAMPS: true
-  FF_USE_FASTZIP: true
 
 #
 # Condition mixins for simplification of rules
@@ -378,7 +362,8 @@ variables:
 # Note: due to workflow rules, rc tag => deploy pipeline, so there's technically no
 # need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
 # to explicitly add it.
-.if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
+.if_deploy_on_rc_tag_on_beta_repo_branch:
+  &if_deploy_on_rc_tag_on_beta_repo_branch
   if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
 # Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification
@@ -462,6 +447,7 @@ workflow:
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -489,12 +475,14 @@ workflow:
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
+      OTEL_AGENT_REPOSITORY: ddot-collector-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -511,18 +499,21 @@ workflow:
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent-dev
+      OTEL_AGENT_REPOSITORY: ddot-collector-dev
       DSD_REPOSITORY: dogstatsd-dev
       IMG_REGISTRIES: dev
   - <<: *if_deploy_on_rc_tag_on_beta_repo_branch
     when: on_success
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
   - when: manual
     allow_failure: true
     variables:
       AGENT_REPOSITORY: agent
+      OTEL_AGENT_REPOSITORY: ddot-collector
       DSD_REPOSITORY: dogstatsd
       IMG_REGISTRIES: public
 
@@ -539,6 +530,7 @@ workflow:
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
+      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
 
@@ -555,6 +547,7 @@ workflow:
     allow_failure: true
     variables:
       AGENT_REPOSITORY: ci/datadog-agent/agent-release
+      OTEL_AGENT_REPOSITORY: ci/datadog-agent/otel-agent-release
       CLUSTER_AGENT_REPOSITORY: ci/datadog-agent/cluster-agent-release
       DSD_REPOSITORY: ci/datadog-agent/dogstatsd-release
       IMG_REGISTRIES: internal-aws-ddbuild
@@ -659,6 +652,17 @@ workflow:
   - <<: *if_release_branch
     when: always
 
+.on_main_or_release_branch_or_deploy_manual:
+  - <<: *if_deploy
+    when: manual
+    allow_failure: true
+  - <<: *if_main_branch
+    when: manual
+    allow_failure: true
+  - <<: *if_release_branch
+    when: manual
+    allow_failure: true
+
 .on_all_builds:
   - <<: *if_run_all_builds
 
@@ -707,19 +711,19 @@ workflow:
 
 .if_windows_installer_changes: &if_windows_installer_changes
   changes:
-      paths:
-        - tools/windows/DatadogAgentInstaller/**/*
-        - .gitlab/e2e_install_packages/windows.yml
-        - test/new-e2e/tests/windows/install-test/**/*
-        - test/new-e2e/tests/windows/domain-test/**/*
-        - tasks/msi.py
-        - omnibus/python-scripts/**/*
-        - omnibus/lib/**/*
-        - omnibus/config/projects/agent.rb
-        - omnibus/config/software/**/*
-        - omnibus/config/templates/**/*
-        - release.json
-      compare_to: $COMPARE_TO_BRANCH
+    paths:
+      - tools/windows/DatadogAgentInstaller/**/*
+      - .gitlab/e2e_install_packages/windows.yml
+      - test/new-e2e/tests/windows/install-test/**/*
+      - test/new-e2e/tests/windows/domain-test/**/*
+      - tasks/msi.py
+      - omnibus/python-scripts/**/*
+      - omnibus/lib/**/*
+      - omnibus/config/projects/agent.rb
+      - omnibus/config/software/**/*
+      - omnibus/config/templates/**/*
+      - release.json
+    compare_to: $COMPARE_TO_BRANCH
 
 .except_windows_installer_changes:
   - <<: *if_windows_installer_changes
@@ -734,6 +738,7 @@ workflow:
   - pkg/process/monitor/*
   - pkg/util/kernel/**/*
   - pkg/dynamicinstrumentation/**/*
+  - pkg/dyninst/**/*
   - pkg/gpu/**/*
   - .gitlab/kernel_matrix_testing/system_probe.yml
   - .gitlab/kernel_matrix_testing/common.yml
@@ -952,6 +957,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - comp/forwarder/defaultforwarder/**/*
         - pkg/collector/corechecks/cluster/orchestrator/**/*
         - pkg/collector/corechecks/orchestrator/**/*
         - test/new-e2e/tests/orchestrator/**/*
@@ -1030,9 +1036,12 @@ workflow:
   - changes:
       paths:
         - cmd/otel-agent/**/*
+        - comp/core/tagger/**/*
         - comp/otelcol/**/*
+        - pkg/config/setup/otlp.go
         - pkg/trace/api/otlp.go
         - pkg/trace/stats/otel_util.go
+        - pkg/trace/traceutil/otel_util.go
         - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1221,7 +1230,7 @@ workflow:
   - !reference [.except_mergequeue]
   - changes:
       paths:
-        - pkg/fleet/installer/packages/embedded/*.service
+        - pkg/fleet/installer/packages/embedded/templates/**/*.service
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
@@ -1232,14 +1241,14 @@ workflow:
   tags: ["runner:windows-docker", "windowsversion:2022"]
   variables:
     # Full image name for Agent windows build image, for use in docker run command
-    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
 
 # The windows-v2 runner is currently only used in container_build jobs needed to do authenticated push. It should not replace the basic windows runner, unless agreeded first with #ci-infra team
 .windows_docker_v2_2022:
   tags: ["windows-v2:2022"]
   variables:
     # Full image name for Agent windows build image, for use in docker run command
-    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${DATADOG_AGENT_WINBUILDIMAGES}
+    WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
 
 # windows_docker_2019 configures the job to use the Windows Server 2019 runners.
 # Use in jobs that need to run on Windows Server 2019 runners.
@@ -1251,4 +1260,4 @@ workflow:
 #
 # Current default: Windows Server 2022
 .windows_docker_default:
-  extends: .windows_docker_2022
+  extends: .windows_docker_v2_2022

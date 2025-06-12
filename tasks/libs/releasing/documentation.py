@@ -20,7 +20,7 @@ NON_RELEASING_TEAMS = {
     'agent-release-management',
     'container-ecosystems',
     'apm-trace-storage',
-    'iglendd',  # Not a team but he's in the codeowners file
+    '@iglendd',  # Not a team but he's in the codeowners file
     'sdlc-security',
     'data-jobs-monitoring',
     'serverless-aws',

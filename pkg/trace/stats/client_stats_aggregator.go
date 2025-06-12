@@ -140,6 +140,7 @@ func (a *ClientStatsAggregator) getAggregationBucketTime(now, bs time.Time) time
 func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 	// populate container tags data on the payload
 	a.setVersionDataFromContainerTags(p)
+	p.ProcessTagsHash = processTagsHash(p.ProcessTags)
 	// compute the PayloadAggregationKey, common for all buckets within the payload
 	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag, p.ProcessTagsHash)
 
@@ -180,10 +181,11 @@ func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStat
 		return
 	}
 	if p.ContainerID != "" {
-		gitCommitSha, imageTag, err := version.GetVersionDataFromContainerTags(p.ContainerID, a.conf)
+		cTags, err := a.conf.ContainerTags(p.ContainerID)
 		if err != nil {
 			log.Error("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
 		} else {
+			gitCommitSha, imageTag := version.GetVersionDataFromContainerTags(cTags)
 			// Only override if the payload's original values were empty strings.
 			if p.ImageTag == "" {
 				p.ImageTag = imageTag

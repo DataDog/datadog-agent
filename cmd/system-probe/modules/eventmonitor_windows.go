@@ -14,17 +14,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
+func init() { registerModule(EventMonitor) }
+
 // EventMonitor - Event monitor Factory
-var EventMonitor = module.Factory{
+var EventMonitor = &module.Factory{
 	Name:             config.EventMonitorModule,
 	ConfigNamespaces: eventMonitorModuleConfigNamespaces,
 	Fn:               createEventMonitorModule,
 }
 
 func createProcessMonitorConsumer(_ *eventmonitor.EventMonitor, _ *netconfig.Config) error {
-	return nil
-}
-
-func createGPUProcessEventConsumer(_ *eventmonitor.EventMonitor) error {
 	return nil
 }

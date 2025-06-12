@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type stubCheck struct {
@@ -36,14 +37,14 @@ func addExpvarsCheckStats(c check.Check) {
 	expvars.AddCheckStats(c, 0, nil, nil, stats.SenderStats{}, haagentmock.NewMockHaAgent())
 }
 
-func setUp() {
-	pkgconfigsetup.Datadog().SetWithoutSource(loggingFrequencyConfigKey, "20")
-
+func setUp(cfg model.Config) {
+	cfg.SetWithoutSource(loggingFrequencyConfigKey, "20")
 	expvars.Reset()
 }
 
 func TestShouldLogNewCheck(t *testing.T) {
-	setUp()
+	mockConfig := configmock.New(t)
+	setUp(mockConfig)
 
 	for idx := 0; idx < 10; idx++ {
 		fakeID := checkid.ID(fmt.Sprintf("testcheck %d", idx))
@@ -56,7 +57,8 @@ func TestShouldLogNewCheck(t *testing.T) {
 }
 
 func TestShouldLogLastVerboseLog(t *testing.T) {
-	setUp()
+	mockConfig := configmock.New(t)
+	setUp(mockConfig)
 
 	for idx := 1; idx < 10; idx++ {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))
@@ -88,7 +90,8 @@ func TestShouldLogLastVerboseLog(t *testing.T) {
 }
 
 func TestShouldLogInitialCheckLoggingSeries(t *testing.T) {
-	setUp()
+	mockConfig := configmock.New(t)
+	setUp(mockConfig)
 
 	for idx := 0; idx < 5; idx++ {
 		testCheck := newTestCheck(fmt.Sprintf("testcheck %d", idx))

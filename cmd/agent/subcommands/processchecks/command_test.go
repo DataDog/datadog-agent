@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -27,12 +28,17 @@ func TestCommand(t *testing.T) {
 }
 
 func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
-	// Because we uses fx.Invoke some components are built
-	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	testDir := t.TempDir()
+
+	configPath := path.Join(testDir, "datadog.yaml")
+
+	// creating in-memory auth artifacts
+	ipcmock.New(t)
+
+	err := os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
 	return &command.GlobalParams{
-		ConfFilePath: config,
+		ConfFilePath: configPath,
 	}
 }

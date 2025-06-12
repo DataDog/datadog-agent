@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
@@ -199,12 +198,13 @@ func TestAdmissionControllerReinvocationPolicyV1beta1(t *testing.T) {
 }
 
 func TestGenerateTemplatesV1beta1(t *testing.T) {
+	mockConfig := configmock.New(t)
 	defaultReinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	failurePolicy := admiv1beta1.Ignore
 	matchPolicy := admiv1beta1.Exact
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := int32(443)
-	timeout := pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds")
+	timeout := mockConfig.GetInt32("admission_controller.timeout_seconds")
 	webhook := func(name, path string, objSelector, nsSelector *metav1.LabelSelector, matchConditions []admiv1beta1.MatchCondition, operations []admiv1beta1.OperationType, resources []string) admiv1beta1.MutatingWebhook {
 		return admiv1beta1.MutatingWebhook{
 			Name: name,
@@ -960,7 +960,7 @@ func TestGetValidatingWebhookSkeletonV1beta1(t *testing.T) {
 	sideEffects := admiv1beta1.SideEffectClassNone
 	port := int32(443)
 	path := "/bar"
-	defaultTimeout := pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds")
+	defaultTimeout := mockConfig.GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
 	namespaceSelector, _ := common.DefaultLabelSelectors(true)
 	_, objectSelector := common.DefaultLabelSelectors(false)
@@ -1065,7 +1065,7 @@ func TestGetMutatingWebhookSkeletonV1beta1(t *testing.T) {
 	defaultReinvocationPolicy := admiv1beta1.IfNeededReinvocationPolicy
 	port := int32(443)
 	path := "/bar"
-	defaultTimeout := pkgconfigsetup.Datadog().GetInt32("admission_controller.timeout_seconds")
+	defaultTimeout := mockConfig.GetInt32("admission_controller.timeout_seconds")
 	customTimeout := int32(2)
 	namespaceSelector, _ := common.DefaultLabelSelectors(true)
 	_, objectSelector := common.DefaultLabelSelectors(false)

@@ -5,9 +5,6 @@ Builds an Omnibus project for Windows.
 .DESCRIPTION
 This script builds an Omnibus Project for Windows, with options to configure the build environment.
 
-.PARAMETER ReleaseVersion
-Specifies the release version of the build. Default is the value of the environment variable RELEASE_VERSION.
-
 .PARAMETER Flavor
 Specifies the flavor of the agent. Default is the value of the environment variable AGENT_FLAVOR.
 
@@ -40,7 +37,6 @@ param(
     [bool] $BuildOutOfSource = $false,
     [nullable[bool]] $CheckGoVersion,
     [bool] $InstallDeps = $true,
-    [string] $ReleaseVersion = $env:RELEASE_VERSION,
     [string] $TargetProject = $env:OMNIBUS_TARGET
 )
 
@@ -54,11 +50,6 @@ Invoke-BuildScript `
     $inv_args = @(
         "--skip-deps"
     )
-    if ($ReleaseVersion) {
-        $inv_args += "--release-version"
-        $inv_args += $ReleaseVersion
-        $env:RELEASE_VERSION=$ReleaseVersion
-    }
 
     if ($TargetProject) {
         $inv_args += "--target-project"

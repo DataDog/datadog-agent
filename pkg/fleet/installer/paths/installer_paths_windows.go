@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,8 +32,10 @@ var (
 
 var (
 	// DatadogDataDir is the path to the Datadog data directory, by default C:\\ProgramData\\Datadog.
+	// This is configurable via the DD_APPLICATIONDATADIRECTORY environment variable.
 	DatadogDataDir string
 	// DatadogProgramFilesDir Datadog Program Files directory
+	// This is configurable via the DD_PROJECTLOCATION environment variable.
 	DatadogProgramFilesDir string
 	// DatadogInstallerData is the path to the Datadog Installer data directory, by default C:\\ProgramData\\Datadog\\Installer.
 	DatadogInstallerData string
@@ -51,15 +54,35 @@ var (
 )
 
 func init() {
-	DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
+	// Fetch environment variables, the paths are configurable.
+	// setup and experiment subcommands will respect the paths configured in the environment.
+	// This is important for experiments, as running the MSI may remove the registry keys.
+	// The daemon should expect to only read the paths from the registry, but there's no way to
+	// differentiate the two runtime environments here.
+	env := env.FromEnv()
+
+	// OS paths
+	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+
+	// Data directory
+	if env.MsiParams.ApplicationDataDirectory != "" {
+		DatadogDataDir = env.MsiParams.ApplicationDataDirectory
+	} else {
+		DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
+	}
 	DatadogInstallerData = filepath.Join(DatadogDataDir, "Installer")
 	PackagesPath = filepath.Join(DatadogInstallerData, "packages")
-	ConfigsPath = filepath.Join(DatadogInstallerData, "configs")
+	ConfigsPath = filepath.Join(DatadogInstallerData, "managed")
 	RootTmpDir = filepath.Join(DatadogInstallerData, "tmp")
-	DatadogProgramFilesDir, _ = getProgramFilesDirForProduct("Datadog Agent")
-	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
-	DefaultUserConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
 	RunPath = filepath.Join(PackagesPath, "run")
+
+	// Install directory
+	if env.MsiParams.ProjectLocation != "" {
+		DatadogProgramFilesDir = env.MsiParams.ProjectLocation
+	} else {
+		DatadogProgramFilesDir, _ = getProgramFilesDirForProduct("Datadog Agent")
+	}
+	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
 }
 
 // EnsureInstallerDataDir creates/updates the root directory for the installer data and sets permissions

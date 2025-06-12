@@ -16,6 +16,7 @@ import (
 )
 
 func TestFxRun_WithDatadogExporter(t *testing.T) {
+	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	fxutil.TestRun(t, func() error {
 		ctx := context.Background()
 		params := &subcommands.GlobalParams{
@@ -26,6 +27,7 @@ func TestFxRun_WithDatadogExporter(t *testing.T) {
 }
 
 func TestFxRun_NoDatadogExporter(t *testing.T) {
+	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "true")
 	fxutil.TestRun(t, func() error {
 		ctx := context.Background()
 		params := &subcommands.GlobalParams{

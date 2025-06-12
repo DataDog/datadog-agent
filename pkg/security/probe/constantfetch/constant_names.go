@@ -9,8 +9,9 @@ package constantfetch
 
 // Struct sizes
 const (
-	SizeOfInode = "sizeof_inode"
-	SizeOfUPID  = "sizeof_upid"
+	SizeOfInode      = "sizeof_inode"
+	SizeOfUPID       = "sizeof_upid"
+	SizeOfPipeBuffer = "sizeof_pipe_buffer"
 )
 
 // Offset names in the format "OffsetName[Struct Name]Struct[Field Name]"
@@ -90,6 +91,7 @@ const (
 	OffsetNamePipeInodeInfoStructBuffers  = "pipe_inode_info_buffers_offset"   // kernels < 5.5
 	OffsetNamePipeInodeInfoStructHead     = "pipe_inode_info_head_offset"      // kernels >= 5.5
 	OffsetNamePipeInodeInfoStructRingsize = "pipe_inode_info_ring_size_offset" // kernels >= 5.5
+	OffsetNamePipeBufferStructFlags       = "pipe_buffer_flags_offset"
 
 	// network related constants
 	OffsetNameNetDeviceStructIfIndex    = "net_device_ifindex_offset"

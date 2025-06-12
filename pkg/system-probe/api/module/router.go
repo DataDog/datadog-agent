@@ -19,6 +19,7 @@ import (
 type Router struct {
 	mux            sync.Mutex
 	handlerByRoute map[string]func(http.ResponseWriter, *http.Request)
+	registered     map[string]bool
 	router         *mux.Router
 	labels         pprof.LabelSet
 }
@@ -27,6 +28,7 @@ type Router struct {
 func NewRouter(namespace string, parent *mux.Router) *Router {
 	return &Router{
 		handlerByRoute: make(map[string]func(http.ResponseWriter, *http.Request)),
+		registered:     make(map[string]bool),
 		router:         parent.PathPrefix("/" + namespace).Subrouter(),
 		labels:         pprof.Labels("module", namespace),
 	}
@@ -35,7 +37,9 @@ func NewRouter(namespace string, parent *mux.Router) *Router {
 // HandleFunc registers a HandleFunc in such a way that routes can be registered multiple times
 func (r *Router) HandleFunc(path string, responseWriter func(http.ResponseWriter, *http.Request)) *mux.Route {
 	r.mux.Lock()
-	_, registered := r.handlerByRoute[path]
+	_, registered := r.registered[path]
+	r.registered[path] = true
+	// overwrite the handler regardless if it was registered before
 	r.handlerByRoute[path] = responseWriter
 	r.mux.Unlock()
 
@@ -48,10 +52,22 @@ func (r *Router) HandleFunc(path string, responseWriter func(http.ResponseWriter
 
 	return r.router.HandleFunc(path, func(w http.ResponseWriter, req *http.Request) {
 		r.mux.Lock()
-		handlerFn := r.handlerByRoute[path]
+		// obtain the current handler inline, which allows module restart
+		handlerFn, ok := r.handlerByRoute[path]
 		r.mux.Unlock()
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		pprof.Do(req.Context(), r.labels, func(_ context.Context) {
 			handlerFn(w, req)
 		})
 	})
+}
+
+// Unregister removes the registered handler functions
+func (r *Router) Unregister() {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	clear(r.handlerByRoute)
 }

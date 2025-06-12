@@ -14,22 +14,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
-
-// DefaultRegistryFilename is the default registry filename
-const DefaultRegistryFilename = "registry.json"
 
 const defaultFlushPeriod = 1 * time.Second
 const defaultCleanupPeriod = 300 * time.Second
 
 // latest version of the API used by the auditor to retrieve the registry from disk.
 const registryAPIVersion = 2
+
+// defaultRegistryFilename is the default registry filename
+const defaultRegistryFilename = "registry.json"
 
 // A RegistryEntry represents an entry in the registry where we keep track
 // of current offsets
@@ -49,6 +49,7 @@ type JSONRegistry struct {
 // A registryAuditor is storing the Auditor information using a registry.
 type registryAuditor struct {
 	health             *health.Handle
+	healthRegistrar    healthdef.Component
 	chansMutex         sync.Mutex
 	inputChan          chan *message.Payload
 	registry           map[string]*RegistryEntry
@@ -59,6 +60,7 @@ type registryAuditor struct {
 	entryTTL           time.Duration
 	done               chan struct{}
 	messageChannelSize int
+	registryWriter     auditor.RegistryWriter
 
 	log log.Component
 }
@@ -67,6 +69,7 @@ type registryAuditor struct {
 type Dependencies struct {
 	Log    log.Component
 	Config config.Component
+	Health healthdef.Component
 }
 
 // Provides contains the auditor component
@@ -74,13 +77,20 @@ type Provides struct {
 	Comp auditor.Component
 }
 
-// newAuditor is the public constructor for the auditor
+// NewAuditor is the public constructor for the auditor
 func newAuditor(deps Dependencies) *registryAuditor {
 	runPath := deps.Config.GetString("logs_config.run_path")
-	// filename := deps.Config.GetString("logs_config.registry_filename")
-	filename := DefaultRegistryFilename
+	filename := defaultRegistryFilename
 	ttl := time.Duration(deps.Config.GetInt("logs_config.auditor_ttl")) * time.Hour
 	messageChannelSize := deps.Config.GetInt("logs_config.message_channel_size")
+	atomicRegistryWrite := deps.Config.GetBool("logs_config.atomic_registry_write")
+
+	var registryWriter auditor.RegistryWriter
+	if atomicRegistryWrite {
+		registryWriter = NewAtomicRegistryWriter()
+	} else {
+		registryWriter = NewNonAtomicRegistryWriter()
+	}
 
 	registryAuditor := &registryAuditor{
 		registryPath:       filepath.Join(runPath, filename),
@@ -89,6 +99,8 @@ func newAuditor(deps Dependencies) *registryAuditor {
 		entryTTL:           ttl,
 		messageChannelSize: messageChannelSize,
 		log:                deps.Log,
+		healthRegistrar:    deps.Health,
+		registryWriter:     registryWriter,
 	}
 
 	return registryAuditor
@@ -97,7 +109,6 @@ func newAuditor(deps Dependencies) *registryAuditor {
 // NewProvides creates a new auditor component
 func NewProvides(deps Dependencies) Provides {
 	auditorImpl := newAuditor(deps)
-
 	return Provides{
 		Comp: auditorImpl,
 	}
@@ -105,8 +116,7 @@ func NewProvides(deps Dependencies) Provides {
 
 // Start starts the Auditor
 func (a *registryAuditor) Start() {
-	health := health.RegisterLiveness("logs-agent")
-	a.health = health
+	a.health = a.healthRegistrar.RegisterLiveness("logs-agent")
 
 	a.createChannels()
 	a.registry = a.recoverRegistry()
@@ -304,28 +314,7 @@ func (a *registryAuditor) flushRegistry() error {
 	if err != nil {
 		return err
 	}
-	f, err := os.CreateTemp(a.registryDirPath, a.registryTmpFile)
-	if err != nil {
-		return err
-	}
-	tmpName := f.Name()
-	defer func() {
-		if err != nil {
-			_ = f.Close()
-			_ = os.Remove(tmpName)
-		}
-	}()
-	if _, err = f.Write(mr); err != nil {
-		return err
-	}
-	if err = f.Chmod(0644); err != nil {
-		return err
-	}
-	if err = f.Close(); err != nil {
-		return err
-	}
-	err = os.Rename(tmpName, a.registryPath)
-	return err
+	return a.registryWriter.WriteRegistry(a.registryPath, a.registryDirPath, a.registryTmpFile, mr)
 }
 
 // marshalRegistry marshals a regsistry

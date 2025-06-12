@@ -109,7 +109,11 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	// This only exists to allow overriding for testing
 	c.metaV3or4 = func(metaURI, metaVersion string) v3or4.Client {
-		return v3or4.NewClient(metaURI, metaVersion)
+		return v3or4.NewClient(metaURI, metaVersion, v3or4.WithTryOption(
+			c.metadataRetryInitialInterval,
+			c.metadataRetryMaxElapsedTime,
+			func(d time.Duration) time.Duration { return time.Duration(c.metadataRetryTimeoutFactor) * d }),
+		)
 	}
 
 	c.hasResourceTags = ecsutil.HasEC2ResourceTags()

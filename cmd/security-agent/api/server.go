@@ -20,7 +20,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -39,7 +39,7 @@ type Server struct {
 }
 
 // NewServer creates a new Server instance
-func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component, secrets secrets.Component) (*Server, error) {
+func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component, secrets secrets.Component) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func NewServer(statusComponent status.Component, settings settings.Component, wm
 	return &Server{
 		listener:  listener,
 		agent:     agent.NewAgent(statusComponent, settings, wmeta, secrets),
-		tlsConfig: at.GetTLSServerConfig(),
+		tlsConfig: ipc.GetTLSServerConfig(),
 	}, nil
 }
 

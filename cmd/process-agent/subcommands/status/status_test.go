@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -26,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
+func fakeStatusServer(t *testing.T, ipcMock *ipcmock.IPCMock, stats status.Status) *httptest.Server {
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		b, err := json.Marshal(stats)
@@ -36,7 +37,7 @@ func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
 		require.NoError(t, err)
 	}
 
-	return httptest.NewServer(http.HandlerFunc(handler))
+	return ipcMock.NewMockServer(http.HandlerFunc(handler))
 }
 
 func TestStatus(t *testing.T) {
@@ -49,12 +50,13 @@ func TestStatus(t *testing.T) {
 		Expvars: status.ProcessExpvars{},
 	}
 
-	server := fakeStatusServer(t, statusInfo)
-	defer server.Close()
+	ipcMock := ipcmock.New(t)
+
+	server := fakeStatusServer(t, ipcMock, statusInfo)
 
 	// Build the actual status
 	var statusBuilder strings.Builder
-	getAndWriteStatus(log.NoopLogger, server.URL, &statusBuilder)
+	getAndWriteStatus(log.NoopLogger, ipcMock.GetClient(), server.URL, &statusBuilder)
 
 	expectedOutput := string(`
 	{
@@ -141,12 +143,14 @@ func TestNotRunning(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("process_config.cmd_port", 8082)
 
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(cfg)
 	require.NoError(t, err)
 	statusURL := fmt.Sprintf("https://%s/agent/status", addressPort)
 
+	ipcMock := ipcmock.New(t)
+
 	var b strings.Builder
-	getAndWriteStatus(log.NoopLogger, statusURL, &b)
+	getAndWriteStatus(log.NoopLogger, ipcMock.GetClient(), statusURL, &b)
 
 	assert.Equal(t, notRunning, b.String())
 }
@@ -156,7 +160,7 @@ func TestNotRunning(t *testing.T) {
 func TestError(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
-	_, ipcError := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	_, ipcError := pkgconfigsetup.GetIPCAddress(cfg)
 
 	var errText, expectedErrText strings.Builder
 	url, err := getStatusURL()

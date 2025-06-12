@@ -67,7 +67,7 @@ def run_golangci_lint(
 
     _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
     verbosity = "-v" if verbose else ""
-    # we split targets to avoid going over the memory limit from circleCI
+    # we split targets to reduce memory usage
     results = []
     time_results = []
     for target in targets:
@@ -314,7 +314,7 @@ def tidy_all(ctx):
 
 
 @task
-def tidy(ctx):
+def tidy(ctx, verbose: bool = False):
     check_valid_mods(ctx)
 
     ctx.run("go work sync")
@@ -330,20 +330,26 @@ def tidy(ctx):
             resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
 
     # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
+    verbosity = "-x" if verbose else ""
     promises = []
     for mod in get_default_modules().values():
         with ctx.cd(mod.full_path()):
             # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
-            promises.append(ctx.run("go mod tidy", asynchronous=True))
+            promises.append(ctx.run(f"go mod tidy {verbosity}", asynchronous=True))
 
     for promise in promises:
         promise.join()
 
 
+@task(autoprint=True)
+def version(_):
+    return Path(".go-version").read_text(encoding="utf-8").strip()
+
+
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.23.8 linux/amd64"
+    # result is like "go version go1.24.3 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

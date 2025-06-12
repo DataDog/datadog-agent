@@ -189,9 +189,11 @@ func TestRstTwice(t *testing.T) {
 	}, f.conn.TCPFailures)
 
 	expectedStats := network.StatCounters{
-		SentBytes:   0,
-		RecvBytes:   0,
-		SentPackets: 3,
+		SentBytes: 0,
+		RecvBytes: 0,
+		// doesn't count the packet from the second reset because by that time, the connection is already closed
+		// and additional packets no longer affect the outcome
+		SentPackets: 2,
 		RecvPackets: 2,
 		// RSTs are not retransmits
 		Retransmits:    0,
@@ -270,5 +272,63 @@ func TestRetransmitMultipleSegments(t *testing.T) {
 		TCPEstablished: 1,
 		TCPClosed:      1,
 	}
+	require.Equal(t, expectedStats, f.conn.Monotonic)
+}
+
+func TestIncomingRetransmitAfterClose(t *testing.T) {
+	pb := newPacketBuilder(lowerSeq, higherSeq)
+
+	// same as TestImmediateFin but adds an incoming retransmit at the end
+	basicHandshake := []testCapture{
+		pb.incoming(0, 0, 0, SYN),
+		pb.outgoing(0, 0, 1, SYN|ACK),
+		pb.incoming(0, 1, 1, ACK),
+		// active close after sending no data
+		pb.outgoing(0, 1, 1, FIN|ACK),
+		pb.incoming(0, 1, 2, FIN|ACK),
+		pb.outgoing(0, 2, 2, ACK),
+	}
+
+	expectedClientStates := []connStatus{
+		connStatAttempted,
+		connStatAttempted,
+		connStatEstablished,
+		// active close begins here
+		connStatEstablished,
+		connStatEstablished,
+		connStatClosed,
+	}
+
+	f := newTCPTestFixture(t)
+	f.runAgainstState(basicHandshake, expectedClientStates)
+
+	require.Empty(t, f.conn.TCPFailures)
+
+	expectedStats := network.StatCounters{
+		SentBytes:      0,
+		RecvBytes:      0,
+		SentPackets:    3,
+		RecvPackets:    3,
+		Retransmits:    0,
+		TCPEstablished: 1,
+		TCPClosed:      1,
+	}
+	require.Equal(t, expectedStats, f.conn.Monotonic)
+
+	f.runAgainstState([]testCapture{
+		// that outgoing ACK was lost, the client retransmits FIN
+		pb.incoming(0, 1, 2, FIN|ACK),
+		// we re-send the final ACK
+		pb.outgoing(0, 2, 2, ACK),
+	}, []connStatus{
+		// it stays closed throughout
+		connStatClosed,
+		connStatClosed,
+	})
+
+	// ideally this would get counted as a retransmit, but the closed connection is already
+	// sent off to the tracer at this point, so the stats can't change.
+	// I think this situation is rare enough that it's not too important
+	require.Empty(t, f.conn.TCPFailures)
 	require.Equal(t, expectedStats, f.conn.Monotonic)
 }

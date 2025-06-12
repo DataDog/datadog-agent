@@ -7,23 +7,19 @@
 package run
 
 import (
-	"fmt"
-	"syscall"
-
-	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/svc/mgr"
-
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 type serviceInitFunc func() (err error)
 
 // Servicedef defines a service
 type Servicedef struct {
-	name       string
-	configKeys map[string]model.Config
+	name           string
+	configKeys     map[string]model.Config
+	shouldShutdown bool
 
 	serviceName string
 	serviceInit serviceInitFunc
@@ -35,8 +31,9 @@ var subservices = []Servicedef{
 		configKeys: map[string]model.Config{
 			"apm_config.enabled": pkgconfigsetup.Datadog(),
 		},
-		serviceName: "datadog-trace-agent",
-		serviceInit: apmInit,
+		serviceName:    "datadog-trace-agent",
+		serviceInit:    apmInit,
+		shouldShutdown: false,
 	},
 	{
 		name: "process",
@@ -48,8 +45,9 @@ var subservices = []Servicedef{
 			"network_config.enabled":                      pkgconfigsetup.SystemProbe(),
 			"system_probe_config.enabled":                 pkgconfigsetup.SystemProbe(),
 		},
-		serviceName: "datadog-process-agent",
-		serviceInit: processInit,
+		serviceName:    "datadog-process-agent",
+		serviceInit:    processInit,
+		shouldShutdown: false,
 	},
 	{
 		name: "sysprobe",
@@ -59,16 +57,27 @@ var subservices = []Servicedef{
 			"windows_crash_detection.enabled": pkgconfigsetup.SystemProbe(),
 			"runtime_security_config.enabled": pkgconfigsetup.SystemProbe(),
 		},
-		serviceName: "datadog-system-probe",
-		serviceInit: sysprobeInit,
+		serviceName:    "datadog-system-probe",
+		serviceInit:    sysprobeInit,
+		shouldShutdown: false,
 	},
 	{
 		name: "cws",
 		configKeys: map[string]model.Config{
 			"runtime_security_config.enabled": pkgconfigsetup.SystemProbe(),
 		},
-		serviceName: "datadog-security-agent",
-		serviceInit: securityInit,
+		serviceName:    "datadog-security-agent",
+		serviceInit:    securityInit,
+		shouldShutdown: false,
+	},
+	{
+		name: "datadog-installer",
+		configKeys: map[string]model.Config{
+			"remote_updates": pkgconfigsetup.Datadog(),
+		},
+		serviceName:    "Datadog Installer",
+		serviceInit:    installerInit,
+		shouldShutdown: true,
 	},
 }
 
@@ -88,8 +97,13 @@ func securityInit() error {
 	return nil
 }
 
+func installerInit() error {
+	return nil
+}
+
 // Start starts the service
 func (s *Servicedef) Start() error {
+	// Initialize the service if it has an init function
 	if s.serviceInit != nil {
 		err := s.serviceInit()
 		if err != nil {
@@ -97,45 +111,16 @@ func (s *Servicedef) Start() error {
 			return err
 		}
 	}
-
-	/*
-	 * default go implementations of mgr.Connect and mgr.OpenService use way too
-	 * open permissions by default.  Use those structures so the other methods
-	 * work properly, but initialize them here using restrictive enough permissions
-	 * that we can actually open/start the service when running as non-root.
-	 */
-	h, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
-	if err != nil {
-		log.Warnf("Failed to connect to scm %v", err)
-		return err
-	}
-	m := &mgr.Mgr{Handle: h}
-	defer m.Disconnect()
-
-	snptr, err := syscall.UTF16PtrFromString(s.serviceName)
-	if err != nil {
-		log.Warnf("Failed to get service name %v", err)
-		return fmt.Errorf("could not create service name pointer: %s", err)
-	}
-
-	hSvc, err := windows.OpenService(m.Handle, snptr,
-		windows.SERVICE_START|windows.SERVICE_STOP)
-	if err != nil {
-		log.Warnf("Failed to open service %v", err)
-		return fmt.Errorf("could not access service: %v", err)
-	}
-	scm := &mgr.Service{Name: s.serviceName, Handle: hSvc}
-	defer scm.Close()
-	err = scm.Start("is", "manual-started")
-	if err != nil {
-		log.Warnf("Failed to start service %v", err)
-		return fmt.Errorf("could not start service: %v", err)
-	}
-
-	return nil
+	// we use the winutil StartService because it opens the service
+	// with the correct permissions for us and not the default of SC_MANAGER_ALL
+	// that the svc package uses
+	return winutil.StartService(s.serviceName)
 }
 
 // Stop stops the service
 func (s *Servicedef) Stop() error {
-	return nil
+	// note that this will stop the service and any services that depend on it
+	// it will also wait for the service to stop and return an error if it doesn't stop
+	// the default timeout is 30 seconds
+	return winutil.StopService(s.serviceName)
 }

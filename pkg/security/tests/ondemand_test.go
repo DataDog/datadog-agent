@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -24,22 +25,6 @@ import (
 func TestOnDemandOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	onDemands := []rules.OnDemandHookPoint{
-		{
-			Name: "do_sys_openat2",
-			Args: []rules.HookPointArg{
-				{
-					N:    1,
-					Kind: "uint",
-				},
-				{
-					N:    2,
-					Kind: "null-terminated-string",
-				},
-			},
-		},
-	}
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_open",
@@ -47,7 +32,7 @@ func TestOnDemandOpen(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs, withStaticOpts(testOpts{disableOnDemandRateLimiter: true}))
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{disableOnDemandRateLimiter: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,27 +70,14 @@ func TestOnDemandOpen(t *testing.T) {
 func TestOnDemandChdir(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	onDemands := []rules.OnDemandHookPoint{
-		{
-			Name:      "chdir",
-			IsSyscall: true,
-			Args: []rules.HookPointArg{
-				{
-					N:    1,
-					Kind: "null-terminated-string",
-				},
-			},
-		},
-	}
-
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_chdir",
-			Expression: `ondemand.name == "chdir" && process.file.name == "testsuite"`,
+			Expression: `ondemand.name == "syscall:chdir" && ondemand.arg1.str != "" && process.file.name == "testsuite"`,
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,25 +104,7 @@ func TestOnDemandChdir(t *testing.T) {
 }
 
 func TestOnDemandMprotect(t *testing.T) {
-	t.Skip("skipping mprotect test, because mprotect are too frequent globally to not trip the rate limiter")
-
 	SkipIfNotAvailable(t)
-
-	onDemands := []rules.OnDemandHookPoint{
-		{
-			Name: "security_file_mprotect",
-			Args: []rules.HookPointArg{
-				{
-					N:    2,
-					Kind: "uint",
-				},
-				{
-					N:    3,
-					Kind: "uint",
-				},
-			},
-		},
-	}
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -159,7 +113,7 @@ func TestOnDemandMprotect(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModuleWithOnDemandProbes(t, onDemands, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,6 +135,39 @@ func TestOnDemandMprotect(t *testing.T) {
 		}
 
 		return nil
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
+	})
+}
+
+func TestOnDemandCopyFileRange(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_copy_file_range",
+			Expression: `ondemand.name == "syscall:copy_file_range" && ondemand.arg5.uint == 42 && ondemand.arg6.uint == 0 && process.file.name == "testsuite"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	f, err := os.CreateTemp("", "test-copy_file_range")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	test.WaitSignal(t, func() error {
+		_, err := unix.CopyFileRange(int(f.Fd()), nil, int(f.Fd()), nil, 42, 0)
+		if errors.Is(err, unix.ENOSYS) {
+			return ErrSkipTest{"openat2 is not supported"}
+		}
+		return err
 	}, func(event *model.Event, _ *rules.Rule) {
 		assert.Equal(t, "ondemand", event.GetType(), "wrong event type")
 	})

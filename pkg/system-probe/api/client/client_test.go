@@ -6,15 +6,29 @@
 package client
 
 import (
-	"context"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server/testutil"
 )
+
+func startTestServer(t *testing.T, handler http.Handler) (string, *httptest.Server) {
+	t.Helper()
+
+	socketPath := testutil.SystemProbeSocketPath(t, "client")
+	server, err := testutil.NewSystemProbeTestServer(handler, socketPath)
+	require.NoError(t, err)
+	require.NotNil(t, server)
+	server.Start()
+	t.Cleanup(server.Close)
+
+	return socketPath, server
+}
 
 func TestConstructURL(t *testing.T) {
 	u := constructURL("", "/asdf?a=b")
@@ -35,6 +49,11 @@ type expectedTelemetryValues struct {
 	malformedResponses float64
 }
 
+type testData struct {
+	Str string
+	Num int
+}
+
 func validateTelemetry(t *testing.T, module string, expected expectedTelemetryValues) {
 	assert.Equal(t, expected.totalRequests, checkTelemetry.totalRequests.WithValues(module).Get(), "mismatched totalRequests counter value")
 	assert.Equal(t, expected.failedRequests, checkTelemetry.failedRequests.WithValues(module).Get(), "mismatched failedRequest counter value")
@@ -44,26 +63,20 @@ func validateTelemetry(t *testing.T, module string, expected expectedTelemetryVa
 }
 
 func TestGetCheck(t *testing.T) {
-	type testData struct {
-		Str string
-		Num int
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	socketPath, server := startTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/test/check" {
 			_, _ = w.Write([]byte(`{"Str": "asdf", "Num": 42}`))
 		} else if r.URL.Path == "/malformed/check" {
 			//this should fail in json.Unmarshal
 			_, _ = w.Write([]byte("1"))
+		} else if r.URL.Path == "/debug/stats" {
+			_, _ = w.Write([]byte(`{}`))
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
-	t.Cleanup(server.Close)
 
-	client := &http.Client{Transport: &http.Transport{DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-		return net.Dial("tcp", server.Listener.Addr().String())
-	}}}
+	client := getCheckClient(socketPath)
 
 	//test happy flow
 	resp, err := GetCheck[testData](client, "test")
@@ -87,4 +100,43 @@ func TestGetCheck(t *testing.T) {
 	resp, err = GetCheck[testData](client, "test")
 	require.Error(t, err)
 	validateTelemetry(t, "test", expectedTelemetryValues{2, 1, 0, 0, 0})
+}
+
+func TestGetCheckStartup(t *testing.T) {
+	failRequest := true
+	socketPath, _ := startTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if failRequest {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if r.URL.Path == "/debug/stats" {
+			_, _ = w.Write([]byte(`{}`))
+		} else if r.URL.Path == "/test/check" {
+			_, _ = w.Write([]byte(`{"Num": 42}`))
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+
+	client := getCheckClient(socketPath)
+
+	_, err := GetCheck[testData](client, "test")
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrNotStartedYet)
+
+	// Test after grace period
+	client.startTime = time.Now().Add(-6 * time.Minute)
+
+	// The error should not be ErrNotStartedYet since we're past the grace period
+	_, err = GetCheck[testData](client, "test")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrNotStartedYet)
+
+	failRequest = false
+
+	// Test successful check after startup
+	resp, err := GetCheck[testData](client, "test")
+	require.NoError(t, err)
+	assert.Equal(t, 42, resp.Num)
 }

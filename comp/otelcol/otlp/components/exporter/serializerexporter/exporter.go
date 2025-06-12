@@ -40,7 +40,7 @@ func newDefaultConfig() component.Config {
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueConfig: exporterhelper.NewDefaultQueueConfig(),
+		QueueBatchConfig: exporterhelper.NewDefaultQueueConfig(),
 
 		Metrics:      mcfg,
 		API:          pkgmcfg.API,

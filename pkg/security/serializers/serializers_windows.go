@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -110,7 +111,7 @@ type EventSerializer struct {
 	*ChangePermissionEventSerializer `json:"permission_change,omitempty"`
 }
 
-func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSerializer {
+func newFileSerializer(fe *model.FileEvent, e *model.Event, _ uint64, _ *model.FileMetadata) *FileSerializer {
 	return &FileSerializer{
 		Path: e.FieldHandlers.ResolveFilePath(e, fe),
 		Name: e.FieldHandlers.ResolveFileBasename(e, fe),
@@ -153,7 +154,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 		Pid:        ps.Pid,
 		PPid:       createNumPointer(ps.PPid),
-		Executable: newFileSerializer(&ps.FileEvent, e),
+		Executable: newFileSerializer(&ps.FileEvent, e, 0, nil),
 		CmdLine:    e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
 		User:       e.FieldHandlers.ResolveUser(e, ps),
 	}
@@ -209,8 +210,8 @@ func (e *EventSerializer) ToJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event) ([]byte, error) {
-	s := NewEventSerializer(event, nil)
+func MarshalEvent(event *model.Event, rule *rules.Rule) ([]byte, error) {
+	s := NewEventSerializer(event, rule)
 	return json.Marshal(s)
 }
 
@@ -220,9 +221,9 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
+func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer:   NewBaseEventSerializer(event, opts),
+		BaseEventSerializer:   NewBaseEventSerializer(event, rule),
 		UserContextSerializer: newUserContextSerializer(event),
 	}
 	eventType := model.EventType(event.Type)
@@ -274,7 +275,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		}
 	case model.ExecEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event, 0, nil),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	}

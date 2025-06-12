@@ -105,3 +105,9 @@ func NewSystemProbe(t testing.TB) model.Config {
 	setup.SystemProbe().SetTestOnlyDynamicSchema(true)
 	return &mockConfig{setup.SystemProbe()}
 }
+
+// SetDefaultConfigType sets the config type for the mock config in use
+func SetDefaultConfigType(t *testing.T, configType string) {
+	mockConfig := New(t)
+	mockConfig.SetConfigType(configType)
+}

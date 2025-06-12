@@ -151,10 +151,15 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
+		serviceNameMutator = m.serviceNameMutator(pod)
+
 		// initContainerMutators are resource and security constraints
 		// to all the init containers the init containers that we create.
-		initContainerMutators = m.newInitContainerMutators(requirements)
-		injectorOptions       = libRequirementOptions{
+		initContainerMutators = append(
+			m.newInitContainerMutators(requirements),
+			serviceNameMutator,
+		)
+		injectorOptions = libRequirementOptions{
 			containerFilter:       m.config.containerFilter,
 			initContainerMutators: initContainerMutators,
 		}
@@ -162,6 +167,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injector          = m.newInjector(pod, startTime, injectorOptions)
 		containerMutators = containerMutators{
 			config.languageDetection.containerMutator(m.config.version),
+			serviceNameMutator,
 		}
 	)
 
@@ -211,6 +217,33 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	}
 
 	return lastError
+}
+
+// serviceNameMutator will attempt to find a service name to
+// inject into the pods containers if SSI is enabled.
+//
+// This is kind of gross, and would ideally not happen more than in
+// one place but we made a decision to infer DD_SERVICE in the auto-instrumentation
+// webhook a while ago and customers might be relying on this behavior.
+//
+// We have another webhook that does something really similar: tagsFromLabels and
+// it this is where the responsibility should generally.
+//
+// The big difference between the two is that tagsFromLabels looks at the label
+// metadata and we might override it and this one will look for the _name_ of the
+// owner resource.
+//
+// The intention is to have this always run last so that we fallback to the owner
+// name in cases of missing labels coming from the resource or its owner.
+//
+// We want to get rid of the behavior when we are triggering the fallback _and_
+// it applies: https://datadoghq.atlassian.net/browse/INPLAT-458
+func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
+	if !m.filter.IsNamespaceEligible(pod.Namespace) {
+		return &serviceNameMutator{noop: true}
+	}
+
+	return newServiceNameMutator(pod)
 }
 
 // newInitContainerMutators constructs container mutators for behavior

@@ -26,7 +26,7 @@ type (
 	// Parser defines the interface for parsing
 	// ICMP packets
 	Parser interface {
-		Match(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) (net.IP, error)
+		Match(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, packetID uint16) (net.IP, error)
 		Parse(header *ipv4.Header, packet []byte) (*Response, error)
 	}
 
@@ -36,6 +36,7 @@ type (
 		SrcIP        net.IP
 		DstIP        net.IP
 		TypeCode     layers.ICMPv4TypeCode
+		InnerIPID    uint16
 		InnerSrcIP   net.IP
 		InnerDstIP   net.IP
 		InnerSrcPort uint16
@@ -52,12 +53,13 @@ type (
 // Matches checks if an ICMPResponse matches the expected response
 // based on the local and remote IP, port, and identifier. In this context,
 // identifier will either be the TCP sequence number OR the UDP checksum
-func (i *Response) Matches(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32) bool {
+func (i *Response) Matches(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, innerIdentifier uint32, packetID uint16) bool {
 	return localIP.Equal(i.InnerSrcIP) &&
 		remoteIP.Equal(i.InnerDstIP) &&
 		localPort == i.InnerSrcPort &&
 		remotePort == i.InnerDstPort &&
-		innerIdentifier == i.InnerIdentifier
+		innerIdentifier == i.InnerIdentifier &&
+		packetID == i.InnerIPID
 }
 
 func validatePacket(header *ipv4.Header, payload []byte) error {

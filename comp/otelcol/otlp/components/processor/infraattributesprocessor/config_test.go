@@ -7,6 +7,7 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
 	"path/filepath"
 	"testing"
 
@@ -36,7 +37,7 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.id.String(), func(t *testing.T) {
-			tc := newTestTaggerClient()
+			tc := testutil.NewTestTaggerClient()
 			f := NewFactoryForAgent(tc, func(_ context.Context) (string, error) {
 				return "test-host", nil
 			})

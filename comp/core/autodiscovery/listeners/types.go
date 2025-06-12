@@ -6,7 +6,6 @@
 package listeners
 
 import (
-	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -30,14 +29,14 @@ type ContainerPort struct {
 type Service interface {
 	Equal(Service) bool                                          // compare two services
 	GetServiceID() string                                        // unique service name
-	GetADIdentifiers(context.Context) ([]string, error)          // identifiers on which templates will be matched
-	GetHosts(context.Context) (map[string]string, error)         // network --> IP address
-	GetPorts(context.Context) ([]ContainerPort, error)           // network ports
+	GetADIdentifiers() []string                                  // identifiers on which templates will be matched
+	GetHosts() (map[string]string, error)                        // network --> IP address
+	GetPorts() ([]ContainerPort, error)                          // network ports
 	GetTags() ([]string, error)                                  // tags
 	GetTagsWithCardinality(cardinality string) ([]string, error) // tags with given cardinality
-	GetPid(context.Context) (int, error)                         // process identifier
-	GetHostname(context.Context) (string, error)                 // hostname.domainname for the entity
-	IsReady(context.Context) bool                                // is the service ready
+	GetPid() (int, error)                                        // process identifier
+	GetHostname() (string, error)                                // hostname.domainname for the entity
+	IsReady() bool                                               // is the service ready
 	HasFilter(containers.FilterType) bool                        // whether the service is excluded by metrics or logs exclusion config
 	GetExtraConfig(string) (string, error)                       // Extra configuration values
 

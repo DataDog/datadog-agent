@@ -15,11 +15,14 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -30,6 +33,10 @@ const (
 var (
 	// ErrNotImplemented is an error used when system-probe is attempted to be accessed on an unsupported OS
 	ErrNotImplemented = errors.New("system-probe unsupported")
+	// ErrNotStartedYet is an error used when system-probe is attempted to be
+	// accessed while it hasn't started yet (and could still be reasonably
+	// expected to)
+	ErrNotStartedYet = errors.New("system-probe not started yet")
 )
 
 var checkTelemetry = struct {
@@ -49,6 +56,19 @@ var checkTelemetry = struct {
 // Get returns a http client configured to talk to the system-probe
 var Get = funcs.MemoizeArgNoError[string, *http.Client](get)
 
+// GetCheckClient returns a client used to communicate with the system-probe check API
+var GetCheckClient = funcs.MemoizeArgNoError(getCheckClient)
+
+// CheckClient is a client for communicating with the system-probe check API
+type CheckClient struct {
+	client         *http.Client
+	startupClient  *http.Client
+	started        bool
+	startTime      time.Time
+	mutex          sync.Mutex
+	startupTimeout time.Duration
+}
+
 func get(socketPath string) *http.Client {
 	return &http.Client{
 		Timeout: 10 * time.Second,
@@ -63,31 +83,101 @@ func get(socketPath string) *http.Client {
 	}
 }
 
-// GetCheck returns data unmarshalled from JSON to T, from the specified module at the /<module>/check endpoint.
-func GetCheck[T any](client *http.Client, module types.ModuleName) (T, error) {
-	checkTelemetry.totalRequests.IncWithTags(map[string]string{checkLabelName: string(module)})
-	var data T
-	req, err := http.NewRequest("GET", ModuleURL(module, "/check"), nil)
-	if err != nil {
-		//we don't have a counter for this case, because this function can't really fail, since ModuleURL function constructs a safe URL
-		return data, err
+func getCheckClient(socketPath string) *CheckClient {
+	timeout := pkgconfigsetup.Datadog().GetDuration("check_system_probe_timeout")
+	return &CheckClient{
+		// This client has longer timeouts than the default, since some checks
+		// may need it.
+		client: &http.Client{
+			Timeout: timeout,
+			Transport: &http.Transport{
+				MaxIdleConns:          2,
+				IdleConnTimeout:       idleConnTimeout,
+				DialContext:           DialContextFunc(socketPath),
+				TLSHandshakeTimeout:   1 * time.Second,
+				ResponseHeaderTimeout: timeout,
+				ExpectContinueTimeout: 50 * time.Millisecond,
+			},
+		},
+		startupClient:  get(socketPath),
+		startTime:      time.Now(),
+		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
 	}
+}
 
+func doReq(client *http.Client, req *http.Request, module types.ModuleName) ([]byte, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		checkTelemetry.failedRequests.IncWithTags(map[string]string{checkLabelName: string(module)})
-		return data, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		checkTelemetry.failedResponses.IncWithTags(map[string]string{checkLabelName: string(module)})
-		return data, err
+		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		checkTelemetry.responseErrors.IncWithTags(map[string]string{checkLabelName: string(module)})
-		return data, fmt.Errorf("non-ok status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
+		return nil, fmt.Errorf("non-ok status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
+	}
+
+	return body, err
+}
+
+func (c *CheckClient) ensureStarted(module types.ModuleName) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.started {
+		return nil
+	}
+
+	req, err := http.NewRequest("GET", "http://sysprobe/debug/stats", nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = doReq(c.startupClient, req, "status")
+	if err != nil {
+		if time.Since(c.startTime) < c.startupTimeout {
+			// For the first few minutes after startup, only emit warnings
+			// instead of reporting errors from the check, to allow a reasonable
+			// time for system-probe to become ready to serve requests
+			log.Warnf("%v: system-probe not started yet: %v", string(module), err)
+
+			// Callers should check for this error and not propagate it to avoid
+			// error logs from the check infrastructure.
+			return ErrNotStartedYet
+		}
+
+		return err
+	}
+
+	c.started = true
+	return nil
+}
+
+// GetCheck returns data unmarshalled from JSON to T, from the specified module at the /<module>/check endpoint.
+func GetCheck[T any](client *CheckClient, module types.ModuleName) (T, error) {
+	var data T
+	err := client.ensureStarted(module)
+	if err != nil {
+		return data, err
+	}
+
+	checkTelemetry.totalRequests.IncWithTags(map[string]string{checkLabelName: string(module)})
+
+	req, err := http.NewRequest("GET", ModuleURL(module, "/check"), nil)
+	if err != nil {
+		//we don't have a counter for this case, because this function can't really fail, since ModuleURL function constructs a safe URL
+		return data, err
+	}
+
+	body, err := doReq(client.client, req, module)
+	if err != nil {
+		return data, err
 	}
 
 	err = json.Unmarshal(body, &data)
@@ -95,6 +185,15 @@ func GetCheck[T any](client *http.Client, module types.ModuleName) (T, error) {
 		checkTelemetry.malformedResponses.IncWithTags(map[string]string{checkLabelName: string(module)})
 	}
 	return data, err
+}
+
+// IgnoreStartupError is used to avoid reporting errors from checks if
+// system-probe has not started yet and can reasonably be expected to.
+func IgnoreStartupError(err error) error {
+	if errors.Is(err, ErrNotStartedYet) {
+		return nil
+	}
+	return err
 }
 
 func constructURL(module string, endpoint string) string {

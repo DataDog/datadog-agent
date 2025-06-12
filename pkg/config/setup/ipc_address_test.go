@@ -10,7 +10,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/config/create"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -22,14 +21,14 @@ const (
 
 func TestGetIPCAddress(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
-		cfg := getConfig()
+		cfg := getConfig(t)
 		val, err := GetIPCAddress(cfg)
 		require.NoError(t, err)
 		require.Equal(t, localhostStr, val)
 	})
 
 	t.Run("ipc_address from file", func(t *testing.T) {
-		cfg := getConfig()
+		cfg := getConfig(t)
 		cfg.Set("ipc_address", localhostV4, model.SourceFile)
 		val, err := GetIPCAddress(cfg)
 		require.NoError(t, err)
@@ -37,7 +36,7 @@ func TestGetIPCAddress(t *testing.T) {
 	})
 
 	t.Run("ipc_address from env", func(t *testing.T) {
-		cfg := getConfig()
+		cfg := getConfig(t)
 		t.Setenv("DD_IPC_ADDRESS", localhostV4)
 		val, err := GetIPCAddress(cfg)
 		require.NoError(t, err)
@@ -45,7 +44,7 @@ func TestGetIPCAddress(t *testing.T) {
 	})
 
 	t.Run("ipc_address takes precedence over cmd_host", func(t *testing.T) {
-		cfg := getConfig()
+		cfg := getConfig(t)
 		cfg.Set("ipc_address", localhostV4, model.SourceFile)
 		cfg.Set("cmd_host", localhostV6, model.SourceFile)
 		val, err := GetIPCAddress(cfg)
@@ -54,7 +53,7 @@ func TestGetIPCAddress(t *testing.T) {
 	})
 
 	t.Run("ipc_address takes precedence over cmd_host", func(t *testing.T) {
-		cfg := getConfig()
+		cfg := getConfig(t)
 		cfg.Set("cmd_host", localhostV6, model.SourceFile)
 		val, err := GetIPCAddress(cfg)
 		require.NoError(t, err)
@@ -62,15 +61,15 @@ func TestGetIPCAddress(t *testing.T) {
 	})
 
 	t.Run("error if not local", func(t *testing.T) {
-		cfg := getConfig()
+		cfg := getConfig(t)
 		cfg.Set("cmd_host", "111.111.111.111", model.SourceFile)
 		_, err := GetIPCAddress(cfg)
 		require.Error(t, err)
 	})
 }
 
-func getConfig() model.Config {
-	cfg := create.NewConfig("test")
+func getConfig(t *testing.T) model.Config {
+	cfg := newEmptyMockConf(t)
 	cfg.BindEnv("ipc_address")
 	cfg.BindEnvAndSetDefault("cmd_host", localhostStr)
 	return cfg

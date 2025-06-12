@@ -19,7 +19,7 @@ import (
 // "kubectl.kubernetes.io/last-applied-configuration" annotation value. As it
 // may contain duplicate information and secrets.
 func RemoveSensitiveAnnotationsAndLabels(annotations map[string]string, labels map[string]string) {
-	for _, v := range sensitiveAnnotationsAndLabels {
+	for _, v := range GetSensitiveAnnotationsAndLabels() {
 		if _, found := annotations[v]; found {
 			annotations[v] = redactedAnnotationValue
 		}

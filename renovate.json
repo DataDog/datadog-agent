@@ -2,11 +2,21 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "enabledManagers": ["custom.regex", "pre-commit"],
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
+    "stopUpdatingLabel": "stop-updating",
     "platformCommit": "enabled",
     "packageRules": [
       {
         "matchDepNames": ["integrations-core"],
+        "changelogUrl": "https://github.com/DataDog/integrations-core/compare/{{currentDigest}}..{{newDigest}}",
         "schedule": ["* 2-6 * * 1,3"]
+      },
+      {
+        "matchDepNames": ["omnibus-ruby"],
+        "changelogUrl": "https://github.com/DataDog/omnibus-ruby/compare/{{currentDigest}}..{{newDigest}}"
+      },
+      {
+        "matchDepNames": ["buildimages"],
+        "changelogUrl": "https://github.com/DataDog/datadog-agent-buildimages/commits/main"
       }
     ],
     "pre-commit": {
@@ -18,7 +28,6 @@
         "customType": "regex",
         "fileMatch": [".gitlab-ci.yml"],
         "matchStrings": [
-          "  DATADOG_AGENT_[^:]*: (?<currentValue>v.*)",
           "  CI_IMAGE_[^:]*: (?<currentValue>v.*)"
         ],
         "depNameTemplate": "buildimages",

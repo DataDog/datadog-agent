@@ -18,9 +18,8 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/nvml"
-	testutil "github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
 func TestCollectorsStillInitIfOneFails(t *testing.T) {
@@ -29,7 +28,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ nvml.Device) (Collector, error) {
+	factory := func(_ ddnvml.SafeDevice) (Collector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -37,8 +36,9 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 		return nil, errors.New("failure")
 	}
 
-	nvmlMock := testutil.GetBasicNvmlMock()
-	deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
+	ddnvml.WithMockNVML(t, nvmlMock)
+	deviceCache, err := ddnvml.NewDeviceCache()
 	require.NoError(t, err)
 	deps := &CollectorDependencies{DeviceCache: deviceCache}
 	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
@@ -123,9 +123,10 @@ func TestGetDeviceTagsMapping(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup
 			nvmlMock, fakeTagger := tc.mockSetup()
+			ddnvml.WithMockNVML(t, nvmlMock)
 
 			// Execute
-			deviceCache, err := ddnvml.NewDeviceCacheWithOptions(nvmlMock)
+			deviceCache, err := ddnvml.NewDeviceCache()
 			require.NoError(t, err)
 			tagsMapping := GetDeviceTagsMapping(deviceCache, fakeTagger)
 

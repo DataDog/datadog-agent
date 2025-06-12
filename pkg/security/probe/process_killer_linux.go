@@ -8,16 +8,14 @@ package probe
 
 import (
 	"errors"
-	"fmt"
+	"math"
+	"os"
 	"syscall"
 
 	psutil "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-)
-
-const (
-	userSpaceKillWithinMillis = 2000
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -43,44 +41,94 @@ var (
 	}
 )
 
-// KillFromUserspace tries to kill from userspace
-func (p *ProcessKiller) KillFromUserspace(pid uint32, sig uint32, ev *model.Event) error {
-	proc, err := psutil.NewProcess(int32(pid))
-	if err != nil {
-		return errors.New("process not found in procfs")
-	}
-
-	name, err := proc.Name()
-	if err != nil {
-		return errors.New("process not found in procfs")
-	}
-
-	createdAt, err := proc.CreateTime()
-	if err != nil {
-		return errors.New("process not found in procfs")
-	}
-	evCreatedAt := ev.ProcessContext.ExecTime.UnixMilli()
-
-	within := uint64(evCreatedAt) >= uint64(createdAt-userSpaceKillWithinMillis) && uint64(evCreatedAt) <= uint64(createdAt+userSpaceKillWithinMillis)
-
-	if !within || ev.ProcessContext.Comm != name {
-		return fmt.Errorf("not sharing the same namespace: %s/%s", ev.ProcessContext.Comm, name)
-	}
-
-	return syscall.Kill(int(pid), syscall.Signal(sig))
+type killContext struct {
+	createdAt uint64
+	pid       int
+	path      string
+	// containerID string?? TODO: be able to specify the containerID to kill
 }
 
-func (p *ProcessKiller) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]uint32, []string, error) {
-	var (
-		pids  []uint32
-		paths []string
-	)
+const (
+	killWithinMillis = 2000
+)
 
-	if entry.ContainerID != "" && scope == "container" {
-		pids, paths = entry.GetContainerPIDs()
-	} else {
-		pids = []uint32{ev.ProcessContext.Pid}
-		paths = []string{ev.ProcessContext.FileEvent.PathnameStr}
+// ProcessKillerLinux defines the process kill linux implementation
+type ProcessKillerLinux struct {
+	killFunc func(pid, sig uint32) error
+}
+
+// NewProcessKillerOS returns a ProcessKillerOS
+func NewProcessKillerOS(f func(pid, sig uint32) error) ProcessKillerOS {
+	return &ProcessKillerLinux{
+		killFunc: f,
 	}
-	return pids, paths, nil
+}
+
+// Kill tries to kill from userspace
+func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
+
+	// check path
+	exePathLink := utils.ProcExePath(uint32(pc.pid))
+	exePath, err := os.Readlink(exePathLink)
+	if err != nil {
+		return errors.New("process not found in procfs")
+	}
+	if exePath != pc.path {
+		return errors.New("paths don't match")
+	}
+
+	// check timestamp
+	if pc.createdAt != 0 {
+		proc, err := psutil.NewProcess(int32(pc.pid))
+		if err != nil {
+			return errors.New("process not found in procfs")
+		}
+		createdAt, err := proc.CreateTime()
+		if err != err {
+			return errors.New("process not found in procfs")
+		}
+		if math.Abs(float64(pc.createdAt-uint64(createdAt))) > killWithinMillis {
+			return errors.New("create at timestamps don't match")
+		}
+	}
+
+	return syscall.Kill(pc.pid, syscall.Signal(sig))
+}
+
+// TODO: do a better job than returning only the direct lineage
+func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
+	if entry.ContainerID != "" && scope == "container" {
+		pcs := []killContext{}
+		pids, paths := entry.GetContainerPIDs()
+		l := min(len(pids), len(paths))
+		for i := 0; i < l; i++ {
+			pid := pids[i]
+			path := paths[i]
+			if pid < 1 || path == "" {
+				continue
+			}
+			proc, err := psutil.NewProcess(int32(pid))
+			if err != nil {
+				continue
+			}
+			createdAt, err := proc.CreateTime()
+			if err != nil {
+				continue
+			}
+			pcs = append(pcs, killContext{
+				pid:       int(pid),
+				path:      path,
+				createdAt: uint64(createdAt),
+			})
+		}
+		return pcs, nil
+	}
+
+	return []killContext{
+		{
+			createdAt: uint64(ev.ProcessContext.ExecTime.UnixMilli()),
+			pid:       int(ev.ProcessContext.Pid),
+			path:      ev.ProcessContext.FileEvent.PathnameStr,
+		},
+	}, nil
 }

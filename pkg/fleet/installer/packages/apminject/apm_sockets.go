@@ -14,7 +14,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/systemd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
@@ -59,7 +59,7 @@ func getSocketsPath() (string, string, error) {
 	}
 
 	var cfg socketConfig
-	if err := yaml.Unmarshal(rawCfg, &cfg); err != nil {
+	if err = yaml.Unmarshal(rawCfg, &cfg); err != nil {
 		log.Warn("Failed to unmarshal agent configuration, using default installer sockets")
 		return apmSocket, statsdSocket, nil
 	}
@@ -82,15 +82,15 @@ func (a *InjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr err
 	}
 	a.rollbacks = append(a.rollbacks, rollback)
 	// Make sure the file is word readable
-	if err := os.Chmod(envFilePath, 0644); err != nil {
+	if err = os.Chmod(envFilePath, 0644); err != nil {
 		return fmt.Errorf("error changing permissions of %s: %w", envFilePath, err)
 	}
 
 	// Symlinks for sysvinit
-	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent-trace"); err != nil && !os.IsExist(err) {
+	if err = os.Symlink(envFilePath, "/etc/default/datadog-agent-trace"); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent-trace: %w", envFilePath, err)
 	}
-	if err := os.Symlink(envFilePath, "/etc/default/datadog-agent"); err != nil && !os.IsExist(err) {
+	if err = os.Symlink(envFilePath, "/etc/default/datadog-agent"); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("failed to symlink %s to /etc/default/datadog-agent: %w", envFilePath, err)
 	}
 	systemdRunning, err := systemd.IsRunning()
@@ -98,19 +98,19 @@ func (a *InjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr err
 		return fmt.Errorf("failed to check if systemd is running: %w", err)
 	}
 	if systemdRunning {
-		if err := addSystemDEnvOverrides(ctx, "datadog-agent.service"); err != nil {
+		if err = addSystemDEnvOverrides(ctx, "datadog-agent.service"); err != nil {
 			return err
 		}
-		if err := addSystemDEnvOverrides(ctx, "datadog-agent-exp.service"); err != nil {
+		if err = addSystemDEnvOverrides(ctx, "datadog-agent-exp.service"); err != nil {
 			return err
 		}
-		if err := addSystemDEnvOverrides(ctx, "datadog-agent-trace.service"); err != nil {
+		if err = addSystemDEnvOverrides(ctx, "datadog-agent-trace.service"); err != nil {
 			return err
 		}
-		if err := addSystemDEnvOverrides(ctx, "datadog-agent-trace-exp.service"); err != nil {
+		if err = addSystemDEnvOverrides(ctx, "datadog-agent-trace-exp.service"); err != nil {
 			return err
 		}
-		if err := systemd.Reload(ctx); err != nil {
+		if err = systemd.Reload(ctx); err != nil {
 			return err
 		}
 	}

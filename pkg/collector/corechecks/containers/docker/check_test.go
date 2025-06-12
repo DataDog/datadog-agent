@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"testing"
 
-	dockerTypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/stretchr/testify/assert"
 
@@ -123,7 +123,7 @@ func TestDockerCustomPart(t *testing.T) {
 
 	// Mock client + fake data
 	dockerClient := dockerUtil.MockClient{}
-	dockerClient.FakeContainerList = []dockerTypes.Container{
+	dockerClient.FakeContainerList = []container.Summary{
 		{
 			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
 			Names:   []string{"agent"},
@@ -259,7 +259,7 @@ func TestContainersRunning(t *testing.T) {
 
 	// Mock client + fake data
 	dockerClient := dockerUtil.MockClient{}
-	dockerClient.FakeContainerList = []dockerTypes.Container{
+	dockerClient.FakeContainerList = []container.Summary{
 		{
 			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
 			Names:   []string{"agent"},

@@ -10,22 +10,23 @@ import (
 	"fmt"
 	"sync"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"go.uber.org/fx"
+
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/processor/processorhelper"
 
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/processor"
-	"go.opentelemetry.io/collector/processor/processorhelper"
 )
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
@@ -47,7 +48,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 		return f.data, nil
 	}
 	f.data = &data{}
-	var client taggerClient
+	var client taggerTypes.TaggerClient
 	app := fx.New(
 		fx.Provide(func() config.Component {
 			return pkgconfigsetup.Datadog()
@@ -62,14 +63,9 @@ func (f *factory) getOrCreateData() (*data, error) {
 			RemoteTarget: func(c config.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
 			},
-			RemoteTokenFetcher: func(c config.Component) func() (string, error) {
-				return func() (string, error) {
-					return security.FetchAuthToken(c)
-				}
-			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),
-		fx.Provide(func(t tagger.Component) taggerClient {
+		fx.Provide(func(t tagger.Component) taggerTypes.TaggerClient {
 			return t
 		}),
 		fx.Populate(&client),
@@ -90,7 +86,7 @@ func NewFactory() processor.Factory {
 type SourceProviderFunc func(context.Context) (string, error)
 
 // NewFactoryForAgent returns a new factory for the InfraAttributes processor.
-func NewFactoryForAgent(tagger taggerClient, hostGetter SourceProviderFunc) processor.Factory {
+func NewFactoryForAgent(tagger taggerTypes.TaggerClient, hostGetter SourceProviderFunc) processor.Factory {
 	return newFactoryForAgent(&data{
 		infraTags: newInfraTagsProcessor(tagger, option.New(hostGetter)),
 	})

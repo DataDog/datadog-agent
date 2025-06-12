@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -27,6 +28,8 @@ type SafeDevice interface {
 	GetComputeRunningProcesses() ([]nvml.ProcessInfo, error)
 	// GetCudaComputeCapability returns the CUDA compute capability of the device
 	GetCudaComputeCapability() (int, int, error)
+	// GetCurrentClocksThrottleReasons returns the current clock throttle reasons bitmask
+	GetCurrentClocksThrottleReasons() (uint64, error)
 	// GetDecoderUtilization returns the decoder utilization
 	GetDecoderUtilization() (uint32, uint32, error)
 	// GetEncoderUtilization returns the encoder utilization
@@ -54,10 +57,10 @@ type SafeDevice interface {
 	GetMigMode() (int, int, error)
 	// GetName returns the name of the device
 	GetName() (string, error)
-	// GetNumGpuCores returns the number of GPU cores in the device
-	GetNumGpuCores() (int, error)
 	// GetNvLinkState returns the state of the specified NVLink
 	GetNvLinkState(link int) (nvml.EnableState, error)
+	// GetNumGpuCores returns the number of GPU cores in the device
+	GetNumGpuCores() (int, error)
 	// GetPcieThroughput returns the PCIe throughput in bytes/sec
 	GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error)
 	// GetPerformanceState returns the current performance state
@@ -66,6 +69,10 @@ type SafeDevice interface {
 	GetPowerManagementLimit() (uint32, error)
 	// GetPowerUsage returns the power usage in milliwatts
 	GetPowerUsage() (uint32, error)
+	// GetRemappedRows returns the remapped rows information
+	GetRemappedRows() (int, int, bool, bool, error)
+	// GetSamples returns samples for the specified counter type
+	GetSamples(samplingType nvml.SamplingType, lastSeenTimestamp uint64) (nvml.ValueType, []nvml.Sample, error)
 	// GetTemperature returns the current temperature
 	GetTemperature(sensorType nvml.TemperatureSensors) (uint32, error)
 	// GetTotalEnergyConsumption returns the total energy consumption in millijoules
@@ -74,343 +81,60 @@ type SafeDevice interface {
 	GetUUID() (string, error)
 	// GetUtilizationRates returns the utilization rates for the device
 	GetUtilizationRates() (nvml.Utilization, error)
+	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
+	IsMigDeviceHandle() (bool, error)
 }
 
-// Device represents a GPU device with some properties already computed.
-// It embeds SafeDevice for safe API access and contains cached properties.
-type Device struct {
-	SafeDevice
-
-	// Cached fields for quick access
+// DeviceInfo holds common cached properties for a GPU device
+type DeviceInfo struct {
 	SMVersion uint32
 	UUID      string
-	CoreCount int
-	Index     int
-	Memory    uint64
 	Name      string
+	CoreCount int
+
+	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
+	Index int
+
+	// Memory size of the device in bytes
+	Memory uint64
 }
 
-// safeDeviceImpl implements the SafeDevice interface
-type safeDeviceImpl struct {
-	nvmlDevice nvml.Device
-	lib        symbolLookup
+// Device represents a GPU device, implementing SafeDevice and providing common device info
+type Device interface {
+	SafeDevice
+
+	// GetDeviceInfo returns the common device info for a GPU device
+	GetDeviceInfo() *DeviceInfo
 }
 
-func (d *safeDeviceImpl) GetCudaComputeCapability() (int, int, error) {
-	if err := d.lib.lookup(toNativeName("GetCudaComputeCapability")); err != nil {
-		return 0, 0, err
-	}
-	major, minor, ret := d.nvmlDevice.GetCudaComputeCapability()
-	if ret != nvml.SUCCESS {
-		return 0, 0, fmt.Errorf("error getting CUDA compute capability: %s", nvml.ErrorString(ret))
-	}
-	return major, minor, nil
+// PhysicalDevice represents a physical GPU device
+type PhysicalDevice struct {
+	SafeDevice
+	DeviceInfo
+
+	// HasMIGFeatureEnabled is true if the device has the MIG feature enabled. Note that a device might
+	// have the MIG feature enabled but no MIG devices created yet.
+	HasMIGFeatureEnabled bool
+
+	// MIGChildren is a list of MIG devices that are children of this physical device
+	MIGChildren []*MIGDevice
 }
 
-func (d *safeDeviceImpl) GetUUID() (string, error) {
-	if err := d.lib.lookup(toNativeName("GetUUID")); err != nil {
-		return "", err
-	}
-	uuid, ret := d.nvmlDevice.GetUUID()
-	if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("error getting UUID: %s", nvml.ErrorString(ret))
-	}
-	return uuid, nil
+var _ Device = &PhysicalDevice{}
+
+// MIGDevice represents a MIG device, implementing Device and providing common device info
+type MIGDevice struct {
+	SafeDevice
+	DeviceInfo
+
+	// Parent is the physical device that this MIG device belongs to
+	Parent *PhysicalDevice
 }
 
-func (d *safeDeviceImpl) GetName() (string, error) {
-	if err := d.lib.lookup(toNativeName("GetName")); err != nil {
-		return "", err
-	}
-	name, ret := d.nvmlDevice.GetName()
-	if ret != nvml.SUCCESS {
-		return "", fmt.Errorf("error getting device name: %s", nvml.ErrorString(ret))
-	}
-	return name, nil
-}
+var _ Device = &MIGDevice{}
 
-func (d *safeDeviceImpl) GetNumGpuCores() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetNumGpuCores")); err != nil {
-		return 0, err
-	}
-	cores, ret := d.nvmlDevice.GetNumGpuCores()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting GPU core count: %s", nvml.ErrorString(ret))
-	}
-	return cores, nil
-}
-
-func (d *safeDeviceImpl) GetIndex() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetIndex")); err != nil {
-		return 0, err
-	}
-	index, ret := d.nvmlDevice.GetIndex()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting device index: %s", nvml.ErrorString(ret))
-	}
-	return index, nil
-}
-
-func (d *safeDeviceImpl) GetMemoryInfo() (nvml.Memory, error) {
-	if err := d.lib.lookup(toNativeName("GetMemoryInfo")); err != nil {
-		return nvml.Memory{}, err
-	}
-	memInfo, ret := d.nvmlDevice.GetMemoryInfo()
-	if ret != nvml.SUCCESS {
-		return nvml.Memory{}, fmt.Errorf("error getting memory info: %s", nvml.ErrorString(ret))
-	}
-	return memInfo, nil
-}
-
-func (d *safeDeviceImpl) GetArchitecture() (nvml.DeviceArchitecture, error) {
-	if err := d.lib.lookup(toNativeName("GetArchitecture")); err != nil {
-		return 0, err
-	}
-	arch, ret := d.nvmlDevice.GetArchitecture()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting device architecture: %s", nvml.ErrorString(ret))
-	}
-	return arch, nil
-}
-
-func (d *safeDeviceImpl) GetMemoryBusWidth() (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetMemoryBusWidth")); err != nil {
-		return 0, err
-	}
-	width, ret := d.nvmlDevice.GetMemoryBusWidth()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting memory bus width: %s", nvml.ErrorString(ret))
-	}
-	return width, nil
-}
-
-func (d *safeDeviceImpl) GetMaxClockInfo(clockType nvml.ClockType) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetMaxClockInfo")); err != nil {
-		return 0, err
-	}
-	clock, ret := d.nvmlDevice.GetMaxClockInfo(clockType)
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting max clock info for type %d: %s", clockType, nvml.ErrorString(ret))
-	}
-	return clock, nil
-}
-
-func (d *safeDeviceImpl) GetPcieThroughput(counter nvml.PcieUtilCounter) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetPcieThroughput")); err != nil {
-		return 0, err
-	}
-	throughput, ret := d.nvmlDevice.GetPcieThroughput(counter)
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting PCIe throughput for counter %d: %s", counter, nvml.ErrorString(ret))
-	}
-	return throughput, nil
-}
-
-func (d *safeDeviceImpl) GetDecoderUtilization() (uint32, uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetDecoderUtilization")); err != nil {
-		return 0, 0, err
-	}
-	utilization, samplingPeriod, ret := d.nvmlDevice.GetDecoderUtilization()
-	if ret != nvml.SUCCESS {
-		return 0, 0, fmt.Errorf("error getting decoder utilization: %s", nvml.ErrorString(ret))
-	}
-	return utilization, samplingPeriod, nil
-}
-
-func (d *safeDeviceImpl) GetUtilizationRates() (nvml.Utilization, error) {
-	if err := d.lib.lookup(toNativeName("GetUtilizationRates")); err != nil {
-		return nvml.Utilization{}, err
-	}
-	utilization, ret := d.nvmlDevice.GetUtilizationRates()
-	if ret != nvml.SUCCESS {
-		return nvml.Utilization{}, fmt.Errorf("error getting utilization rates: %s", nvml.ErrorString(ret))
-	}
-	return utilization, nil
-}
-
-func (d *safeDeviceImpl) GetEncoderUtilization() (uint32, uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetEncoderUtilization")); err != nil {
-		return 0, 0, err
-	}
-	utilization, samplingPeriod, ret := d.nvmlDevice.GetEncoderUtilization()
-	if ret != nvml.SUCCESS {
-		return 0, 0, fmt.Errorf("error getting encoder utilization: %s", nvml.ErrorString(ret))
-	}
-	return utilization, samplingPeriod, nil
-}
-
-func (d *safeDeviceImpl) GetFanSpeed() (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetFanSpeed")); err != nil {
-		return 0, err
-	}
-	speed, ret := d.nvmlDevice.GetFanSpeed()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting fan speed: %s", nvml.ErrorString(ret))
-	}
-	return speed, nil
-}
-
-func (d *safeDeviceImpl) GetPowerManagementLimit() (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetPowerManagementLimit")); err != nil {
-		return 0, err
-	}
-	limit, ret := d.nvmlDevice.GetPowerManagementLimit()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting power management limit: %s", nvml.ErrorString(ret))
-	}
-	return limit, nil
-}
-
-func (d *safeDeviceImpl) GetPowerUsage() (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetPowerUsage")); err != nil {
-		return 0, err
-	}
-	usage, ret := d.nvmlDevice.GetPowerUsage()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting power usage: %s", nvml.ErrorString(ret))
-	}
-	return usage, nil
-}
-
-func (d *safeDeviceImpl) GetPerformanceState() (nvml.Pstates, error) {
-	if err := d.lib.lookup(toNativeName("GetPerformanceState")); err != nil {
-		return 0, err
-	}
-	state, ret := d.nvmlDevice.GetPerformanceState()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting performance state: %s", nvml.ErrorString(ret))
-	}
-	return state, nil
-}
-
-func (d *safeDeviceImpl) GetClockInfo(clockType nvml.ClockType) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetClockInfo")); err != nil {
-		return 0, err
-	}
-	clock, ret := d.nvmlDevice.GetClockInfo(clockType)
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting clock info for type %d: %s", clockType, nvml.ErrorString(ret))
-	}
-	return clock, nil
-}
-
-func (d *safeDeviceImpl) GetTemperature(sensorType nvml.TemperatureSensors) (uint32, error) {
-	if err := d.lib.lookup(toNativeName("GetTemperature")); err != nil {
-		return 0, err
-	}
-	temp, ret := d.nvmlDevice.GetTemperature(sensorType)
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting temperature for sensor %d: %s", sensorType, nvml.ErrorString(ret))
-	}
-	return temp, nil
-}
-
-func (d *safeDeviceImpl) GetTotalEnergyConsumption() (uint64, error) {
-	if err := d.lib.lookup(toNativeName("GetTotalEnergyConsumption")); err != nil {
-		return 0, err
-	}
-	energy, ret := d.nvmlDevice.GetTotalEnergyConsumption()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting total energy consumption: %s", nvml.ErrorString(ret))
-	}
-	return energy, nil
-}
-
-func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
-	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
-		return err
-	}
-	ret := d.nvmlDevice.GetFieldValues(values)
-	if ret != nvml.SUCCESS {
-		return fmt.Errorf("error getting field values: %s", nvml.ErrorString(ret))
-	}
-	return nil
-}
-
-func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
-	if err := d.lib.lookup(toNativeName("GetNvLinkState")); err != nil {
-		return 0, err
-	}
-	state, ret := d.nvmlDevice.GetNvLinkState(link)
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting NVLink state for link %d: %s", link, nvml.ErrorString(ret))
-	}
-	return state, nil
-}
-
-//nolint:revive // Maintaining consistency with go-nvml API naming
-func (d *safeDeviceImpl) GetGpuInstanceId() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetGpuInstanceId")); err != nil {
-		return 0, err
-	}
-	id, ret := d.nvmlDevice.GetGpuInstanceId()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting GPU instance ID: %s", nvml.ErrorString(ret))
-	}
-	return id, nil
-}
-
-func (d *safeDeviceImpl) GetAttributes() (nvml.DeviceAttributes, error) {
-	if err := d.lib.lookup(toNativeName("GetAttributes")); err != nil {
-		return nvml.DeviceAttributes{}, err
-	}
-	attrs, ret := d.nvmlDevice.GetAttributes()
-	if ret != nvml.SUCCESS {
-		return nvml.DeviceAttributes{}, fmt.Errorf("error getting device attributes: %s", nvml.ErrorString(ret))
-	}
-	return attrs, nil
-}
-
-// GetComputeRunningProcesses returns the list of compute processes running on the device
-func (d *safeDeviceImpl) GetComputeRunningProcesses() ([]nvml.ProcessInfo, error) {
-	if err := d.lib.lookup(toNativeName("GetComputeRunningProcesses")); err != nil {
-		return nil, err
-	}
-	processes, ret := d.nvmlDevice.GetComputeRunningProcesses()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting compute running processes: %s", nvml.ErrorString(ret))
-	}
-	return processes, nil
-}
-
-// GetMaxMigDeviceCount returns the maximum number of MIG devices that can be created
-func (d *safeDeviceImpl) GetMaxMigDeviceCount() (int, error) {
-	if err := d.lib.lookup(toNativeName("GetMaxMigDeviceCount")); err != nil {
-		return 0, err
-	}
-	count, ret := d.nvmlDevice.GetMaxMigDeviceCount()
-	if ret != nvml.SUCCESS {
-		return 0, fmt.Errorf("error getting max MIG device count: %s", nvml.ErrorString(ret))
-	}
-	return count, nil
-}
-
-// GetMigDeviceHandleByIndex returns the MIG device handle at the given index
-func (d *safeDeviceImpl) GetMigDeviceHandleByIndex(index int) (SafeDevice, error) {
-	if err := d.lib.lookup(toNativeName("GetMigDeviceHandleByIndex")); err != nil {
-		return nil, err
-	}
-	device, ret := d.nvmlDevice.GetMigDeviceHandleByIndex(index)
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("error getting MIG device handle at index %d: %s", index, nvml.ErrorString(ret))
-	}
-	return NewDevice(device)
-}
-
-// GetMigMode returns the MIG mode of the device
-func (d *safeDeviceImpl) GetMigMode() (int, int, error) {
-	if err := d.lib.lookup(toNativeName("GetMigMode")); err != nil {
-		return 0, 0, err
-	}
-	mode, pendingMode, ret := d.nvmlDevice.GetMigMode()
-	if ret != nvml.SUCCESS {
-		return 0, 0, fmt.Errorf("error getting MIG mode: %s", nvml.ErrorString(ret))
-	}
-	return mode, pendingMode, nil
-}
-
-// NewDevice creates a new Device from the nvml.Device and caches some properties
-func NewDevice(dev nvml.Device) (*Device, error) {
+// NewPhysicalDevice creates a new Device from the nvml.Device and caches some properties.
+func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 	lib, err := GetSafeNvmlLib()
 	if err != nil {
 		return nil, err
@@ -423,46 +147,136 @@ func NewDevice(dev nvml.Device) (*Device, error) {
 	}
 
 	// Create the device with embedded safe device
-	device := &Device{
+	device := &PhysicalDevice{
 		SafeDevice: safeDev,
 	}
 
-	// Now use safe methods to populate the cached fields
-	major, minor, err := safeDev.GetCudaComputeCapability()
+	if err := device.fillBasicDataFromNVML(safeDev); err != nil {
+		return nil, fmt.Errorf("error filling basic data from NVML: %w", err)
+	}
+
+	major, minor, err := device.SafeDevice.GetCudaComputeCapability()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting CUDA compute capability: %w", err)
 	}
 	device.SMVersion = uint32(major*10 + minor)
 
-	uuid, err := safeDev.GetUUID()
-	if err != nil {
-		return nil, err
-	}
-	device.UUID = uuid
+	migEnabled, _, err := safeDev.GetMigMode()
+	if err == nil && migEnabled == nvml.DEVICE_MIG_ENABLE {
+		device.HasMIGFeatureEnabled = true
 
-	cores, err := safeDev.GetNumGpuCores()
-	if err != nil {
-		return nil, err
-	}
-	device.CoreCount = cores
+		if err := device.fillMigChildren(); err != nil {
+			// Return an error if we can't get the MIG children. We need them in order to
+			// get values for the physical device, such as memory and core count, so if
+			// something failed then the device data is not usable.
+			return nil, err
+		}
 
-	name, err := safeDev.GetName()
-	if err != nil {
-		return nil, err
-	}
-	device.Name = name
+		// If the device is MIG enabled, we need to sum the memory and core count of all its children
+		// because the corresponding APIs we use below return "UNKNOWN_ERROR"
+		for _, migChild := range device.MIGChildren {
+			device.Memory += migChild.Memory
+			device.CoreCount += migChild.CoreCount
+		}
+	} else {
+		cores, err := device.SafeDevice.GetNumGpuCores()
+		if err != nil {
+			return nil, err
+		}
+		device.CoreCount = int(cores)
 
-	index, err := safeDev.GetIndex()
-	if err != nil {
-		return nil, err
+		memInfo, err := device.SafeDevice.GetMemoryInfo()
+		if err != nil {
+			return nil, err
+		}
+		device.Memory = memInfo.Total
 	}
-	device.Index = index
-
-	memInfo, err := safeDev.GetMemoryInfo()
-	if err != nil {
-		return nil, err
-	}
-	device.Memory = memInfo.Total
 
 	return device, nil
+}
+
+func (d *PhysicalDevice) fillMigChildren() error {
+	// note that this returns the number of MIG devices that are supported by the device,
+	// not the number of MIG devices that are currently enabled.
+	migDeviceCount, err := d.SafeDevice.GetMaxMigDeviceCount()
+	if err != nil {
+		return fmt.Errorf("error getting MIG device count: %s", err)
+	}
+
+	d.MIGChildren = make([]*MIGDevice, 0, migDeviceCount)
+	for i := 0; i < migDeviceCount; i++ {
+		migChild, err := d.GetMigDeviceHandleByIndex(i)
+		var nvmlErr *NvmlAPIError
+		if errors.As(err, &nvmlErr) && nvmlErr.NvmlErrorCode == nvml.ERROR_NOT_FOUND {
+			continue // No MIG device at this index, ignore the error
+		} else if err != nil {
+			return fmt.Errorf("error getting MIG device handle by index %d: %w", i, err)
+		}
+
+		migChildDevice, err := NewMIGDevice(migChild)
+		if err != nil {
+			return fmt.Errorf("error creating MIG device %d: %w", i, err)
+		}
+
+		// The SM version of a MIG device is the same as the parent device, and the API doesn't work
+		// for MIG devices.
+		migChildDevice.SMVersion = d.SMVersion
+		migChildDevice.Parent = d
+
+		d.MIGChildren = append(d.MIGChildren, migChildDevice)
+	}
+
+	return nil
+}
+
+// GetDeviceInfo returns the common device info for a GPU device
+func (d *PhysicalDevice) GetDeviceInfo() *DeviceInfo {
+	return &d.DeviceInfo
+}
+
+// NewMIGDevice creates a new Device from the nvml.Device and caches some properties.
+func NewMIGDevice(dev SafeDevice) (*MIGDevice, error) {
+	device := &MIGDevice{
+		SafeDevice: dev,
+	}
+
+	if err := device.fillBasicDataFromNVML(dev); err != nil {
+		return nil, err
+	}
+
+	attr, err := dev.GetAttributes()
+	if err != nil {
+		return nil, fmt.Errorf("error getting MIG device attributes: %w", err)
+	}
+
+	device.Memory = attr.MemorySizeMB * 1024 * 1024
+	device.CoreCount = int(attr.MultiprocessorCount)
+
+	return device, nil
+}
+
+// GetDeviceInfo returns the common device info for a GPU device
+func (d *MIGDevice) GetDeviceInfo() *DeviceInfo {
+	return &d.DeviceInfo
+}
+
+// fillBasicDataFromNVML fills the basic data (common for MIG and non-MIG) for a device from the nvml.Device object
+func (d *DeviceInfo) fillBasicDataFromNVML(dev SafeDevice) error {
+	var err error
+	d.UUID, err = dev.GetUUID()
+	if err != nil {
+		return err
+	}
+
+	d.Name, err = dev.GetName()
+	if err != nil {
+		return err
+	}
+
+	d.Index, err = dev.GetIndex()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

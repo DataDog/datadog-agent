@@ -10,6 +10,7 @@ package proctracker
 import (
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/dynamicinstrumentation/ditypes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 )
 
@@ -37,6 +38,9 @@ type runningBinary struct {
 	// on the same machine. However, for simplicity in the prototype we
 	// assume a 1:1 mapping.
 	serviceName string
+
+	// The version of dd-trace-go that is used to instrument the binary.
+	ddtracegoVersion ditypes.DDTraceGoVersion
 }
 
 type binaries map[binaryID]*runningBinary

@@ -41,6 +41,7 @@ func TestLocks(t *testing.T) {
 	hname, _ := hostname.Get(context.TODO())
 	m := metricsPayload{
 		Host:                  c.dbHostname,
+		DatabaseInstance:      c.dbInstanceIdentifier,
 		Kind:                  "lock_metrics",
 		Timestamp:             float64(time.Now().UnixMilli()),
 		MinCollectionInterval: float64(c.config.MinCollectionInterval),

@@ -28,8 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/pkg/config/create"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -898,6 +898,8 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 }
 
 func TestKubeletTestSuite(t *testing.T) {
+	// NOTE: This test suite fails using configmock.New(t), TODO: investigate and fix this
+	cfg := create.NewConfig("test")
 	pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName("test"),
 		"trace",
@@ -906,7 +908,7 @@ func TestKubeletTestSuite(t *testing.T) {
 		false,
 		true,
 		false,
-		pkgconfigsetup.Datadog(),
+		cfg,
 	)
 	suite.Run(t, new(KubeletTestSuite))
 }

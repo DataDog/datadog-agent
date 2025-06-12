@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -164,7 +163,7 @@ snmp_listener:
 }
 
 func TestNewNetworkDevicesListenerConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	configmock.SetDefaultConfigType(t, "yaml")
 
 	// default collect_device_metadata should be true
 	configmock.NewFromYAML(t, `
@@ -236,7 +235,7 @@ network_devices:
 }
 
 func TestBothListenersConfig(t *testing.T) {
-	pkgconfigsetup.Datadog().SetConfigType("yaml")
+	configmock.SetDefaultConfigType(t, "yaml")
 
 	// check that network_devices config override the snmp_listener config
 	configmock.NewFromYAML(t, `
@@ -794,4 +793,18 @@ func TestConfig_Digest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_UseDeduplicationConfig(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+`)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.False(t, conf.Deduplicate)
 }

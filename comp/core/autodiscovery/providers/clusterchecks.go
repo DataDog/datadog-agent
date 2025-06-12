@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(CINT) Fix revive linter
 package providers
 
 import (
 	"context"
 	"errors"
 	"time"
+
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -33,7 +34,7 @@ type ClusterChecksConfigProvider struct {
 	dcaClient        clusteragent.DCAClientInterface
 	graceDuration    time.Duration
 	degradedDuration time.Duration
-	heartbeat        time.Time
+	heartbeat        *atomic.Time
 	lastChange       int64
 	identifier       string
 	flushedConfigs   bool
@@ -50,6 +51,7 @@ func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.Configuration
 	c := &ClusterChecksConfigProvider{
 		graceDuration:    defaultGraceDuration,
 		degradedDuration: defaultDegradedDeadline,
+		heartbeat:        atomic.NewTime(time.Now()),
 	}
 
 	c.identifier = pkgconfigsetup.Datadog().GetString("clc_runner_id")
@@ -96,11 +98,11 @@ func (c *ClusterChecksConfigProvider) String() string {
 }
 
 func (c *ClusterChecksConfigProvider) withinGracePeriod() bool {
-	return c.heartbeat.Add(c.graceDuration).After(time.Now())
+	return c.heartbeat.Load().Add(c.graceDuration).After(time.Now())
 }
 
 func (c *ClusterChecksConfigProvider) withinDegradedModePeriod() bool {
-	return withinDegradedModePeriod(c.heartbeat, c.degradedDuration)
+	return withinDegradedModePeriod(c.heartbeat.Load(), c.degradedDuration)
 }
 
 // IsUpToDate queries the cluster-agent to update its status and
@@ -128,7 +130,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 		return false, err
 	}
 
-	c.heartbeat = time.Now()
+	c.heartbeat.Store(time.Now())
 	if reply.IsUpToDate {
 		log.Tracef("Up to date with change %d", c.lastChange)
 	} else {
@@ -168,7 +170,7 @@ func (c *ClusterChecksConfigProvider) Collect(ctx context.Context) ([]integratio
 
 	c.flushedConfigs = false
 	c.lastChange = reply.LastChange
-	c.heartbeat = time.Now()
+	c.heartbeat.Store(time.Now())
 	log.Tracef("Storing last change %d", c.lastChange)
 
 	return reply.Configs, nil
@@ -188,7 +190,7 @@ func (c *ClusterChecksConfigProvider) heartbeatSender(ctx context.Context) {
 		case <-heartTicker.C:
 			currentTime := time.Now()
 			// We send an extra heartbeat if main loop
-			if c.heartbeat.Add(expirationTimeout).Add(-postStatusTimeout).Before(currentTime) &&
+			if c.heartbeat.Load().Add(expirationTimeout).Add(-postStatusTimeout).Before(currentTime) &&
 				extraHeartbeatTime.Add(expirationTimeout).Add(-postStatusTimeout).Before(currentTime) {
 				postCtx, cancel := context.WithTimeout(ctx, postStatusTimeout)
 				defer cancel()

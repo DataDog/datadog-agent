@@ -7,6 +7,7 @@ package serializerexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -138,6 +139,11 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 	)
 }
 
+// NewFactory implements the required func to be used in OCB. This interface does not work with APM stats. Do not change the func signature or OCB will fail.
+func NewFactory() exp.Factory {
+	return NewFactoryForOSSExporter(component.MustNewType(TypeStr), nil)
+}
+
 // Reporter builds and returns an *inframetadata.Reporter.
 func (f *factory) Reporter(params exp.Settings, forwarder defaultforwarder.Forwarder, reporterPeriod time.Duration) (*inframetadata.Reporter, error) {
 	var reporterErr error
@@ -156,24 +162,34 @@ func (f *factory) Reporter(params exp.Settings, forwarder defaultforwarder.Forwa
 	return f.reporter, reporterErr
 }
 
+// checkAndCastConfig checks the configuration type and its warnings, and casts it to
+// the Datadog Config struct.
+func checkAndCastConfig(c component.Config, logger *zap.Logger) (*ExporterConfig, error) {
+	cfg, ok := c.(*ExporterConfig)
+	if !ok {
+		return nil, errors.New("programming error: config structure is not of type *ExporterConfig")
+	}
+	cfg.LogWarnings(logger)
+	return cfg, nil
+}
+
 // createMetricsExporter creates a new metrics exporter.
 func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings, c component.Config) (exp.Metrics, error) {
-	var err error
-	cfg := c.(*ExporterConfig)
+	cfg, err := checkAndCastConfig(c, params.Logger)
+	if err != nil {
+		return nil, err
+	}
 	var forwarder *defaultforwarder.DefaultForwarder
 	if f.s == nil {
 		f.s, forwarder, err = initSerializer(params.Logger, cfg, f.hostProvider)
 		if err != nil {
 			return nil, err
 		}
-		go func() {
-			params.Logger.Info("starting forwarder")
-			err := forwarder.Start()
-			if err != nil {
-				params.Logger.Error("failed to start forwarder", zap.Error(err))
-			}
-		}()
-
+		params.Logger.Info("starting forwarder")
+		err := forwarder.Start()
+		if err != nil {
+			params.Logger.Error("failed to start forwarder", zap.Error(err))
+		}
 	}
 
 	// TODO: Ideally the attributes translator would be created once and reused
@@ -206,7 +222,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 	}
 
 	exporter, err := exporterhelper.NewMetrics(ctx, params, cfg, newExp.ConsumeMetrics,
-		exporterhelper.WithQueue(cfg.QueueConfig),
+		exporterhelper.WithQueue(cfg.QueueBatchConfig),
 		exporterhelper.WithTimeout(cfg.TimeoutConfig),
 		// the metrics remapping code mutates data
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: true}),

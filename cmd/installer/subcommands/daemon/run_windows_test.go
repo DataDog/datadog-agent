@@ -101,4 +101,6 @@ func createConfigDir(t *testing.T) {
 	require.NoError(t, err)
 	err = paths.IsInstallerDataDirSecure()
 	require.NoError(t, err)
+	err = os.MkdirAll(paths.RunPath, 0755)
+	require.NoError(t, err)
 }
