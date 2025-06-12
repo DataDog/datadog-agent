@@ -49,8 +49,8 @@ type flowAccumulator struct {
 	// are called by different routines.
 	flowsMutex sync.Mutex
 
-	flowFlushInterval time.Duration
-	flowContextTTL    time.Duration
+	aggregationInterval time.Duration
+	flowContextTTL      time.Duration
 
 	portRollup          *portrollup.EndpointPairPortRollupStore
 	portRollupThreshold int
@@ -74,18 +74,17 @@ type flowAccumulator struct {
 	flowAccStats *flowAccStats
 }
 
-func newFlowContext(flow *common.Flow) flowContext {
-	now := timeNow()
+func (f *flowAccumulator) newFlowContext(flow *common.Flow) flowContext {
 	return flowContext{
 		flow:      flow,
-		nextFlush: now,
+		nextFlush: timeNow().Add(f.aggregationInterval),
 	}
 }
 
 func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, skipHashCollisionDetection bool, aggregationHashUseSyncPool bool, portRollupUseFixedSizeKey bool, portRollupUseSingleStore bool, getMemoryStats bool, getCodeTimings bool, logMapSizesEveryN int, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                      make(map[uint64]flowContext),
-		flowFlushInterval:          aggregatorFlushInterval,
+		aggregationInterval:        aggregatorFlushInterval,
 		flowContextTTL:             aggregatorFlowContextTTL,
 		portRollup:                 portrollup.NewEndpointPairPortRollupStore(portRollupThreshold, portRollupUseFixedSizeKey, portRollupUseSingleStore, logMapSizesEveryN, logger),
 		portRollupThreshold:        portRollupThreshold,
@@ -112,7 +111,7 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 // after `lastSuccessfulFlush`. // Flow context in `flowAccumulator.flows` map will be deleted if `flowContextTTL`
 // is reached to avoid keeping flow context that are not seen anymore.
 // We need to keep flowContext (contains `nextFlush` and `lastSuccessfulFlush`) after flush
-// to be able to flush at regular interval (`flowFlushInterval`).
+// to be able to flush at regular interval (`aggregationInterval`).
 // Example, after a flush, flowContext will have a new nextFlush, that will be the next flush time for new flows being added.
 func (f *flowAccumulator) flush() ([]*common.Flow, *flowAccStats) {
 	f.flowsMutex.Lock()
@@ -135,7 +134,7 @@ func (f *flowAccumulator) flush() ([]*common.Flow, *flowAccStats) {
 			flowCtx.lastSuccessfulFlush = now
 			flowCtx.flow = nil
 		}
-		flowCtx.nextFlush = flowCtx.nextFlush.Add(f.flowFlushInterval)
+		flowCtx.nextFlush = flowCtx.nextFlush.Add(f.aggregationInterval)
 		f.flows[key] = flowCtx
 	}
 	retFlowAccStats := f.flowAccStats
@@ -229,7 +228,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
-		f.flows[aggHash] = newFlowContext(flowToAdd)
+		f.flows[aggHash] = f.newFlowContext(flowToAdd)
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 
 		if f.shouldSampleMemoryStats() {
