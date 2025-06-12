@@ -476,8 +476,7 @@ func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
 
 // isPositivelyUsed checks if a field value is used positively
 func isPositivelyUsed(rule *rules.Rule, field eval.Field, value eval.FieldValue, rs *rules.RuleSet) bool {
-
-	fakeEvent := rs.NewEvent()
+	fakeEvent := rs.NewFakeEvent()
 	ctx := eval.NewContext(fakeEvent)
 
 	// Test with the actual value
