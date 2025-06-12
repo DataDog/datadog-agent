@@ -1079,17 +1079,21 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
             // Read topic name
             s16 topic_name_size = read_nullable_string_size(pkt, true, &offset);
-            if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_STRING_SIZE) {
+            if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
                 log_debug("GUY continuing due to invalid topic_name_size: %d", topic_name_size);
                 continue; // maybe handle null or empty topic names?
             }
             if (offset + topic_name_size > pktbuf_data_end(pkt)) {
                 // handle reminder?
                 extra_debug("not enough data to read topic_name");
-                log_debug("GUY breaking due to not enough data to read topic_name");
+                log_debug("GUY not enough data to read topic_name");
                 break;
             }
-            pktbuf_load_bytes_with_telemetry(pkt, offset, topic_name, topic_name_size);
+            if (topic_name_size < TOPIC_NAME_MAX_STRING_SIZE) {
+                pktbuf_load_bytes_with_telemetry(pkt, offset, topic_name, topic_name_size);
+            } else {
+                pktbuf_load_bytes_with_telemetry(pkt, offset, topic_name, TOPIC_NAME_MAX_STRING_SIZE);
+            }
             offset += topic_name_size;
 
             // Read topic UUID
@@ -1127,7 +1131,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 log_debug("GUY returning %d from read_varint_or_s32 in NUM_PARTITIONS", ret);
                 return ret;
             }
-            offset += 16 * num_of_partitions; // Skip partitions TODO variable length partitions
+            offset += 117 * num_of_partitions; // Skip partitions TODO variable length partitions
 
             // Continue parsing topics, we'll move ot the next state when num_of_topics reaches 0
             num_of_topics--;
@@ -2014,7 +2018,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
             }
 
             // Check is only for the verifier, as we only populate the map with valid values.
-            if (topic_name_result->topic_name_size <= 0 || topic_name_result->topic_name_size > TOPIC_NAME_MAX_STRING_SIZE) {
+            if (topic_name_result->topic_name_size <= 0 || topic_name_result->topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
                 log_debug("GUY topic name size %u is invalid", topic_name_result->topic_name_size);
                 return false;
             }

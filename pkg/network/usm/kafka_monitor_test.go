@@ -122,6 +122,32 @@ func skipTestIfKernelNotSupported(t *testing.T) {
 	}
 }
 
+// buildTopicSetupMessages builds the necessary API versions and metadata requests
+// and responses that are needed to classify the connection and to perform Fetch v13+ topic id to topic name lookups.
+func buildTopicSetupMessages(topicName string, topicID [16]byte) []Message {
+	// Build an API versions request that is needed to classify the connection
+	apiVersionsReq := kmsg.NewApiVersionsRequest()
+	apiVersionsReq.SetVersion(kafka.ClassificationMinSupportedAPIVersionsRequestApiVersion)
+	apiVersionsResp := kmsg.NewApiVersionsResponse()
+	apiVersionsResp.SetVersion(apiVersionsReq.GetVersion())
+
+	// Build a Metadata request and response that is needed for Fetch v13+ (for topic id lookup)
+	metadataReq := kmsg.NewMetadataRequest()
+	metadataReq.SetVersion(kafka.DecodingMinSupportedMetadataRequestApiVersion)
+	metadataResponse := kmsg.NewMetadataResponse()
+	metadataResponse.SetVersion(metadataReq.GetVersion())
+
+	topic := kmsg.NewMetadataResponseTopic()
+	topic.Topic = &topicName
+	topic.TopicID = topicID
+	metadataResponse.Topics = append(metadataResponse.Topics, topic)
+
+	var messages []Message
+	messages = appendMessages(messages, 33, &apiVersionsReq, &apiVersionsResp)
+	messages = appendMessages(messages, 34, &metadataReq, &metadataResponse)
+	return messages
+}
+
 type KafkaProtocolParsingSuite struct {
 	suite.Suite
 }
@@ -1255,17 +1281,6 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyPid, utils.ManualTracingFallbackEnabled)
 	}
 
-	// Build a API versions request that is needed to classify the connection
-	apiVersionsReq := kmsg.NewApiVersionsRequest()
-	apiVersionsReq.SetVersion(kafka.ClassificationMinSupportedAPIVersionsRequestApiVersion)
-	apiVersionsResp := kmsg.NewApiVersionsResponse()
-	apiVersionsResp.SetVersion(apiVersionsReq.GetVersion())
-
-	// Build a Metadata request and response that is needed for Fetch v13+ (for topic id lookup)
-	metadataReq := kmsg.NewMetadataRequest()
-	metadataReq.SetVersion(kafka.DecodingMinSupportedMetadataRequestApiVersion)
-	metadataResponse := kmsg.NewMetadataResponse()
-	metadataResponse.SetVersion(metadataReq.GetVersion())
 	// metadataTopic should be created
 
 	for _, tt := range tests {
@@ -1278,16 +1293,10 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 			})
 
-			var msgs []Message
 			// Add the API versions request that is needed to classify the connection
 			// and the Metadata request and response that is needed for Fetch v13+ (for topic id lookup)
 			topicID := uuid.New()
-			metadataTopic := kmsg.NewMetadataResponseTopic()
-			metadataResponse.Topics = []kmsg.MetadataResponseTopic{metadataTopic}
-			metadataTopic.Topic = &tt.topic
-			metadataTopic.TopicID = topicID
-			msgs = appendMessages(msgs, 33, &apiVersionsReq, &apiVersionsResp)
-			msgs = appendMessages(msgs, 66, &metadataReq, &metadataResponse)
+			msgs := buildTopicSetupMessages(tt.topic, topicID)
 
 			fetchReq := generateFetchRequest(apiVersion, tt.topic, topicID)
 			fetchResponse := tt.buildResponse(tt.topic)
@@ -1332,7 +1341,6 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			continue
 		}
 
-		var msgs []Message
 		// Add the API versions request that is needed to classify the connection
 		// and the Metadata request and response that is needed for Fetch v13+ (for topic id lookup)
 		topicID := uuid.New()
@@ -1342,17 +1350,6 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 		formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
 
 		groups := getSplitGroups(&fetchReq, &fetchResponse, formatter)
-		for _, group := range groups {
-			// Add the API versions request that is needed to classify the connection
-			// and the Metadata request and response that is needed for Fetch v13+ (for topic id lookup)
-			metadataTopic := kmsg.NewMetadataResponseTopic()
-			metadataResponse.Topics = []kmsg.MetadataResponseTopic{metadataTopic}
-			metadataTopic.Topic = &tt.topic
-			metadataTopic.TopicID = topicID
-			msgs = appendMessages(msgs, 33, &apiVersionsReq, &apiVersionsResp)
-			msgs = appendMessages(msgs, 66, &metadataReq, &metadataResponse)
-			group.msgs = append(msgs, group.msgs...)
-		}
 
 		for groupIdx, group := range groups {
 			name := fmt.Sprintf("split/%s/group%d", tt.name, groupIdx)
@@ -1360,6 +1357,10 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				t.Cleanup(func() {
 					cleanProtocolMaps(t, "kafka", monitor.ebpfProgram.Manager.Manager)
 				})
+
+				if apiVersion >= 13 {
+					group.msgs = append(buildTopicSetupMessages(tt.topic, topicID), group.msgs...)
+				}
 
 				can.runClient(group.msgs)
 
