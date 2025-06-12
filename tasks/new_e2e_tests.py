@@ -11,7 +11,9 @@ import os.path
 import re
 import shutil
 import tempfile
+import threading
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import yaml
@@ -49,6 +51,160 @@ class TestState:
         return f'{"Failing" if failing else "Successful"} / {"Flaky" if flaky else "Non-flaky"}'
 
 
+def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
+    """
+    Build a single test binary for the given package.
+    Returns (pkg, success, message) tuple.
+    """
+    try:
+        # Create binary name from package path
+        binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
+        binary_path = output_path / binary_name
+
+        # Build test binary
+        cmd = f"go test -c -tags '{build_tags}' -ldflags='-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+
+        result = ctx.run(cmd, hide=True)
+        if result.ok:
+            with print_lock:
+                print(f"  ✓ Built {binary_name}")
+            return (pkg, True, f"Built {binary_name}")
+        else:
+            with print_lock:
+                print(f"  ✗ Failed to build {binary_name}: {result.stderr}")
+            return (pkg, False, f"Failed to build {binary_name}: {result.stderr}")
+
+    except Exception as e:
+        with print_lock:
+            print(f"  ✗ Error building {binary_name}: {e}")
+        return (pkg, False, f"Error building {binary_name}: {e}")
+
+
+@task(
+    help={
+        "output_dir": "Directory to store compiled test binaries",
+        "tags": "Build tags to use",
+        "parallel": "Number of parallel builds [default: number of CPUs]",
+    },
+)
+def build_binaries(
+    ctx,
+    output_dir="test-binaries",
+    tags=[],  # noqa: B006
+    parallel=0,
+):
+    """
+    Build E2E test binaries for all test packages to be reused across test jobs.
+    This pre-builds all test binaries to optimize CI pipeline performance.
+    """
+
+    if parallel == 0:
+        parallel = multiprocessing.cpu_count()
+
+    print(f"Building test binaries using {parallel} parallel workers")
+
+    e2e_test_dir = Path("test/new-e2e/tests")
+    output_path = Path(output_dir)
+
+    # Create output directory
+    output_path.mkdir(exist_ok=True, parents=True)
+
+    # Find all test packages
+    test_packages = []
+    for root, _, files in os.walk(e2e_test_dir):
+        # Skip vendor and other non-test directories
+        if any(skip in root for skip in [".git", "vendor", "node_modules"]):
+            continue
+
+        # Check if directory contains Go test files
+        has_go_tests = any(f.endswith("_test.go") for f in files)
+        if has_go_tests:
+            # Convert to Go package path
+            pkg_path = os.path.relpath(root, ".")
+            test_packages.append(pkg_path)
+
+    if not test_packages:
+        print("No test packages found")
+        return
+
+    print(f"Found {len(test_packages)} test packages to build")
+
+    # Build tags
+    build_tags = ",".join(tags) if tags else "test"
+
+    # Build test binaries in parallel
+    print_lock = threading.Lock()
+    success_count = 0
+    failure_count = 0
+    built_packages = []  # Track successfully built packages with their info
+
+    with ThreadPoolExecutor(max_workers=parallel) as executor:
+        # Submit all build jobs
+        futures = {
+            executor.submit(_build_single_binary, ctx, pkg, build_tags, output_path, print_lock): pkg
+            for pkg in test_packages
+        }
+
+        # Process completed builds
+        for i, future in enumerate(as_completed(futures), 1):
+            pkg = futures[future]
+            try:
+                pkg_result, success, message = future.result()
+                if success:
+                    success_count += 1
+                    # Store the original package path and binary name
+                    binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
+                    built_packages.append((pkg_result, binary_name))
+                else:
+                    failure_count += 1
+
+                # Print progress
+                with print_lock:
+                    print(f"Progress: {i}/{len(test_packages)} completed")
+
+            except Exception as e:
+                failure_count += 1
+                with print_lock:
+                    print(f"  ✗ Unexpected error building {pkg}: {e}")
+
+    print(f"\nBuild completed: {success_count} successful, {failure_count} failed")
+    print(f"Test binaries built in: {output_path.absolute()}")
+
+    # Create manifest file
+    manifest = {
+        "build_info": {
+            "timestamp": ctx.run("date -u +%Y-%m-%dT%H:%M:%SZ", hide=True).stdout.strip(),
+            "commit": get_commit_sha(ctx, short=True),
+            "build_tags": build_tags,
+            "parallel_workers": parallel,
+            "success_count": success_count,
+            "failure_count": failure_count,
+        },
+        "binaries": [],
+    }
+
+    # Use the original package paths from the build process
+    for pkg_path, binary_name in built_packages:
+        binary_file = output_path / binary_name
+        if binary_file.exists():
+            manifest["binaries"].append(
+                {
+                    "package": pkg_path,
+                    "binary": binary_name,
+                    "size": binary_file.stat().st_size,
+                }
+            )
+
+    manifest_path = output_path / "manifest.json"
+    with open(manifest_path, "w") as f:
+        json.dump(manifest, f, indent=2)
+
+    print(f"Manifest created: {manifest_path}")
+
+    if failure_count > 0:
+        print(f"Warning: {failure_count} packages failed to build")
+
+
 @task(
     iterable=['tags', 'targets', 'configparams', 'run', 'skip'],
     help={
@@ -62,6 +218,7 @@ class TestState:
         "agent_image": 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
+        "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
     },
 )
 def run(
@@ -95,6 +252,7 @@ def run(
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
+    use_prebuilt_binaries=False,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -154,16 +312,21 @@ def run(
             f.write("{}")
 
     cmd = f"gotestsum --format {gotestsum_format} "
-    scrubber_raw_command = ""
+    raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
+
+    if use_prebuilt_binaries:
+        ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
+        raw_command = "--raw-command ./gotest-custom {packages}"
+
     if running_in_ci():
-        scrubber_raw_command = (
+        raw_command = (
             # Using custom go command piped with scrubber sed instructions https://github.com/gotestyourself/gotestsum#custom-go-test-command
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
-    # Strings can come with extra double-quotes which can break the command, remove them
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+    # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
     for r in run:
@@ -174,8 +337,8 @@ def run(
     args = {
         "go_mod": "readonly",
         "timeout": "4h",
-        "verbose": "-v" if verbose else "",
-        "nocache": "-count=1" if not cache else "",
+        "verbose": "-test.v" if verbose else "",
+        "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
         "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
@@ -375,8 +538,8 @@ def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, 
         if len(parent) > len(child):
             return False
 
-        for i in range(len(parent)):
-            if parent[i] != child[i]:
+        for i, parent_part in enumerate(parent):
+            if parent_part != child[i]:
                 return False
 
         return True

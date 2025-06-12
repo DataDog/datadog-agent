@@ -69,6 +69,7 @@ use (
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
 	internal/tools
+	internal/tools/gotest-custom
 	internal/tools/independent-lint
 	internal/tools/modformatter
 	internal/tools/modparser

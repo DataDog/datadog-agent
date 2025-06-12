@@ -73,7 +73,7 @@
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
   script:
-    - dda inv -- -e new-e2e-tests.run --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - dda inv -- -e new-e2e-tests.run --use-prebuilt-binaries ---local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   artifacts:
@@ -92,6 +92,33 @@
 
 .needs_new_e2e_template:
   - go_e2e_deps
+  - go_e2e_test_binaries
+
+# Build test binaries job that creates pre-compiled test binaries
+# This job runs early in the pipeline and creates artifacts that can be reused by test jobs
+go_e2e_test_binaries:
+  stage: binary_build
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
+  tags: ["arch:amd64"]
+  needs:
+    - go_e2e_deps
+  variables:
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_MEMORY_REQUEST: 8Gi
+    KUBERNETES_MEMORY_LIMIT: 12Gi
+  before_script:
+    - !reference [.retrieve_linux_go_e2e_deps]
+  script:
+    - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries --tags test
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - test-binaries/
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+
+
 
 .new_e2e_template_needs_windows_x64:
   extends: .new_e2e_template
@@ -984,3 +1011,4 @@ new-e2e-eks-cleanup-on-failure:
     - !reference [.except_mergequeue]
     - when: always
   allow_failure: true
+

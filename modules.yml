@@ -124,6 +124,9 @@ modules:
     independent: false
     should_tag: false
     should_test_condition: never
+  internal/tools/gotest-custom:
+    independent: false
+    should_tag: false
   internal/tools/independent-lint:
     independent: false
     should_tag: false
