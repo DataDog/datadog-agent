@@ -95,7 +95,7 @@ func WNetAddConnection2(netResource *NetResource, password, username string, fla
 		uintptr(unsafe.Pointer(_username)),
 		uintptr(flags),
 	)
-	if rc != 0 {
+	if rc != windows.NO_ERROR {
 		return err
 	}
 	return nil

@@ -65,7 +65,7 @@ type multiVMSuite struct {
 
 func TestRemoteCertificates(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &multiVMSuite{}, e2e.WithPulumiProvisioner(multiVMEnvProvisioner(), nil))
+	e2e.Run(t, &multiVMSuite{}, e2e.WithPulumiProvisioner(multiVMEnvProvisioner(), nil), e2e.WithSkipDeleteOnFailure())
 }
 
 func (v *multiVMSuite) SetupSuite() {
