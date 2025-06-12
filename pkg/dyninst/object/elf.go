@@ -199,8 +199,8 @@ func loadDebugSections(f *safeelf.File) (*DebugSections, error) {
 		if suffix == "" {
 			continue
 		}
-		sd, ok := ds.getSection(suffix)
-		if !ok {
+		sd := ds.getSection(suffix)
+		if sd == nil {
 			continue
 		}
 		if *sd != nil {
