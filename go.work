@@ -93,7 +93,6 @@ use (
 	pkg/fleet/installer
 	pkg/gohai
 	pkg/linters/components/pkgconfigusage
-	pkg/logs/auditor
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message

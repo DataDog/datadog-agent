@@ -7,6 +7,7 @@
 package diskv2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/shirou/gopsutil/v4/common"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	yaml "gopkg.in/yaml.v2"
 
@@ -86,6 +88,7 @@ type diskInstanceConfig struct {
 	DeviceTagRe          map[string]string `yaml:"device_tag_re"`
 	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
 	Timeout              uint16            `yaml:"timeout"`
+	ProcMountInfoPath    string            `yaml:"proc_mountinfo_path"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -111,10 +114,10 @@ func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	clock          clock.Clock
-	diskPartitions func(bool) ([]gopsutil_disk.PartitionStat, error)
-	diskUsage      func(string) (*gopsutil_disk.UsageStat, error)
-	diskIOCounters func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
+	clock                     clock.Clock
+	diskPartitionsWithContext func(context.Context, bool) ([]gopsutil_disk.PartitionStat, error)
+	diskUsage                 func(string) (*gopsutil_disk.UsageStat, error)
+	diskIOCounters            func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -410,7 +413,11 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	partitions, err := c.diskPartitions(c.instanceConfig.IncludeAllDevices)
+	ctx := context.Background()
+	if c.instanceConfig.ProcMountInfoPath != "" {
+		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
+	}
+	partitions, err := c.diskPartitionsWithContext(ctx, c.instanceConfig.IncludeAllDevices)
 	if err != nil {
 		log.Warnf("Unable to get disk partitions: %s", err)
 		return err
@@ -671,11 +678,11 @@ func Factory() option.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase:      core.NewCheckBase(CheckName),
-		clock:          clock.New(),
-		diskPartitions: gopsutil_disk.Partitions,
-		diskUsage:      gopsutil_disk.Usage,
-		diskIOCounters: gopsutil_disk.IOCounters,
+		CheckBase:                 core.NewCheckBase(CheckName),
+		clock:                     clock.New(),
+		diskPartitionsWithContext: gopsutil_disk.PartitionsWithContext,
+		diskUsage:                 gopsutil_disk.Usage,
+		diskIOCounters:            gopsutil_disk.IOCounters,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},
@@ -714,6 +721,8 @@ func newCheck() check.Check {
 			DeviceTagRe:          make(map[string]string),
 			LowercaseDeviceTag:   false,
 			Timeout:              5,
+			// Match psutil exactly setting default value (https://github.com/giampaolo/psutil/blob/3d21a43a47ab6f3c4a08d235d2a9a55d4adae9b1/psutil/_pslinux.py#L1277)
+			ProcMountInfoPath: "/proc/self/mounts",
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},

@@ -230,6 +230,7 @@ type MatchingSubExpr struct {
 	Offset int    `json:"offset"`
 	Length int    `json:"length"`
 	Value  string `json:"value"`
+	Field  string `json:"field,omitempty"`
 }
 
 // RuleContext serializes rule context to JSON
@@ -475,6 +476,7 @@ func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 			Offset: valuePos.Offset,
 			Length: valuePos.Length,
 			Value:  fmt.Sprintf("%v", valuePos.Value),
+			Field:  valuePos.Field,
 		}
 		ruleContext.MatchingSubExprs = append(ruleContext.MatchingSubExprs, subExpr)
 	}
