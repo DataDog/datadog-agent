@@ -39,15 +39,9 @@ func (client *Client) login() error {
 	analyticsPayload := url.Values{}
 	analyticsPayload.Set("endpoint", client.analyticsEndpoint)
 
-	// Run this request twice to get the CSRF token from analytics
-	// the first succeeds but does not return the token
 	err = client.runAnalyticsLogin(&analyticsPayload)
 	if err != nil {
-		return fmt.Errorf("failed to run analytics login: %w", err)
-	}
-	err = client.runAnalyticsLogin(&analyticsPayload)
-	if err != nil {
-		return fmt.Errorf("failed to get analytics CSRF token: %w", err)
+		return fmt.Errorf("failed to perform analytics login: %w", err)
 	}
 
 	return nil
