@@ -135,6 +135,7 @@ func (c *JetsonCheck) Run() error {
 
 	tegrastatsOutput, err := cmd.Output()
 	if err != nil {
+		log.Debugf("Failed running tegrastats command: %s", cmd)
 		switch err := err.(type) {
 		case *exec.ExitError:
 			if len(tegrastatsOutput) <= 0 {
