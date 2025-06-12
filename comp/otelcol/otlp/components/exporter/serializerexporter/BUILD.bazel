@@ -44,6 +44,7 @@ go_library(
         "@com_github_tinylib_msgp//msgp",
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_config_configopaque//:configopaque",
+        "@io_opentelemetry_go_collector_config_configtls//:configtls",
         "@io_opentelemetry_go_collector_confmap//:confmap",
         "@io_opentelemetry_go_collector_consumer//:consumer",
         "@io_opentelemetry_go_collector_exporter//:exporter",

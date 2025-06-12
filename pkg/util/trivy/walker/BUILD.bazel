@@ -9,6 +9,7 @@ go_library(
         "@com_github_aquasecurity_trivy//pkg/fanal/utils",
         "@com_github_aquasecurity_trivy//pkg/fanal/walker",
         "@com_github_aquasecurity_trivy//pkg/x/io",
+        "@com_github_samber_lo//:lo",
         "@org_golang_x_xerrors//:xerrors",
     ],
 )

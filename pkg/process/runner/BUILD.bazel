@@ -47,6 +47,7 @@ go_test(
     deps = [
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/ipc/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/workloadmeta/def",

@@ -8,6 +8,8 @@ go_library(
     deps = [
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//pkg/flare/clusteragent",
         "//pkg/util/fxutil",

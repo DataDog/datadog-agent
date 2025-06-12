@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/otelcol/collector-contrib/def",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_connector_routingconnector//:routingconnector",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_connector_spanmetricsconnector//:spanmetricsconnector",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_exporter_loadbalancingexporter//:loadbalancingexporter",
         "@com_github_open_telemetry_opentelemetry_collector_contrib_exporter_sapmexporter//:sapmexporter",

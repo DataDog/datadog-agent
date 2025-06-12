@@ -6,8 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/api",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//comp/core/tagger/types",
-        "//pkg/api/util",
         "@com_github_fatih_color//:color",
     ],
 )

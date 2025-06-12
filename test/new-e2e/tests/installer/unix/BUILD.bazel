@@ -17,7 +17,6 @@ go_test(
         "all_packages_test.go",
         "package_agent_test.go",
         "package_apm_inject_test.go",
-        "package_installer_test.go",
         "upgrade_scenario_test.go",
     ],
     embed = [":unix"],

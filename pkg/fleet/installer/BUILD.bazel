@@ -17,7 +17,6 @@ go_library(
         "//pkg/fleet/installer/paths",
         "//pkg/fleet/installer/repository",
         "//pkg/fleet/installer/telemetry",
-        "//pkg/fleet/installer/types",
         "//pkg/util/log",
         "//pkg/version",
         "@in_gopkg_yaml_v3//:yaml_v3",

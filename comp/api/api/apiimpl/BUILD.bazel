@@ -52,7 +52,6 @@ go_test(
         "//comp/core/ipc/mock",
         "//comp/core/telemetry",
         "//comp/core/telemetry/telemetryimpl",
-        "//pkg/api/util",
         "//pkg/config/mock",
         "//pkg/util/fxutil",
         "@com_github_prometheus_client_model//go",

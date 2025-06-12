@@ -50,7 +50,6 @@ go_library(
         "//comp/trace/agent/impl",
         "//comp/trace/compression/fx-gzip",
         "//comp/trace/config",
-        "//pkg/api/security",
         "//pkg/config/env",
         "//pkg/config/setup",
         "//pkg/serializer",

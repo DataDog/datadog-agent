@@ -53,7 +53,6 @@ go_library(
         "//pkg/fleet/installer/repository",
         "//pkg/fleet/installer/setup",
         "//pkg/fleet/installer/telemetry",
-        "//pkg/fleet/installer/types",
         "//pkg/template/html",
         "//pkg/version",
         "@com_github_fatih_color//:color",

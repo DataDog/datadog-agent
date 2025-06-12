@@ -8,7 +8,7 @@ go_library(
         "installer_paths_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/paths",
-    visibility = ["//pkg/fleet:__subpackages__"],
+    visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/env",

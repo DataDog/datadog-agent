@@ -23,6 +23,7 @@ go_test(
     deps = [
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/ipc/mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
@@ -42,7 +43,7 @@ go_test(
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
-        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//credentials",
         "@org_uber_go_fx//:fx",
     ],
 )

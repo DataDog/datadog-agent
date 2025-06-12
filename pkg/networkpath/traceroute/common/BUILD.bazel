@@ -3,10 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "common",
     srcs = [
-        "afpacket_source_linux.go",
         "common.go",
-        "frame_parser.go",
-        "packet_source.go",
         "traceroute_parallel.go",
         "traceroute_serial.go",
         "traceroute_types.go",
@@ -15,34 +12,19 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "@com_github_google_gopacket//:gopacket",
-        "@com_github_google_gopacket//layers",
         "@org_golang_x_net//ipv4",
         "@org_golang_x_sync//errgroup",
-    ] + select({
-        "@rules_go//go/platform:android": [
-            "@org_golang_x_sys//unix",
-        ],
-        "@rules_go//go/platform:linux": [
-            "@org_golang_x_sys//unix",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 go_test(
     name = "common_test",
     srcs = [
         "common_test.go",
-        "frame_parser_test.go",
         "traceroute_parallel_test.go",
         "traceroute_serial_test.go",
         "traceroute_types_test.go",
     ],
     embed = [":common"],
-    deps = [
-        "@com_github_google_gopacket//:gopacket",
-        "@com_github_google_gopacket//layers",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = ["@com_github_stretchr_testify//require"],
 )

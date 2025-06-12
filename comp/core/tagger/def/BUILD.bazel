@@ -12,6 +12,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/tagger/origindetection",
         "//comp/core/tagger/types",
+        "//pkg/config/model",
         "//pkg/tagger/types",
         "//pkg/tagset",
     ],

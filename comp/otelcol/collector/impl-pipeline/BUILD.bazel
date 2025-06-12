@@ -19,6 +19,7 @@ go_library(
         "//comp/core/flare/types",
         "//comp/core/hostname/hostnameinterface",
         "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
         "//comp/core/status",
         "//comp/core/tagger/def",
@@ -30,7 +31,6 @@ go_library(
         "//comp/otelcol/otlp",
         "//comp/otelcol/otlp/configcheck",
         "//comp/otelcol/otlp/datatype",
-        "//pkg/api/util",
         "//pkg/logs/message",
         "//pkg/serializer",
         "//pkg/util/log",
@@ -48,6 +48,7 @@ go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/flare/helpers",
+        "//comp/core/ipc/mock",
         "//comp/def",
         "//pkg/config/mock",
         "//pkg/config/model",

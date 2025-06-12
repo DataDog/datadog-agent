@@ -11,8 +11,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//comp/core/status",
-        "//pkg/api/util",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],
@@ -24,6 +25,8 @@ go_test(
     embed = [":statusimpl"],
     deps = [
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@org_uber_go_fx//:fx",

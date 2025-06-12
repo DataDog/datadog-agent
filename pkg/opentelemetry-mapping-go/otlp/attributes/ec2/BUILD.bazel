@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "@io_opentelemetry_go_collector_pdata//pcommon",
-        "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
     ],
 )
 
@@ -18,6 +18,6 @@ go_test(
     deps = [
         "//pkg/opentelemetry-mapping-go/otlp/attributes/internal/testutils",
         "@com_github_stretchr_testify//assert",
-        "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
     ],
 )

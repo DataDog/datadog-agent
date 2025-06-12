@@ -12,10 +12,10 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//comp/core/status",
         "//comp/otelcol/ddflareextension/types",
         "//comp/otelcol/status/def",
-        "//pkg/api/util",
         "//pkg/util/prometheus",
         "@in_gopkg_yaml_v3//:yaml_v3",
     ],

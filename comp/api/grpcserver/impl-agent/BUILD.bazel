@@ -41,7 +41,6 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
-        "@com_github_grpc_ecosystem_grpc_gateway_v2//runtime",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//credentials",

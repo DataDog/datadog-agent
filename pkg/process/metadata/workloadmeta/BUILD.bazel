@@ -20,7 +20,7 @@ go_library(
         "//pkg/util/grpc",
         "//pkg/util/log",
         "@org_golang_google_grpc//:grpc",
-        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//keepalive",
     ],
 )
@@ -33,6 +33,7 @@ go_test(
     ],
     embed = [":workloadmeta"],
     deps = [
+        "//comp/core/ipc/mock",
         "//comp/core/telemetry",
         "//comp/core/telemetry/telemetryimpl",
         "//pkg/config/mock",
@@ -46,6 +47,6 @@ go_test(
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//connectivity",
-        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//credentials",
     ],
 )

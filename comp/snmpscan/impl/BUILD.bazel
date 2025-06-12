@@ -13,6 +13,7 @@ go_library(
     deps = [
         "//comp/aggregator/demultiplexer",
         "//comp/core/config",
+        "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/def",
         "//comp/forwarder/eventplatform",

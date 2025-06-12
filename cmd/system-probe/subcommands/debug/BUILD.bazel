@@ -12,7 +12,6 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/sysprobeconfig",
         "//comp/core/sysprobeconfig/sysprobeconfigimpl",
-        "//pkg/api/util",
         "//pkg/system-probe/api/client",
         "//pkg/util/fxutil",
         "@com_github_spf13_cobra//:cobra",

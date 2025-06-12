@@ -17,6 +17,7 @@ go_test(
         "etc/process_config_no_check.yaml",
     ],
     deps = [
+        "//pkg/util/testutil/flake",
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
         "//test/new-e2e/pkg/provisioners/aws/host",

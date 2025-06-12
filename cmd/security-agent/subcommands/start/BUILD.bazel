@@ -36,7 +36,6 @@ go_library(
         "//comp/dogstatsd/statsd",
         "//comp/serializer/logscompression/def",
         "//comp/serializer/logscompression/fx",
-        "//pkg/api/security",
         "//pkg/collector/python",
         "//pkg/compliance",
         "//pkg/config/model",

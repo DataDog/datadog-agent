@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "kubernetes",
     srcs = [
+        "constants.go",
         "eks.go",
         "kind.go",
         "kubernetes_dump.go",
@@ -34,6 +35,7 @@ go_library(
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/prometheus",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/redis",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/tracegen",
+        "@com_github_datadog_test_infra_definitions//components/datadog/csi-driver",
         "@com_github_datadog_test_infra_definitions//components/datadog/dogstatsd-standalone",
         "@com_github_datadog_test_infra_definitions//components/datadog/fakeintake",
         "@com_github_datadog_test_infra_definitions//components/datadog/kubernetesagentparams",

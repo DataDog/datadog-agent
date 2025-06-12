@@ -12,6 +12,8 @@ package ebpfcheck
 */
 import "C"
 
+const ioctlCollectKprobeMissedStatsCmd = C.EBPF_CHECK_KPROBE_MISSES_CMD
+
 type perfBufferKey C.perf_buffer_key_t
 type mmapRegion C.mmap_region_t
 type ringMmap C.ring_mmap_t

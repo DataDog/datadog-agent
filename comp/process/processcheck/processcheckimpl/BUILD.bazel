@@ -10,6 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/ipc/def",
         "//comp/core/sysprobeconfig",
         "//comp/core/workloadmeta/def",
         "//comp/process/gpusubscriber/def",
@@ -34,6 +35,8 @@ go_test(
     deps = [
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/process/gpusubscriber/fx-mock",

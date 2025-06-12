@@ -9,8 +9,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/config/settings/http",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//comp/core/settings",
-        "//pkg/api/util",
         "//pkg/config/settings",
     ],
 )

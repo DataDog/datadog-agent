@@ -17,8 +17,8 @@ go_library(
         "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//plog",
-        "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",
         "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
         "@org_uber_go_zap//:zap",
     ],
 )
@@ -36,7 +36,7 @@ go_test(
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_pdata//pcommon",
         "@io_opentelemetry_go_collector_pdata//plog",
-        "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",
+        "@io_opentelemetry_go_otel//semconv/v1.6.1:v1_6_1",
         "@org_uber_go_zap//zaptest",
     ],
 )

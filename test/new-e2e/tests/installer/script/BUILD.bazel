@@ -6,9 +6,9 @@ go_test(
         "all_scripts_test.go",
         "databricks_test.go",
         "default_script_test.go",
+        "ssi_script_test.go",
     ],
     deps = [
-        "//pkg/util/testutil/flake",
         "//test/new-e2e/pkg/e2e",
         "//test/new-e2e/pkg/environments",
         "//test/new-e2e/pkg/provisioners/aws/host",

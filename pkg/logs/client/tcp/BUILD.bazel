@@ -35,6 +35,8 @@ go_test(
         "//comp/logs/agent/config",
         "//pkg/logs/client",
         "//pkg/logs/client/mock",
+        "//pkg/logs/message",
+        "//pkg/logs/metrics",
         "//pkg/logs/sources",
         "//pkg/logs/status/statusinterface",
         "//pkg/logs/util/testutils",

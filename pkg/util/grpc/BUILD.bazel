@@ -12,7 +12,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/grpc",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/api/security",
         "//pkg/proto/pbgo/core",
         "//pkg/util/grpc/context",
         "//pkg/util/log",

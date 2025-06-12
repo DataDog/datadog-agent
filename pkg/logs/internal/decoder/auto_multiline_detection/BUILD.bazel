@@ -17,6 +17,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection",
     visibility = ["//pkg/logs:__subpackages__"],
     deps = [
+        "//comp/logs/agent/config",
         "//pkg/config/model",
         "//pkg/config/structure",
         "//pkg/logs/internal/decoder/auto_multiline_detection/tokens",
@@ -44,6 +45,7 @@ go_test(
     ],
     embed = [":auto_multiline_detection"],
     deps = [
+        "//comp/logs/agent/config",
         "//pkg/config/mock",
         "//pkg/logs/internal/decoder/auto_multiline_detection/tokens",
         "//pkg/logs/message",

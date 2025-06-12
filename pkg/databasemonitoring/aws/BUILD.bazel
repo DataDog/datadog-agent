@@ -4,13 +4,16 @@ go_library(
     name = "aws",
     srcs = [
         "aurora.go",
+        "aws.go",
         "client.go",
+        "rds.go",
         "rdsclient_mockgen.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/ec2",
+        "//pkg/util/log",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_config//:config",
         "@com_github_aws_aws_sdk_go_v2_service_rds//:rds",
@@ -21,7 +24,11 @@ go_library(
 
 go_test(
     name = "aws_test",
-    srcs = ["aurora_test.go"],
+    srcs = [
+        "aurora_test.go",
+        "common_test.go",
+        "rds_test.go",
+    ],
     embed = [":aws"],
     deps = [
         "@com_github_aws_aws_sdk_go_v2//aws",

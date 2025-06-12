@@ -39,7 +39,6 @@ go_library(
         "//comp/remote-config/rcclient",
         "//comp/remote-config/rcclient/rcclientimpl",
         "//comp/serializer/logscompression/fx",
-        "//pkg/api/security",
         "//pkg/config/env",
         "//pkg/config/model",
         "//pkg/config/settings",

@@ -14,6 +14,7 @@ go_library(
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/providers/names",
         "//comp/core/config",
+        "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/core/secrets",
         "//comp/core/tagger/fx-dual",

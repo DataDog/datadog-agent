@@ -20,7 +20,6 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/settings",
-        "//pkg/api/util",
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/config/utils",

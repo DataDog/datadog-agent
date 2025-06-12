@@ -10,6 +10,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/process/hostinfo",
         "//pkg/process/checks",

@@ -5,6 +5,8 @@ go_library(
     srcs = [
         "agent_sidecar.go",
         "constants.go",
+        "errors.go",
+        "helpers.go",
         "overrides.go",
         "profiles.go",
         "providers.go",
@@ -36,6 +38,7 @@ go_test(
     name = "agent_sidecar_test",
     srcs = [
         "agent_sidecar_test.go",
+        "helpers_test.go",
         "overrides_test.go",
         "profiles_test.go",
         "providers_test.go",

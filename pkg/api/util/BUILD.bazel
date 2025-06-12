@@ -3,37 +3,27 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "util",
     srcs = [
-        "doget.go",
-        "ipc_endpoint.go",
         "util.go",
         "util_test_helper.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/api/util",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
         "//pkg/api/security",
         "//pkg/api/security/cert",
         "//pkg/config/model",
         "//pkg/util/log",
-        "//pkg/util/system",
     ],
 )
 
 go_test(
     name = "util_test",
-    srcs = [
-        "doget_test.go",
-        "ipc_endpoint_test.go",
-        "util_test.go",
-    ],
+    srcs = ["util_test.go"],
     embed = [":util"],
     deps = [
         "//pkg/config/mock",
-        "//pkg/config/model",
         "@com_github_gofrs_flock//:flock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@com_github_stretchr_testify//suite",
     ],
 )

@@ -40,6 +40,7 @@ go_test(
         "//pkg/serverless/executioncontext",
         "//pkg/serverless/invocationlifecycle",
         "//pkg/trace/sampler",
+        "@com_github_datadog_go_libddwaf_v3//:go-libddwaf",
         "@com_github_stretchr_testify//require",
     ],
 )

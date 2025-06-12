@@ -113,7 +113,7 @@ func (suite *PodwatcherTestSuite) TestPodWatcherComputeChangesInConditions() {
 	require.Nil(suite.T(), err)
 	require.Len(suite.T(), changes, 2)
 	assert.Equal(suite.T(), "nginx", changes[0].Spec.Containers[0].Name)
-	require.False(suite.T(), IsPodReady(changes[0]))
+	require.True(suite.T(), IsPodReady(changes[0]))
 }
 
 func (suite *PodwatcherTestSuite) TestPodWatcherWithInitContainers() {

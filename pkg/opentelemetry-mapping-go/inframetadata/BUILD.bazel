@@ -29,7 +29,7 @@ go_test(
         "//pkg/opentelemetry-mapping-go/inframetadata/payload",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@io_opentelemetry_go_collector_semconv//v1.18.0:v1_18_0",
+        "@io_opentelemetry_go_otel//semconv/v1.18.0:v1_18_0",
         "@org_uber_go_zap//:zap",
         "@org_uber_go_zap//zapcore",
         "@org_uber_go_zap//zaptest/observer",

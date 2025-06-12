@@ -26,6 +26,8 @@ go_library(
         "//pkg/logs/client/http",
         "//pkg/logs/client/tcp",
         "//pkg/util/scrubber",
+        "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_gogo_protobuf//proto",
     ],
 )
 
@@ -37,7 +39,10 @@ go_test(
         "//comp/core/log/mock",
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/mock",
+        "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_gogo_protobuf//proto",
         "@com_github_stretchr_testify//assert",
     ],
 )

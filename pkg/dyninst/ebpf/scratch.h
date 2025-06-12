@@ -1,7 +1,6 @@
 #ifndef __SCRATCH_H__
 #define __SCRATCH_H__
 
-#include <asm/ptrace.h>
 #include "compiler.h"
 #include "debug.h"
 #include "framing.h"
@@ -222,21 +221,23 @@ typedef struct read_by_frame_ctx {
   bool buf_out_of_space;
 } read_by_frame_ctx_t;
 
+#define DYNINST_PAGE_SIZE 4096
+
 static long read_by_frame_loop(unsigned long i, void* _ctx) {
   read_by_frame_ctx_t* ctx = (read_by_frame_ctx_t*)_ctx;
-  if (i * PAGE_SIZE >= ctx->len) {
+  if (i * DYNINST_PAGE_SIZE >= ctx->len) {
     return 1;
   }
-  buf_offset_t offset = ctx->offset + i * PAGE_SIZE;
-  uint64_t len = ctx->len - i * PAGE_SIZE;
-  if (len > PAGE_SIZE) {
-    len = PAGE_SIZE;
+  buf_offset_t offset = ctx->offset + i * DYNINST_PAGE_SIZE;
+  uint64_t len = ctx->len - i * DYNINST_PAGE_SIZE;
+  if (len > DYNINST_PAGE_SIZE) {
+    len = DYNINST_PAGE_SIZE;
   }
-  if (!scratch_buf_bounds_check(&offset, PAGE_SIZE)) {
+  if (!scratch_buf_bounds_check(&offset, DYNINST_PAGE_SIZE)) {
     ctx->buf_out_of_space = true;
     return 1;
   }
-  bpf_probe_read_user(&(*ctx->buf)[offset], len, ctx->addr + i * PAGE_SIZE);
+  bpf_probe_read_user(&(*ctx->buf)[offset], len, ctx->addr + i * DYNINST_PAGE_SIZE);
   // We ignore the failure, assuming the object was never accessed before,
   // and thus this fragment is zero'd. bpf_probe_read_user does zero the
   // destination buffer bytes on failure.
@@ -253,15 +254,15 @@ scratch_buf_serialize_fallback(scratch_buf_t* scratch_buf,
   // allocation header. If reading the first page succeeds, we assume this is
   // the case, read rest of the object page-by-page, with zero bytes for each
   // fragment that failed to read.
-  uint64_t page_reminder = PAGE_SIZE - data_item_header->address % PAGE_SIZE;
+  uint64_t page_reminder = DYNINST_PAGE_SIZE - data_item_header->address % DYNINST_PAGE_SIZE;
   if (page_reminder >= data_item_header->length) {
     // Object doesn't cross page.
     return offset | FAILED_READ_OFFSET_BIT;
   }
-  if (page_reminder >= PAGE_SIZE) {
+  if (page_reminder >= DYNINST_PAGE_SIZE) {
     return 0;
   }
-  if (!scratch_buf_bounds_check(&offset, PAGE_SIZE)) {
+  if (!scratch_buf_bounds_check(&offset, DYNINST_PAGE_SIZE)) {
     return 0;
   }
   int read_result = bpf_probe_read_user(&(*scratch_buf)[offset], page_reminder,
@@ -276,7 +277,7 @@ scratch_buf_serialize_fallback(scratch_buf_t* scratch_buf,
       .len = data_item_header->length - page_reminder,
       .buf_out_of_space = false,
   };
-  bpf_loop((ctx.len + PAGE_SIZE - 1) / PAGE_SIZE, read_by_frame_loop, &ctx, 0);
+  bpf_loop((ctx.len + DYNINST_PAGE_SIZE - 1) / DYNINST_PAGE_SIZE, read_by_frame_loop, &ctx, 0);
   if (ctx.buf_out_of_space) {
     return 0;
   }

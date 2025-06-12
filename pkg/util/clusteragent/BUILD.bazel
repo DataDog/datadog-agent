@@ -16,7 +16,6 @@ go_library(
     deps = [
         "//comp/core/diagnose/def",
         "//pkg/api/security",
-        "//pkg/api/util",
         "//pkg/clusteragent/api/v1:api",
         "//pkg/clusteragent/clusterchecks/types",
         "//pkg/config/setup",

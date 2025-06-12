@@ -31,7 +31,6 @@ go_library(
         "//comp/trace/agent/impl",
         "//comp/trace/compression/fx-zstd",
         "//comp/trace/config",
-        "//pkg/api/security",
         "//pkg/trace/telemetry",
         "//pkg/util/fxutil",
         "//pkg/util/option",

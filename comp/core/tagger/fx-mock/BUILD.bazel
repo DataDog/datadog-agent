@@ -7,6 +7,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/mock",
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/tagger/impl",

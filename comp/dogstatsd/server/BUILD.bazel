@@ -4,7 +4,6 @@ go_library(
     name = "server",
     srcs = [
         "batch.go",
-        "blocklist.go",
         "component.go",
         "default.go",
         "default_serverless.go",
@@ -68,6 +67,7 @@ go_library(
         "//pkg/util/option",
         "//pkg/util/sort",
         "//pkg/util/stat",
+        "//pkg/util/strings",
         "//pkg/util/tags",
         "@org_uber_go_fx//:fx",
     ],
@@ -76,7 +76,6 @@ go_library(
 go_test(
     name = "server_test",
     srcs = [
-        "blocklist_test.go",
         "convert_bench_test.go",
         "enrich_bench_test.go",
         "enrich_serverless_test.go",
@@ -132,6 +131,7 @@ go_test(
         "//pkg/util/hostname",
         "//pkg/util/log/setup",
         "//pkg/util/option",
+        "//pkg/util/strings",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",

@@ -13,9 +13,10 @@ go_library(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
         "//comp/snmptraps/snmplog",
-        "//pkg/api/util",
         "//pkg/config/structure",
         "//pkg/snmp",
         "@com_github_gosnmp_gosnmp//:gosnmp",

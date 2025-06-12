@@ -5,14 +5,8 @@ go_library(
     srcs = [
         "configuration.go",
         "inventoryotel.go",
-        "mock.go",
-        "status.go",
     ],
-    embedsrcs = [
-        "dummy_data/response.json",
-        "status_templates/inventory.tmpl",
-        "status_templates/inventoryHTML.tmpl",
-    ],
+    embedsrcs = ["dummy_data/response.json"],
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/inventoryotel/inventoryotelimpl",
     visibility = ["//visibility:public"],
     deps = [
@@ -21,8 +15,8 @@ go_library(
         "//comp/core/flare/types",
         "//comp/core/hostname/hostnameinterface",
         "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
-        "//comp/core/status",
         "//comp/metadata/internal/util",
         "//comp/metadata/inventoryotel",
         "//comp/metadata/runner/runnerimpl",
@@ -54,7 +48,6 @@ go_test(
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_golang_x_exp//maps",
         "@org_uber_go_fx//:fx",
     ],
 )

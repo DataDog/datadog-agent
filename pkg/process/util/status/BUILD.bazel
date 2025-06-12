@@ -8,7 +8,6 @@ go_library(
     deps = [
         "//comp/core/hostname/hostnameinterface",
         "//comp/metadata/host/hostimpl/utils",
-        "//pkg/api/util",
         "//pkg/config/model",
         "//pkg/version",
     ],

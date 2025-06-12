@@ -48,6 +48,7 @@ go_library(
 go_test(
     name = "rules_test",
     srcs = [
+        "bucket_test.go",
         "eval_test.go",
         "fim_test.go",
         "policy_loader_test.go",

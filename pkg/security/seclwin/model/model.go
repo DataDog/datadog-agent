@@ -610,6 +610,7 @@ type AWSSecurityCredentials struct {
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
+	ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 

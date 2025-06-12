@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rds",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/databasemonitoring/rds",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/config/setup"],
+)

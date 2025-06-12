@@ -4,6 +4,7 @@ go_library(
     name = "hostnameutils",
     srcs = [
         "hostname.go",
+        "hostname_no_functests.go",
         "hostname_testutil.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils",

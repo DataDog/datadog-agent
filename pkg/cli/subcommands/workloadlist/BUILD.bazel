@@ -8,9 +8,11 @@ go_library(
     deps = [
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/ipc/httphelpers",
         "//comp/core/log/def",
         "//comp/core/workloadmeta/def",
-        "//pkg/api/util",
         "//pkg/config/setup",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",

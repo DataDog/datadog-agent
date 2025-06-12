@@ -8,6 +8,10 @@ go_library(
     deps = [
         "//cmd/trace-agent/subcommands",
         "//comp/core/config",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/fx",
+        "//comp/core/log/def",
+        "//comp/core/log/fx",
         "//comp/core/secrets",
         "//pkg/config/fetcher",
         "//pkg/util/fxutil",

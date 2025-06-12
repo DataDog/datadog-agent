@@ -20,9 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ContainerCollectAll is the name of the docker integration that collect logs from all containers
-const ContainerCollectAll = "container_collect_all"
-
 // logs-intake endpoint prefix.
 const (
 	tcpEndpointPrefix            = "agent-intake.logs."
@@ -133,7 +130,11 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
 func BuildServerlessEndpoints(coreConfig pkgconfigmodel.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
-	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
+	compressionOptions := EndpointCompressionOptions{
+		CompressionKind:  GzipCompressionKind,
+		CompressionLevel: GzipCompressionLevel,
+	}
+	return buildHTTPEndpoints(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin, compressionOptions)
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.

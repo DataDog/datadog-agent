@@ -48,6 +48,7 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//pkg/util/executable",
             "//pkg/util/winutil",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),
@@ -69,6 +70,7 @@ go_test(
         "//comp/core/secrets/secretsimpl",
         "//comp/core/telemetry/noopsimpl",
         "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "//pkg/util/scrubber",

@@ -52,6 +52,7 @@ go_library(
     deps = [
         "//comp/api/api/def",
         "//comp/core/config",
+        "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/core/tagger/def",
         "//comp/core/tagger/generic_store",
@@ -87,6 +88,7 @@ go_test(
     embed = [":impl-remote"],
     deps = [
         "//comp/core/config",
+        "//comp/core/ipc/mock",
         "//comp/core/log/mock",
         "//comp/core/tagger/def",
         "//comp/core/tagger/telemetry",
@@ -96,8 +98,8 @@ go_test(
         "//comp/core/telemetry/telemetryimpl",
         "//comp/def",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/util/fxutil",
-        "//pkg/util/grpc",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta",
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
     deps = [
+        "//comp/core/ipc/def",
         "//comp/core/workloadmeta/collectors/internal/remote",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/proto",
@@ -38,6 +39,7 @@ go_test(
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//types/known/emptypb",
         "@org_uber_go_fx//:fx",

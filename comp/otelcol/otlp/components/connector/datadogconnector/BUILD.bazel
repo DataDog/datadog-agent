@@ -76,7 +76,7 @@ go_test(
         "@io_opentelemetry_go_collector_processor_batchprocessor//:batchprocessor",
         "@io_opentelemetry_go_collector_receiver//:receiver",
         "@io_opentelemetry_go_collector_receiver_otlpreceiver//:otlpreceiver",
-        "@io_opentelemetry_go_collector_semconv//v1.27.0:v1_27_0",
+        "@io_opentelemetry_go_otel//semconv/v1.27.0:v1_27_0",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//testing/protocmp",
         "@org_uber_go_zap//:zap",

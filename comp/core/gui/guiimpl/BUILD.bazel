@@ -16,16 +16,12 @@ go_library(
     ],
     embedsrcs = [
         "views/templates/index.tmpl",
-        "views/templates/loaderErr.tmpl",
         "views/templates/runningChecks.tmpl",
-        "views/templates/singleCheck.tmpl",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/gui/guiimpl",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
-        "//comp/collector/collector",
-        "//comp/core/autodiscovery",
         "//comp/core/autodiscovery/autodiscoveryimpl",
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",

@@ -11,7 +11,6 @@ go_library(
         "secrets.go",
         "stats.go",
         "store.go",
-        "templatecache.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl",
     visibility = ["//visibility:public"],
@@ -48,7 +47,6 @@ go_library(
         "//pkg/util/scrubber",
         "@com_github_cenkalti_backoff//:backoff",
         "@com_github_mohae_deepcopy//:deepcopy",
-        "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",
     ],
 )
@@ -63,7 +61,6 @@ go_test(
         "secrets_test.go",
         "stats_test.go",
         "store_test.go",
-        "templatecache_test.go",
     ],
     embed = [":autodiscoveryimpl"],
     deps = [

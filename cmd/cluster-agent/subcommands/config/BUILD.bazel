@@ -8,7 +8,8 @@ go_library(
     deps = select({
         "@rules_go//go/platform:aix": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -17,7 +18,8 @@ go_library(
         ],
         "@rules_go//go/platform:android": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -26,7 +28,8 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -35,7 +38,8 @@ go_library(
         ],
         "@rules_go//go/platform:dragonfly": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -44,7 +48,8 @@ go_library(
         ],
         "@rules_go//go/platform:freebsd": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -53,7 +58,8 @@ go_library(
         ],
         "@rules_go//go/platform:illumos": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -62,7 +68,8 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -71,7 +78,8 @@ go_library(
         ],
         "@rules_go//go/platform:js": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -80,7 +88,8 @@ go_library(
         ],
         "@rules_go//go/platform:linux": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -89,7 +98,8 @@ go_library(
         ],
         "@rules_go//go/platform:netbsd": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -98,7 +108,8 @@ go_library(
         ],
         "@rules_go//go/platform:openbsd": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -107,7 +118,8 @@ go_library(
         ],
         "@rules_go//go/platform:osx": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -116,7 +128,8 @@ go_library(
         ],
         "@rules_go//go/platform:plan9": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -125,7 +138,8 @@ go_library(
         ],
         "@rules_go//go/platform:qnx": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",
@@ -134,7 +148,8 @@ go_library(
         ],
         "@rules_go//go/platform:solaris": [
             "//cmd/cluster-agent/command",
-            "//pkg/api/util",
+            "//comp/core/ipc/def",
+            "//comp/core/ipc/httphelpers",
             "//pkg/cli/subcommands/config",
             "//pkg/config/settings",
             "//pkg/config/settings/http",

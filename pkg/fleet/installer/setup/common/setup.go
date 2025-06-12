@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -40,7 +39,7 @@ var (
 // Setup allows setup scripts to define packages and configurations to install.
 type Setup struct {
 	configDir string
-	installer installertypes.Installer
+	installer installer.Installer
 	start     time.Time
 	flavor    string
 
@@ -70,7 +69,9 @@ Running the %s installation script (https://github.com/DataDog/datadog-agent/tre
 	}
 	var proxyNoProxy []string
 	if os.Getenv("DD_PROXY_NO_PROXY") != "" {
-		proxyNoProxy = strings.Split(os.Getenv("DD_PROXY_NO_PROXY"), ",")
+		proxyNoProxy = strings.FieldsFunc(os.Getenv("DD_PROXY_NO_PROXY"), func(r rune) bool {
+			return r == ',' || r == ' '
+		}) // comma and space-separated list, consistent with viper and documentation
 	}
 	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("setup.%s", flavor))
 	s := &Setup{
@@ -129,6 +130,11 @@ func (s *Setup) Run() (err error) {
 		err = s.installPackage(p.name, url)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
+		}
+	}
+	if s.Packages.copyInstallerSSI {
+		if err := copyInstallerSSI(); err != nil {
+			return err
 		}
 	}
 	err = s.restartServices(packages)

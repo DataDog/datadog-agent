@@ -3,6 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "redact",
     srcs = [
+        "cr.go",
         "data_scrubber.go",
         "metadata.go",
         "pod.go",
@@ -12,12 +13,14 @@ go_library(
     deps = [
         "//pkg/util/log",
         "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
     ],
 )
 
 go_test(
     name = "redact_test",
     srcs = [
+        "cr_test.go",
         "data_scrubber_test.go",
         "pod_test.go",
     ],
@@ -27,5 +30,6 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
     ],
 )
