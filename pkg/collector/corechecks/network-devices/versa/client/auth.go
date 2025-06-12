@@ -92,17 +92,12 @@ func (client *Client) runGetCSRFToken() error {
 		return err
 	}
 
-	// TODO: remove this, we don't need it, just using it for debugging
 	endpointURL, err := url.Parse(client.directorEndpoint + "/versa")
 	if err != nil {
 		return fmt.Errorf("url parsing failed: %w", err)
 	}
 	cookies := client.httpClient.Jar.Cookies(endpointURL)
-
-	log.Tracef("Client CSRF URL: %s", endpointURL)
-	log.Tracef("Client CSRF response headers: %+v", resp.Header)
 	for _, cookie := range cookies {
-		log.Tracef("Versa Director cookie: %s=%s;Secure:%T", cookie.Name, cookie.Value, cookie.Secure)
 		if cookie.Name == "VD-CSRF-TOKEN" {
 			client.token = cookie.Value
 			client.tokenExpiry = timeNow().Add(time.Minute * 15)
@@ -112,18 +107,12 @@ func (client *Client) runGetCSRFToken() error {
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("authentication failed, status code: %v: %s", resp.StatusCode, string(bodyBytes))
 	}
+	log.Trace("get CSRF token successful")
 
 	return nil
 }
 
 func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
-	// TODO: this is pretty hacky at the moment, we're investigating
-	// how to properly handle the CSRF token and see if we could just
-	// use OAuth instead. For now, this gets us off the ground
-	//
-	// From support questions we've found, we might be able to perform a single
-	// GET request, then perform analytics login
-
 	// Request to /j_spring_security_check to obtain CSRF token and session cookie
 	req, err := client.newRequest("POST", "/versa/j_spring_security_check", strings.NewReader(authPayload.Encode()), true)
 	if err != nil {
@@ -147,18 +136,12 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 		return err
 	}
 
-	// TODO: remove this, we don't need it, just using it for debugging
 	endpointURL, err := url.Parse(client.directorEndpoint + "/versa")
 	if err != nil {
 		return fmt.Errorf("url parsing failed: %w", err)
 	}
-
 	cookies := client.httpClient.Jar.Cookies(endpointURL)
-
-	log.Tracef("Client login URL: %s", endpointURL)
-	log.Tracef("Client login response headers: %+v", sessionRes.Header)
 	for _, cookie := range cookies {
-		log.Tracef("Versa Director cookie: %s=%s;Secure:%T", cookie.Name, cookie.Value, cookie.Secure)
 		if cookie.Name == "VD-CSRF-TOKEN" {
 			client.token = cookie.Value
 			client.tokenExpiry = timeNow().Add(time.Minute * 15)
@@ -168,6 +151,7 @@ func (client *Client) runJSpringSecurityCheck(authPayload *url.Values) error {
 	if sessionRes.StatusCode != 200 {
 		return fmt.Errorf("authentication failed, status code: %v: %s", sessionRes.StatusCode, string(bodyBytes))
 	}
+	log.Trace("j_spring_security_check successful")
 
 	return nil
 }
@@ -193,23 +177,10 @@ func (client *Client) runAnalyticsLogin(analyticsPayload *url.Values) error {
 		return err
 	}
 
-	endpointURL, err := url.Parse(client.directorEndpoint + "/versa")
-	if err != nil {
-		return fmt.Errorf("url parsing failed: %w", err)
-	}
-
-	cookies := client.httpClient.Jar.Cookies(endpointURL)
-
-	log.Tracef("Client ANALYTICS login URL: %s", endpointURL)
-	log.Tracef("Client ANALYTICS login response headers: %+v", loginRes.Header)
-	for _, cookie := range cookies {
-		log.Tracef("Versa Analytics cookie: %s=%s;Secure:%t;Path:%s", cookie.Name, cookie.Value, cookie.Secure, cookie.Path)
-	}
-
 	if loginRes.StatusCode != 200 {
 		return fmt.Errorf("analytics authentication failed, status code: %v: %s", loginRes.StatusCode, string(bodyBytes))
 	}
-	log.Tracef("Analytics login successful!! %s", string(bodyBytes))
+	log.Trace("analytics login successful")
 
 	return nil
 }
