@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func getSampleBinaryPath() (string, error) {
@@ -45,7 +44,7 @@ func runBenchmark() error {
 
 	fmt.Printf("loading binary %s\n", binPath)
 	// Load the binary and generate the IR.
-	binary, err := safeelf.Open(binPath)
+	binary, err := os.Open(binPath)
 	if err != nil {
 		return err
 	}

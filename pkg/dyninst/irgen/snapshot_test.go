@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 var rewriteFromEnv = func() bool {
@@ -53,7 +52,7 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probesCfgs := testprogs.MustGetProbeCfgs(t, caseName)
-	elfFile, err := safeelf.Open(binPath)
+	elfFile, err := os.Open(binPath)
 	require.NoError(t, err)
 	obj, err := object.NewElfObject(elfFile)
 	require.NoError(t, err)

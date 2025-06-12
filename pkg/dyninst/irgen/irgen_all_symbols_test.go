@@ -9,6 +9,7 @@ package irgen_test
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -37,11 +38,13 @@ func TestIRGenAllProbes(t *testing.T) {
 }
 
 func testAllProbes(t *testing.T, sampleServicePath string) {
-	binary, err := safeelf.Open(sampleServicePath)
+	binary, err := os.Open(sampleServicePath)
 	require.NoError(t, err)
-	symbols, err := binary.Symbols()
+	elf, err := safeelf.NewFile(binary)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
+	symbols, err := elf.Symbols()
+	require.NoError(t, err)
 	var probes []config.Probe
 	for i, s := range symbols {
 		// These automatically generated symbols cause problems.
