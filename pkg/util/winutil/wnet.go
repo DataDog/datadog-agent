@@ -27,41 +27,56 @@ type NetResource struct {
 	Type        uint32
 	DisplayType uint32
 	Usage       uint32
-	localName   *uint16
-	remoteName  *uint16
-	comment     *uint16
-	provider    *uint16
+	LocalName   *uint16
+	RemoteName  *uint16
+	Comment     *uint16
+	Provider    *uint16
 }
 
 // CreateNetResource creates a netresource struct
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/winnetwk/ns-winnetwk-netresourcew
 func CreateNetResource(remoteName, localName, comment, provider string, scope, resourceType, displayType, usage uint32) (NetResource, error) {
-	lpRemoteName, err := windows.UTF16PtrFromString(remoteName)
-	if err != nil {
-		return NetResource{}, fmt.Errorf("failed to convert remote name to UTF16: %w", err)
+
+	var lpRemoteName *uint16
+	var lpLocalName *uint16
+	var lpComment *uint16
+	var lpProvider *uint16
+	var err error
+
+	if remoteName != "" {
+		lpRemoteName, err = windows.UTF16PtrFromString(remoteName)
+		if err != nil {
+			return NetResource{}, fmt.Errorf("failed to convert remote name to UTF16: %w", err)
+		}
 	}
-	lpLocalName, err := windows.UTF16PtrFromString(localName)
-	if err != nil {
-		return NetResource{}, fmt.Errorf("failed to convert local name to UTF16: %w", err)
+	if localName != "" {
+		lpLocalName, err = windows.UTF16PtrFromString(localName)
+		if err != nil {
+			return NetResource{}, fmt.Errorf("failed to convert local name to UTF16: %w", err)
+		}
 	}
-	lpComment, err := windows.UTF16PtrFromString(comment)
-	if err != nil {
-		return NetResource{}, fmt.Errorf("failed to convert comment to UTF16: %w", err)
+	if comment != "" {
+		lpComment, err = windows.UTF16PtrFromString(comment)
+		if err != nil {
+			return NetResource{}, fmt.Errorf("failed to convert comment to UTF16: %w", err)
+		}
 	}
-	lpProvider, err := windows.UTF16PtrFromString(provider)
-	if err != nil {
-		return NetResource{}, fmt.Errorf("failed to convert provider to UTF16: %w", err)
+	if provider != "" {
+		lpProvider, err = windows.UTF16PtrFromString(provider)
+		if err != nil {
+			return NetResource{}, fmt.Errorf("failed to convert provider to UTF16: %w", err)
+		}
 	}
 	return NetResource{
 		Scope:       scope,
 		Type:        resourceType,
 		DisplayType: displayType,
 		Usage:       usage,
-		remoteName:  lpRemoteName,
-		localName:   lpLocalName,
-		comment:     lpComment,
-		provider:    lpProvider,
+		RemoteName:  lpRemoteName,
+		LocalName:   lpLocalName,
+		Comment:     lpComment,
+		Provider:    lpProvider,
 	}, nil
 }
 
@@ -90,7 +105,7 @@ func WNetAddConnection2(netResource *NetResource, password, username string, fla
 		}
 	}
 	rc, _, err := procWNetAddConnection2W.Call(
-		uintptr(unsafe.Pointer(&netResource)),
+		uintptr(unsafe.Pointer(netResource)),
 		uintptr(unsafe.Pointer(_password)),
 		uintptr(unsafe.Pointer(_username)),
 		uintptr(flags),
@@ -116,7 +131,7 @@ func WNetCancelConnection2(name string) error {
 		1,
 	)
 
-	if ret != 0 {
+	if ret != windows.NO_ERROR {
 		return fmt.Errorf("WNetCancelConnection2W failed with code %d", ret)
 	}
 

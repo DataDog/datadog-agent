@@ -509,9 +509,22 @@ func netAddConnection(remoteName, localName, password, username string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create NetResource: %v", err)
 	}
+	log.Debugf(
+		"Created NetResource for connection to %s: {Scope: %d, Type: %d, DisplayType: %d, Usage: %d, localName: %s, remoteName: %s, comment: %s, provider: %s}",
+		remoteName,
+		netResource.Scope,
+		netResource.Type,
+		netResource.DisplayType,
+		netResource.Usage,
+		windows.UTF16PtrToString(netResource.LocalName),
+		windows.UTF16PtrToString(netResource.RemoteName),
+		windows.UTF16PtrToString(netResource.Comment),
+		windows.UTF16PtrToString(netResource.Provider),
+	)
 	return winutil.WNetAddConnection2(&netResource, password, username, 0)
 }
 
 func netCancelConnection(name string) error {
+	log.Debugf("Canceling connection to %s", name)
 	return winutil.WNetCancelConnection2(name)
 }

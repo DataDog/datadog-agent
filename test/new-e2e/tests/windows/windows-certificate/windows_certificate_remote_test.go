@@ -65,7 +65,7 @@ type multiVMSuite struct {
 
 func TestRemoteCertificates(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &multiVMSuite{}, e2e.WithPulumiProvisioner(multiVMEnvProvisioner(), nil), e2e.WithSkipDeleteOnFailure())
+	e2e.Run(t, &multiVMSuite{}, e2e.WithPulumiProvisioner(multiVMEnvProvisioner(), nil))
 }
 
 func (v *multiVMSuite) SetupSuite() {
@@ -142,15 +142,13 @@ func (v *multiVMSuite) TestGetRemoteCertificate() {
 	agentHost := v.Env().AgentHost
 	certificateHost := v.Env().CertificateHost
 
-	config := `
+	checkConfig := fmt.Sprintf(`
 init_config:
 instances:
   - certificate_store: MY
     server: %s
     username: %s
-    password: %s`
-
-	checkConfig := fmt.Sprintf(config, certificateHost.HostOutput.Address, TestUser, TestPassword)
+    password: %s`, certificateHost.HostOutput.Address, TestUser, TestPassword)
 	v.T().Logf("Check config: %s", checkConfig)
 
 	_, err := agentHost.WriteFile("C:\\ProgramData\\Datadog\\conf.d\\windows_certificate.d\\conf.yaml", []byte(checkConfig))
