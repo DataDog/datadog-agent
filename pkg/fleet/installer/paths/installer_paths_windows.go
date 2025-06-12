@@ -11,6 +11,7 @@ package paths
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -85,6 +86,37 @@ func init() {
 	StableInstallerPath = filepath.Join(DatadogProgramFilesDir, "bin", "datadog-installer.exe")
 }
 
+// createDirIfNotExists creates a directory if it doesn't exist.
+// Returns an error if the path exists but is not a directory, or if creation fails.
+//
+// Function behaves similarly to os.MkdirAll, but does not create parent directories.
+func createDirIfNotExists(path string) error {
+	// Check if directory exists first
+	info, err := os.Stat(path)
+	if err == nil {
+		// Path exists, verify it's a directory
+		if !info.IsDir() {
+			return &fs.PathError{
+				Op:   "mkdir",
+				Path: path,
+				Err:  syscall.ENOTDIR,
+			}
+		}
+		return nil
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		// Some other error occurred while checking
+		return fmt.Errorf("failed to check if directory %s exists: %w", path, err)
+	}
+
+	// Directory doesn't exist, try to create it
+	err = os.Mkdir(path, 0)
+	if err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", path, err)
+	}
+	return nil
+}
+
 // EnsureInstallerDataDir creates/updates the root directory for the installer data and sets permissions
 // to ensure that only Administrators have write access to the directory tree.
 //
@@ -106,7 +138,7 @@ func EnsureInstallerDataDir() error {
 
 	// check if DatadogDataDir exists
 	_, err := os.Stat(DatadogDataDir)
-	if errors.Is(err, os.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) {
 		// DatadogDataDir does not exist, so we need to create it
 		// probably means the MSI has yet to run
 		// we'll create the directory with the restricted permissions
@@ -128,7 +160,9 @@ func EnsureInstallerDataDir() error {
 		// we still need to ensure the subdirectories have the correct permissions.
 
 		// Create subdirectories that inherit permissions from the parent
-		_ = os.Mkdir(RootTmpDir, 0)
+		if err := createDirIfNotExists(RootTmpDir); err != nil {
+			return err
+		}
 		err = resetPermissionsForTree(RootTmpDir)
 		if err != nil {
 			return fmt.Errorf("failed to reset permissions for RootTmpDir: %w", err)
@@ -136,14 +170,18 @@ func EnsureInstallerDataDir() error {
 
 		// Create subdirectories that have different permissions (global read)
 		// PackagesPath should only contain files from public OCI packages
-		_ = os.Mkdir(PackagesPath, 0)
+		if err := createDirIfNotExists(PackagesPath); err != nil {
+			return err
+		}
 		err = SetRepositoryPermissions(PackagesPath)
 		if err != nil {
 			return fmt.Errorf("failed to create PackagesPath: %w", err)
 		}
 		// ConfigsPath has generated configuration files but will not contain secrets.
 		// To support options that are secrets, we will need to fetch them from a secret store.
-		_ = os.Mkdir(ConfigsPath, 0)
+		if err := createDirIfNotExists(ConfigsPath); err != nil {
+			return err
+		}
 		err = SetRepositoryPermissions(ConfigsPath)
 		if err != nil {
 			return fmt.Errorf("failed to create ConfigsPath: %w", err)
