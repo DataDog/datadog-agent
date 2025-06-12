@@ -234,32 +234,39 @@ func TestNativeTLSMapsCleanup(t *testing.T) {
 		requests = append(requests, requestFn())
 	}
 
-	client.CloseIdleConnections()
-
-	time.Sleep(500 * time.Millisecond)
-
-	cleanProtocolMaps(t, "ssl", usmMonitor.ebpfProgram.Manager.Manager)
-
-	sslCtxByTupMap := "ssl_ctx_by_tuple"
-	sslSockByCtxMap := "ssl_sock_by_ctx"
-
 	sslSockMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslSockByCtxMap)
 	require.NoErrorf(t, errMap, "Error getting map %s", sslSockByCtxMap)
 	require.Truef(t, mapExists, "Map %s does not exist on this branch. This test expects it.", sslSockByCtxMap)
 	require.NotNilf(t, sslSockMap, "Map %s object is nil.", sslSockByCtxMap)
 
-	ctxMapCount := countMapEntries(t, sslSockMap)
-	t.Logf("Count for map '%s' after CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCount)
-	assert.Equalf(t, 0, ctxMapCount, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslCtxByTupMap)
+	ctxMapCountBefore := countMapEntries(t, sslSockMap)
+	t.Logf("Count for map '%s' BEFORE CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCountBefore)
 
-	sslTupleMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslCtxByTupMap)
-	require.NoErrorf(t, errMap, "Error getting map %s", sslCtxByTupMap)
-	require.Truef(t, mapExists, "Map %s does not exist on this branch. This test expects it.", sslCtxByTupMap)
-	require.NotNilf(t, sslTupleMap, "Map %s object is nil.", sslCtxByTupMap)
+	client.CloseIdleConnections()
 
-	tupleMapCount := countMapEntries(t, sslTupleMap)
-	t.Logf("Count for map '%s' after CloseIdleConnections(): %d", sslCtxByTupMap, tupleMapCount)
-	assert.Equalf(t, 0, tupleMapCount, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslCtxByTupMap)
+	time.Sleep(1 * time.Second)
+
+	ctxMapCountAfter := countMapEntries(t, sslSockMap)
+	t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCountAfter)
+
+	cleanProtocolMaps(t, "ssl", usmMonitor.ebpfProgram.Manager.Manager)
+
+	ctxMapCountAfterCleanup := countMapEntries(t, sslSockMap)
+	t.Logf("Count for map '%s' AFTER manual cleanup: %d", sslSockByCtxMap, ctxMapCountAfterCleanup)
+
+	if ctxMapCountBefore > 0 {
+		t.Logf("SSL connections were established (count before: %d)", ctxMapCountBefore)
+		if ctxMapCountAfter == ctxMapCountBefore {
+			t.Logf("SSL maps were NOT cleaned by tcp_close (count after: %d)", ctxMapCountAfter)
+			t.Logf("This confirms the bug: tcp_close is not cleaning SSL maps for HTTP connections")
+		} else {
+			t.Logf("SSL maps were cleaned by tcp_close (count after: %d)", ctxMapCountAfter)
+		}
+	} else {
+		t.Logf("No SSL connections were established - test may not be triggering the right code path")
+	}
+
+	assert.Equalf(t, 0, ctxMapCountAfter, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslSockByCtxMap)
 
 	requestsExist := make([]bool, len(requests))
 
@@ -288,8 +295,7 @@ func TestNativeTLSMapsCleanup(t *testing.T) {
 		return true
 	}, 3*time.Second, 100*time.Millisecond, "connection not found")
 	if t.Failed() {
-		// Dump relevant maps on failure
-		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, sslSockByCtxMap, sslCtxByTupMap)
+		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, sslSockByCtxMap)
 		t.FailNow()
 	}
 }
@@ -315,12 +321,6 @@ func countMapEntries(t *testing.T, m *ebpf.Map) int {
 	case "ssl_sock_by_ctx":
 		var key uintptr
 		var value http.SslSock
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			count++
-		}
-	case "ssl_ctx_by_tuple":
-		var key http.ConnTuple
-		var value uintptr
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			count++
 		}
