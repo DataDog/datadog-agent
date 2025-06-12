@@ -185,7 +185,7 @@ TAIL_CALL_CLASSIFIER_FNC(dns_response, struct __sk_buff *skb) {
         header_id = map_elem->short_dns_response.header.id;
     } else {
         send_packet_with_context = true;
-        fill_network_process_context_from_pkt(&map_elem->full_dns_response.process, pkt);
+        fill_network_process_context_from_pkt(&map_elem->full_dns_response.common.process, pkt);
         fill_network_context(&map_elem->full_dns_response.network, skb, pkt);
         err = bpf_skb_load_bytes(skb, pkt->offset, &map_elem->full_dns_response.header, sizeof(struct dnshdr));
         header_id = map_elem->full_dns_response.header.id;

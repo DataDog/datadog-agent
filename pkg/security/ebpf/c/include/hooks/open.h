@@ -249,12 +249,12 @@ int __attribute__((always_inline)) _sys_open_ret(void *ctx, struct syscall_cache
 
     struct proc_cache_t *entry;
     if (syscall->open.pid_tgid != 0) {
-        entry = fill_process_context_with_pid_tgid(&event.process, syscall->open.pid_tgid);
+        entry = fill_process_context_with_pid_tgid(&event.common.process, syscall->open.pid_tgid);
     } else {
-        entry = fill_process_context(&event.process);
+        entry = fill_process_context(&event.common.process);
     }
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
+    fill_container_context(entry, &event.common.container);
+    fill_span_context(&event.common.span);
 
     send_event(ctx, EVENT_OPEN, event);
 

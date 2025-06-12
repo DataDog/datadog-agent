@@ -124,9 +124,9 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
                 .file = syscall->unlink.file,
             };
 
-            struct proc_cache_t *entry = fill_process_context(&event.process);
-            fill_container_context(entry, &event.container);
-            fill_span_context(&event.span);
+            struct proc_cache_t *entry = fill_process_context(&event.common.process);
+            fill_container_context(entry, &event.common.container);
+            fill_span_context(&event.common.span);
 
             send_event(ctx, EVENT_RMDIR, event);
         } else {
@@ -138,9 +138,9 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
                 .flags = syscall->unlink.flags,
             };
 
-            struct proc_cache_t *entry = fill_process_context(&event.process);
-            fill_container_context(entry, &event.container);
-            fill_span_context(&event.span);
+            struct proc_cache_t *entry = fill_process_context(&event.common.process);
+            fill_container_context(entry, &event.common.container);
+            fill_span_context(&event.common.span);
 
             send_event(ctx, EVENT_UNLINK, event);
         }
