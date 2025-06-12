@@ -318,6 +318,7 @@ def run(
     if use_prebuilt_binaries:
         ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
+        env_vars["GOTEST_COMMAND"] = "./gotest-custom"
 
     if running_in_ci():
         raw_command = (
