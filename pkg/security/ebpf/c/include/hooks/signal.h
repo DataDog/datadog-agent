@@ -71,9 +71,9 @@ int rethook_check_kill_permission(ctx_t *ctx) {
         .pid = syscall->signal.pid,
         .type = syscall->signal.type,
     };
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event.common.process);
+    fill_container_context(entry, &event.common.container);
+    fill_span_context(&event.common.span);
     send_event(ctx, EVENT_SIGNAL, event);
     return 0;
 }

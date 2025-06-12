@@ -118,9 +118,9 @@ int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, 
         fill_file(syscall->init_module.dentry, &event.file);
     }
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event.common.process);
+    fill_container_context(entry, &event.common.container);
+    fill_span_context(&event.common.span);
 
     send_event(ctx, EVENT_INIT_MODULE, event);
     return 0;
@@ -178,9 +178,9 @@ int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval
     };
     bpf_probe_read_str(&event.name, sizeof(event.name), (void *)syscall->delete_module.name);
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event.common.process);
+    fill_container_context(entry, &event.common.container);
+    fill_span_context(&event.common.span);
 
     send_event(ctx, EVENT_DELETE_MODULE, event);
     return 0;

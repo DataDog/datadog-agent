@@ -444,9 +444,7 @@ struct sysctl_event_t {
 
 struct setrlimit_event_t {
     struct kevent_t event;
-    struct process_context_t process;
-    struct span_context_t span;
-    struct container_context_t container;
+    struct common_context_t common;
     struct syscall_t syscall;
 
     int resource;

@@ -160,14 +160,14 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
 
     struct proc_cache_t *entry;
     if (syscall->xattr.pid_tgid != 0) {
-        entry = fill_process_context_with_pid_tgid(&event.process, syscall->xattr.pid_tgid);
+        entry = fill_process_context_with_pid_tgid(&event.common.process, syscall->xattr.pid_tgid);
     } else {
-        entry = fill_process_context(&event.process);
+        entry = fill_process_context(&event.common.process);
     }
 
-    fill_container_context(entry, &event.container);
+    fill_container_context(entry, &event.common.container);
     fill_file(syscall->xattr.dentry, &event.file);
-    fill_span_context(&event.span);
+    fill_span_context(&event.common.span);
 
     send_event(ctx, event_type, event);
 

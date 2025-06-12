@@ -26,13 +26,13 @@ TAIL_CALL_CLASSIFIER_FNC(raw_packet_sender, struct __sk_buff *skb) {
     }
 
     // process context
-    fill_network_process_context_from_pkt(&evt->process, pkt);
+    fill_network_process_context_from_pkt(&evt->common.process, pkt);
 
-    struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
+    struct proc_cache_t *entry = get_proc_cache(evt->common.process.pid);
     if (entry == NULL) {
-        evt->container.container_id[0] = 0;
+        evt->common.container.container_id[0] = 0;
     } else {
-        copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
+        copy_container_id_no_tracing(entry->container.container_id, &evt->common.container.container_id);
     }
 
     fill_network_device_context_from_pkt(&evt->device, skb, pkt);

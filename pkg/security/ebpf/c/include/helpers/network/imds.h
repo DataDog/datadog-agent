@@ -24,20 +24,20 @@ __attribute__((always_inline)) struct imds_event_t *reset_imds_event(struct __sk
     evt->event.flags = 0;
 
     // process context
-    fill_network_process_context_from_pkt(&evt->process, pkt);
+    fill_network_process_context_from_pkt(&evt->common.process, pkt);
 
     // network context
     fill_network_context(&evt->network, skb, pkt);
 
-    struct proc_cache_t *entry = get_proc_cache(evt->process.pid);
+    struct proc_cache_t *entry = get_proc_cache(evt->common.process.pid);
     if (entry == NULL) {
-        evt->container.container_id[0] = 0;
+        evt->common.container.container_id[0] = 0;
     } else {
-        copy_container_id_no_tracing(entry->container.container_id, &evt->container.container_id);
+        copy_container_id_no_tracing(entry->container.container_id, &evt->common.container.container_id);
     }
 
     // should we sample this event for activity dumps ?
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(evt->process.pid, bpf_ktime_get_ns(), NULL);
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(evt->common.process.pid, bpf_ktime_get_ns(), NULL);
     if (config) {
         if (mask_has_event(config->event_mask, EVENT_IMDS)) {
             evt->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;

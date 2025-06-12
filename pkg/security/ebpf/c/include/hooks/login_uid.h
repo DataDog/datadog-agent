@@ -39,9 +39,9 @@ int rethook_audit_set_loginuid(ctx_t *ctx) {
 
     // send event to sync userspace caches
     struct login_uid_write_event_t event = {};
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event.common.process);
+    fill_container_context(entry, &event.common.container);
+    fill_span_context(&event.common.span);
 
     event.auid = pid_entry->credentials.auid;
     send_event(ctx, EVENT_LOGIN_UID_WRITE, event);

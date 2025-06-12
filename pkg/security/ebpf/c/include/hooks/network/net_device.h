@@ -151,9 +151,9 @@ int rethook_register_netdevice(ctx_t *ctx) {
             .device = device,
         };
 
-        struct proc_cache_t *entry = fill_process_context(&evt.process);
-        fill_container_context(entry, &evt.container);
-        fill_span_context(&evt.span);
+        struct proc_cache_t *entry = fill_process_context(&evt.common.process);
+        fill_container_context(entry, &evt.common.container);
+        fill_span_context(&evt.common.span);
 
         send_event(ctx, EVENT_NET_DEVICE, evt);
         return 0;
@@ -200,9 +200,9 @@ int rethook_register_netdevice(ctx_t *ctx) {
                 .peer_device = *peer_device,
             };
 
-            struct proc_cache_t *proc_entry = fill_process_context(&evt.process);
-            fill_container_context(proc_entry, &evt.container);
-            fill_span_context(&evt.span);
+            struct proc_cache_t *proc_entry = fill_process_context(&evt.common.process);
+            fill_container_context(proc_entry, &evt.common.container);
+            fill_span_context(&evt.common.span);
 
             send_event(ctx, EVENT_VETH_PAIR, evt);
         }
@@ -247,9 +247,9 @@ __attribute__((always_inline)) int trace_dev_change_net_namespace(ctx_t *ctx) {
         .peer_device = *device,
     };
 
-    struct proc_cache_t *entry = fill_process_context(&evt.process);
-    fill_container_context(entry, &evt.container);
-    fill_span_context(&evt.span);
+    struct proc_cache_t *entry = fill_process_context(&evt.common.process);
+    fill_container_context(entry, &evt.common.container);
+    fill_span_context(&evt.common.span);
 
     send_event(ctx, EVENT_VETH_PAIR, evt);
     return 0;

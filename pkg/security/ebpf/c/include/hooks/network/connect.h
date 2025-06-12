@@ -54,15 +54,15 @@ int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
 
     struct proc_cache_t *entry;
     if (syscall->connect.pid_tgid != 0) {
-        entry = fill_process_context_with_pid_tgid(&event.process, syscall->connect.pid_tgid);
+        entry = fill_process_context_with_pid_tgid(&event.common.process, syscall->connect.pid_tgid);
     } else {
-        entry = fill_process_context(&event.process);
+        entry = fill_process_context(&event.common.process);
     }
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
+    fill_container_context(entry, &event.common.container);
+    fill_span_context(&event.common.span);
 
     // Check if we should sample this event for activity dumps
-    struct activity_dump_config *config = lookup_or_delete_traced_pid(event.process.pid, bpf_ktime_get_ns(), NULL);
+    struct activity_dump_config *config = lookup_or_delete_traced_pid(event.common.process.pid, bpf_ktime_get_ns(), NULL);
     if (config) {
         if (mask_has_event(config->event_mask, EVENT_CONNECT)) {
             event.event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;

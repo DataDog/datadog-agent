@@ -31,9 +31,9 @@ __attribute__((always_inline)) struct sysctl_event_t *reset_sysctl_event() {
     evt->sysctl_buffer[0] = 0;
 
     // process, container, span contexts
-    struct proc_cache_t *entry = fill_process_context(&evt->process);
-    fill_container_context(entry, &evt->container);
-    fill_span_context(&evt->span);
+    struct proc_cache_t *entry = fill_process_context(&evt->common.process);
+    fill_container_context(entry, &evt->common.container);
+    fill_span_context(&evt->common.span);
 
     return evt;
 }
@@ -67,7 +67,7 @@ __attribute__((always_inline)) void handle_cgroup_sysctl(struct bpf_sysctl *ctx)
             .action = evt->action,
         }
     };
-    if (approve_syscall_with_tgid(evt->process.pid, &syscall, sysctl_approvers) == DISCARDED) {
+    if (approve_syscall_with_tgid(evt->common.process.pid, &syscall, sysctl_approvers) == DISCARDED) {
         return;
     }
 

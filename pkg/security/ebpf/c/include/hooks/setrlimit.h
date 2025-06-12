@@ -1,12 +1,12 @@
 #ifndef _HOOKS_SETRLIMIT_H_
 #define _HOOKS_SETRLIMIT_H_
 
-#include "constants/syscall_macro.h"   
-#include "helpers/discarders.h"        
-#include "helpers/syscalls.h"          
-#include "events_definition.h"        
+#include "constants/syscall_macro.h"
+#include "helpers/discarders.h"
+#include "helpers/syscalls.h"
+#include "events_definition.h"
 
-#define SETRLIMIT_RATE_LIMITER  100     
+#define SETRLIMIT_RATE_LIMITER  100
 
 static const int important_resources[] = {
     RLIMIT_CPU,
@@ -107,9 +107,9 @@ sys_setrlimit_ret(void *ctx, int ret)
         .target = cache->setrlimit.pid,
     };
 
-    struct proc_cache_t *pc = fill_process_context(&evt.process);
-    fill_container_context(pc, &evt.container);
-    fill_span_context(&evt.span);
+    struct proc_cache_t *pc = fill_process_context(&evt.common.process);
+    fill_container_context(pc, &evt.common.container);
+    fill_span_context(&evt.common.span);
 
     send_event(ctx, EVENT_SETRLIMIT, evt);
     return 0;
@@ -134,7 +134,7 @@ HOOK_SYSCALL_ENTRY4(prlimit64,
     if (new_limit == NULL) {
         return 0;
     }
-    
+
     return handle_setrlimit_common(resource, new_limit, pid);
 }
 
