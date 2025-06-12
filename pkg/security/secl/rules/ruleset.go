@@ -594,6 +594,13 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		}
 
 		if action.Def.Set != nil {
+			// compile scope field
+			if len(action.Def.Set.ScopeField) > 0 {
+				if err := action.CompileScopeField(rs.model); err != nil {
+					return "", &ErrRuleLoad{Rule: pRule, Err: err}
+				}
+			}
+
 			if field := action.Def.Set.Field; field != "" {
 				if _, found := rs.fieldEvaluators[field]; !found {
 					evaluator, err := rs.model.GetEvaluator(field, "", 0)
@@ -756,6 +763,9 @@ func (rs *RuleSet) IsDiscarder(ctx *eval.Context, field eval.Field, rules []*Rul
 
 func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.PolicyRule.Actions {
+		// set context scope field evaluator
+		ctx.SetScopeFieldEvaluator(action.ScopeFieldEvaluator)
+
 		if !action.IsAccepted(ctx) {
 			continue
 		}
@@ -785,7 +795,6 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 						value = evaluator.Eval(ctx)
 					}
 				}
-
 				if action.Def.Set.Append {
 					if err := mutable.Append(ctx, value); err != nil {
 						return fmt.Errorf("append is not supported for %s", reflect.TypeOf(value))
@@ -802,6 +811,8 @@ func (rs *RuleSet) runSetActions(_ eval.Event, ctx *eval.Context, rule *Rule) er
 			}
 
 		}
+
+		ctx.PerActionReset()
 	}
 
 	return nil
@@ -1035,6 +1046,11 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 	rs.policies = policies
 
 	for _, policy := range policies {
+		if len(policy.macros) == 0 && len(policy.rules) == 0 {
+			errs = multierror.Append(errs, &ErrPolicyLoad{Name: policy.Info.Name, Version: policy.Info.Version, Source: policy.Info.Source, Err: ErrPolicyIsEmpty})
+			continue
+		}
+
 		for _, macro := range policy.GetAcceptedMacros() {
 			if existingMacro := macroIndex[macro.Def.ID]; existingMacro != nil {
 				if err := existingMacro.MergeWith(macro); err != nil {
@@ -1049,9 +1065,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		for _, rule := range policy.GetAcceptedRules() {
 			if existingRule := rulesIndex[rule.Def.ID]; existingRule != nil {
 				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
-				if err := existingRule.MergeWith(rule); err != nil {
-					errs = multierror.Append(errs, err)
-				}
+				existingRule.MergeWith(rule)
 			} else {
 				rule.UsedBy = append(rule.UsedBy, rule.Policy)
 				rulesIndex[rule.Def.ID] = rule

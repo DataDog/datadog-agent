@@ -1852,7 +1852,9 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 
 	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
 		isSet = true
-		p.NoProxy = strings.Split(noProxy, " ") // space-separated list, consistent with viper
+		p.NoProxy = strings.FieldsFunc(noProxy, func(r rune) bool {
+			return r == ',' || r == ' '
+		}) // comma and space-separated list, consistent with viper and documentation
 	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
 		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
