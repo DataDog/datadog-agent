@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	scaleclient "k8s.io/client-go/scale"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
@@ -117,6 +118,9 @@ func NewController(
 	store.RegisterObserver(autoscaling.Observer{
 		SetFunc:    c.limitHeap.InsertIntoHeap,
 		DeleteFunc: c.limitHeap.DeleteFromHeap,
+	})
+	store.RegisterObserver(autoscaling.Observer{
+		DeleteFunc: unsetTelemetry,
 	})
 	c.store = store
 	c.podWatcher = podWatcher
@@ -493,6 +497,15 @@ func (c *Controller) updateLocalFallbackEnabled(podAutoscalerInternal *model.Pod
 	}
 
 	trackLocalFallbackEnabled(*activeHorizontalSource, *podAutoscalerInternal)
+}
+
+func unsetTelemetry(key, _ string) {
+	ns, autoscalerName, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		log.Debugf("Unable to split key %s to delete telemetry: %v", key, err)
+		return
+	}
+	deletePodAutoscalerTelemetry(ns, autoscalerName)
 }
 
 func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model.PodAutoscalerInternal) (*datadoghqcommon.DatadogPodAutoscalerValueSource, *datadoghqcommon.DatadogPodAutoscalerValueSource) {
