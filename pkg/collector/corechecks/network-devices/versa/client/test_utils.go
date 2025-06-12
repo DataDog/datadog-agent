@@ -107,6 +107,9 @@ func SetupMockAPIServer() *httptest.Server {
 	//mux.HandleFunc("/vnms/dashboard/childAppliancesDetail/", fixtureHandler(fixtures.GetChildAppliancesDetail))
 	mux.HandleFunc("/vnms/dashboard/vdStatus", fixtureHandler(fixtures.GetDirectorStatus))
 	mux.HandleFunc(SLAMetricsURL, fixtureHandler(fixtures.GetSLAMetrics))
+
+	// mock session auth
+	mux.HandleFunc("/versa/analytics/auth/user", fixtureHandler("{}"))
 	mux.HandleFunc("/versa/j_spring_security_check", fixtureHandler("{}"))
 	mux.HandleFunc("/versa/analytics/login", fixtureHandler("{}"))
 
