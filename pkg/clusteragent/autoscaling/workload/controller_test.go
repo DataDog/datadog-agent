@@ -761,23 +761,17 @@ func TestIsTimestampStale(t *testing.T) {
 	currentTime := time.Now()
 	receivedTime := currentTime.Add(-1 * time.Minute)
 
-	// no fallback policy
-	assert.False(t, isTimestampStale(currentTime, receivedTime, nil))
+	// no fallback policy, use default stale timestamp threshold
+	assert.False(t, isTimestampStale(currentTime, receivedTime, defaultStaleTimestampThreshold))
 	receivedTime = currentTime.Add(-1 * time.Minute * 11)
-	assert.True(t, isTimestampStale(currentTime, receivedTime, nil))
+	assert.True(t, isTimestampStale(currentTime, receivedTime, defaultStaleTimestampThreshold))
 
 	// fallback policy with stale recommendation threshold
-	fallbackPolicy := &datadoghq.DatadogFallbackPolicy{
-		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-			Triggers: datadoghq.HorizontalFallbackTriggers{
-				StaleRecommendationThresholdSeconds: 120,
-			},
-		},
-	}
+	staleTimestampThreshold := time.Second * 120
 	receivedTime = currentTime.Add(-1 * time.Minute)
-	assert.False(t, isTimestampStale(currentTime, receivedTime, fallbackPolicy))
+	assert.False(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
 	receivedTime = currentTime.Add(-1 * time.Minute * 2)
-	assert.False(t, isTimestampStale(currentTime, receivedTime, fallbackPolicy))
+	assert.False(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
 	receivedTime = currentTime.Add(-1 * time.Minute * 3)
-	assert.True(t, isTimestampStale(currentTime, receivedTime, fallbackPolicy))
+	assert.True(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
 }

@@ -42,7 +42,7 @@ const (
 
 	controllerID = "dpa-c"
 
-	defaultStaleTimestampThreshold = time.Minute * 10 // time to wait before considering a recommendation stale
+	defaultStaleTimestampThreshold = 30 * time.Minute // time to wait before considering a recommendation stale
 )
 
 var (
@@ -516,26 +516,26 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 	mainHorizontalScalingValues := podAutoscalerInternal.MainScalingValues().Horizontal
 	fallbackHorizontalScalingValues := podAutoscalerInternal.FallbackScalingValues().Horizontal
 
+	staleTimestampThreshold := defaultStaleTimestampThreshold
+	if podAutoscalerInternal.Spec() != nil && podAutoscalerInternal.Spec().Fallback != nil {
+		staleTimestampThreshold = time.Second * time.Duration(int64(podAutoscalerInternal.Spec().Fallback.Horizontal.Triggers.StaleRecommendationThresholdSeconds))
+	}
+
 	// If main scaling values are not stale, use those
-	if mainHorizontalScalingValues != nil && !isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, nil) {
+	if mainHorizontalScalingValues != nil && !isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, staleTimestampThreshold) {
 		return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), activeVerticalSource
 	}
 
 	// Check if one of the following conditions are met:
 	// 1. Main scaling values are stale
 	// 2. No main scaling values have been received, and last scaling values (updated from status in event of leader election change) are stale
-	// 3. No main scaling values have been received, no scaling values have been received from status, and the pod autoscaler was created more than 10 minutes ago
-	if (mainHorizontalScalingValues != nil && isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, nil)) ||
-		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues != nil && isTimestampStale(currentTime, currentHorizontalScalingValues.Timestamp, nil)) ||
-		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues == nil && isTimestampStale(currentTime, podAutoscalerInternal.CreationTimestamp(), nil)) {
+	// 3. No main scaling values have been received, no scaling values have been received from status, and the pod autoscaler was created more than (threshold) minutes ago
+	if (mainHorizontalScalingValues != nil && isTimestampStale(currentTime, mainHorizontalScalingValues.Timestamp, staleTimestampThreshold)) ||
+		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues != nil && isTimestampStale(currentTime, currentHorizontalScalingValues.Timestamp, staleTimestampThreshold)) ||
+		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues == nil && isTimestampStale(currentTime, podAutoscalerInternal.CreationTimestamp(), staleTimestampThreshold)) {
 
 		// If local fallback values are usable, activate local fallback
-		var fallbackPolicy *datadoghq.DatadogFallbackPolicy
-		if podAutoscalerInternal.Spec() != nil {
-			fallbackPolicy = podAutoscalerInternal.Spec().Fallback
-		}
-
-		if fallbackHorizontalScalingValues != nil && !isTimestampStale(currentTime, fallbackHorizontalScalingValues.Timestamp, fallbackPolicy) {
+		if fallbackHorizontalScalingValues != nil && !isTimestampStale(currentTime, fallbackHorizontalScalingValues.Timestamp, staleTimestampThreshold) {
 			return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerLocalValueSource), activeVerticalSource
 		}
 	}
@@ -545,11 +545,6 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 	return nil, nil
 }
 
-func isTimestampStale(currentTime, receivedTime time.Time, fallbackPolicy *datadoghq.DatadogFallbackPolicy) bool {
-	staleTimestampThreshold := defaultStaleTimestampThreshold
-	if fallbackPolicy != nil && fallbackPolicy.Horizontal.Triggers.StaleRecommendationThresholdSeconds > 0 {
-		staleTimestampThreshold = time.Second * time.Duration(int64(fallbackPolicy.Horizontal.Triggers.StaleRecommendationThresholdSeconds))
-	}
-
+func isTimestampStale(currentTime, receivedTime time.Time, staleTimestampThreshold time.Duration) bool {
 	return currentTime.Sub(receivedTime) > staleTimestampThreshold
 }
