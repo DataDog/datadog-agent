@@ -1013,7 +1013,7 @@ func TestLogExtraLogger(t *testing.T) {
 	logger.Store(nil)
 }
 
-func TestDisabledLogger(t *testing.T) {
+func TestDisabledLogger(_ *testing.T) {
 	SetupLogger(Disabled(), DebugStr)
 
 	Trace("message")
@@ -1026,7 +1026,7 @@ func TestDisabledLogger(t *testing.T) {
 	Flush() // should not print any logs
 }
 
-func TestLoggerFlush(t *testing.T) {
+func TestLoggerFlush(_ *testing.T) {
 	SetupLogger(Default(), DebugStr)
 
 	Trace("message")

@@ -66,7 +66,7 @@ func TestWrapperMethods(t *testing.T) {
 	logger.Store(nil)
 }
 
-func TestWrapperFlush(t *testing.T) {
+func TestWrapperFlush(_ *testing.T) {
 	wrapper := NewWrapper(3)
 
 	wrapper.Debug("debug message")
