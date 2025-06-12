@@ -463,7 +463,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list")
+        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -637,12 +637,11 @@ def collect_integrations(_, integrations_dir, python_version, target_os, exclude
     """
     import json
 
-    excluded = excluded.split(',')
     integrations = []
 
     for entry in os.listdir(integrations_dir):
         int_path = os.path.join(integrations_dir, entry)
-        if not os.path.isdir(int_path) or entry in excluded:
+        if not os.path.isdir(int_path) or entry in excluded.split(','):
             continue
 
         manifest_file_path = os.path.join(int_path, "manifest.json")
