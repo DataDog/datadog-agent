@@ -162,7 +162,7 @@ func (suite *eksSuite) TestDogstatsdFargate() {
 	})
 }
 
-func (suite *k8sSuite) TestNginxFargate() {
+func (suite *eksSuite) TestNginxFargate() {
 
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
