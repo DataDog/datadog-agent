@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
@@ -54,7 +53,7 @@ func TestDyninst(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
 			}
-			bin := testprogs.GetBinary(t, "events_simple", cfg)
+			bin := testprogs.GetBinary(t, "simple", cfg)
 			testDyninst(t, bin)
 		})
 	}
@@ -78,38 +77,7 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
 
-	probes := []config.Probe{
-		&config.LogProbe{
-			ID: "intArg",
-			Where: &config.Where{
-				MethodName: "main.intArg",
-			},
-		},
-		&config.LogProbe{
-			ID: "stringArg",
-			Where: &config.Where{
-				MethodName: "main.stringArg",
-			},
-		},
-		&config.LogProbe{
-			ID: "sliceArg",
-			Where: &config.Where{
-				MethodName: "main.sliceArg",
-			},
-		},
-		&config.LogProbe{
-			ID: "arrayArg",
-			Where: &config.Where{
-				MethodName: "main.arrayArg",
-			},
-		},
-		&config.LogProbe{
-			ID: "inlined",
-			Where: &config.Where{
-				MethodName: "main.inlined",
-			},
-		},
-	}
+	probes := testprogs.GetProbeCfgs(t, "simple")
 
 	obj, err := object.NewElfObject(binary)
 	require.NoError(t, err)

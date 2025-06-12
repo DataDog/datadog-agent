@@ -52,6 +52,11 @@ func NewFakeEvent() *Event {
 	}
 }
 
+// ResolveProcessCacheEntryFromPID stub implementation
+func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	return GetPlaceholderProcessCacheEntry(pid, pid, false)
+}
+
 // Event represents an event sent from the kernel
 // genaccessors
 // gengetter: GetContainerCreatedAt
@@ -404,6 +409,7 @@ func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
 type ExecEvent struct {
 	SyscallContext
 	*Process
+	FileMetadata FileMetadata `field:"file.metadata"`
 
 	// Syscall context aliases
 	SyscallPath string `field:"syscall.path,ref:exec.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
