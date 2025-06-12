@@ -307,10 +307,14 @@ func TestDefaultSeries(t *testing.T) {
 	})
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 
+	runningTags := []string{"version:" + version.AgentVersion, "config_id:config123"}
+	if version.AgentPackageVersion != "" {
+		runningTags = append(runningTags, "package_version:"+version.AgentPackageVersion)
+	}
 	expectedSeries := metrics.Series{&metrics.Serie{
 		Name:           fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()),
 		Points:         []metrics.Point{{Value: 1, Ts: float64(start.Unix())}},
-		Tags:           tagset.CompositeTagsFromSlice([]string{"version:" + version.AgentVersion, "config_id:config123"}),
+		Tags:           tagset.CompositeTagsFromSlice(runningTags),
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
