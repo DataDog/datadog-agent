@@ -13,6 +13,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ProcessListener listens to process creation through a subscription to the
@@ -27,7 +28,7 @@ func NewProcessListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-processlistener"
 	l := &ProcessListener{}
 	filter := workloadmeta.NewFilterBuilder().
-		SetSource(workloadmeta.SourceAll).
+		SetSource(workloadmeta.SourceServiceDiscovery).
 		AddKind(workloadmeta.KindProcess).Build()
 
 	wmetaInstance, ok := options.Wmeta.Get()
@@ -49,6 +50,9 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 	if process.Service == nil {
 		return
 	}
+
+	log.Debugf("Creating process service: %#v", process)
+	log.Debugf("Creating process service: %#v", process.Service)
 
 	// Check if we have any service names
 	hasServiceName := process.Service.GeneratedName != "" ||
@@ -86,6 +90,7 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 		pid:           int(process.Pid),
 		hostname:      process.Service.GeneratedName,
 		tagger:        l.tagger,
+		hosts:         map[string]string{"host": "127.0.0.1"},
 		ready:         true,
 	}
 
