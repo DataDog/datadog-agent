@@ -381,7 +381,16 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
 		iter := currentMap.Iterate()
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			spew.Fdump(w, key, string(value[:bytes.Index(value[:], []byte{0})]))
+			nullTerminatorIndex := bytes.Index(value[:], []byte{0})
+
+			// The value may NOT contain a null terminator
+			// when its truncated, in that case the size will be TopicNameMaxSize.
+			topicName := string(value[:])
+			if nullTerminatorIndex != -1 {
+				topicName = string(value[:nullTerminatorIndex])
+			}
+
+			spew.Fdump(w, key, topicName)
 		}
 	}
 }
