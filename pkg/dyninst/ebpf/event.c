@@ -2,6 +2,7 @@
 #define __EVENT_H__
 
 #include "bpf_helpers.h"
+#include "bpf_tracing.h"
 #include "kconfig.h"
 #include "compiler.h"
 #include "context.h"
@@ -92,8 +93,17 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   global_ctx.regs = &global_ctx.stack_walk->regs;
 
   frame_data_t frame_data = {
-      .fp = global_ctx.regs->DWARF_BP_REG,
-      .stack_idx = 0,
+// Stack layout is slightly different in Go between arm64 and x86_64.
+// Established based on following documentation and machine code reads:
+// https://tip.golang.org/src/cmd/compile/abi-internal#architecture-specifics
+#if defined(bpf_target_arm64)
+    .cfa = global_ctx.regs->DWARF_BP_REG + 8,
+#elif defined(bpf_target_x86)
+    .cfa = global_ctx.regs->DWARF_BP_REG + 16,
+#else
+    #error "Unsupported architecture"
+#endif
+    .stack_idx = 0,
   };
   if (params->stack_machine_pc != 0) {
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,

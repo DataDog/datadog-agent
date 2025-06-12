@@ -10,6 +10,7 @@ package diskv2_test
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"testing"
 
@@ -40,7 +41,7 @@ func createWindowsCheck(t *testing.T) check.Check {
 	diskCheckOpt := diskv2.Factory()
 	diskCheckFunc, _ := diskCheckOpt.Get()
 	diskCheck := diskCheckFunc()
-	diskCheck = diskv2.WithDiskPartitions(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
 		return map[string]gopsutil_disk.IOCountersStat{
 			"\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\": {
 				Name:       "sda1",
@@ -65,7 +66,7 @@ func createWindowsCheck(t *testing.T) check.Check {
 			InodesFree:        500000,
 			InodesUsedPercent: 50.0,
 		}, nil
-	}), func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     `\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`,
@@ -147,7 +148,7 @@ func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenO
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createWindowsCheck(t)
-	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "",
@@ -218,7 +219,7 @@ device_whitelist:
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithIso9660FileSystems(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createWindowsCheck(t)
-	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "cdrom",
@@ -251,7 +252,7 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithTracefsFileSystems(t *testing.T) {
 	setupDefaultMocks()
 	diskCheck := createWindowsCheck(t)
-	diskCheck = diskv2.WithDiskPartitions(diskCheck, func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "trace",
