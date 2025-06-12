@@ -26,6 +26,7 @@ import (
 	"github.com/google/gopacket/layers"
 
 	lib "github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/hashicorp/go-multierror"
 	"github.com/moby/sys/mountinfo"
 	"github.com/vishvananda/netlink"
@@ -244,9 +245,16 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
-	if p.kernelVersion.Code != 0 && p.kernelVersion.Code >= kernel.Kernel6_11 {
+	tailCallsBroken, err := areFentryTailCallsBroken()
+	if err != nil {
 		p.useFentry = false
-		seclog.Errorf("fentry disabled on kernels >= 6.11, falling back to kprobe mode")
+		seclog.Errorf("fentry enabled but failed to verify tail call support: %v, falling back to kprobe mode", err)
+		return
+	}
+
+	if tailCallsBroken {
+		p.useFentry = false
+		seclog.Errorf("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported), falling back to kprobe mode")
 		return
 	}
 
@@ -276,6 +284,43 @@ func (p *EBPFProbe) selectFentryMode() {
 	}
 
 	p.useFentry = true
+}
+
+func areFentryTailCallsBroken() (bool, error) {
+	spec, err := ddebpf.GetKernelSpec()
+	if err != nil {
+		return false, err
+	}
+
+	var bpfMap *btf.Struct
+	if err := spec.TypeByName("bpf_map", &bpfMap); err != nil {
+		return false, err
+	}
+
+	/*
+		we are checking for the presence of the bpf_map.owner.attach_func_proto field
+		if it exists, fentry tail calls are broken
+		https://github.com/torvalds/linux/commit/28ead3eaabc16ecc907cfb71876da028080f6356
+	*/
+
+	for _, member := range bpfMap.Members {
+		if member.Name != "owner" {
+			continue
+		}
+
+		ty, ok := member.Type.(*btf.Struct)
+		if !ok {
+			return false, fmt.Errorf("bpf_map.owner is not a struct")
+		}
+
+		for _, ownerMember := range ty.Members {
+			if ownerMember.Name == "attach_func_proto" {
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
 
 func (p *EBPFProbe) isCgroupSysCtlNotSupported() bool {
