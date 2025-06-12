@@ -20,6 +20,8 @@ oracle:
     KUBERNETES_MEMORY_LIMIT: "6Gi"
     KUBERNETES_SERVICE_CPU_REQUEST: "1"
     KUBERNETES_SERVICE_MEMORY_LIMIT: "6Gi"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
   parallel:
     matrix:
       - DBMS_VERSION: "21.3.0-xe"

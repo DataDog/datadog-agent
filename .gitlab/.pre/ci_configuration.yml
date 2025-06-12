@@ -72,6 +72,9 @@ lint_gitlab_ci_jobs_codeowners:
   needs: []
   script:
     - dda inv -- -e linter.gitlab-ci-jobs-codeowners --all-files
+  variables:
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
 
 # TODO(celian): Merge this with lint_gitlab_ci without allow_failure
 lint_gitlab_ci_shellcheck:
