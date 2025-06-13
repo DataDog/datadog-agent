@@ -58,14 +58,14 @@ func (c *RemoteWindowsAgentConfigAssertions) getConfigValue(key string) interfac
 			actualValue, exists := current[k]
 			c.require.True(exists, "config key %s not found", key)
 			return actualValue
-		} else {
-			// Navigate deeper
-			next, exists := current[k]
-			c.require.True(exists, "config key %s not found", key)
-			nextMap, ok := next.(map[interface{}]interface{})
-			c.require.True(ok, "config key %s is not a nested object", strings.Join(keys[:i+1], "."))
-			current = nextMap
 		}
+
+		// Navigate deeper
+		next, exists := current[k]
+		c.require.True(exists, "config key %s not found", key)
+		nextMap, ok := next.(map[interface{}]interface{})
+		c.require.True(ok, "config key %s is not a nested object", strings.Join(keys[:i+1], "."))
+		current = nextMap
 	}
 
 	// This should never be reached due to the loop logic
