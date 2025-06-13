@@ -187,15 +187,6 @@ func EnsureInstallerDataDir() error {
 		if err != nil {
 			return fmt.Errorf("failed to create PackagesPath: %w", err)
 		}
-		// ConfigsPath has generated configuration files but will not contain secrets.
-		// To support options that are secrets, we will need to fetch them from a secret store.
-		if err := createDirIfNotExists(ConfigsPath); err != nil {
-			return err
-		}
-		err = SetRepositoryPermissions(ConfigsPath)
-		if err != nil {
-			return fmt.Errorf("failed to create ConfigsPath: %w", err)
-		}
 
 		return nil
 	})
