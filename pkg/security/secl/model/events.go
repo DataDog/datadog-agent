@@ -35,8 +35,6 @@ const (
 	FileRemoveXAttrEventType
 	// FileChdirEventType chdir event
 	FileChdirEventType
-	// FileFsmountEventType Mount event
-	FileFsmountEventType
 	// FileMountEventType Mount event
 	FileMountEventType
 	// FileUmountEventType Umount event
@@ -117,6 +115,8 @@ const (
 	SysCtlEventType
 	// SetSockOptEventType is sent when a socket option is set
 	SetSockOptEventType
+	// FileFsmountEventType Mount event
+	FileFsmountEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
