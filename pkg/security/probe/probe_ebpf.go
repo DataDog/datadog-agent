@@ -242,9 +242,18 @@ func (p *EBPFProbe) selectFentryMode() {
 		p.useFentry = false
 		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
 		return
-	} else if p.kernelVersion.Code != 0 && p.kernelVersion.Code >= kernel.Kernel6_11 {
+	}
+
+	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
+	if err != nil {
 		p.useFentry = false
-		seclog.Errorf("fentry disabled on kernels >= 6.11, falling back to kprobe mode")
+		seclog.Errorf("fentry enabled but failed to verify tail call support: %v, falling back to kprobe mode", err)
+		return
+	}
+
+	if tailCallsBroken {
+		p.useFentry = false
+		seclog.Errorf("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported), falling back to kprobe mode")
 		return
 	}
 
