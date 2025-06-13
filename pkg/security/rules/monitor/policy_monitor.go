@@ -181,6 +181,8 @@ const (
 	PolicyStatusLoaded PolicyStatus = "loaded"
 	// PolicyStatusPartiallyLoaded indicates that the policy was loaded with some errors
 	PolicyStatusPartiallyLoaded PolicyStatus = "partially_loaded"
+	// PolicyStatusFullyRejected indicates that all rules in the policy couldn't be loaded
+	PolicyStatusFullyRejected PolicyStatus = "fully_rejected"
 	// PolicyStatusError indicates that the policy was not loaded due to an error
 	PolicyStatusError PolicyStatus = "error"
 )
@@ -387,18 +389,21 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-				if rerr.Rule.Policy.IsInternal && !includeInternalPolicies {
-					continue
-				}
-				policyName := rerr.Rule.Policy.Name
+				for _, pInfo := range rerr.Rule.UsedBy {
+					if pInfo.IsInternal && !includeInternalPolicies {
+						continue
+					}
 
-				if policyState, exists = mp[policyName]; !exists {
-					policyState = NewPolicyState(rerr.Rule.Policy.Name, rerr.Rule.Policy.Source, rerr.Rule.Policy.Version, PolicyStatusPartiallyLoaded, "")
-					mp[policyName] = policyState
-				} else {
-					policyState.Status = PolicyStatusPartiallyLoaded // set the policy status as partially loaded to indicate that some rules could not be loaded
+					policyName := pInfo.Name
+					if policyState, exists = mp[policyName]; !exists {
+						// if the policy is not in the map, this means that no rule from this policy was loaded successfully
+						policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusFullyRejected, "")
+						mp[policyName] = policyState
+					} else if policyState.Status == PolicyStatusLoaded {
+						policyState.Status = PolicyStatusPartiallyLoaded
+					}
+					policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, &pInfo, string(rerr.Type()), rerr.Err.Error()))
 				}
-				policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, &rerr.Rule.Policy, string(rerr.Type()), rerr.Err.Error()))
 			} else if pErr, ok := err.(*rules.ErrPolicyLoad); ok {
 				policyName := pErr.Name
 				if policyState, exists = mp[policyName]; !exists {
