@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -89,6 +90,7 @@ type diskInstanceConfig struct {
 	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
 	Timeout              uint16            `yaml:"timeout"`
 	ProcMountInfoPath    string            `yaml:"proc_mountinfo_path"`
+	PreserveRootDevice   bool              `yaml:"preserve_root_device"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -422,8 +424,21 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		log.Warnf("Unable to get disk partitions: %s", err)
 		return err
 	}
-	log.Debugf("partitions %s", partitions)
+	rootDevices := make(map[string]string)
+	if runtime.GOOS == "linux" && c.instanceConfig.PreserveRootDevice {
+		rootDevices, err = c.loadRootDevices()
+		if err != nil {
+			log.Warnf("Error reading raw devices: %s", err)
+			rootDevices = map[string]string{}
+		}
+	}
+	log.Debugf("partitions '%s'", partitions)
+	log.Debugf("rootDevices '%s'", rootDevices)
 	for _, partition := range partitions {
+		if rootDev, ok := rootDevices[partition.Device]; ok {
+			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
+			partition.Device = rootDev
+		}
 		log.Debugf("Checking partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 		if c.excludePartition(partition) {
 			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
@@ -723,6 +738,8 @@ func newCheck() check.Check {
 			Timeout:              5,
 			// Match psutil exactly setting default value (https://github.com/giampaolo/psutil/blob/3d21a43a47ab6f3c4a08d235d2a9a55d4adae9b1/psutil/_pslinux.py#L1277)
 			ProcMountInfoPath: "/proc/self/mounts",
+			// Match psutil reporting '/dev/root' from /proc/self/mounts by default
+			PreserveRootDevice: true,
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},
