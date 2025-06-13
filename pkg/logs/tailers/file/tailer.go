@@ -269,7 +269,7 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
-	go t.readLines()
+	go t.computeFingerPrint()
 
 	return nil
 }
