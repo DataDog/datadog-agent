@@ -548,9 +548,11 @@ struct setsockopt_event_t {
     struct syscall_t syscall;
 
     int socket_type;
+    u16 sk_protocol; // socket protocol
     int level;
     int optname;
-    unsigned short filter_code; // sock_filter code
+    unsigned short filter_len;
+    char bpf_filters_buffer[MAX_BPF_FILTER_LEN * sizeof (struct sock_filter)];
 };
 
 #endif
