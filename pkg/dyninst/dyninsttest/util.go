@@ -131,7 +131,7 @@ func AttachBPFProbes(
 ) func() {
 	sampleLink, err := link.OpenExecutable(binPath)
 	require.NoError(t, err)
-	textSection, err := obj.TextSectionHeader()
+	textSection, err := object.FindTextSectionHeader(obj.File)
 	require.NoError(t, err)
 
 	var allAttached []link.Link
