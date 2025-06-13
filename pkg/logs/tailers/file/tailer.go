@@ -6,8 +6,10 @@
 package file
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"hash/crc64"
 	"io"
 	"os"
 	"path/filepath"
@@ -31,6 +33,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
+
+type FingerprintConfig struct {
+	maxLines         int
+	maxBytes         int
+	bytesToSkip      int
+	linesToSkip      int
+	minToFingerPrint int
+}
+
+func defaultFingerprintConfig() FingerprintConfig {
+	return FingerprintConfig{
+		maxLines:         500,
+		maxBytes:         2048,
+		bytesToSkip:      0,
+		linesToSkip:      0,
+		minToFingerPrint: 4,
+	}
+}
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
 // supplied output channel for further processing.
@@ -120,18 +140,21 @@ type Tailer struct {
 	bytesRead       *status.CountInfo
 	movingSum       *util.MovingSum
 	PipelineMonitor metrics.PipelineMonitor
+
+	fingerprintConfig FingerprintConfig
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
 type TailerOptions struct {
-	OutputChan      chan *message.Message   // Required
-	File            *File                   // Required
-	SleepDuration   time.Duration           // Required
-	Decoder         *decoder.Decoder        // Required
-	Info            *status.InfoRegistry    // Required
-	Rotated         bool                    // Optional
-	TagAdder        tag.EntityTagAdder      // Required
-	PipelineMonitor metrics.PipelineMonitor // Required
+	OutputChan        chan *message.Message   // Required
+	File              *File                   // Required
+	SleepDuration     time.Duration           // Required
+	Decoder           *decoder.Decoder        // Required
+	Info              *status.InfoRegistry    // Required
+	Rotated           bool                    // Optional
+	TagAdder          tag.EntityTagAdder      // Required
+	PipelineMonitor   metrics.PipelineMonitor // Required
+	FingerprintConfig FingerprintConfig       //Optional
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -165,6 +188,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
+	fingerprintConfig := defaultFingerprintConfig()
+
 	t := &Tailer{
 		file:                   opts.File,
 		outputChan:             opts.OutputChan,
@@ -185,6 +210,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		bytesRead:              bytesRead,
 		movingSum:              movingSum,
 		PipelineMonitor:        opts.PipelineMonitor,
+		fingerprintConfig:      fingerprintConfig,
 	}
 
 	if fileRotated {
@@ -243,6 +269,7 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
+	go t.readLines()
 
 	return nil
 }
@@ -298,7 +325,6 @@ func (t *Tailer) readForever() {
 		t.decoder.Stop()
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
-
 	for {
 		n, err := t.read()
 		if err != nil {
@@ -306,7 +332,6 @@ func (t *Tailer) readForever() {
 		}
 		t.recordBytes(int64(n))
 		t.movingSum.Add(int64(n))
-
 		select {
 		case <-t.stop:
 			if n != 0 && t.didFileRotate.Load() {
@@ -379,6 +404,38 @@ func (t *Tailer) forwardMessages() {
 		case <-t.forwardContext.Done():
 		}
 	}
+}
+
+// Note-to-self, make it so that you can determine whether or not a line is too long before reading it. You might have to read byte by byte and if we don't encounter a \n then we get angry and cap that off there
+func (t *Tailer) computeFingerPrint() { //we will have to modify this to read the number of the lines
+	_, err := t.osFile.Seek(0, io.SeekStart) //Start at the beginning of the file
+	if err != nil {                          // Check to see if there are any warnings
+		log.Warnf("Could not read file: %v", err)
+		return
+	}
+
+	logsToHash := ""                                                                    //Will store the logs we are looking to hash
+	reader := bufio.NewReader(t.osFile)                                                 //Creates a new reader that we will use to consume contents of osFile
+	for i := 0; i < t.fingerprintConfig.linesToSkip+t.fingerprintConfig.maxLines; i++ { //We will iterate over the linestoSkip + maxLines times for efficiency purposes
+		currLine, err := reader.ReadString('\n') //The we will look for the line break delimiter
+
+		if err == io.EOF { //signifies we've reached the end of the file
+			break
+		} else if err != nil { //If we can't find it, then we to failed to read the line (indicates missing line break)
+			log.Warnf("Failed to read line")
+		}
+
+		if i > t.fingerprintConfig.linesToSkip { //If the current counter is greater than the number of linesToSkip, we can begin adding for our hash
+			logsToHash += currLine //add current line to the total thing we are using to hash
+		}
+	}
+
+	//Apply CRC-64 hash
+	table := crc64.MakeTable(crc64.ISO)
+	checksum := crc64.Checksum([]byte(logsToHash), table)
+
+	fmt.Printf("This is our new hash", checksum)
+
 }
 
 // getFormattedTime return readable timestamp
