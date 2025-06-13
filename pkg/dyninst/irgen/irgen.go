@@ -704,8 +704,12 @@ func (v *rootVisitor) newProbe(
 		return nil, fmt.Errorf("failed to get probe kind: %w", err)
 	}
 	var captureSnapshot bool
+	pointerChasingLimit := uint32(math.MaxUint32)
 	if lp, ok := probeCfg.(*config.LogProbe); ok {
 		captureSnapshot = lp.CaptureSnapshot
+		if lp.Capture != nil {
+			pointerChasingLimit = uint32(lp.Capture.MaxReferenceDepth)
+		}
 	}
 
 	lineReader, err := v.dwarf.LineReader(unit)
@@ -761,15 +765,16 @@ func (v *rootVisitor) newProbe(
 		throttleBudget = math.MaxInt
 	}
 	probe := &ir.Probe{
-		ID:               probeCfg.GetID(),
-		Subprogram:       subprogram,
-		Kind:             kind,
-		Version:          probeCfg.GetVersion(),
-		Tags:             probeCfg.GetTags(),
-		Events:           events,
-		Snapshot:         captureSnapshot,
-		ThrottlePeriodMs: throttlePeriodMs,
-		ThrottleBudget:   throttleBudget,
+		ID:                  probeCfg.GetID(),
+		Subprogram:          subprogram,
+		Kind:                kind,
+		Version:             probeCfg.GetVersion(),
+		Tags:                probeCfg.GetTags(),
+		Events:              events,
+		Snapshot:            captureSnapshot,
+		ThrottlePeriodMs:    throttlePeriodMs,
+		ThrottleBudget:      throttleBudget,
+		PointerChasingLimit: pointerChasingLimit,
 	}
 	return probe, nil
 }
