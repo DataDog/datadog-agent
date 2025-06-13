@@ -71,34 +71,25 @@ agent_deb-arm64-a7-fips:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
 
-.package_ot_deb_common:
-  extends: [.package_deb_common]
-  variables:
-    # Not setting any required files for ddot packages yet
-    PACKAGE_REQUIRED_FILES_LIST: ""
-  script:
-    - !reference [.cache_omnibus_ruby_deps, setup]
-    - !reference [.setup_deb_signing_key]
-    - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project otel-agent ${OMNIBUS_EXTRA_ARGS}
-    - !reference [.create_signature_and_lint_linux_packages]
-
 ot_agent_deb-x64-a7:
-  extends: [.package_ot_deb_common, .package_deb_x86]
+  extends: [.package_deb_common, .package_deb_x86]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["datadog-otel-agent-x64"]
   variables:
-    DD_PROJECT: "agent"
+    DD_PROJECT: "otel-agent"
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 ot_agent_deb-arm64-a7:
-  extends: [.package_ot_deb_common, .package_deb_arm64]
+  extends: [.package_deb_common, .package_deb_arm64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["datadog-otel-agent-arm64"]
   variables:
-    DD_PROJECT: "agent"
+    DD_PROJECT: "otel-agent"
+    PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_deb-amd64:
   extends: [.package_deb_common, .package_deb_x86]
