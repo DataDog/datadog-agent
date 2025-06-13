@@ -49,7 +49,7 @@ build_version ENV['PACKAGE_VERSION']
 
 build_iteration 1
 
-description 'Datadog Distribution of OTel Collector'
+description 'Datadog Distribution of OpenTelemetry Collector'
 
 # Determine whether this is build-only, package-only or end to end
 do_build = false
