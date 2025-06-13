@@ -4,7 +4,6 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
-output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
 name 'otel-agent'
 package_name 'datadog-otel-agent'
@@ -77,7 +76,7 @@ elsif do_package
 end
 
 disable_version_manifest do_package
-extra_package_file "#{output_config_dir}/etc/datadog-agent/"
+extra_package_file "/etc/datadog-agent/"
 
 exclude '\.git*'
 exclude 'bundler\/git'
