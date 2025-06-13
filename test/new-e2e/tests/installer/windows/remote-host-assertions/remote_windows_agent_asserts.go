@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"gopkg.in/yaml.v2"
 )
 
 // RemoteWindowsAgentAssertions is a type that extends the SuiteAssertions to add assertions
@@ -18,16 +19,66 @@ type RemoteWindowsAgentAssertions struct {
 	agentClient agentclient.Agent
 }
 
-// WithConfigValueEqual checks if the Agent runtime config has a specific configuration value
-func (r *RemoteWindowsAgentAssertions) WithConfigValueEqual(key string, expectedValue string) *RemoteWindowsAgentAssertions {
+// RemoteWindowsAgentConfigAssertions provides assertions for Agent configuration
+type RemoteWindowsAgentConfigAssertions struct {
+	*RemoteWindowsAgentAssertions
+	config map[interface{}]interface{}
+}
+
+// RuntimeConfig gets the Agent runtime config and returns a config assertions helper
+//
+// The `config get` subcommand only supports a small set of keys, so this method
+// fetches the full config and unmarshals it into a map.
+func (r *RemoteWindowsAgentAssertions) RuntimeConfig() *RemoteWindowsAgentConfigAssertions {
 	r.context.T().Helper()
-	value, err := r.agentClient.ConfigWithError(agentclient.WithArgs([]string{"get", key}))
+	output, err := r.agentClient.ConfigWithError()
 	r.require.NoError(err)
-	value = strings.TrimSpace(value)
-	// Extract just the value part after "is set to: "
-	valueParts := strings.Split(value, "is set to: ")
-	r.require.Len(valueParts, 2, "unexpected config output format")
-	actualValue := strings.TrimSpace(valueParts[1])
-	r.require.Equal(expectedValue, actualValue, "expected config value %s to be %v, but got %v", key, expectedValue, actualValue)
-	return r
+
+	var config map[interface{}]interface{}
+	err = yaml.Unmarshal([]byte(output), &config)
+	r.require.NoError(err)
+
+	return &RemoteWindowsAgentConfigAssertions{
+		RemoteWindowsAgentAssertions: r,
+		config:                       config,
+	}
+}
+
+// getConfigValue navigates through nested config using dot notation and returns the final value
+func (c *RemoteWindowsAgentConfigAssertions) getConfigValue(key string) interface{} {
+	c.context.T().Helper()
+
+	// Navigate through nested config using dot notation
+	keys := strings.Split(key, ".")
+	current := c.config
+
+	for i, k := range keys {
+		if i == len(keys)-1 {
+			// Last key, return the value
+			actualValue, exists := current[k]
+			c.require.True(exists, "config key %s not found", key)
+			return actualValue
+		} else {
+			// Navigate deeper
+			next, exists := current[k]
+			c.require.True(exists, "config key %s not found", key)
+			nextMap, ok := next.(map[interface{}]interface{})
+			c.require.True(ok, "config key %s is not a nested object", strings.Join(keys[:i+1], "."))
+			current = nextMap
+		}
+	}
+
+	// This should never be reached due to the loop logic
+	c.require.Fail("unexpected error navigating config key %s", key)
+	return nil
+}
+
+// WithValueEqual checks if a config key has the expected value
+func (c *RemoteWindowsAgentConfigAssertions) WithValueEqual(key string, expectedValue interface{}) *RemoteWindowsAgentConfigAssertions {
+	c.context.T().Helper()
+
+	actualValue := c.getConfigValue(key)
+	c.require.Equal(expectedValue, actualValue, "expected config value %s to be %v, but got %v", key, expectedValue, actualValue)
+
+	return c
 }
