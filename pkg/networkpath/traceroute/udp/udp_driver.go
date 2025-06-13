@@ -102,7 +102,6 @@ func (u *udpDriver) SendProbe(ttl uint8) error {
 		return fmt.Errorf("udpDriver SendProbe failed to createRawUDPBuffer: %w", err)
 	}
 
-	fmt.Println("SendProbe", id, checksum)
 	probeID := probeID{packetID: id, checksum: checksum}
 	data := probeData{sendTime: time.Now(), ttl: ttl}
 	log.Tracef("sending probe with ttl=%d, packetID=%d, checksum=%d", ttl, id, checksum)

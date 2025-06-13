@@ -7,7 +7,6 @@ package packets
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -204,22 +203,36 @@ func ParseUDPFirstBytes(buffer []byte) (UDPInfo, error) {
 		Length:   binary.BigEndian.Uint16(buffer[4:6]),
 		Checksum: binary.BigEndian.Uint16(buffer[6:8]),
 	}
-
-	fmt.Println("buffer", hex.EncodeToString(buffer))
 	// Check for minimum payload length for NSMNC + 2-byte ID
 	if len(buffer) >= 16 && string(buffer[8:13]) == "NSMNC" {
-		fmt.Println("NSMNC")
-
 		if len(buffer) >= 16 { // 8-byte header + 8-byte payload
-			fmt.Println("Reading")
 			idHigh := buffer[14]
 			idLow := buffer[15]
 			udp.ID = (uint16(idHigh) << 8) | uint16(idLow)
-			fmt.Println("Reading", udp.ID)
 		}
 	}
 
 	return udp, nil
+}
+
+// WriteUDPFirstBytes writes the first 8 bytes of a UDP packet and optional "NSMNC" payload with ID.
+func WriteUDPFirstBytes(udp UDPInfo) []byte {
+	buffer := make([]byte, 8)
+
+	binary.BigEndian.PutUint16(buffer[0:2], udp.SrcPort)
+	binary.BigEndian.PutUint16(buffer[2:4], udp.DstPort)
+	binary.BigEndian.PutUint16(buffer[4:6], udp.Length)
+	binary.BigEndian.PutUint16(buffer[6:8], udp.Checksum)
+
+	// If ID is set, append "NSMNC" and the ID as 2 bytes
+	if udp.ID != 0 {
+		payload := []byte("NSMNC\x00")             // pad to 6 bytes first
+		payload = append(payload, byte(udp.ID>>8)) // high byte
+		payload = append(payload, byte(udp.ID))    // low byte
+		buffer = append(buffer, payload...)
+	}
+
+	return buffer
 }
 
 // ICMPInfo encodes the information relevant to traceroutes from an ICMP response
