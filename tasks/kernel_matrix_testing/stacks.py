@@ -205,42 +205,38 @@ def launch_stack(
         ensure_key_in_agent(ctx, ssh_key_obj)
         ensure_key_in_ec2(ctx, ssh_key_obj)
 
-    env = [
-        "TEAM=ebpf-platform",
-        "PULUMI_CONFIG_PASSPHRASE=1234",
-        f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
-        f"LibvirtSSHKeyARM={stack_dir}/libvirt_rsa-arm64",
-        f"CI_PROJECT_DIR={stack_dir}",
-    ]
+    env = {
+        "TEAM": "ebpf-platform",
+        "PULUMI_CONFIG_PASSPHRASE": "1234",
+        "LibvirtSSHKeyX86": f"{stack_dir}/libvirt_rsa-x86_64",
+        "LibvirtSSHKeyARM": f"{stack_dir}/libvirt_rsa-arm64",
+        "CI_PROJECT_DIR": stack_dir,
+    }
+
+    provision_instance = remote_vms_in_config(vm_config)
+    local = local_vms_in_config(vm_config)
+    if local:
+        check_env(ctx)
+
+    build_start_microvms_binary(ctx)
+    start_cmd = start_microvms_cmd(
+        provision_instance=provision_instance,
+        provision_microvms=provision_microvms,
+        instance_type_x86=X86_INSTANCE_TYPE,
+        instance_type_arm=ARM_INSTANCE_TYPE,
+        x86_ami_id=x86_ami,
+        arm_ami_id=arm_ami,
+        ssh_key_name=ssh_key_obj['aws_key_name'] if ssh_key_obj is not None else None,
+        infra_env="aws/sandbox",
+        vmconfig=vm_config,
+        stack_name=stack,
+        local=local,
+    )
 
     prefix = ""
-    local = ""
-    if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sso-sandbox-account-admin --"
-
-    if local_vms_in_config(vm_config):
-        check_env(ctx)
-        local = "--local"
-
-    provision = ""
-    if remote_vms_in_config(vm_config):
-        provision = "--provision-instance"
-
-    args = [
-        "--provision-microvms" if provision_microvms else "",
-        f"--instance-type-x86={X86_INSTANCE_TYPE}",
-        f"--instance-type-arm={ARM_INSTANCE_TYPE}",
-        f"--x86-ami-id={x86_ami}",
-        f"--arm-ami-id={arm_ami}",
-        f"--ssh-key-name={ssh_key_obj['aws_key_name'] if ssh_key_obj is not None else ''}",
-        "--infra-env=aws/sandbox",
-        f"--vmconfig={vm_config}",
-        f"--stack-name={stack}",
-        local,
-        provision,
-    ]
-    ctx.run(f"{' '.join(env)} {prefix} dda inv -- -e system-probe.start-microvms {' '.join(args)}")
-
+    if provision_instance:
+        prefix = "aws-vault exec sso-sandbox-account-admin -- "
+    ctx.run(f"{prefix}{start_cmd}", env=env)
     info(f"[+] Stack {stack} successfully setup")
 
 
@@ -250,22 +246,68 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
         ensure_key_in_agent(ctx, ssh_key_obj)
 
     stack_dir = f"{get_kmt_os().stacks_dir}/{stack}"
-    env = [
-        "PULUMI_CONFIG_PASSPHRASE=1234",
-        f"LibvirtSSHKeyX86={stack_dir}/libvirt_rsa-x86_64",
-        f"LibvirtSSHKeyARM={stack_dir}/libvirt_rsa-arm64",
-        f"CI_PROJECT_DIR={stack_dir}",
-    ]
+    env = {
+        "PULUMI_CONFIG_PASSPHRASE": "1234",
+        "LibvirtSSHKeyX86": f"{stack_dir}/libvirt_rsa-x86_64",
+        "LibvirtSSHKeyARM": f"{stack_dir}/libvirt_rsa-arm64",
+        "CI_PROJECT_DIR": stack_dir,
+    }
 
     vm_config = f"{stack_dir}/{VMCONFIG}"
     prefix = ""
     if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sso-sandbox-account-admin --"
+        prefix = "aws-vault exec sso-sandbox-account-admin -- "
 
-    env_vars = ' '.join(env)
-    ctx.run(
-        f"{env_vars} {prefix} dda inv -- system-probe.start-microvms --infra-env=aws/sandbox --stack-name={stack} --destroy --local"
-    )
+    build_start_microvms_binary(ctx)
+    start_cmd = start_microvms_cmd(infra_env="aws/sandbox", stack_name=stack, destroy=True, local=True)
+    ctx.run(f"{prefix}{start_cmd}", env=env)
+
+
+def build_start_microvms_binary(ctx):
+    # building the binary improves start up time for local usage where we invoke this multiple times.
+    ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
+
+
+def start_microvms_cmd(
+    infra_env,
+    instance_type_x86=None,
+    instance_type_arm=None,
+    x86_ami_id=None,
+    arm_ami_id=None,
+    destroy=False,
+    ssh_key_name=None,
+    ssh_key_path=None,
+    dependencies_dir=None,
+    shutdown_period=320,
+    stack_name="kernel-matrix-testing-system",
+    vmconfig=None,
+    local=False,
+    provision_instance=False,
+    provision_microvms=False,
+    run_agent=False,
+    agent_version=None,
+):
+    args = [
+        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
+        f"--instance-type-arm {instance_type_arm}" if instance_type_arm else "",
+        f"--x86-ami-id {x86_ami_id}" if x86_ami_id else "",
+        f"--arm-ami-id {arm_ami_id}" if arm_ami_id else "",
+        "--destroy" if destroy else "",
+        f"--ssh-key-path {ssh_key_path}" if ssh_key_path else "",
+        f"--ssh-key-name {ssh_key_name}" if ssh_key_name else "",
+        f"--infra-env {infra_env}",
+        f"--shutdown-period {shutdown_period}",
+        f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
+        f"--name {stack_name}",
+        f"--vmconfig {vmconfig}" if vmconfig else "",
+        "--local" if local else "",
+        "--run-agent" if run_agent else "",
+        f"--agent-version {agent_version}" if agent_version else "",
+        "--provision-instance" if provision_instance else "",
+        "--provision-microvms" if provision_microvms else "",
+    ]
+    go_args = ' '.join(filter(lambda x: x != "", args))
+    return f"./test/new-e2e/start-microvms {go_args}"
 
 
 def ec2_instance_ids(ctx: Context, ip_list: list[str]) -> list[str]:
