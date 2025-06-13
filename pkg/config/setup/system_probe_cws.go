@@ -37,7 +37,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.rate_limiter.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.reduced_proc_pid_cache_size", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.env_as_tags", []string{})
@@ -148,6 +148,9 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.max_allowed", 5)
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.disarmer.executable.period", "1m")
+
+	// CWS - File metadata
+	cfg.BindEnvAndSetDefault("runtime_security_config.file_metadata_resolver.enabled", false)
 
 	cfg.BindEnvAndSetDefault("runtime_security_config.network_monitoring.enabled", false)
 }

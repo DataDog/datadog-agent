@@ -1059,6 +1059,15 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_windows_certificate_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/windows/windows-certificate/**/*
+        - pkg/collector/corechecks/system/windowscertificate/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_trace_agent_changes_or_manual:
   - !reference [.except_mergequeue]
   - changes:

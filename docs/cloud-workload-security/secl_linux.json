@@ -1476,6 +1476,120 @@
       ]
     },
     {
+      "name": "cgroup_write",
+      "definition": "A process migrated another process to a cgroup",
+      "type": "Kernel",
+      "from_agent_version": "7.68",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "cgroup_write.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "cgroup_write.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "cgroup_write.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "cgroup_write.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "cgroup_write.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "cgroup_write.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "cgroup_write.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "cgroup_write.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "cgroup_write.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "cgroup_write.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "cgroup_write.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "cgroup_write.file.name.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "cgroup_write.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "cgroup_write.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "cgroup_write.file.path.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "cgroup_write.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "cgroup_write.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "cgroup_write.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "cgroup_write.pid",
+          "definition": "PID of the process added to the cgroup",
+          "property_doc_link": "cgroup_write-pid-doc"
+        }
+      ]
+    },
+    {
       "name": "chdir",
       "definition": "A process changed the current directory",
       "type": "File",
@@ -2186,6 +2300,46 @@
           "name": "exec.file.inode",
           "definition": "Inode of the file",
           "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "exec.file.metadata.abi",
+          "definition": "[Experimental] ABI of the file (only for executable files)",
+          "property_doc_link": "exec-file-metadata-abi-doc"
+        },
+        {
+          "name": "exec.file.metadata.architecture",
+          "definition": "[Experimental] Architecture of the file (only for executable files)",
+          "property_doc_link": "exec-file-metadata-architecture-doc"
+        },
+        {
+          "name": "exec.file.metadata.compression",
+          "definition": "[Experimental] Compression type of the file (only for compressed files)",
+          "property_doc_link": "exec-file-metadata-compression-doc"
+        },
+        {
+          "name": "exec.file.metadata.is_executable",
+          "definition": "[Experimental] Tells if the file is executable or not",
+          "property_doc_link": "exec-file-metadata-is_executable-doc"
+        },
+        {
+          "name": "exec.file.metadata.is_garble_obfuscated",
+          "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
+          "property_doc_link": "exec-file-metadata-is_garble_obfuscated-doc"
+        },
+        {
+          "name": "exec.file.metadata.is_upx_packed",
+          "definition": "[Experimental] Tells if the binary has been packed using UPX",
+          "property_doc_link": "exec-file-metadata-is_upx_packed-doc"
+        },
+        {
+          "name": "exec.file.metadata.size",
+          "definition": "[Experimental] Size of the file",
+          "property_doc_link": "exec-file-metadata-size-doc"
+        },
+        {
+          "name": "exec.file.metadata.type",
+          "definition": "[Experimental] Type of the file",
+          "property_doc_link": "exec-file-metadata-type-doc"
         },
         {
           "name": "exec.file.mode",
@@ -7878,6 +8032,7 @@
       "type": "int",
       "definition": "Change time (ctime) of the file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8187,6 +8342,7 @@
       "type": "string",
       "definition": "File's filesystem",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8347,6 +8503,7 @@
       "type": "int",
       "definition": "GID of the file's owner",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8419,6 +8576,7 @@
       "type": "string",
       "definition": "Group of the file's owner",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8469,6 +8627,7 @@
       "type": "string",
       "definition": "[Experimental] List of cryptographic hashes computed for this file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8556,6 +8715,7 @@
       "type": "bool",
       "definition": "Indicator of the file layer, for example, in an OverlayFS",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8607,6 +8767,7 @@
       "definition": "Inode of the file",
       "prefixes": [
         "cgroup.file",
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -8866,6 +9027,8 @@
       "type": "int",
       "definition": "Length of the corresponding element",
       "prefixes": [
+        "cgroup_write.file.name",
+        "cgroup_write.file.path",
         "chdir.file.name",
         "chdir.file.path",
         "chmod.file.name",
@@ -8983,6 +9146,7 @@
       "type": "int",
       "definition": "Mode of the file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9033,6 +9197,7 @@
       "type": "int",
       "definition": "Modification time (mtime) of the file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9084,6 +9249,7 @@
       "definition": "Mount ID of the file",
       "prefixes": [
         "cgroup.file",
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9145,6 +9311,7 @@
       "type": "string",
       "definition": "File's basename",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9213,6 +9380,7 @@
       "type": "string",
       "definition": "[Experimental] Name of the package that provided this file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9263,6 +9431,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the source package of the package that provided this file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9313,6 +9482,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the package that provided this file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9376,6 +9546,7 @@
       "type": "string",
       "definition": "File's path",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9535,6 +9706,7 @@
       "type": "int",
       "definition": "Rights of the file",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9664,6 +9836,7 @@
       "type": "int",
       "definition": "UID of the file's owner",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9741,6 +9914,7 @@
       "type": "string",
       "definition": "User of the file's owner",
       "prefixes": [
+        "cgroup_write.file",
         "chdir.file",
         "chmod.file",
         "chown.file",
@@ -9974,6 +10148,18 @@
       ],
       "constants": "Kernel Capability constants",
       "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "cgroup_write.pid",
+      "link": "cgroup_write-pid-doc",
+      "type": "int",
+      "definition": "PID of the process added to the cgroup",
+      "prefixes": [
+        "cgroup_write"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -10370,6 +10556,102 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.abi",
+      "link": "exec-file-metadata-abi-doc",
+      "type": "int",
+      "definition": "[Experimental] ABI of the file (only for executable files)",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "ABI",
+      "constants_link": "abi",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.architecture",
+      "link": "exec-file-metadata-architecture-doc",
+      "type": "int",
+      "definition": "[Experimental] Architecture of the file (only for executable files)",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "Architecture",
+      "constants_link": "architecture",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.compression",
+      "link": "exec-file-metadata-compression-doc",
+      "type": "int",
+      "definition": "[Experimental] Compression type of the file (only for compressed files)",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "CompressionType",
+      "constants_link": "compressiontype",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.is_executable",
+      "link": "exec-file-metadata-is_executable-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the file is executable or not",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.is_garble_obfuscated",
+      "link": "exec-file-metadata-is_garble_obfuscated-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the binary has been obfuscated using garble",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.is_upx_packed",
+      "link": "exec-file-metadata-is_upx_packed-doc",
+      "type": "bool",
+      "definition": "[Experimental] Tells if the binary has been packed using UPX",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.size",
+      "link": "exec-file-metadata-size-doc",
+      "type": "int",
+      "definition": "[Experimental] Size of the file",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.file.metadata.type",
+      "link": "exec-file-metadata-type-doc",
+      "type": "int",
+      "definition": "[Experimental] Type of the file",
+      "prefixes": [
+        "exec.file.metadata"
+      ],
+      "constants": "FileType",
+      "constants_link": "filetype",
       "examples": []
     },
     {
@@ -11358,6 +11640,52 @@
     }
   ],
   "constants": [
+    {
+      "name": "ABI",
+      "link": "abi",
+      "description": "ABI used for binary compilation.",
+      "all": [
+        {
+          "name": "BIT32",
+          "architecture": "all"
+        },
+        {
+          "name": "BIT64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ABI",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Architecture",
+      "link": "architecture",
+      "description": "Architecture of the binary.",
+      "all": [
+        {
+          "name": "X86",
+          "architecture": "all"
+        },
+        {
+          "name": "X86_64",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM",
+          "architecture": "all"
+        },
+        {
+          "name": "ARM64",
+          "architecture": "all"
+        },
+        {
+          "name": "UNKNOWN_ARCHITECTURE",
+          "architecture": "all"
+        }
+      ]
+    },
     {
       "name": "BPF attach types",
       "link": "bpf-attach-types",
@@ -12621,6 +12949,41 @@
       ]
     },
     {
+      "name": "CompressionType",
+      "link": "compressiontype",
+      "description": "Compression algorithm.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "GZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZIP",
+          "architecture": "all"
+        },
+        {
+          "name": "ZSTD",
+          "architecture": "all"
+        },
+        {
+          "name": "7Z",
+          "architecture": "all"
+        },
+        {
+          "name": "BZIP2",
+          "architecture": "all"
+        },
+        {
+          "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "DNS Responses",
       "link": "dns-responses",
       "description": "DNS Responses are the supported response codes",
@@ -13680,6 +14043,53 @@
       ]
     },
     {
+      "name": "FileType",
+      "link": "filetype",
+      "description": "File types.",
+      "all": [
+        {
+          "name": "EMPTY",
+          "architecture": "all"
+        },
+        {
+          "name": "SHELL_SCRIPT",
+          "architecture": "all"
+        },
+        {
+          "name": "TEXT",
+          "architecture": "all"
+        },
+        {
+          "name": "COMPRESSED",
+          "architecture": "all"
+        },
+        {
+          "name": "ENCRYPTED",
+          "architecture": "all"
+        },
+        {
+          "name": "BINARY",
+          "architecture": "all"
+        },
+        {
+          "name": "LINUX_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "WINDOWS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "MACOS_EXECUTABLE",
+          "architecture": "all"
+        },
+        {
+          "name": "FILE_LESS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "Inode mode constants",
       "link": "inode-mode-constants",
       "description": "Inode mode constants are the supported file type constants as well as the file mode constants.",
@@ -14427,6 +14837,25 @@
         },
         {
           "name": "IP_PROTO_RAW",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "LinkageType",
+      "link": "linkagetype",
+      "description": "Linkage types.",
+      "all": [
+        {
+          "name": "NONE",
+          "architecture": "all"
+        },
+        {
+          "name": "STATIC",
+          "architecture": "all"
+        },
+        {
+          "name": "DYNAMIC",
           "architecture": "all"
         }
       ]
