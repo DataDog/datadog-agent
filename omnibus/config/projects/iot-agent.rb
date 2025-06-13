@@ -88,7 +88,7 @@ if ENV.has_key?('FORCED_PACKAGE_COMPRESSION_LEVEL')
 elsif ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
-  COMPRESSION_LEVEL = 5
+  COMPRESSION_LEVEL = 9
 end
 
 # build_version is computed by an invoke command/function.

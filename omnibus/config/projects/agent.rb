@@ -32,7 +32,7 @@ end
 if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && ENV.has_key?("BUCKET_BRANCH") && ENV['BUCKET_BRANCH'] != "nightly"
   COMPRESSION_LEVEL = 9
 else
-  COMPRESSION_LEVEL = 5
+  COMPRESSION_LEVEL = 9
 end
 
 BUILD_OCIRU = Omnibus::Config.host_distribution == "ociru"
