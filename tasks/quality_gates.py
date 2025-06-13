@@ -11,7 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo, get_pipeline
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
@@ -35,6 +35,25 @@ body_error_footer_pattern = """<details>
 |Quality gate|Error type|Error message|
 |----|---|--------|
 """
+
+footer_error_debug_advice = """
+To understand the size increase caused by this PR, feel free to use the [debug_static_quality_gates]({}) manual gitlab job to compare what this PR introduced for a specific gate.
+Usage:
+- Run the manual job with the following Key / Value pair as CI/CD variable on the gitlab UI. Example for amd64 deb packages
+Key: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`
+"""
+
+
+def get_debug_job_url():
+    pipeline_id = os.environ.get("CI_PIPELINE_ID")
+    if not pipeline_id:
+        return ""
+    git_pipeline = get_pipeline('DataDog/datadog-agent', pipeline_id)
+    job_generator = filter(lambda job: job.name == "debug_static_quality_gates", git_pipeline.jobs.list(as_list=False))
+    if not any(job_generator):
+        return ""
+    debug_job = next(job_generator)
+    return f"https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{debug_job.get_id()}"
 
 
 def display_pr_comment(
@@ -88,8 +107,8 @@ def display_pr_comment(
             error_message = gate['message'].replace('\n', '<br>')
             body_error_footer += f"|{gate_name}|{gate['error_type']}|{error_message}|\n"
             with_error = True
-
-    body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! Feel free to check the `debug_static_quality_gates` manual gitlab job to compare what this PR introduced for a specific gate.\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+    debug_info_footer = footer_error_debug_advice.format(get_debug_job_url())
+    body_error_footer += f"\n</details>\n\nStatic quality gates prevent the PR to merge! {debug_info_footer}\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
     body_info += "\n</details>\n"
     body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{body_error + body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 

@@ -150,10 +150,9 @@ def get_images_content_diff(ctx, url_1, url_2):
                 print(f"  - {line}")
         if image_tar_gz:
             for image in image_tar_gz:
-                ctx.run(f"cd {src_folder} && tar -tvf {image} -C ./out", hide=True)
+                ctx.run(f"cd {src_folder} && tar -xf {image} -C ./out", hide=True)
         else:
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
-    ctx.run("ls image1/out image2/out image1 image2") # debug
     # Compare both image content
     _diff("image1/out", "image2/out")
 
@@ -185,5 +184,5 @@ def generic_debug_docker_agent_quality_gate(arch, jmx=False, flavor="agent", ima
     pipeline_2_id = get_ancestor_pipeline_id(ancestor_sha)
     url_1 = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
     url_2 = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_2_id}-{ancestor_sha[:8]}{image_suffixes}-{arch}"
-
+    print(f"Comparing the following images:\n\t-image1 : {url_1}\n\t-image2 : {url_2}")
     get_images_content_diff(ctx, url_1, url_2)

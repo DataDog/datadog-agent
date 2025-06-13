@@ -102,6 +102,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
+    @patch(
+        "tasks.quality_gates.get_debug_job_url",
+        new=MagicMock(return_value="https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000"),
+    )
     @patch("tasks.quality_gates.pr_commenter")
     def test_no_error(self, pr_commenter_mock):
         c = MockContext()
@@ -133,6 +137,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
     @patch(
         "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
+    )
+    @patch(
+        "tasks.quality_gates.get_debug_job_url",
+        new=MagicMock(return_value="https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000"),
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_no_info(self, pr_commenter_mock):
@@ -166,6 +174,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB"),
     )
+    @patch(
+        "tasks.quality_gates.get_debug_job_url",
+        new=MagicMock(return_value="https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000"),
+    )
     @patch("tasks.quality_gates.pr_commenter")
     def test_one_of_each(self, pr_commenter_mock):
         c = MockContext()
@@ -197,6 +209,10 @@ class TestQualityGatesPrMessage(unittest.TestCase):
     @patch(
         "tasks.static_quality_gates.lib.gates_lib.GateMetricHandler.get_formatted_metric",
         new=MagicMock(return_value="10MiB", side_effect=KeyError),
+    )
+    @patch(
+        "tasks.quality_gates.get_debug_job_url",
+        new=MagicMock(return_value="https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/00000000"),
     )
     @patch("tasks.quality_gates.pr_commenter")
     def test_missing_data(self, pr_commenter_mock):
