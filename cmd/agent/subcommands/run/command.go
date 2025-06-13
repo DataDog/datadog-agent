@@ -581,16 +581,10 @@ func startAgent(
 		// Subscribe to `AGENT_TASK` product
 		rcClient.SubscribeAgentTask()
 		// get access to ac
-		if rcclient.IsConnectedToKafka(ac) {
-			fmt.Println("Subscribe..................")
-			log.Info("Subscribe...............")
-			controller := rcclient.NewController(ac, collectorComponent)
-			// only subscribe to live messages if kafka_consumer integration is running
-			rcClient.Subscribe(data.ProductDataStreamsLiveMessages, controller.Update)
-			ac.AddConfigProvider(controller, false, 0)
-		} else {
-			log.Info("Remote configuration is enabled, but the agent is not connected to Kafka. The agent will not receive remote configuration updates.")
-		}
+		controller := rcclient.NewController(ac, collectorComponent)
+		// only subscribe to live messages if kafka_consumer integration is running
+		rcClient.Subscribe(data.ProductDataStreamsLiveMessages, controller.Update)
+		ac.AddConfigProvider(controller, false, 0)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
@@ -637,8 +631,6 @@ func startAgent(
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
-
-	fmt.Println("agent version is ", version.AgentVersion)
 
 	// load and run all configs in AD
 	ac.LoadAndRun(ctx)

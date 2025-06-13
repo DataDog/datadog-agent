@@ -90,12 +90,6 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 	return pyCheck, nil
 }
 
-func (c *PythonCheck) SetInstanceConfig(config integration.Data) {
-	fmt.Println("updating python config")
-	// Update the instance config with the new data
-	c.instanceConfig = string(config)
-}
-
 func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	// Lock the GIL and release it at the end of the run
 	gstate, err := newStickyLock()
