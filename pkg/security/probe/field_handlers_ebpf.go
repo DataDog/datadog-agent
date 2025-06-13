@@ -196,6 +196,19 @@ func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.Moun
 	return e.MountRootPath
 }
 
+// ResolveFsmountRootPath resolves a mount root path
+func (fh *EBPFFieldHandlers) ResolveFsmountRootPath(ev *model.Event, e *model.FsmountEvent) string {
+	if len(e.MountRootPath) == 0 {
+		mountRootPath, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ContainerID)
+		if err != nil {
+			e.MountRootPathResolutionError = err
+			return ""
+		}
+		e.MountRootPath = mountRootPath
+	}
+	return e.MountRootPath
+}
+
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	if ev.ContainerContext.ContainerID != "" && !ev.ContainerContext.Resolved {

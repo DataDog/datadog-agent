@@ -478,7 +478,12 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *FsmountEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.Mount)
+	if err != nil {
+		return 0, err
+	}
+	e.Origin = MountOriginFsmount
+	return n, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

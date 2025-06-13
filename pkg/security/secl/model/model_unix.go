@@ -501,7 +501,7 @@ type ArgsEnvsEvent struct {
 	ArgsEnvs
 }
 
-// Mount represents a mountpoint (used by MountEvent and UnshareMountNSEvent)
+// Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
 	MountID        uint32  `field:"-"`
 	Device         uint32  `field:"-"`
@@ -533,12 +533,12 @@ type MountEvent struct {
 	SyscallFSType         string `field:"syscall.fs_type,ref:mount.syscall.str3"`         // SECLDoc[syscall.fs_type] Definition:`File system type argument of the syscall`
 }
 
-// MountEvent represents a mount event
+// FsmountEvent represents an fsmount event
 type FsmountEvent struct {
 	SyscallEvent
 	SyscallContext
 	Mount
-	MountRootPath                  string `field:"root.path,handler:ResolveMountRootPath"` // SECLDoc[root.path] Definition:`Root path of the mount`
+	MountRootPath                  string `field:"root.path,handler:ResolveFsmountRootPath"` // SECLDoc[root.path] Definition:`Root path of the mount`
 	MountPointPathResolutionError  error  `field:"-"`
 	MountSourcePathResolutionError error  `field:"-"`
 	MountRootPathResolutionError   error  `field:"-"`

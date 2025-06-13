@@ -34,6 +34,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("dns"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
+		eval.EventType("fsmount"),
 		eval.EventType("imds"),
 		eval.EventType("link"),
 		eval.EventType("load_module"),
@@ -3921,6 +3922,72 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "fsmount.fs_type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Fsmount.Mount.FSType
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "fsmount.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Fsmount.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "fsmount.root.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFsmountRootPath(ev, &ev.Fsmount)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "fsmount.syscall.fs_type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "fsmount.syscall.mountpoint.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "fsmount.syscall.source.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "imds.aws.is_imds_v2":
@@ -23122,6 +23189,12 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.user_session.k8s_groups",
 		"exit.user_session.k8s_uid",
 		"exit.user_session.k8s_username",
+		"fsmount.fs_type",
+		"fsmount.retval",
+		"fsmount.root.path",
+		"fsmount.syscall.fs_type",
+		"fsmount.syscall.mountpoint.path",
+		"fsmount.syscall.source.path",
 		"imds.aws.is_imds_v2",
 		"imds.aws.security_credentials.type",
 		"imds.cloud_provider",
@@ -24955,6 +25028,18 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.String, "string", nil
 	case "exit.user_session.k8s_username":
 		return "exit", reflect.String, "string", nil
+	case "fsmount.fs_type":
+		return "fsmount", reflect.String, "string", nil
+	case "fsmount.retval":
+		return "fsmount", reflect.Int, "int", nil
+	case "fsmount.root.path":
+		return "fsmount", reflect.String, "string", nil
+	case "fsmount.syscall.fs_type":
+		return "fsmount", reflect.String, "string", nil
+	case "fsmount.syscall.mountpoint.path":
+		return "fsmount", reflect.String, "string", nil
+	case "fsmount.syscall.source.path":
+		return "fsmount", reflect.String, "string", nil
 	case "imds.aws.is_imds_v2":
 		return "imds", reflect.Bool, "bool", nil
 	case "imds.aws.security_credentials.type":
@@ -30317,6 +30402,48 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "exit.user_session.k8s_username"}
 		}
 		ev.Exit.Process.UserSession.K8SUsername = rv
+		return nil
+	case "fsmount.fs_type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "fsmount.fs_type"}
+		}
+		ev.Fsmount.Mount.FSType = rv
+		return nil
+	case "fsmount.retval":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "fsmount.retval"}
+		}
+		ev.Fsmount.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "fsmount.root.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "fsmount.root.path"}
+		}
+		ev.Fsmount.MountRootPath = rv
+		return nil
+	case "fsmount.syscall.fs_type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "fsmount.syscall.fs_type"}
+		}
+		ev.Mount.SyscallContext.StrArg3 = rv
+		return nil
+	case "fsmount.syscall.mountpoint.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "fsmount.syscall.mountpoint.path"}
+		}
+		ev.Mount.SyscallContext.StrArg2 = rv
+		return nil
+	case "fsmount.syscall.source.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "fsmount.syscall.source.path"}
+		}
+		ev.Mount.SyscallContext.StrArg1 = rv
 		return nil
 	case "imds.aws.is_imds_v2":
 		rv, ok := value.(bool)

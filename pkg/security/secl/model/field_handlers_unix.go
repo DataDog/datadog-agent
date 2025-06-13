@@ -514,6 +514,17 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exit.Process)
+	case "fsmount":
+		_ = ev.FieldHandlers.ResolveFsmountRootPath(ev, &ev.Fsmount)
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Mount.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Mount.SyscallContext)
+		}
+		if !forADs {
+			_ = ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Mount.SyscallContext)
+		}
 	case "imds":
 	case "link":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Link.Source.FileFields)
@@ -1200,6 +1211,7 @@ type FieldHandlers interface {
 	ResolveFileMetadataSize(ev *Event, e *FileMetadata) int
 	ResolveFileMetadataType(ev *Event, e *FileMetadata) int
 	ResolveFilePath(ev *Event, e *FileEvent) string
+	ResolveFsmountRootPath(ev *Event, e *FsmountEvent) string
 	ResolveHashesFromEvent(ev *Event, e *FileEvent) []string
 	ResolveHostname(ev *Event, e *BaseEvent) string
 	ResolveIsIPPublic(ev *Event, e *IPPortContext) bool
@@ -1344,6 +1356,9 @@ func (dfh *FakeFieldHandlers) ResolveFileMetadataType(ev *Event, e *FileMetadata
 }
 func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
 	return string(e.PathnameStr)
+}
+func (dfh *FakeFieldHandlers) ResolveFsmountRootPath(ev *Event, e *FsmountEvent) string {
+	return string(e.MountRootPath)
 }
 func (dfh *FakeFieldHandlers) ResolveHashesFromEvent(ev *Event, e *FileEvent) []string {
 	return []string(e.Hashes)
