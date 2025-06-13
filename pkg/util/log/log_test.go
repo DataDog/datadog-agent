@@ -615,6 +615,18 @@ func TestLoggerScrubbingCount(t *testing.T) {
 	}
 }
 
+func TestLogNilLogger(t *testing.T) {
+	// reset buffer state
+	logsBuffer = []func(){}
+
+	logger.Store(nil)
+
+	Debug("message")
+
+	// should write to the logs buffer
+	assert.Equal(t, 1, len(logsBuffer))
+}
+
 func TestLogNilInnerLogger(t *testing.T) {
 	// reset buffer state
 	logsBuffer = []func(){}
