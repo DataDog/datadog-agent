@@ -11,7 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo, get_pipeline
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
@@ -35,6 +35,25 @@ body_error_footer_pattern = """<details>
 |Quality gate|Error type|Error message|
 |----|---|--------|
 """
+
+footer_error_debug_advice = """
+To understand the size increase caused by this PR, feel free to use the [debug_static_quality_gates]({}) manual gitlab job to compare what this PR introduced for a specific gate.
+Usage:
+- Run the manual job with the following Key / Value pair as CI/CD variable on the gitlab UI. Example for amd64 deb packages
+Key: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`
+"""
+
+
+def get_debug_job_url():
+    pipeline_id = os.environ.get("CI_PIPELINE_ID")
+    if not pipeline_id:
+        return ""
+    git_pipeline = get_pipeline('DataDog/datadog-agent', pipeline_id)
+    job_generator = filter(lambda job: job.name == "debug_static_quality_gates", git_pipeline.jobs.list(as_list=False))
+    if not any(job_generator):
+        return ""
+    debug_job = next(job_generator)
+    return f"https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{debug_job.get_id()}"
 
 
 def display_pr_comment(
@@ -88,8 +107,8 @@ def display_pr_comment(
             error_message = gate['message'].replace('\n', '<br>')
             body_error_footer += f"|{gate_name}|{gate['error_type']}|{error_message}|\n"
             with_error = True
-
-    body_error_footer += "\n</details>\n\nStatic quality gates prevent the PR to merge! You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+    debug_info_footer = footer_error_debug_advice.format(get_debug_job_url())
+    body_error_footer += f"\n</details>\n\nStatic quality gates prevent the PR to merge! {debug_info_footer}\nYou can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
     body_info += "\n</details>\n"
     body = f"{SUCCESS_CHAR if final_state else FAIL_CHAR} Please find below the results from static quality gates\n{ancestor_info}{body_error + body_error_footer if with_error else ''}\n\n{body_info if with_info else ''}"
 
@@ -288,6 +307,48 @@ def manual_threshold_update(self, filename="static_gate_report.json"):
     github = GithubAPI()
     pr_url = update_quality_gates_threshold(self, metric_handler, github)
     notify_threshold_update(pr_url)
+
+
+@task
+def debug_specific_quality_gate(ctx, gate_name):
+    """
+    Executes a single static quality gate to compare it to its ancestor and run debug on it
+
+    :param ctx: Invoke context
+    :param gate_name: Static quality gates to debug
+    :return:
+    """
+    if not gate_name:
+        raise Exit(
+            code=0,
+            message="Please ensure to set the GATE_NAME variable inside of the manual job execution gitlab page when executing this debug job.",
+        )
+    nightly_run = False
+    branch = os.environ["CI_COMMIT_BRANCH"]
+
+    DDR_WORKFLOW_ID = os.environ.get("DDR_WORKFLOW_ID")
+    if DDR_WORKFLOW_ID and branch == "main" and is_conductor_scheduled_pipeline():
+        nightly_run = True
+
+    quality_gates_module = __import__("tasks.static_quality_gates", fromlist=[gate_name])
+    gate_inputs = {"ctx": ctx, "nightly": nightly_run}
+    try:
+        gate_module = getattr(quality_gates_module, gate_name)
+    except AttributeError as e:
+        raise Exit(
+            code=0,
+            message=f"The provided quality gate to debug ({gate_name}) is invalid and wasn't found as part of tasks.static_quality_gates.",
+        ) from e
+
+    # As it is a debug job we do not want the job to actually fail on failures.
+    try:
+        gate_module.debug_entrypoint(**gate_inputs)
+    except NotImplementedError:
+        print(f"The {gate_name} static quality gate doesn't support debugging yet.")
+    except Exception as e:
+        print(
+            f"The {gate_name} debugging failed with the following trace:\n{traceback.format_exc()}\nError message:\n{str(e)}"
+        )
 
 
 @task()
