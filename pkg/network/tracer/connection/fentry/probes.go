@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -124,6 +125,18 @@ func enableProgram(enabled map[string]struct{}, name string) {
 	}
 }
 
+func localHasTCPSendPage(kv kernel.Version) bool {
+	missing, err := ebpf.VerifyKernelFuncs("tcp_sendpage")
+	if err == nil {
+		return len(missing) == 0
+	}
+
+	log.Debugf("unable to determine whether tcp_sendpage exists, using kernel version instead: %s", err)
+
+	kv650 := kernel.VersionCode(6, 5, 0)
+	return kv < kv650
+}
+
 // enabledPrograms returns a map of probes that are enabled per config settings.
 func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
@@ -133,9 +146,10 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		return nil, err
 	}
 
+	hasSendPage := localHasTCPSendPage(kv)
+
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		enableProgram(enabled, tcpSendMsgReturn)
-		enableProgram(enabled, tcpSendPageReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpConnect)
@@ -144,6 +158,10 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
+
+		if hasSendPage {
+			enableProgram(enabled, tcpSendPageReturn)
+		}
 
 		// TODO: see comments above on availability for these
 		//       hooks
@@ -159,7 +177,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 	}
 
 	if c.CollectUDPv4Conns {
-		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpDestroySock)
 		enableProgram(enabled, inetBind)
 		enableProgram(enabled, inetBindRet)
@@ -168,13 +185,16 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, udpSendMsgReturn)
 		enableProgram(enabled, udpSendSkb)
 
+		if hasSendPage {
+			enableProgram(enabled, udpSendPageReturn)
+		}
+
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, udpDestroySockReturn)
 		}
 	}
 
 	if c.CollectUDPv6Conns {
-		enableProgram(enabled, udpSendPageReturn)
 		enableProgram(enabled, udpv6DestroySock)
 		enableProgram(enabled, inet6Bind)
 		enableProgram(enabled, inet6BindRet)
@@ -185,6 +205,10 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 
 		if c.CustomBatchingEnabled {
 			enableProgram(enabled, udpv6DestroySockReturn)
+		}
+
+		if hasSendPage {
+			enableProgram(enabled, udpSendPageReturn)
 		}
 	}
 

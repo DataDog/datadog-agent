@@ -34,16 +34,16 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, ErrorDisabled
 	}
 
-	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
-	}
-	if hasPotentialFentryDeadlock {
-		return nil, nil, fmt.Errorf("unable to load fentry because this kernel version has a potential deadlock (fixed in kernel v6.9+)")
-	}
+	//hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	//if err != nil {
+	//	return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
+	//}
+	//if hasPotentialFentryDeadlock {
+	//	return nil, nil, fmt.Errorf("unable to load fentry because this kernel version has a potential deadlock (fixed in kernel v6.9+)")
+	//}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
-	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors
