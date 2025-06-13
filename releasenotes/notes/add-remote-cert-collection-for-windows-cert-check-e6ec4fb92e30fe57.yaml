@@ -8,6 +8,4 @@
 ---
 features:
   - |
-    Add a port of the Linux integrations-core Python network check in Go. This
-    version is disabled by default but can be enabled with ``use_networkv2_check``
-    in your configuration.
+    Windows: Add remote certificate collection for the Windows Certificate Store integration.
