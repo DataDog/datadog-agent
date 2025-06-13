@@ -1,0 +1,16 @@
+---
+
+trigger_distribution:
+  stage: trigger_distribution
+  rules: !reference [.on_deploy_success]
+  trigger:
+    include:
+      - local: .gitlab/trigger_distribution/include.yml
+
+trigger_distribution_on_failure:
+  stage: trigger_distribution
+  needs: []
+  rules: !reference [.on_deploy_manual]
+  trigger:
+    include:
+      - local: .gitlab/trigger_distribution/include.yml
