@@ -3,14 +3,17 @@ package datastreams
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
+)
+
+const (
+	kafkaConsumerIntegrationName = "kafka_consumer"
 )
 
 type kafkaConfig struct {
@@ -27,18 +30,16 @@ type liveMessagesConfig struct {
 }
 
 type Controller struct {
-	ac                 autodiscovery.Component
-	collectorComponent collector.Component
-	m                  sync.RWMutex
-	configs            map[string]liveMessagesConfig
-	configErrors       map[string]providers.ErrorMsgSet
-	configChanges      chan integration.ConfigChanges
+	ac            autodiscovery.Component
+	configChanges chan integration.ConfigChanges
+	closeMutex    sync.RWMutex
+	closed        bool
 }
 
 // String returns the name of the provider.  All Config instances produced
 // by this provider will have this value in their Provider field.
 func (c *Controller) String() string {
-	return "dsm_live_messages"
+	return names.DataStreamsLiveMessages
 }
 
 // GetConfigErrors returns a map of errors that occurred on the last Collect
@@ -54,91 +55,84 @@ type StreamingConfigProvider interface {
 
 func IsConnectedToKafka(ac autodiscovery.Component) bool {
 	for _, config := range ac.GetAllConfigs() {
-		if config.Name == "kafka_consumer" {
+		if config.Name == kafkaConsumerIntegrationName {
 			return true
 		}
 	}
 	return false
 }
 
-func NewController(ac autodiscovery.Component, collectorComponent collector.Component) *Controller {
+func NewController(ac autodiscovery.Component) *Controller {
 	return &Controller{
-		ac:                 ac,
-		collectorComponent: collectorComponent,
-		configs:            make(map[string]liveMessagesConfig),
-		configErrors:       make(map[string]providers.ErrorMsgSet),
-		configChanges:      make(chan integration.ConfigChanges, 10),
+		ac:            ac,
+		configChanges: make(chan integration.ConfigChanges, 10),
 	}
 }
 
 // Stream starts the streaming config provider until the provided
 // context is cancelled. Config changes are sent on the return channel.
 func (c *Controller) Stream(ctx context.Context) <-chan integration.ConfigChanges {
-	// todo[Piotr Wolski] Close gracefully
+	go func() {
+		<-ctx.Done()
+		c.closeMutex.Lock()
+		defer c.closeMutex.Unlock()
+		c.closed = true
+		close(c.configChanges)
+	}()
 	return c.configChanges
 }
 
-func (c *Controller) getConfigs() []liveMessagesConfig {
-	c.m.RLock()
-	defer c.m.RUnlock()
-	configs := make([]liveMessagesConfig, 0, len(c.configs))
-	for _, config := range c.configs {
-		configs = append(configs, config)
-	}
-	return configs
-}
-
-// Update updates the config globalStore with the provided updates
+// Update parses updates from remote configuration, and configures the kafka_consumer integration to fetch messages from Kafka
 func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	fmt.Println("update called!")
 	log.Info("Called Update of remote configuration!!!!!!!!!!!!!")
-	if err := c.parseRemoteConfig(updates, applyStateCallback); err != nil {
+	remoteConfigs := parseRemoteConfig(updates, applyStateCallback)
+	if len(remoteConfigs) == 0 {
 		return
 	}
 	configChange := integration.ConfigChanges{}
 	cfgs := c.ac.GetAllConfigs()
 	for _, integrationConfig := range cfgs {
-		if integrationConfig.Name != "kafka_consumer" {
+		if integrationConfig.Name != kafkaConsumerIntegrationName {
 			continue
 		}
-		fmt.Println("integration config is", integrationConfig)
 		configChange.Unschedule = append(configChange.Unschedule, integrationConfig)
 		updatedConfig := integrationConfig
 		updatedConfig.Instances = make([]integration.Data, 0, len(updatedConfig.Instances))
 		for _, instance := range integrationConfig.Instances {
 			updatedInstance := instance
 			p := &updatedInstance
-			err := p.SetField("live_messages_configs", c.getConfigs())
+			err := p.SetField("live_messages_configs", remoteConfigs)
 			if err != nil {
 				log.Error("Error setting field")
 			}
-			fmt.Println("Finish wrapping: ", string(updatedInstance))
 			updatedConfig.Instances = append(updatedConfig.Instances, updatedInstance)
 		}
 		configChange.Schedule = append(configChange.Schedule, updatedConfig)
 	}
-	fmt.Println("sent updates to configChanges channel", configChange)
+	if len(configChange.Schedule) == 0 && len(configChange.Unschedule) == 0 {
+		return
+	}
+	c.closeMutex.RLock()
+	defer c.closeMutex.RUnlock()
+	if c.closed {
+		return
+	}
 	c.configChanges <- configChange
 }
 
-func (c *Controller) parseRemoteConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) error {
-	c.m.Lock()
-	defer c.m.Unlock()
+func parseRemoteConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) map[string]liveMessagesConfig {
+	configs := make(map[string]liveMessagesConfig)
 	for path, rawConfig := range updates {
-		// implement delete logic
 		var config liveMessagesConfig
-		// what is the config ID?
-		fmt.Println("config is", string(rawConfig.Config))
 		err := json.Unmarshal(rawConfig.Config, &config)
 		if err != nil {
-			log.Errorf("Can't decode agent configuration provided by remote-config: %v", err)
+			log.Errorf("Can't decode data streams live messages configuration provided by remote-config: %v", err)
 			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
 		config.ID = rawConfig.Metadata.ID
-		c.configs[path] = config
-		fmt.Println("state of path", path, "updated to", config)
+		configs[path] = config
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
-	return nil
+	return configs
 }

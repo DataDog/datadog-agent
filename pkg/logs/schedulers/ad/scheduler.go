@@ -159,7 +159,7 @@ func CreateSources(config integration.Config) ([]*sourcesPkg.LogSource, error) {
 		} else {
 			log.Warnf("parsing logs config from %v is disabled. You can enable it by setting remote_configuration.agent_integrations.allow_log_config_scheduling to true", names.RemoteConfig)
 		}
-	case "dsm_live_messages":
+	case names.DataStreamsLiveMessages:
 		configs, err = logsConfig.ParseYAML(config.LogsConfig)
 	default:
 		// invalid provider
