@@ -1,4 +1,4 @@
-package rcclient
+package datastreams
 
 import (
 	"context"
@@ -8,10 +8,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
 type kafkaConfig struct {
