@@ -116,6 +116,8 @@ type Probe struct {
 	ThrottlePeriodMs uint32
 	// ThrottleBudget is the amount of events that can be emitted per ThrottlePeriodMs.
 	ThrottleBudget int64
+	// PointerChasingDepth is the depth of pointer chasing to perform.
+	PointerChasingLimit uint32
 	// TODO: Add template support:
 	//	TemplateSegments []TemplateSegment
 }
