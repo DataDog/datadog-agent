@@ -1,0 +1,10 @@
+job_that_always_runs:
+  stage: deploy_dca
+  needs: []
+  rules:
+    - when: always
+  script:
+    - echo "This job always runs after the trigger_distribution stage, regardless of success or failure."
+    - echo $DEPLOY_AGENT
+    - echo $BUCKET_BRANCH
+    - echo $CI_COMMIT_TAG

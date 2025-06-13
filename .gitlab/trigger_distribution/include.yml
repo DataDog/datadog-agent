@@ -17,3 +17,4 @@ include:
   - .gitlab/deploy_dca/deploy_dca.yml
   - .gitlab/deploy_packages/winget.yml
   - .gitlab/trigger_release/agent.yml
+  - .gitlab/trigger_distribution/test.yml

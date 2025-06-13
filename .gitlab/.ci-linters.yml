@@ -52,6 +52,7 @@ needs-rules:
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
   allowed-jobs:
+    - job_that_always_runs
     - benchmark
     - build_dogstatsd-binary_arm64
     - build_dogstatsd-binary_x64
