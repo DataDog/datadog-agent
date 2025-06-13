@@ -33,8 +33,11 @@ import (
 // Each lookup table is implemented as a function,
 // which are configured in LookupFunction types.
 type LookupTableGenerator struct {
-	Package                string
-	MinGoVersion           goversion.GoVersion
+	Package      string
+	MinGoVersion goversion.GoVersion
+	// The maximum Go version to include in the lookup table. If empty, the
+	// latest released version (including RC versions) will be used.
+	MaxGoVersion           goversion.GoVersion
 	Architectures          []string
 	CompilationParallelism int
 	LookupFunctions        []LookupFunction
@@ -158,7 +161,8 @@ func (g *LookupTableGenerator) getVersions(ctx context.Context) ([]goversion.GoV
 	for _, version := range allVersions {
 		if version.Rev != 0 ||
 			version.Proposal != "" ||
-			!version.AfterOrEqual(g.MinGoVersion) {
+			!version.AfterOrEqual(g.MinGoVersion) ||
+			(g.MaxGoVersion != (goversion.GoVersion{}) && !g.MaxGoVersion.AfterOrEqual(version)) {
 			continue
 		}
 
@@ -171,7 +175,10 @@ func (g *LookupTableGenerator) getVersions(ctx context.Context) ([]goversion.GoV
 	// but didn't have a 1.X.0 release, include them (including beta or RC versions).
 	highestNonZeroRelease := make(map[majorMinorPair]goversion.GoVersion)
 	for _, version := range allVersions {
-		if _, ok := includedVersions[majorMinorPair{version.Major, version.Minor}]; !ok && version.AfterOrEqual(g.MinGoVersion) {
+		if !version.AfterOrEqual(g.MinGoVersion) || (g.MaxGoVersion != (goversion.GoVersion{}) && !g.MaxGoVersion.AfterOrEqual(version)) {
+			continue
+		}
+		if _, ok := includedVersions[majorMinorPair{version.Major, version.Minor}]; !ok {
 			// This version is a candidate to be its major,minor pair's highest beta/RC/rev!=0 version.
 			if existing, ok := highestNonZeroRelease[majorMinorPair{version.Major, version.Minor}]; ok {
 				if existing.AfterOrEqual(version) {
