@@ -424,20 +424,20 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		log.Warnf("Unable to get disk partitions: %s", err)
 		return err
 	}
-	rawDevices := make(map[string]string)
+	rootDevices := make(map[string]string)
 	if runtime.GOOS == "linux" && c.instanceConfig.PreserveRootDevice {
-		rawDevices, err = c.loadRawDevices()
+		rootDevices, err = c.loadRootDevices()
 		if err != nil {
 			log.Warnf("Error reading raw devices: %s", err)
-			rawDevices = map[string]string{}
+			rootDevices = map[string]string{}
 		}
 	}
 	log.Debugf("partitions '%s'", partitions)
-	log.Debugf("rawDevices '%s'", rawDevices)
+	log.Debugf("rootDevices '%s'", rootDevices)
 	for _, partition := range partitions {
-		if rawDev, ok := rawDevices[partition.Device]; ok {
-			log.Debugf("Found [device: %s] in rawDevices as [rawDev: %s]", partition.Device, rawDev)
-			partition.Device = rawDev
+		if rootDev, ok := rootDevices[partition.Device]; ok {
+			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
+			partition.Device = rootDev
 		}
 		log.Debugf("Checking partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 		if c.excludePartition(partition) {

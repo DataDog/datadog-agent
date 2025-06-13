@@ -17,11 +17,13 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	"golang.org/x/sys/unix"
 )
 
 func defaultIgnoreCase() bool {
@@ -188,6 +190,24 @@ func (c *Check) sendInodesMetrics(sender sender.Sender, usage *gopsutil_disk.Usa
 	}
 }
 
+func getProcfsPath() string {
+	// Determine base "/proc" root (HOST_PROC override)
+	hostProc := os.Getenv("HOST_PROC")
+	if hostProc == "" {
+		hostProc = "/proc"
+	}
+	return hostProc
+}
+
+func getSysfsPath() string {
+	// Determine base "/sys" root (HOST_SYS override)
+	hostSys := os.Getenv("HOST_SYS")
+	if hostSys == "" {
+		hostSys = "/sys"
+	}
+	return hostSys
+}
+
 func (c *Check) getProcMountInfoPath() string {
 	hpmPath := c.instanceConfig.ProcMountInfoPath
 	if hpmPath == "" {
@@ -230,12 +250,126 @@ func readMountFile(root string) (lines []string, useMounts bool, filename string
 	return
 }
 
-func (c *Check) loadRawDevices() (map[string]string, error) {
-	// Determine base "/proc" root (HOST_PROC override)
-	hostProc := os.Getenv("HOST_PROC")
-	if hostProc == "" {
-		hostProc = "/proc"
+type rootFsDeviceFinder struct {
+	major uint32
+	minor uint32
+}
+
+func newRootFsDeviceFinder() (*rootFsDeviceFinder, error) {
+	var st unix.Stat_t
+	if err := unix.Stat("/", &st); err != nil {
+		return nil, err
 	}
+	return &rootFsDeviceFinder{
+		major: unix.Major(uint64(st.Dev)),
+		minor: unix.Minor(uint64(st.Dev)),
+	}, nil
+}
+
+func (r *rootFsDeviceFinder) askProcPartitions() (string, error) {
+	f, err := os.Open(filepath.Join(getProcfsPath(), "partitions"))
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	// skip header lines
+	scanner.Scan()
+	scanner.Scan()
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 4 {
+			continue
+		}
+		maj, err1 := strconv.Atoi(fields[0])
+		min, err2 := strconv.Atoi(fields[1])
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		if uint32(maj) == r.major && uint32(min) == r.minor {
+			name := fields[3]
+			if name != "" {
+				return "/dev/" + name, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+func (r *rootFsDeviceFinder) askSysDevBlock() (string, error) {
+	path := fmt.Sprintf("/sys/dev/block/%d:%d/uevent", r.major, r.minor)
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "DEVNAME=") {
+			name := strings.TrimPrefix(line, "DEVNAME=")
+			if name != "" {
+				return "/dev/" + name, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+func (r *rootFsDeviceFinder) askSysClassBlock() (string, error) {
+	needle := fmt.Sprintf("%d:%d", r.major, r.minor)
+	matches, err := filepath.Glob("/sys/class/block/*/dev")
+	if err != nil {
+		return "", err
+	}
+
+	for _, devFile := range matches {
+		data, err := os.ReadFile(devFile)
+		if err != nil {
+			// race conditions are fine
+			continue
+		}
+		if strings.TrimSpace(string(data)) == needle {
+			// dirname of ".../block/<name>/dev" is the device name
+			name := filepath.Base(filepath.Dir(devFile))
+			if name != "" {
+				return "/dev/" + name, nil
+			}
+		}
+	}
+	return "", nil
+}
+
+func (r *rootFsDeviceFinder) Find() (string, error) {
+	// Try /proc/partitions
+	if path, err := r.askProcPartitions(); err == nil && path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	// Try /sys/dev/block
+	if path, err := r.askSysDevBlock(); err == nil && path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	// Try /sys/class/block
+	if path, err := r.askSysClassBlock(); err == nil && path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("could not determine rootfs device")
+}
+
+func (c *Check) loadRootDevices() (map[string]string, error) {
+	// Determine base "/proc" root (HOST_PROC override)
+	hostProc := getProcfsPath()
 	// Default to /proc/1; but if user set a HOST_PROC_MOUNTINFO path, use its dirname
 	root := filepath.Join(hostProc, "1")
 	hpmPath := c.getProcMountInfoPath()
@@ -253,14 +387,20 @@ func (c *Check) loadRawDevices() (map[string]string, error) {
 		return nil, fmt.Errorf("reading mount file: %w", err)
 	}
 	// Build the map
-	rawDevices := make(map[string]string)
+	rootDevices := make(map[string]string)
 	log.Debugf("mountfile [%s] lines: '%s'", filename, lines)
 	if !useMounts {
-		// Determine base "/sys" root (HOST_SYS override)
-		hostSys := os.Getenv("HOST_SYS")
-		if hostSys == "" {
-			hostSys = "/sys"
+		finder, err := newRootFsDeviceFinder()
+		var rootFsDevice string
+		if err == nil {
+			rootFsDevice, err = finder.Find()
+			if err != nil {
+				log.Debugf("error finding root device: %v", err)
+			}
+		} else {
+			log.Debugf("error stat’ing /: %v", err)
 		}
+		hostSys := getSysfsPath()
 		for _, line := range lines {
 			// a line of 1/mountinfo has the following structure:
 			// 36  35  98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
@@ -277,16 +417,20 @@ func (c *Check) loadRawDevices() (map[string]string, error) {
 			device := fieldsSecondPart[1]
 			// /dev/root is not the real device name
 			// so we get the real device name from its major/minor number
-			if device == "/dev/root" {
+			if device == "/dev/root" || device == "rootfs" {
 				log.Debugf("/dev/root line: '%s'", line)
 				devpath, err := os.Readlink(path.Join(hostSys, "/dev/block", blockDeviceID))
 				if err == nil {
 					deviceResolved := strings.Replace(device, "root", filepath.Base(devpath), 1)
 					log.Debugf("device_resolved: '%s'", deviceResolved)
-					rawDevices[deviceResolved] = device
+					if rootFsDevice != "" {
+						rootDevices[deviceResolved] = rootFsDevice
+					} else {
+						rootDevices[deviceResolved] = device
+					}
 				}
 			}
 		}
 	}
-	return rawDevices, nil
+	return rootDevices, nil
 }

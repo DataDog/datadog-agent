@@ -150,8 +150,8 @@ func wNetAddConnection2(localName, remoteName, password, username string) error 
 func (c *Check) sendInodesMetrics(_ sender.Sender, _ *gopsutil_disk.UsageStat, _ []string) {
 }
 
-func (c *Check) loadRawDevices() (map[string]string, error) {
-	rawDevices := make(map[string]string)
+func (c *Check) loadRootDevices() (map[string]string, error) {
+	rootDevices := make(map[string]string)
 
-	return rawDevices, nil
+	return rootDevices, nil
 }
