@@ -328,6 +328,14 @@ func resetMapping[K comparable, V any](m map[K]V) {
 	}
 }
 
+// RemoveProbeFDMapping removed the fd mapping for a probe
+func RemoveProbeFDMapping(probeID uint32) {
+	mappingLock.Lock()
+	defer mappingLock.Unlock()
+
+	delete(probeIDToFDMappings, ebpf.ProgramID(probeID))
+}
+
 // ResetAllMappings removes all mappings. This is useful in tests to reset state
 func ResetAllMappings() {
 	resetMapping(mapNameMapping)
