@@ -7,14 +7,6 @@
 #include "buffer_selector.h"
 
 int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, int key) {
-    switch (prog_type) {
-    case KPROBE_OR_FENTRY_TYPE:
-        bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_progs, key);
-        break;
-    case TRACEPOINT_TYPE:
-        bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_progs, key);
-        break;
-    }
     return 0;
 }
 

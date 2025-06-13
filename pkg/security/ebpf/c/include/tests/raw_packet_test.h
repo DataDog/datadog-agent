@@ -22,8 +22,6 @@ int raw_packet_tail_calls(struct __sk_buff *skb) {
     };
     baloum_memcpy(evt->data, data, sizeof(data));
 
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
-
     return 1;
 }
 
@@ -44,8 +42,6 @@ int raw_packet_bpfdoor_magic_number(struct __sk_buff *skb) {
         0x00, 0x00
     };
     baloum_memcpy(evt->data, data, sizeof(data));
-
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
 
     return 1;
 }

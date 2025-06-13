@@ -260,18 +260,18 @@ func (p *EBPFProbe) selectFentryMode() {
 		return
 	}
 
-	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
-	if err != nil {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but failed to verify kernel symbols, falling back to kprobe mode")
-		return
-	}
+	//hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	//if err != nil {
+	//	p.useFentry = false
+	//	seclog.Warnf("fentry enabled but failed to verify kernel symbols, falling back to kprobe mode")
+	//	return
+	//}
 
-	if hasPotentialFentryDeadlock {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but lock responsible for deadlock was found in kernel symbols, falling back to kprobe mode")
-		return
-	}
+	//if hasPotentialFentryDeadlock {
+	//	p.useFentry = false
+	//	seclog.Warnf("fentry enabled but lock responsible for deadlock was found in kernel symbols, falling back to kprobe mode")
+	//	return
+	//}
 
 	p.useFentry = true
 }

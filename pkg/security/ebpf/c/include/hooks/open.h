@@ -277,8 +277,6 @@ int __attribute__((always_inline)) sys_open_ret(void *ctx) {
     }
     syscall->retval = SYSCALL_PARMRET(ctx);
 
-    bpf_tail_call_compat(ctx, &open_ret_progs, 0);
-
     return 0;
 }
 

@@ -82,7 +82,6 @@ TAIL_CALL_CLASSIFIER_FNC(dns_request, struct __sk_buff *skb) {
     evt->id = htons(header.id);
 
     // tail call to the dns request parser
-    bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST_PARSER);
 
     // tail call failed, ignore packet
     return ACT_OK;
@@ -115,10 +114,6 @@ TAIL_CALL_CLASSIFIER_FNC(dns_request_parser, struct __sk_buff *skb) {
 
     // send DNS event
     send_event_with_size_ptr(skb, EVENT_DNS, evt, offsetof(struct dns_event_t, name) + qname_length);
-
-    if (!is_dns_request_parsing_done(skb, pkt)) {
-        bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST_PARSER);
-    }
 
     return ACT_OK;
 }
