@@ -47,4 +47,8 @@ exceptions:
 
 additional:
   # list here paths to additional licenses
+<<<<<<< HEAD
   golang/go: "raw.githubusercontent.com/golang/go/go1.23.9/LICENSE"
+=======
+  golang/go: "raw.githubusercontent.com/golang/go/go1.24.4/LICENSE"
+>>>>>>> 071237e404 ([automated] Update Go version to 1.24.4 (#37856))

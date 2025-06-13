@@ -2,7 +2,11 @@
 # syntax=docker/dockerfile:1
 
 ## Build
+<<<<<<< HEAD
 FROM golang:1.23.9-alpine3.20 AS build
+=======
+FROM golang:1.24.4-alpine3.22 AS build
+>>>>>>> 071237e404 ([automated] Update Go version to 1.24.4 (#37856))
 
 # need gcc to build with CGO_ENABLED=1
 # need musl-dev to get stdlib.h

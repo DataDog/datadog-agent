@@ -6,7 +6,11 @@ RUN rm -vf /etc/ssl/openssl.cnf
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y gdb build-essential strace less vim
 
 # Install go
+<<<<<<< HEAD
 RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.23.9.linux-amd64.tar.gz
+=======
+RUN curl -fSL -o golang.tgz https://go.dev/dl/go1.24.4.linux-amd64.tar.gz
+>>>>>>> 071237e404 ([automated] Update Go version to 1.24.4 (#37856))
 RUN tar xzvf golang.tgz
 RUN ln -s /go /goroot
 
