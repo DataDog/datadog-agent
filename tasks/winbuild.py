@@ -27,6 +27,7 @@ def agent_package(
         ctx,
         flavor=flavor,
         skip_deps=skip_deps,
+        log_level="internal",
     )
 
     # Build installer
