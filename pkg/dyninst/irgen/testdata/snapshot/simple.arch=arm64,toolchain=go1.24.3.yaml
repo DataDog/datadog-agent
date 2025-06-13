@@ -11,6 +11,8 @@ Probes:
           InjectionPCs: [741596]
           Condition: null
       Snapshot: false
+      ThrottlePeriodMs: 100
+      ThrottleBudget: 500
     - ID: b
       Kind: ProbeKindLog
       Version: 0
@@ -22,6 +24,8 @@ Probes:
           InjectionPCs: [741708]
           Condition: null
       Snapshot: false
+      ThrottlePeriodMs: 100
+      ThrottleBudget: 500
     - ID: c
       Kind: ProbeKindLog
       Version: 0
@@ -33,6 +37,8 @@ Probes:
           InjectionPCs: [741836]
           Condition: null
       Snapshot: false
+      ThrottlePeriodMs: 100
+      ThrottleBudget: 500
     - ID: d
       Kind: ProbeKindLog
       Version: 0
@@ -44,6 +50,8 @@ Probes:
           InjectionPCs: [741964]
           Condition: null
       Snapshot: false
+      ThrottlePeriodMs: 100
+      ThrottleBudget: 500
     - ID: e
       Kind: ProbeKindLog
       Version: 0
@@ -55,6 +63,8 @@ Probes:
           InjectionPCs: [742092]
           Condition: null
       Snapshot: false
+      ThrottlePeriodMs: 100
+      ThrottleBudget: 500
     - ID: f
       Kind: ProbeKindLog
       Version: 0
@@ -66,6 +76,8 @@ Probes:
           InjectionPCs: [742220]
           Condition: null
       Snapshot: false
+      ThrottlePeriodMs: 100
+      ThrottleBudget: 500
     - ID: h
       Kind: ProbeKindLog
       Version: 0
@@ -77,6 +89,8 @@ Probes:
           InjectionPCs: [742540]
           Condition: null
       Snapshot: false
+      ThrottlePeriodMs: 100
+      ThrottleBudget: 500
     - ID: i
       Kind: ProbeKindLog
       Version: 0
@@ -88,6 +102,8 @@ Probes:
           InjectionPCs: [742656]
           Condition: null
       Snapshot: false
+      ThrottlePeriodMs: 100
+      ThrottleBudget: 500
     - ID: g
       Kind: ProbeKindLog
       Version: 0
@@ -99,6 +115,8 @@ Probes:
           InjectionPCs: [742348, 741304]
           Condition: null
       Snapshot: false
+      ThrottlePeriodMs: 100
+      ThrottleBudget: 500
 Subprograms:
     - ID: 2
       Name: main.intArg
