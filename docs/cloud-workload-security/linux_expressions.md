@@ -642,6 +642,14 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.file.hashes`](#common-fileevent-hashes-doc) | [Experimental] List of cryptographic hashes computed for this file |
 | [`exec.file.in_upper_layer`](#common-filefields-in_upper_layer-doc) | Indicator of the file layer, for example, in an OverlayFS |
 | [`exec.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
+| [`exec.file.metadata.abi`](#exec-file-metadata-abi-doc) | [Experimental] ABI of the file (only for executable files) |
+| [`exec.file.metadata.architecture`](#exec-file-metadata-architecture-doc) | [Experimental] Architecture of the file (only for executable files) |
+| [`exec.file.metadata.compression`](#exec-file-metadata-compression-doc) | [Experimental] Compression type of the file (only for compressed files) |
+| [`exec.file.metadata.is_executable`](#exec-file-metadata-is_executable-doc) | [Experimental] Tells if the file is executable or not |
+| [`exec.file.metadata.is_garble_obfuscated`](#exec-file-metadata-is_garble_obfuscated-doc) | [Experimental] Tells if the binary has been obfuscated using garble |
+| [`exec.file.metadata.is_upx_packed`](#exec-file-metadata-is_upx_packed-doc) | [Experimental] Tells if the binary has been packed using UPX |
+| [`exec.file.metadata.size`](#exec-file-metadata-size-doc) | [Experimental] Size of the file |
+| [`exec.file.metadata.type`](#exec-file-metadata-type-doc) | [Experimental] Type of the file |
 | [`exec.file.mode`](#common-filefields-mode-doc) | Mode of the file |
 | [`exec.file.modification_time`](#common-filefields-modification_time-doc) | Modification time (mtime) of the file |
 | [`exec.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2999,6 +3007,74 @@ Definition: Timestamp of the event
 
 
 
+### `exec.file.metadata.abi` {#exec-file-metadata-abi-doc}
+Type: int
+
+Definition: [Experimental] ABI of the file (only for executable files)
+
+
+Constants: [ABI](#abi)
+
+
+
+### `exec.file.metadata.architecture` {#exec-file-metadata-architecture-doc}
+Type: int
+
+Definition: [Experimental] Architecture of the file (only for executable files)
+
+
+Constants: [Architecture](#architecture)
+
+
+
+### `exec.file.metadata.compression` {#exec-file-metadata-compression-doc}
+Type: int
+
+Definition: [Experimental] Compression type of the file (only for compressed files)
+
+
+Constants: [CompressionType](#compressiontype)
+
+
+
+### `exec.file.metadata.is_executable` {#exec-file-metadata-is_executable-doc}
+Type: bool
+
+Definition: [Experimental] Tells if the file is executable or not
+
+
+
+### `exec.file.metadata.is_garble_obfuscated` {#exec-file-metadata-is_garble_obfuscated-doc}
+Type: bool
+
+Definition: [Experimental] Tells if the binary has been obfuscated using garble
+
+
+
+### `exec.file.metadata.is_upx_packed` {#exec-file-metadata-is_upx_packed-doc}
+Type: bool
+
+Definition: [Experimental] Tells if the binary has been packed using UPX
+
+
+
+### `exec.file.metadata.size` {#exec-file-metadata-size-doc}
+Type: int
+
+Definition: [Experimental] Size of the file
+
+
+
+### `exec.file.metadata.type` {#exec-file-metadata-type-doc}
+Type: int
+
+Definition: [Experimental] Type of the file
+
+
+Constants: [FileType](#filetype)
+
+
+
 ### `exec.syscall.path` {#exec-syscall-path-doc}
 Type: string
 
@@ -3625,6 +3701,26 @@ Definition: Path argument of the syscall
 
 Constants are used to improve the readability of your rules. Some constants are common to all architectures, others are specific to some architectures.
 
+### `ABI` {#abi}
+ABI used for binary compilation.
+
+| Name | Architectures |
+| ---- |---------------|
+| `BIT32` | all |
+| `BIT64` | all |
+| `UNKNOWN_ABI` | all |
+
+### `Architecture` {#architecture}
+Architecture of the binary.
+
+| Name | Architectures |
+| ---- |---------------|
+| `X86` | all |
+| `X86_64` | all |
+| `ARM` | all |
+| `ARM64` | all |
+| `UNKNOWN_ARCHITECTURE` | all |
+
 ### `BPF attach types` {#bpf-attach-types}
 BPF attach types are the supported eBPF program attach types.
 
@@ -3966,6 +4062,19 @@ Boolean constants are the supported boolean constants.
 | `true` | all |
 | `false` | all |
 
+### `CompressionType` {#compressiontype}
+Compression algorithm.
+
+| Name | Architectures |
+| ---- |---------------|
+| `NONE` | all |
+| `GZIP` | all |
+| `ZIP` | all |
+| `ZSTD` | all |
+| `7Z` | all |
+| `BZIP2` | all |
+| `XZ` | all |
+
 ### `DNS Responses` {#dns-responses}
 DNS Responses are the supported response codes
 
@@ -4252,6 +4361,22 @@ File mode constants are the supported file permissions as well as constants for 
 | `S_IWOTH` | all |
 | `S_IXOTH` | all |
 
+### `FileType` {#filetype}
+File types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `EMPTY` | all |
+| `SHELL_SCRIPT` | all |
+| `TEXT` | all |
+| `COMPRESSED` | all |
+| `ENCRYPTED` | all |
+| `BINARY` | all |
+| `LINUX_EXECUTABLE` | all |
+| `WINDOWS_EXECUTABLE` | all |
+| `MACOS_EXECUTABLE` | all |
+| `FILE_LESS` | all |
+
 ### `Inode mode constants` {#inode-mode-constants}
 Inode mode constants are the supported file type constants as well as the file mode constants.
 
@@ -4456,6 +4581,15 @@ L4 protocols are the supported Layer 4 protocols.
 | `IP_PROTO_UDPLITE` | all |
 | `IP_PROTO_MPLS` | all |
 | `IP_PROTO_RAW` | all |
+
+### `LinkageType` {#linkagetype}
+Linkage types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `NONE` | all |
+| `STATIC` | all |
+| `DYNAMIC` | all |
 
 ### `MMap flags` {#mmap-flags}
 MMap flags are the supported flags for the mmap syscall.

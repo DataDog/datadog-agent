@@ -551,6 +551,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "mount_origin": {
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
+                },
+                "metadata": {
+                    "$ref": "#/$defs/FileMetadata"
                 }
             },
             "additionalProperties": false,
@@ -672,6 +675,9 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "MountOrigin origin of the mount"
                 },
+                "metadata": {
+                    "$ref": "#/$defs/FileMetadata"
+                },
                 "destination": {
                     "$ref": "#/$defs/File",
                     "description": "Target file information"
@@ -696,6 +702,37 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "gid"
             ],
             "description": "FileEventSerializer serializes a file event to JSON"
+        },
+        "FileMetadata": {
+            "properties": {
+                "size": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "is_executable": {
+                    "type": "boolean"
+                },
+                "architecture": {
+                    "type": "string"
+                },
+                "abi": {
+                    "type": "string"
+                },
+                "is_upx_packed": {
+                    "type": "boolean"
+                },
+                "compression": {
+                    "type": "string"
+                },
+                "is_garble_obfuscated": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "FileMetadataSerializer serializes a file metadata"
         },
         "Flow": {
             "properties": {
@@ -2941,6 +2978,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         "mount_origin": {
             "type": "string",
             "description": "MountOrigin origin of the mount"
+        },
+        "metadata": {
+            "$ref": "#/$defs/FileMetadata"
         }
     },
     "additionalProperties": false,
@@ -2982,6 +3022,9 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_source` | MountSource source of the mount |
 | `mount_origin` | MountOrigin origin of the mount |
 
+| References |
+| ---------- |
+| [FileMetadata](#filemetadata) |
 
 ## `FileEvent`
 
@@ -3098,6 +3141,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "MountOrigin origin of the mount"
         },
+        "metadata": {
+            "$ref": "#/$defs/FileMetadata"
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -3160,7 +3206,48 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | References |
 | ---------- |
+| [FileMetadata](#filemetadata) |
 | [File](#file) |
+
+## `FileMetadata`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "size": {
+            "type": "integer"
+        },
+        "type": {
+            "type": "string"
+        },
+        "is_executable": {
+            "type": "boolean"
+        },
+        "architecture": {
+            "type": "string"
+        },
+        "abi": {
+            "type": "string"
+        },
+        "is_upx_packed": {
+            "type": "boolean"
+        },
+        "compression": {
+            "type": "string"
+        },
+        "is_garble_obfuscated": {
+            "type": "boolean"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "FileMetadataSerializer serializes a file metadata"
+}
+
+{{< /code-block >}}
+
+
 
 ## `Flow`
 
