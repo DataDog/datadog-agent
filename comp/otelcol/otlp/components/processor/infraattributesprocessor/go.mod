@@ -11,7 +11,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.68.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.68.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.68.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/api v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.68.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.68.0-rc.1
 	github.com/stretchr/testify v1.10.0
@@ -66,7 +65,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.68.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/status v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.68.0-rc.1 // indirect
@@ -81,7 +79,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.68.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.68.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.68.0-rc.1 // indirect
