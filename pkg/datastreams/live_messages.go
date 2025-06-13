@@ -84,7 +84,6 @@ func (c *Controller) Stream(ctx context.Context) <-chan integration.ConfigChange
 
 // Update parses updates from remote configuration, and configures the kafka_consumer integration to fetch messages from Kafka
 func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	log.Info("Called Update of remote configuration!!!!!!!!!!!!!")
 	remoteConfigs := parseRemoteConfig(updates, applyStateCallback)
 	if len(remoteConfigs) == 0 {
 		return
@@ -98,6 +97,9 @@ func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallba
 		configChange.Unschedule = append(configChange.Unschedule, integrationConfig)
 		updatedConfig := integrationConfig
 		updatedConfig.Instances = make([]integration.Data, 0, len(updatedConfig.Instances))
+		if updatedConfig.LogsConfig == nil {
+			updatedConfig.LogsConfig = integration.Data("[{\"type\":\"integration\",\"service\":\"kafka_consumer\",\"source\":\"kafka_consumer\"}]")
+		}
 		for _, instance := range integrationConfig.Instances {
 			updatedInstance := instance
 			p := &updatedInstance
@@ -120,8 +122,7 @@ func (c *Controller) Update(updates map[string]state.RawConfig, applyStateCallba
 	c.configChanges <- configChange
 }
 
-func parseRemoteConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) map[string]liveMessagesConfig {
-	configs := make(map[string]liveMessagesConfig)
+func parseRemoteConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) (configs []liveMessagesConfig) {
 	for path, rawConfig := range updates {
 		var config liveMessagesConfig
 		err := json.Unmarshal(rawConfig.Config, &config)
@@ -131,7 +132,7 @@ func parseRemoteConfig(updates map[string]state.RawConfig, applyStateCallback fu
 			continue
 		}
 		config.ID = rawConfig.Metadata.ID
-		configs[path] = config
+		configs = append(configs, config)
 		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 	return configs
