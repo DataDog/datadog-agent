@@ -746,3 +746,27 @@ func TestGetProvidedConfigurationOnly(t *testing.T) {
 
 	assert.Equal(t, expected, keys)
 }
+
+func TestGetDiagnosticsDisabled(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_diagnostics_enabled": false,
+	}, nil)
+	ia.Set("diagnostics", "test")
+
+	payload := ia.getPayload().(*Payload)
+
+	// No configuration should be in the payload
+	assert.NotContains(t, payload.Metadata, "diagnostics")
+}
+
+func TestGetDiagnosticsEnabled(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_diagnostics_enabled": true,
+	}, nil)
+	ia.Set("diagnostics", "test")
+
+	payload := ia.getPayload().(*Payload)
+
+	// No configuration should be in the payload
+	assert.Contains(t, payload.Metadata, "diagnostics")
+}
