@@ -55,7 +55,7 @@ type StreamingConfigProvider interface {
 }
 
 func (c *Controller) ManageSubscriptionToRC(subscribe func()) {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 	for range ticker.C {
 		c.closeMutex.RLock()
