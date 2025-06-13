@@ -36,13 +36,15 @@ func buildFileCapabilities(event string, fields ...string) rules.FieldCapabiliti
 	for _, field := range fields {
 		caps = append(caps, rules.FieldCapabilities{
 			{
-				Field:       event + "." + field + ".path",
-				TypeBitmask: eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
-				ValidateFnc: validateScalarPathFilter,
+				Field:        event + "." + field + ".path",
+				TypeBitmask:  eval.ScalarValueType | eval.PatternValueType | eval.GlobValueType,
+				ValidateFnc:  validateScalarPathFilter,
+				FilterWeight: 300,
 			},
 			{
-				Field:       event + "." + field + ".name",
-				TypeBitmask: eval.ScalarValueType,
+				Field:        event + "." + field + ".name",
+				TypeBitmask:  eval.ScalarValueType,
+				FilterWeight: 300,
 			},
 		}...)
 	}
