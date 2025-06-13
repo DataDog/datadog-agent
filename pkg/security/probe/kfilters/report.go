@@ -8,6 +8,7 @@ package kfilters
 
 import (
 	"encoding/json"
+	"slices"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -98,9 +99,14 @@ func computeApprovers(config *config.Config, rs *rules.RuleSet, capabilities map
 		if values, exists := approvers[eventType]; exists {
 			report.Approvers = values
 
+			// report approvers that are marked as approver only
 			for _, evtCapability := range capabilities[eventType] {
-				if evtCapability.FilterMode == rules.ApproverOnlyMode {
-					report.ApproversOnly = append(report.ApproversOnly, evtCapability.Field)
+				for field := range values {
+					if evtCapability.Field == field && evtCapability.FilterMode == rules.ApproverOnlyMode {
+						if !slices.Contains(report.ApproversOnly, evtCapability.Field) {
+							report.ApproversOnly = append(report.ApproversOnly, evtCapability.Field)
+						}
+					}
 				}
 			}
 		} else {
