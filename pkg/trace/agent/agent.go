@@ -305,13 +305,20 @@ func (a *Agent) setRootSpanTagsV1(root *idx.InternalSpan) {
 	sampler.SetClientRateV1(root, clientSampleRate)
 }
 
+func (a *Agent) shouldSetFirstTraceTags(service string) bool {
+	if a.conf == nil || a.conf.InstallSignature.InstallID == "" {
+		return false
+	}
+	if _, alreadySeenService := a.firstSpanMap.LoadOrStore(service, true); !alreadySeenService {
+		return true
+	}
+	return false
+}
+
 // setFirstTraceTags sets additional tags on the first trace for each service processed by the agent,
 // so that we can see that the service has successfully onboarded onto APM.
 func (a *Agent) setFirstTraceTags(root *pb.Span) {
-	if a.conf == nil || a.conf.InstallSignature.InstallID == "" || root == nil {
-		return
-	}
-	if _, alreadySeenService := a.firstSpanMap.LoadOrStore(root.Service, true); !alreadySeenService {
+	if a.shouldSetFirstTraceTags(root.Service) {
 		// The install time and type can also be set on the trace by the tracer,
 		// in which case we do not want the agent to overwrite them.
 		if _, ok := traceutil.GetMeta(root, tagInstallID); !ok {
@@ -322,6 +329,24 @@ func (a *Agent) setFirstTraceTags(root *pb.Span) {
 		}
 		if _, ok := traceutil.GetMeta(root, tagInstallTime); !ok {
 			traceutil.SetMeta(root, tagInstallTime, strconv.FormatInt(a.conf.InstallSignature.InstallTime, 10))
+		}
+	}
+}
+
+// setFirstTraceTags sets additional tags on the first trace for each service processed by the agent,
+// so that we can see that the service has successfully onboarded onto APM.
+func (a *Agent) setFirstTraceTagsV1(root *idx.InternalSpan) {
+	if a.shouldSetFirstTraceTags(root.Service()) {
+		// The install time and type can also be set on the trace by the tracer,
+		// in which case we do not want the agent to overwrite them.
+		if _, ok := root.GetAttributeAsString(tagInstallID); !ok {
+			root.SetStringAttribute(tagInstallID, a.conf.InstallSignature.InstallID)
+		}
+		if _, ok := root.GetAttributeAsString(tagInstallType); !ok {
+			root.SetStringAttribute(tagInstallType, a.conf.InstallSignature.InstallType)
+		}
+		if _, ok := root.GetAttributeAsString(tagInstallTime); !ok {
+			root.SetStringAttribute(tagInstallTime, strconv.FormatInt(a.conf.InstallSignature.InstallTime, 10))
 		}
 	}
 }
@@ -571,14 +596,14 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		}
 		p.TracerPayload.ReplaceChunk(i, pt.TraceChunk)
 
-		// 	if !pt.TraceChunk.DroppedTrace {
-		// 		// Now that we know this trace has been sampled,
-		// 		// if this is the first trace we have processed since restart,
-		// 		// set a special set of tags on its root span to track that this
-		// 		// customer has successfully onboarded onto APM.
-		// 		a.setFirstTraceTags(root)
-		// 		sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
-		// 	}
+		if !pt.TraceChunk.DroppedTrace {
+			// Now that we know this trace has been sampled,
+			// if this is the first trace we have processed since restart,
+			// set a special set of tags on its root span to track that this
+			// customer has successfully onboarded onto APM.
+			a.setFirstTraceTagsV1(root)
+			sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
+		}
 		sampledChunks.EventCount += int64(numEvents)
 		// sampledChunks.Size += pt.TraceChunk.Msgsize()
 		// 	i++
