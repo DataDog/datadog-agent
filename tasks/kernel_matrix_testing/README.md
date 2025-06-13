@@ -104,7 +104,7 @@ The primary way to interact with the VMs is by running tests using the `kmt.test
 dda inv -e kmt.test --vms=ubuntu22-local-distro
 ```
 
-For debugging or manual inspection, you can also connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
+Optionally, for debugging or manual inspection, you can connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
 
 ```bash
 # Generate the SSH config
@@ -180,7 +180,7 @@ The primary way to interact with the VMs is by running tests using the `kmt.test
 dda inv -e kmt.test --vms=x86-jammy-distro
 ```
 
-For debugging or manual inspection, you can also connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
+Optionally, for debugging or manual inspection, you can connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
 
 ```bash
 # Generate the SSH config
