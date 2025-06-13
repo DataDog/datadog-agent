@@ -100,7 +100,7 @@ const (
 
 	// SourceServiceDiscovery represents service discovery data for processes
 	// detected by the process collector.
-	SourceServiceDiscovery         Source = "service_discovery"
+	SourceServiceDiscovery Source = "service_discovery"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -1280,7 +1280,7 @@ type Process struct {
 	Owner *EntityID // Owner is a reference to a container in WLM
 
 	// Service contains service discovery information for this process
-	Service      *Service
+	Service *Service
 }
 
 var _ Entity = &Process{}
@@ -1325,7 +1325,9 @@ func (p Process) String(_ bool) string {
 	if p.Language != nil {
 		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 	}
-
+	if p.Service != nil {
+		_, _ = fmt.Fprintln(&sb, "Service:", p.Service.GeneratedName)
+	}
 	// TODO: add new fields once the new wlm process collector can be enabled
 
 	return sb.String()
