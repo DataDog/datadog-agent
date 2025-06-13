@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
+	"time"
 )
 
 const (
@@ -51,6 +52,23 @@ func (c *Controller) GetConfigErrors() map[string]providers.ErrorMsgSet {
 
 type StreamingConfigProvider interface {
 	Stream(context.Context) <-chan integration.ConfigChanges
+}
+
+func (c *Controller) ManageSubscriptionToRC(subscribe func()) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		c.closeMutex.RLock()
+		if c.closed {
+			c.closeMutex.RUnlock()
+			return
+		}
+		c.closeMutex.RUnlock()
+		if IsConnectedToKafka(c.ac) {
+			subscribe()
+			return
+		}
+	}
 }
 
 func IsConnectedToKafka(ac autodiscovery.Component) bool {
