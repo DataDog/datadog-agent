@@ -545,3 +545,8 @@ func (fh *EBPFLessFieldHandlers) ResolveConnectHostnames(_ *model.Event, e *mode
 func (fh *EBPFLessFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model.AcceptEvent) []string {
 	return e.Hostnames
 }
+
+// ResolveFsmountRootPath resolves a mount root path
+func (fh *EBPFLessFieldHandlers) ResolveFsmountRootPath(_ *model.Event, e *model.FsmountEvent) string {
+	return e.MountRootPath
+}

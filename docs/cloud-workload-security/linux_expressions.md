@@ -41,6 +41,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed (does not trigger on fork syscalls). | 7.27 |
 | `exit` | Process | A process was terminated | 7.38 |
+| `fsmount` | File | [Experimental] A filesystem was mounted with fsmount (not attached to the main tree yet) | 7.42 |
 | `imds` | Network | An IMDS event was captured | 7.55 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
@@ -794,6 +795,21 @@ A process was terminated
 | [`exit.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`exit.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
 
+### Event `fsmount`
+
+_This event type is experimental and may change in the future._
+
+A filesystem was mounted with fsmount (not attached to the main tree yet)
+
+| Property | Definition |
+| -------- | ------------- |
+| [`fsmount.fs_type`](#common-mount-fs_type-doc) | Type of the mounted file system |
+| [`fsmount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`fsmount.root.path`](#fsmount-root-path-doc) | Root path of the mount |
+| [`fsmount.syscall.fs_type`](#fsmount-syscall-fs_type-doc) | File system type argument of the syscall |
+| [`fsmount.syscall.mountpoint.path`](#fsmount-syscall-mountpoint-path-doc) | Mount point path argument of the syscall |
+| [`fsmount.syscall.source.path`](#fsmount-syscall-source-path-doc) | Source path argument of the syscall |
+
 ### Event `imds`
 
 An IMDS event was captured
@@ -973,7 +989,7 @@ A filesystem was mounted
 
 | Property | Definition |
 | -------- | ------------- |
-| [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
+| [`mount.fs_type`](#common-mount-fs_type-doc) | Type of the mounted file system |
 | [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`mount.root.path`](#mount-root-path-doc) | Root path of the mount |
@@ -2150,6 +2166,15 @@ Definition: File's filesystem
 `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.fs_type` {#common-mount-fs_type-doc}
+Type: string
+
+Definition: Type of the mounted file system
+
+`*.fs_type` has 2 possible prefixes:
+`fsmount` `mount`
+
+
 ### `*.fsgid` {#common-credentials-fsgid-doc}
 Type: int
 
@@ -2535,8 +2560,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 25 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 26 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `fsmount` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `ptrace` `removexattr` `rename` `rmdir` `setsockopt` `setxattr` `signal` `splice` `unlink` `unload_module` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -3096,6 +3121,34 @@ Definition: Exit code of the process or number of the signal that caused the pro
 
 
 
+### `fsmount.root.path` {#fsmount-root-path-doc}
+Type: string
+
+Definition: Root path of the mount
+
+
+
+### `fsmount.syscall.fs_type` {#fsmount-syscall-fs_type-doc}
+Type: string
+
+Definition: File system type argument of the syscall
+
+
+
+### `fsmount.syscall.mountpoint.path` {#fsmount-syscall-mountpoint-path-doc}
+Type: string
+
+Definition: Mount point path argument of the syscall
+
+
+
+### `fsmount.syscall.source.path` {#fsmount-syscall-source-path-doc}
+Type: string
+
+Definition: Source path argument of the syscall
+
+
+
 ### `imds.aws.is_imds_v2` {#imds-aws-is_imds_v2-doc}
 Type: bool
 
@@ -3252,13 +3305,6 @@ Definition: memory segment protection
 
 
 Constants: [Protection constants](#protection-constants)
-
-
-
-### `mount.fs_type` {#mount-fs_type-doc}
-Type: string
-
-Definition: Type of the mounted file system
 
 
 

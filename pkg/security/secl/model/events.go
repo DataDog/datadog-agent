@@ -115,6 +115,8 @@ const (
 	SysCtlEventType
 	// SetSockOptEventType is sent when a socket option is set
 	SetSockOptEventType
+	// FileFsmountEventType Mount event
+	FileFsmountEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -177,6 +179,8 @@ func (t EventType) String() string {
 		return "chown"
 	case FileUtimesEventType:
 		return "utimes"
+	case FileFsmountEventType:
+		return "fsmount"
 	case FileMountEventType:
 		return "mount"
 	case FileUmountEventType:

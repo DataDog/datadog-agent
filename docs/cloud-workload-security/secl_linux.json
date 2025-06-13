@@ -3033,6 +3033,45 @@
       ]
     },
     {
+      "name": "fsmount",
+      "definition": "A filesystem was mounted with fsmount (not attached to the main tree yet)",
+      "type": "File",
+      "from_agent_version": "7.42",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "fsmount.fs_type",
+          "definition": "Type of the mounted file system",
+          "property_doc_link": "common-mount-fs_type-doc"
+        },
+        {
+          "name": "fsmount.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "fsmount.root.path",
+          "definition": "Root path of the mount",
+          "property_doc_link": "fsmount-root-path-doc"
+        },
+        {
+          "name": "fsmount.syscall.fs_type",
+          "definition": "File system type argument of the syscall",
+          "property_doc_link": "fsmount-syscall-fs_type-doc"
+        },
+        {
+          "name": "fsmount.syscall.mountpoint.path",
+          "definition": "Mount point path argument of the syscall",
+          "property_doc_link": "fsmount-syscall-mountpoint-path-doc"
+        },
+        {
+          "name": "fsmount.syscall.source.path",
+          "definition": "Source path argument of the syscall",
+          "property_doc_link": "fsmount-syscall-source-path-doc"
+        }
+      ]
+    },
+    {
       "name": "imds",
       "definition": "An IMDS event was captured",
       "type": "Network",
@@ -3767,7 +3806,7 @@
         {
           "name": "mount.fs_type",
           "definition": "Type of the mounted file system",
-          "property_doc_link": "mount-fs_type-doc"
+          "property_doc_link": "common-mount-fs_type-doc"
         },
         {
           "name": "mount.mountpoint.path",
@@ -8388,6 +8427,19 @@
       "examples": []
     },
     {
+      "name": "*.fs_type",
+      "link": "common-mount-fs_type-doc",
+      "type": "string",
+      "definition": "Type of the mounted file system",
+      "prefixes": [
+        "fsmount",
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.fsgid",
       "link": "common-credentials-fsgid-doc",
       "type": "int",
@@ -9677,6 +9729,7 @@
         "chmod",
         "chown",
         "connect",
+        "fsmount",
         "link",
         "load_module",
         "mkdir",
@@ -10691,6 +10744,54 @@
       "examples": []
     },
     {
+      "name": "fsmount.root.path",
+      "link": "fsmount-root-path-doc",
+      "type": "string",
+      "definition": "Root path of the mount",
+      "prefixes": [
+        "fsmount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "fsmount.syscall.fs_type",
+      "link": "fsmount-syscall-fs_type-doc",
+      "type": "string",
+      "definition": "File system type argument of the syscall",
+      "prefixes": [
+        "fsmount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "fsmount.syscall.mountpoint.path",
+      "link": "fsmount-syscall-mountpoint-path-doc",
+      "type": "string",
+      "definition": "Mount point path argument of the syscall",
+      "prefixes": [
+        "fsmount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "fsmount.syscall.source.path",
+      "link": "fsmount-syscall-source-path-doc",
+      "type": "string",
+      "definition": "Source path argument of the syscall",
+      "prefixes": [
+        "fsmount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "imds.aws.is_imds_v2",
       "link": "imds-aws-is_imds_v2-doc",
       "type": "bool",
@@ -10940,18 +11041,6 @@
       ],
       "constants": "Protection constants",
       "constants_link": "protection-constants",
-      "examples": []
-    },
-    {
-      "name": "mount.fs_type",
-      "link": "mount-fs_type-doc",
-      "type": "string",
-      "definition": "Type of the mounted file system",
-      "prefixes": [
-        "mount"
-      ],
-      "constants": "",
-      "constants_link": "",
       "examples": []
     },
     {

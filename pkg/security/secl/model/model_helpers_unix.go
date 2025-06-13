@@ -254,6 +254,7 @@ const (
 	MountOriginProcfs                     //MountOriginProcfs mount point info from procfs
 	MountOriginEvent                      // MountOriginEvent mount point info from an event
 	MountOriginUnshare                    // MountOriginUnshare mount point info from an event
+	MountOriginFsmount                    // MountOriginFsmount mount point info from the fsmount syscall
 )
 
 // MountSource source of the mount
@@ -285,6 +286,7 @@ var MountOrigins = [...]string{
 	"procfs",
 	"event",
 	"unshare",
+	"fsmount",
 }
 
 // MountOriginToString returns the string corresponding to a mount origin
