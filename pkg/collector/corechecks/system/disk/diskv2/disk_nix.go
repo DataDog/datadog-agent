@@ -419,15 +419,16 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 			// so we get the real device name from its major/minor number
 			if device == "/dev/root" || device == "rootfs" {
 				log.Debugf("/dev/root line: '%s'", line)
-				devpath, err := os.Readlink(path.Join(hostSys, "/dev/block", blockDeviceID))
+				linkPath := filepath.Join(hostSys, "dev", "block", blockDeviceID)
+				devPath, err := os.Readlink(linkPath)
 				if err == nil {
-					deviceResolved := strings.Replace(device, "root", filepath.Base(devpath), 1)
+					base := filepath.Base(devPath)
+					deviceResolved := strings.Replace(device, "root", base, 1)
 					log.Debugf("device_resolved: '%s'", deviceResolved)
 					if rootFsDevice != "" {
-						rootDevices[deviceResolved] = rootFsDevice
-					} else {
-						rootDevices[deviceResolved] = device
+						device = rootFsDevice
 					}
+					rootDevices[deviceResolved] = device
 				}
 			}
 		}
