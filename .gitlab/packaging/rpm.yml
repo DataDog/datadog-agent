@@ -181,6 +181,8 @@ iot_agent_rpm-armhf:
   variables:
     PACKAGE_ARCH: armhf
     DD_PKG_ARCH: "arm64"
+  # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
   before_script:
     # Ensures uname -m reports armv7l
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
@@ -209,6 +211,8 @@ dogstatsd_rpm-x64:
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"
+  # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
 
 dogstatsd_suse-x64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
@@ -216,3 +220,5 @@ dogstatsd_suse-x64:
   variables:
     DD_PROJECT: dogstatsd
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"
+  # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_ENABLE_VPA: false
