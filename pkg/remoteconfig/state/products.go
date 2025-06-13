@@ -36,6 +36,7 @@ var validProducts = map[string]struct{}{
 	ProductHaAgent:                      {},
 	ProductNDMDeviceProfilesCustom:      {},
 	ProductMetricControl:                {},
+	ProductDataStreamsLiveMessages:      {},
 }
 
 const (
@@ -99,4 +100,6 @@ const (
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
 	// ProductMetricControl receives configuration for the metrics control.
 	ProductMetricControl = "METRIC_CONTROL"
+	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
+	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 )

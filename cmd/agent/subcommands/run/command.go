@@ -10,6 +10,7 @@ import (
 	"context"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/datastreams"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -584,6 +585,12 @@ func startAgent(
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
+		controller := datastreams.NewController(ac)
+		subscribe := func() {
+			rcclient.Subscribe(data.ProductDataStreamsLiveMessages, controller.Update)
+		}
+		go controller.ManageSubscriptionToRC(subscribe)
+		ac.AddConfigProvider(controller, false, 0)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
