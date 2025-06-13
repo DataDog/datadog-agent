@@ -65,7 +65,7 @@ func WithAlias(alias string) PackageOption {
 
 // PackagesConfig is the list of known packages configuration for testing
 var PackagesConfig = []TestPackageConfig{
-	{Name: "datadog-installer", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
+	{Name: "datadog-installer", Version: "latest"},
 	{Name: "datadog-agent", Alias: "agent-package", Version: fmt.Sprintf("pipeline-%v", os.Getenv("E2E_PIPELINE_ID")), Registry: "installtesting.datad0g.com.internal.dda-testing.com"},
 	{Name: "datadog-apm-inject", Version: "latest"},
 	{Name: "datadog-apm-library-java", Version: "latest"},
