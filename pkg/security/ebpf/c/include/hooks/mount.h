@@ -418,7 +418,7 @@ int rethook_alloc_vfsmnt(ctx_t *ctx) {
         return 0;
     }
 
-    struct mount *newmnt = (struct mount *)PT_REGS_RC((struct pt_regs *)ctx);
+    struct mount *newmnt = (struct mount *)CTX_PARMRET(ctx);
     syscall->mount.newmnt = newmnt;
 
     return 0;
