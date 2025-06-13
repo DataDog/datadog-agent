@@ -48,64 +48,6 @@ const auditFileBasename = "secret-audit-file.json"
 
 var newClock = clock.New
 
-var allowedKeysByBackend = map[string]map[string]interface{}{
-	"aws.secrets": {
-		"secret_id": true,
-		"aws_session": map[string]bool{
-			"aws_region":            true,
-			"aws_access_key_id":     true,
-			"aws_secret_access_key": true,
-			"aws_profile":           true,
-			"aws_role_arn":          true,
-			"aws_external_id":       true,
-		},
-	},
-	"aws.ssm": {
-		"parameter_path": true,
-		"parameters":     true,
-	},
-	"azure.keyvault": {
-		"secret_id":   true,
-		"keyvaulturl": true,
-		"azure_session": map[string]bool{
-			"azure_tenant_id":            true,
-			"azure_client_id":            true,
-			"azure_client_secret":        true,
-			"azure_certificate_path":     true,
-			"azure_certificate_password": true,
-		},
-	},
-	"hashicorp.vault": {
-		"vault_address":    true,
-		"vault_tls_config": true,
-		"secret_path":      true,
-		"secrets":          true,
-		"vault_session": map[string]bool{
-			"vault_role_id":   true,
-			"vault_secret_id": true,
-			"vault_username":  true,
-			"vault_password":  true,
-			"vault_auth_type": true,
-			"vault_aws_role":  true,
-			"aws_region":      true,
-		},
-	},
-	"akeyless": {
-		"akeyless_url": true,
-		"secret_path":  true,
-		"akeyless_session": map[string]bool{
-			"akeyless_access_id":  true,
-			"akeyless_access_key": true,
-		},
-	},
-	"file.json": {
-		"file_path": true,
-	},
-	"file.yaml": {
-		"file_path": true,
-	},
-}
-
 type provides struct {
 	fx.Out
 
@@ -283,11 +225,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	}
 	r.backendType = params.Type
 	r.backendConfig = params.Config
-	if r.backendType != "" {
-		if err := validateTypeAndConfig(r.backendType, r.backendConfig); err != nil {
-			log.Errorf("%v", err)
-		}
-	}
 	r.backendCommand = params.Command
 	r.embeddedBackendUsed = false
 	if r.backendCommand != "" && r.backendType != "" {
@@ -328,35 +265,6 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if r.auditFileMaxSize == 0 {
 		r.auditFileMaxSize = SecretAuditFileMaxSizeDefault
 	}
-}
-
-func validateTypeAndConfig(backendType string, backendConfig map[string]interface{}) error {
-	allowed, ok := allowedKeysByBackend[backendType]
-	if !ok {
-		return fmt.Errorf("unsupported backend type: %s", backendType)
-	}
-
-	for key, val := range backendConfig {
-		allowedVal, ok := allowed[key]
-		if !ok {
-			return log.Warnf("unsupported key '%s' for backend '%s'", key, backendType)
-		}
-
-		// If value in the allowed map is another map (nested config), validate nested keys
-		if nestedAllowed, ok := allowedVal.(map[string]bool); ok {
-			nestedConfig, ok := val.(map[string]interface{})
-			if !ok {
-				return fmt.Errorf("key '%s' should be a map", key)
-			}
-
-			for nestedKey := range nestedConfig {
-				if _, ok := nestedAllowed[nestedKey]; !ok {
-					return log.Warnf("unsupported nested key '%s.%s' for backend '%s'", key, nestedKey, backendType)
-				}
-			}
-		}
-	}
-	return nil
 }
 
 func isEnc(str string) (bool, string) {
