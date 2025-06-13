@@ -20,12 +20,14 @@ func TestNewWrapper(t *testing.T) {
 }
 
 func TestWrapperMethods(t *testing.T) {
+	// create buffer to capture logs from the wrapper
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "[%LEVEL] %FuncShort: %Msg\n")
 	SetupLogger(l, DebugStr)
 
+	// log messages using the wrapper
 	wrapper := NewWrapper(3)
 
 	wrapper.Trace("wrapper message")
@@ -60,10 +62,6 @@ func TestWrapperMethods(t *testing.T) {
 		"[CRITICAL] tRunner: wrapper message",
 		"[CRITICAL] tRunner: wrapper message 123",
 	})
-
-	// reset buffer state
-	logsBuffer = []func(){}
-	logger.Store(nil)
 }
 
 func TestWrapperFlush(_ *testing.T) {

@@ -20,6 +20,7 @@ func TestNewKlogRedirectLoggerStackDepth(t *testing.T) {
 }
 
 func TestKlogRedirectLoggerWrite(t *testing.T) {
+	// create buffer to capture logs from the klog redirect logger
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
@@ -28,11 +29,14 @@ func TestKlogRedirectLoggerWrite(t *testing.T) {
 
 	klogRedirectLogger := NewKlogRedirectLogger(3)
 
+	// first level of the string indicates the log level
+	// Known levels are: I, W, E, F
+	// X is unknown so should be logged as INFO
 	klogRedirectLogger.Write([]byte("I0105 12:34:56.789012 threadid file:line] klog message"))
 	klogRedirectLogger.Write([]byte("W0206 12:34:56.789012 threadid file:line] klog message"))
 	klogRedirectLogger.Write([]byte("E0307 12:34:56.789012 threadid file:line] klog message"))
 	klogRedirectLogger.Write([]byte("F0408 12:34:56.789012 threadid file:line] klog message"))
-	klogRedirectLogger.Write([]byte("X0509 12:34:56.789012 threadid file:line] unknown level klog message"))
+	klogRedirectLogger.Write([]byte("X0509 12:34:56.789012 threadid file:line] klog message"))
 
 	w.Flush()
 
@@ -41,10 +45,6 @@ func TestKlogRedirectLoggerWrite(t *testing.T) {
 		"[WARN] tRunner: klog message",
 		"[ERROR] tRunner: klog message",
 		"[CRITICAL] tRunner: klog message",
-		"[INFO] tRunner: unknown level klog message",
+		"[INFO] tRunner: klog message",
 	})
-
-	// reset buffer state
-	logsBuffer = []func(){}
-	logger.Store(nil)
 }

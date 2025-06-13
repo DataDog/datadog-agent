@@ -616,7 +616,9 @@ func TestLoggerScrubbingCount(t *testing.T) {
 }
 
 func TestLogNilInnerLogger(t *testing.T) {
-	// ensure logger inner is nil
+	// reset buffer state
+	logsBuffer = []func(){}
+
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
@@ -624,10 +626,6 @@ func TestLogNilInnerLogger(t *testing.T) {
 
 	// should write to the logs buffer
 	assert.Equal(t, 1, len(logsBuffer))
-
-	// reset state
-	logsBuffer = []func(){}
-	logger.Store(nil)
 }
 
 func TestSetupLoggerWithUnknownLogLevel(t *testing.T) {
@@ -637,18 +635,9 @@ func TestSetupLoggerWithUnknownLogLevel(t *testing.T) {
 	loggerLogLevel, _ := GetLogLevel()
 
 	assert.Equal(t, InfoLvl, loggerLogLevel)
-
-	// reset state
-	logger.Store(nil)
 }
 
 func TestChangeLogLevel(t *testing.T) {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-
-	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "")
-	SetupLogger(l, DebugStr)
-
 	testCases := []struct {
 		logLevel    LogLevel
 		logLevelStr string
@@ -664,16 +653,24 @@ func TestChangeLogLevel(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run("change log level to "+tc.logLevelStr, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "")
+
+			SetupLogger(Default(), DebugStr)
+
 			err := ChangeLogLevel(l, tc.logLevelStr)
 			assert.NoError(t, err)
 
+			// log level should have been updated
 			level, _ := GetLogLevel()
 			assert.Equal(t, tc.logLevel, level)
+
+			// inner logger should have been replaced
+			assert.Equal(t, l, logger.Load().inner)
 		})
 	}
-
-	// reset state
-	logger.Store(nil)
 }
 
 func TestChangeLogLevelUnknownLevel(t *testing.T) {
@@ -681,18 +678,20 @@ func TestChangeLogLevelUnknownLevel(t *testing.T) {
 	w := bufio.NewWriter(&b)
 
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(w, DebugLvl, "")
-	SetupLogger(l, DebugStr)
+
+	SetupLogger(Default(), InfoStr)
 
 	err := ChangeLogLevel(l, "unknownLogLevel")
 	assert.Error(t, err)
 	assert.Equal(t, "bad log level", err.Error())
 
-	// reset state
-	logger.Store(nil)
+	// log level and inner logger should not have changed
+	level, _ := GetLogLevel()
+	assert.Equal(t, InfoLvl, level)
+	assert.NotEqual(t, l, logger.Load().inner)
 }
 
 func TestChangeLogLevelNilLogger(t *testing.T) {
-	// ensure logger is nil
 	logger.Store(nil)
 
 	err := logger.changeLogLevel(InfoStr)
@@ -701,7 +700,6 @@ func TestChangeLogLevelNilLogger(t *testing.T) {
 }
 
 func TestChangeLogLevelNilInnerLogger(t *testing.T) {
-	// ensure logger inner is nil
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
@@ -716,13 +714,9 @@ func TestGetLogLevel(t *testing.T) {
 	level, err := GetLogLevel()
 	assert.NoError(t, err)
 	assert.Equal(t, WarnLvl, level)
-
-	// reset state
-	logger.Store(nil)
 }
 
 func TestGetLogLevelNilLogger(t *testing.T) {
-	// ensure logger is nil
 	logger.Store(nil)
 
 	level, err := GetLogLevel()
@@ -732,7 +726,6 @@ func TestGetLogLevelNilLogger(t *testing.T) {
 }
 
 func TestGetLogLevelNilInnerLogger(t *testing.T) {
-	// ensure logger inner is nil
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
@@ -740,9 +733,6 @@ func TestGetLogLevelNilInnerLogger(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, InfoLvl, level)
 	assert.Equal(t, "cannot get loglevel: logger not initialized", err.Error())
-
-	// reset state
-	logger.Store(nil)
 }
 
 func TestShouldLog(t *testing.T) {
@@ -798,7 +788,6 @@ func TestShouldLog(t *testing.T) {
 }
 
 func TestShouldLogNilLogger(t *testing.T) {
-	// ensure logger is nil
 	logger.Store(nil)
 
 	assert.False(t, ShouldLog(InfoLvl))
@@ -851,13 +840,9 @@ func TestRegisterAdditionalLogger(t *testing.T) {
 	err := RegisterAdditionalLogger("new logger", l)
 	assert.NoError(t, err)
 	assert.Equal(t, logger.Load().extra["new logger"], l)
-
-	// reset state
-	logger.Store(nil)
 }
 
 func TestRegisterAdditionalLoggerNilLogger(t *testing.T) {
-	// ensure logger is nil
 	logger.Store(nil)
 
 	err := RegisterAdditionalLogger("new logger", LoggerInterface(nil))
@@ -866,29 +851,21 @@ func TestRegisterAdditionalLoggerNilLogger(t *testing.T) {
 }
 
 func TestRegisterAdditionalLoggerNilInnerLogger(t *testing.T) {
-	// ensure logger inner is nil
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
 	err := RegisterAdditionalLogger("new logger", LoggerInterface(nil))
 	assert.Error(t, err)
 	assert.Equal(t, "cannot register: logger not initialized", err.Error())
-
-	// reset state
-	logger.Store(nil)
 }
 
 func TestRegisterAdditionalLoggerNilExtraLogger(t *testing.T) {
-	// ensure logger extra is nil
 	SetupLogger(Default(), DebugStr)
 	logger.Load().extra = nil
 
 	err := RegisterAdditionalLogger("", nil)
 	assert.Error(t, err)
 	assert.Equal(t, "logger not fully initialized, additional logging unavailable", err.Error())
-
-	// reset state
-	logger.Store(nil)
 }
 
 func TestRegisterAdditionalLoggerAlreadyRegistered(t *testing.T) {
@@ -906,34 +883,27 @@ func TestRegisterAdditionalLoggerAlreadyRegistered(t *testing.T) {
 	err = RegisterAdditionalLogger("new logger", lB)
 	assert.Error(t, err)
 	assert.Equal(t, "logger already registered with that name", err.Error())
-
-	// reset state
-	logger.Store(nil)
 }
 
 func TestReplaceLogger(t *testing.T) {
 	SetupLogger(Default(), DebugStr)
-
 	l, _ := LoggerFromWriterWithMinLevelAndFormat(nil, DebugLvl, "")
-	assert.Equal(t, Default(), ReplaceLogger(l)) // old logger should be returned
 
-	// reset state
-	logger.Store(nil)
+	assert.Equal(t, Default(), ReplaceLogger(l)) // old logger should be returned
 }
 
 func TestReplaceLoggerNilLogger(t *testing.T) {
-	// ensure logger is nil
 	logger.Store(nil)
 
-	assert.Nil(t, ReplaceLogger(nil))
+	// should return nil and not change the inner logger
+	assert.Nil(t, ReplaceLogger(Default()))
 }
 
 func TestReplaceLoggerNilInnerLogger(t *testing.T) {
-	// ensure logger inner is nil
 	SetupLogger(Default(), DebugStr)
 	logger.Load().inner = nil
 
-	assert.Nil(t, ReplaceLogger(nil))
+	assert.Nil(t, ReplaceLogger(Default()))
 }
 
 func TestTraceNilLogger(t *testing.T) {
@@ -945,9 +915,6 @@ func TestTraceNilLogger(t *testing.T) {
 
 	// should not write to the logs buffer
 	assert.Equal(t, 0, len(logsBuffer))
-
-	// reset buffer state
-	logsBuffer = []func(){}
 }
 
 func TestLogExtraLogger(t *testing.T) {
@@ -1007,10 +974,6 @@ func TestLogExtraLogger(t *testing.T) {
 		"[CRITICAL] criticalf: message 123",
 		"[CRITICAL] criticalStackDepth: message",
 	})
-
-	// reset buffer state
-	logsBuffer = []func(){}
-	logger.Store(nil)
 }
 
 func TestDisabledLogger(_ *testing.T) {
@@ -1036,10 +999,8 @@ func TestLoggerFlush(_ *testing.T) {
 	Error("message")
 	Critical("message")
 
-	Flush() // should print all logs except trace
-
-	// reset state
-	logger.Store(nil)
+	// should print all logs except trace
+	Flush()
 }
 
 func TestJMXLoggerSetup(t *testing.T) {
@@ -1064,9 +1025,4 @@ func TestJMXLog(t *testing.T) {
 		"[ERROR] TestJMXLog: jmx error message",
 		"[INFO] TestJMXLog: jmx info message",
 	})
-
-	// reset buffer state
-	logsBuffer = []func(){}
-	logger.Store(nil)
-	jmxLogger.Store(nil)
 }
