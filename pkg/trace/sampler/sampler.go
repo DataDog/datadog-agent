@@ -135,6 +135,12 @@ func GetClientRate(s *pb.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateClient, 1.0)
 }
 
+// GetClientRate gets the rate at which the trace this span belongs to was sampled by the tracer.
+// NOTE: This defaults to 1 if no rate is stored.
+func GetClientRateV1(s *idx.InternalSpan) float64 {
+	return getMetricDefaultV1(s, KeySamplingRateClient, 1.0)
+}
+
 // SetClientRate sets the rate at which the trace this span belongs to was sampled by the tracer.
 func SetClientRate(s *pb.Span, rate float64) {
 	if rate < 1 {
@@ -161,6 +167,12 @@ func GetPreSampleRate(s *pb.Span) float64 {
 	return getMetricDefault(s, KeySamplingRatePreSampler, 1.0)
 }
 
+// GetPreSampleRate returns the rate at which the trace this span belongs to was sampled by the agent's presampler.
+// NOTE: This defaults to 1 if no rate is stored.
+func GetPreSampleRateV1(s *idx.InternalSpan) float64 {
+	return getMetricDefaultV1(s, KeySamplingRatePreSampler, 1.0)
+}
+
 // SetPreSampleRate sets the rate at which the trace this span belongs to was sampled by the agent's presampler.
 func SetPreSampleRate(s *pb.Span, rate float64) {
 	if rate < 1 {
@@ -168,6 +180,16 @@ func SetPreSampleRate(s *pb.Span, rate float64) {
 	} else {
 		// We assume missing value is 1 to save bandwidth (check getter).
 		delete(s.Metrics, KeySamplingRatePreSampler)
+	}
+}
+
+// SetPreSampleRateV1 sets the rate at which the trace this span belongs to was sampled by the agent's presampler.
+func SetPreSampleRateV1(s *idx.InternalSpan, rate float64) {
+	if rate < 1 {
+		s.SetFloat64Attribute(KeySamplingRatePreSampler, rate)
+	} else {
+		// We assume missing value is 1 to save bandwidth (check getter).
+		s.DeleteAttribute(KeySamplingRatePreSampler)
 	}
 }
 
@@ -187,6 +209,16 @@ func SetEventExtractionRate(s *pb.Span, rate float64) {
 	}
 }
 
+// SetEventExtractionRateV1 sets the rate at which the trace from which we extracted this event was sampled at the tracer.
+func SetEventExtractionRateV1(s *idx.InternalSpan, rate float64) {
+	if rate < 1 {
+		s.SetFloat64Attribute(KeySamplingRateEventExtraction, rate)
+	} else {
+		// reduce bandwidth, default is assumed 1.0 in backend
+		s.DeleteAttribute(KeySamplingRateEventExtraction)
+	}
+}
+
 // GetMaxEPSRate gets the rate at which this event was sampled by the max eps event sampler.
 func GetMaxEPSRate(s *pb.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateMaxEPSSampler, 1.0)
@@ -199,6 +231,16 @@ func SetMaxEPSRate(s *pb.Span, rate float64) {
 	} else {
 		// reduce bandwidth, default is assumed 1.0 in backend
 		delete(s.Metrics, KeySamplingRateMaxEPSSampler)
+	}
+}
+
+// SetMaxEPSRate sets the rate at which this event was sampled by the max eps event sampler.
+func SetMaxEPSRateV1(s *idx.InternalSpan, rate float64) {
+	if rate < 1 {
+		s.SetFloat64Attribute(KeySamplingRateMaxEPSSampler, rate)
+	} else {
+		// reduce bandwidth, default is assumed 1.0 in backend
+		s.DeleteAttribute(KeySamplingRateMaxEPSSampler)
 	}
 }
 
@@ -259,6 +301,14 @@ func getMetricDefault(s *pb.Span, k string, def float64) float64 {
 	return def
 }
 
+// getMetricDefault gets a value in the span Metrics map or default if no value is stored there.
+func getMetricDefaultV1(s *idx.InternalSpan, k string, def float64) float64 {
+	if val, ok := s.GetAttributeAsFloat64(k); ok {
+		return val
+	}
+	return def
+}
+
 // setMetric sets a value in the span Metrics map.
 func setMetric(s *pb.Span, key string, val float64) {
 	if s.Metrics == nil {
@@ -280,11 +330,40 @@ func SingleSpanSampling(pt *traceutil.ProcessedTrace) bool {
 	return false
 }
 
+// SingleSpanSampling does single span sampling on the trace, returning true if the trace was modified
+func SingleSpanSamplingV1(pt *traceutil.ProcessedTraceV1) bool {
+	ssSpans := getSingleSpanSampledSpansV1(pt)
+	if len(ssSpans) > 0 {
+		// Span sampling has kept some spans -> update the chunk
+		pt.TraceChunk.Spans = ssSpans
+		pt.TraceChunk.Priority = int32(PriorityUserKeep)
+		pt.TraceChunk.DroppedTrace = false
+		return true
+	}
+	return false
+}
+
 // GetSingleSpanSampledSpans searches chunk for spans that have a span sampling tag set and returns them.
 func getSingleSpanSampledSpans(pt *traceutil.ProcessedTrace) []*pb.Span {
 	var sampledSpans []*pb.Span
 	for _, span := range pt.TraceChunk.Spans {
 		if _, ok := traceutil.GetMetric(span, KeySpanSamplingMechanism); ok {
+			// Keep only those spans that have a span sampling tag.
+			sampledSpans = append(sampledSpans, span)
+		}
+	}
+	if sampledSpans == nil {
+		// No span sampling tags → no span sampling.
+		return nil
+	}
+	return sampledSpans
+}
+
+// GetSingleSpanSampledSpans searches chunk for spans that have a span sampling tag set and returns them.
+func getSingleSpanSampledSpansV1(pt *traceutil.ProcessedTraceV1) []*idx.InternalSpan {
+	var sampledSpans []*idx.InternalSpan
+	for _, span := range pt.TraceChunk.Spans {
+		if _, ok := span.GetAttributeAsFloat64(KeySpanSamplingMechanism); ok {
 			// Keep only those spans that have a span sampling tag.
 			sampledSpans = append(sampledSpans, span)
 		}

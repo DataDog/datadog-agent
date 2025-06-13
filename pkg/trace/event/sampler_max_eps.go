@@ -84,6 +84,18 @@ func (s *maxEPSSampler) Sample(event *pb.Span) (sampled bool, rate float64) {
 	return
 }
 
+func (s *maxEPSSampler) SampleV1(traceID uint64) (sampled bool, rate float64) {
+	// Count that we saw a new event
+	s.rateCounter.Count()
+	rate = 1.0
+	currentEPS := s.rateCounter.GetRate()
+	if currentEPS > s.maxEPS {
+		rate = s.maxEPS / currentEPS
+	}
+	sampled = sampler.SampleByRate(traceID, rate)
+	return
+}
+
 // getSampleRate returns the applied sample rate based on this sampler's current state.
 func (s *maxEPSSampler) getSampleRate() float64 {
 	rate := 1.0

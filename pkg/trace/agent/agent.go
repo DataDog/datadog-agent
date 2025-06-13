@@ -564,12 +564,12 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 		}
 
 		keep, numEvents := a.sampleV1(now, ts, pt)
-		// if !keep && len(pt.TraceChunk.Spans) == 0 {
-		// 	// The entire trace was dropped and no spans were kept.
-		// 	p.RemoveChunk(i)
-		// 	continue
-		// }
-		// p.ReplaceChunk(i, pt.TraceChunk)
+		if !keep && len(pt.TraceChunk.Spans) == 0 {
+			// The entire trace was dropped and no spans were kept.
+			p.TracerPayload.RemoveChunk(i)
+			continue
+		}
+		p.TracerPayload.ReplaceChunk(i, pt.TraceChunk)
 
 		// 	if !pt.TraceChunk.DroppedTrace {
 		// 		// Now that we know this trace has been sampled,
@@ -759,7 +759,7 @@ func (a *Agent) sampleV1(now time.Time, ts *info.TagStats, pt *traceutil.Process
 	// where a trace might be marked as DroppedTrace true, but we still sent analytics events in that ProcessedTrace.
 	keep, checkAnalyticsEvents := a.traceSamplingV1(now, ts, pt)
 
-	var events []*pb.Span
+	var events []*idx.InternalSpan
 	if checkAnalyticsEvents {
 		events = a.getAnalyzedEventsV1(pt, ts)
 	}
@@ -854,6 +854,14 @@ func (a *Agent) traceSamplingV1(now time.Time, ts *info.TagStats, pt *traceutil.
 // getAnalyzedEvents returns any sampled analytics events in the ProcessedTrace
 func (a *Agent) getAnalyzedEvents(pt *traceutil.ProcessedTrace, ts *info.TagStats) []*pb.Span {
 	numEvents, numExtracted, events := a.EventProcessor.Process(pt)
+	ts.EventsExtracted.Add(numExtracted)
+	ts.EventsSampled.Add(numEvents)
+	return events
+}
+
+// getAnalyzedEvents returns any sampled analytics events in the ProcessedTrace
+func (a *Agent) getAnalyzedEventsV1(pt *traceutil.ProcessedTraceV1, ts *info.TagStats) []*idx.InternalSpan {
+	numEvents, numExtracted, events := a.EventProcessor.ProcessV1(pt)
 	ts.EventsExtracted.Add(numExtracted)
 	ts.EventsSampled.Add(numEvents)
 	return events

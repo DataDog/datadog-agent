@@ -6,6 +6,7 @@
 package idx
 
 import (
+	"encoding/binary"
 	"fmt"
 	"strconv"
 	"strings"
@@ -141,6 +142,11 @@ func (tp *InternalTracerPayload) RemoveChunk(i int) {
 	tp.Chunks = tp.Chunks[:len(tp.Chunks)-1]
 }
 
+// ReplaceChunk replaces a chunk by its index.
+func (tp *InternalTracerPayload) ReplaceChunk(i int, chunk *InternalTraceChunk) {
+	tp.Chunks[i] = chunk
+}
+
 // AddString deduplicates the provided string and returns the index to reference it in the string table
 func (tp *InternalTracerPayload) AddString(s string) uint32 {
 	return tp.Strings.Add(s)
@@ -181,6 +187,11 @@ func (c *InternalTraceChunk) ShallowCopy() *InternalTraceChunk {
 		TraceID:          c.TraceID,
 		DecisionMakerRef: c.DecisionMakerRef,
 	}
+}
+
+// LegacyTraceID returns the trace ID of the trace chunk as a uint64, the lowest order 8 bytes of the trace ID are the legacy trace ID
+func (c *InternalTraceChunk) LegacyTraceID() uint64 {
+	return binary.BigEndian.Uint64(c.TraceID[8:])
 }
 
 func (c *InternalTraceChunk) Origin() string {
