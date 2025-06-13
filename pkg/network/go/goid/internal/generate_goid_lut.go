@@ -106,6 +106,7 @@ func run(
 	generator := &lutgen.LookupTableGenerator{
 		Package:                pkg,
 		MinGoVersion:           minGoVersion,
+		MaxGoVersion:           goversion.GoVersion{},
 		Architectures:          goArches,
 		CompilationParallelism: 1,
 		LookupFunctions: []lutgen.LookupFunction{{
