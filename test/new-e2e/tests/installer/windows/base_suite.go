@@ -167,8 +167,8 @@ func (s *BaseSuite) createStableAgent() {
 	}
 	// else, use the defaults (last stable release)
 
-	agentVersion := "7.66.0-devel"
-	agentVersionPackage := "7.66.0-devel.git.488.1ddea94.pipeline.62296915-1"
+	agentVersion := "7.68.0-rc.2"
+	agentVersionPackage := "7.68.0-rc.2-1"
 	// Allow override of version and version package via environment variables
 	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
 		agentVersion = val
@@ -191,7 +191,7 @@ func (s *BaseSuite) createStableAgent() {
 	previousMSI, err := windowsagent.NewPackage(
 		// TODO: update to last stable when there is one
 		windowsagent.WithVersion(agentVersionPackage),
-		windowsagent.WithURL("https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.66.0-devel.git.488.1ddea94.pipeline.62296915.msi"),
+		windowsagent.WithURL("https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.68.0-rc.2.msi"),
 		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
