@@ -9,13 +9,12 @@
 package model
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"math"
 	"net"
 	"reflect"
 	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 // to always require the math package
@@ -21558,12 +21557,131 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "setsockopt.filter_code":
+	case "setsockopt.filter.code":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &SockFilterIterator{Root: ev.SetSockOpt.Filter}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := int(element.Code)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "SetSockOpt.Filter", ctx, nil, func(ev *Event, current *SockFilter) int {
+					return int(current.Code)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.filter.jf":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &SockFilterIterator{Root: ev.SetSockOpt.Filter}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := int(element.Jf)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "SetSockOpt.Filter", ctx, nil, func(ev *Event, current *SockFilter) int {
+					return int(current.Jf)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.filter.jt":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &SockFilterIterator{Root: ev.SetSockOpt.Filter}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := int(element.Jt)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "SetSockOpt.Filter", ctx, nil, func(ev *Event, current *SockFilter) int {
+					return int(current.Jt)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.filter.k":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &SockFilterIterator{Root: ev.SetSockOpt.Filter}
+				if regID != "" {
+					value := iterator.At(ctx, regID, ctx.Registers[regID])
+					if value == nil {
+						return nil
+					}
+					element := *value
+					result := int(element.K)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "SetSockOpt.Filter", ctx, nil, func(ev *Event, current *SockFilter) int {
+					return int(current.K)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.filter.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				iterator := &SockFilterIterator{}
+				return iterator.Len(ctx)
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.filter_len":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.SetSockOpt.Filter_code)
+				return int(ev.SetSockOpt.Filter_len)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -21597,6 +21715,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.SetSockOpt.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.sk_protocol":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetSockOpt.Sk_protocol)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -28886,10 +29015,16 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.user_session.k8s_groups",
 		"setrlimit.target.user_session.k8s_uid",
 		"setrlimit.target.user_session.k8s_username",
-		"setsockopt.filter_code",
+		"setsockopt.filter.code",
+		"setsockopt.filter.jf",
+		"setsockopt.filter.jt",
+		"setsockopt.filter.k",
+		"setsockopt.filter.length",
+		"setsockopt.filter_len",
 		"setsockopt.level",
 		"setsockopt.optname",
 		"setsockopt.retval",
+		"setsockopt.sk_protocol",
 		"setsockopt.socket_type",
 		"setuid.euid",
 		"setuid.euser",
@@ -32030,13 +32165,25 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.user_session.k8s_username":
 		return "setrlimit", reflect.String, "string", nil
-	case "setsockopt.filter_code":
+	case "setsockopt.filter.code":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.filter.jf":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.filter.jt":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.filter.k":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.filter.length":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.filter_len":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.level":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.optname":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.retval":
+		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.sk_protocol":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.socket_type":
 		return "setsockopt", reflect.Int, "int", nil
@@ -39299,42 +39446,44 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.user_session.k8s_username"}
-		}
-		ev.Setrlimit.Target.Process.UserSession.K8SUsername = rv
-		return nil
-	case "setsockopt.filter_code":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.filter_code"}
-		}
-		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "setsockopt.filter_code"}
-		}
-		ev.SetSockOpt.Filter_code = uint16(rv)
-		return nil
 		return ev.setStringFieldValue("setrlimit.target.user_session.k8s_username", &ev.Setrlimit.Target.Process.UserSession.K8SUsername, value)
+	case "setsockopt.filter.code":
+		if len(ev.SetSockOpt.Filter) == 0 {
+			ev.SetSockOpt.Filter = append(ev.SetSockOpt.Filter, SockFilter{})
+		}
+		return ev.setUint16FieldValue("setsockopt.filter.code", &ev.SetSockOpt.Filter[0].Code, value)
+	case "setsockopt.filter.jf":
+		if len(ev.SetSockOpt.Filter) == 0 {
+			ev.SetSockOpt.Filter = append(ev.SetSockOpt.Filter, SockFilter{})
+		}
+		return ev.setUint8FieldValue("setsockopt.filter.jf", &ev.SetSockOpt.Filter[0].Jf, value)
+	case "setsockopt.filter.jt":
+		if len(ev.SetSockOpt.Filter) == 0 {
+			ev.SetSockOpt.Filter = append(ev.SetSockOpt.Filter, SockFilter{})
+		}
+		return ev.setUint8FieldValue("setsockopt.filter.jt", &ev.SetSockOpt.Filter[0].Jt, value)
+	case "setsockopt.filter.k":
+		if len(ev.SetSockOpt.Filter) == 0 {
+			ev.SetSockOpt.Filter = append(ev.SetSockOpt.Filter, SockFilter{})
+		}
+		return ev.setUint32FieldValue("setsockopt.filter.k", &ev.SetSockOpt.Filter[0].K, value)
+	case "setsockopt.filter.length":
+		if len(ev.SetSockOpt.Filter) == 0 {
+			ev.SetSockOpt.Filter = append(ev.SetSockOpt.Filter, SockFilter{})
+		}
+		return &eval.ErrFieldReadOnly{Field: "setsockopt.filter.length"}
+	case "setsockopt.filter_len":
+		return ev.setUint16FieldValue("setsockopt.filter_len", &ev.SetSockOpt.Filter_len, value)
 	case "setsockopt.level":
 		return ev.setUint32FieldValue("setsockopt.level", &ev.SetSockOpt.Level, value)
 	case "setsockopt.optname":
 		return ev.setUint32FieldValue("setsockopt.optname", &ev.SetSockOpt.OptName, value)
 	case "setsockopt.retval":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.retval"}
-		}
-		ev.SetSockOpt.SyscallEvent.Retval = int64(rv)
-		return nil
-	case "setsockopt.socket_type":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.socket_type"}
-		}
-		ev.SetSockOpt.Socket_type = uint32(rv)
-		return nil
 		return ev.setInt64FieldValue("setsockopt.retval", &ev.SetSockOpt.SyscallEvent.Retval, value)
+	case "setsockopt.sk_protocol":
+		return ev.setUint16FieldValue("setsockopt.sk_protocol", &ev.SetSockOpt.Sk_protocol, value)
+	case "setsockopt.socket_type":
+		return ev.setUint32FieldValue("setsockopt.socket_type", &ev.SetSockOpt.Socket_type, value)
 	case "setuid.euid":
 		return ev.setUint32FieldValue("setuid.euid", &ev.SetUID.EUID, value)
 	case "setuid.euser":

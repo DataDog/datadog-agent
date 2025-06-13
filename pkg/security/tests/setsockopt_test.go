@@ -57,7 +57,7 @@ func TestSetSockOpt(t *testing.T) {
 			}
 			defer syscall.Close(fd)
 
-			// Filtre BPF qui fait "rien" - accepte tous les paquets
+			// BPF Filter
 			program := []syscall.SockFilter{
 				{Code: 0x28, Jt: 0, Jf: 0, K: 0x0000000c},
 				{Code: 0x15, Jt: 0, Jf: 8, K: 0x000086dd},
@@ -85,12 +85,12 @@ func TestSetSockOpt(t *testing.T) {
 				{Code: 0x06, Jt: 0, Jf: 0, K: 0x00000000},
 			}
 
-			// Créer la structure du filtre BPF
+			// Create structure
 			filter := syscall.SockFprog{
 				Len:    uint16(len(program)),
 				Filter: &program[0],
 			}
-			// Affichage de la structure pour vérifier les paramètres
+			// Print structure for debugging
 			fmt.Printf("Len: %d\n", filter.Len)
 			fmt.Printf("Filter: %+v\n", filter)
 
