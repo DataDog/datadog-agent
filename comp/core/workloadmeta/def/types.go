@@ -1303,6 +1303,13 @@ func (p *Process) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
 	}
 
+	// If the source has service data that's newer, remove the one from destination so merge() takes latest service data from the source
+	if otherProcess.Service != nil {
+		if p.Service == nil || otherProcess.Service.LastHeartbeat >= p.Service.LastHeartbeat {
+			p.Service = nil
+		}
+	}
+
 	return merge(p, otherProcess)
 }
 
