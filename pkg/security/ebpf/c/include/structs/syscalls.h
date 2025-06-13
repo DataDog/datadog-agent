@@ -250,10 +250,11 @@ struct syscall_cache_t {
 
         struct {
             int socket_type;
+            u16 sk_protocol;
             int level;
             int optname;
             struct sock_fprog *fprog;
-            u16 filter_code;
+            unsigned short filter_len;
         } setsockopt;
     };
 };

@@ -547,12 +547,16 @@ type SyscallArgsSerializer struct {
 type SetSockOptEventSerializer struct {
 	// Socket file descriptor
 	Socket_type uint32 `json:"socket_type"`
+	// Socket protocol
+	Socket_protocol uint16 `json:"socket_protocol"`
 	// Level at which the option is defined
 	Level uint32 `json:"level"`
 	// Name of the option being set
 	OptName uint32 `json:"optname"`
-	// Value of the option being set
-	Filter_code uint16 `json:"filter_code,omitempty"`
+	// Length of the filter
+	Filter_len uint16 `json:"filter_len"`
+	// Filter data
+	Filter []*BPFFilterSerializer `json:"filter,omitempty"`
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
@@ -1269,13 +1273,28 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 		EventTypeState: e.EventTypeState.String(),
 	}
 }
-func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
-	return &SetSockOptEventSerializer{
-		Socket_type: e.SetSockOpt.Socket_type,
-		Level:       e.SetSockOpt.Level,
-		OptName:     e.SetSockOpt.OptName,
-		Filter_code: e.SetSockOpt.Filter_code,
+
+func newFilterSerializer(filter *model.SockFilter, e *model.Event) *BPFFilterSerializer {
+	return &BPFFilterSerializer{
+		Code: filter.Code,
+		Jt:   filter.Jt,
+		Jf:   filter.Jf,
+		K:    filter.K,
 	}
+}
+
+func newSetSockOptEventSerializer(se *model.SetSockOptEvent, e *model.Event) *SetSockOptEventSerializer {
+	s := &SetSockOptEventSerializer{
+		Socket_type:     e.SetSockOpt.Socket_type,
+		Socket_protocol: e.SetSockOpt.Sk_protocol,
+		Level:           e.SetSockOpt.Level,
+		OptName:         e.SetSockOpt.OptName,
+		Filter_len:      e.SetSockOpt.Filter_len,
+	}
+	for _, filter := range se.Filter {
+		s.Filter = append(s.Filter, newFilterSerializer(&filter, e))
+	}
+	return s
 }
 
 // ToJSON returns json
@@ -1579,7 +1598,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.SysCtlEventSerializer = newSysCtlEventSerializer(&event.SysCtl, event)
 	case model.SetSockOptEventType:
-		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
+		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(&event.SetSockOpt, event)
 	}
 
 	return s

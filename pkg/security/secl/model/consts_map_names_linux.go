@@ -83,6 +83,7 @@ var bpfMapNames = []string{
 	"security_profil",
 	"selinux_enforce",
 	"selinux_write_b",
+	"setsockopt_even",
 	"sk_storage_meta",
 	"sock_meta",
 	"span_tls",

@@ -989,11 +989,69 @@ type SysCtlEvent struct {
 	ValueTruncated    bool   `field:"value_truncated"`     // SECLDoc[value_truncated] Definition:`Indicates that the value field is truncated`
 }
 
+// Sock Filter represents a socket filter
+type SockFilter struct {
+	Code uint16 `field:"code"` // SECLDoc[code] Definition:`Socket filter code`
+	Jt   uint8  `field:"jt"`   // SECLDoc[jt] Definition:`Socket filter jump true`
+	Jf   uint8  `field:"jf"`   // SECLDoc[jf] Definition:`Socket filter jump false`
+	K    uint32 `field:"k"`    // SECLDoc[k] Definition:`Socket filter constant`
+}
+
 // SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
-	Socket_type uint32 `field:"socket_type"` // SECLDoc[socket_type] Definition:`Socket type`
-	Level       uint32 `field:"level"`       // SECLDoc[level] Definition:`Socket level`
-	OptName     uint32 `field:"optname"`     // SECLDoc[optname] Definition:`Socket option name`
-	Filter_code uint16 `field:"filter_code"` // SECLDoc[filter_code] Definition:`Socket filter code`
+	Socket_type uint32       `field:"socket_type"`                         // SECLDoc[socket_type] Definition:`Socket type`
+	Sk_protocol uint16       `field:"sk_protocol"`                         // SECLDoc[sk_protocol] Definition:`Socket protocol`
+	Level       uint32       `field:"level"`                               // SECLDoc[level] Definition:`Socket level`
+	OptName     uint32       `field:"optname"`                             // SECLDoc[optname] Definition:`Socket option name`
+	Filter_len  uint16       `field:"filter_len"`                          // SECLDoc[filter_len] Definition:`Length of the filter`
+	Filter      []SockFilter `field:"filter,iterator: SockFilterIterator"` // SECLDoc[filter] Definition:`Socket filter` Example:`set.sockopt.filter.code == 0x28` Description:`Matches a socket option filter with code 0x28`
+}
+
+type SockFilterIterator struct {
+	Root interface{} // not used, direct access from the event
+	prev int
+}
+
+// Front returns the first element
+func (it *SockFilterIterator) Front(ctx *eval.Context) *SockFilter {
+	if len(ctx.Event.(*Event).SetSockOpt.Filter) == 0 {
+		return nil
+	}
+
+	front := ctx.Event.(*Event).SetSockOpt.Filter[0]
+	it.prev = 0
+	return &front
+}
+
+// Next returns the next element
+func (it *SockFilterIterator) Next(ctx *eval.Context) *SockFilter {
+	if len(ctx.Event.(*Event).SetSockOpt.Filter) > it.prev+1 {
+		it.prev++
+		return &(ctx.Event.(*Event).SetSockOpt.Filter[it.prev])
+	}
+	return nil
+}
+
+// At returns the element at the given position
+func (it *SockFilterIterator) At(ctx *eval.Context, regID eval.RegisterID, pos int) *SockFilter {
+	if entry := ctx.RegisterCache[regID]; entry != nil && entry.Pos == pos {
+		return entry.Value.(*SockFilter)
+	}
+
+	if len(ctx.Event.(*Event).SetSockOpt.Filter) > pos {
+		filter := &(ctx.Event.(*Event).SetSockOpt.Filter[pos])
+		ctx.RegisterCache[regID] = &eval.RegisterCacheEntry{
+			Pos:   pos,
+			Value: filter,
+		}
+		return filter
+	}
+
+	return nil
+}
+
+// Len returns the len
+func (it *SockFilterIterator) Len(ctx *eval.Context) int {
+	return len(ctx.Event.(*Event).SetSockOpt.Filter)
 }

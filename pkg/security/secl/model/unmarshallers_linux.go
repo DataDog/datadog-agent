@@ -1516,13 +1516,28 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-
+	fmt.Printf("IN MARSHALLER: %d bytes\n", len(data))
 	e.Socket_type = binary.NativeEndian.Uint32(data[0:4])
-
-	e.Level = binary.NativeEndian.Uint32(data[4:8])
-	e.OptName = binary.NativeEndian.Uint32(data[8:12])
-	e.Filter_code = binary.NativeEndian.Uint16(data[12:14])
-	fmt.Print("SetSockOptEvent: ", e.Socket_type, e.Level, e.OptName, e.Filter_code, "\n")
-	fmt.Printf("MARSHAL RETURN")
-	return 14 + read, nil
+	e.Sk_protocol = binary.NativeEndian.Uint16(data[4:6])
+	// Padding here
+	e.Level = binary.NativeEndian.Uint32(data[8:12])
+	e.OptName = binary.NativeEndian.Uint32(data[12:16])
+	e.Filter_len = binary.NativeEndian.Uint16(data[16:18])
+	// Parse the filter here
+	filterStart := 18
+	filterLen := int(e.Filter_len)
+	filterSize := 8 // sizeof(sock_filter): 2 bytes Code, 1 byte Jt, 1 byte Jf, 4 bytes K
+	if len(data) < filterStart+filterLen*filterSize {
+		return 0, ErrNotEnoughData
+	}
+	for i := 0; i < filterLen; i++ {
+		offset := filterStart + i*filterSize
+		var filter SockFilter
+		filter.Code = binary.NativeEndian.Uint16(data[offset : offset+2])
+		filter.Jt = data[offset+2]
+		filter.Jf = data[offset+3]
+		filter.K = binary.NativeEndian.Uint32(data[offset+4 : offset+8])
+		e.Filter = append(e.Filter, filter)
+	}
+	return filterStart + filterLen*filterSize + read, nil
 }
