@@ -24,7 +24,7 @@ type component struct {
 	Config       any
 }
 
-// This actually applies the changes to the config, need to change these
+// Applies selected feature changes
 func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	var enabledFeatures []string
 
