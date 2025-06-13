@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditormock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -84,7 +83,7 @@ func (s *ReadEventsSuite) SetupTest() {
 func newtailer(evtapi evtapi.API, tailerconfig *Config, bookmark string, msgChan chan *message.Message) (*Tailer, error) {
 	source := sources.NewLogSource("", &logconfig.LogsConfig{})
 
-	tailer := NewTailer(evtapi, source, tailerconfig, msgChan, auditormock.NewMockAuditor())
+	tailer := NewTailer(evtapi, source, tailerconfig, msgChan)
 	tailer.Start(bookmark)
 	err := backoff.Retry(func() error {
 		if source.Status.IsSuccess() {

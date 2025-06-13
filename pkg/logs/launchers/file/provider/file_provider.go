@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -129,23 +128,17 @@ func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
 	w.counts[src] = matchCnt
 }
 
-func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter, registry auditor.Registry) []*tailer.File {
+func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter) []*tailer.File {
 	// Add each file one by one up to the limit
-	for _, file := range inputFiles {
-		// Unlike other tailers, there is a hard cap on the number of file tailers that can be concurrently active.
-		// This means that we can't rely on the tailers themselves to keep the registry entries alive, and we need to
-		// manually keep each valid file alive here.
-		registry.KeepAlive(file.Identifier())
-
-		if len(filesToTail) < p.filesLimit {
-			if ShouldIgnore(validatePodContainerID, file) {
-				continue
-			}
-			filesToTail = append(filesToTail, file)
-			src := file.Source.UnderlyingSource()
-			if config.ContainsWildcard(src.Config.Path) {
-				w.incrementTracked(src)
-			}
+	for j := 0; j < len(inputFiles) && len(filesToTail) < p.filesLimit; j++ {
+		file := inputFiles[j]
+		if ShouldIgnore(validatePodContainerID, file) {
+			continue
+		}
+		filesToTail = append(filesToTail, file)
+		src := file.Source.UnderlyingSource()
+		if config.ContainsWildcard(src.Config.Path) {
+			w.incrementTracked(src)
 		}
 	}
 
@@ -166,7 +159,7 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 // FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
 // Files are collected according to the fileProvider's wildcardOrder and selectionMode
-func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*sources.LogSource, registry auditor.Registry) []*tailer.File {
+func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*sources.LogSource) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -191,7 +184,7 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
 			}
 		}
 
@@ -207,7 +200,7 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 		}
 
 		p.applyOrdering(wildcardFiles)
-		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter, registry)
+		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter)
 	} else if p.selectionMode == greedySelection {
 		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
 		for _, source := range inputSources {
@@ -224,7 +217,7 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 				continue
 			}
 
-			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
+			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
 		}
 	} else {
 		log.Errorf("Invalid file selection mode '%v', no files selected.", p.selectionMode)

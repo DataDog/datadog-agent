@@ -15,15 +15,13 @@ import (
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestIsContainerEntry(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeRegistry := auditorMock.NewMockAuditor()
-	tailer := NewTailer(source, nil, nil, false, fakeTagger, fakeRegistry)
+	tailer := NewTailer(source, nil, nil, false, fakeTagger)
 
 	var entry *sdjournal.JournalEntry
 
@@ -41,8 +39,7 @@ func TestIsContainerEntry(t *testing.T) {
 func TestGetContainerID(t *testing.T) {
 	source := sources.NewLogSource("", &config.LogsConfig{})
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	fakeRegistry := auditorMock.NewMockAuditor()
-	tailer := NewTailer(source, nil, nil, false, fakeTagger, fakeRegistry)
+	tailer := NewTailer(source, nil, nil, false, fakeTagger)
 
 	entry := &sdjournal.JournalEntry{
 		Fields: map[string]string{

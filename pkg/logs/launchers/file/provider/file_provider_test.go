@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -124,7 +123,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
-	files := fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(1, len(files))
 	suite.False(files[0].IsWildcardPath)
@@ -139,7 +138,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(mockConfig, util.CreateSources(logSources))
-	files := fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -186,7 +185,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	util.CreateSources(logSources)
-	files := fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(2, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -203,7 +202,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(mockConfig, util.CreateSources(logSources))
-	files := fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
 	suite.True(files[0].IsWildcardPath)
@@ -226,7 +225,7 @@ func (suite *ProviderTestSuite) TestWildcardPathsAreSorted() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	fileProvider := NewFileProvider(filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	files := fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(5, len(files))
 	for i := 0; i < len(files); i++ {
 		suite.Assert().True(files[i].IsWildcardPath)
@@ -245,7 +244,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
 	status.InitStatus(mockConfig, util.CreateSources(logSources))
-	files := fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
@@ -265,7 +264,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
 	}
 	status.InitStatus(mockConfig, util.CreateSources(logSources))
-	files := fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
@@ -285,7 +284,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	os.Remove(fmt.Sprintf("%s/1/2.log", suite.testDir))
 	os.Remove(fmt.Sprintf("%s/1/3.log", suite.testDir))
 	os.Remove(fmt.Sprintf("%s/2/2.log", suite.testDir))
-	files = fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files = fileProvider.FilesToTail(true, logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"1 files tailed out of 1 files matching"}, logSources[0].Messages.GetMessages())
 
@@ -299,7 +298,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 
 	os.Remove(fmt.Sprintf("%s/2/1.log", suite.testDir))
 
-	files = fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files = fileProvider.FilesToTail(true, logSources)
 	suite.Equal(1, len(files))
 	suite.Equal([]string{"1 files tailed out of 1 files matching"}, logSources[0].Messages.GetMessages())
 
@@ -315,7 +314,7 @@ func (suite *ProviderTestSuite) TestExcludePath() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, ExcludePaths: excludePaths}),
 	}
 
-	files := fileProvider.FilesToTail(true, logSources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(3, len(files))
 	for i := 0; i < len(files); i++ {
 		suite.Assert().True(files[i].IsWildcardPath)
@@ -396,7 +395,7 @@ func TestFilesToTail(t *testing.T) {
 				sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/*")}),
 				sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 			}
-			files := fileProvider.FilesToTail(true, sources, auditor.NewMockAuditor())
+			files := fileProvider.FilesToTail(true, sources)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("a/z"), files[0].Path)
 			assert.Equal(t, fs.path("a/b"), files[1].Path)
@@ -425,7 +424,7 @@ func TestFilesToTail(t *testing.T) {
 				sources.NewLogSource("wildcardC", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/c*")}),
 				sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 			}
-			files := fileProvider.FilesToTail(true, sources, auditor.NewMockAuditor())
+			files := fileProvider.FilesToTail(true, sources)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("a/addd"), files[0].Path)
 			assert.Equal(t, fs.path("a/accc"), files[1].Path)
@@ -446,7 +445,7 @@ func TestFilesToTail(t *testing.T) {
 			sources := []*sources.LogSource{
 				sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")}),
 			}
-			files := fileProvider.FilesToTail(true, sources, auditor.NewMockAuditor())
+			files := fileProvider.FilesToTail(true, sources)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("a.log"), files[0].Path)
 			assert.Equal(t, fs.path("q.log"), files[1].Path)
@@ -466,7 +465,7 @@ func TestFilesToTail(t *testing.T) {
 				sources.NewLogSource("wildcard a", &config.LogsConfig{Type: config.FileType, Path: fs.path("a*")}),
 				sources.NewLogSource("wildcard b", &config.LogsConfig{Type: config.FileType, Path: fs.path("b*")}),
 			}
-			files := fileProvider.FilesToTail(true, sources, auditor.NewMockAuditor())
+			files := fileProvider.FilesToTail(true, sources)
 			assert.Len(t, files, 2)
 			assert.Equal(t, fs.path("abb.log"), files[0].Path)
 			assert.Equal(t, fs.path("aaa.log"), files[1].Path)
@@ -490,7 +489,7 @@ func TestFilesToTail(t *testing.T) {
 			sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("a/*")}),
 			sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 		}
-		files := fileProvider.FilesToTail(true, sources, auditor.NewMockAuditor())
+		files := fileProvider.FilesToTail(true, sources)
 		assert.Len(t, files, 2)
 		assert.Equal(t, fs.path("a/c"), files[0].Path)
 		assert.Equal(t, fs.path("b/c"), files[1].Path)
@@ -741,6 +740,6 @@ func TestContainerPathsAreCorrectlyIgnored(t *testing.T) {
 		kubeSource,
 		sources.NewLogSource("wildcardTwo", &config.LogsConfig{Type: config.FileType, Path: fs.path("b/*")}),
 	}
-	files := fileProvider.FilesToTail(true, sources, auditor.NewMockAuditor())
+	files := fileProvider.FilesToTail(true, sources)
 	assert.Len(t, files, 2) // 1 file from k8s source, 1 file from regular file source.
 }

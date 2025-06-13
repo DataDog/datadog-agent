@@ -18,7 +18,6 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -55,11 +54,10 @@ type Tailer struct {
 	// is called once for each log message.
 	tagProvider tag.Provider
 	tagger      tagger.Component
-	registry    auditor.Registry
 }
 
 // NewTailer returns a new tailer.
-func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool, tagger tagger.Component, registry auditor.Registry) *Tailer {
+func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool, tagger tagger.Component) *Tailer {
 	if len(source.Config.ProcessingRules) > 0 && processRawMessage {
 		log.Warn("The logs processing rules currently apply to the raw journald JSON-structured log. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
 		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
@@ -77,7 +75,6 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 		processRawMessage: processRawMessage,
 		tagProvider:       tag.NewLocalProvider([]string{}),
 		tagger:            tagger,
-		registry:          registry,
 	}
 }
 
@@ -93,7 +90,6 @@ func (t *Tailer) Start(cursor string) error {
 	}
 	t.source.Status.Success()
 	t.source.AddInput(t.Identifier())
-	t.registry.SetTailed(t.Identifier(), true)
 	log.Info("Start tailing journal ", t.journalPath(), " with id: ", t.Identifier())
 
 	go t.forwardMessages()
@@ -106,8 +102,6 @@ func (t *Tailer) Start(cursor string) error {
 // Stop stops the tailer
 func (t *Tailer) Stop() {
 	log.Info("Stop tailing journal ", t.journalPath(), " with id: ", t.Identifier())
-
-	t.registry.SetTailed(t.Identifier(), false)
 
 	// stop the tail() routine
 	t.stop <- struct{}{}
@@ -259,7 +253,6 @@ func (t *Tailer) tail() {
 		t.journal.Close()
 		t.decoder.Stop()
 	}()
-
 	for {
 		select {
 		case <-t.stop:

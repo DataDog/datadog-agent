@@ -1323,7 +1323,7 @@ int main(int argc, char **argv) {
             exit_code = test_mkdirat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "mkdirat-error") == 0) {
             exit_code = test_mkdirat_error(sub_argc, sub_argv);
-        } else if (strcmp(cmd, "process-credentials") == 0) {
+        } else if (strcmp(cmd, "process-set") == 0) {
             exit_code = test_process_set(sub_argc, sub_argv);
         } else if (strcmp(cmd, "self-exec") == 0) {
             exit_code = self_exec(sub_argc, sub_argv);
