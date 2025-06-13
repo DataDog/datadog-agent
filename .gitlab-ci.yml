@@ -1247,14 +1247,14 @@ workflow:
 # windows_docker_2022 configures the job to use the Windows Server 2022 runners.
 # Use in jobs that need to run on Windows Server 2022 runners.
 .windows_docker_2022:
-  tags: ["runner:windows-docker", "windowsversion:2022"]
+  tags: ["windows-v2:2022"]
   variables:
     # Full image name for Agent windows build image, for use in docker run command
     WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
 
 # The windows-v2 runner is currently only used in container_build jobs needed to do authenticated push. It should not replace the basic windows runner, unless agreeded first with #ci-infra team
 .windows_docker_v2_2022:
-  tags: ["windows-v2:2022"]
+  tags: ["windows-test-v2:2022"]
   variables:
     # Full image name for Agent windows build image, for use in docker run command
     WINBUILDIMAGE: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
