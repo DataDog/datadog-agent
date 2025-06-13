@@ -349,11 +349,7 @@ def version(_):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-<<<<<<< HEAD
-    # result is like "go version go1.23.9 linux/amd64"
-=======
     # result is like "go version go1.24.4 linux/amd64"
->>>>>>> 071237e404 ([automated] Update Go version to 1.24.4 (#37856))
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

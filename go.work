@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-go 1.23.9
-=======
 go 1.24.4
->>>>>>> 071237e404 ([automated] Update Go version to 1.24.4 (#37856))
 
 // Disable experimental post-quantum key exchange mechanism X25519Kyber768Draft00
 // This was causing errors with AWS Network Firewall
