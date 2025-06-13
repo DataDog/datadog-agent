@@ -375,6 +375,30 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 	}
 }
 
+// updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
+func (c *collector) updateServices(alivePids core.PidSet) []*workloadmeta.Process {
+	pidsToRequest, pidsToService := c.filterPidsToRequest(alivePids)
+	if len(pidsToRequest) == 0 {
+		return nil
+	}
+
+	resp, err := c.getDiscoveryServices(pidsToRequest)
+	if err != nil {
+		if time.Since(c.startTime) < c.startupTimeout {
+			log.Warnf("service collector: system-probe not started yet: %v", err)
+		} else {
+			log.Errorf("failed to get services: %s", err)
+		}
+		return nil
+	}
+
+	for i, service := range resp.Services {
+		pidsToService[int32(service.PID)] = &resp.Services[i]
+	}
+
+	return c.getProcessEntitiesFromServices(pidsToRequest, pidsToService)
+}
+
 // cleanPidMaps deletes dead PIDs from the provided maps.
 func cleanPidMaps[T any](alivePids core.PidSet, maps ...map[int32]T) {
 	for _, m := range maps {
@@ -453,27 +477,8 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 				alivePids.Add(pid)
 			}
 
-			pidsToRequest, pidsToService := c.filterPidsToRequest(alivePids)
-			if len(pidsToRequest) == 0 {
-				continue
-			}
-
-			resp, err := c.getDiscoveryServices(pidsToRequest)
-			if err != nil {
-				if time.Since(c.startTime) < c.startupTimeout {
-					log.Warnf("service collector: system-probe not started yet: %v", err)
-				} else {
-					log.Errorf("failed to get services: %s", err)
-				}
-				continue
-			}
-
-			for i, service := range resp.Services {
-				pidsToService[int32(service.PID)] = &resp.Services[i]
-			}
-
-			// Send service discovery events
-			wlmServiceEntities := c.getProcessEntitiesFromServices(pidsToRequest, pidsToService)
+			// update services from service discovery
+			wlmServiceEntities := c.updateServices(alivePids)
 			if len(wlmServiceEntities) > 0 {
 				c.processEventsCh <- &Event{
 					Type:    EventTypeServiceDiscovery,
