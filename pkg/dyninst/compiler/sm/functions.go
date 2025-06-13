@@ -42,8 +42,9 @@ func (ChasePointers) String() string {
 // at given injection PC.
 type ProcessEvent struct {
 	baseFunctionID
-	EventRootType *ir.EventRootType
+	ThrottlerIdx  int
 	InjectionPC   uint64
+	EventRootType *ir.EventRootType
 }
 
 // String returns a human-readable identifier for the function.

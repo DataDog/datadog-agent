@@ -744,14 +744,32 @@ func (v *rootVisitor) newProbe(
 			Type: nil,
 		},
 	}
+	var throttlePeriodMs uint32
+	var throttleBudget int64
+	switch c := probeCfg.(type) {
+	case *config.LogProbe:
+		if c.CaptureSnapshot {
+			throttlePeriodMs = 1000
+			throttleBudget = int64(c.Sampling.SnapshotsPerSecond)
+		} else {
+			throttlePeriodMs = 100
+			throttleBudget = 500
+		}
+	case *config.MetricProbe:
+		// Effectively unlimited.
+		throttlePeriodMs = 1000
+		throttleBudget = math.MaxInt
+	}
 	probe := &ir.Probe{
-		ID:         probeCfg.GetID(),
-		Subprogram: subprogram,
-		Kind:       kind,
-		Version:    probeCfg.GetVersion(),
-		Tags:       probeCfg.GetTags(),
-		Events:     events,
-		Snapshot:   captureSnapshot,
+		ID:               probeCfg.GetID(),
+		Subprogram:       subprogram,
+		Kind:             kind,
+		Version:          probeCfg.GetVersion(),
+		Tags:             probeCfg.GetTags(),
+		Events:           events,
+		Snapshot:         captureSnapshot,
+		ThrottlePeriodMs: throttlePeriodMs,
+		ThrottleBudget:   throttleBudget,
 	}
 	return probe, nil
 }
