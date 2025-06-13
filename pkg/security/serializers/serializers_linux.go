@@ -82,6 +82,22 @@ type FileSerializer struct {
 	MountSource string `json:"mount_source,omitempty"`
 	// MountOrigin origin of the mount
 	MountOrigin string `json:"mount_origin,omitempty"`
+
+	FileMetadata *FileMetadataSerializer `json:"metadata,omitempty"`
+}
+
+// FileMetadataSerializer serializes a file metadata
+// easyjson:json
+type FileMetadataSerializer struct {
+	Size               int64  `json:"size,omitempty"`
+	Type               string `json:"type,omitempty"`
+	IsExecutable       bool   `json:"is_executable,omitempty"`
+	Architecture       string `json:"architecture,omitempty"`
+	ABI                string `json:"abi,omitempty"`
+	IsUPXPacked        bool   `json:"is_upx_packed,omitempty"`
+	Compression        string `json:"compression,omitempty"`
+	IsGarbleObfuscated bool   `json:"is_garble_obfuscated,omitempty"`
+	// Linkage            string `json:"linkage,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -715,10 +731,10 @@ func getInUpperLayer(f *model.FileFields) *bool {
 	return &upperLayer
 }
 
-func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer {
+func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode uint64, metadata *model.FileMetadata) *FileSerializer {
 	inode := fe.Inode
-	if len(forceInode) > 0 {
-		inode = forceInode[0]
+	if forceInode > 0 {
+		inode = forceInode
 	}
 
 	fs := &FileSerializer{
@@ -744,6 +760,10 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
 	}
 
+	if metadata != nil {
+		fs.FileMetadata = newFileMetadataSerializer(metadata)
+	}
+
 	// lazy hash serialization: we don't want to hash files for every event
 	if fe.HashState == model.Done {
 		fs.Hashes = fe.Hashes
@@ -752,6 +772,20 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		fs.HashState = fe.HashState.String()
 	}
 	return fs
+}
+
+func newFileMetadataSerializer(m *model.FileMetadata) *FileMetadataSerializer {
+	return &FileMetadataSerializer{
+		Size:               m.Size,
+		Type:               model.FileType(m.Type).String(),
+		IsExecutable:       m.IsExecutable,
+		Architecture:       model.Architecture(m.Architecture).String(),
+		ABI:                model.ABI(m.ABI).String(),
+		IsUPXPacked:        m.IsUPXPacked,
+		Compression:        model.CompressionType(m.Compression).String(),
+		IsGarbleObfuscated: m.IsGarbleObfuscated,
+		// Linkage:            model.LinkageType(m.Linkage).String(),
+	}
 }
 
 func newCredentialsSerializer(ce *model.Credentials) *CredentialsSerializer {
@@ -792,7 +826,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			PPid:          createNumPointer(ps.PPid),
 			Comm:          ps.Comm,
 			TTY:           ps.TTYName,
-			Executable:    newFileSerializer(&ps.FileEvent, e),
+			Executable:    newFileSerializer(&ps.FileEvent, e, 0, nil),
 			Argv0:         argv0,
 			Args:          argv,
 			ArgsTruncated: argvTruncated,
@@ -805,7 +839,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		}
 
 		if ps.HasInterpreter() {
-			psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e)
+			psSerializer.Interpreter = newFileSerializer(&ps.LinuxBinprm.FileEvent, e, 0, nil)
 		}
 
 		credsSerializer := newCredentialsSerializer(&ps.Credentials)
@@ -1283,7 +1317,7 @@ func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
 	return &CGroupWriteEventSerializer{
-		File: newFileSerializer(&e.CgroupWrite.File, e),
+		File: newFileSerializer(&e.CgroupWrite.File, e, 0, nil),
 		Pid:  e.CgroupWrite.Pid,
 	}
 }
@@ -1348,7 +1382,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	switch eventType {
 	case model.FileChmodEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Chmod.File, event),
+			FileSerializer: *newFileSerializer(&event.Chmod.File, event, 0, nil),
 			Destination: &FileSerializer{
 				Mode: createNumPointer(event.Chmod.Mode),
 			},
@@ -1359,7 +1393,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		})
 	case model.FileChownEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Chown.File, event),
+			FileSerializer: *newFileSerializer(&event.Chown.File, event, 0, nil),
 			Destination: &FileSerializer{
 				UID: event.Chown.UID,
 				GID: event.Chown.GID,
@@ -1372,8 +1406,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	case model.FileLinkEventType:
 		// use the source inode as the target one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Link.Source, event),
-			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode),
+			FileSerializer: *newFileSerializer(&event.Link.Source, event, 0, nil),
+			Destination:    newFileSerializer(&event.Link.Target, event, event.Link.Source.Inode, nil),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Link.Retval)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Link.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
@@ -1381,7 +1415,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		})
 	case model.FileOpenEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Open.File, event),
+			FileSerializer: *newFileSerializer(&event.Open.File, event, 0, nil),
 		}
 
 		if event.Open.Flags&syscall.O_CREAT > 0 {
@@ -1397,7 +1431,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		})
 	case model.FileMkdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Mkdir.File, event),
+			FileSerializer: *newFileSerializer(&event.Mkdir.File, event, 0, nil),
 			Destination: &FileSerializer{
 				Mode: createNumPointer(event.Mkdir.Mode),
 			},
@@ -1409,7 +1443,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 
 	case model.FileRmdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Rmdir.File, event),
+			FileSerializer: *newFileSerializer(&event.Rmdir.File, event, 0, nil),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rmdir.Retval)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Rmdir.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
@@ -1417,7 +1451,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		})
 	case model.FileChdirEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
+			FileSerializer: *newFileSerializer(&event.Chdir.File, event, 0, nil),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chdir.Retval)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Chdir.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
@@ -1425,7 +1459,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		})
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
+			FileSerializer: *newFileSerializer(&event.Unlink.File, event, 0, nil),
 		}
 		s.FileSerializer.Flags = model.UnlinkFlags(event.Unlink.Flags).StringArray()
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Unlink.Retval)
@@ -1435,8 +1469,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	case model.FileRenameEventType:
 		// use the new inode as the old one is a fake inode
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Rename.Old, event, event.Rename.New.Inode),
-			Destination:    newFileSerializer(&event.Rename.New, event),
+			FileSerializer: *newFileSerializer(&event.Rename.Old, event, event.Rename.New.Inode, nil),
+			Destination:    newFileSerializer(&event.Rename.New, event, 0, nil),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Rename.Retval)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Rename.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
@@ -1444,7 +1478,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		})
 	case model.FileRemoveXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event),
+			FileSerializer: *newFileSerializer(&event.RemoveXAttr.File, event, 0, nil),
 			Destination: &FileSerializer{
 				XAttrName:      event.FieldHandlers.ResolveXAttrName(event, &event.RemoveXAttr),
 				XAttrNamespace: event.FieldHandlers.ResolveXAttrNamespace(event, &event.RemoveXAttr),
@@ -1453,7 +1487,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeOutcome(event.RemoveXAttr.Retval)
 	case model.FileSetXAttrEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.SetXAttr.File, event),
+			FileSerializer: *newFileSerializer(&event.SetXAttr.File, event, 0, nil),
 			Destination: &FileSerializer{
 				XAttrName:      event.FieldHandlers.ResolveXAttrName(event, &event.SetXAttr),
 				XAttrNamespace: event.FieldHandlers.ResolveXAttrNamespace(event, &event.SetXAttr),
@@ -1462,7 +1496,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeOutcome(event.SetXAttr.Retval)
 	case model.FileUtimesEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.Utimes.File, event),
+			FileSerializer: *newFileSerializer(&event.Utimes.File, event, 0, nil),
 			Destination: &FileSerializer{
 				Atime: utils.NewEasyjsonTimeIfNotZero(event.Utimes.Atime),
 				Mtime: utils.NewEasyjsonTimeIfNotZero(event.Utimes.Mtime),
@@ -1514,7 +1548,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 	case model.SELinuxEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.SELinux.File, event),
+			FileSerializer: *newFileSerializer(&event.SELinux.File, event, 0, nil),
 		}
 		s.SELinuxEventSerializer = newSELinuxSerializer(event)
 	case model.BPFEventType:
@@ -1524,7 +1558,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeOutcome(event.MMap.Retval)
 		if event.MMap.Flags&unix.MAP_ANONYMOUS == 0 {
 			s.FileEventSerializer = &FileEventSerializer{
-				FileSerializer: *newFileSerializer(&event.MMap.File, event),
+				FileSerializer: *newFileSerializer(&event.MMap.File, event, 0, nil),
 			}
 		}
 		s.MMapEventSerializer = newMMapEventSerializer(event)
@@ -1538,7 +1572,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeOutcome(event.LoadModule.Retval)
 		if !event.LoadModule.LoadedFromMemory {
 			s.FileEventSerializer = &FileEventSerializer{
-				FileSerializer: *newFileSerializer(&event.LoadModule.File, event),
+				FileSerializer: *newFileSerializer(&event.LoadModule.File, event, 0, nil),
 			}
 		}
 		s.ModuleEventSerializer = newLoadModuleEventSerializer(event)
@@ -1553,7 +1587,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.SpliceEventSerializer = newSpliceEventSerializer(event)
 		if event.Splice.File.Inode != 0 {
 			s.FileEventSerializer = &FileEventSerializer{
-				FileSerializer: *newFileSerializer(&event.Splice.File, event),
+				FileSerializer: *newFileSerializer(&event.Splice.File, event, 0, nil),
 			}
 		}
 	case model.AcceptEventType:
@@ -1574,8 +1608,11 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.IMDSEventSerializer = newIMDSEventSerializer(&event.IMDS)
 	case model.ExecEventType:
+		// only calling the first one, it will resolve all metadata fields
+		event.FieldHandlers.ResolveFileMetadataSize(event, &event.Exec.FileMetadata)
+
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event, 0, &event.Exec.FileMetadata),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event, func(ctx *SyscallContextSerializer, args *SyscallArgsSerializer) {
