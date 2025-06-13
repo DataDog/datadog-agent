@@ -434,7 +434,7 @@ func (t *Tailer) computeFingerPrint() { //we will have to modify this to read th
 	table := crc64.MakeTable(crc64.ISO)
 	checksum := crc64.Checksum([]byte(logsToHash), table)
 
-	fmt.Printf("This is our new hash", checksum)
+	fmt.Print("This is our new hash", checksum)
 
 }
 
