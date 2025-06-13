@@ -7,6 +7,7 @@
 package converterimpl
 
 import (
+	"slices"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -23,9 +24,28 @@ type component struct {
 	Config       any
 }
 
+// This actually applies the changes to the config, need to change these
 func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
-	// extensions
+	var enabledFeatures []string
+
+	// If not specified, assume all features are enabled
+	if c.coreConfig != nil {
+		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
+	} else {
+		enabledFeatures = []string{"infraattributes", "prometheus", "core", "pprof", "zpages", "health_check", "ddflare"}
+	}
+
+	// No features selected
+	if len(enabledFeatures) == 0 {
+		return
+	}
+
+	// extensions (pprof, zpages, health_check, ddflare)
 	for _, extension := range extensions {
+		if !slices.Contains(enabledFeatures, extension.Name) {
+			continue
+		}
+
 		if extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
@@ -34,13 +54,18 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	}
 
 	// infra attributes processor
-	addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
-
+	if slices.Contains(enabledFeatures, "infraattributes") {
+		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
+	}
 	// prometheus receiver
-	addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+	if slices.Contains(enabledFeatures, "prometheus") {
+		addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+	}
 
 	// add datadog agent sourced config
-	addCoreAgentConfig(conf, c.coreConfig)
+	if slices.Contains(enabledFeatures, "core") {
+		addCoreAgentConfig(conf, c.coreConfig)
+	}
 }
 
 func componentName(fullName string) string {

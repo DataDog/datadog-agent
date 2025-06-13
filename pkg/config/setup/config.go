@@ -929,6 +929,22 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
+	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "core", "pprof", "zpages", "health_check", "ddflare"}, "DD_OTELCOLLECTOR_FEATURES")
+	config.ParseEnvAsStringSlice("otelcollector.converter.features", func(s string) []string {
+		// Either commas or spaces can be used as separators.
+		// Comma takes precedence as it was the only supported separator in the past for other implementations.
+		// Mixing separators is not supported.
+		var res []string
+		if strings.ContainsRune(s, ',') {
+			res = strings.Split(s, ",")
+		} else {
+			res = strings.Split(s, " ")
+		}
+		for i, v := range res {
+			res[i] = strings.TrimSpace(v)
+		}
+		return res
+	})
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
