@@ -1,14 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "process",
+    name = "processlanguages",
     srcs = [
         "process_collector.go",
         "process_collector_nop.go",
         "process_data.go",
         "stub.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/process",
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/processlanguages",
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
     deps = select({
         "@rules_go//go/platform:aix": [
