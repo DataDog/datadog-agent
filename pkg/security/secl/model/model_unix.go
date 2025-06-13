@@ -409,6 +409,7 @@ func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
 type ExecEvent struct {
 	SyscallContext
 	*Process
+	FileMetadata FileMetadata `field:"file.metadata"`
 
 	// Syscall context aliases
 	SyscallPath string `field:"syscall.path,ref:exec.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`

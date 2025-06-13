@@ -64,3 +64,20 @@ func SetRegistryMultiString(host *components.RemoteHost, path string, name strin
 	_, err := host.Execute(cmd)
 	return err
 }
+
+// SetNewItemDWORDProperty sets a DWORD value at the specified path
+func SetNewItemDWORDProperty(host *components.RemoteHost, path string, name string, value int) error {
+	return SetNewItemProperty(host, path, name, fmt.Sprintf("%d", value), "DWORD")
+}
+
+// SetNewItemProperty sets a new item property on the remote host
+//
+// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/new-itemproperty?view=powershell-7.5
+func SetNewItemProperty(host *components.RemoteHost, path string, name string, value string, typeName string) error {
+	cmd := fmt.Sprintf("New-ItemProperty -Path '%s' -Name '%s' -PropertyType '%s' -Value '%s' -Force", path, name, typeName, value)
+	_, err := host.Execute(cmd)
+	if err != nil {
+		return err
+	}
+	return nil
+}
