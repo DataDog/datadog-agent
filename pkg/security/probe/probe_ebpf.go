@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -241,9 +242,18 @@ func (p *EBPFProbe) selectFentryMode() {
 		p.useFentry = false
 		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
 		return
-	} else if p.kernelVersion.Code != 0 && p.kernelVersion.Code >= kernel.Kernel6_11 {
+	}
+
+	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
+	if err != nil {
 		p.useFentry = false
-		seclog.Errorf("fentry disabled on kernels >= 6.11, falling back to kprobe mode")
+		seclog.Errorf("fentry enabled but failed to verify tail call support: %v, falling back to kprobe mode", err)
+		return
+	}
+
+	if tailCallsBroken {
+		p.useFentry = false
+		seclog.Errorf("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported), falling back to kprobe mode")
 		return
 	}
 
@@ -616,7 +626,7 @@ func (p *EBPFProbe) Start() error {
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
-	if p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
+	if p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
 		// start sysctl snapshot loop
 		go p.startSysCtlSnapshotLoop()
 	}
@@ -656,6 +666,21 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	}
 
 	p.Walk(entryToEvent)
+
+	// order events so that they're dispatched in creation time order
+	sort.Slice(events, func(i, j int) bool {
+		eventA := events[i]
+		eventB := events[j]
+
+		tsA := eventA.ProcessContext.ExecTime
+		tsB := eventB.ProcessContext.ExecTime
+		if tsA.IsZero() || tsB.IsZero() || tsA.Equal(tsB) {
+			return eventA.PIDContext.Pid < eventB.PIDContext.Pid
+		}
+
+		return tsA.Before(tsB)
+	})
+
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
@@ -2357,7 +2382,7 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	}
 
 	if !p.config.RuntimeSecurity.SysCtlEnabled {
-		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetSysCtlProbeFunctionName())
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
 	return nil
 }

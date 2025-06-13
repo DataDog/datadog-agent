@@ -144,8 +144,21 @@ func (m *MockSS) NetstatCommand() error {
 	return errors.New("forced to use netstat")
 }
 
+func createTestNetworkCheck(mockNetStats networkStats) *NetworkCheck {
+	return &NetworkCheck{
+		net: mockNetStats,
+		config: networkConfig{
+			instance: networkInstanceConfig{
+				CollectRateMetrics:        true,
+				WhitelistConntrackMetrics: []string{"max", "count"},
+				UseSudoConntrack:          true,
+			},
+		},
+	}
+}
+
 func TestDefaultConfiguration(t *testing.T) {
-	check := NetworkCheck{}
+	check := createTestNetworkCheck(nil)
 	check.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, []byte(``), []byte(``), "test")
 
 	assert.Equal(t, false, check.config.instance.CollectConnectionState)
@@ -154,9 +167,10 @@ func TestDefaultConfiguration(t *testing.T) {
 }
 
 func TestConfiguration(t *testing.T) {
-	check := NetworkCheck{}
+	check := createTestNetworkCheck(nil)
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
+collect_count_metrics: true
 excluded_interfaces:
     - eth0
     - lo0
@@ -377,12 +391,11 @@ func TestNetworkCheck(t *testing.T) {
 	mockSS := new(MockSS)
 	ssAvailableFunction = mockSS.NetstatCommand
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 collect_connection_state: true
+collect_count_metrics: true
 collect_ethtool_stats: true
 `)
 
@@ -535,9 +548,7 @@ func TestExcludedInterfaces(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 excluded_interfaces:
@@ -626,9 +637,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 excluded_interface_re: "eth[0-9]"
@@ -713,9 +722,7 @@ func TestFetchEthtoolStats(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_stats: true`), []byte(``), "test")
@@ -762,9 +769,7 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 		},
 	}
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	mockSender := mocksender.NewMockSender(networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, []byte(`collect_ethtool_stats: true`), []byte(``), "test")
@@ -788,9 +793,7 @@ func TestFetchEthtoolStatsENOTTY(t *testing.T) {
 
 func TestNetstatAndSnmpCountersUsingCorrectMockedProcfsPath(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -826,9 +829,7 @@ IpExt: 801 439 120 439`),
 
 func TestNetstatAndSnmpCountersWrongConfiguredLocation(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/wrong_mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/wrong_mocked/procfs"
@@ -858,9 +859,7 @@ IpExt: 801 439 120 439`),
 
 func TestNetstatAndSnmpCountersNoColonFile(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -895,9 +894,7 @@ procfs_path: "/mocked/procfs"
 
 func TestNetstatAndSnmpCountersBadDataLine(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -931,9 +928,7 @@ procfs_path: "/mocked/procfs"
 
 func TestNetstatAndSnmpCountersMismatchedColumns(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -970,9 +965,7 @@ IpExt: 801 439 120 439`),
 
 func TestNetstatAndSnmpCountersLettersForNumbers(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -1008,9 +1001,7 @@ IpExt: 801 439 120 439`),
 
 func TestConntrackMonotonicCount(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -1048,9 +1039,7 @@ conntrack_path: ""
 
 func TestConntrackGaugeBlacklist(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -1092,9 +1081,7 @@ blacklist_conntrack_metrics: ["count", "entries", "max"]
 
 func TestConntrackGaugeWhitelist(t *testing.T) {
 	net := &defaultNetworkStats{procPath: "/mocked/procfs"}
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 
 	rawInstanceConfig := []byte(`
 procfs_path: "/mocked/procfs"
@@ -1157,9 +1144,8 @@ func TestFetchQueueStatsSS(t *testing.T) {
 
 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
+
 	fakeInstanceConfig := []byte(`conntrack_path: "None"
 collect_connection_state: true
 collect_connection_queues: true`)
@@ -1205,9 +1191,7 @@ func TestFetchQueueStatsNetstat(t *testing.T) {
 
 	mockCommandRunner.On("FakeRunCommand", mock.Anything, mock.Anything).Return([]byte("0"), nil)
 
-	networkCheck := NetworkCheck{
-		net: net,
-	}
+	networkCheck := createTestNetworkCheck(net)
 	fakeInstanceConfig := []byte(`conntrack_path: "None"
 collect_connection_state: true
 collect_connection_queues: true`)

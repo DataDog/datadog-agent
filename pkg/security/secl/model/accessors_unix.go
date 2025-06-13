@@ -26,6 +26,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("bind"),
 		eval.EventType("bpf"),
 		eval.EventType("capset"),
+		eval.EventType("cgroup_write"),
 		eval.EventType("chdir"),
 		eval.EventType("chmod"),
 		eval.EventType("chown"),
@@ -400,6 +401,241 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.CgroupWrite.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.CgroupWrite.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.CgroupWrite.File.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.CgroupWrite.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "chdir.file.change_time":
@@ -1890,6 +2126,94 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.abi":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataABI(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.architecture":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataArchitecture(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.compression":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataCompression(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.is_executable":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataIsExecutable(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.is_garble_obfuscated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataIsGarbleObfuscated(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.is_upx_packed":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataIsUPXPacked(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.size":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveFileMetadataSize(ev, &ev.Exec.FileMetadata))
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataType(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exec.file.mode":
@@ -22501,6 +22825,27 @@ func (ev *Event) GetFields() []eval.Field {
 		"cgroup.id",
 		"cgroup.manager",
 		"cgroup.version",
+		"cgroup_write.file.change_time",
+		"cgroup_write.file.filesystem",
+		"cgroup_write.file.gid",
+		"cgroup_write.file.group",
+		"cgroup_write.file.hashes",
+		"cgroup_write.file.in_upper_layer",
+		"cgroup_write.file.inode",
+		"cgroup_write.file.mode",
+		"cgroup_write.file.modification_time",
+		"cgroup_write.file.mount_id",
+		"cgroup_write.file.name",
+		"cgroup_write.file.name.length",
+		"cgroup_write.file.package.name",
+		"cgroup_write.file.package.source_version",
+		"cgroup_write.file.package.version",
+		"cgroup_write.file.path",
+		"cgroup_write.file.path.length",
+		"cgroup_write.file.rights",
+		"cgroup_write.file.uid",
+		"cgroup_write.file.user",
+		"cgroup_write.pid",
 		"chdir.file.change_time",
 		"chdir.file.filesystem",
 		"chdir.file.gid",
@@ -22633,6 +22978,14 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.file.hashes",
 		"exec.file.in_upper_layer",
 		"exec.file.inode",
+		"exec.file.metadata.abi",
+		"exec.file.metadata.architecture",
+		"exec.file.metadata.compression",
+		"exec.file.metadata.is_executable",
+		"exec.file.metadata.is_garble_obfuscated",
+		"exec.file.metadata.is_upx_packed",
+		"exec.file.metadata.size",
+		"exec.file.metadata.type",
 		"exec.file.mode",
 		"exec.file.modification_time",
 		"exec.file.mount_id",
@@ -24008,6 +24361,48 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "cgroup.version":
 		return "", reflect.Int, "int", nil
+	case "cgroup_write.file.change_time":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.filesystem":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.gid":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.group":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.hashes":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.in_upper_layer":
+		return "cgroup_write", reflect.Bool, "bool", nil
+	case "cgroup_write.file.inode":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.mode":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.modification_time":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.mount_id":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.name":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.name.length":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.package.name":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.package.source_version":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.package.version":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.path":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.path.length":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.rights":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.uid":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.user":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.pid":
+		return "cgroup_write", reflect.Int, "int", nil
 	case "chdir.file.change_time":
 		return "chdir", reflect.Int, "int", nil
 	case "chdir.file.filesystem":
@@ -24271,6 +24666,22 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exec.file.in_upper_layer":
 		return "exec", reflect.Bool, "bool", nil
 	case "exec.file.inode":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.abi":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.architecture":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.compression":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.is_executable":
+		return "exec", reflect.Bool, "bool", nil
+	case "exec.file.metadata.is_garble_obfuscated":
+		return "exec", reflect.Bool, "bool", nil
+	case "exec.file.metadata.is_upx_packed":
+		return "exec", reflect.Bool, "bool", nil
+	case "exec.file.metadata.size":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.type":
 		return "exec", reflect.Int, "int", nil
 	case "exec.file.mode":
 		return "exec", reflect.Int, "int", nil
@@ -27121,6 +27532,152 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.CGroupContext.CGroupVersion = int(rv)
 		return nil
+	case "cgroup_write.file.change_time":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.change_time"}
+		}
+		ev.CgroupWrite.File.FileFields.CTime = uint64(rv)
+		return nil
+	case "cgroup_write.file.filesystem":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.filesystem"}
+		}
+		ev.CgroupWrite.File.Filesystem = rv
+		return nil
+	case "cgroup_write.file.gid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.gid"}
+		}
+		ev.CgroupWrite.File.FileFields.GID = uint32(rv)
+		return nil
+	case "cgroup_write.file.group":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.group"}
+		}
+		ev.CgroupWrite.File.FileFields.Group = rv
+		return nil
+	case "cgroup_write.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.CgroupWrite.File.Hashes = append(ev.CgroupWrite.File.Hashes, rv)
+		case []string:
+			ev.CgroupWrite.File.Hashes = append(ev.CgroupWrite.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.hashes"}
+		}
+		return nil
+	case "cgroup_write.file.in_upper_layer":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.in_upper_layer"}
+		}
+		ev.CgroupWrite.File.FileFields.InUpperLayer = rv
+		return nil
+	case "cgroup_write.file.inode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.inode"}
+		}
+		ev.CgroupWrite.File.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "cgroup_write.file.mode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "cgroup_write.file.mode"}
+		}
+		ev.CgroupWrite.File.FileFields.Mode = uint16(rv)
+		return nil
+	case "cgroup_write.file.modification_time":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.modification_time"}
+		}
+		ev.CgroupWrite.File.FileFields.MTime = uint64(rv)
+		return nil
+	case "cgroup_write.file.mount_id":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.mount_id"}
+		}
+		ev.CgroupWrite.File.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "cgroup_write.file.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.name"}
+		}
+		ev.CgroupWrite.File.BasenameStr = rv
+		return nil
+	case "cgroup_write.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "cgroup_write.file.name.length"}
+	case "cgroup_write.file.package.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.package.name"}
+		}
+		ev.CgroupWrite.File.PkgName = rv
+		return nil
+	case "cgroup_write.file.package.source_version":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.package.source_version"}
+		}
+		ev.CgroupWrite.File.PkgSrcVersion = rv
+		return nil
+	case "cgroup_write.file.package.version":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.package.version"}
+		}
+		ev.CgroupWrite.File.PkgVersion = rv
+		return nil
+	case "cgroup_write.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.path"}
+		}
+		ev.CgroupWrite.File.PathnameStr = rv
+		return nil
+	case "cgroup_write.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "cgroup_write.file.path.length"}
+	case "cgroup_write.file.rights":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "cgroup_write.file.rights"}
+		}
+		ev.CgroupWrite.File.FileFields.Mode = uint16(rv)
+		return nil
+	case "cgroup_write.file.uid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.uid"}
+		}
+		ev.CgroupWrite.File.FileFields.UID = uint32(rv)
+		return nil
+	case "cgroup_write.file.user":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.user"}
+		}
+		ev.CgroupWrite.File.FileFields.User = rv
+		return nil
+	case "cgroup_write.pid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.pid"}
+		}
+		ev.CgroupWrite.Pid = uint32(rv)
+		return nil
 	case "chdir.file.change_time":
 		rv, ok := value.(int)
 		if !ok {
@@ -28195,6 +28752,62 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "exec.file.inode"}
 		}
 		ev.Exec.Process.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "exec.file.metadata.abi":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.abi"}
+		}
+		ev.Exec.FileMetadata.ABI = int(rv)
+		return nil
+	case "exec.file.metadata.architecture":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.architecture"}
+		}
+		ev.Exec.FileMetadata.Architecture = int(rv)
+		return nil
+	case "exec.file.metadata.compression":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.compression"}
+		}
+		ev.Exec.FileMetadata.Compression = int(rv)
+		return nil
+	case "exec.file.metadata.is_executable":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.is_executable"}
+		}
+		ev.Exec.FileMetadata.IsExecutable = rv
+		return nil
+	case "exec.file.metadata.is_garble_obfuscated":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.is_garble_obfuscated"}
+		}
+		ev.Exec.FileMetadata.IsGarbleObfuscated = rv
+		return nil
+	case "exec.file.metadata.is_upx_packed":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.is_upx_packed"}
+		}
+		ev.Exec.FileMetadata.IsUPXPacked = rv
+		return nil
+	case "exec.file.metadata.size":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.size"}
+		}
+		ev.Exec.FileMetadata.Size = int64(rv)
+		return nil
+	case "exec.file.metadata.type":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.type"}
+		}
+		ev.Exec.FileMetadata.Type = int(rv)
 		return nil
 	case "exec.file.mode":
 		if ev.Exec.Process == nil {
