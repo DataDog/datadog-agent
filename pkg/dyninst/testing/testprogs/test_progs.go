@@ -40,15 +40,15 @@ const helpMsg = "consider running `dda inv system-probe.build-dyninst-test-progr
 // use in tests. In scenarios where the source code is available, other
 // configurations may still be available via GetBinary.
 func GetCommonConfigs(t *testing.T) []Config {
-	return must(t, func(state *state) ([]Config, error) {
-		return state.commonConfigs, nil
+	return must(t, func(State *State) ([]Config, error) {
+		return State.CommonConfigs, nil
 	}, "get common configs")
 }
 
 // GetPrograms returns a list of programs that are available for testing.
 func GetPrograms(t *testing.T) []string {
-	return must(t, func(state *state) ([]string, error) {
-		return state.programs, nil
+	return must(t, func(State *State) ([]string, error) {
+		return State.Programs, nil
 	}, "get programs")
 }
 
@@ -56,50 +56,51 @@ func GetPrograms(t *testing.T) []string {
 // configuration.  If the binary is not found, it will be compiled if the source
 // code is available.
 func GetBinary(t *testing.T, name string, cfg Config) string {
-	return must(t, func(state *state) (string, error) {
-		return getBinary(state, name, cfg)
+	return must(t, func(State *State) (string, error) {
+		return getBinary(State, name, cfg)
 	}, "get binary")
 }
 
-// must is a helper function that gets the state and calls the given function.
+// must is a helper function that gets the State and calls the given function.
 // If the function returns an error, it will fail the test.
-func must[A any](t *testing.T, f func(*state) (A, error), errMsg string) A {
-	state, err := getState()
+func must[A any](t *testing.T, f func(*State) (A, error), errMsg string) A {
+	State, err := GetState()
 	if err != nil {
 		t.Fatalf("testprogs: %v", err)
 	}
-	a, err := f(state)
+	a, err := f(State)
 	if err != nil {
 		t.Fatalf("testprogs: %s: %v", errMsg, err)
 	}
 	return a
 }
 
-type state struct {
-	// A list of common configurations that are available for testing.
-	commonConfigs []Config
-	// A list of programs that are available for testing.
-	programs []string
-	// The directory where the binaries are stored.
-	binariesDir string
-	// The directory where the source code is stored, may be empty if the
+type State struct {
+	// CommonConfigs is a list of common configurations that are available for testing.
+	CommonConfigs []Config
+	// Programs is a list of programs that are available for testing.
+	Programs []string
+	// BinariesDir is the directory where the binaries are stored.
+	BinariesDir string
+	// ProgsSrcDir is the directory where the source code is stored, may be empty if the
 	// source code is not available.
-	progsSrcDir string
-	// Whether the source code is available.
-	haveSources bool
-	// The directory where the probe configs are stored.
-	probesCfgsDir string
-	// the directory where the expected output files are stored.
-	expectedOutputDir string
+	ProgsSrcDir string
+	// HaveSources is whether the source code is available.
+	HaveSources bool
+	// ProbesCfgsDir is the directory where the probe configs are stored.
+	ProbesCfgsDir string
+	// ExpectedOutputDir is the directory where the expected output files are stored.
+	ExpectedOutputDir string
 }
 
 var (
-	globalState     state
+	globalState     State
 	globalStateErr  error
 	globalStateOnce sync.Once
 )
 
-func getState() (*state, error) {
+// GetState returns the State of the testprogs package.
+func GetState() (*State, error) {
 	globalStateOnce.Do(func() {
 		var haveSources bool
 		var progsSrcDir string
@@ -122,7 +123,7 @@ func getState() (*state, error) {
 func initStateFromBinaries(
 	haveSources bool,
 	progsSrcDir string,
-) (state, error) {
+) (State, error) {
 	pkgPath := strings.TrimPrefix(
 		reflect.TypeOf(Config{}).PkgPath(),
 		"github.com/DataDog/datadog-agent/",
@@ -135,19 +136,19 @@ func initStateFromBinaries(
 		}
 		binariesDir = path.Join("..", binariesDir)
 	}
-	return state{}, fmt.Errorf("binaries directory not found; %s", helpMsg)
+	return State{}, fmt.Errorf("binaries directory not found; %s", helpMsg)
 found:
 	binariesDir, err := filepath.Abs(binariesDir)
 	if err != nil {
-		return state{}, fmt.Errorf("failed to get absolute path for binaries directory: %w", err)
+		return State{}, fmt.Errorf("failed to get absolute path for binaries directory: %w", err)
 	}
 	probesCfgsDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/probes"))
 	if err != nil {
-		return state{}, fmt.Errorf("failed to get absolute path for probes directory: %w", err)
+		return State{}, fmt.Errorf("failed to get absolute path for probes directory: %w", err)
 	}
-	expectedOutputDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/expected_output"))
+	expectedOutputDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/output"))
 	if err != nil {
-		return state{}, fmt.Errorf("failed to get absolute path for expected output directory: %w", err)
+		return State{}, fmt.Errorf("failed to get absolute path for expected output directory: %w", err)
 	}
 	// Now we want to iterate over the binaries directory and read the
 	// packages names of the directories as well as parsing out the
@@ -156,7 +157,7 @@ found:
 	configs := map[Config]struct{}{}
 	files, err := os.ReadDir(binariesDir)
 	if err != nil {
-		return state{}, fmt.Errorf("failed to read binaries directory: %w", err)
+		return State{}, fmt.Errorf("failed to read binaries directory: %w", err)
 	}
 	for _, file := range files {
 		if !file.IsDir() {
@@ -164,11 +165,11 @@ found:
 		}
 		cfg, err := parseConfig(file.Name())
 		if err != nil {
-			return state{}, fmt.Errorf("failed to parse config from directory name: %w", err)
+			return State{}, fmt.Errorf("failed to parse config from directory name: %w", err)
 		}
 		files, err := os.ReadDir(path.Join(binariesDir, file.Name()))
 		if err != nil {
-			return state{}, fmt.Errorf("failed to read program directory: %w", err)
+			return State{}, fmt.Errorf("failed to read program directory: %w", err)
 		}
 		for _, file := range files {
 			name := file.Name()
@@ -177,7 +178,7 @@ found:
 			}
 			info, err := file.Info()
 			if err != nil {
-				return state{}, fmt.Errorf("failed to get file info: %w", err)
+				return State{}, fmt.Errorf("failed to get file info: %w", err)
 			}
 			if !info.Mode().IsRegular() {
 				continue
@@ -205,20 +206,20 @@ found:
 		)
 	})
 
-	return state{
-		commonConfigs:     commonConfigs,
-		programs:          programs,
-		binariesDir:       binariesDir,
-		progsSrcDir:       progsSrcDir,
-		haveSources:       haveSources,
-		probesCfgsDir:     probesCfgsDir,
-		expectedOutputDir: expectedOutputDir,
+	return State{
+		CommonConfigs:     commonConfigs,
+		Programs:          programs,
+		BinariesDir:       binariesDir,
+		ProgsSrcDir:       progsSrcDir,
+		HaveSources:       haveSources,
+		ProbesCfgsDir:     probesCfgsDir,
+		ExpectedOutputDir: expectedOutputDir,
 	}, nil
 }
 
 // GetBinary returns the path to the binary for the given name and metadata.
 func getBinary(
-	state *state,
+	State *State,
 	name string,
 	cfg Config,
 ) (string, error) {
@@ -226,8 +227,8 @@ func getBinary(
 		return "", fmt.Errorf("invalid metadata: %w", err)
 	}
 
-	binariesDir := state.binariesDir
-	progsSrcDir := state.progsSrcDir
+	binariesDir := State.BinariesDir
+	progsSrcDir := State.ProgsSrcDir
 	binaryDir := path.Join(binariesDir, cfg.String())
 	binaryPath := path.Join(binaryDir, name)
 	progDir := path.Join(progsSrcDir, name)
@@ -247,7 +248,7 @@ func getBinary(
 		)
 	}
 
-	if state.haveSources {
+	if State.HaveSources {
 		upToDate, err := checkIfUpToDate(progDir, binInfo)
 		if err != nil {
 			return "", fmt.Errorf(

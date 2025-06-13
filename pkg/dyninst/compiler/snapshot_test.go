@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testing/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
@@ -54,7 +54,7 @@ func runTest(
 	caseName string,
 ) {
 	binPath := testprogs.GetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.GetProbeCfgs(t, caseName)
+	probesCfgs := testprogs.GetProbeConfigs(t, caseName)
 	elfFile, err := safeelf.Open(binPath)
 	require.NoError(t, err)
 	obj, err := object.NewElfObject(elfFile)

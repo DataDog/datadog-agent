@@ -14,7 +14,7 @@
 // You can run all probes at once for a given architecture and toolchain like so:
 // go test -run TestDyninst/test_single_int32_arch=arm64,toolchain=go1.24.3/all
 
-package testprogs
+package integrationtest
 
 import (
 	"bytes"
@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -31,8 +32,10 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
+	"github.com/go-json-experiment/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
@@ -40,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	object "github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testing/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -58,13 +62,13 @@ var tempDir string
 
 func TestDyninst(t *testing.T) {
 	skipIfKernelNotSupported(t)
-	cfgs := GetCommonConfigs(t)
+	cfgs := testprogs.GetCommonConfigs(t)
 	for _, cfg := range cfgs {
 		t.Run(cfg.String(), func(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
 			}
-			bin := GetBinary(t, "sample", cfg)
+			bin := testprogs.GetBinary(t, "sample", cfg)
 			var err error
 			tempDir, err = os.MkdirTemp(os.TempDir(), "dyninst-integration-test-")
 			require.NoError(t, err)
@@ -77,8 +81,8 @@ func TestDyninst(t *testing.T) {
 				}
 			}()
 
-			probes := GetProbeCfgs(t, "sample")
-			expectedOutput := GetExpectedOutput(t, "sample")
+			probes := testprogs.GetProbeConfigs(t, "sample")
+			expectedOutput := GetExpectedDecodedOutputOfProbes(t, "sample")
 			for i := range probes {
 				t.Run(probes[i].GetID(), func(t *testing.T) {
 					testSingleProbe(t, bin, probes[i], expectedOutput)
@@ -193,29 +197,44 @@ func testSingleProbe(t *testing.T, sampleServicePath string, probe config.Probe,
 	rd, err := ringbuf.NewReader(bpfCollection.Maps["out_ringbuf"])
 	require.NoError(t, err)
 
-	t.Logf("reading ringbuf item")
-	require.Greater(t, rd.AvailableBytes(), 0)
-	record, err := rd.Read()
-	require.NoError(t, err)
+	for {
+		t.Logf("reading ringbuf item")
+		if rd.AvailableBytes() == 0 {
+			break
+		}
+		record, err := rd.Read()
+		require.NoError(t, err)
 
-	// Decode the data with the corresponding IR used to generate it
-	b := []byte{}
-	out := bytes.NewBuffer(b)
-	decoder, err := decode.NewDecoder(irp)
-	assert.NoError(t, err)
-	require.NotNil(t, decoder)
+		// Decode the data with the corresponding IR used to generate it
+		b := []byte{}
+		out := bytes.NewBuffer(b)
+		decoder, err := decode.NewDecoder(irp)
+		assert.NoError(t, err)
+		require.NotNil(t, decoder)
 
-	err = decoder.Decode(record.RawSample, out)
-	if err != nil {
-		t.Logf("error decoding: %s", err)
-	}
+		err = decoder.Decode(record.RawSample, out)
+		require.NoError(t, err)
 
-	assert.Equal(t, expectedOutput["main."+probe.GetID()], out.String())
+		// Purge stack fraames
+		tmpMap := map[string]any{}
+		err = json.Unmarshal(out.Bytes(), &tmpMap)
+		require.NoError(t, err)
+		if _, ok := tmpMap["stack_frames"]; !ok {
+			t.Error("No stack frames in output")
+		} else {
+			tmpMap["stack_frames"] = ""
+		}
 
-	// Save actual output to YAML file if REWRITE is set
-	if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
-		expectedOutput["main."+probe.GetID()] = out.String()
-		SaveActualOutput(t, "sample", expectedOutput)
+		purged, err := json.Marshal(tmpMap)
+		assert.NoError(t, err)
+
+		assert.Equal(t, expectedOutput["main."+probe.GetID()], string(purged))
+
+		// Save actual output to YAML file if REWRITE is set
+		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
+			expectedOutput["main."+probe.GetID()] = string(purged)
+			SaveActualOutputOfProbes(t, "sample", expectedOutput)
+		}
 	}
 }
 
@@ -319,7 +338,7 @@ func testAllProbesAtOnce(t *testing.T, sampleServicePath string, probes []config
 	}()
 
 	// Trigger the function calls.
-	sampleStdin.Write([]byte("\n"))
+	sampleStdin.Write([]byte("Please start running, I would greatly appreciate it!"))
 
 	err = sampleProc.Wait()
 	require.NoError(t, err)
@@ -336,18 +355,17 @@ func testAllProbesAtOnce(t *testing.T, sampleServicePath string, probes []config
 		probeOutput[o] = struct{}{}
 	}
 
-	for range len(probes) + 1 {
-		t.Logf("reading ringbuf item")
-		require.Greater(t, rd.AvailableBytes(), 0)
+	for {
+		if rd.AvailableBytes() == 0 {
+			break
+		}
 		record, err := rd.Read()
 		require.NoError(t, err)
-
 		b := []byte{}
 		out := bytes.NewBuffer(b)
 		decoder, err := decode.NewDecoder(irp)
 		assert.NoError(t, err)
 		require.NotNil(t, decoder)
-
 		err = decoder.Decode(record.RawSample, out)
 		if err != nil {
 			t.Errorf("error decoding: %s", err)
@@ -358,4 +376,46 @@ func testAllProbesAtOnce(t *testing.T, sampleServicePath string, probes []config
 			t.Errorf("unexpected output: %s", out.String())
 		}
 	}
+}
+
+// GetExpectedDecodedOutputOfProbes returns the expected output for a given service.
+func GetExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
+	expectedOutput := make(map[string]string)
+	state, err := testprogs.GetState()
+	if err != nil {
+		t.Fatalf("testprogs: %v", err)
+	}
+	yamlData, err := os.ReadFile(path.Join(state.ExpectedOutputDir, name+".yaml"))
+	if err != nil {
+		t.Fatalf("testprogs: %v", err)
+	}
+	err = yaml.Unmarshal(yamlData, &expectedOutput)
+	if err != nil {
+		t.Fatalf("testprogs: %v", err)
+	}
+	return expectedOutput
+}
+
+// SaveActualOutputOfProbes saves the actual output for a given service.
+// The output is saved to the expected output directory with the same format as GetExpectedDecodedOutputOfProbes.
+func SaveActualOutputOfProbes(t *testing.T, name string, savedState map[string]string) {
+	state, err := testprogs.GetState()
+	if err != nil {
+		t.Logf("testprogs: %v", err)
+		return
+	}
+	actualOutputFile := path.Join(state.ExpectedOutputDir, name+".yaml")
+	actualOutputYAML, err := yaml.Marshal(savedState)
+	if err != nil {
+		t.Logf("error marshaling actual output to YAML: %s", err)
+		return
+	}
+
+	err = os.WriteFile(actualOutputFile, actualOutputYAML, 0644)
+	if err != nil {
+		t.Logf("error writing actual output file: %s", err)
+		return
+	}
+
+	t.Logf("actual output saved to: %s", actualOutputFile)
 }

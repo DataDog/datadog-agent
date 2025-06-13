@@ -132,7 +132,7 @@ probes:
   type: LOG_PROBE
   where:
     method_name: main.testUint16Array
-  - id: testUint32Array
+- id: testUint32Array
   type: LOG_PROBE
   where:
     method_name: main.testUint32Array
