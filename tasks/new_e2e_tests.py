@@ -62,7 +62,7 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_path = output_path / binary_name
 
         # Build test binary
-        cmd = f"go test -c -tags '{build_tags}' -ldflags='-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
 
         result = ctx.run(cmd, hide=True)
         if result.ok:
@@ -120,7 +120,7 @@ def build_binaries(
         has_go_tests = any(f.endswith("_test.go") for f in files)
         if has_go_tests:
             # Convert to Go package path
-            pkg_path = os.path.relpath(root, ".")
+            pkg_path = os.path.relpath(root, "./test/new-e2e")
             test_packages.append(pkg_path)
 
     if not test_packages:
@@ -137,35 +137,35 @@ def build_binaries(
     success_count = 0
     failure_count = 0
     built_packages = []  # Track successfully built packages with their info
+    with ctx.cd("test/new-e2e"):
+        with ThreadPoolExecutor(max_workers=parallel) as executor:
+            # Submit all build jobs
+            futures = {
+                executor.submit(_build_single_binary, ctx, pkg, build_tags, output_path, print_lock): pkg
+                for pkg in test_packages
+            }
 
-    with ThreadPoolExecutor(max_workers=parallel) as executor:
-        # Submit all build jobs
-        futures = {
-            executor.submit(_build_single_binary, ctx, pkg, build_tags, output_path, print_lock): pkg
-            for pkg in test_packages
-        }
+            # Process completed builds
+            for i, future in enumerate(as_completed(futures), 1):
+                pkg = futures[future]
+                try:
+                    pkg_result, success, message = future.result()
+                    if success:
+                        success_count += 1
+                        # Store the original package path and binary name
+                        binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
+                        built_packages.append((pkg_result, binary_name))
+                    else:
+                        failure_count += 1
 
-        # Process completed builds
-        for i, future in enumerate(as_completed(futures), 1):
-            pkg = futures[future]
-            try:
-                pkg_result, success, message = future.result()
-                if success:
-                    success_count += 1
-                    # Store the original package path and binary name
-                    binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
-                    built_packages.append((pkg_result, binary_name))
-                else:
+                    # Print progress
+                    with print_lock:
+                        print(f"Progress: {i}/{len(test_packages)} completed")
+
+                except Exception as e:
                     failure_count += 1
-
-                # Print progress
-                with print_lock:
-                    print(f"Progress: {i}/{len(test_packages)} completed")
-
-            except Exception as e:
-                failure_count += 1
-                with print_lock:
-                    print(f"  ✗ Unexpected error building {pkg}: {e}")
+                    with print_lock:
+                        print(f"  ✗ Unexpected error building {pkg}: {e}")
 
     print(f"\nBuild completed: {success_count} successful, {failure_count} failed")
     print(f"Test binaries built in: {output_path.absolute()}")

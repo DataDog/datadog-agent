@@ -110,10 +110,11 @@ go_e2e_test_binaries:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST
+    - tar czf test-binaries.tar.gz test-binaries
   artifacts:
     expire_in: 1 day
     paths:
-      - test-binaries/
+      - test-binaries.tar.gz
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
