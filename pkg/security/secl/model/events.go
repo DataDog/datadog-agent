@@ -179,6 +179,8 @@ func (t EventType) String() string {
 		return "chown"
 	case FileUtimesEventType:
 		return "utimes"
+	case FileFsmountEventType:
+		return "fsmount"
 	case FileMountEventType:
 		return "mount"
 	case FileUmountEventType:
