@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 // PrepTmpDir creates a temporary directory and a suitable cleanup function.
@@ -47,7 +46,7 @@ func PrepTmpDir(t *testing.T, prefix string) (string, func()) {
 
 // GenerateIr generates an IR program based on a binary and a config files.
 func GenerateIr(t *testing.T, tempDir string, binPath string, cfgName string) (obj *object.ElfFile, irp *ir.Program) {
-	binary, err := safeelf.Open(binPath)
+	binary, err := os.Open(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
 
