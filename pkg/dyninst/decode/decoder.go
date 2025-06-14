@@ -27,6 +27,8 @@ type probeEvent struct {
 	probe *ir.Probe
 }
 
+var stringDataTypeID uint32 = 0
+
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
@@ -50,6 +52,11 @@ func NewDecoder(program *ir.Program) (*Decoder, error) {
 			}
 		}
 	}
+	for k, v := range decoder.program.Types {
+		if _, ok := v.(*ir.GoStringDataType); ok {
+			stringDataTypeID = uint32(k)
+		}
+	}
 	return decoder, nil
 }
 
@@ -62,13 +69,38 @@ type typeAndAddr struct {
 
 // Decode decodes the given event into the given writer.
 func (d *Decoder) Decode(event output.Event, out io.Writer) error {
-
-	frames, err := event.StackPCs()
+	enc := jsontext.NewEncoder(out)
+	err := enc.WriteToken(jsontext.BeginObject)
 	if err != nil {
 		return err
 	}
-	enc := jsontext.NewEncoder(out)
-	err = enc.WriteToken(jsontext.BeginObject)
+
+	eventHeader, err := event.Header()
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.String("event_id"))
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.Uint(uint64(eventHeader.Event_id)))
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.String("program_id"))
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.Uint(uint64(eventHeader.Prog_id)))
+	if err != nil {
+		return err
+	}
+
+	frames, err := event.StackPCs()
 	if err != nil {
 		return err
 	}
@@ -291,7 +323,7 @@ func (d *Decoder) encodeValue(
 			}
 		}
 		stringValue, ok := dataItems[typeAndAddr{
-			irType: uint32(irType.GetID()),
+			irType: stringDataTypeID,
 			addr:   address,
 		}]
 		if !ok {
@@ -305,8 +337,6 @@ func (d *Decoder) encodeValue(
 			return err
 		}
 		return nil
-	case *ir.GoStringDataType:
-		return errorUnimplemented
 	case *ir.GoMapType:
 		return errorUnimplemented
 	case *ir.GoHMapHeaderType:
