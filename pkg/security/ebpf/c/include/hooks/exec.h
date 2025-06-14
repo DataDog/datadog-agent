@@ -344,9 +344,6 @@ TAIL_CALL_FNC_WITH_HOOK_POINT("do_exit", flush_network_stats_exit, ctx_t *ctx) {
 
 HOOK_ENTRY("do_exit")
 int hook_do_exit(ctx_t *ctx) {
-    if (is_network_flow_monitor_enabled()) {
-        bpf_tail_call_compat(ctx, &flush_network_stats_progs, PID_EXIT);
-    }
     return handle_do_exit(ctx);
 }
 
@@ -785,9 +782,6 @@ TAIL_CALL_FNC_WITH_HOOK_POINT("mprotect_fixup", flush_network_stats_exec, ctx_t 
 
 HOOK_ENTRY("mprotect_fixup")
 int hook_mprotect_fixup(ctx_t *ctx) {
-    if (is_network_flow_monitor_enabled()) {
-        bpf_tail_call_compat(ctx, &flush_network_stats_progs, PID_EXEC);
-    }
     return send_exec_event(ctx);
 }
 
