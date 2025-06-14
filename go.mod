@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.24.0
+go 1.24.2
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -476,7 +476,7 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e
 	github.com/kraken-hpc/go-fork v0.1.1
 	github.com/mattn/go-sqlite3 v1.14.24
-	github.com/safchain/ethtool v0.5.10
+	github.com/safchain/ethtool v0.6.1
 	github.com/shirou/gopsutil/v4 v4.25.5
 	go.opentelemetry.io/collector/component/componenttest v0.128.0
 	modernc.org/sqlite v1.36.2 // indirect
