@@ -17,6 +17,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -37,7 +38,9 @@ func SetupHandlers(
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-
+	r.HandleFunc("/api/v1/install-info/get", installinfo.HandleGetInstallInfo).Methods("GET")
+	r.HandleFunc("/api/v1/install-info/set", installinfo.HandleSetInstallInfo).Methods("POST")
+	r.HandleFunc("/api/v1/install-info/clear", installinfo.HandleClearInstallInfo).Methods("DELETE")
 	return r
 }
 
