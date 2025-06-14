@@ -70,7 +70,7 @@ func (p *FrameParser) Parse(buffer []byte) error {
 		return fmt.Errorf("Parse: %w", err)
 	}
 	if err := p.checkLayers(); err != nil {
-		return err
+		return &common.BadPacketError{Err: err}
 	}
 	return nil
 }
@@ -121,15 +121,15 @@ func (p IPPair) Flipped() IPPair {
 }
 
 func getIPv4Pair(ip4 *layers.IPv4) IPPair {
-	srcAddr, ok := netip.AddrFromSlice(ip4.SrcIP)
+	srcAddr, ok := common.UnmappedAddrFromSlice(ip4.SrcIP)
 	if !ok {
 		return IPPair{}
 	}
-	dstAddr, ok := netip.AddrFromSlice(ip4.DstIP)
+	dstAddr, ok := common.UnmappedAddrFromSlice(ip4.DstIP)
 	if !ok {
 		return IPPair{}
 	}
-	return IPPair{srcAddr, dstAddr}
+	return IPPair{SrcAddr: srcAddr, DstAddr: dstAddr}
 }
 
 // GetIPPair gets the IPPair of the IP layer
@@ -163,16 +163,37 @@ func ParseTCPFirstBytes(buffer []byte) (TCPInfo, error) {
 	return tcp, nil
 }
 
+// SerializeTCPFirstBytes serializes the first 8 bytes of a TCP packet, used for testing
+func SerializeTCPFirstBytes(tcp TCPInfo) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint16(buf[0:2], tcp.SrcPort)
+	binary.BigEndian.PutUint16(buf[2:4], tcp.DstPort)
+	binary.BigEndian.PutUint32(buf[4:8], tcp.Seq)
+	return buf
+}
+
 // ICMPInfo encodes the information relevant to traceroutes from an ICMP response
 type ICMPInfo struct {
 	// IPPair is the source/dest IPs from the IP layer
 	IPPair IPPair
-	// ICMPType is the kind of ICMP packet (e.g. TTL exceeded)
-	ICMPType layers.ICMPv4TypeCode
+	// WrappedPacketID is the packet ID from the wrapped IP payload
+	WrappedPacketID uint16
 	// ICMPPair is the source/dest IPs from the wrapped IP payload
 	ICMPPair IPPair
 	// Payload is the payload from within the wrapped IP packet, typically containing the first 8 bytes of TCP/UDP.
 	Payload []byte
+}
+
+// IsTTLExceeded returns true if the packet is a TTL exceeded ICMP response
+func (p *FrameParser) IsTTLExceeded() bool {
+	switch p.GetTransportLayer() {
+	case layers.LayerTypeICMPv4:
+		return p.ICMP4.TypeCode == layers.CreateICMPv4TypeCode(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
+	case layers.LayerTypeICMPv6:
+		return p.ICMP6.TypeCode == layers.CreateICMPv6TypeCode(layers.ICMPv6TypeTimeExceeded, layers.ICMPv6CodeHopLimitExceeded)
+	default:
+		return false
+	}
 }
 
 // GetICMPInfo gets the ICMP details relevant to traceroutes from an ICMP response
@@ -190,10 +211,10 @@ func (p *FrameParser) GetICMPInfo() (ICMPInfo, error) {
 		}
 
 		icmpInfo := ICMPInfo{
-			IPPair:   ipPair,
-			ICMPType: p.ICMP4.TypeCode,
-			ICMPPair: getIPv4Pair(&innerPkt),
-			Payload:  slices.Clone(innerPkt.Payload),
+			IPPair:          ipPair,
+			WrappedPacketID: innerPkt.Id,
+			ICMPPair:        getIPv4Pair(&innerPkt),
+			Payload:         slices.Clone(innerPkt.Payload),
 		}
 		return icmpInfo, nil
 	default:
@@ -201,9 +222,6 @@ func (p *FrameParser) GetICMPInfo() (ICMPInfo, error) {
 		return ICMPInfo{}, fmt.Errorf("GetICMPInfo: unexpected layer type %s", p.Layers[1])
 	}
 }
-
-// TTLExceeded4 is the TTL Exceeded ICMP4 TypeCode
-var TTLExceeded4 = layers.CreateICMPv4TypeCode(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
 
 func (p *FrameParser) getParser(buffer []byte) (*gopacket.DecodingLayerParser, error) {
 	if len(buffer) < 1 {
@@ -216,6 +234,6 @@ func (p *FrameParser) getParser(buffer []byte) (*gopacket.DecodingLayerParser, e
 	case 6:
 		return p.parserv6, nil
 	default:
-		return nil, fmt.Errorf("unexpected IP version %d", version)
+		return nil, &common.BadPacketError{Err: fmt.Errorf("unexpected IP version %d", version)}
 	}
 }
