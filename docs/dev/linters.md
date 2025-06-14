@@ -49,7 +49,7 @@ A: This could have several causes:
 
 ### About the new-from-rev golangci-lint parameter
 
-Introducing the `revive` linter in the codebase caused hundreds of errors to appear in the CI. As such, [the `new-from-rev` parameter](https://github.com/DataDog/datadog-agent/blob/fcb19ce078e7969d285565beec5d374c5fd623e1/.golangci.yml#L65-L68) was added to only display linter issues from changes made after the commit that enabled `revive`. [See the Golang documentation](https://golangci-lint.run/usage/faq/#how-to-integrate-golangci-lint-into-large-project-with-thousands-of-issues) for more information.
+Introducing the `revive` linter in the codebase caused hundreds of errors to appear in the CI. As such, [the `new-from-rev` parameter](https://github.com/DataDog/datadog-agent/blob/fcb19ce078e7969d285565beec5d374c5fd623e1/.golangci.yml#L65-L68) was added to only display linter issues from changes made after the commit that enabled `revive`. [See the Golang documentation](https://golangci-lint.run/welcome/faq/#how-to-integrate-golangci-lint-into-large-project-with-thousands-of-issues) for more information.
 
 In a scenario where you have a legacy file hello.go with 100 linter issues, the new-from-rev parameter removes them all. But if you rename the file to hello_world.go, or move it to another folder, all the linter issues reappear. See [issue 4349](https://github.com/golangci/golangci-lint/issues/4349) in the golangci repo for more information.
 
