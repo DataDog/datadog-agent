@@ -591,15 +591,18 @@ def _clean_stacks(ctx: Context, skip_destroy: bool):
 
     if not skip_destroy:
         stacks = _get_existing_stacks(ctx)
+        print('CELIAN DONT CLEAN STACK FOR', os.getenv("CI_PIPELINE_ID"))
         for stack in stacks:
-            print(f"🔥 Destroying stack {stack}")
-            _destroy_stack(ctx, stack)
+            print(f"🔥 Look at this stack which isn't cleaned: {stack}")
+            # print(f"🔥 Destroying stack {stack}")
+            # _destroy_stack(ctx, stack)
 
     # get stacks again as they may have changed after destroy
     stacks = _get_existing_stacks(ctx)
     for stack in stacks:
-        print(f"🗑️ Removing stack {stack}")
-        _remove_stack(ctx, stack)
+        print(f"🗑 Look at this stack which isn't removed: {stack}")
+        # print(f"🗑️ Removing stack {stack}")
+        # _remove_stack(ctx, stack)
 
 
 def _get_existing_stacks(ctx: Context) -> list[str]:
