@@ -18,16 +18,44 @@ typedef enum {
     __MAX_REDIS_COMMAND
 } __attribute__ ((packed)) redis_command_t;
 
+typedef enum {
+    REDIS_NO_ERR,
+    REDIS_ERR_UNKNOWN,
+    REDIS_ERR_ERR,
+    REDIS_ERR_WRONGTYPE,
+    REDIS_ERR_NOAUTH,
+    REDIS_ERR_NOPERM,
+    REDIS_ERR_BUSY,
+    REDIS_ERR_NOSCRIPT,
+    REDIS_ERR_LOADING,
+    REDIS_ERR_READONLY,
+    REDIS_ERR_EXECABORT,
+    REDIS_ERR_MASTERDOWN,
+    REDIS_ERR_MISCONF,
+    REDIS_ERR_CROSSSLOT,
+    REDIS_ERR_TRYAGAIN,
+    REDIS_ERR_ASK,
+    REDIS_ERR_MOVED,
+    REDIS_ERR_CLUSTERDOWN,
+    REDIS_ERR_NOREPLICAS,
+    REDIS_ERR_OOM,
+    REDIS_ERR_NOQUORUM,
+    REDIS_ERR_BUSYKEY,
+    REDIS_ERR_UNBLOCKED,
+    REDIS_ERR_WRONGPASS,
+    REDIS_ERR_INVALIDOBJ
+} __attribute__ ((packed)) redis_error_t;
+
 // Redis in-flight transaction info
 typedef struct {
-    char buf[MAX_KEY_LEN];
-    __u64 request_started;
-    __u64 response_last_seen;
-    __u16 buf_len;
-    redis_command_t command;
-    __u8 tags;
-    bool truncated;
-    bool is_error;
+    char buf[MAX_KEY_LEN];        // 128 bytes
+    __u64 request_started;        // 8 bytes
+    __u64 response_last_seen;     // 8 bytes
+    __u16 buf_len;               // 2 bytes
+    redis_error_t error;          // 1 byte
+    redis_command_t command;      // 1 byte
+    __u8 tags;                   // 1 byte
+    bool truncated;              // 1 byte
 } redis_transaction_t;
 
 // The struct we send to userspace, containing the connection tuple and the transaction information.

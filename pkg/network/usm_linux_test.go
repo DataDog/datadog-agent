@@ -126,8 +126,8 @@ func TestRedisStats(t *testing.T) {
 
 	redisStats := make(map[redis.Key]*redis.RequestStats)
 	redisStats[key] = &redis.RequestStats{
-		ErrorToStats: map[bool]*redis.RequestStat{
-			false: {Count: 2},
+		ErrorToStats: map[redis.ErrorType]*redis.RequestStat{
+			redis.NoErr: {Count: 2},
 		},
 	}
 	usmStats := make(map[protocols.ProtocolType]interface{})
@@ -157,8 +157,8 @@ func TestRedisStatsWithMultipleClients(t *testing.T) {
 		redisStats := make(map[redis.Key]*redis.RequestStats)
 		key := redis.NewKey(c.Source, c.Dest, c.SPort, c.DPort, redis.GetCommand, keyName, false)
 		redisStats[key] = &redis.RequestStats{
-			ErrorToStats: map[bool]*redis.RequestStat{
-				false: {Count: 2},
+			ErrorToStats: map[redis.ErrorType]*redis.RequestStat{
+				redis.NoErr: {Count: 2},
 			},
 		}
 

@@ -16,6 +16,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
+var errorTypeStringMap = map[ErrorType]string{
+	NoErr:       "NO_ERR",
+	UnknownErr:  "ERR_UNKNOWN",
+	Err:         "ERR",
+	WrongType:   "ERR_WRONGTYPE",
+	NoAuth:      "ERR_NOAUTH",
+	NoPerm:      "ERR_NOPERM",
+	Busy:        "ERR_BUSY",
+	NoScript:    "ERR_NOSCRIPT",
+	Loading:     "ERR_LOADING",
+	ReadOnly:    "ERR_READONLY",
+	ExecAbort:   "ERR_EXECABORT",
+	MasterDown:  "ERR_MASTERDOWN",
+	Misconf:     "ERR_MISCONF",
+	CrossSlot:   "ERR_CROSSSLOT",
+	TryAgain:    "ERR_TRYAGAIN",
+	Ask:         "ERR_ASK",
+	Moved:       "ERR_MOVED",
+	ClusterDown: "ERR_CLUSTERDOWN",
+	NoReplicas:  "ERR_NOREPLICAS",
+	Oom:         "ERR_OOM",
+	NoQuorum:    "ERR_NOQUORUM",
+	BusyKey:     "ERR_BUSYKEY",
+	Unblocked:   "ERR_UNBLOCKED",
+	WrongPass:   "ERR_WRONGPASS",
+	InvalidObj:  "ERR_INVALIDOBJ",
+}
+
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
 // We use this wrapper to avoid recomputing the same values (key name) multiple times.
 type EventWrapper struct {
@@ -25,6 +53,9 @@ type EventWrapper struct {
 	keyName    *intern.StringValue
 	commandSet bool
 	command    CommandType
+
+	errorSet bool
+	error    ErrorType
 }
 
 // NewEventWrapper creates a new EventWrapper from an ebpf event.
@@ -81,6 +112,15 @@ func (e *EventWrapper) RequestLatency() float64 {
 	return protocols.NSTimestampToFloat(e.Tx.Response_last_seen - e.Tx.Request_started)
 }
 
+// ErrorType returns the error type.
+func (e *EventWrapper) ErrorType() ErrorType {
+	if !e.errorSet {
+		e.error = ErrorType(e.Tx.Error)
+		e.errorSet = true
+	}
+	return e.error
+}
+
 const template = `
 ebpfTx{
 	Command: %s,
@@ -109,4 +149,11 @@ func (c CommandType) String() string {
 	default:
 		return "UNKNOWN"
 	}
+}
+
+func (e ErrorType) String() string {
+	if str, ok := errorTypeStringMap[e]; ok {
+		return str
+	}
+	return "ERR_UNKNOWN"
 }

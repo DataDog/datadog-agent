@@ -2614,19 +2614,19 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 
 		require.NotNil(ct, getRequestStats)
 		require.Len(ct, getRequestStats.ErrorToStats, 1)
-		require.Contains(ct, getRequestStats.ErrorToStats, false)
+		require.Contains(ct, getRequestStats.ErrorToStats, redis.NoErr)
 		require.NotContains(ct, getRequestStats.ErrorToStats, true)
-		require.Equal(ct, 2, getRequestStats.ErrorToStats[false].Count)
-		require.NotNil(ct, getRequestStats.ErrorToStats[false].Latencies)
-		require.NotZero(ct, getRequestStats.ErrorToStats[false].FirstLatencySample)
+		require.Equal(ct, 2, getRequestStats.ErrorToStats[redis.NoErr].Count)
+		require.NotNil(ct, getRequestStats.ErrorToStats[redis.NoErr].Latencies)
+		require.NotZero(ct, getRequestStats.ErrorToStats[redis.NoErr].FirstLatencySample)
 
 		require.NotNil(ct, setRequestStats)
 		require.Len(ct, setRequestStats.ErrorToStats, 1)
-		require.Contains(ct, setRequestStats.ErrorToStats, false)
+		require.Contains(ct, setRequestStats.ErrorToStats, redis.NoErr)
 		require.NotContains(ct, setRequestStats.ErrorToStats, true)
-		require.Equal(ct, 1, setRequestStats.ErrorToStats[false].Count)
-		require.Nil(ct, setRequestStats.ErrorToStats[false].Latencies)
-		require.NotZero(ct, setRequestStats.ErrorToStats[false].FirstLatencySample)
+		require.Equal(ct, 1, setRequestStats.ErrorToStats[redis.NoErr].Count)
+		require.Nil(ct, setRequestStats.ErrorToStats[redis.NoErr].Latencies)
+		require.NotZero(ct, setRequestStats.ErrorToStats[redis.NoErr].FirstLatencySample)
 	}, 10*time.Second, 1*time.Second)
 }
 

@@ -18,6 +18,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
+var redisErrorTypeMap = map[redis.ErrorType]int32{
+	redis.NoErr:       int32(model.RedisErrorType_RedisNoError),
+	redis.UnknownErr:  int32(model.RedisErrorType_RedisErrorTypeUnknown),
+	redis.Err:         int32(model.RedisErrorType_RedisErrErr),
+	redis.WrongType:   int32(model.RedisErrorType_RedisErrWrongType),
+	redis.NoAuth:      int32(model.RedisErrorType_RedisErrNoAuth),
+	redis.NoPerm:      int32(model.RedisErrorType_RedisErrNoPerm),
+	redis.Busy:        int32(model.RedisErrorType_RedisErrBusy),
+	redis.NoScript:    int32(model.RedisErrorType_RedisErrNoScript),
+	redis.Loading:     int32(model.RedisErrorType_RedisErrLoading),
+	redis.ReadOnly:    int32(model.RedisErrorType_RedisErrReadOnly),
+	redis.ExecAbort:   int32(model.RedisErrorType_RedisErrExecAbort),
+	redis.MasterDown:  int32(model.RedisErrorType_RedisErrMasterDown),
+	redis.Misconf:     int32(model.RedisErrorType_RedisErrMisconf),
+	redis.CrossSlot:   int32(model.RedisErrorType_RedisErrCrossSlot),
+	redis.TryAgain:    int32(model.RedisErrorType_RedisErrTryAgain),
+	redis.Ask:         int32(model.RedisErrorType_RedisErrAsk),
+	redis.Moved:       int32(model.RedisErrorType_RedisErrMoved),
+	redis.ClusterDown: int32(model.RedisErrorType_RedisErrClusterDown),
+	redis.NoReplicas:  int32(model.RedisErrorType_RedisErrNoReplicas),
+	redis.Oom:         int32(model.RedisErrorType_RedisErrOom),
+	redis.NoQuorum:    int32(model.RedisErrorType_RedisErrNoQuorum),
+	redis.BusyKey:     int32(model.RedisErrorType_RedisErrBusyKey),
+	redis.Unblocked:   int32(model.RedisErrorType_RedisErrUnblocked),
+	redis.WrongPass:   int32(model.RedisErrorType_RedisErrWrongPass),
+	redis.InvalidObj:  int32(model.RedisErrorType_RedisErrInvalidObj),
+}
+
 type redisEncoder struct {
 	redisAggregationsBuilder *model.DatabaseAggregationsBuilder
 	byConnection             *USMConnectionIndex[redis.Key, *redis.RequestStats]
@@ -73,17 +101,13 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 				aggregationBuilder.SetTruncated(key.Truncated)
 				aggregationBuilder.SetKeyName(key.KeyName.Get())
 
-				for isErr, stats := range errorToStats.ErrorToStats {
+				for err, stats := range errorToStats.ErrorToStats {
 					if stats.Count == 0 {
 						continue
 					}
 					staticTags |= stats.StaticTags
 					aggregationBuilder.AddErrorToStats(func(errorToStatsBuilder *model.RedisStats_ErrorToStatsEntryBuilder) {
-						if !isErr {
-							errorToStatsBuilder.SetKey(int32(model.RedisErrorType_RedisNoError))
-						} else {
-							errorToStatsBuilder.SetKey(int32(model.RedisErrorType_RedisErrorTypeUnknown))
-						}
+						errorToStatsBuilder.SetKey(mapRedisErrorType(err))
 						errorToStatsBuilder.SetValue(func(statsBuilder *model.RedisStatsEntryBuilder) {
 							statsBuilder.SetCount(uint32(stats.Count))
 							if latencies := stats.Latencies; latencies != nil {
@@ -109,4 +133,11 @@ func (e *redisEncoder) Close() {
 	}
 
 	e.byConnection.Close()
+}
+
+func mapRedisErrorType(err redis.ErrorType) int32 {
+	if val, ok := redisErrorTypeMap[err]; ok {
+		return val
+	}
+	return int32(model.RedisErrorType_RedisErrorTypeUnknown)
 }
