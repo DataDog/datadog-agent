@@ -191,6 +191,13 @@ type InstrumentationConfig struct {
 	// used. If no target matches, the auto instrumentation will not be applied. Full config key:
 	// apm_config.instrumentation.targets
 	Targets []Target `mapstructure:"targets" json:"targets"`
+	// UseOwnerNameAsDefaultServiceName controls whether or not we use the pod resource owner's name to set the service
+	// name if it is not already set.
+	//
+	// This is something we want to disable entirely, but need to have a flag to change this behavior to start.
+	//
+	// https://datadoghq.atlassian.net/browse/INPLAT-458
+	UseOwnerNameAsDefaultServiceName bool `mapstructure:"use_owner_name_as_default_service_name" json:"use_owner_name_as_default_service_name"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the

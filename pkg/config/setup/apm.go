@@ -118,6 +118,14 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	// We pin to a major version by default.
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injector_image_tag", "0", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")
 
+	// option to disable the automatic service naming of pods via instrumentation
+	// via the pod owner name.
+	//
+	// https://datadoghq.atlassian.net/browse/INPLAT-458
+	config.BindEnvAndSetDefault("apm_config.instrumentation.use_owner_name_as_default_service_name",
+		true,
+		"DD_APM_INSTRUMENTATION_USE_OWNER_NAME_AS_DEFAULT_SERVICE_NAME")
+
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")
 	config.BindEnv("apm_config.max_payload_size", "DD_APM_MAX_PAYLOAD_SIZE")

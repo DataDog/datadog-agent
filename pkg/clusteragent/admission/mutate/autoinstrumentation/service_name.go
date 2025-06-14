@@ -61,7 +61,7 @@ func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
 	return nil
 }
 
-func newServiceNameMutator(pod *corev1.Pod) *serviceNameMutator {
+func newServiceNameMutator(pod *corev1.Pod, useOwnerNameAsDefaultServiceName bool) *serviceNameMutator {
 	vars := findServiceNameEnvVarsInPod(pod)
 	if len(vars) > 1 {
 		log.Debug("more than one unique definition of service name found for the pod")
@@ -72,6 +72,11 @@ func newServiceNameMutator(pod *corev1.Pod) *serviceNameMutator {
 			EnvVar: vars[0],
 			Source: serviceNameSourceExisting,
 		}
+	}
+
+	if !useOwnerNameAsDefaultServiceName {
+		log.Debug("no service env vars found")
+		return &serviceNameMutator{noop: true}
 	}
 
 	log.Debug("no service env vars found in pod, checking owner name")
