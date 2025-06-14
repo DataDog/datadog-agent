@@ -27,6 +27,7 @@ def agent_package(
         ctx,
         flavor=flavor,
         skip_deps=skip_deps,
+        log_level="internal",
     )
 
     # Build installer
@@ -34,6 +35,7 @@ def agent_package(
         ctx,
         skip_deps=skip_deps,
         target_project="installer",
+        log_level="internal",
     )
 
     # Package Agent into MSI
