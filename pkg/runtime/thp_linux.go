@@ -8,9 +8,12 @@
 // Package runtime defines limits for the Go runtime
 package runtime
 
-import "golang.org/x/sys/unix"
+import (
+	"os"
+)
 
 // DisableTransparentHugePages disables transparent huge pages (THP) for the current process.
 func DisableTransparentHugePages() error {
-	return unix.Prctl(unix.PR_SET_THP_DISABLE, 1, 0, 0, 0)
+	os.Setenv("GODEBUG", os.Getenv("GODEBUG")+",disablethp=1")
+	return nil
 }
