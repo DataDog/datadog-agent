@@ -2180,7 +2180,7 @@ def ninja_add_dyninst_test_programs(
     """
 
     dd_module = "github.com/DataDog/datadog-agent"
-    testprogs_path = "pkg/dyninst/testprogs"
+    testprogs_path = "pkg/dyninst/testing/testprogs"
     progs_path = f"{testprogs_path}/progs"
     progs_prefix = f"{dd_module}/{progs_path}/"
     output_base = f"{output_root}/{testprogs_path}/binaries"

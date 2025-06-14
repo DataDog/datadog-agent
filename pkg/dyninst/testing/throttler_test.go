@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testing/testprogs"
 )
 
 func TestThrottler(t *testing.T) {
