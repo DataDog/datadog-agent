@@ -141,7 +141,7 @@ func TestDebugInfoError(t *testing.T) {
 
 	expectedResult := `=== Checking executable permissions ===
 Executable path: some_command
-Executable permissions: error: invalid executable 'some_command': can't stat it: no such file or directory
+Executable permissions: error: the executable does not have the correct permissions
 
 Permissions Detail:
 Could not stat some_command: no such file or directory
