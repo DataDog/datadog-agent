@@ -47,17 +47,17 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
     bpf_map_delete_elem(&active_flows, &pid);
 
     // process context
-    fill_network_process_context(&evt->process, pid, entry->netns);
+    fill_network_process_context(&evt->common.process, pid, entry->netns);
 
     // network context
     fill_network_device_context(&evt->device, entry->netns, entry->ifindex);
 
     struct proc_cache_t *proc_cache_entry = get_proc_cache(pid);
     if (proc_cache_entry == NULL) {
-        evt->container.container_id[0] = 0;
+        evt->common.container.container_id[0] = 0;
     } else {
-        copy_container_id_no_tracing(proc_cache_entry->container.container_id, &evt->container.container_id);
-        evt->container.cgroup_context = proc_cache_entry->container.cgroup_context;
+        copy_container_id_no_tracing(proc_cache_entry->container.container_id, &evt->common.container.container_id);
+        evt->common.container.cgroup_context = proc_cache_entry->container.cgroup_context;
     }
 
     evt->flows_count = 0;

@@ -95,7 +95,7 @@ shoud_send_event:
         entry->dirty = 0;
 
         // fill span context
-        fill_span_context(&event->span);
+        fill_span_context(&event->common.span);
 
         // remove last_sent and dirty from the event size, we don't care about these fields
         send_event_ptr(args, EVENT_SYSCALLS, event);

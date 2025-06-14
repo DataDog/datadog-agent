@@ -16,13 +16,13 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     send_signal(pid);
 
     struct syscall_monitor_event_t event = {};
-    struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
-    fill_container_context(proc_cache_entry, &event.container);
+    struct proc_cache_t *proc_cache_entry = fill_process_context(&event.common.process);
+    fill_container_context(proc_cache_entry, &event.common.container);
 
     // check if this event should trigger a syscall drift event
-    if (is_anomaly_syscalls_enabled() && event.container.container_id[0] != 0) {
+    if (is_anomaly_syscalls_enabled() && event.common.container.container_id[0] != 0) {
         // fetch the profile for the current container
-        struct security_profile_t *profile = bpf_map_lookup_elem(&security_profiles, &event.container);
+        struct security_profile_t *profile = bpf_map_lookup_elem(&security_profiles, &event.common.container);
         if (profile) {
             u64 cookie = profile->cookie;
             struct security_profile_syscalls_t *syscalls = bpf_map_lookup_elem(&secprofs_syscalls, &cookie);
