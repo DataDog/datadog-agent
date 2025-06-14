@@ -9,6 +9,9 @@
 package dualimpl
 
 import (
+	"fmt"
+	"reflect"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -49,6 +52,10 @@ func NewComponent(req Requires) (Provides, error) {
 			IPC:       req.IPC,
 		}
 
+		if err := checkRequireStruct(remoteRequires); err != nil {
+			return Provides{}, err
+		}
+
 		provide, err := remote.NewComponent(remoteRequires)
 		if err != nil {
 			return Provides{}, err
@@ -78,4 +85,19 @@ func NewComponent(req Requires) (Provides, error) {
 	return Provides{
 		provide,
 	}, nil
+}
+
+func checkRequireStruct(reqs any) error {
+	if reflect.TypeOf(reqs).Kind() != reflect.Struct {
+		return fmt.Errorf("reqs is not a struct")
+	}
+
+	v := reflect.ValueOf(reqs)
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if field.Kind() == reflect.Interface && field.IsNil() {
+			return fmt.Errorf("field %s is nil", v.Type().Field(i).Name)
+		}
+	}
+	return nil
 }
