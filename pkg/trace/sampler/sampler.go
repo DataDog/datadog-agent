@@ -65,7 +65,7 @@ const (
 	maxTraceID      = ^uint64(0)
 	maxTraceIDFloat = float64(maxTraceID)
 	// Good number for Knuth hashing (large, prime, fit in int64 for languages without uint64)
-	samplerHasher = uint64(1111111111111111111)
+	samplerHasher = uint64(1_111_111_111_111_111_111)
 )
 
 // IsKeep returns whether the priority is "keep".

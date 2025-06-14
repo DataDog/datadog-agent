@@ -108,7 +108,7 @@ func (ds *DebugServer) setupMux() *http.ServeMux {
 	ds.mux.HandleFunc("/debug/blockrate", func(w http.ResponseWriter, r *http.Request) {
 		// this endpoint calls runtime.SetBlockProfileRate(v), where v is an optional
 		// query string parameter defaulting to 10000 (1 sample per 10μs blocked).
-		rate := 10000
+		rate := 10_000
 		v := r.URL.Query().Get("v")
 		if v != "" {
 			n, err := strconv.Atoi(v)
