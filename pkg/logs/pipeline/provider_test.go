@@ -129,7 +129,7 @@ func TestProviderConfigurations(t *testing.T) {
 			expectedQueues:         sender.DefaultQueuesCount,     // 1
 			expectedWorkers:        sender.DefaultWorkersPerQueue, // 1
 			expectedMinConcurrency: 3,
-			expectedMaxConcurrency: 30,
+			expectedMaxConcurrency: 3 * maxConcurrencyPerPipeline,
 			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
 		},
 		{
