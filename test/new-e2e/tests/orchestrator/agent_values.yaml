@@ -9,6 +9,11 @@ agents:
 
 clusterAgent:
   enabled: true
+  env:
+    - name: DD_ORCHESTRATOR_EXPLORER_TERMINATED_RESOURCES_ENABLED
+      value: true
+    - name: DD_ORCHESTRATOR_EXPLORER_TERMINATED_PODS_ENABLED
+      value: true
   confd:
     orchestrator.yaml: |-
       init_config:
