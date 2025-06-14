@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler/sm"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testing/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
