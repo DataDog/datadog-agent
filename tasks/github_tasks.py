@@ -108,14 +108,10 @@ def trigger_macos(
         raise Exit(message=f"Macos {workflow_type} workflow {conclusion}", code=1)
 
 
-def _update_windows_runner_version(new_version=None, repo="buildenv"):
+def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-images"):
     if new_version is None:
         raise Exit(message="workflow needs the 'new_version' field value to be not None")
     args_per_repo = {
-        "buildenv": {
-            "workflow_name": "runner-bump.yml",
-            "github_action_ref": "master",
-        },
         "ci-platform-machine-images": {
             "workflow_name": "windows-runner-agent-bump.yml",
             "github_action_ref": "main",
@@ -128,8 +124,8 @@ def _update_windows_runner_version(new_version=None, repo="buildenv"):
         github_action_ref=args_per_repo[repo]["github_action_ref"],
         new_version=new_version,
     )
-    # We are only waiting 0.5min between each status check because buildenv
-    # or ci-platform-machine-images are much faster than macOS builds
+    # We are only waiting 0.5min between each status check because
+    # ci-platform-machine-images are much faster than macOS builds
     full_repo = f"DataDog/{repo}"
     workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
 
@@ -163,15 +159,15 @@ def update_windows_runner_version(
     new_version=None,
 ):
     """
-    Trigger a workflow on the buildenv and ci-platform-machine-images repositories to bump windows gitlab runner
+    Trigger a workflow on the ci-platform-machine-images repository to bump windows gitlab runner
     """
     if new_version is None:
         new_version = str(current_version(ctx, "7"))
 
-    for repo in ["buildenv", "ci-platform-machine-images"]:
-        conclusion = _update_windows_runner_version(new_version, repo)
-        if conclusion != "success":
-            raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
+    repo = "ci-platform-machine-images"
+    conclusion = _update_windows_runner_version(new_version, repo)
+    if conclusion != "success":
+        raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
 
 
 @task
