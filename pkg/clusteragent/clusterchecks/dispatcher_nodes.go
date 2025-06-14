@@ -149,7 +149,7 @@ func (d *dispatcher) expireNodes() {
 			}
 			for digest, config := range node.digestToConfig {
 				delete(d.store.digestToNode, digest)
-				log.Debugf("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
+				log.Infof("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
 				d.store.danglingConfigs[digest] = createDanglingConfig(config)
 				danglingConfigs.Inc(le.JoinLeaderValue)
 
