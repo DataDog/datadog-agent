@@ -31,6 +31,16 @@ func TestWalkCommand(t *testing.T) {
 
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
+		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "-v", "2"},
+		snmpWalk,
+		func(cliParams *snmpparse.SNMPConfig, args argsType) {
+			require.Equal(t, argsType{"1.2.3.4", "10.9.8.7"}, args)
+			require.Equal(t, "2", cliParams.Version)
+			require.False(t, cliParams.UseUnconnectedUDPSocket)
+		})
+
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
 		[]string{"snmp", "walk", "1.2.3.4", "10.9.8.7", "--use-unconnected-udp-socket"},
 		snmpWalk,
 		func(cliParams *snmpparse.SNMPConfig, args argsType) {
@@ -38,6 +48,7 @@ func TestWalkCommand(t *testing.T) {
 			require.True(t, cliParams.UseUnconnectedUDPSocket)
 		})
 }
+
 
 func TestScanCommand(t *testing.T) {
 	// this command has _lots_ of options, so the test just exercises a few
