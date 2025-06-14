@@ -62,6 +62,7 @@ class TestState:
         "agent_image": 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
+        "max_retries": "Maximum number of retries for failed tests, default 3",
     },
 )
 def run(
@@ -95,6 +96,7 @@ def run(
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
+    max_retries=3,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -195,18 +197,48 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    test_res = test_flavor(
-        ctx,
-        flavor=AgentFlavor.base,
-        build_tags=tags,
-        modules=[e2e_module],
-        args=args,
-        cmd=cmd,
-        env=env_vars,
-        junit_tar=junit_tar,
-        result_json=result_json,
-        test_profiler=None,
-    )
+    tries = 0
+    washer = TestWasher(test_output_json_file=result_json)
+    while tries < max_retries + 1:
+        tries += 1
+        test_res = test_flavor(
+            ctx,
+            flavor=AgentFlavor.base,
+            build_tags=tags,
+            modules=[e2e_module],
+            args=args,
+            cmd=cmd,
+            env=env_vars,
+            junit_tar=junit_tar,
+            result_json=result_json,
+            test_profiler=None,
+        )
+
+        failed_tests = washer.get_failing_tests()
+
+        # Retry any failed tests that are not known to be flaky
+        known_flaky_failures = washer.get_flaky_failures()
+        to_retry = {
+            (package, test_name)
+            for package, tests in failed_tests.items()
+            for test_name in tests
+            if package not in known_flaky_failures or test_name not in known_flaky_failures[package]
+        }
+
+        if to_retry:
+            print(
+                color_message(
+                    f"Retrying {len(to_retry)} failed tests:\n- {'\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))}",
+                    "yellow",
+                )
+            )
+
+            # Retry the failed tests only
+            affected_packages = {package.partition("/test/new-e2e/")[2] for package, _ in to_retry}
+            e2e_module.test_targets = list(affected_packages)
+            args["run"] = '-test.run ' + '"{}"'.format('|'.join([test for _, test in to_retry]))
+        else:
+            break
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
