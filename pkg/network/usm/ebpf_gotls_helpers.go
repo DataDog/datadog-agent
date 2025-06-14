@@ -232,23 +232,70 @@ func getReadBufferLocation(result *bininspect.Result) (gotls.SliceLocation, erro
 	}
 	bufferParam := params[1]
 	if result.GoVersion.Major == 1 && result.GoVersion.Minor == 16 && len(bufferParam.Pieces) == 0 {
-		return gotls.SliceLocation{
-			Ptr: gotls.Location{
-				Exists:       boolToBinary(true),
-				In_register:  boolToBinary(false),
-				Stack_offset: 16,
-			},
-			Len: gotls.Location{
-				Exists:       boolToBinary(true),
-				In_register:  boolToBinary(false),
-				Stack_offset: 24,
-			},
-			Cap: gotls.Location{
-				Exists:       boolToBinary(true),
-				In_register:  boolToBinary(false),
-				Stack_offset: 32,
-			},
-		}, nil
+		// In Go 1.16 we're missing debug information for the buffer slice
+		// parameter. However, it appears to be in the same place where it's
+		// been in previous versions (see luts.go), so we'll hard-code the
+		// locations. For getting some confidence in this, the previous function
+		// argument (the method receiver) does have debug info (pasted below);
+		// we assume the buffer follows it on the stack (again, like it does on
+		// previous Go versions).
+		if result.Arch == bininspect.GoArchX86_64 {
+			// The debug information for the previous function argument (the
+			// method receiver). Note that DW_OP_call_frame_cfa maps to
+			// Stack_offset=8 given the function prologue location of these
+			// probes.
+			//	0x0000623a:     DW_TAG_formal_parameter
+			//	DW_AT_name    ("c")
+			//	DW_AT_variable_parameter      (0x00)
+			//	DW_AT_decl_line       (1262)
+			//	DW_AT_type    (0x00000000000850d2 "crypto/tls.Conn *")
+			//	DW_AT_location        (0x0000a698: [0x0000000000590e80, 0x0000000000591265): DW_OP_call_frame_cfa)
+			return gotls.SliceLocation{
+				Ptr: gotls.Location{
+					Exists:       boolToBinary(true),
+					In_register:  boolToBinary(false),
+					Stack_offset: 16,
+				},
+				Len: gotls.Location{
+					Exists:       boolToBinary(true),
+					In_register:  boolToBinary(false),
+					Stack_offset: 24,
+				},
+				Cap: gotls.Location{
+					Exists:       boolToBinary(true),
+					In_register:  boolToBinary(false),
+					Stack_offset: 32,
+				},
+			}, nil
+		}
+		if result.Arch == bininspect.GoArchARM64 {
+			// The debug information for the previous function argument (the
+			// method receiver). Note that DW_OP_fbreg+8 maps to Stack_offset=16
+			// given the function prologue location of these probes.
+			//	0x0000653b:     DW_TAG_formal_parameter
+			//	DW_AT_name    ("c")
+			//	DW_AT_variable_parameter      (0x00)
+			//	DW_AT_decl_line       (1262)
+			//	DW_AT_type    (0x000000000008c3d3 "crypto/tls.Conn *")
+			//	DW_AT_location        (0x0000bcf8: [0x0000000000158f10, 0x0000000000159270): DW_OP_fbreg +8)
+			return gotls.SliceLocation{
+				Ptr: gotls.Location{
+					Exists:       boolToBinary(true),
+					In_register:  boolToBinary(false),
+					Stack_offset: 24,
+				},
+				Len: gotls.Location{
+					Exists:       boolToBinary(true),
+					In_register:  boolToBinary(false),
+					Stack_offset: 32,
+				},
+				Cap: gotls.Location{
+					Exists:       boolToBinary(true),
+					In_register:  boolToBinary(false),
+					Stack_offset: 40,
+				},
+			}, nil
+		}
 	}
 	return sliceLocation(bufferParam, result.Arch)
 }
