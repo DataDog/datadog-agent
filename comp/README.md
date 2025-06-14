@@ -60,12 +60,6 @@ Package api implements the "api" bundle,
 
 Package def implements the internal Agent API component definitions which exposes endpoints such as config, flare or status
 
-### [comp/api/authtoken](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/authtoken)
-
-Package authtoken implements the creation and access to the auth_token used to communicate between Agent processes.
-This component offers two implementations: one to create and fetch the auth_token and another that doesn't create the
-auth_token file but can fetch it it's available.
-
 ### [comp/api/grpcserver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/grpcserver)
 
 Package grpcserver defines the component interface for the grpcserver component.
@@ -78,7 +72,7 @@ Package checks implements the "checks" bundle, for all of the component based ag
 
 ### [comp/checks/agentcrashdetect](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect)
 
-*Datadog Team*: windows-kernel-integrations
+*Datadog Team*: windows-agent
 
 Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
@@ -161,6 +155,11 @@ Package hostname exposes hostname.Get() as a component.
 ### [comp/core/hostname/hostnameinterface](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface)
 
 Package hostnameinterface describes the interface for hostname methods
+
+### [comp/core/ipc](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/ipc)
+
+Package ipc takes care of the IPC artifacts lifecycle (creation, loading, deletion of auth_token, IPC certificate, IPC key).
+It also provides helpers to use them in the agent (TLS configuration, HTTP client, etc.).
 
 ### [comp/core/log](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/log)
 
@@ -281,7 +280,7 @@ Package eventplatformreceiver implements the receiver for the event platform pac
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
-*Datadog Team*: agent-log-pipelines
+*Datadog Team*: container-app
 
 Package orchestrator implements the orchestrator forwarder component.
 
@@ -308,6 +307,10 @@ Package agent contains logs agent component.
 Package auditor records the log files the agent is tracking. It tracks
 filename, time last updated, offset (how far into the file the agent has
 read), and tailing mode for each log file.
+
+### [comp/logs/health](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/health)
+
+Package health provides a dependency-injectible health object for kubernetes liveness checks
 
 ### [comp/logs/integrations](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/integrations)
 
@@ -462,7 +465,7 @@ Package status implements the core status component information provider interfa
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
-*Datadog Team*: container-intake
+*Datadog Team*: container-experiences
 
 Package process implements the "process" bundle, providing components for the Process Agent
 
@@ -643,6 +646,12 @@ Package status implements the core status component information provider interfa
 
 Package updater implements the updater component.
 
+### [comp/updater/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/daemonchecker)
+
+*Datadog Team*: fleet
+
+Package daemonchecker retrieves the running status of the installer daemon
+
 ### [comp/updater/localapi](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapi)
 
 Package localapi is the updater local api component.
@@ -650,6 +659,13 @@ Package localapi is the updater local api component.
 ### [comp/updater/localapiclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/localapiclient)
 
 Package localapiclient provides the local API client component.
+
+### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
+
+*Datadog Team*: fleet
+
+Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
+add it to the inventoryagent payload.
 
 ### [comp/updater/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/telemetry)
 
@@ -670,6 +686,12 @@ Package datadogclient provides a client to query the datadog API
 *Datadog Team*: windows-agent
 
 Package etw provides an ETW tracing interface
+
+### [comp/fleetstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/fleetstatus)
+
+*Datadog Team*: fleet
+
+Package fleetstatus implements the core status component information provider interface
 
 ### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
 

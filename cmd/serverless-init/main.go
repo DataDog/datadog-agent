@@ -104,8 +104,10 @@ func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Compon
 	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression)
 
 	err := modeConf.Runner(logConfig)
+	prefix := cloudService.GetPrefix()
+	origin := cloudService.GetOrigin()
 
-	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metric.AddShutdownMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
 
 	return err
@@ -142,12 +144,12 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
-	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression)
+	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, origin)
 
 	traceAgent := setupTraceAgent(tags, tagger)
 
 	metricAgent := setupMetricAgent(tags, tagger)
-	metric.AddColdStartMetric(prefix, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
+	metric.AddColdStartMetric(prefix, origin, metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 
 	setupOtlpAgent(metricAgent, tagger)
 

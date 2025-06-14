@@ -10,6 +10,9 @@ package trivy
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -332,7 +335,14 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, cache.lastBlobID), nil
+	hasher := sha256.New()
+	encoder := json.NewEncoder(hasher)
+	if err := encoder.Encode(trivyReport.Results); err != nil {
+		return nil, fmt.Errorf("unable to compute hash for report: err: %w", err)
+	}
+
+	hash := "sha256:" + base64.StdEncoding.EncodeToString(hasher.Sum(nil))
+	return c.buildReport(trivyReport, hash), nil
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {

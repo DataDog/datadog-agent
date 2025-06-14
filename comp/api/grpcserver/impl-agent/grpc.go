@@ -7,20 +7,18 @@
 package agentimpl
 
 import (
-	"context"
 	"crypto/subtle"
 	"errors"
-	"fmt"
 	"net/http"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -53,7 +51,7 @@ type Requires struct {
 	SecretResolver      secrets.Component
 	RcService           option.Option[rcservice.Component]
 	RcServiceMRF        option.Option[rcservicemrf.Component]
-	AuthToken           authtoken.Component
+	IPC                 ipc.Component
 	Tagger              tagger.Component
 	Cfg                 config.Component
 	AutoConfig          autodiscovery.Component
@@ -61,10 +59,11 @@ type Requires struct {
 	Collector           option.Option[collector.Component]
 	RemoteAgentRegistry remoteagentregistry.Component
 	Telemetry           telemetry.Component
+	Hostname            hostnameinterface.Component
 }
 
 type server struct {
-	authToken           authtoken.Component
+	IPC                 ipc.Component
 	taggerComp          tagger.Component
 	workloadMeta        workloadmeta.Component
 	configService       option.Option[rcservice.Component]
@@ -76,6 +75,7 @@ type server struct {
 	autodiscovery       autodiscovery.Component
 	configComp          config.Component
 	telemetry           telemetry.Component
+	hostname            hostnameinterface.Component
 }
 
 func (s *server) BuildServer() http.Handler {
@@ -84,7 +84,7 @@ func (s *server) BuildServer() http.Handler {
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	opts := []googleGrpc.ServerOption{
-		googleGrpc.Creds(credentials.NewTLS(s.authToken.GetTLSServerConfig())),
+		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
 		googleGrpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		googleGrpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
@@ -94,7 +94,7 @@ func (s *server) BuildServer() http.Handler {
 	// event size should be small enough to fit within the grpc max message size
 	maxEventSize := maxMessageSize / 2
 	grpcServer := googleGrpc.NewServer(opts...)
-	pb.RegisterAgentServer(grpcServer, &agentServer{})
+	pb.RegisterAgentServer(grpcServer, &agentServer{hostname: s.hostname})
 	pb.RegisterAgentSecureServer(grpcServer, &serverSecure{
 		configService:    s.configService,
 		configServiceMRF: s.configServiceMRF,
@@ -113,25 +113,6 @@ func (s *server) BuildServer() http.Handler {
 	return grpcServer
 }
 
-func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
-	dopts := []googleGrpc.DialOption{googleGrpc.WithTransportCredentials(credentials.NewTLS(s.authToken.GetTLSClientConfig()))}
-	ctx := context.Background()
-	gwmux := runtime.NewServeMux()
-	err := pb.RegisterAgentHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	err = pb.RegisterAgentSecureHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent secure handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	return gwmux, nil
-}
-
 // Provides defines the output of the grpc component
 type Provides struct {
 	Comp grpc.Component
@@ -141,7 +122,7 @@ type Provides struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	provides := Provides{
 		Comp: &server{
-			authToken:           reqs.AuthToken,
+			IPC:                 reqs.IPC,
 			configService:       reqs.RcService,
 			configServiceMRF:    reqs.RcServiceMRF,
 			taggerComp:          reqs.Tagger,
@@ -153,6 +134,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			autodiscovery:       reqs.AutoConfig,
 			configComp:          reqs.Cfg,
 			telemetry:           reqs.Telemetry,
+			hostname:            reqs.Hostname,
 		},
 	}
 	return provides, nil

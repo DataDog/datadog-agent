@@ -10,16 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
@@ -106,7 +105,7 @@ func TestRCClientCreate(t *testing.T) {
 			fx.Provide(func() config.Component { return configmock.New(t) }),
 			settingsimpl.MockModule(),
 			sysprobeconfig.NoneModule(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		),
 	)
 	// Missing params
@@ -125,7 +124,7 @@ func TestRCClientCreate(t *testing.T) {
 				},
 			),
 			settingsimpl.MockModule(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		),
 	)
 	assert.NoError(t, err)
@@ -137,7 +136,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(pkglog.Default(), "info")
 	cfg := configmock.New(t)
 
-	var at authtoken.Component
+	var ipcComp ipc.Component
 
 	rc := fxutil.Test[rcclient.Component](t,
 		fx.Options(
@@ -160,8 +159,8 @@ func TestAgentConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
-			fx.Populate(&at),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Populate(&ipcComp),
 		),
 	)
 
@@ -177,8 +176,8 @@ func TestAgentConfigCallback(t *testing.T) {
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
-		at.Get,
-		at.GetTLSClientConfig,
+		ipcComp.GetAuthToken(),
+		ipcComp.GetTLSClientConfig(),
 		client.WithAgent("test-agent", "9.99.9"),
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),
@@ -240,7 +239,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(pkglog.Default(), "info")
 	cfg := configmock.New(t)
 
-	var at authtoken.Component
+	var ipcComp ipc.Component
 
 	rc := fxutil.Test[rcclient.Component](t,
 		fx.Options(
@@ -263,8 +262,8 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 				},
 			),
 			settingsimpl.Module(),
-			fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
-			fx.Populate(&at),
+			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+			fx.Populate(&ipcComp),
 		),
 	)
 
@@ -279,8 +278,10 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	assert.NoError(t, err)
 
 	structRC.client, _ = client.NewUnverifiedGRPCClient(
-		ipcAddress, pkgconfigsetup.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(cfg) },
-		at.GetTLSClientConfig,
+		ipcAddress,
+		pkgconfigsetup.GetIPCPort(),
+		ipcComp.GetAuthToken(),
+		ipcComp.GetTLSClientConfig(),
 		client.WithAgent("test-agent", "9.99.9"),
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),

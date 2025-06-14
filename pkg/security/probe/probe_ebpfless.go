@@ -605,8 +605,8 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet applies the new ruleset
-func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
-	return &kfilters.ApplyRuleSetReport{}, nil
+func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error) {
+	return &kfilters.FilterReport{}, nil
 }
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded

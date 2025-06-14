@@ -16,10 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
-
-const nvidiaResourceName = "nvidia.com/gpu"
 
 // systemContext holds certain attributes about the system that are used by the GPU probe.
 type systemContext struct {
@@ -41,7 +40,7 @@ type systemContext struct {
 
 	// visibleDevicesCache is a cache of visible devices for each process, to avoid
 	// looking into the environment variables every time
-	visibleDevicesCache map[int][]*ddnvml.Device
+	visibleDevicesCache map[int][]ddnvml.Device
 
 	// workloadmeta is the workloadmeta component that we use to get necessary container metadata
 	workloadmeta workloadmeta.Component
@@ -107,7 +106,7 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 	ctx := &systemContext{
 		procRoot:                  opts.procRoot,
 		selectedDeviceByPIDAndTID: make(map[int]map[int]int32),
-		visibleDevicesCache:       make(map[int][]*ddnvml.Device),
+		visibleDevicesCache:       make(map[int][]ddnvml.Device),
 		workloadmeta:              opts.wmeta,
 	}
 
@@ -154,7 +153,7 @@ func (ctx *systemContext) cleanOld() {
 // container. If the ID is not empty, we check the assignment of GPU resources
 // to the container and return only the devices that are available to the
 // container.
-func (ctx *systemContext) filterDevicesForContainer(devices []*ddnvml.Device, containerID string) ([]*ddnvml.Device, error) {
+func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, containerID string) ([]ddnvml.Device, error) {
 	if containerID == "" {
 		// If the process is not running in a container, we assume all devices are available.
 		return devices, nil
@@ -174,20 +173,32 @@ func (ctx *systemContext) filterDevicesForContainer(devices []*ddnvml.Device, co
 		return nil, fmt.Errorf("cannot retrieve data for container %s: %s", containerID, err)
 	}
 
-	var filteredDevices []*ddnvml.Device
+	var filteredDevices []ddnvml.Device
 	numContainerGPUs := 0
-	for _, resource := range container.AllocatedResources {
+	for _, resource := range container.ResolvedAllocatedResources {
 		// Only consider NVIDIA GPUs
-		if resource.Name != nvidiaResourceName {
+		if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 			continue
 		}
 
 		numContainerGPUs++
 
+	outer:
 		for _, device := range devices {
-			if resource.ID == device.UUID {
+			if resource.ID == device.GetDeviceInfo().UUID {
 				filteredDevices = append(filteredDevices, device)
 				break
+			}
+
+			// If the device has MIG children, check if any of them matches the resource ID
+			physicalDevice, ok := device.(*ddnvml.PhysicalDevice)
+			if ok {
+				for _, migChild := range physicalDevice.MIGChildren {
+					if resource.ID == migChild.UUID {
+						filteredDevices = append(filteredDevices, migChild)
+						break outer
+					}
+				}
 			}
 		}
 	}
@@ -216,7 +227,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []*ddnvml.Device, co
 	// If the container has GPUs assigned to it but we couldn't match it to our
 	// devices, return the error for this case and show the allocated resources
 	// for debugging purposes.
-	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.AllocatedResources)
+	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v", containerID, container.ResolvedAllocatedResources)
 }
 
 // getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
@@ -225,7 +236,7 @@ func (ctx *systemContext) filterDevicesForContainer(devices []*ddnvml.Device, co
 // does the expensive operations of looking into the process state and filtering devices one time for each process
 // containerIDFunc is a function that returns the container ID for the given process. As retrieving the container ID
 // might be expensive, we pass a function that can be called to retrieve it only when needed
-func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (*ddnvml.Device, error) {
+func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
 		containerID := containerIDFunc()
@@ -235,7 +246,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 		// filter on the devices that are available to the process, not on the
 		// devices available on the host system.
 		var err error // avoid shadowing visibleDevices, declare error before so we can use = instead of :=
-		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.All(), containerID)
+		visibleDevices, err = ctx.filterDevicesForContainer(ctx.deviceCache.AllPhysicalDevices(), containerID)
 		if err != nil {
 			return nil, fmt.Errorf("error filtering devices for container %s: %w", containerID, err)
 		}
@@ -259,7 +270,7 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 	}
 
 	if selectedDeviceIndex < 0 || selectedDeviceIndex >= int32(len(visibleDevices)) {
-		return nil, fmt.Errorf("device index %d is out of range", selectedDeviceIndex)
+		return nil, fmt.Errorf("device index %d is out of range for visible devices %+v", selectedDeviceIndex, visibleDevices)
 	}
 
 	return visibleDevices[selectedDeviceIndex], nil

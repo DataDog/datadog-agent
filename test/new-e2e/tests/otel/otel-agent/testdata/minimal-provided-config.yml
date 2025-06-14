@@ -4,12 +4,13 @@ connectors:
       bucket_interval: 10s
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
+      ignore_missing_datadog_fields: false
       ignore_resources: []
       peer_service_aggregation: true
       peer_tags: []
       peer_tags_aggregation: true
       resource_attributes_as_container_tags: []
-      span_name_as_resource_name: true
+      span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 1000
 exporters:
@@ -25,6 +26,7 @@ exporters:
       reporter_period: 30m0s
       tags: []
     hostname: otelcol-docker
+    hostname_detection_timeout: 25s
     idle_conn_timeout: "1m30s"
     logs:
       batch_wait: 5
@@ -38,7 +40,7 @@ exporters:
         mode: distributions
         send_aggregation_metrics: false
         send_count_sum_metrics: false
-      instrumentation_scope_metadata_as_tags: false
+      instrumentation_scope_metadata_as_tags: true
       resource_attributes_as_tags: true
       summaries:
         mode: gauges
@@ -71,7 +73,7 @@ exporters:
       peer_service_aggregation: true
       peer_tags: []
       peer_tags_aggregation: true
-      span_name_as_resource_name: true
+      span_name_as_resource_name: false
       span_name_remappings: {}
       trace_buffer: 0
 extensions: {}
@@ -85,24 +87,8 @@ processors:
 receivers:
   otlp:
     protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
-        keepalive:
-          enforcement_policy: {}
-          server_parameters: {}
-        read_buffer_size: 524288
-        transport: tcp
-      http:
-        cors: {}
-        endpoint: 0.0.0.0:4318
-        idle_timeout: 0s
-        logs_url_path: /v1/logs
-        metrics_url_path: /v1/metrics
-        read_header_timeout: 0s
-        response_headers: {}
-        tls: null
-        traces_url_path: /v1/traces
-        write_timeout: 0s
+      grpc: {}
+      http: {}
 service:
   pipelines:
     logs:

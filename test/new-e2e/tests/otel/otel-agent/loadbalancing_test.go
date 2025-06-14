@@ -26,12 +26,12 @@ type loadBalancingTestSuite struct {
 var loadBalancingConfig string
 
 func TestOTelAgentLoadBalancing(t *testing.T) {
-	values := enableOTELAgentConfig(`
+	values := `
 datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-`)
+`
 	t.Parallel()
 	e2e.Run(t, &loadBalancingTestSuite{},
 		e2e.WithSkipDeleteOnFailure(), // DEBUG: Skip delete on failure to keep the cluster alive for investigation

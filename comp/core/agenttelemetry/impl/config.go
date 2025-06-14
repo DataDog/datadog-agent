@@ -107,8 +107,10 @@ type Event struct {
 //
 // profiles[].metric.metrics[].name (required)
 // -------------------------------------------
-// Metric's full name typically in the form of "<metric group>.<metric name>".
-// It is required parameter to avoid emitting all available metrics unintentionally.
+// The full metric name is formatted as "<metric group>.<metric name>". In telemetry.NewGauge()
+// and similar APIs, "metric group" corresponds to the "subsystem" parameter, and "metric name"
+// corresponds to the "name" parameter. Do not use the "Options.NoDoubleUnderscoreSep" option
+// in these APIs, as it is not supported in agent telemetry.
 //
 // profiles[].metric.metrics[].aggregate_tags (optional)
 // -----------------------------------------------------
@@ -211,7 +213,13 @@ var defaultProfiles = `
         - name: logs.decoded
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
+          aggregate_tags:
+            - compression_kind
         - name: logs.sender_latency
+        - name: logs.truncated
+          aggregate_tags:
+            - service
+            - source
         - name: logs.auto_multi_line_aggregator_flush
           aggregate_tags:
             - truncated
@@ -281,6 +289,14 @@ var defaultProfiles = `
           aggregate_tags:
             - kind
             - template_name
+  - name: service-discovery
+    metric:
+      metrics:
+        - name: service_discovery.discovered_services
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
 `
 
 func compileMetricsExclude(p *Profile) error {
@@ -338,7 +354,9 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 		return fmt.Errorf("profile '%s' 'metrics[].name' '(%s)' attribute should have two elements separated by '.'", p.Name, m.Name)
 	}
 
-	// Convert Datadog metric name to Prometheus metric name (used for quick(er) matching)
+	// Converts a Datadog metric name to a Prometheus metric name for quicker matching. Prometheus metrics
+	// (from the "telemetry" package) must be declared without setting Options.NoDoubleUnderscoreSep to true,
+	// ensuring the full metric name includes double underscores ("__"); otherwise, matching will fail.
 	promName := fmt.Sprintf("%s__%s", names[0], names[1])
 	p.metricsMap[promName] = m
 

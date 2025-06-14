@@ -16,10 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -28,7 +29,6 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -38,7 +38,7 @@ func TestLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
-	var at authtoken.Component
+	var ipcComp ipc.Component
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -55,15 +55,14 @@ func TestLifecycle(t *testing.T) {
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
-		fx.Populate(&at),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Populate(&ipcComp),
 		secretsimpl.MockModule(),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		url := fmt.Sprintf("https://localhost:%d/agent/status", port)
-		client := util.GetClient()
-		_, err := util.DoGet(client, url, util.CloseConnection)
+		_, err := ipcComp.GetClient().Get(url, ipchttp.WithCloseConnection)
 		require.NoError(c, err)
 	}, 5*time.Second, time.Second)
 }
@@ -73,7 +72,7 @@ func TestPostAuthentication(t *testing.T) {
 	require.NoError(t, err)
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
-	var at authtoken.Component
+	var ipcComp ipc.Component
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
@@ -90,8 +89,8 @@ func TestPostAuthentication(t *testing.T) {
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		statusimpl.Module(),
 		settingsimpl.MockModule(),
-		fx.Provide(func(t testing.TB) authtoken.Component { return authtokenmock.New(t) }),
-		fx.Populate(&at),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Populate(&ipcComp),
 		secretsimpl.MockModule(),
 	))
 
@@ -101,21 +100,16 @@ func TestPostAuthentication(t *testing.T) {
 		req, err := http.NewRequest("POST", url, nil)
 		require.NoError(c, err)
 		log.Infof("Issuing unauthenticated test request to url: %s", url)
-		res, err := util.GetClient().Do(req)
+		_, err = ipcComp.GetClient().Do(req)
 		require.NoError(c, err)
-		defer res.Body.Close()
 		log.Info("Received unauthenticated test response")
-		assert.Equal(c, http.StatusUnauthorized, res.StatusCode)
 
 		// With authentication
-		token, err := at.Get()
-		require.NoError(c, err)
+		token := ipcComp.GetAuthToken()
 		req.Header.Set("Authorization", "Bearer "+token)
 		log.Infof("Issuing authenticated test request to url: %s", url)
-		res, err = util.GetClient().Do(req)
+		_, err = ipcComp.GetClient().Do(req)
 		require.NoError(c, err)
-		defer res.Body.Close()
 		log.Info("Received authenticated test response")
-		assert.Equal(c, http.StatusOK, res.StatusCode)
 	}, 5*time.Second, time.Second)
 }

@@ -267,7 +267,7 @@ func parsePodContainers(
 		}
 
 		var allocatedResources []workloadmeta.ContainerAllocatedResource
-		for _, resource := range container.AllocatedResources {
+		for _, resource := range container.ResolvedAllocatedResources {
 			allocatedResources = append(allocatedResources, workloadmeta.ContainerAllocatedResource{
 				Name: resource.Name,
 				ID:   resource.ID,
@@ -310,15 +310,15 @@ func parsePodContainers(
 						kubernetes.CriContainerNamespaceLabel: pod.Metadata.Namespace,
 					},
 				},
-				Image:              image,
-				EnvVars:            env,
-				SecurityContext:    containerSecurityContext,
-				Ports:              ports,
-				Runtime:            workloadmeta.ContainerRuntime(runtime),
-				State:              containerState,
-				Owner:              parent,
-				Resources:          resources,
-				AllocatedResources: allocatedResources,
+				Image:                      image,
+				EnvVars:                    env,
+				SecurityContext:            containerSecurityContext,
+				Ports:                      ports,
+				Runtime:                    workloadmeta.ContainerRuntime(runtime),
+				State:                      containerState,
+				Owner:                      parent,
+				Resources:                  resources,
+				ResolvedAllocatedResources: allocatedResources,
 			},
 		})
 	}

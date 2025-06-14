@@ -794,3 +794,17 @@ func TestConfig_Digest(t *testing.T) {
 		})
 	}
 }
+
+func Test_UseDeduplicationConfig(t *testing.T) {
+	configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+     - network: 127.1.0.0/30
+`)
+
+	conf, err := NewListenerConfig()
+	assert.NoError(t, err)
+
+	assert.False(t, conf.Deduplicate)
+}

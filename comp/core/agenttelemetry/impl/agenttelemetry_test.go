@@ -478,7 +478,7 @@ func TestRun(t *testing.T) {
 	profile0Len := len(r.(*runnerMock).jobs[0].profiles)
 	profile1Len := len(r.(*runnerMock).jobs[1].profiles)
 	t.Logf("%+v", r.(*runnerMock).jobs)
-	assert.True(t, (profile0Len == 1 && profile1Len == 4) || (profile0Len == 4 && profile1Len == 1))
+	assert.True(t, (profile0Len == 1 && profile1Len == 5) || (profile0Len == 5 && profile1Len == 1))
 }
 
 func TestReportMetricBasic(t *testing.T) {
@@ -933,7 +933,7 @@ func TestSenderConfigNoConfig(t *testing.T) {
 	sndr := makeSenderImpl(t, nil, c)
 
 	url := buildURL(sndr.(*senderImpl).endpoints.Main)
-	assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com/api/v2/apmtelemetry", url)
+	assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com./api/v2/apmtelemetry", url)
 }
 
 // TestSenderConfigSite tests that the site configuration is correctly used to build the endpoint URL
@@ -948,12 +948,12 @@ func TestSenderConfigOnlySites(t *testing.T) {
 		site    string
 		testURL string
 	}{
-		{"datadoghq.com", "https://instrumentation-telemetry-intake.datadoghq.com/api/v2/apmtelemetry"},
-		{"datad0g.com", "https://instrumentation-telemetry-intake.datad0g.com/api/v2/apmtelemetry"},
-		{"datadoghq.eu", "https://instrumentation-telemetry-intake.datadoghq.eu/api/v2/apmtelemetry"},
-		{"us3.datadoghq.com", "https://instrumentation-telemetry-intake.us3.datadoghq.com/api/v2/apmtelemetry"},
-		{"us5.datadoghq.com", "https://instrumentation-telemetry-intake.us5.datadoghq.com/api/v2/apmtelemetry"},
-		{"ap1.datadoghq.com", "https://instrumentation-telemetry-intake.ap1.datadoghq.com/api/v2/apmtelemetry"},
+		{"datadoghq.com", "https://instrumentation-telemetry-intake.datadoghq.com./api/v2/apmtelemetry"},
+		{"datad0g.com", "https://instrumentation-telemetry-intake.datad0g.com./api/v2/apmtelemetry"},
+		{"datadoghq.eu", "https://instrumentation-telemetry-intake.datadoghq.eu./api/v2/apmtelemetry"},
+		{"us3.datadoghq.com", "https://instrumentation-telemetry-intake.us3.datadoghq.com./api/v2/apmtelemetry"},
+		{"us5.datadoghq.com", "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry"},
+		{"ap1.datadoghq.com", "https://instrumentation-telemetry-intake.ap1.datadoghq.com./api/v2/apmtelemetry"},
 	}
 
 	for _, tt := range tests {
@@ -973,16 +973,16 @@ func TestSenderConfigAdditionalEndpoint(t *testing.T) {
       enabled: true
       additional_endpoints:
         - api_key: bar
-          host: instrumentation-telemetry-intake.us5.datadoghq.com
+          host: instrumentation-telemetry-intake.us5.datadoghq.com.
     `
 	sndr := makeSenderImpl(t, nil, c)
 	assert.NotNil(t, sndr)
 
 	assert.Len(t, sndr.(*senderImpl).endpoints.Endpoints, 2)
 	url := buildURL(sndr.(*senderImpl).endpoints.Endpoints[0])
-	assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com/api/v2/apmtelemetry", url)
+	assert.Equal(t, "https://instrumentation-telemetry-intake.datadoghq.com./api/v2/apmtelemetry", url)
 	url = buildURL(sndr.(*senderImpl).endpoints.Endpoints[1])
-	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com/api/v2/apmtelemetry", url)
+	assert.Equal(t, "https://instrumentation-telemetry-intake.us5.datadoghq.com./api/v2/apmtelemetry", url)
 }
 
 // TestSenderConfigPartialDDUrl dd_url overrides alone

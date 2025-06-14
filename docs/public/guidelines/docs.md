@@ -2,7 +2,7 @@
 
 This site is built by [MkDocs](https://github.com/mkdocs/mkdocs) and uses the [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme.
 
-You can serve documentation locally with the `inv docs.serve` [command](../setup.md#tooling).
+You can serve documentation locally with the `dda run docs serve` command.
 
 ## Organization
 
@@ -16,30 +16,36 @@ After deciding the kind of content, strive to further segment the page under log
 
 For prose where the rendered content should have no line breaks, always keep the Markdown on the same line. This removes the need for any stylistic enforcement and allows for IDEs to intelligently wrap as usual.
 
-!!! tip
-    When you wish to force a line continuation but stay within the block, indent by 2 spaces from the start of the text and end the block with a new line. For example, the following shows how you would achieve a multi-line ordered [list item](https://spec.commonmark.org/0.31.2/#list-items):
+/// tip
+When you wish to force a line continuation but stay within the block, indent by 2 spaces from the start of the text and end the block with a new line. For example, the following shows how you would achieve a multi-line ordered [list item](https://spec.commonmark.org/0.31.2/#list-items):
 
-    <div class="grid cards" markdown>
+<div class="grid cards" markdown>
 
-    === "Markdown"
+-   Markdown
 
-        ```markdown
-        1. first line
+    ---
 
-             second line
+    ```markdown
+    1. first line
 
-        1. third line
-        ```
+         second line
 
-    ===! "Rendered"
+    1. third line
+    ```
 
-        1. first line
+-   Rendered
 
-             second line
+    ---
 
-        1. third line
+    1. first line
 
-    </div>
+         second line
+
+    1. third line
+
+</div>
+
+///
 
 ## Emphasis
 
@@ -54,16 +60,18 @@ Here's an example:
     ---
 
     ```markdown
-    !!! info
-        Lorem ipsum ...
+    /// info
+    Lorem ipsum ...
+    ///
     ```
 
 -   Rendered
 
     ---
 
-    !!! info
-        Lorem ipsum ...
+    /// info
+    Lorem ipsum ...
+    ///
 
 </div>
 

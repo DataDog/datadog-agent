@@ -28,6 +28,7 @@ import (
 // Stats is used to collect kernel space metrics about approvers. Stats about added approvers are sent from userspace.
 type Stats struct {
 	EventRejected           uint64
+	EventApprovedByPolicy   uint64
 	EventApprovedByBasename uint64
 	EventApprovedByFlag     uint64
 	EventApprovedByAUID     uint64
@@ -60,6 +61,7 @@ func (d *Monitor) SendStats() error {
 		// aggregate all cpu stats
 		for _, stat := range statsAcrossAllCPUs {
 			statsByEventType[eventType].EventRejected += stat.EventRejected
+			statsByEventType[eventType].EventApprovedByPolicy += stat.EventApprovedByPolicy
 			statsByEventType[eventType].EventApprovedByBasename += stat.EventApprovedByBasename
 			statsByEventType[eventType].EventApprovedByFlag += stat.EventApprovedByFlag
 			statsByEventType[eventType].EventApprovedByAUID += stat.EventApprovedByAUID
@@ -73,6 +75,14 @@ func (d *Monitor) SendStats() error {
 				eventTypeTag,
 			}
 			_ = d.statsdClient.Count(metrics.MetricEventRejected, int64(stats.EventRejected), tagsForRejectedEvents, 1.0)
+		}
+
+		if stats.EventApprovedByPolicy != 0 {
+			tagsForPolicyApprovedEvents := []string{
+				"approver_type:" + kfilters.PolicyApproverType,
+				eventTypeTag,
+			}
+			_ = d.statsdClient.Count(metrics.MetricEventApproved, int64(stats.EventApprovedByPolicy), tagsForPolicyApprovedEvents, 1.0)
 		}
 
 		if stats.EventApprovedByBasename != 0 {

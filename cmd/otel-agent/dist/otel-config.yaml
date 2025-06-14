@@ -26,6 +26,7 @@ receivers:
       - job_name: 'otel-collector'
         fallback_scrape_protocol: PrometheusText0.0.4
         metric_name_validation_scheme: legacy
+        metric_name_escaping_scheme: underscores
         scrape_interval: 60s
         scrape_protocols:
           - PrometheusText0.0.4
@@ -37,8 +38,6 @@ receivers:
           action: drop
 exporters:
   datadog:
-    traces:
-      span_name_as_resource_name: true
     hostname: "otelcol-docker"
     api:
       key: ${env:DD_API_KEY}
@@ -53,7 +52,6 @@ connectors:
   # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
     traces:
-      span_name_as_resource_name: true
       compute_stats_by_span_kind: true
       peer_tags_aggregation: true
 service:

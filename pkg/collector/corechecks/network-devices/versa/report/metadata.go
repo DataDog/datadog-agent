@@ -28,6 +28,6 @@ func (s *Sender) SendMetadata(devices []devicemetadata.DeviceMetadata, interface
 			log.Errorf("Error marshalling Versa metadata : %s", err)
 			continue
 		}
-		s.sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
+		s.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
 	}
 }

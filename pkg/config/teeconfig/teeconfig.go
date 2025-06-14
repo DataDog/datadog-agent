@@ -506,8 +506,8 @@ func (t *teeConfig) Object() model.Reader {
 }
 
 // Stringify stringifies the config
-func (t *teeConfig) Stringify(source model.Source) string {
-	return t.baseline.Stringify(source)
+func (t *teeConfig) Stringify(source model.Source, opts ...model.StringifyOption) string {
+	return t.baseline.Stringify(source, opts...)
 }
 
 func (t *teeConfig) GetProxies() *model.Proxy {

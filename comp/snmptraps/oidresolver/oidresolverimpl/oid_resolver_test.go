@@ -13,7 +13,6 @@ import (
 	"math/rand"
 	"strings"
 	"testing"
-	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -293,7 +292,6 @@ func updateResolverWithIntermediateYAMLReader(t *testing.T, oidResolver *multiFi
 }
 
 func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
-	rand.Seed(time.Now().Unix())
 	testSize := 100
 	validOIDs := make([]string, testSize)
 	for i := 0; i < testSize; i++ {

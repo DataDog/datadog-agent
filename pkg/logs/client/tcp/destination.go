@@ -114,6 +114,9 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 				continue
 			}
 			d.incrementErrors(true)
+			d.updateRetryState(nil, isRetrying)
+			log.Debugf("Resetting TCP connection following write error: %s", err)
+			return
 		}
 
 		d.updateRetryState(nil, isRetrying)
@@ -124,10 +127,12 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 
 		// TCP is only used for logs data, so we always use "logs" as the source tag
 		sourceTag := "logs"
+		// Default Compression for TCP is none
+		compressionKind := "none"
 
 		metrics.TlmBytesSent.Add(float64(payload.UnencodedSize), sourceTag)
 		metrics.EncodedBytesSent.Add(int64(len(payload.Encoded)))
-		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag)
+		metrics.TlmEncodedBytesSent.Add(float64(len(payload.Encoded)), sourceTag, compressionKind)
 		output <- payload
 
 		if d.connManager.ShouldReset(d.connCreationTime) {

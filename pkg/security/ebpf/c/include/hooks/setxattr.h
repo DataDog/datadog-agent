@@ -6,7 +6,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
+int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name, u8 async, u64 pid_tgid) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -15,10 +15,15 @@ int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SETXATTR,
         .policy = policy,
+        .async = async,
         .xattr = {
             .name = xattr_name,
         }
     };
+
+    if (pid_tgid > 0) {
+        syscall.xattr.pid_tgid = pid_tgid;
+    }
 
     cache_syscall(&syscall);
 
@@ -26,15 +31,15 @@ int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name) {
 }
 
 HOOK_SYSCALL_ENTRY2(setxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name);
+    return trace__sys_setxattr(name, 0, 0);
 }
 
 HOOK_SYSCALL_ENTRY2(lsetxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name);
+    return trace__sys_setxattr(name, 0, 0);
 }
 
 HOOK_SYSCALL_ENTRY2(fsetxattr, int, fd, const char *, name) {
-    return trace__sys_setxattr(name);
+    return trace__sys_setxattr(name, 0, 0);
 }
 
 int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
@@ -81,6 +86,9 @@ int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_typ
         // prevent the verifier from whining
         bpf_probe_read(&syscall->xattr.dentry, sizeof(syscall->xattr.dentry), &syscall->xattr.dentry);
         syscall->xattr.dentry = (struct dentry *)CTX_PARM2(ctx);
+        if (syscall->xattr.name == NULL) {
+            syscall->xattr.name = (const char *)CTX_PARM3(ctx);
+        }
     }
 
     set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, 0);
@@ -93,7 +101,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_typ
     syscall->resolver.iteration = 0;
     syscall->resolver.ret = 0;
 
-    resolve_dentry(ctx, DR_KPROBE_OR_FENTRY);
+    resolve_dentry(ctx, KPROBE_OR_FENTRY_TYPE);
 
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(event_type);
@@ -101,8 +109,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_typ
     return 0;
 }
 
-TAIL_CALL_TARGET("dr_setxattr_callback")
-int tail_call_target_dr_setxattr_callback(ctx_t *ctx) {
+TAIL_CALL_FNC(dr_setxattr_callback, ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(xattr_predicate);
     if (!syscall) {
         return 0;
@@ -126,6 +133,12 @@ int hook_vfs_removexattr(ctx_t *ctx) {
     return trace__vfs_setxattr(ctx, EVENT_REMOVEXATTR);
 }
 
+int __attribute__((always_inline)) trace_io_fsetxattr(ctx_t *ctx) {
+    void *raw_req = (void *)CTX_PARM1(ctx);
+    u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
+    return trace__sys_setxattr(NULL, 1, pid_tgid);
+}
+
 int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {
     struct syscall_cache_t *syscall = pop_syscall(event_type);
     if (!syscall) {
@@ -137,6 +150,7 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
     }
 
     struct setxattr_event_t event = {
+        .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
         .syscall.retval = retval,
         .file = syscall->xattr.file,
     };
@@ -144,7 +158,13 @@ int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 even
     // copy xattr name
     bpf_probe_read_str(&event.name, MAX_XATTR_NAME_LEN, (void *)syscall->xattr.name);
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
+    struct proc_cache_t *entry;
+    if (syscall->xattr.pid_tgid != 0) {
+        entry = fill_process_context_with_pid_tgid(&event.process, syscall->xattr.pid_tgid);
+    } else {
+        entry = fill_process_context(&event.process);
+    }
+
     fill_container_context(entry, &event.container);
     fill_file(syscall->xattr.dentry, &event.file);
     fill_span_context(&event.span);
@@ -169,8 +189,7 @@ HOOK_SYSCALL_EXIT(lsetxattr) {
     return sys_xattr_ret(ctx, retval, EVENT_SETXATTR);
 }
 
-SEC("tracepoint/handle_sys_setxattr_exit")
-int tracepoint_handle_sys_setxattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_setxattr_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_xattr_ret(args, args->ret, EVENT_SETXATTR);
 }
 
@@ -189,9 +208,28 @@ HOOK_SYSCALL_EXIT(fremovexattr) {
     return sys_xattr_ret(ctx, retval, EVENT_REMOVEXATTR);
 }
 
-SEC("tracepoint/handle_sys_removexattr_exit")
-int tracepoint_handle_sys_removexattr_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
+TAIL_CALL_TRACEPOINT_FNC(handle_sys_removexattr_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_xattr_ret(args, args->ret, EVENT_REMOVEXATTR);
+}
+
+HOOK_ENTRY("io_fsetxattr")
+int hook_io_fsetxattr(ctx_t *ctx) {
+    return trace_io_fsetxattr(ctx);
+}
+
+HOOK_EXIT("io_fsetxattr")
+int rethook_io_fsetxattr(ctx_t *ctx) {
+    return sys_xattr_ret(ctx, CTX_PARMRET(ctx), EVENT_SETXATTR);
+}
+
+HOOK_ENTRY("io_setxattr")
+int hook_io_setxattr(ctx_t *ctx) {
+    return trace_io_fsetxattr(ctx);
+}
+
+HOOK_EXIT("io_setxattr")
+int rethook_io_setxattr(ctx_t *ctx) {
+    return sys_xattr_ret(ctx, CTX_PARMRET(ctx), EVENT_SETXATTR);
 }
 
 #endif

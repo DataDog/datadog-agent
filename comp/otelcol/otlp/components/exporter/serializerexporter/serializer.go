@@ -40,6 +40,8 @@ func setupForwarder(config pkgconfigmodel.Config) {
 
 	config.Set("forwarder_num_workers", 1, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_stop_timeout", 2, pkgconfigmodel.SourceDefault)
+	config.Set("forwarder_http_protocol", "auto", pkgconfigmodel.SourceDefault)
+
 	// Forwarder retry settings
 	config.Set("forwarder_backoff_factor", 2, pkgconfigmodel.SourceDefault)
 	config.Set("forwarder_backoff_base", 2, pkgconfigmodel.SourceDefault)
@@ -108,6 +110,7 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			setupSerializer(pkgconfig)
 			setupForwarder(pkgconfig)
 			pkgconfig.Set("logging_frequency", int64(500), pkgconfigmodel.SourceDefault)
+			pkgconfig.Set("skip_ssl_validation", cfg.ClientConfig.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 			return pkgconfig
 		}),
 		fx.Provide(func(log *zap.Logger) (logdef.Component, error) {

@@ -16,7 +16,6 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -79,7 +78,7 @@ type provider struct {
 // NewProvider returns a new Provider
 func NewProvider(
 	numberOfPipelines int,
-	auditor auditor.Auditor,
+	sink sender.Sink,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
 	processingRules []*config.ProcessingRule,
 	endpoints *config.Endpoints,
@@ -95,9 +94,9 @@ func NewProvider(
 	serverlessMeta := sender.NewServerlessMeta(serverless)
 
 	if endpoints.UseHTTP {
-		senderImpl = httpSender(numberOfPipelines, cfg, auditor, endpoints, destinationsContext, serverlessMeta, legacyMode)
+		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode)
 	} else {
-		senderImpl = tcpSender(numberOfPipelines, cfg, auditor, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
+		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
 	}
 
 	return newProvider(
@@ -121,7 +120,7 @@ func NewMockProvider() Provider {
 func tcpSender(
 	numberOfPipelines int,
 	cfg pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	sink sender.Sink,
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	status statusinterface.Status,
@@ -140,7 +139,7 @@ func tcpSender(
 	}
 	return tcpSenderFactory(
 		cfg,
-		auditor,
+		sink,
 		cfg.GetInt("logs_config.payload_channel_size"),
 		serverlessMeta,
 		endpoints,
@@ -155,7 +154,7 @@ func tcpSender(
 func httpSender(
 	numberOfPipelines int,
 	cfg pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	sink sender.Sink,
 	endpoints *config.Endpoints,
 	destinationsContext *client.DestinationsContext,
 	serverlessMeta sender.ServerlessMeta,
@@ -192,7 +191,7 @@ func httpSender(
 
 	return httpSenderFactory(
 		cfg,
-		auditor,
+		sink,
 		cfg.GetInt("logs_config.payload_channel_size"),
 		serverlessMeta,
 		endpoints,

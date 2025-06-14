@@ -25,6 +25,9 @@ const (
 	WebsiteStack = "WEBSITE_STACK"
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
+
+	// AppServiceOrigin origin tag value
+	AppServiceOrigin = "appservice"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -35,8 +38,8 @@ func (a *AppService) GetTags() map[string]string {
 	tags := map[string]string{
 		"app_name":   appName,
 		"region":     region,
-		"origin":     a.GetOrigin(),
-		"_dd.origin": a.GetOrigin(),
+		"origin":     AppServiceOrigin,
+		"_dd.origin": AppServiceOrigin,
 	}
 
 	maps.Copy(tags, traceutil.GetAppServicesTags())
@@ -47,7 +50,7 @@ func (a *AppService) GetTags() map[string]string {
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (a *AppService) GetOrigin() string {
-	return "appservice"
+	return AppServiceOrigin
 }
 
 // GetPrefix returns the prefix that we're prefixing all

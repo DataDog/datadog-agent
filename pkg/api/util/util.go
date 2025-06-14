@@ -64,11 +64,11 @@ func SetAuthToken(config model.Reader) error {
 	var err error
 	token, err = pkgtoken.FetchAuthToken(config)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to fetch auth token (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
 	ipccert, ipckey, err := cert.FetchIPCCert(config)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to fetch IPC certificate (please check that the Agent is running, this file is normally generated during the first run of the Agent service): %s", err)
 	}
 
 	err = setTLSConfigs(ipccert, ipckey)
@@ -191,6 +191,7 @@ func GetDCAAuthToken() string {
 }
 
 // Validate validates an http request
+// TODO IPC: Deprecate this function
 func Validate(w http.ResponseWriter, r *http.Request) error {
 	var err error
 	auth := r.Header.Get("Authorization")

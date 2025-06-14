@@ -8,19 +8,18 @@
 package listeners
 
 import (
-	"context"
 	"sort"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 func TestProcessService(t *testing.T) {
-	ctx := context.Background()
 	ksvc := &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			ResourceVersion: "123",
@@ -50,15 +49,14 @@ func TestProcessService(t *testing.T) {
 	svc := processService(ksvc)
 	assert.Equal(t, "kube_service://default/myservice", svc.GetServiceID())
 
-	adID, err := svc.GetADIdentifiers(ctx)
-	assert.NoError(t, err)
+	adID := svc.GetADIdentifiers()
 	assert.Equal(t, []string{"kube_service://default/myservice"}, adID)
 
-	hosts, err := svc.GetHosts(ctx)
+	hosts, err := svc.GetHosts()
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]string{"cluster": "10.0.0.1"}, hosts)
 
-	ports, err := svc.GetPorts(ctx)
+	ports, err := svc.GetPorts()
 	assert.NoError(t, err)
 	assert.Equal(t, []ContainerPort{{123, "test1"}, {126, "test2"}}, ports)
 

@@ -42,6 +42,7 @@ type ListenerConfig struct {
 	UseDeviceISAsHostname bool                       `mapstructure:"use_device_id_as_hostname"`
 	Configs               []Config                   `mapstructure:"configs"`
 	PingConfig            snmpintegration.PingConfig `mapstructure:"ping"`
+	Deduplicate           bool                       `mapstructure:"use_deduplication"`
 
 	// legacy
 	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`

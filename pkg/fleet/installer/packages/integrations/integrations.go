@@ -95,7 +95,7 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 	fmt.Println("Removing integrations installed with the 'agent integration' command")
 
 	// Use an in-memory map to store all integration paths
-	allIntegrations, err := filepath.Glob(installPath + "/embedded/lib/python*/site-packages/datadog_*")
+	allIntegrations, err := filepath.Glob(filepath.Join(installPath, "embedded/lib/python*/site-packages/datadog_*"))
 	if err != nil {
 		return err
 	}
@@ -128,24 +128,27 @@ func RemoveCustomIntegrations(ctx context.Context, installPath string) (err erro
 }
 
 // RemoveCompiledFiles removes compiled Python files (.pyc, .pyo) and __pycache__ directories
-func RemoveCompiledFiles(installPath string) {
+func RemoveCompiledFiles(installPath string) error {
 	// Remove files in in "{installPath}/embedded/.py_compiled_files.txt"
-	if _, err := os.Stat(filepath.Join(installPath, "embedded/.py_compiled_files.txt")); err == nil {
+	_, err := os.Stat(filepath.Join(installPath, "embedded/.py_compiled_files.txt"))
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check if compiled files list exists: %w", err)
+	}
+	if !os.IsNotExist(err) {
 		compiledFiles, err := os.ReadFile(filepath.Join(installPath, "embedded/.py_compiled_files.txt"))
 		if err != nil {
-			fmt.Printf("failed to read compiled files list: %s\n", err.Error())
-		} else {
-			for _, file := range strings.Split(string(compiledFiles), "\n") {
-				if strings.HasPrefix(file, installPath) {
-					if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
-						fmt.Printf("failed to remove compiled file %s: %s\n", file, err.Error())
-					}
+			return fmt.Errorf("failed to read compiled files list: %w", err)
+		}
+		for _, file := range strings.Split(string(compiledFiles), "\n") {
+			if strings.HasPrefix(file, installPath) {
+				if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("failed to remove compiled file %s: %w", file, err)
 				}
 			}
 		}
 	}
 	// Remove files in {installPath}/bin/agent/dist
-	err := filepath.Walk(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(filepath.Join(installPath, "bin", "agent", "dist"), func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return nil
@@ -164,7 +167,7 @@ func RemoveCompiledFiles(installPath string) {
 		return nil
 	})
 	if err != nil {
-		fmt.Printf("failed to remove compiled files: %s\n", err.Error())
+		return fmt.Errorf("failed to remove compiled files: %w", err)
 	}
 	// Remove files in {installPath}/python-scripts
 	err = filepath.Walk(filepath.Join(installPath, "python-scripts"), func(path string, info os.FileInfo, err error) error {
@@ -186,6 +189,7 @@ func RemoveCompiledFiles(installPath string) {
 		return nil
 	})
 	if err != nil {
-		fmt.Printf("failed to remove compiled files: %s\n", err.Error())
+		return fmt.Errorf("failed to remove compiled files: %w", err)
 	}
+	return nil
 }

@@ -6,10 +6,7 @@
 package obfuscate
 
 import (
-	"fmt"
-	"net"
 	"net/netip"
-	"regexp"
 	"strings"
 )
 
@@ -32,7 +29,6 @@ func QuantizePeerIPAddresses(raw string) string {
 }
 
 var schemes = []string{"dnspoll", "ftp", "file", "http", "https"}
-var protocolRegex = regexp.MustCompile(fmt.Sprintf(`((?:%s):/{2,3}).*`, strings.Join(schemes, "|")))
 
 var allowedIPAddresses = map[string]bool{
 	// localhost
@@ -50,22 +46,22 @@ func splitPrefix(raw string) (prefix, after string) {
 		return "ip-", after
 	}
 
-	isHintFound := false
-	for _, hint := range schemes {
-		if strings.Contains(raw, hint) {
-			isHintFound = true
-			break
+	for _, scheme := range schemes {
+		schemeIndex := strings.Index(raw, scheme)
+		if schemeIndex < 0 {
+			continue
+		}
+		schemeEnd := schemeIndex + len(scheme) + 4
+		if schemeEnd < len(raw) && raw[schemeIndex+len(scheme):schemeEnd] == ":///" {
+			return raw[schemeIndex:schemeEnd], raw[schemeEnd:]
+		}
+		schemeEnd--
+		if schemeEnd < len(raw) && raw[schemeIndex+len(scheme):schemeEnd] == "://" {
+			return raw[schemeIndex:schemeEnd], raw[schemeEnd:]
 		}
 	}
 
-	if isHintFound {
-		subMatches := protocolRegex.FindStringSubmatch(raw)
-		if len(subMatches) >= 2 {
-			prefix = subMatches[1]
-		}
-	}
-
-	return prefix, raw[len(prefix):]
+	return "", raw
 }
 
 // quantizeIP quantizes the ip address in the provided string, only if it exactly matches an ip with an optional port
@@ -92,8 +88,8 @@ func quantizeIP(raw string) string {
 
 // parseIPAndPort returns (host, port) if the host is a valid ip address with an optional port, else returns empty strings.
 func parseIPAndPort(input string) (host, port, suffix string) {
-	host, port, err := net.SplitHostPort(input)
-	if err != nil {
+	host, port, valid := splitHostPort(input)
+	if !valid {
 		host = input
 	}
 	if ok, i := isParseableIP(host); ok {
@@ -179,4 +175,63 @@ func parseIPv4(s string, sep byte) (parsed bool, lastIndex int) {
 	}
 	fields[3] = uint8(val)
 	return true, len(s)
+}
+
+// SplitHostPort splits a network address of the form "host:port",
+// "host%zone:port", "[host]:port" or "[host%zone]:port" into host or
+// host%zone and port.
+//
+// A literal IPv6 address in hostport must be enclosed in square
+// brackets, as in "[::1]:80", "[::1%lo0]:80".
+//
+// See func Dial for a description of the hostport parameter, and host
+// and port results.
+// This function is a lightly modified net.SplitHostPort where we avoid
+// allocating an error on failure to parse to improve performance.
+func splitHostPort(hostport string) (host, port string, valid bool) {
+	j, k := 0, 0
+
+	// The port starts after the last colon.
+	i := strings.LastIndexByte(hostport, ':')
+	if i < 0 {
+		return "", "", false
+	}
+
+	if hostport[0] == '[' {
+		// Expect the first ']' just before the last ':'.
+		end := strings.IndexByte(hostport, ']')
+		if end < 0 {
+			return "", "", false
+		}
+		switch end + 1 {
+		case len(hostport):
+			// There can't be a ':' behind the ']' now.
+			return "", "", false
+		case i:
+			// The expected result.
+		default:
+			// Either ']' isn't followed by a colon, or it is
+			// followed by a colon that is not the last one.
+			if hostport[end+1] == ':' {
+				return "", "", false
+			}
+			return "", "", false
+		}
+		host = hostport[1:end]
+		j, k = 1, end+1 // there can't be a '[' resp. ']' before these positions
+	} else {
+		host = hostport[:i]
+		if strings.IndexByte(host, ':') >= 0 {
+			return "", "", false
+		}
+	}
+	if strings.IndexByte(hostport[j:], '[') >= 0 {
+		return "", "", false
+	}
+	if strings.IndexByte(hostport[k:], ']') >= 0 {
+		return "", "", false
+	}
+
+	port = hostport[i+1:]
+	return host, port, true
 }

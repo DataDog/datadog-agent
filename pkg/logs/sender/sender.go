@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -29,6 +28,20 @@ const (
 	// concurrently transmit multiple http requests at once. Systems forced in to a legacy mode will override this value.
 	DefaultQueuesCount = 1
 )
+
+// Sink is the component that messages are sent to once the sender has finished processing them.
+type Sink interface {
+	Channel() chan *message.Payload
+}
+
+// NoopSink is a Sink implementation that does nothing
+// This is used when there is no need to hook an auditor to the sender
+type NoopSink struct{}
+
+// Channel returns a nil channel
+func (t *NoopSink) Channel() chan *message.Payload {
+	return nil
+}
 
 // PipelineComponent abstracts a pipeline component
 type PipelineComponent interface {
@@ -99,7 +112,7 @@ type DestinationFactory func() *client.Destinations
 // NewSender returns a new sender.
 func NewSender(
 	config pkgconfigmodel.Reader,
-	auditor auditor.Auditor,
+	sink Sink,
 	destinationFactory DestinationFactory,
 	bufferSize int,
 	serverlessMeta ServerlessMeta,
@@ -124,7 +137,7 @@ func NewSender(
 			worker := newWorker(
 				config,
 				queues[idx],
-				auditor,
+				sink,
 				destinationFactory(),
 				bufferSize,
 				serverlessMeta,

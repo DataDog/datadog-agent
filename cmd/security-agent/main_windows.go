@@ -24,11 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/start"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-	"github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -88,10 +88,10 @@ func (s *service) Run(svcctx context.Context) error {
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
 			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component,
-			settings settings.Component, wmeta workloadmeta.Component, at authtoken.Component) error {
+			settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) error {
 			defer start.StopAgent(log)
 
-			err := start.RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, at)
+			err := start.RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, ipc)
 			if err != nil {
 				if errors.Is(err, start.ErrAllComponentsDisabled) {
 					// If all components are disabled, we should exit cleanly
@@ -155,7 +155,6 @@ func (s *service) Run(svcctx context.Context) error {
 
 		statusimpl.Module(),
 
-		createandfetchimpl.Module(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		autoexitimpl.Module(),
 		fx.Provide(func(c config.Component) settings.Params {
@@ -168,6 +167,7 @@ func (s *service) Run(svcctx context.Context) error {
 		}),
 		settingsimpl.Module(),
 		logscompressionfx.Module(),
+		ipcfx.ModuleReadWrite(),
 	)
 
 	return err

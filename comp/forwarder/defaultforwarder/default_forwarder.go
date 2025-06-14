@@ -121,24 +121,32 @@ func ToggleFeature(features, flag Features) Features { return features ^ flag }
 func HasFeature(features, flag Features) bool { return features&flag != 0 }
 
 // NewOptions creates new Options with default values
-func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys) *Options {
+func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys) (*Options, error) {
 
-	resolvers := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
+	resolvers, err := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
+	if err != nil {
+		return nil, err
+	}
+
 	vectorMetricsURL, err := pkgconfigsetup.GetObsPipelineURL(pkgconfigsetup.Metrics, config)
 	if err != nil {
 		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
 	if r, ok := resolvers[utils.GetInfraEndpoint(config)]; ok && vectorMetricsURL != "" {
 		log.Debugf("Configuring forwarder to send metrics to observability_pipelines_worker: %s", vectorMetricsURL)
-
-		resolvers[utils.GetInfraEndpoint(config)] = pkgresolver.NewDomainResolverWithMetricToVector(
+		apiKeys, _ := r.GetAPIKeysInfo()
+		resolver, err := pkgresolver.NewDomainResolverWithMetricToVector(
 			r.GetBaseDomain(),
-			r.GetAPIKeysInfo(),
+			apiKeys,
 			vectorMetricsURL,
 		)
+		if err != nil {
+			return nil, err
+		}
+		resolvers[utils.GetInfraEndpoint(config)] = resolver
 	}
 
-	return NewOptionsWithResolvers(config, log, resolvers)
+	return NewOptionsWithResolvers(config, log, resolvers), nil
 }
 
 // NewOptionsWithResolvers creates new Options with default values

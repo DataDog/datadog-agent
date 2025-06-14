@@ -63,7 +63,7 @@ function Send-Telemetry($payload) {
       "Content-Type" = "application/json"
    }
    try {
-      $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders
+      $result = Invoke-WebRequest -Uri $telemetryUrl -Method POST -Body $payload -Headers $requestHeaders -UseBasicParsing
       Write-Host "Sending telemetry: $($result.StatusCode)"
    } catch {
       # Don't propagate errors when sending telemetry, because our error handling code will also
@@ -225,8 +225,14 @@ try {
       Remove-Item -Force $installer
    }
 
-   Write-Host "Downloading installer from $ddInstallerUrl"
-   [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
+   # Check if ddInstallerUrl is a local file path
+   if (Test-Path $ddInstallerUrl) {
+      Write-Host "Using local installer file: $ddInstallerUrl"
+      Copy-Item -Path $ddInstallerUrl -Destination $installer
+   } else {
+      Write-Host "Downloading installer from $ddInstallerUrl"
+      [System.Net.WebClient]::new().DownloadFile($ddInstallerUrl, $installer)
+   }
 
    # set so `default-packages` won't contain the Datadog Agent
    # as it is now installed during the beginning of the bootstrap process

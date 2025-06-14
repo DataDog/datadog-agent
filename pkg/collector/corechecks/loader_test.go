@@ -23,7 +23,6 @@ type TestCheck struct {
 	stub.StubCheck
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (c *TestCheck) Configure(_ sender.SenderManager, _ uint64, data integration.Data, _ integration.Data, _ string) error {
 	if string(data) == "err" {
 		return fmt.Errorf("testError")

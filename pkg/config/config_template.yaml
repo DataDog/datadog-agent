@@ -397,19 +397,37 @@ api_key:
 ## https://docs.datadoghq.com/integrations/faq/how-do-i-pull-my-ec2-tags-without-using-the-aws-integration/
 #
 # collect_ec2_tags: false
+#
+
+## @param collect_ec2_instance_info - boolean - optional - default: false
+## @env DD_COLLECT_EC2_INSTANCE_INFO - boolean - optional - default: false
+## Extend host tags with AWS EC2 instance information. The added tags are:
+##  - region
+##  - instance-type
+##  - aws_account
+##  - image
+##  - availability-zone
+##
+## This should only be enabled when the Datadog AWS integration cannot be enabled (see
+## https://docs.datadoghq.com/integrations/amazon_web_services/ for more information on the AWS integration).
+## Using the AWS integration is recommended as it offers more features and a better integration with the AWS environment.
+#
+# collect_ec2_instance_info: false
 
 ## @param exclude_ec2_tags - list of strings - optional - default: []
 ## @env DD_EXCLUDE_EC2_TAGS - space separated list of strings - optional - default: []
-## EC2 tags to exclude from being converted into host tags -- only applicable when collect_ec2_tags is true. This does
-## not impact tags collected by the AWS Integration (see https://docs.datadoghq.com/integrations/amazon_web_services/
-## for more information on the AWS integration).
+## EC2 tags to exclude from being converted into host tags. This does not impact tags collected by the AWS Integration
+## (see https://docs.datadoghq.com/integrations/amazon_web_services/ for more information on the AWS integration).
+##
+## This requires 'collect_ec2_tags' setting to be set to true.
 #
 # exclude_ec2_tags: []
 
 ## @param collect_ec2_tags_use_imds - boolean - optional - default: false
 ## @env DD_COLLECT_EC2_TAGS_USE_IMDS - boolean - optional - default: false
 ## Use instance metadata service (IMDS) instead of EC2 API to collect AWS EC2 custom tags.
-## Requires `collect_ec2_tags`.
+##
+## This requires 'collect_ec2_tags' setting to be set to true.
 #
 # collect_ec2_tags_use_imds: false
 
@@ -890,7 +908,6 @@ api_key:
 #
 # secret_backend_remove_trailing_line_break: false
 
-
 {{- if .InternalProfiling -}}
 ## @param profiling - custom object - optional
 ## Enter specific configurations for internal profiling.
@@ -969,6 +986,14 @@ api_key:
   #   - type: <RULE_TYPE>
   #     name: <RULE_NAME>
   #     pattern: <RULE_PATTERN>
+
+  ## @param auto_multi_line_detection - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION - boolean - optional - default: false
+  ## Enable automatic aggregation of multi-line logs for common log patterns.
+  ## More information can be found in Datadog documentation:
+  ## https://docs.datadoghq.com/agent/logs/auto_multiline_detection/?tab=configurationfile
+  #
+  # auto_multi_line_detection: true
 
   ## @param force_use_http - boolean - optional - default: false
   ## @env DD_LOGS_CONFIG_FORCE_USE_HTTP - boolean - optional - default: false
@@ -2843,6 +2868,24 @@ api_key:
 #
 # ad_config_poll_interval: 10
 
+## @param ad_allowed_env_vars - list of strings - optional
+## @env DD_AD_ALLOWED_ENV_VARS - list of strings - optional
+## The list of environment variables that are allowed to be resolved in check
+## configurations.
+## If the list is not set or is empty, the default behavior applies: all envs
+## are allowed.
+## This list only applies when `ad_disable_env_var_resolution` is set to false.
+#
+# ad_allowed_env_vars:
+#   - <ENV_VAR_1>
+#   - <ENV_VAR_2>
+
+## @param ad_disable_env_var_resolution - boolean - optional - default: false
+## @env DD_AD_DISABLE_ENV_VAR_RESOLUTION - boolean - optional - default: false
+## Disable environment variable resolution in check configurations.
+#
+# ad_disable_env_var_resolution: false
+
 ## @param cloud_foundry_garden - custom object - optional
 ## Settings for Cloudfoundry application container autodiscovery.
 #
@@ -3924,6 +3967,10 @@ api_key:
     #                             # If `use_raw_socket` is set to true, you MUST also enable
     #                             # system-probe which has elevated privileges. To enable it, see system-probe.yaml.example.
 
+    ## @param use_deduplication - boolean - optional - default: false
+    ## Deduplicate IP addresses corresponding to the same device.
+    ## The deduplication logic is based on the sysName, sysDesc, sysObjectID and sysUptime
+
     ## @param configs - list - required
     ## The actual list of configurations used to discover SNMP devices in various subnets.
     ## Example:
@@ -4332,6 +4379,25 @@ api_key:
     ## be increased by 200 every 5 seconds until reaching 1000.
     # recovery_interval: 5s
 
+## @param ha_agent - custom object - optional
+## This section configures High Availability Agent feature.
+#
+# ha_agent:
+
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable High Availability Agent feature.
+  #
+  # enabled: false
+
+
+## @param config_id - string - optional
+## The config_id configuration is used by High Availability Agent to assign a specific config ID to an Agent.
+## When used with `ha_agent.enabled: true`, all Agents with the same config_id will be part of the same group of Agents;
+## meaning that, one Agent within this group is designated as primary and others as standby.
+#
+# config_id:
+
+
 {{end -}}
 {{- if .OTLP }}
 ###################################
@@ -4413,11 +4479,11 @@ api_key:
     #
     # resource_attributes_as_tags: false
 
-    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: false
-    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: false
+    ## @param instrumentation_scope_metadata_as_tags - boolean - optional - default: true
+    ## @env DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS - boolean - optional - default: true
     ## Set to true to add metadata about the instrumentation scope that created a metric.
     #
-    # instrumentation_scope_metadata_as_tags: false
+    # instrumentation_scope_metadata_as_tags: true
 
     ## @param tag_cardinality - string - optional - default: low
     ## @env DD_OTLP_CONFIG_METRICS_TAG_CARDINALITY - string - optional - default: low
@@ -4672,4 +4738,77 @@ api_key:
   ## To learn about all the available service matching conditions & configuration options, visit
   ## https://docs.datadoghq.com/tracing/trace_collection/library_injection_local
 
+{{end}}
+
+{{- if .ApplicationMonitoring -}}
+###############################
+## Datadog APM Configuration ##
+###############################
+
+## @section APM Configuration Rules
+##
+## Enable and configure APM, profiling, and security monitoring features.
+##
+## Settings can be configured via environment variables or the application_monitoring.yaml file.
+## Configuration precedence (highest to lowest priority):
+##   1. Fleet-managed config file 
+##      (etc/datadog-agent/managed/datadog-agent/stable/application_monitoring.yaml)
+##   2. Environment variables
+##   3. Local config file 
+##      (etc/datadog-agent/application_monitoring.yaml)
+# apm_configuration_rules:
+
+  ## @param DD_APM_TRACING_ENABLED - boolean - optional - default: true
+  ## Enable Datadog tracing.
+  ## Docs: https://docs.datadoghq.com/tracing/trace_collection/
+  # DD_APM_TRACING_ENABLED: true
+
+  ## @param DD_RUNTIME_METRICS_ENABLED - boolean - optional - default: false
+  ## Enable runtime metrics.
+  ## Docs: https://docs.datadoghq.com/tracing/metrics/runtime_metrics/?tab=java#environment-variables
+  # DD_RUNTIME_METRICS_ENABLED: false
+
+  ## @param DD_LOGS_INJECTION - boolean - optional - default: false
+  ## Enable automatic trace and span ID injection into logs.
+  ## Docs: https://docs.datadoghq.com/tracing/other_telemetry/connect_logs_and_traces/
+  # DD_LOGS_INJECTION: false
+
+  ## @param DD_PROFILING_ENABLED - boolean - optional - default: false
+  ## Enable continuous profiling.
+  ## Docs: https://docs.datadoghq.com/profiler/
+  # DD_PROFILING_ENABLED: false
+
+  ## @param DD_DATA_STREAMS_ENABLED - boolean - optional - default: false
+  ## Enable data streams monitoring.
+  ## Docs: https://docs.datadoghq.com/data_streams/
+  # DD_DATA_STREAMS_ENABLED: false
+
+  ## @param DD_APPSEC_ENABLED - boolean - optional - default: false
+  ## Enable the Application Security product.
+  ## Docs: https://docs.datadoghq.com/security/application_security/
+  # DD_APPSEC_ENABLED: false
+
+  ## @param DD_IAST_ENABLED - boolean - optional - default: false
+  ## Enable Interactive Application Security Testing (IAST).
+  ## Docs: https://docs.datadoghq.com/security/code_security/iast/setup/#amazon-ecs
+  # DD_IAST_ENABLED: false
+
+  ## @param DD_DYNAMIC_INSTRUMENTATION_ENABLED - boolean - optional - default: false
+  ## Enable Dynamic Instrumentation.
+  ## Docs: https://docs.datadoghq.com/dynamic_instrumentation/
+  # DD_DYNAMIC_INSTRUMENTATION_ENABLED: false
+
+  ## @param DD_DATA_JOBS_ENABLED - boolean - optional - default: false
+  ## Enable data jobs visibility.
+  # DD_DATA_JOBS_ENABLED: false
+
+  ## @param DD_APPSEC_SCA_ENABLED - boolean - optional - default: false
+  ## Enable Software Composition Analysis.
+  ## Docs: https://docs.datadoghq.com/security/code_security/software_composition_analysis/
+  # DD_APPSEC_SCA_ENABLED: false
+
+  ## @param DD_TRACE_DEBUG - boolean - optional - default: false
+  ## Enable debug logging for the tracer.
+  ## Docs: https://docs.datadoghq.com/tracing/troubleshooting/tracer_debug_logs
+  # DD_TRACE_DEBUG: false
 {{end}}

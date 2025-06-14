@@ -60,12 +60,6 @@ func (f *factory) setupTraceAgentCmp(set component.TelemetrySettings) error {
 			return
 		}
 		f.traceagentcmp.SetOTelAttributeTranslator(attributesTranslator)
-		otelmclient, err := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
-		if err != nil {
-			f.setupErr = err
-			return
-		}
-		f.mclientwrapper.SetDelegate(otelmclient)
 	})
 	return f.setupErr
 }
@@ -174,6 +168,12 @@ func (f *factory) createTracesExporter(
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
 
+	otelmclient, err := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+	if err != nil {
+		return nil, err
+	}
+	f.mclientwrapper.SetDelegate(otelmclient)
+
 	if cfg.OnlyMetadata {
 		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
 	}
@@ -203,6 +203,11 @@ func (f *factory) createMetricsExporter(
 	if err := f.setupTraceAgentCmp(set.TelemetrySettings); err != nil {
 		return nil, fmt.Errorf("failed to set up trace agent component: %w", err)
 	}
+	otelmclient, err := metricsclient.InitializeMetricClient(set.MeterProvider, metricsclient.ExporterSourceTag)
+	if err != nil {
+		return nil, err
+	}
+	f.mclientwrapper.SetDelegate(otelmclient)
 	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
 	statsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version

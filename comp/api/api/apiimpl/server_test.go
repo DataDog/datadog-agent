@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authtokenmock "github.com/DataDog/datadog-agent/comp/api/authtoken/mock"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 )
 
 func TestAuthTagGetter(t *testing.T) {
-	at := authtokenmock.New(t)
+	ipcComp := ipcmock.New(t)
 
 	testCases := []struct {
 		name              string
@@ -30,14 +30,14 @@ func TestAuthTagGetter(t *testing.T) {
 	}{
 		{
 			name:              "secure server & secure client",
-			serverTLSConfig:   at.GetTLSServerConfig(),
-			clientTLSConfig:   at.GetTLSClientConfig(),
+			serverTLSConfig:   ipcComp.GetTLSServerConfig(),
+			clientTLSConfig:   ipcComp.GetTLSClientConfig(),
 			authTagShouldFail: false,
 			expectedTag:       "mTLS",
 		},
 		{
 			name:            "secure server & insecure client",
-			serverTLSConfig: at.GetTLSServerConfig(),
+			serverTLSConfig: ipcComp.GetTLSServerConfig(),
 			clientTLSConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
@@ -47,7 +47,7 @@ func TestAuthTagGetter(t *testing.T) {
 		{
 			name:              "insecure server & secure client",
 			serverTLSConfig:   nil,
-			clientTLSConfig:   at.GetTLSClientConfig(),
+			clientTLSConfig:   ipcComp.GetTLSClientConfig(),
 			authTagShouldFail: true,
 			expectedTag:       "token",
 		},
@@ -62,7 +62,7 @@ func TestAuthTagGetter(t *testing.T) {
 		},
 		{
 			name:            "secure server & secure client with different certificate",
-			serverTLSConfig: at.GetTLSServerConfig(),
+			serverTLSConfig: ipcComp.GetTLSServerConfig(),
 			clientTLSConfig: func() *tls.Config {
 				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
@@ -94,7 +94,7 @@ func TestAuthTagGetter(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}
 
-			server := at.NewMockServer(tcHandler)
+			server := ipcComp.NewMockServer(tcHandler)
 
 			url := url.URL{
 				Scheme: "https",

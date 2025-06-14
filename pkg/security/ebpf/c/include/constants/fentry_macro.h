@@ -33,6 +33,7 @@ typedef unsigned long long ctx_t;
 #define CTX_PARM3(ctx) (u64)(ctx[2])
 #define CTX_PARM4(ctx) (u64)(ctx[3])
 #define CTX_PARM5(ctx) (u64)(ctx[4])
+#define CTX_PARM6(ctx) (u64)(ctx[5])
 
 u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
 	u64 argc;
@@ -87,6 +88,7 @@ typedef struct pt_regs ctx_t;
 #define CTX_PARM3(ctx) PT_REGS_PARM3(ctx)
 #define CTX_PARM4(ctx) PT_REGS_PARM4(ctx)
 #define CTX_PARM5(ctx) PT_REGS_PARM5(ctx)
+#define CTX_PARM6(ctx) PT_REGS_PARM6(ctx)
 
 u64 __attribute__((always_inline)) CTX_PARMRET(ctx_t *ctx) {
     return PT_REGS_RC(ctx);

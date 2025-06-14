@@ -149,7 +149,6 @@ func (le *LeaderEngine) newElection() (*ld.LeaderElector, error) {
 		OnNewLeader: func(identity string) {
 			le.updateLeaderIdentity(identity)
 			le.reportLeaderMetric(identity == le.HolderIdentity)
-			le.notifyClusterChecks() // notify cluster checks of the new leader
 			log.Infof("New leader %q", identity)
 		},
 		OnStartedLeading: func(context.Context) {
@@ -235,9 +234,4 @@ func (le *LeaderEngine) notify() {
 
 		s <- struct{}{}
 	}
-}
-
-// notifyClusterChecks sends a notification to clusterchecks when the leader changes in any process.
-func (le *LeaderEngine) notifyClusterChecks() {
-	le.UpdateLeaderInClusterChecks <- struct{}{}
 }

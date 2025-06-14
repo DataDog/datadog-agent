@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package integration contains the type that represents a configuration.
+// Package integration defines types representing an integration configuration,
+// which can be used by several components of the agent to configure checks or
+// log collectors, for example.
 package integration
 
 import (
@@ -17,8 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
 const (
@@ -182,16 +182,6 @@ func (c *Config) String() string {
 	return string(buffer)
 }
 
-// ScrubbedString returns the YAML representation of the config with secrets scrubbed
-func (c *Config) ScrubbedString() string {
-	scrubbed, err := scrubber.ScrubYaml([]byte(c.String()))
-	if err != nil {
-		log.Errorf("error scrubbing config: %s", err)
-		return ""
-	}
-	return string(scrubbed)
-}
-
 // IsTemplate returns if the config has AD identifiers
 func (c *Config) IsTemplate() bool {
 	return len(c.ADIdentifiers) > 0 || len(c.AdvancedADIdentifiers) > 0
@@ -267,15 +257,6 @@ func (c *Config) AddMetrics(metrics Data) error {
 
 	c.InitConfig = initConfig
 	return nil
-}
-
-// GetTemplateVariablesForInstance returns a slice of raw template variables
-// it found in a config instance template.
-func (c *Config) GetTemplateVariablesForInstance(i int) []tmplvar.TemplateVar {
-	if len(c.Instances) < i {
-		return nil
-	}
-	return tmplvar.Parse(c.Instances[i])
 }
 
 // GetNameForInstance returns the name from an instance if specified, fallback on namespace

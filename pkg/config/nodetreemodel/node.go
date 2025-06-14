@@ -7,6 +7,8 @@ package nodetreemodel
 
 import (
 	"fmt"
+	"reflect"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -28,8 +30,29 @@ func mapInterfaceToMapString(m map[interface{}]interface{}) map[string]interface
 	return res
 }
 
+// valid kinds to call IsNil on
+var nillableKinds = []reflect.Kind{reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Interface, reflect.Slice}
+
+// IsNilValue returns true if a is nil, or a is an interface with nil data
+func IsNilValue(a interface{}) bool {
+	if a == nil {
+		return true
+	}
+	rv := reflect.ValueOf(a)
+	// check if IsNil may be called in order to avoid a panic
+	if slices.Contains(nillableKinds, rv.Kind()) {
+		return reflect.ValueOf(a).IsNil()
+	}
+	return false
+}
+
 // NewNodeTree will recursively create nodes from the input value to construct a tree
 func NewNodeTree(v interface{}, source model.Source) (Node, error) {
+	if IsNilValue(v) {
+		// nil as a value acts as the zero value, and the cast library will correctly
+		// convert it to zero values for the types we handle
+		return newLeafNode(nil, source), nil
+	}
 	switch it := v.(type) {
 	case map[interface{}]interface{}:
 		children, err := makeChildNodeTrees(mapInterfaceToMapString(it), source)
@@ -45,10 +68,6 @@ func NewNodeTree(v interface{}, source model.Source) (Node, error) {
 		return newInnerNode(children), nil
 	case []interface{}:
 		return newLeafNode(it, source), nil
-	case nil:
-		// nil as a value acts as the zero value, and the cast library will correctly
-		// convert it to zero values for the types we handle
-		return newLeafNode(nil, source), nil
 	}
 	if isScalar(v) {
 		return newLeafNode(v, source), nil

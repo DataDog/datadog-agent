@@ -102,7 +102,7 @@ func CreateTargetDir() (string, error) {
 }
 
 // WaitForResult wait for self test results
-func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID, events map[eval.RuleID]*serializers.EventSerializer)) {
+func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID)) {
 	for timeout := range t.selfTestRunning {
 		timer := time.After(timeout)
 
@@ -153,7 +153,7 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 		t.success, t.fails, t.lastTimestamp = success, fails, time.Now()
 		t.Unlock()
 
-		cb(success, fails, events)
+		cb(success, fails)
 
 		t.endSelfTests()
 	}
@@ -190,11 +190,17 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 		policyDef.Rules[i] = selfTest.GetRuleDefinition()
 	}
 
-	policy, err := rules.LoadPolicyFromDefinition(policyName, policySource, rules.SelftestPolicy, policyDef, nil, nil)
+	pInfo := &rules.PolicyInfo{
+		Name:       policyName,
+		Source:     policySource,
+		Type:       rules.SelftestPolicy,
+		IsInternal: true,
+	}
+
+	policy, err := rules.LoadPolicyFromDefinition(pInfo, policyDef, nil, nil)
 	if err != nil {
 		return nil, multierror.Append(nil, err)
 	}
-	policy.IsInternal = true
 
 	return []*rules.Policy{policy}, nil
 }

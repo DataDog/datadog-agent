@@ -35,7 +35,18 @@ func TestTargetEnvs(t *testing.T) {
 	var proc *process.Process
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		proc, err = process.NewProcess(int32(cmd.Process.Pid))
-		assert.NoError(collect, err)
+		require.NoError(collect, err)
+
+		// Check that envs are visible using the gopsutil library before we
+		// attempt to read them using our own function under test to prevent
+		// spurious failures, since the environ file can be empty if the process
+		// is not fully execve(2)'d yet. See environ_read() in fs/proc/base.c in
+		// the kernel.
+		procEnv, err := proc.Environ()
+		require.NoError(collect, err)
+		// NotEmpty doesn't work because proc.Environ() returns a slice with one
+		// empty string as the first element if environ is empty.
+		assert.Greater(collect, len(procEnv), 1)
 	}, 5*time.Second, 10*time.Millisecond)
 
 	vars, err := getTargetEnvs(proc)

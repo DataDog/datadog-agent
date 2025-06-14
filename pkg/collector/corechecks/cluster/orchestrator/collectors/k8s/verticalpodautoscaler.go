@@ -93,7 +93,7 @@ func (c *VerticalPodAutoscalerCollector) Run(rcfg *collectors.CollectorRunConfig
 func (c *VerticalPodAutoscalerCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -101,7 +101,7 @@ func (c *VerticalPodAutoscalerCollector) Process(rcfg *collectors.CollectorRunCo
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

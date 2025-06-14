@@ -46,7 +46,6 @@ type MockProvider struct {
 	collectCounter int
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *MockProvider) Collect(_ context.Context) ([]integration.Config, error) {
 	p.collectCounter++
 	return []integration.Config{}, nil
@@ -56,7 +55,6 @@ func (p *MockProvider) String() string {
 	return "mocked"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (p *MockProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return true, nil
 }
@@ -74,7 +72,6 @@ type MockListener struct {
 	stopReceived bool
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (l *MockListener) Listen(_, _ chan<- listeners.Service) {
 	l.ListenCount++
 }
@@ -260,7 +257,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 	listeners.Register("mock", ml.fakeFactory, ac.serviceListenerFactories)
 	ac.AddListeners([]pkgconfigsetup.Listeners{mockListenenerConfig})
 
-	ac.Stop()
+	ac.stop()
 
 	assert.True(suite.T(), ml.stopReceived)
 }
@@ -368,7 +365,6 @@ func TestAutoConfigTestSuite(t *testing.T) {
 
 func TestResolveTemplate(t *testing.T) {
 	deps := createDeps(t)
-	ctx := context.Background()
 
 	msch := scheduler.NewControllerAndStart()
 	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
@@ -392,23 +388,21 @@ func TestResolveTemplate(t *testing.T) {
 		ADIdentifiers: []string{"redis"},
 	}
 	// there are no template vars but it's ok
-	ac.processNewService(ctx, &service) // processNewService applies changes
+	ac.processNewService(&service) // processNewService applies changes
 	assert.Eventually(t, func() bool {
 		return sch.scheduledSize() == 1
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
-	count := -1 // -1 would indicate f was not called
-	ac.MapOverLoadedConfigs(func(loadedConfigs map[string]integration.Config) {
-		count = len(loadedConfigs)
-	})
-	return count
+	if ac == nil || ac.store == nil {
+		return 0
+	}
+	return len(ac.GetAllConfigs())
 }
 
 func TestRemoveTemplate(t *testing.T) {
 	deps := createDeps(t)
-	ctx := context.Background()
 
 	mockResolver := MockSecretResolver{t, nil}
 
@@ -425,7 +419,7 @@ func TestRemoveTemplate(t *testing.T) {
 		ID:            "a5901276aed16ae9ea11660a41fecd674da47e8f5d8d5bce0080a611feed2be9",
 		ADIdentifiers: []string{"redis"},
 	}
-	ac.processNewService(ctx, &service)
+	ac.processNewService(&service)
 
 	// Add matching template
 	tpl := integration.Config{
@@ -448,7 +442,6 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 
 func TestDecryptConfig(t *testing.T) {
 	deps := createDeps(t)
-	ctx := context.Background()
 
 	mockResolver := MockSecretResolver{t, []mockSecretScenario{
 		{
@@ -466,7 +459,7 @@ func TestDecryptConfig(t *testing.T) {
 	}}
 
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry)
-	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
+	ac.processNewService(&dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
 	tpl := integration.Config{
 		Name:          "cpu",
@@ -569,7 +562,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			expectedResult: "pass: \"********\"",
 		},
 		{
-			name:           "With nil Requet",
+			name:           "With nil Request",
 			request:        nil,
 			expectedResult: "pass: \"********\"",
 		},
@@ -588,7 +581,15 @@ func TestWriteConfigEndpoint(t *testing.T) {
 			out := responseRecorder.Body.Bytes()
 			err := json.Unmarshal(out, &result)
 			require.NoError(t, err)
-			assert.Equal(t, string(result.Configs[0].Config.Instances[0]), tc.expectedResult)
+			assert.Equal(t, tc.expectedResult, string(result.Configs[0].Config.Instances[0]))
+
+			// Check also that the unresolved configs are returned
+			var unresolved []integration.Config
+			for _, config := range result.Unresolved {
+				unresolved = append(unresolved, config)
+			}
+			require.Len(t, unresolved, 1)
+			assert.Equal(t, tc.expectedResult, string(unresolved[0].Instances[0]))
 		})
 	}
 }

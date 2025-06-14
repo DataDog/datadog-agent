@@ -69,18 +69,18 @@ func GetTCProbes(withNetworkIngress bool, withRawPacket bool) []*manager.Probe {
 // GetRawPacketTCProgramFunctions returns the raw packet functions
 func GetRawPacketTCProgramFunctions() []string {
 	return []string{
-		"classifier_raw_packet",
-		"classifier_raw_packet_sender",
+		tailCallClassifierFnc("raw_packet"),
+		tailCallClassifierFnc("raw_packet_sender"),
 	}
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
 func GetAllTCProgramFunctions() []string {
 	output := []string{
-		"classifier_dns_request_parser",
-		"classifier_dns_response",
-		"classifier_dns_request",
-		"classifier_imds_request",
+		tailCallClassifierFnc("dns_request_parser"),
+		tailCallClassifierFnc("dns_response"),
+		tailCallClassifierFnc("dns_request"),
+		tailCallClassifierFnc("imds_request"),
 	}
 
 	output = append(output, GetRawPacketTCProgramFunctions()...)
@@ -106,28 +106,28 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_dns_request",
+				EBPFFuncName: tailCallClassifierFnc("dns_request"),
 			},
 		},
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_dns_request_parser",
+				EBPFFuncName: tailCallClassifierFnc("dns_request_parser"),
 			},
 		},
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCIMDSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_imds_request",
+				EBPFFuncName: tailCallClassifierFnc("imds_request"),
 			},
 		},
 		{
 			ProgArrayName: "classifier_router",
 			Key:           TCDNSResponseKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_dns_response",
+				EBPFFuncName: tailCallClassifierFnc("dns_response"),
 			},
 		},
 	}
@@ -137,7 +137,7 @@ func getTCTailCallRoutes(withRawPacket bool) []manager.TailCallRoute {
 			ProgArrayName: "raw_packet_classifier_router",
 			Key:           TCRawPacketParserSenderKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "classifier_raw_packet_sender",
+				EBPFFuncName: tailCallClassifierFnc("raw_packet_sender"),
 			},
 		})
 	}

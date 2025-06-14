@@ -178,7 +178,7 @@ def _update_release_json_entry(
 ##
 
 
-def _update_release_json(release_json, release_entry, new_version: Version, max_version: Version):
+def _update_release_json(release_json, new_version: Version, max_version: Version):
     """
     Updates the provided release.json object by fetching compatible versions for all dependencies
     of the provided Agent version, constructing the new entry, adding it to the release.json object
@@ -269,11 +269,10 @@ def update_release_json(new_version: Version, max_version: Version):
     """
     release_json = load_release_json()
 
-    release_entry = "release"
-    print(f"Updating {release_entry} for {new_version}")
+    print(f"Updating release json for {new_version}")
 
     # Update release.json object with the entry for the new version
-    release_json = _update_release_json(release_json, release_entry, new_version, max_version)
+    release_json = _update_release_json(release_json, new_version, max_version)
 
     _save_release_json(release_json)
 
@@ -298,7 +297,7 @@ def set_new_release_branch(branch):
     rj["base_branch"] = branch
 
     for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-        rj["nightly"][field] = f"{branch}"
+        rj[RELEASE_JSON_DEPENDENCIES][field] = f"{branch}"
 
     _save_release_json(rj)
 
@@ -323,7 +322,7 @@ def generate_repo_data(ctx, warning_mode, next_version, release_branch):
         repos = ["datadog-agent"]
     else:
         repos = ALL_REPOS
-    previous_tags = find_previous_tags("release", repos, RELEASE_JSON_FIELDS_TO_UPDATE)
+    previous_tags = find_previous_tags(RELEASE_JSON_DEPENDENCIES, repos, RELEASE_JSON_FIELDS_TO_UPDATE)
     data = {}
     for repo in repos:
         branch = release_branch

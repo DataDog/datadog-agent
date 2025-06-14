@@ -19,9 +19,10 @@ import (
 // Action represents the action to take when a rule is triggered
 // It can either come from policy a definition or be an internal callback
 type Action struct {
-	Def              *ActionDefinition
-	InternalCallback *InternalCallbackDefinition
-	FilterEvaluator  *eval.RuleEvaluator
+	Def                 *ActionDefinition
+	InternalCallback    *InternalCallbackDefinition
+	FilterEvaluator     *eval.RuleEvaluator
+	ScopeFieldEvaluator eval.Evaluator
 }
 
 // Check returns an error if the action in invalid
@@ -50,6 +51,18 @@ func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 			(a.Set.Field != "" && a.Set.Value != nil) ||
 			(a.Set.Value != nil && a.Set.Expression != "") {
 			return errors.New("either 'value', 'field' or 'expression' must be specified")
+		}
+
+		if a.Set.Expression != "" && a.Set.DefaultValue == nil && a.Set.Value == nil {
+			return fmt.Errorf("failed to infer type for variable '%s', please set 'default_value'", a.Set.Name)
+		}
+
+		if a.Set.Inherited && a.Set.Scope != "process" {
+			return fmt.Errorf("only variables scoped to process can be marked as inherited")
+		}
+
+		if len(a.Set.ScopeField) > 0 && a.Set.Scope != "process" {
+			return fmt.Errorf("only variables scoped to process can have a custom scope_field")
 		}
 	} else if a.Kill != nil {
 		if opts.DisableEnforcement {
@@ -92,6 +105,21 @@ func (a *Action) CompileFilter(parsingContext *ast.ParsingContext, model eval.Mo
 
 	a.FilterEvaluator = eval.GetEvaluator()
 
+	return nil
+}
+
+// CompileScopeField compiles the scope field
+func (a *Action) CompileScopeField(model eval.Model) error {
+	if a.Def.Set == nil || len(a.Def.Set.ScopeField) == 0 {
+		return nil
+	}
+
+	evaluator, err := model.GetEvaluator(a.Def.Set.ScopeField, "", 0)
+	if err != nil {
+		return &ErrScopeField{Expression: a.Def.Set.ScopeField, Err: err}
+	}
+
+	a.ScopeFieldEvaluator = evaluator
 	return nil
 }
 

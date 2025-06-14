@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
@@ -61,6 +61,7 @@ func (t *DockerSocketTailer) tryStartTailer() (*containerTailerPkg.Tailer, chan 
 		erroredContainerID,
 		t.readTimeout,
 		t.tagger,
+		t.registry,
 	)
 	since, err := since(t.registry, inner.Identifier())
 	if err != nil {

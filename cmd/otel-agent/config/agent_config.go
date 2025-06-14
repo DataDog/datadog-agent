@@ -10,8 +10,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
+	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/confmap"
@@ -160,6 +162,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.use_compression", ddc.Logs.UseCompression, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.compression_level", ddc.Logs.CompressionLevel, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("logs_config.compression_kind", logConfig.GzipCompressionKind, pkgconfigmodel.SourceDefault)
 
 	// APM & OTel trace configs
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceDefault)
@@ -173,7 +176,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 
 	pkgconfig.Set("apm_config.receiver_enabled", false, pkgconfigmodel.SourceDefault) // disable HTTP receiver
 	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceFile)
-	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	if v := ddc.Traces.TraceBuffer; v > 0 {
 		pkgconfig.Set("apm_config.trace_buffer", v, pkgconfigmodel.SourceFile)
 	}
@@ -207,7 +210,7 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 	}
 	err := confmap.NewFromStringMap(smap).Unmarshal(&pipelineConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal pipeline config %w", err)
 	}
 	return pipelineConfig, nil
 }
@@ -229,9 +232,16 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 				if err != nil {
 					return nil, err
 				}
-				err = confmap.NewFromStringMap(m).Unmarshal(&ddcfg)
+				m, err = apiKeyItoa(m)
 				if err != nil {
 					return nil, err
+				}
+				err = confmap.NewFromStringMap(m).Unmarshal(&ddcfg)
+				if err != nil {
+					return nil, fmt.Errorf("failed to unmarshal datadog exporter config\n%w", err)
+				}
+				if ddcfg == nil {
+					ddcfg = datadogexporter.CreateDefaultConfig().(*datadogconfig.Config)
 				}
 				if strings.Contains(ddcfg.Logs.Endpoint, "http-intake") && !strings.Contains(ddcfg.Logs.Endpoint, "agent-http-intake") {
 					// datadogconfig.Config sets logs endpoint to https://http-intake.logs.{DD_SITE} by default
@@ -279,5 +289,49 @@ func setSiteIfEmpty(ddcfg any) (map[string]any, error) {
 	if !ok || apiSite == "" {
 		apicfgMap["site"] = "datadoghq.com"
 	}
+	return ddcfgMap, nil
+}
+
+// apiKeyItoa converts datadog::api::key to a string if it is an int.
+// There is a very small chance DD_API_KEY is composed of digits only, in that case it will be treated as an int and fails confmap unmarshal.
+func apiKeyItoa(ddcfg any) (map[string]any, error) {
+	if ddcfg == nil {
+		return nil, nil // OK if datadog section is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+	}
+
+	ddcfgMap, ok := ddcfg.(map[string]any)
+	if !ok {
+		return nil, errors.New("invalid datadog exporter config")
+	}
+	apicfg, ok := ddcfgMap["api"]
+	if !ok || apicfg == nil {
+		return ddcfgMap, nil // OK if datadog::api is not set, in that case we use the default from datadogexporter.CreateDefaultConfig()
+	}
+	apicfgMap, ok := apicfg.(map[string]any)
+	if !ok {
+		return nil, errors.New("invalid datadog exporter config")
+	}
+	apiKey, ok := apicfgMap["key"]
+	if !ok {
+		return ddcfgMap, nil // OK if key is not set, otel-agent will use the one from core agent
+	}
+	_, ok = apiKey.(string)
+	if ok {
+		return ddcfgMap, nil
+	}
+	var apiKeyStr string
+	switch v := apiKey.(type) {
+	case int:
+		apiKeyStr = strconv.Itoa(v)
+	case int64:
+		apiKeyStr = strconv.FormatInt(v, 10)
+	case float64:
+		apiKeyStr = strconv.FormatInt(int64(v), 10)
+	case float32:
+		apiKeyStr = strconv.FormatInt(int64(v), 10)
+	default:
+		return nil, fmt.Errorf("incorrect type of datadog::api::key %T", apiKey)
+	}
+	apicfgMap["key"] = apiKeyStr
 	return ddcfgMap, nil
 }

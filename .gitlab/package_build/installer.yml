@@ -40,7 +40,7 @@ datadog-agent-oci-x64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs:
     [
@@ -62,7 +62,7 @@ datadog-agent-oci-arm64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs:
     [
@@ -86,7 +86,7 @@ installer-install-scripts:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps", "installer-amd64-oci", "installer-arm64-oci"]
   variables:
@@ -100,7 +100,8 @@ installer-install-scripts:
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*amd64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-amd64
     - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*arm64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-arm64
-    - dda inv -- -e installer.build-linux-script "default" "$VERSION" "installer-amd64" "installer-arm64" "install.sh"
+    - dda inv -- -e installer.build-linux-script "default" "$VERSION" "installer-amd64" "installer-arm64" "install.sh" --package="agent-package"
+    - dda inv -- -e installer.build-linux-script "APM SSI" "$VERSION" "installer-amd64" "installer-arm64" "install-ssi.sh" --package="agent-package"
     - dda inv -- -e installer.build-linux-script "databricks" "$VERSION" "installer-amd64" "installer-arm64" "install-databricks.sh"
     - dda inv -- -e installer.build-linux-script "emr" "$VERSION" "installer-amd64" "installer-arm64" "install-emr.sh"
     - dda inv -- -e installer.build-linux-script "dataproc" "$VERSION" "installer-amd64" "installer-arm64" "install-dataproc.sh"
@@ -166,7 +167,7 @@ installer-amd64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
@@ -181,7 +182,7 @@ installer-arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
   tags: ["arch:arm64"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
