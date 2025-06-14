@@ -88,7 +88,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/go-delve/delve v1.24.0
+	github.com/go-delve/delve v1.24.2
 	github.com/go-ini/ini v1.67.0
 	github.com/go-ole/go-ole v1.3.0
 	github.com/go-sql-driver/mysql v1.8.1
@@ -718,6 +718,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.128.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v0.128.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.128.0 // indirect
+	golang.org/x/telemetry v0.0.0-20241106142447-58a1122356f5 // indirect
 )
 
 require (
