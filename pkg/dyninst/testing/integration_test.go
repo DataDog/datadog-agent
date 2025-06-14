@@ -57,6 +57,7 @@ func TestDyninst(t *testing.T) {
 			expectedOutput := getExpectedDecodedOutputOfProbes(t, "sample")
 			probes := testprogs.MustGetProbeCfgs(t, "sample")
 			for i := range probes {
+				// Run each probe individually
 				t.Run(probes[i].GetID(), func(t *testing.T) {
 					outputJustForTest := map[string]string{
 						probes[i].GetID(): expectedOutput[probes[i].GetID()],
@@ -64,6 +65,7 @@ func TestDyninst(t *testing.T) {
 					testDyninst(t, bin, probes[i:i+1], outputJustForTest)
 				})
 			}
+			// Run all probes together
 			t.Run("all", func(t *testing.T) {
 				testDyninst(t, bin, probes, expectedOutput)
 			})
