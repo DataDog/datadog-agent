@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
@@ -65,7 +66,7 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 
 	t, err := tracer.NewTracer(ncfg, deps.Telemetry, deps.Statsd)
 
-	return &networkTracer{tracer: t}, err
+	return &networkTracer{tracer: t, tagger: deps.Tagger}, err
 }
 
 var _ module.Module = &networkTracer{}
@@ -73,6 +74,7 @@ var _ module.Module = &networkTracer{}
 type networkTracer struct {
 	tracer       *tracer.Tracer
 	restartTimer *time.Timer
+	tagger       tagger.Component
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -96,7 +98,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		defer cleanup()
 		contentType := req.Header.Get("Accept")
 		marshaler := marshal.GetMarshaler(contentType)
-		writeConnections(w, marshaler, cs)
+		writeConnections(w, marshaler, cs, nt.tagger)
 
 		if nt.restartTimer != nil {
 			nt.restartTimer.Reset(inactivityRestartDuration)
@@ -137,7 +139,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 		contentType := req.Header.Get("Accept")
 		marshaler := marshal.GetMarshaler(contentType)
-		writeConnections(w, marshaler, cs)
+		writeConnections(w, marshaler, cs, nt.tagger)
 	})
 
 	httpMux.HandleFunc("/debug/net_state", func(w http.ResponseWriter, req *http.Request) {
@@ -334,12 +336,12 @@ func logRequests(client string, count uint64, connectionsCount int, start time.T
 	}
 }
 
-func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections, tagger tagger.Component) {
 	defer network.Reclaim(cs)
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 
-	connectionsModeler := marshal.NewConnectionsModeler(cs)
+	connectionsModeler := marshal.NewConnectionsModeler(cs, tagger)
 	defer connectionsModeler.Close()
 
 	err := marshaler.Marshal(cs, w, connectionsModeler)
