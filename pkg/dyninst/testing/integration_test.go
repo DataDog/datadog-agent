@@ -73,7 +73,8 @@ func TestDyninst(t *testing.T) {
 	}
 }
 
-func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, expectedOutput map[string]string) {
+//nolint:all
+func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, _ map[string]string) {
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
 		os.Stderr, log.DebugLvl, "[%LEVEL] %Msg\n",
 	)

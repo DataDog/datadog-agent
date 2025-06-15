@@ -94,6 +94,7 @@ func GetBinary(name string, cfg Config) (string, error) {
 	return bin, nil
 }
 
+// State is the state of the testprogs package.
 type State struct {
 	// A list of common configurations that are available for testing.
 	CommonConfigs []Config
@@ -118,6 +119,7 @@ var (
 	globalStateOnce sync.Once
 )
 
+// GetState returns the global state of the testprogs package.
 func GetState() (*State, error) {
 	globalStateOnce.Do(func() {
 		var haveSources bool
