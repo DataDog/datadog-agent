@@ -8,6 +8,7 @@ package marshal
 import (
 	"maps"
 	"math"
+	"strings"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/twmb/murmur3"
@@ -68,7 +69,12 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 			if err != nil {
 				log.Errorf("error getting container %s from metadata: %v", containerID, err)
 			} else {
-				containerTags = common.NewStringSet(entityTags...)
+				for _, tag := range entityTags {
+					if strings.HasPrefix(tag, "location:") {
+						containerTags = common.NewStringSet(tag)
+						break
+					}
+				}
 			}
 		}
 	}
