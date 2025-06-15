@@ -36,8 +36,11 @@
 #define DR_NO_CALLBACK -1
 
 enum TAIL_CALL_PROG_TYPE {
-    KPROBE_OR_FENTRY_TYPE = 0,
     TRACEPOINT_TYPE = 1,
+
+    #define X(lower_name, upper_name) KOF_##upper_name##_TYPE,
+    #include "kof.x"
+    #undef X
 };
 
 enum DENTRY_RESOLVER_KEYS {

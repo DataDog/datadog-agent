@@ -123,7 +123,11 @@ BPF_PERCPU_ARRAY_MAP(on_demand_event_gen, struct on_demand_event_t, 1)
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_callbacks, EVENT_MAX)
-BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_progs, 6)
+
+#define X(lower_name, upper_name) BPF_PROG_ARRAY(dentry_resolver_##lower_name##progs, 6)
+#include "constants/kof.x"
+#undef X
+
 BPF_PROG_ARRAY(dentry_resolver_tracepoint_progs, 3)
 BPF_PROG_ARRAY(classifier_router, 10)
 BPF_PROG_ARRAY(sys_exit_progs, 64)
