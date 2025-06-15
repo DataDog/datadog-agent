@@ -202,15 +202,13 @@ func getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled, supportMmapabl
 			ebpfSuffix = "_write_user"
 		}
 
-		routes = append(routes, []manager.TailCallRoute{
-			{
-				ProgArrayName: dentryResolverProgs,
-				Key:           DentryResolverERPCKey,
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: tailCallFnc("dentry_resolver_erpc" + ebpfSuffix),
-				},
+		routes = append(routes, manager.TailCallRoute{
+			ProgArrayName: dentryResolverProgs,
+			Key:           DentryResolverERPCKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tailCallFnc("dentry_resolver_erpc" + ebpfSuffix),
 			},
-		}...)
+		})
 	}
 
 	return routes
