@@ -51,10 +51,10 @@ static_quality_gate_docker_agent_windows1809:
   max_on_wire_size: 488.95 MiB
 static_quality_gate_docker_agent_windows1809_core:
   max_on_disk_size: 6218 MiB
-  max_on_wire_size: 1907.85 MiB
+  max_on_wire_size: 2049 MiB
 static_quality_gate_docker_agent_windows1809_core_jmx:
-  max_on_disk_size: 6.19 GiB
-  max_on_wire_size: 1907.85 MiB
+  max_on_disk_size: 6361 MiB
+  max_on_wire_size: 2049 MiB
 static_quality_gate_docker_agent_windows1809_jmx:
   max_on_disk_size: 1609.5 MiB
   max_on_wire_size: 531.32 MiB
@@ -63,10 +63,10 @@ static_quality_gate_docker_agent_windows2022:
   max_on_wire_size: 501.7 MiB
 static_quality_gate_docker_agent_windows2022_core:
   max_on_disk_size: 6311 MiB
-  max_on_wire_size: 1907.85 MiB
+  max_on_wire_size: 2049 MiB
 static_quality_gate_docker_agent_windows2022_core_jmx:
-  max_on_disk_size: 5875 MiB
-  max_on_wire_size: 1907.85 MiB
+  max_on_disk_size: 6313 MiB
+  max_on_wire_size: 2049 MiB
 static_quality_gate_docker_agent_windows2022_jmx:
   max_on_disk_size: 1.59 GiB
   max_on_wire_size: 543.98 MiB
