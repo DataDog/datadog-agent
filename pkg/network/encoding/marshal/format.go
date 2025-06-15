@@ -12,8 +12,12 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/twmb/murmur3"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const maxRoutes = math.MaxInt32
@@ -50,13 +54,23 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 // FormatConnection converts a ConnectionStats into an model.Connection
 func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[string]RouteIdx,
 	httpEncoder *httpEncoder, http2Encoder *http2Encoder, kafkaEncoder *kafkaEncoder, postgresEncoder *postgresEncoder,
-	redisEncoder *redisEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
+	redisEncoder *redisEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet, tagger tagger.Component) {
 
 	builder.SetPid(int32(conn.Pid))
 
 	var containerID string
+	var containerTags common.StringSet
 	if conn.ContainerID.Source != nil {
 		containerID = conn.ContainerID.Source.Get().(string)
+		if tagger != nil && containerID != "" {
+			entityID := types.NewEntityID(types.ContainerID, containerID)
+			entityTags, err := tagger.Tag(entityID, types.HighCardinality)
+			if err != nil {
+				log.Errorf("error getting container %s from metadata: %v", containerID, err)
+			} else {
+				containerTags = common.NewStringSet(entityTags...)
+			}
+		}
 	}
 	builder.SetLaddr(func(w *model.AddrBuilder) {
 		w.SetIp(ipc.Get(conn.Source))
@@ -127,6 +141,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	staticTags |= postgresEncoder.WritePostgresAggregations(conn, builder)
 	staticTags |= redisEncoder.WriteRedisAggregations(conn, builder)
 
+	dynamicTags = mergeDynamicTags(dynamicTags, containerTags)
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)
 	for _, t := range tags {
