@@ -124,7 +124,7 @@ func runBenchmark() error {
 		return err
 	}
 
-	textSection, err := obj.TextSectionHeader()
+	textSection, err := object.FindTextSectionHeader(obj.File)
 	if err != nil {
 		return err
 	}

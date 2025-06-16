@@ -14,6 +14,7 @@ typedef struct type_info {
 typedef struct probe_params {
   uint32_t throttler_idx;
   uint32_t stack_machine_pc;
+  uint32_t pointer_chasing_limit;
   bool frameless;
 } probe_params_t;
 
