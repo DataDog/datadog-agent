@@ -665,6 +665,7 @@ func resolveVPNTunnelsRoutes(store *metadata.Store, vpnTunnelStore VPNTunnelStor
 			// 4 ipCidrRouteMask
 			// 1 ipCidrRouteTos
 			// 4 ipCidrRouteNextHop
+			log.Debugf("Expected 13 index element in ipCidrRouteEntry, but got %d, index=`%s`", len(indexElems), strIndex)
 			continue
 		}
 
@@ -814,6 +815,7 @@ func resolveRoutesByIfIndex(store *metadata.Store, vpnTunnelStore VPNTunnelStore
 			// 4 tunnelConfigRemoteAddress
 			// 1 tunnelConfigEncapsMethod
 			// 1 tunnelConfigID
+			log.Debugf("Expected 10 index element in tunnelConfigEntry, but got %d, index=`%s`", len(indexElems), strIndex)
 			continue
 		}
 
