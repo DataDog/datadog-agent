@@ -10,14 +10,22 @@
 #include "murmur2.h"
 #include "walk_stack.h"
 #include "scratch.h"
+#include "throttler.h"
 
 char _license[] SEC("license") = "GPL";
 
 extern const probe_params_t probe_params[];
 extern const uint32_t num_probe_params;
 
+struct {
+  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+  __uint(max_entries, 1);
+  __type(key, uint32_t);
+  __type(value, uint64_t);
+} throttled_events SEC(".maps");
+
 SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
-  uint64_t start = bpf_ktime_get_ns();
+  uint64_t start_ns = bpf_ktime_get_ns();
 
   const uint64_t cookie = bpf_get_attach_cookie(regs);
   if (cookie >= num_probe_params) {
@@ -25,8 +33,16 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   }
   const probe_params_t* params = &probe_params[cookie];
 
+  if (should_throttle(params->throttler_idx, start_ns)) {
+    uint32_t zero = 0;
+    uint64_t* cnt = bpf_map_lookup_elem(&throttled_events, &zero);
+    if (cnt) {
+      ++*cnt;
+    }
+    return 0;
+  }
   global_ctx_t global_ctx;
-  global_ctx.stack_machine = stack_machine_ctx_load();
+  global_ctx.stack_machine = stack_machine_ctx_load(params->pointer_chasing_limit);
   if (!global_ctx.stack_machine) {
     return 0;
   }
@@ -52,7 +68,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
   *header = (event_header_t){
       .data_byte_len = sizeof(event_header_t),
       .stack_byte_len = 0, // set this if we collect stacks
-      .ktime_ns = start,
+      .ktime_ns = start_ns,
   };
 
   __maybe_unused int process_steps = 0;
@@ -91,7 +107,6 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     stack_hash = 0;
   }
   global_ctx.regs = &global_ctx.stack_walk->regs;
-
   frame_data_t frame_data = {
 // Stack layout is slightly different in Go between arm64 and x86_64.
 // Established based on following documentation and machine code reads:

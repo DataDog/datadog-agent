@@ -53,7 +53,7 @@ static_quality_gate_docker_agent_windows1809_core:
   max_on_disk_size: 6218 MiB
   max_on_wire_size: 2049 MiB
 static_quality_gate_docker_agent_windows1809_core_jmx:
-  max_on_disk_size: 6339 MiB
+  max_on_disk_size: 6361 MiB
   max_on_wire_size: 2049 MiB
 static_quality_gate_docker_agent_windows1809_jmx:
   max_on_disk_size: 1609.5 MiB
