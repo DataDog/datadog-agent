@@ -527,16 +527,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 		{
 			name: "GPU monitoring enabled",
 			env: map[string]string{
-				"GPU_MONITORING_ENABLED": "true",
-			},
-			expectedCollectGPUTags: true,
-			expectedEnableNVML:     true,
-			expectedSystemProbeGPU: true,
-		},
-		{
-			name: "GPU monitoring enabled with any value",
-			env: map[string]string{
-				"GPU_MONITORING_ENABLED": "1",
+				"DD_GPU_MONITORING_ENABLED": "true",
 			},
 			expectedCollectGPUTags: true,
 			expectedEnableNVML:     true,
@@ -545,7 +536,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 		{
 			name: "GPU monitoring enabled with empty string value",
 			env: map[string]string{
-				"GPU_MONITORING_ENABLED": "",
+				"DD_GPU_MONITORING_ENABLED": "",
 			},
 			expectedCollectGPUTags: false,
 			expectedEnableNVML:     false,
