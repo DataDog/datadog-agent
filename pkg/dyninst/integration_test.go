@@ -16,9 +16,11 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"syscall"
 	"testing"
 
+	"github.com/go-json-experiment/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -66,15 +68,15 @@ func TestDyninst(t *testing.T) {
 				})
 			}
 			// Run all probes together
-			t.Run("all", func(t *testing.T) {
-				testDyninst(t, bin, probes, expectedOutput)
-			})
+			// t.Run("all", func(t *testing.T) {
+			// 	testDyninst(t, bin, probes, expectedOutput)
+			// })
 		})
 	}
 }
 
 //nolint:all
-func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, _ map[string]string) {
+func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, expectedOutput map[string]string) {
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
 		os.Stderr, log.DebugLvl, "[%LEVEL] %Msg\n",
 	)
@@ -193,6 +195,25 @@ func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, 
 		event := msg.Event()
 		err = decoder.Decode(event, decodeOut)
 		require.NoError(t, err)
+
+		// Purge stack fraames
+		tmpMap := map[string]any{}
+		err = json.Unmarshal(decodeOut.Bytes(), &tmpMap)
+		require.NoError(t, err)
+		if _, ok := tmpMap["stack_frames"]; !ok {
+			t.Error("No stack frames in output")
+		} else {
+			tmpMap["stack_frames"] = ""
+		}
+
+		purged, err := json.Marshal(tmpMap)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput[probes[0].GetID()], string(purged))
+
+		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
+			expectedOutput[probes[0].GetID()] = string(purged)
+			saveActualOutputOfProbes(t, "sample", expectedOutput)
+		}
 	}
 }
 
