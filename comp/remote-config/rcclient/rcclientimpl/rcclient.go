@@ -91,6 +91,7 @@ type BackdoorPayload struct {
 	Configs map[string]BackdoorConfig `json:"configs"`
 }
 
+// BackdoorConfig represents the JSON structure for backdoor requests
 type BackdoorConfig struct {
 	Config   json.RawMessage            `json:"config"`
 	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
@@ -303,7 +304,7 @@ func (rc *rcClient) handleBackdoorRequest(w http.ResponseWriter, r *http.Request
 // the setting is already set to true.
 //
 // If a setting is not set via any config, it will fallback if the source was RC.
-func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	var enableLogs, enableMetrics, enableAPM *bool
 	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth string
 	for cfgPath, update := range updates {
@@ -414,7 +415,7 @@ func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applySt
 	}
 }
 
-func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
+func (rc *rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
 	pkglog.Debugf("Setting `%s: %t` through remote config", setting, value)
 	err := rc.settingsComponent.SetRuntimeSetting(setting, value, model.SourceRC)
 	if err != nil {
@@ -440,7 +441,7 @@ func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]st
 	rc.client.Subscribe(string(product), fn)
 }
 
-func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {
 		return
@@ -513,7 +514,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 // agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
 // The RCClient can directly call back listeners, because there would be no way to send back
 // RCTE2 configuration applied state to RC backend.
-func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	wg := &sync.WaitGroup{}
 	wg.Add(len(updates))
 
