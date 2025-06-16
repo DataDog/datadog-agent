@@ -45,7 +45,7 @@ var processCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([]activeKFilter, []eval.Field, error) {
+func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([]kFilter, []eval.Field, error) {
 	var fieldHandled []eval.Field
 
 	values, exists := approvers[auidField]
@@ -54,7 +54,7 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 	}
 
 	var (
-		kfilters     []activeKFilter
+		kfilters     []kFilter
 		auidRange    = rules.RangeFilterValue{Min: 0, Max: maxAUID}
 		auidRangeSet bool
 	)
@@ -62,7 +62,7 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 	for _, value := range values {
 		switch value.Type {
 		case eval.ScalarValueType:
-			kfilters = append(kfilters, &eventMaskEntry{
+			kfilters = append(kfilters, &eventMaskKFilter{
 				approverType: AUIDApproverType,
 				tableName:    auidApproversTable,
 				tableKey:     ebpf.Uint32MapItem(value.Value.(int)),
@@ -81,7 +81,7 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 	}
 
 	if auidRangeSet {
-		kfilters = append(kfilters, &hashEntry{
+		kfilters = append(kfilters, &hashKFilter{
 			approverType: AUIDApproverType,
 			tableName:    auidRangeApproversTable,
 			tableKey:     eventType,
