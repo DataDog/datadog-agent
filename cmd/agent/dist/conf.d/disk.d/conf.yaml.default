@@ -252,7 +252,7 @@ instances:
 
     ## @param resolve_root_device - boolean - optional - default: false
     ## Instruct the check to resolve '/dev/root' from /proc/self/mounts to underlying block device.
-    
+    ## (Linux only)
     #
     # resolve_root_device: false
     
