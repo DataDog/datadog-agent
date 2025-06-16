@@ -372,7 +372,7 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	var exists bool
 
 	for _, rule := range rs.GetRules() {
-		for _, pInfo := range rule.UsedBy {
+		for pInfo := range rule.Policies() {
 			if pInfo.IsInternal && !includeInternalPolicies {
 				continue
 			}
@@ -381,7 +381,7 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 				policyState = NewPolicyState(pInfo.Name, pInfo.Source, pInfo.Version, PolicyStatusLoaded, "")
 				mp[pInfo.Name] = policyState
 			}
-			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, &pInfo, "loaded", ""))
+			policyState.Rules = append(policyState.Rules, RuleStateFromRule(rule.PolicyRule, pInfo, "loaded", ""))
 		}
 	}
 
@@ -389,7 +389,7 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
-				for _, pInfo := range rerr.Rule.UsedBy {
+				for pInfo := range rerr.Rule.Policies() {
 					if pInfo.IsInternal && !includeInternalPolicies {
 						continue
 					}
@@ -402,7 +402,7 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 					} else if policyState.Status == PolicyStatusLoaded {
 						policyState.Status = PolicyStatusPartiallyLoaded
 					}
-					policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, &pInfo, string(rerr.Type()), rerr.Err.Error()))
+					policyState.Rules = append(policyState.Rules, RuleStateFromRule(rerr.Rule, pInfo, string(rerr.Type()), rerr.Err.Error()))
 				}
 			} else if pErr, ok := err.(*rules.ErrPolicyLoad); ok {
 				policyName := pErr.Name

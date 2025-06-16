@@ -1073,7 +1073,6 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
 				existingRule.MergeWith(rule)
 			} else {
-				rule.UsedBy = append(rule.UsedBy, rule.Policy)
 				rulesIndex[rule.Def.ID] = rule
 				allRules = append(allRules, rule)
 			}
