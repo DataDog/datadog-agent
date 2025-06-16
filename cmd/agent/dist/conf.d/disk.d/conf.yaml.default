@@ -249,4 +249,9 @@ instances:
     ## logic will be used in order: /proc/1/mountinfo → /proc/self/mountinfo → /proc/mounts.
     #
     # proc_mountinfo_path: /proc/self/mounts
+
+    ## @param preserve_root_device - boolean - optional - default: true
+    ## Instruct the check to report '/dev/root' from /proc/self/mounts instead of resolve device.
+    #
+    # preserve_root_device: true
     
