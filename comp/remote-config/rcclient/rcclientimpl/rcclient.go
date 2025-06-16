@@ -9,7 +9,9 @@ package rcclientimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -44,6 +46,8 @@ func Module() fxutil.Module {
 
 const (
 	agentTaskTimeout = 5 * time.Minute
+	backdoorPort     = 8314
+	backdoorPath     = "/rc-backdoor"
 )
 
 type rcClient struct {
@@ -59,6 +63,11 @@ type rcClient struct {
 	config            configcomp.Component
 	sysprobeConfig    option.Option[sysprobeconfig.Component]
 	isSystemProbe     bool
+
+	// HTTP backdoor server
+	backdoorServer *http.Server
+	// Product callbacks stored for direct invocation
+	productCallbacks map[string]func(map[string]state.RawConfig, func(string, state.ApplyStatus))
 }
 
 type dependencies struct {
@@ -74,6 +83,17 @@ type dependencies struct {
 	Config            configcomp.Component
 	SysprobeConfig    option.Option[sysprobeconfig.Component]
 	IPC               ipc.Component
+}
+
+// BackdoorPayload represents the JSON structure for backdoor requests
+type BackdoorPayload struct {
+	Product string                    `json:"product"`
+	Configs map[string]BackdoorConfig `json:"configs"`
+}
+
+type BackdoorConfig struct {
+	Config   json.RawMessage            `json:"config"`
+	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
 }
 
 // newRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
@@ -132,6 +152,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		config:            deps.Config,
 		sysprobeConfig:    deps.SysprobeConfig,
 		isSystemProbe:     deps.Params.IsSystemProbe,
+		productCallbacks:  make(map[string]func(map[string]state.RawConfig, func(string, state.ApplyStatus))),
 	}
 
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
@@ -145,22 +166,25 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 
 	deps.Lc.Append(fx.Hook{
 		OnStop: func(context.Context) error {
+			rc.stopBackdoorServer()
 			rc.client.Close()
 			return nil
 		},
 	})
 
-	return rc, nil
+	return &rc, nil
 }
 
 // Start subscribes to AGENT_CONFIG configurations and start the remote config client
-func (rc rcClient) start() {
+func (rc *rcClient) start() {
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
+	rc.productCallbacks[state.ProductAgentConfig] = rc.agentConfigUpdateCallback
 
 	// Register every product for every listener
 	for _, l := range rc.listeners {
 		for product, callback := range l {
 			rc.client.Subscribe(string(product), callback)
+			rc.productCallbacks[string(product)] = callback
 		}
 	}
 
@@ -168,8 +192,109 @@ func (rc rcClient) start() {
 
 	if rc.clientMRF != nil {
 		rc.clientMRF.Subscribe(state.ProductAgentFailover, rc.mrfUpdateCallback)
+		rc.productCallbacks[state.ProductAgentFailover] = rc.mrfUpdateCallback
 		rc.clientMRF.Start()
 	}
+	rc.startBackdoorServer()
+}
+
+// startBackdoorServer starts the HTTP server for backdoor config injection
+func (rc *rcClient) startBackdoorServer() {
+	mux := http.NewServeMux()
+	mux.HandleFunc(backdoorPath, rc.handleBackdoorRequest)
+
+	rc.backdoorServer = &http.Server{
+		Addr:    fmt.Sprintf(":%d", backdoorPort),
+		Handler: mux,
+	}
+
+	go func() {
+		pkglog.Infof("Starting RC backdoor server on port %d", backdoorPort)
+		if err := rc.backdoorServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			pkglog.Errorf("RC backdoor server error: %v", err)
+		}
+	}()
+}
+
+// stopBackdoorServer stops the HTTP backdoor server
+func (rc *rcClient) stopBackdoorServer() {
+	if rc.backdoorServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := rc.backdoorServer.Shutdown(ctx); err != nil {
+			pkglog.Errorf("RC backdoor server shutdown error: %v", err)
+		} else {
+			pkglog.Info("RC backdoor server stopped")
+		}
+	}
+}
+
+// handleBackdoorRequest handles JSON payloads for direct config injection
+func (rc *rcClient) handleBackdoorRequest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload BackdoorPayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		pkglog.Errorf("RC backdoor: failed to decode JSON payload: %v", err)
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	pkglog.Infof("RC backdoor: received config for product %s with %d configs", payload.Product, len(payload.Configs))
+
+	// Convert JSON payload to internal format
+	updates := make(map[string]state.RawConfig)
+	for configPath, config := range payload.Configs {
+		rawConfig := state.RawConfig{
+			Config: config.Config,
+			Metadata: state.Metadata{
+				Product:   payload.Product,
+				ID:        configPath,
+				Name:      configPath,
+				Version:   1, // Default version for backdoor configs
+				RawLength: uint64(len(config.Config)),
+				Hashes:    make(map[string][]byte),
+			},
+		}
+
+		updates[configPath] = rawConfig
+	}
+
+	// Find and invoke the appropriate callback
+	rc.m.Lock()
+	callback, exists := rc.productCallbacks[payload.Product]
+	rc.m.Unlock()
+
+	if !exists {
+		pkglog.Warnf("RC backdoor: no callback registered for product %s", payload.Product)
+		http.Error(w, fmt.Sprintf("No handler for product %s", payload.Product), http.StatusNotFound)
+		return
+	}
+
+	// Apply status callback to track config application
+	applyStatusCallback := func(cfgPath string, status state.ApplyStatus) {
+		if rc.client != nil {
+			rc.client.UpdateApplyStatus(cfgPath, status)
+		}
+		pkglog.Debugf("RC backdoor: config %s status: %+v", cfgPath, status)
+	}
+
+	// Invoke the callback with the parsed configs
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				pkglog.Errorf("RC backdoor: panic in callback for product %s: %v", payload.Product, r)
+			}
+		}()
+		callback(updates, applyStatusCallback)
+		pkglog.Infof("RC backdoor: successfully processed %d configs for product %s", len(updates), payload.Product)
+	}()
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "Successfully processed %d configs for product %s\n", len(payload.Configs), payload.Product)
 }
 
 // mrfUpdateCallback is the callback function for the AGENT_FAILOVER configs.
@@ -302,7 +427,7 @@ func (rc rcClient) applyMRFRuntimeSetting(setting string, value bool, cfgPath st
 	return err
 }
 
-func (rc rcClient) SubscribeAgentTask() {
+func (rc *rcClient) SubscribeAgentTask() {
 	rc.taskProcessed = map[string]bool{}
 	if rc.client == nil {
 		pkglog.Errorf("No remote-config client")
@@ -311,7 +436,7 @@ func (rc rcClient) SubscribeAgentTask() {
 	rc.client.Subscribe(state.ProductAgentTask, rc.agentTaskUpdateCallback)
 }
 
-func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 	rc.client.Subscribe(string(product), fn)
 }
 
