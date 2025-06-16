@@ -261,6 +261,7 @@ elsif do_package
     dependency "package-artifact"
   end
   dependency "init-scripts-agent"
+  dependency 'datadog-agent-installer-symlinks'
 end
 
 # version manifest is based on the built softwares.

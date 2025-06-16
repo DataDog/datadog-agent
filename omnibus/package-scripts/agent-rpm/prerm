@@ -7,12 +7,18 @@
 #                                                                        #
 ##########################################################################
 
-INSTALL_DIR=/opt/datadog-agent
+INSTALLER_DEB=/opt/datadog-agent/embedded/bin/installer
+INSTALLER_OCI=/opt/datadog-package/datadog-agent/stable/embedded/bin/installer
 
 # Run the uninstall prerm. See pkg/fleet/installer/packages/datadog_agent_linux.go
 # Note: the upgrade prerm is handled in the preinst script of the new package on rpm.
-if [ "$*" = "0" ]; then
-    ${INSTALL_DIR}/embedded/bin/installer prerm datadog-agent rpm || true
+if [ -f ${INSTALLER_DEB} ] && [ "$*" = "0" ]; then
+    ${INSTALLER_DEB} prerm datadog-agent rpm || true
+fi
+
+# Remove the agent if it was upgraded using the installer
+if [ -f ${INSTALLER_OCI} ] && [ "$*" = "0" ]; then
+    ${INSTALLER_OCI} remove datadog-agent || printf "[ WARNING ]\tFailed to remove datadog-agent installed by the installer\n"
 fi
 
 exit 0
