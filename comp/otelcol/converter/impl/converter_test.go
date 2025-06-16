@@ -332,7 +332,7 @@ func TestConvert(t *testing.T) {
 		{
 			name:           "features/no-features",
 			provided:       "features/no-features/config.yaml",
-			expectedResult: "features/no-features/config-result.yaml",
+			expectedResult: "features/no-features/config.yaml",
 			agentConfig:    "features/no-features/acfg.yaml",
 		},
 		{
