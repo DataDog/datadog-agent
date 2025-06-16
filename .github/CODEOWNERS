@@ -89,6 +89,7 @@
 /.gitlab/post_rc_build/*                             @DataDog/agent-devx
 /.gitlab/setup/*                                     @DataDog/agent-devx
 /.gitlab/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
+/.gitlab/trigger_distribution/*                      @DataDog/agent-delivery
 
 /.gitlab/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/binary_build/include.yml                    @DataDog/agent-devx
@@ -178,8 +179,6 @@
 /.gitlab/package_build/windows.yml                   @DataDog/agent-build @DataDog/windows-agent
 /.gitlab/package_build/installer.yml                 @DataDog/agent-build @DataDog/fleet
 /.gitlab/packaging/                                  @DataDog/agent-build
-
-/.gitlab/trigger_distribution/                       @DataDog/agent-delivery
 
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 

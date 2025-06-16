@@ -41,7 +41,6 @@ trigger_auto_staging_release:
     # We are no longer using this tag format as of 7.61.0-v1.3.0
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+){0,1}$/
       when: never
-    - !reference [.on_deploy]
 
 trigger_manual_prod_release:
   extends: .agent_release_management_trigger
