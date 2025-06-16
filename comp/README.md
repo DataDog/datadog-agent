@@ -418,14 +418,6 @@ When running, it listens for network traffic according to configured
 listeners and aggregates traffic data to send to the backend.
 It does not expose any public methods.
 
-## [comp/networkdeviceconfig](...)
-
-Datadog Team: ndm-core
-
-Package networkdeviceconfig implements a component that can connect to devices via SSH/Telnet
-and retrieve their configurations via CLI commands.
-
-
 ## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
 
 *Datadog Team*: Networks
@@ -712,6 +704,12 @@ Package haagent handles states for HA Agent feature.
 *Datadog Team*: container-platform
 
 Package client implements a component to send process metadata to the Cluster-Agent
+
+### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
+
+*Datadog Team*: network-device-monitoring
+
+Package networkdeviceconfig provides the component for retrieving network device configurations.
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
