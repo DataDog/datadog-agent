@@ -742,7 +742,7 @@ func TestConcentratorInput(t *testing.T) {
 				},
 			},
 			expected: []stats.Input{
-				stats.Input{
+				{
 					Traces: []traceutil.ProcessedTrace{
 						{
 							Root:           rootSpanWithTracerTags,
@@ -753,7 +753,7 @@ func TestConcentratorInput(t *testing.T) {
 						},
 					},
 				},
-				stats.Input{
+				{
 					Traces: []traceutil.ProcessedTrace{
 						{
 							Root:           rootSpan,
@@ -764,7 +764,7 @@ func TestConcentratorInput(t *testing.T) {
 						},
 					},
 				},
-				stats.Input{
+				{
 					Traces: []traceutil.ProcessedTrace{
 						{
 							Root:           rootSpanEvent,
