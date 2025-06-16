@@ -638,7 +638,7 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 
 	resolveVPNTunnelsRoutes(store, vpnTunnelStore)
 
-	return vpnTunnelStore.ToSlice()
+	return vpnTunnelStore.ToNormalizedSortedSlice()
 }
 
 func resolveVPNTunnelsRoutes(store *metadata.Store, vpnTunnelStore VPNTunnelStore) {
@@ -650,6 +650,7 @@ func resolveVPNTunnelsRoutes(store *metadata.Store, vpnTunnelStore VPNTunnelStor
 	sort.Strings(routeDeprecatedIndexes)
 	sort.Strings(routeIndexes)
 
+	routeSet := make(map[DeviceRoute]struct{})
 	routesByIfIndex := make(RoutesByIfIndex)
 
 	for _, strIndex := range routeDeprecatedIndexes {
@@ -681,6 +682,11 @@ func resolveVPNTunnelsRoutes(store *metadata.Store, vpnTunnelStore VPNTunnelStor
 			NextHopIP:   nextHopIP,
 			IfIndex:     ifIndex,
 		}
+		if _, exists := routeSet[route]; exists {
+			continue
+		}
+
+		routeSet[route] = struct{}{}
 		routesByIfIndex[ifIndex] = append(routesByIfIndex[ifIndex], route)
 
 		resolveRouteByNextHop(route, vpnTunnelStore)
@@ -774,6 +780,11 @@ func resolveVPNTunnelsRoutes(store *metadata.Store, vpnTunnelStore VPNTunnelStor
 			NextHopIP:   nextHopIP,
 			IfIndex:     ifIndex,
 		}
+		if _, exists := routeSet[route]; exists {
+			continue
+		}
+
+		routeSet[route] = struct{}{}
 		routesByIfIndex[ifIndex] = append(routesByIfIndex[ifIndex], route)
 
 		resolveRouteByNextHop(route, vpnTunnelStore)
@@ -807,6 +818,8 @@ func resolveRoutesByIfIndex(store *metadata.Store, vpnTunnelStore VPNTunnelStore
 	sort.Strings(tunnelDeprecatedIndexes)
 	sort.Strings(tunnelIndexes)
 
+	tunnelSet := make(map[DeviceTunnel]struct{})
+
 	for _, strIndex := range tunnelDeprecatedIndexes {
 		indexElems := strings.Split(strIndex, ".")
 		if len(indexElems) != 10 {
@@ -819,12 +832,23 @@ func resolveRoutesByIfIndex(store *metadata.Store, vpnTunnelStore VPNTunnelStore
 			continue
 		}
 
-		localAddr := strings.Join(indexElems[0:4], ".")
-		remoteAddr := strings.Join(indexElems[4:8], ".")
+		localIP := strings.Join(indexElems[0:4], ".")
+		remoteIP := strings.Join(indexElems[4:8], ".")
 
-		ifIndex := store.GetColumnAsString("ipforward.if_index", strIndex)
+		ifIndex := store.GetColumnAsString("tunnel_config_deprecated.if_index", strIndex)
 
-		addRoutesByIfIndexToVPNTunnel(localAddr, remoteAddr, ifIndex, vpnTunnelStore, routesByIfIndex)
+		tunnel := DeviceTunnel{
+			LocalIP:  localIP,
+			RemoteIP: remoteIP,
+			IfIndex:  ifIndex,
+		}
+		if _, exists := tunnelSet[tunnel]; exists {
+			continue
+		}
+
+		tunnelSet[tunnel] = struct{}{}
+
+		addRoutesByIfIndexToVPNTunnel(tunnel, vpnTunnelStore, routesByIfIndex)
 	}
 
 	for _, strIndex := range tunnelIndexes {
@@ -859,7 +883,7 @@ func resolveRoutesByIfIndex(store *metadata.Store, vpnTunnelStore VPNTunnelStore
 			continue
 		}
 
-		localAddr := strings.Join(indexElems[currMaxIndex-localAddrLength:currMaxIndex], ".")
+		localIP := strings.Join(indexElems[currMaxIndex-localAddrLength:currMaxIndex], ".")
 
 		currMaxIndex++
 		if len(indexElems) < currMaxIndex {
@@ -876,23 +900,34 @@ func resolveRoutesByIfIndex(store *metadata.Store, vpnTunnelStore VPNTunnelStore
 			continue
 		}
 
-		remoteAddr := strings.Join(indexElems[currMaxIndex-remoteAddrLength:currMaxIndex], ".")
+		remoteIP := strings.Join(indexElems[currMaxIndex-remoteAddrLength:currMaxIndex], ".")
 
 		ifIndex := store.GetColumnAsString("tunnel_config.if_index", strIndex)
 
-		addRoutesByIfIndexToVPNTunnel(localAddr, remoteAddr, ifIndex, vpnTunnelStore, routesByIfIndex)
+		tunnel := DeviceTunnel{
+			LocalIP:  localIP,
+			RemoteIP: remoteIP,
+			IfIndex:  ifIndex,
+		}
+		if _, exists := tunnelSet[tunnel]; exists {
+			continue
+		}
+
+		tunnelSet[tunnel] = struct{}{}
+
+		addRoutesByIfIndexToVPNTunnel(tunnel, vpnTunnelStore, routesByIfIndex)
 	}
 }
 
-func addRoutesByIfIndexToVPNTunnel(localAddr string, remoteAddr string, ifIndex string, vpnTunnelStore VPNTunnelStore, routesByIfIndex RoutesByIfIndex) {
-	vpnTunnel, exists := vpnTunnelStore.GetTunnelByOutsideIPs(localAddr, remoteAddr)
+func addRoutesByIfIndexToVPNTunnel(tunnel DeviceTunnel, vpnTunnelStore VPNTunnelStore, routesByIfIndex RoutesByIfIndex) {
+	vpnTunnel, exists := vpnTunnelStore.GetTunnelByOutsideIPs(tunnel.LocalIP, tunnel.RemoteIP)
 	if !exists {
 		return
 	}
 
-	vpnTunnel.InterfaceID = vpnTunnel.DeviceID + ":" + ifIndex
+	vpnTunnel.InterfaceID = vpnTunnel.DeviceID + ":" + tunnel.IfIndex
 
-	routes, exists := routesByIfIndex[ifIndex]
+	routes, exists := routesByIfIndex[tunnel.IfIndex]
 	if !exists {
 		return
 	}

@@ -6,6 +6,8 @@
 package report
 
 import (
+	"sort"
+
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 
@@ -25,6 +27,13 @@ type DeviceRoute struct {
 
 // RoutesByIfIndex stores routes indexed by interface index
 type RoutesByIfIndex map[string][]DeviceRoute
+
+// DeviceTunnel represents a tunnel on a network device
+type DeviceTunnel struct {
+	LocalIP  string
+	RemoteIP string
+	IfIndex  string
+}
 
 // NewVPNTunnelStore creates a new VPNTunnelStore
 func NewVPNTunnelStore() VPNTunnelStore {
@@ -56,15 +65,27 @@ func (vts *VPNTunnelStore) GetTunnelsByRemoteOutsideIP(remoteOutsideIP string) (
 	return vpnTunnels, exists
 }
 
-// ToSlice converts the VPNTunnelStore to a slice of VPNTunnelMetadata
-func (vts *VPNTunnelStore) ToSlice() []devicemetadata.VPNTunnelMetadata {
+// ToNormalizedSortedSlice converts the VPNTunnelStore to a sorted slice (by outside IPs) of normalized VPNTunnelMetadata
+func (vts *VPNTunnelStore) ToNormalizedSortedSlice() []devicemetadata.VPNTunnelMetadata {
 	vpnTunnels := make([]devicemetadata.VPNTunnelMetadata, 0, len(vts.ByOutsideIPs))
 	for _, vpnTunnel := range vts.ByOutsideIPs {
-		vpnTunnels = append(vpnTunnels, *vpnTunnel)
+		normalizedVPNTunnel := normalizeVPNTunnel(*vpnTunnel)
+		vpnTunnels = append(vpnTunnels, normalizedVPNTunnel)
 	}
+	sort.Slice(vpnTunnels, func(i1, i2 int) bool {
+		v1 := buildOutsideIPsKey(vpnTunnels[i1].LocalOutsideIP, vpnTunnels[i1].RemoteOutsideIP)
+		v2 := buildOutsideIPsKey(vpnTunnels[i2].LocalOutsideIP, vpnTunnels[i2].RemoteOutsideIP)
+		return v1 < v2
+	})
 	return vpnTunnels
 }
 
 func buildOutsideIPsKey(localOutsideIP string, remoteOutsideIP string) string {
 	return localOutsideIP + remoteOutsideIP
+}
+
+func normalizeVPNTunnel(vpnTunnel devicemetadata.VPNTunnelMetadata) devicemetadata.VPNTunnelMetadata {
+	sort.Strings(vpnTunnel.RouteAddresses)
+
+	return vpnTunnel
 }
