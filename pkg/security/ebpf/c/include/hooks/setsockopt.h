@@ -245,9 +245,9 @@ int hook_release_sock(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     } // checkez ça pour sk
-
+    struct sock *sk = (struct sock *)CTX_PARM1(ctx);
     u16 sk_protocol;
-    bpf_probe_read(&sk_protocol, sizeof(u16), (struct sock *)CTX_PARM1(ctx) + offsetof(struct sock, sk_protocol));
+    bpf_probe_read(&sk_protocol, sizeof(u16), &(sk->sk_protocol));
     syscall->setsockopt.sk_protocol = sk_protocol;
 
 
