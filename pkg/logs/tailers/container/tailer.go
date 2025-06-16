@@ -10,17 +10,20 @@ package container
 import (
 	"context"
 	"fmt"
-	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
-	"github.com/docker/docker/api/types/container"
 	"io"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/docker/docker/api/types/container"
+
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
+	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -96,6 +99,9 @@ type Tailer struct {
 	// reader is the io.Reader reading chunks of log data from the Docker API.
 	reader *safeReader
 
+	// registry records the progress of the tailer
+	registry auditor.Registry
+
 	// readerCancelFunc is the context cancellation function for the ongoing
 	// docker-API reader.  Calling this function will cancel any pending Read
 	// calls, which will return context.Canceled
@@ -106,7 +112,16 @@ type Tailer struct {
 }
 
 // NewAPITailer returns a new Tailer that streams logs by querying the Kubelet's API
-func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, podName, podNamespace string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+func NewAPITailer(
+	client kubelet.KubeUtilInterface,
+	containerID, containerName, podName, podNamespace string,
+	source *sources.LogSource,
+	outputChan chan *message.Message,
+	erroredContainerID chan string,
+	readTimeout time.Duration,
+	tagger tagger.Component,
+	registry auditor.Registry,
+) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
@@ -120,11 +135,21 @@ func NewAPITailer(client kubelet.KubeUtilInterface, containerID, containerName, 
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
 		reader:             newSafeReader(),
+		registry:           registry,
 	}
 }
 
 // NewDockerTailer returns a new Tailer that streams logs by connecting directly to the Docker socket
-func NewDockerTailer(cli DockerContainerLogInterface, containerID string, source *sources.LogSource, outputChan chan *message.Message, erroredContainerID chan string, readTimeout time.Duration, tagger tagger.Component) *Tailer {
+func NewDockerTailer(
+	cli DockerContainerLogInterface,
+	containerID string,
+	source *sources.LogSource,
+	outputChan chan *message.Message,
+	erroredContainerID chan string,
+	readTimeout time.Duration,
+	tagger tagger.Component,
+	registry auditor.Registry,
+) *Tailer {
 	return &Tailer{
 		ContainerID:        containerID,
 		outputChan:         outputChan,
@@ -138,6 +163,7 @@ func NewDockerTailer(cli DockerContainerLogInterface, containerID string, source
 		done:               make(chan struct{}, 1),
 		erroredContainerID: erroredContainerID,
 		reader:             newSafeReader(),
+		registry:           registry,
 	}
 }
 
@@ -150,6 +176,8 @@ func (t *Tailer) Identifier() string {
 // this call blocks until the decoder is completely flushed
 func (t *Tailer) Stop() {
 	log.Infof("Stop tailing container: %v", t.ContainerID)
+
+	t.registry.SetTailed(t.Identifier(), false)
 
 	// signal the readForever component to stop
 	t.stop <- struct{}{}
@@ -175,6 +203,7 @@ func (t *Tailer) Stop() {
 // start from oldest log otherwise
 func (t *Tailer) Start(since time.Time) error {
 	log.Debugf("Start tailing container: %v", t.ContainerID)
+	t.registry.SetTailed(t.Identifier(), true)
 	return t.tail(since.Format(config.DateFormat))
 }
 
@@ -250,6 +279,7 @@ func (t *Tailer) readForever() {
 	// close the decoder's input channel when this function returns, causing it to
 	// flush and close its output channel
 	defer t.decoder.Stop()
+
 	for {
 		select {
 		case <-t.stop:

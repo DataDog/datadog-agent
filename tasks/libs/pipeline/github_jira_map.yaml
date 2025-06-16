@@ -42,6 +42,7 @@
 '@datadog/apm-trace-storage': APMTS
 '@datadog/asm-go': APPSEC
 '@datadog/agent-delivery': BARX
+'@datadog/agent-build': ABLD
 '@datadog/agent-devx': ACIX
 '@datadog/injection-platform': INPLAT
 '@datadog/agent-processing-and-routing': APR

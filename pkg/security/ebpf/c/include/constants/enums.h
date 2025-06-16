@@ -58,6 +58,7 @@ enum event_type
     EVENT_NETWORK_FLOW_MONITOR,
     EVENT_STAT,
     EVENT_SYSCTL,
+    EVENT_SETRLIMIT,
     EVENT_SETSOCKOPT,
     EVENT_MAX, // has to be the last one
 

@@ -530,10 +530,17 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						UID:          SecurityAgentUID,
-						EBPFFuncName: "cgroup_sysctl",
+						EBPFFuncName: SysCtlProbeFunctionName,
 					},
 				},
 				hookFunc("hook_proc_sys_call_handler"),
+			}},
+		},
+		"setrlimit": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setrlimit", fentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prlimit64", fentry, EntryAndExit)},
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_security_task_setrlimit"),
 			}},
 		},
 	}
