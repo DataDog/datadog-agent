@@ -175,16 +175,6 @@ int hook_security_socket_setsockopt(ctx_t *ctx) {
     return 0;
 }
 
-HOOK_ENTRY("bpf_prog_put")
-int hook_bpf_prog_put(ctx_t *ctx){
-    return 0;
-}
-
-HOOK_ENTRY("bpf_prog_free")
-int hook_bpf_prog_free(ctx_t *ctx){
-    return 0;
-}
-
 HOOK_ENTRY("sock_setsockopt")
 int hook_sock_setsockopt(ctx_t *ctx) {
     // struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
