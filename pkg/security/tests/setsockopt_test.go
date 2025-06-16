@@ -24,7 +24,7 @@ func TestSetSockOpt(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_setsockopt",
-			Expression: `setsockopt.level == SOL_SOCKET && setsockopt.optname == SO_ATTACH_FILTER`,
+			Expression: `setsockopt.level == SOL_SOCKET && setsockopt.optname == SO_ATTACH_FILTER && setsockopt.socket_type == 3 && setsockopt.sk_protocol == 6`,
 		},
 	}
 

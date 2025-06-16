@@ -555,7 +555,7 @@ type SetSockOptEventSerializer struct {
 	// Socket file descriptor
 	Socket_type uint32 `json:"socket_type"`
 	// Socket protocol
-	Socket_protocol uint16 `json:"socket_protocol"`
+	Sk_protocol uint16 `json:"sk_protocol"`
 	// Level at which the option is defined
 	Level uint32 `json:"level"`
 	// Name of the option being set
@@ -1327,11 +1327,11 @@ func newFilterSerializer(filter *model.SockFilter, e *model.Event) *BPFFilterSer
 
 func newSetSockOptEventSerializer(se *model.SetSockOptEvent, e *model.Event) *SetSockOptEventSerializer {
 	s := &SetSockOptEventSerializer{
-		Socket_type:     e.SetSockOpt.Socket_type,
-		Socket_protocol: e.SetSockOpt.Sk_protocol,
-		Level:           e.SetSockOpt.Level,
-		OptName:         e.SetSockOpt.OptName,
-		Filter_len:      e.SetSockOpt.Filter_len,
+		Socket_type: e.SetSockOpt.Socket_type,
+		Sk_protocol: e.SetSockOpt.Sk_protocol,
+		Level:       e.SetSockOpt.Level,
+		OptName:     e.SetSockOpt.OptName,
+		Filter_len:  e.SetSockOpt.Filter_len,
 	}
 	for _, filter := range se.Filter {
 		s.Filter = append(s.Filter, newFilterSerializer(&filter, e))

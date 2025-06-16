@@ -1748,7 +1748,7 @@
           "type": "integer",
           "description": "Socket file descriptor"
         },
-        "socket_protocol": {
+        "sk_protocol": {
           "type": "integer",
           "description": "Socket protocol"
         },
@@ -1776,7 +1776,7 @@
       "type": "object",
       "required": [
         "socket_type",
-        "socket_protocol",
+        "sk_protocol",
         "level",
         "optname",
         "filter_len"

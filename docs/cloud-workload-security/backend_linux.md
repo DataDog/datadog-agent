@@ -1759,7 +1759,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "integer",
                     "description": "Socket file descriptor"
                 },
-                "socket_protocol": {
+                "sk_protocol": {
                     "type": "integer",
                     "description": "Socket protocol"
                 },
@@ -1787,7 +1787,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "required": [
                 "socket_type",
-                "socket_protocol",
+                "sk_protocol",
                 "level",
                 "optname",
                 "filter_len"
@@ -4824,7 +4824,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer",
             "description": "Socket file descriptor"
         },
-        "socket_protocol": {
+        "sk_protocol": {
             "type": "integer",
             "description": "Socket protocol"
         },
@@ -4852,7 +4852,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "type": "object",
     "required": [
         "socket_type",
-        "socket_protocol",
+        "sk_protocol",
         "level",
         "optname",
         "filter_len"
@@ -4865,7 +4865,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `socket_type` | Socket file descriptor |
-| `socket_protocol` | Socket protocol |
+| `sk_protocol` | Socket protocol |
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
 | `filter_len` | Length of the filter |
