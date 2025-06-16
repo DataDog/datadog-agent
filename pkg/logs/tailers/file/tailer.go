@@ -34,21 +34,21 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
+// FingerprintConfig is the configuration for the fingerprinting algorithm
 type FingerprintConfig struct {
-	maxLines         int
-	maxBytes         int
-	bytesToSkip      int
-	linesToSkip      int
-	minToFingerPrint int
+	maxLines    int
+	maxBytes    int
+	bytesToSkip int
+	linesToSkip int
 }
 
+// defaultFingerprintConfig returns the default configuration for the fingerprinting algorithm (also used for testing)
 func defaultFingerprintConfig() FingerprintConfig {
 	return FingerprintConfig{
-		maxLines:         500,
-		maxBytes:         2048,
-		bytesToSkip:      0,
-		linesToSkip:      0,
-		minToFingerPrint: 4,
+		maxLines:    500,
+		maxBytes:    2048,
+		bytesToSkip: 0,
+		linesToSkip: 1,
 	}
 }
 
@@ -266,10 +266,11 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
 
+	t.computeFingerPrint()
+
 	go t.forwardMessages()
 	t.decoder.Start()
 	go t.readForever()
-	go t.computeFingerPrint()
 
 	return nil
 }
@@ -406,36 +407,114 @@ func (t *Tailer) forwardMessages() {
 	}
 }
 
-// Note-to-self, make it so that you can determine whether or not a line is too long before reading it. You might have to read byte by byte and if we don't encounter a \n then we get angry and cap that off there
-func (t *Tailer) computeFingerPrint() { //we will have to modify this to read the number of the lines
-	_, err := t.osFile.Seek(0, io.SeekStart) //Start at the beginning of the file
-	if err != nil {                          // Check to see if there are any warnings
-		log.Warnf("Could not read file: %v", err)
+// computeFingerPrint computes the fingerprint for the file
+func (t *Tailer) computeFingerPrint() {
+	// Always start from the beginning of the file.
+	if _, err := t.osFile.Seek(0, io.SeekStart); err != nil {
+		log.Warnf("Could not seek file %q: %v", t.file.Path, err)
 		return
 	}
 
-	logsToHash := ""                                                                    //Will store the logs we are looking to hash
-	reader := bufio.NewReader(t.osFile)                                                 //Creates a new reader that we will use to consume contents of osFile
-	for i := 0; i < t.fingerprintConfig.linesToSkip+t.fingerprintConfig.maxLines; i++ { //We will iterate over the linestoSkip + maxLines times for efficiency purposes
-		currLine, err := reader.ReadString('\n') //The we will look for the line break delimiter
+	// Determine the fingerprinting mode based on configuration
+	if t.fingerprintConfig.linesToSkip > 0 || (t.fingerprintConfig.linesToSkip == 0 && t.fingerprintConfig.bytesToSkip == 0) {
+		// Line-based fingerprinting mode
+		t.computeFingerPrintByLines()
+	} else {
+		// Byte-based fingerprinting mode
+		t.computeFingerPrintByBytes()
+	}
+}
 
-		if err == io.EOF { //signifies we've reached the end of the file
-			break
-		} else if err != nil { //If we can't find it, then we to failed to read the line (indicates missing line break)
-			log.Warnf("Failed to read line")
-		}
-
-		if i > t.fingerprintConfig.linesToSkip { //If the current counter is greater than the number of linesToSkip, we can begin adding for our hash
-			logsToHash += currLine //add current line to the total thing we are using to hash
+func (t *Tailer) computeFingerPrintByBytes() {
+	// Skip the configured number of bytes
+	if t.fingerprintConfig.bytesToSkip > 0 {
+		if _, err := io.CopyN(io.Discard, t.osFile, int64(t.fingerprintConfig.bytesToSkip)); err != nil && err != io.EOF {
+			log.Warnf("Failed to skip %d bytes while computing fingerprint for %q: %v", t.fingerprintConfig.bytesToSkip, t.file.Path, err)
+			return
 		}
 	}
 
-	//Apply CRC-64 hash
+	// Create a limited reader for the bytes we want to hash
+	limitedReader := &io.LimitedReader{R: t.osFile, N: int64(t.fingerprintConfig.maxBytes)}
+	reader := bufio.NewReader(limitedReader)
+
+	// Read up to maxBytes for hashing
+	buffer := make([]byte, t.fingerprintConfig.maxBytes)
+	bytesRead, err := io.ReadFull(reader, buffer)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		log.Warnf("Failed to read bytes for fingerprint %q: %v", t.file.Path, err)
+		return
+	}
+
+	// Trim buffer to actual bytes read
+	buffer = buffer[:bytesRead]
+
+	// Check if we have enough bytes to create a meaningful fingerprint
+	if bytesRead == 0 || bytesRead < t.fingerprintConfig.maxBytes {
+		log.Debugf("No bytes available for fingerprinting file %q", t.file.Path)
+		return
+	}
+
+	// Compute fingerprint
 	table := crc64.MakeTable(crc64.ISO)
-	checksum := crc64.Checksum([]byte(logsToHash), table)
+	checksum := crc64.Checksum(buffer, table)
 
-	fmt.Print("This is our new hash", checksum)
+	log.Debugf("Computed byte-based fingerprint 0x%x for file %q (bytes=%d)", checksum, t.file.Path, bytesRead)
+}
 
+func (t *Tailer) computeFingerPrintByLines() {
+	reader := bufio.NewReader(t.osFile)
+
+	// Skip the configured number of lines
+	for i := 0; i < t.fingerprintConfig.linesToSkip; i++ {
+		if _, err := reader.ReadString('\n'); err != nil {
+			if err != io.EOF {
+				log.Warnf("Failed to skip line while computing fingerprint for %q: %v", t.file.Path, err)
+			}
+			return
+		}
+	}
+
+	// Read lines for hashing
+	var buffer []byte
+	linesRead := 0
+	maxLines := t.fingerprintConfig.maxLines
+	maxBytes := t.fingerprintConfig.maxBytes
+	bytesRead := 0
+	for linesRead < maxLines {
+		line, err := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			// Cap the line at maxBytes bytes
+			if len(line) > t.fingerprintConfig.maxBytes {
+				line = line[:t.fingerprintConfig.maxBytes]
+				log.Debugf("Truncated line from original length to %d bytes for fingerprinting", t.fingerprintConfig.maxBytes)
+			} else if len(line)+bytesRead > maxBytes {
+				line = line[:maxBytes-bytesRead] //subtract the minimum number of bytes to make the line fit in maxBytes
+			}
+			buffer = append(buffer, line...)
+			linesRead++
+			bytesRead += len(line)
+		}
+
+		if err != nil {
+			if err != io.EOF {
+				log.Warnf("Error while reading file for fingerprint %q: %v", t.file.Path, err)
+			}
+			break
+		}
+	}
+
+	// Check if we have enough lines to create a meaningful fingerprint
+	if linesRead == 0 || linesRead < t.fingerprintConfig.maxLines {
+		log.Debugf("No lines available for fingerprinting file %q", t.file.Path)
+		return
+	}
+
+	// Compute fingerprint
+	table := crc64.MakeTable(crc64.ISO)
+	checksum := crc64.Checksum(buffer, table)
+
+	log.Debugf("Computed line-based fingerprint 0x%x for file %q (bytes=%d, lines=%d)", checksum, t.file.Path, len(buffer), linesRead)
 }
 
 // getFormattedTime return readable timestamp
