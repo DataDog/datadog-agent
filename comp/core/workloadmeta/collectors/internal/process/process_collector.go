@@ -358,16 +358,16 @@ func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService m
 // convertModelServiceToService converts model.Service to workloadmeta.Service
 func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
 	return &workloadmeta.Service{
-		GeneratedName:              modelService.GeneratedName,
-		GeneratedNameSource:        modelService.GeneratedNameSource,
-		AdditionalGeneratedNames:   modelService.AdditionalGeneratedNames,
-		TracerMetadata:             modelService.TracerMetadata,
-		DDService:                  modelService.DDService,
-		DDServiceInjected:          modelService.DDServiceInjected,
-		Ports:                      modelService.Ports,
-		APMInstrumentation:         modelService.APMInstrumentation,
-		Type:                       modelService.Type,
-		LastHeartbeat:              modelService.LastHeartbeat,
+		GeneratedName:            modelService.GeneratedName,
+		GeneratedNameSource:      modelService.GeneratedNameSource,
+		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
+		TracerMetadata:           modelService.TracerMetadata,
+		DDService:                modelService.DDService,
+		DDServiceInjected:        modelService.DDServiceInjected,
+		Ports:                    modelService.Ports,
+		APMInstrumentation:       modelService.APMInstrumentation,
+		Type:                     modelService.Type,
+		LastHeartbeat:            modelService.LastHeartbeat,
 	}
 }
 
@@ -486,15 +486,17 @@ func (c *collector) collectServices(ctx context.Context, collectionTicker *clock
 		case <-collectionTicker.C:
 			// Get alive PIDs from last collected processes
 			c.mux.RLock()
+			if c.lastCollectedProcesses == nil || len(c.lastCollectedProcesses) == 0 {
+				// no processes to check
+				c.mux.RUnlock()
+				continue
+			}
+
 			alivePids := make(core.PidSet, len(c.lastCollectedProcesses))
 			for pid := range c.lastCollectedProcesses {
 				alivePids.Add(pid)
 			}
 			c.mux.RUnlock()
-
-			if len(alivePids) == 0 {
-				continue // No processes to check
-			}
 
 			// update services from service discovery
 			wlmServiceEntities := c.updateServices(alivePids)
