@@ -7,11 +7,13 @@ package file
 
 import (
 	"fmt"
+	"hash/crc64"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -467,4 +469,730 @@ func toInt(str string) int {
 		return int(value)
 	}
 	return 0
+}
+
+// FingerprintTestSuite tests the fingerprinting functionality
+type FingerprintTestSuite struct {
+	suite.Suite
+	testDir     string
+	testPath    string
+	testFile    *os.File
+	testsPassed int
+	testsFailed int
+	testNames   []string
+}
+
+func (suite *FingerprintTestSuite) SetupTest() {
+	var err error
+	suite.testDir = suite.T().TempDir()
+	suite.testPath = filepath.Join(suite.testDir, "fingerprint_test.log")
+	f, err := os.Create(suite.testPath)
+	suite.NotNil(f)
+	suite.Nil(err)
+	suite.testFile = f
+}
+
+func (suite *FingerprintTestSuite) TearDownTest() {
+	suite.testFile.Close()
+}
+
+// AfterTest is called after each test method
+func (suite *FingerprintTestSuite) AfterTest(suiteName, testName string) {
+	suite.testNames = append(suite.testNames, testName)
+	if suite.T().Failed() {
+		suite.testsFailed++
+		fmt.Printf("❌ FAILED: %s\n", testName)
+	} else {
+		suite.testsPassed++
+		fmt.Printf("✅ PASSED: %s\n", testName)
+	}
+}
+
+// TearDownSuite is called after all tests are finished
+func (suite *FingerprintTestSuite) TearDownSuite() {
+	total := suite.testsPassed + suite.testsFailed
+	separator := strings.Repeat("=", 60)
+	fmt.Print("\n" + separator + "\n")
+	fmt.Print("FINGERPRINT TEST RESULTS SUMMARY\n")
+	fmt.Print(separator + "\n")
+	fmt.Printf("Total Tests: %d\n", total)
+	fmt.Printf("Passed: %d\n", suite.testsPassed)
+	fmt.Printf("Failed: %d\n", suite.testsFailed)
+	if total > 0 {
+		fmt.Printf("Success Rate: %.1f%%\n", float64(suite.testsPassed)/float64(total)*100)
+	}
+	fmt.Print(separator + "\n")
+}
+
+func TestFingerprintTestSuite(t *testing.T) {
+	suite.Run(t, new(FingerprintTestSuite))
+}
+
+func (suite *FingerprintTestSuite) createTailerWithConfig(fpConfig FingerprintConfig) *Tailer {
+	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+	}))
+
+	info := status.NewInfoRegistry()
+	tailerOptions := &TailerOptions{
+		OutputChan:      make(chan *message.Message, 10),
+		File:            NewFile(suite.testPath, source.UnderlyingSource(), false),
+		SleepDuration:   10 * time.Millisecond,
+		Decoder:         decoder.NewDecoderFromSource(source, info),
+		Info:            info,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor(""),
+	}
+
+	tailer := NewTailer(tailerOptions)
+	tailer.fingerprintConfig = fpConfig
+	return tailer
+}
+
+func (suite *FingerprintTestSuite) TestLineBased_BasicFunctionality() {
+	// Write test data
+	lines := []string{
+		"header line\n",
+		"first data line\n",
+		"second data line\n",
+		"third data line\n",
+	}
+
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	config := FingerprintConfig{
+		maxLines:    2,
+		maxBytes:    1024,
+		linesToSkip: 1, // Skip header
+		bytesToSkip: 0,
+	}
+
+	text := "first data line\nsecond data line\n"
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(text), table)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
+	// Create a single line that exceeds maxBytes
+	longLine := make([]byte, 3000)
+	for i := range longLine {
+		longLine[i] = 'A'
+	}
+	longLine[2999] = '\n'
+
+	_, err := suite.testFile.Write(longLine)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    5,
+		maxBytes:    2048, // Smaller than the line
+		linesToSkip: 0,
+		bytesToSkip: 0,
+	}
+
+	// Expected: line should be truncated to maxBytes (2048)
+	expectedText := make([]byte, 2048)
+	for i := range expectedText {
+		expectedText[i] = 'A'
+	}
+
+	fmt.Println(len(expectedText))
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum(expectedText, table)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesByteLimit() {
+	// Write multiple lines that together exceed maxBytes
+	line1Content := string(make([]byte, 800))
+	line2Content := string(make([]byte, 800))
+	line3Content := string(make([]byte, 800))
+
+	lines := []string{
+		"line1: " + line1Content + "\n",
+		"line2: " + line2Content + "\n",
+		"line3: " + line3Content + "\n",
+	}
+
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	fmt.Println(lines)
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    10,   // More than available lines
+		maxBytes:    1500, // Should stop after ~1.5 lines
+		linesToSkip: 0,
+		bytesToSkip: 0,
+	}
+
+	// Expected: first line (808 bytes) + part of second line (692 bytes) = 1500 bytes
+	// First line: "line1: " (7 bytes) + 800 null bytes + "\n" (1 byte) = 808 bytes
+	// Remaining bytes for second line: 1500 - 808 = 692 bytes
+	// Second line starts with "line2: " (7 bytes) + 685 null bytes
+	expectedText := "line1: " + line1Content + "\n" + "line2: " + line2Content[:685]
+
+	table := crc64.MakeTable(crc64.ISO)
+	fmt.Println(len(expectedText))
+	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestLineBased_SkipLines() {
+	lines := []string{
+		"skip1\n",
+		"skip2\n",
+		"keep1\n",
+		"keep2\n",
+	}
+
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    2,
+		maxBytes:    1024,
+		linesToSkip: 2, // Skip first 2 lines
+		bytesToSkip: 0,
+	}
+
+	// Expected: skip "skip1\n" and "skip2\n", then fingerprint "keep1\n" and "keep2\n"
+	expectedText := "keep1\nkeep2\n"
+
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
+	// Don't write anything to the file
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    5,
+		maxBytes:    1024,
+		linesToSkip: 0,
+		bytesToSkip: 0,
+	}
+
+	// Expected: empty file should return 0
+	expectedChecksum := uint64(0)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestLineBased_InsufficientLines() {
+	// Write fewer lines than maxLines
+	lines := []string{"line1\n", "line2\n"}
+
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    5, // More than available
+		maxBytes:    1024,
+		linesToSkip: 0,
+		bytesToSkip: 0,
+	}
+
+	// Expected: should return 0 because we have fewer lines than maxLines
+	expectedChecksum := uint64(0)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestByteBased_BasicFunctionality() {
+	data := "header data that should be skipped" +
+		"this is the actual data we want to fingerprint for testing purposes"
+
+	_, err := suite.testFile.WriteString(data)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    0,
+		maxBytes:    50,
+		linesToSkip: 0,
+		bytesToSkip: 34, // Skip "header data that should be skipped"
+	}
+
+	// Expected: skip first 34 bytes, then fingerprint next 50 bytes
+	expectedText := "this is the actual data we want to fingerprint for"
+	fmt.Println("This is how long the expectedText is ", len(expectedText))
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
+	data := "this data should be fingerprinted from the beginning"
+
+	_, err := suite.testFile.WriteString(data)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    0,
+		maxBytes:    30,
+		linesToSkip: 0,
+		bytesToSkip: 0,
+	}
+
+	// Expected: fingerprint first 30 bytes
+	expectedText := "this data should be fingerprin"
+
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
+	data := "short"
+
+	_, err := suite.testFile.WriteString(data)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    0,
+		maxBytes:    100, // More than available
+		linesToSkip: 0,
+		bytesToSkip: 0,
+	}
+
+	// Expected: should return 0 because we have less data than maxBytes
+	expectedChecksum := uint64(0)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestModeSelection_LineMode() {
+	// Write some test data
+	lines := []string{"line1\n", "line2\n", "line3\n"}
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    2,
+		maxBytes:    1024,
+		linesToSkip: 1, // > 0, should trigger line mode
+		bytesToSkip: 10,
+	}
+
+	// Expected: skip first line, then fingerprint remaining lines
+	expectedText := "line2\nline3\n"
+
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestModeSelection_ByteMode() {
+	// Write some test data
+	data := "this is test data for byte mode"
+	_, err := suite.testFile.WriteString(data)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    5,
+		maxBytes:    21,
+		linesToSkip: 0,  // = 0, should trigger byte mode
+		bytesToSkip: 10, // > 0
+	}
+
+	expectedText := "st data for byte mode"
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestModeSelection_DefaultToLineMode() {
+	// Write some test data
+	lines := []string{"line1\n", "line2\n", "line3\n"}
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    3,
+		maxBytes:    1024,
+		linesToSkip: 0, // Both skip values are 0
+		bytesToSkip: 0, // Should default to line mode
+	}
+
+	// Expected: should fingerprint all lines (default line mode, skip first line by default)
+	expectedText := "line1\nline2\nline3\n"
+
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestShowStoredFingerprint() {
+	// Write test data
+	lines := []string{
+		"skip this header line\n",
+		"line 1: important data\n",
+		"line 2: more important data\n",
+	}
+
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    2,
+		maxBytes:    1024,
+		linesToSkip: 1, // Skip header
+		bytesToSkip: 0,
+	}
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	// Compute fingerprint (now returns uint64 directly)
+	fingerprint := tailer.computeFingerPrint()
+
+	fmt.Printf("\n=== Line-Based Fingerprint Test ===\n")
+	fmt.Printf("File content written:\n")
+	for i, line := range lines {
+		if i == 0 {
+			fmt.Printf("  [SKIPPED] %q\n", line)
+		} else {
+			fmt.Printf("  [USED]    %q\n", line)
+		}
+	}
+
+	expectedText := "line 1: important data\n" + "line 2: more important data\n"
+	table := crc64.MakeTable(crc64.ISO)
+	expectedFingerprint := crc64.Checksum([]byte(expectedText), table)
+
+	// Verify it's not zero (meaning it was computed successfully)
+	suite.Equal(expectedFingerprint, fingerprint)
+}
+
+func (suite *FingerprintTestSuite) TestShowStoredFingerprint_ByteMode() {
+	data := "SKIP_THIS_PART" + "thisisexactly20chars"
+
+	_, err := suite.testFile.WriteString(data)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    0,
+		maxBytes:    20,
+		linesToSkip: 0,
+		bytesToSkip: 14, // Skip "SKIP_THIS_PART"
+	}
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+	fingerprint := tailer.computeFingerPrint()
+
+	textToHash := "thisisexactly20chars"
+	table := crc64.MakeTable(crc64.ISO)
+	expectedHash := crc64.Checksum([]byte(textToHash), table)
+
+	suite.Equal(expectedHash, fingerprint)
+}
+
+func (suite *FingerprintTestSuite) TestShowFingerprint_EdgeCases() {
+	fmt.Printf("\n=== Edge Cases Tests ===\n")
+
+	// Test 1: Empty file
+	config := FingerprintConfig{
+		maxLines:    5,
+		maxBytes:    1024,
+		linesToSkip: 0,
+		bytesToSkip: 0,
+	}
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+	fingerprint := tailer.computeFingerPrint()
+	fmt.Printf("Empty file fingerprint: 0x%x (should be 0)\n", fingerprint)
+	suite.Equal(uint64(0), fingerprint, "Empty file should return 0")
+	osFile.Close()
+
+	// Test 2: Insufficient data after skipping
+	_, err = suite.testFile.WriteString("short")
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	config.bytesToSkip = 10 // More than file size
+
+	osFile, err = os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	tailer = suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+	fingerprint = tailer.computeFingerPrint()
+	fmt.Printf("Insufficient data fingerprint: 0x%x (should be 0)\n", fingerprint)
+	suite.Equal(uint64(0), fingerprint, "Insufficient data should return 0")
+}
+
+func (suite *FingerprintTestSuite) TestShowFingerprint_LongLineTruncation() {
+	// Create a line longer than maxBytes to test truncation
+	longContent := strings.Repeat("X", 80) + strings.Repeat("Y", 80)
+	longLine := longContent + "\n"
+
+	_, err := suite.testFile.WriteString(longLine)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    1,
+		maxBytes:    80, // Shorter than the line
+		linesToSkip: 0,
+		bytesToSkip: 0,
+	}
+
+	fmt.Println(longLine)
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+	fingerprint := tailer.computeFingerPrint()
+
+	expectedText := strings.Repeat("X", 80)
+	table := crc64.MakeTable(crc64.ISO)
+	expectedHash := crc64.Checksum([]byte(expectedText), table)
+	// Should still compute a fingerprint even with truncation
+	suite.Equal(expectedHash, fingerprint)
+}
+
+func (suite *FingerprintTestSuite) TestShowFingerprint_MultipleLines_ByteLimit() {
+	// Test the "whichever comes first" logic
+	lines := []string{
+		strings.Repeat("A", 30) + "\n", // ~31 bytes
+		strings.Repeat("B", 30) + "\n", // ~31 bytes
+		strings.Repeat("C", 30) + "\n", // ~31 bytes
+		strings.Repeat("D", 30) + "\n", // ~31 bytes
+	}
+
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	config := FingerprintConfig{
+		maxLines:    4,  // More than available lines
+		maxBytes:    80, // Should stop at the C's
+		linesToSkip: 0,
+		bytesToSkip: 0,
+	}
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+	fingerprint := tailer.computeFingerPrint()
+
+	fmt.Println(lines)
+	stringToHash := strings.Repeat("A", 30) + "\n" + strings.Repeat("B", 30) + "\n" + strings.Repeat("C", 18)
+	table := crc64.MakeTable(crc64.ISO)
+	expectedHash := crc64.Checksum([]byte(stringToHash), table)
+
+	suite.Equal(expectedHash, fingerprint)
+}
+
+func (suite *FingerprintTestSuite) TestShowFingerprint_ModeSelection() {
+	data := "line1\nline2\nline3\n"
+
+	fmt.Printf("\n=== Mode Selection Tests ===\n")
+
+	// Test line mode selection
+	_, err := suite.testFile.WriteString(data)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	// Line mode (linesToSkip > 0)
+	config := FingerprintConfig{
+		maxLines:    2,
+		maxBytes:    1024,
+		linesToSkip: 1, // This triggers line mode
+		bytesToSkip: 5,
+	}
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+	fingerprint1 := tailer.computeFingerPrint()
+	fmt.Printf("Line mode fingerprint (linesToSkip=1): 0x%x\n", fingerprint1)
+	osFile.Close()
+
+	// Reset file for next test
+	suite.testFile.Seek(0, 0)
+	suite.testFile.Truncate(0)
+	_, err = suite.testFile.WriteString(data)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	textToHash1 := "line2\nline3\n"
+	table := crc64.MakeTable(crc64.ISO)
+	expectedHash1 := crc64.Checksum([]byte(textToHash1), table)
+	suite.Equal(fingerprint1, expectedHash1)
+
+	// Byte mode (linesToSkip = 0, bytesToSkip > 0)
+	config = FingerprintConfig{
+		maxLines:    2,
+		maxBytes:    10,
+		linesToSkip: 0, // This with bytesToSkip > 0 triggers byte mode
+		bytesToSkip: 5,
+	}
+
+	osFile, err = os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	tailer = suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+	fingerprint2 := tailer.computeFingerPrint()
+	fmt.Printf("Byte mode fingerprint (bytesToSkip=5): 0x%x\n", fingerprint2)
+	textToHash2 := "\nline2\nlin"
+	table = crc64.MakeTable(crc64.ISO)
+	expectedHash2 := crc64.Checksum([]byte(textToHash2), table)
+	suite.Equal(expectedHash2, fingerprint2)
 }

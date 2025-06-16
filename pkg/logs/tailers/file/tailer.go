@@ -142,6 +142,8 @@ type Tailer struct {
 	PipelineMonitor metrics.PipelineMonitor
 
 	fingerprintConfig FingerprintConfig
+	// fingerprint stores the computed file fingerprint (0 means not computed)
+	fingerprint uint64
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -408,42 +410,49 @@ func (t *Tailer) forwardMessages() {
 }
 
 // computeFingerPrint computes the fingerprint for the file
-func (t *Tailer) computeFingerPrint() {
+func (t *Tailer) computeFingerPrint() uint64 {
 	// Always start from the beginning of the file.
 	if _, err := t.osFile.Seek(0, io.SeekStart); err != nil {
 		log.Warnf("Could not seek file %q: %v", t.file.Path, err)
-		return
+		return 0
 	}
 
 	// Determine the fingerprinting mode based on configuration
-	if t.fingerprintConfig.linesToSkip > 0 || (t.fingerprintConfig.linesToSkip == 0 && t.fingerprintConfig.bytesToSkip == 0) {
+	if t.fingerprintConfig.linesToSkip > 0 || (t.fingerprintConfig.linesToSkip == 0 && t.fingerprintConfig.bytesToSkip == 0 && t.fingerprintConfig.maxLines != 0) {
 		// Line-based fingerprinting mode
-		t.computeFingerPrintByLines()
+		fmt.Printf("We are in the line-based fingerprinting mode\n")
+		return t.computeFingerPrintByLines()
 	} else {
 		// Byte-based fingerprinting mode
-		t.computeFingerPrintByBytes()
+		fmt.Printf("We are in the byte-based fingerprinting mode\n")
+		return t.computeFingerPrintByBytes()
 	}
 }
 
-func (t *Tailer) computeFingerPrintByBytes() {
+func (t *Tailer) computeFingerPrintByBytes() uint64 {
+
+	fmt.Printf("We are in the byte-based fingerprinting mode\n")
 	// Skip the configured number of bytes
 	if t.fingerprintConfig.bytesToSkip > 0 {
-		if _, err := io.CopyN(io.Discard, t.osFile, int64(t.fingerprintConfig.bytesToSkip)); err != nil && err != io.EOF {
+		bytesSkipped, err := io.CopyN(io.Discard, t.osFile, int64(t.fingerprintConfig.bytesToSkip))
+		fmt.Printf("Requested to skip: %d bytes, actually skipped: %d bytes\n", t.fingerprintConfig.bytesToSkip, bytesSkipped)
+
+		if err != nil && err != io.EOF {
 			log.Warnf("Failed to skip %d bytes while computing fingerprint for %q: %v", t.fingerprintConfig.bytesToSkip, t.file.Path, err)
-			return
+			return 0
 		}
 	}
 
 	// Create a limited reader for the bytes we want to hash
 	limitedReader := &io.LimitedReader{R: t.osFile, N: int64(t.fingerprintConfig.maxBytes)}
-	reader := bufio.NewReader(limitedReader)
 
 	// Read up to maxBytes for hashing
 	buffer := make([]byte, t.fingerprintConfig.maxBytes)
-	bytesRead, err := io.ReadFull(reader, buffer)
+	bytesRead, err := io.ReadFull(limitedReader, buffer)
+	fmt.Printf("Bytes read: %d\n", bytesRead)
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		log.Warnf("Failed to read bytes for fingerprint %q: %v", t.file.Path, err)
-		return
+		return 0
 	}
 
 	// Trim buffer to actual bytes read
@@ -452,17 +461,22 @@ func (t *Tailer) computeFingerPrintByBytes() {
 	// Check if we have enough bytes to create a meaningful fingerprint
 	if bytesRead == 0 || bytesRead < t.fingerprintConfig.maxBytes {
 		log.Debugf("No bytes available for fingerprinting file %q", t.file.Path)
-		return
+		return 0
 	}
+
+	fmt.Println("This is how long the buffer is ", len(buffer))
+	fmt.Printf("Buffer content: %q\n", string(buffer))
 
 	// Compute fingerprint
 	table := crc64.MakeTable(crc64.ISO)
 	checksum := crc64.Checksum(buffer, table)
 
+	// Store the fingerprint in the tailer
 	log.Debugf("Computed byte-based fingerprint 0x%x for file %q (bytes=%d)", checksum, t.file.Path, bytesRead)
+	return checksum
 }
 
-func (t *Tailer) computeFingerPrintByLines() {
+func (t *Tailer) computeFingerPrintByLines() uint64 {
 	reader := bufio.NewReader(t.osFile)
 
 	// Skip the configured number of lines
@@ -471,7 +485,7 @@ func (t *Tailer) computeFingerPrintByLines() {
 			if err != io.EOF {
 				log.Warnf("Failed to skip line while computing fingerprint for %q: %v", t.file.Path, err)
 			}
-			return
+			return 0
 		}
 	}
 
@@ -505,16 +519,17 @@ func (t *Tailer) computeFingerPrintByLines() {
 	}
 
 	// Check if we have enough lines to create a meaningful fingerprint
-	if linesRead == 0 || linesRead < t.fingerprintConfig.maxLines {
+	if linesRead == 0 || linesRead < t.fingerprintConfig.maxLines && bytesRead < t.fingerprintConfig.maxBytes {
 		log.Debugf("No lines available for fingerprinting file %q", t.file.Path)
-		return
+		return 0
 	}
 
 	// Compute fingerprint
 	table := crc64.MakeTable(crc64.ISO)
 	checksum := crc64.Checksum(buffer, table)
-
+	// Store the fingerprint in the tailer
 	log.Debugf("Computed line-based fingerprint 0x%x for file %q (bytes=%d, lines=%d)", checksum, t.file.Path, len(buffer), linesRead)
+	return checksum
 }
 
 // getFormattedTime return readable timestamp
