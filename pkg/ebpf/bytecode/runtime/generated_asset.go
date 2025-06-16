@@ -48,12 +48,7 @@ func (a *generatedAsset) Compile(config *ebpf.Config, inputCode string, addition
 	}()
 
 	opts := headers.HeaderOptions{
-		DownloadEnabled: config.EnableKernelHeaderDownload,
-		Dirs:            config.KernelHeadersDirs,
-		DownloadDir:     config.KernelHeadersDownloadDir,
-		AptConfigDir:    config.AptConfigDir,
-		YumReposDir:     config.YumReposDir,
-		ZypperReposDir:  config.ZypperReposDir,
+		Dirs: config.KernelHeadersDirs,
 	}
 	kernelHeaders := headers.GetKernelHeaders(opts)
 	if len(kernelHeaders) == 0 {

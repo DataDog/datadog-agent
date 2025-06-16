@@ -44,29 +44,14 @@ type Config struct {
 	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
 	EnableRuntimeCompiler bool
 
-	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
-	EnableKernelHeaderDownload bool
-
 	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
 	KernelHeadersDirs []string
-
-	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
-	KernelHeadersDownloadDir string
 
 	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs
 	RuntimeCompilerOutputDir string
 
 	// BTFOutputDir is the directory where extracted BTF files are stored
 	BTFOutputDir string
-
-	// AptConfigDir is the path to the apt config directory
-	AptConfigDir string
-
-	// YumReposDir is the path to the yum repository directory
-	YumReposDir string
-
-	// ZypperReposDir is the path to the zypper repository directory
-	ZypperReposDir string
 
 	// AllowPrebuiltFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
 	AllowPrebuiltFallback bool
@@ -101,12 +86,7 @@ func NewConfig() *Config {
 
 		EnableRuntimeCompiler:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_runtime_compiler")),
 		RuntimeCompilerOutputDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "runtime_compiler_output_dir")),
-		EnableKernelHeaderDownload:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_kernel_header_download")),
 		KernelHeadersDirs:            cfg.GetStringSlice(sysconfig.FullKeyPath(spNS, "kernel_header_dirs")),
-		KernelHeadersDownloadDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "kernel_header_download_dir")),
-		AptConfigDir:                 cfg.GetString(sysconfig.FullKeyPath(spNS, "apt_config_dir")),
-		YumReposDir:                  cfg.GetString(sysconfig.FullKeyPath(spNS, "yum_repos_dir")),
-		ZypperReposDir:               cfg.GetString(sysconfig.FullKeyPath(spNS, "zypper_repos_dir")),
 		AllowPrebuiltFallback:        cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_prebuilt_fallback")),
 		AllowRuntimeCompiledFallback: cfg.GetBool(sysconfig.FullKeyPath(spNS, "allow_runtime_compiled_fallback")),
 
