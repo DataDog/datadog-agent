@@ -9,6 +9,8 @@ package autoscaling
 
 import (
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -30,28 +32,37 @@ type Observable interface {
 	RegisterObserver(observer Observer)
 }
 
+// Indexer is an interface type for all stores that can be indexed
+type Indexer interface {
+	// GetIDs returns matching store IDs given the index's key
+	GetIDs(key any) []string
+	// GetIndexKey returns the object's index key
+	GetIndexKey(obj any) any
+	// AddToIndex adds an object to the index
+	AddToIndex(key any, id string)
+	// RemoveFromIndex removes an object from the index
+	RemoveFromIndex(key any, id string)
+}
+
 // Store is a simple in-memory store with observer support
 type Store[T any] struct {
 	store         map[string]T
 	lock          sync.RWMutex
 	observers     map[storeOperation][]ObserverFunc
 	observersLock sync.RWMutex
-	indexMap      map[any][]string
-	getIndexKey   func(*T) any
+	indexer       Indexer
 }
 
 type storeOperation int
 
 // NewStore creates a new NewStore
-func NewStore[T any](getIndexKey func(*T) any) *Store[T] {
+func NewStore[T any]() *Store[T] {
 	return &Store[T]{
 		store: make(map[string]T),
 		observers: map[storeOperation][]ObserverFunc{
 			setOperation:    make([]ObserverFunc, 0),
 			deleteOperation: make([]ObserverFunc, 0),
 		},
-		indexMap:    make(map[any][]string),
-		getIndexKey: getIndexKey,
 	}
 }
 
@@ -71,6 +82,11 @@ func (s *Store[T]) RegisterObserver(observer Observer) {
 
 	addObserver(setOperation, observer.SetFunc)
 	addObserver(deleteOperation, observer.DeleteFunc)
+}
+
+// SetIndexer sets the indexer for the store
+func (s *Store[T]) SetIndexer(indexer Indexer) {
+	s.indexer = indexer
 }
 
 // Get returns object for given id, returns nil if absent
@@ -104,11 +120,13 @@ func (s *Store[T]) GetFiltered(filter func(T) bool) []T {
 
 // GetFilteredByOwner returns a copy of all store values matched by the owner index key
 func (s *Store[T]) GetFilteredByOwner(indexKey any) []T {
+	log.Debugf("Getting filtered by owner: %+v", indexKey)
+	log.Debugf("Indexer: %+v", s.indexer)
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	ids, ok := s.indexMap[indexKey]
-	if !ok || len(ids) == 0 {
+	ids := s.indexer.GetIDs(indexKey)
+	if len(ids) == 0 {
 		return nil
 	}
 
@@ -157,9 +175,9 @@ func (s *Store[T]) Set(id string, obj T, sender string) {
 	s.store[id] = obj
 
 	// Add to index if we have an index key function
-	if s.getIndexKey != nil {
-		indexKey := s.getIndexKey(&obj)
-		s.addIDToIndex(indexKey, id)
+	if s.indexer != nil {
+		indexKey := s.indexer.GetIndexKey(obj)
+		s.indexer.AddToIndex(indexKey, id)
 	}
 
 	s.lock.Unlock()
@@ -174,9 +192,9 @@ func (s *Store[T]) Delete(id, sender string) {
 	obj, exists := s.store[id]
 
 	// Remove from index if we have an index key function
-	if exists && s.getIndexKey != nil {
-		indexKey := s.getIndexKey(&obj)
-		s.removeIDFromIndex(indexKey, id)
+	if exists && s.indexer != nil {
+		indexKey := s.indexer.GetIndexKey(obj)
+		s.indexer.RemoveFromIndex(indexKey, id)
 	}
 
 	delete(s.store, id)
@@ -235,40 +253,5 @@ func (s *Store[T]) notify(operationType storeOperation, key, sender string) {
 
 	for _, observer := range s.observers[operationType] {
 		observer(key, sender)
-	}
-}
-
-// Helper to add an ID to an index key
-func (s *Store[T]) addIDToIndex(key any, id string) {
-	if key == nil {
-		return
-	}
-	s.indexMap[key] = append(s.indexMap[key], id)
-}
-
-// Helper to remove an ID from an index key
-func (s *Store[T]) removeIDFromIndex(key any, id string) {
-	if key == nil {
-		return
-	}
-
-	ids, exists := s.indexMap[key]
-	if !exists {
-		return
-	}
-
-	// Find and remove the ID
-	for i, existingID := range ids {
-		if existingID == id {
-			// Remove by swapping with last element and truncating
-			ids[i] = ids[len(ids)-1]
-			s.indexMap[key] = ids[:len(ids)-1]
-
-			// If empty, remove the key
-			if len(s.indexMap[key]) == 0 {
-				delete(s.indexMap, key)
-			}
-			break
-		}
 	}
 }
