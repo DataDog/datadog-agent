@@ -104,7 +104,7 @@ func buildFetchVersionTest(name string, version *kversion.Versions, targetAddres
 	}
 }
 
-func buildAPIVersionsVersionTest(name string, version *kversion.Versions, targetAddress, serverAddress, topicName string, dialer *net.Dialer, expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
+func buildAPIVersionsVersionTest(name string, version *kversion.Versions, targetAddress, serverAddress string, dialer *net.Dialer, expectedProtocol protocols.ProtocolType) protocolClassificationAttributes {
 	return protocolClassificationAttributes{
 		name: name,
 		context: testContext{
@@ -349,7 +349,6 @@ func testKafkaProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			version,
 			net.JoinHostPort(targetHost, kafkaPort),
 			net.JoinHostPort(serverHost, kafkaPort),
-			getTopicName(),
 			defaultDialer,
 			protocols.Kafka,
 		)
