@@ -5,7 +5,6 @@
 
 //go:build windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package networkv2
 
 import (
@@ -40,15 +39,11 @@ type fakeNetworkStats struct {
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
 func (n *fakeNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
 	return n.counterStats, n.counterStatsError
 }
 
 // ProtoCounters returns the inner values of counterStats and counterStatsError
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
 func (n *fakeNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
 	return n.protoCountersStats, n.protoCountersStatsError
 }
@@ -69,8 +64,6 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 }
 
 // TcpStats returns the mocked values for the GetTcpStatisticsEx syscall
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
 func (n *fakeNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
 	switch kind {
 	case "tcp4":

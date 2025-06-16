@@ -5,7 +5,6 @@
 
 //go:build linux
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 package networkv2
 
 import (
