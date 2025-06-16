@@ -746,7 +746,7 @@ func newCheck() check.Check {
 			// Match psutil exactly setting default value (https://github.com/giampaolo/psutil/blob/3d21a43a47ab6f3c4a08d235d2a9a55d4adae9b1/psutil/_pslinux.py#L1277)
 			ProcMountInfoPath: "/proc/self/mounts",
 			// Match psutil reporting '/dev/root' from /proc/self/mounts by default
-			ResolveRootDevice: true,
+			ResolveRootDevice: false,
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},
