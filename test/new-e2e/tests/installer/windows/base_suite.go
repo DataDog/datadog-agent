@@ -39,7 +39,7 @@ import (
 //	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
-	installer          *DatadogInstaller
+	installer          DatadogInstallerRunner
 	installScriptImpl  InstallScriptRunner
 	currentAgent       *AgentVersionManager
 	stableAgent        *AgentVersionManager
@@ -48,7 +48,7 @@ type BaseSuite struct {
 }
 
 // Installer The Datadog Installer for testing.
-func (s *BaseSuite) Installer() *DatadogInstaller {
+func (s *BaseSuite) Installer() DatadogInstallerRunner {
 	return s.installer
 }
 
@@ -62,6 +62,12 @@ func (s *BaseSuite) InstallScript() InstallScriptRunner {
 // Use this in your test suite's SetupSuite to override the default implementation.
 func (s *BaseSuite) SetInstallScriptImpl(impl InstallScriptRunner) {
 	s.installScriptImpl = impl
+}
+
+// SetInstaller sets a custom installer implementation.
+// Use this in your test suite's SetupSuite to override the default implementation.
+func (s *BaseSuite) SetInstaller(impl DatadogInstallerRunner) {
+	s.installer = impl
 }
 
 // Require instantiates a suiteAssertions for the current suite.
@@ -280,10 +286,11 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 	agentVersion := s.StableAgentVersion().Version()
 
 	// Act
-	_, _ = s.startExperimentPreviousVersion()
-	// can't check error here because the process will be killed by the MSI "files in use"
-	// and experiment started in the background
-	// s.Require().NoError(err)
+	s.WaitForDaemonToStop(func() {
+		_, _ = s.startExperimentPreviousVersion()
+		// TODO: after stable is 7.68, we can check for error
+		// s.Require().NoError(err, "daemon should stop cleanly")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Assert
 	// have to wait for experiment to finish installing
@@ -314,10 +321,10 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	agentVersion := s.CurrentAgentVersion().Version()
 
 	// Act
-	_, _ = s.StartExperimentCurrentVersion()
-	// can't check error here because the process will be killed by the MSI "files in use"
-	// and experiment started in the background
-	// s.Require().NoError(err)
+	s.WaitForDaemonToStop(func() {
+		_, err := s.StartExperimentCurrentVersion()
+		s.Require().NoError(err, "daemon should stop cleanly")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Assert
 	// have to wait for experiment to finish installing
@@ -424,4 +431,27 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 		HasConfigState(consts.AgentPackage).
 		WithExperimentConfigEqual("").
 		HasARunningDatadogAgentService()
+}
+
+// WaitForDaemonToStop waits for the daemon service PID to change after the function is called.
+func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
+	s.T().Helper()
+
+	originalPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+	s.Require().NoError(err)
+	s.Require().Greater(originalPID, 0)
+
+	f()
+
+	err = backoff.Retry(func() error {
+		newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
+		if err != nil {
+			return err
+		}
+		if newPID == originalPID {
+			return fmt.Errorf("daemon PID %d is still running", newPID)
+		}
+		return nil
+	}, b)
+	s.Require().NoError(err)
 }

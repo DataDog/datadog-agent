@@ -24,6 +24,8 @@ type CodeMetadata struct {
 // CodeSerializer is the interface for serializing byte code into native
 // stack machine code.
 type CodeSerializer interface {
+	// Optionally comment a block of following instructions.
+	CommentBlock(comment string) error
 	// Optionally comment a function prior to its body.
 	CommentFunction(id FunctionID, pc uint32) error
 	// Serialize an instruction into the output stream.
@@ -55,6 +57,7 @@ func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 		}
 	}
 
+	appendFragment(blockComment{"Extra illegal ops to simplify code bound checks"})
 	for range maxOpLen {
 		appendFragment(makeInstruction(IllegalOp{}))
 	}
@@ -86,6 +89,19 @@ type codeTracker struct {
 type codeFragment interface {
 	codeByteLen() uint32
 	encode(t codeTracker, out CodeSerializer) error
+}
+
+// comment is a code fragment with free-form comment.
+type blockComment struct {
+	comment string
+}
+
+func (c blockComment) codeByteLen() uint32 {
+	return 0
+}
+
+func (c blockComment) encode(_ codeTracker, out CodeSerializer) error {
+	return out.CommentBlock(c.comment)
 }
 
 // functionComment is a code fragment that comments a function, itself containing no code.
