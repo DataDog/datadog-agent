@@ -112,7 +112,6 @@ func buildAPIVersionsVersionTest(name string, version *kversion.Versions, target
 			targetAddress: targetAddress,
 			serverAddress: serverAddress,
 		},
-		preTracerSetup: func(t *testing.T, ctx testContext) {},
 		postTracerSetup: func(t *testing.T, ctx testContext) {
 			kafkaClient, err := kafka.NewClient(kafka.Options{
 				ServerAddress: ctx.targetAddress,
