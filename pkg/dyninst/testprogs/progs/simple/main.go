@@ -27,6 +27,13 @@ func main() {
 	funcArg(inlined)
 	mapArg(map[string]int{"a": 1})
 	bigMapArg(map[string]bigStruct{"b": {Field1: 1}})
+	val := 17
+	ptr1 := &val
+	ptr2 := &ptr1
+	ptr3 := &ptr2
+	ptr4 := &ptr3
+	ptr5 := &ptr4
+	PointerChainArg(ptr5)
 }
 
 //go:noinline
@@ -92,4 +99,8 @@ func bigMapArg(m map[string]bigStruct) {
 		v.data[0] = 1 // use data
 	}
 	fmt.Println(m)
+}
+
+func PointerChainArg(ptr *****int) {
+	fmt.Println(ptr)
 }
