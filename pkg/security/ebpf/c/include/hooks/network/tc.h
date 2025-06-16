@@ -94,8 +94,6 @@ int classifier_raw_packet_ingress(struct __sk_buff *skb) {
         return ACT_OK;
     }
 
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
-
     return ACT_OK;
 };
 
@@ -118,8 +116,6 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     if (prepare_raw_packet_event(skb) != ACT_OK) {
         return ACT_OK;
     }
-
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
 
     return ACT_OK;
 };

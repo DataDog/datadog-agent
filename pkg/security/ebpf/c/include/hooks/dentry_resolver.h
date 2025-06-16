@@ -103,17 +103,6 @@ void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, en
 
         resolver->ret += DR_MAX_ITERATION_DEPTH * (resolver->iteration - 1);
     }
-
-    if (resolver->callback >= 0) {
-        switch (prog_type) {
-        case KPROBE_OR_FENTRY_TYPE:
-            bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_callbacks, resolver->callback);
-            break;
-        case TRACEPOINT_TYPE:
-            bpf_tail_call_compat(ctx, &dentry_resolver_tracepoint_callbacks, resolver->callback);
-            break;
-        }
-    }
 }
 
 void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
