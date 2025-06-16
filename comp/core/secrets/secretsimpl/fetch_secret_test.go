@@ -119,7 +119,7 @@ func TestLimitBuffer(t *testing.T) {
 }
 
 func TestExecCommandError(t *testing.T) {
-	inputPayload := "{\"version\": \"" + "1.0" + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
+	inputPayload := "{\"version\": \"" + secrets.PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
 
 	t.Run("Empty secretBackendCommand", func(t *testing.T) {
