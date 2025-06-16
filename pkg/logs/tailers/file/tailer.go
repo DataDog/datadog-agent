@@ -142,8 +142,6 @@ type Tailer struct {
 	PipelineMonitor metrics.PipelineMonitor
 
 	fingerprintConfig FingerprintConfig
-	// fingerprint stores the computed file fingerprint (0 means not computed)
-	fingerprint uint64
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -426,10 +424,9 @@ func (t *Tailer) computeFingerPrint() uint64 {
 	if t.fingerprintConfig.linesToSkip > 0 || (t.fingerprintConfig.linesToSkip == 0 && t.fingerprintConfig.bytesToSkip == 0 && t.fingerprintConfig.maxLines != 0) {
 		// Line-based fingerprinting mode
 		return t.computeFingerPrintByLines()
-	} else {
-		// Byte-based fingerprinting mode
-		return t.computeFingerPrintByBytes()
 	}
+	// Byte-based fingerprinting mode
+	return t.computeFingerPrintByBytes()
 }
 
 func (t *Tailer) computeFingerPrintByBytes() uint64 {
