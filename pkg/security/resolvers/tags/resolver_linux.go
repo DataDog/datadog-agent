@@ -192,24 +192,38 @@ func (t *LinuxResolver) ResolveWithErr(id interface{}) ([]string, error) {
 // resolveWorkloadTags overrides the default implementation to handle CGroup resolution on Linux
 func (t *LinuxResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
 	if id == nil {
-		return nil, nil
+		return nil, fmt.Errorf("nil workload id")
 	}
+
+	workload, ok := t.workloads[id.(containerutils.CGroupID)]
+	if !ok {
+		return nil, fmt.Errorf("workload not found")
+	}
+
+	cgroupManager := containerutils.CGroupManager(workload.CGroupFlags & containerutils.CGroupManagerMask).String()
 
 	switch v := id.(type) {
 	case containerutils.ContainerID:
 		if len(v) == 0 {
-			return nil, nil
+			return nil, fmt.Errorf("empty container id")
 		}
 		// Resolve as a container ID
-		return GetTagsOfContainer(t.tagger, v)
+		tags, err := GetTagsOfContainer(t.tagger, v)
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, "cgroup_manager:"+cgroupManager)
+		return tags, nil
 	case containerutils.CGroupID:
 		if len(v) == 0 {
-			return nil, nil
+			return nil, fmt.Errorf("empty cgroup id")
 		}
 		// Generate systemd service tags for cgroup workloads
-		return t.getCGroupTags(v), nil
+		tags := t.getCGroupTags(v)
+		tags = append(tags, "cgroup_manager:"+cgroupManager)
+		return tags, nil
 	default:
-		return nil, nil
+		return nil, fmt.Errorf("unknown workload id type: %T", id)
 	}
 }
 
