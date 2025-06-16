@@ -75,7 +75,7 @@ A stack is a collection of VMs. This command will create a new stack and configu
 ```bash
 # --init-stack creates the stack if it does not exist
 # If --stack is not provided, a name is generated from your git branch
-dda inv -e kmt.gen-config --vms=ubuntu22-local-distro --init-stack
+dda inv -e kmt.gen-config --vms=ubuntu_22.04-local-distro --init-stack
 ```
 
 **3. Launch the Stack**
@@ -101,7 +101,7 @@ The primary way to interact with the VMs is by running tests using the `kmt.test
 
 ```bash
 # Run all tests on the VM
-dda inv -e kmt.test --vms=ubuntu22-local-distro
+dda inv -e kmt.test --vms=ubuntu_22.04-local-distro
 ```
 
 Optionally, for debugging or manual inspection, you can connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
@@ -218,7 +218,7 @@ Provide a list of both local and remote VMs to the `gen-config` command.
 
 ```bash
 # This configures one local Ubuntu 22.04 VM and one remote x86_64 Ubuntu 22.04 VM
-dda inv -e kmt.gen-config --vms=ubuntu22-local-distro,x86-jammy-distro --init-stack
+dda inv -e kmt.gen-config --vms=ubuntu_22.04-local-distro,x86-jammy-distro --init-stack
 ```
 
 **3. Launch the Stack**
