@@ -14,7 +14,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type server struct {
@@ -22,31 +23,22 @@ type server struct {
 	listener net.Listener
 }
 
-// validateToken - validates token for legacy API
-func validateToken(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := util.Validate(w, r); err != nil {
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func newServer(endpoint string, handler http.Handler, auth bool) (*server, error) {
+func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[ipc.Component]) (*server, error) {
 	r := mux.NewRouter()
 	r.Handle("/", handler)
+
+	s := &http.Server{
+		Addr:    endpoint,
+		Handler: r,
+	}
 
 	// no easy way currently to pass required bearer auth token to OSS collector;
 	// skip the validation if running inside a separate collector
 	// TODO: determine way to allow OSS collector to authenticate with agent, OTEL-2226
-	if auth && util.GetAuthToken() != "" {
-		r.Use(validateToken)
-	}
-
-	s := &http.Server{
-		Addr:      endpoint,
-		TLSConfig: util.GetTLSServerConfig(),
-		Handler:   r,
+	if ipcComp, ok := optIpcComp.Get(); ok {
+		// Use the TLS configuration from the IPC component if available
+		s.TLSConfig = ipcComp.GetTLSServerConfig()
+		r.Use(ipcComp.HTTPMiddleware)
 	}
 
 	listener, err := net.Listen("tcp", endpoint)
