@@ -104,7 +104,7 @@ def build_binaries(
     print(f"Building test binaries using {parallel} parallel workers")
 
     e2e_test_dir = Path("test/new-e2e/tests")
-    output_path = Path(output_dir)
+    output_path = Path(output_dir).absolute()
 
     # Create output directory
     output_path.mkdir(exist_ok=True, parents=True)

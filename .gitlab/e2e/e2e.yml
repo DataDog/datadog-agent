@@ -114,7 +114,7 @@ go_e2e_test_binaries:
     - go install github.com/DataDog/orchestrion
     - cd ../..
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST
-    - tar czf test-binaries.tar.gz -C ./test/new-e2e test-binaries
+    - tar czf test-binaries.tar.gz test-binaries
   artifacts:
     expire_in: 1 day
     paths:
