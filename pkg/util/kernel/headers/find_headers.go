@@ -94,34 +94,18 @@ type headerProvider struct {
 	headerDirs        []string
 	headerDownloadDir string
 
-	downloader headerDownloader
-
 	result        headerFetchResult
 	kernelHeaders []string
 }
 
 // HeaderOptions are options for the kernel header download process
 type HeaderOptions struct {
-	DownloadEnabled bool
-	Dirs            []string
-	DownloadDir     string
-
-	AptConfigDir   string
-	YumReposDir    string
-	ZypperReposDir string
+	Dirs []string
 }
 
 func initProvider(opts HeaderOptions) {
 	HeaderProvider = &headerProvider{
-		downloadEnabled:   opts.DownloadEnabled,
-		headerDirs:        opts.Dirs,
-		headerDownloadDir: opts.DownloadDir,
-
-		downloader: headerDownloader{
-			aptConfigDir:   opts.AptConfigDir,
-			yumReposDir:    opts.YumReposDir,
-			zypperReposDir: opts.ZypperReposDir,
-		},
+		headerDirs: opts.Dirs,
 
 		result:        notAttempted,
 		kernelHeaders: []string{},
@@ -228,18 +212,7 @@ func (h *headerProvider) getKernelHeaders(hv kernel.Version) ([]string, headerFe
 }
 
 func (h *headerProvider) downloadHeaders(hv kernel.Version) ([]string, headerFetchResult, error) {
-	if err := h.downloader.downloadHeaders(h.headerDownloadDir); err != nil {
-		if errors.Is(err, errReposDirInaccessible) {
-			return nil, reposDirAccessFailure, fmt.Errorf("unable to download kernel headers: %w", err)
-		}
-		return nil, downloadFailure, fmt.Errorf("unable to download kernel headers: %w", err)
-	}
-
-	log.Infof("successfully downloaded kernel headers to %s", h.headerDownloadDir)
-	if dirs := validateHeaderDirs(hv, getDownloadedHeaderDirs(h.headerDownloadDir), true); len(dirs) > 0 {
-		return dirs, downloadSuccess, nil
-	}
-	return nil, validationFailure, errors.New("downloaded headers are not valid")
+	return nil, downloadFailure, errors.New("kernel header download is not implemented")
 }
 
 // validateHeaderDirs checks all the given directories and returns the directories containing kernel
