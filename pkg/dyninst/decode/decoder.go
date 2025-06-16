@@ -62,13 +62,38 @@ type typeAndAddr struct {
 
 // Decode decodes the given event into the given writer.
 func (d *Decoder) Decode(event output.Event, out io.Writer) error {
-
-	frames, err := event.StackPCs()
+	enc := jsontext.NewEncoder(out)
+	err := enc.WriteToken(jsontext.BeginObject)
 	if err != nil {
 		return err
 	}
-	enc := jsontext.NewEncoder(out)
-	err = enc.WriteToken(jsontext.BeginObject)
+
+	eventHeader, err := event.Header()
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.String("event_id"))
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.Uint(uint64(eventHeader.Event_id)))
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.String("program_id"))
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.Uint(uint64(eventHeader.Prog_id)))
+	if err != nil {
+		return err
+	}
+
+	frames, err := event.StackPCs()
 	if err != nil {
 		return err
 	}
@@ -263,21 +288,67 @@ func (d *Decoder) encodeValue(
 			return err
 		}
 	case *ir.ArrayType:
-		return errorUnimplemented
+		err := enc.WriteToken(jsontext.BeginArray)
+		if err != nil {
+			return err
+		}
+
+		elementType := v.Element
+		elementSize := int(elementType.GetByteSize())
+		numElements := int(v.Count)
+		for i := range numElements {
+			elementData := data[i*elementSize : (i+1)*elementSize]
+			err := d.encodeValue(enc, dataItems, currentlyEncoding, v.Element, elementData)
+			if err != nil {
+				return err
+			}
+		}
+		err = enc.WriteToken(jsontext.EndArray)
+		if err != nil {
+			return err
+		}
+		return nil
 	case *ir.GoEmptyInterfaceType:
 		return errorUnimplemented
 	case *ir.GoInterfaceType:
 		return errorUnimplemented
 	case *ir.GoSliceHeaderType:
-		return errorUnimplemented
-	case *ir.GoSliceDataType:
-		return errorUnimplemented
+		if len(data) < int(v.ByteSize) {
+			return errors.New("passed data not long enough for slice header")
+		}
+		address := binary.NativeEndian.Uint64(data)
+		sliceLength := binary.NativeEndian.Uint64(data[8:16])
+		elementType := v.Data.ID
+		elementSize := int(v.Data.Element.GetByteSize())
+		sliceDataItem, ok := dataItems[typeAndAddr{
+			addr:   address,
+			irType: uint32(elementType),
+		}]
+		if !ok {
+			return errors.New("slice data item not found in data items")
+		}
+		err := enc.WriteToken(jsontext.BeginArray)
+		if err != nil {
+			return err
+		}
+		sliceData := sliceDataItem.Data()
+		for i := range int(sliceLength) {
+			elementData := sliceData[i*elementSize : (i+1)*elementSize]
+			err := d.encodeValue(enc, dataItems, currentlyEncoding, v.Data.Element, elementData)
+			if err != nil {
+				return err
+			}
+		}
+		err = enc.WriteToken(jsontext.EndArray)
+		if err != nil {
+			return err
+		}
+		return nil
 	case *ir.GoChannelType:
 		return errorUnimplemented
 	case *ir.GoStringHeaderType:
-		stringHeader := irType.(*ir.GoStringHeaderType)
 		var address, length uint64
-		for _, field := range stringHeader.Fields {
+		for _, field := range v.Fields {
 			if field.Name == "str" {
 				if uint32(field.Type.GetByteSize()) != 8 || len(data) < int(field.Offset+field.Type.GetByteSize()) {
 					return errors.New("malformed string field 'str'")
@@ -291,7 +362,7 @@ func (d *Decoder) encodeValue(
 			}
 		}
 		stringValue, ok := dataItems[typeAndAddr{
-			irType: uint32(irType.GetID()),
+			irType: uint32(v.Data.GetID()),
 			addr:   address,
 		}]
 		if !ok {
@@ -305,8 +376,6 @@ func (d *Decoder) encodeValue(
 			return err
 		}
 		return nil
-	case *ir.GoStringDataType:
-		return errorUnimplemented
 	case *ir.GoMapType:
 		return errorUnimplemented
 	case *ir.GoHMapHeaderType:
