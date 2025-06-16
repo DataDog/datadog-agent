@@ -1463,3 +1463,36 @@ func TestNetworkStatsEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestGetLogFiles(t *testing.T) {
+	// This test needs to run as root to create files in /var/log
+	if os.Getuid() != 0 {
+		t.Skip("skipping test that requires root privileges")
+	}
+
+	tempDir, err := os.MkdirTemp("/var/log", "test-log-files")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	logFilePath := filepath.Join(tempDir, "test.log")
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0644)
+	require.NoError(t, err)
+	defer logFile.Close()
+
+	cmd := startProcessWithFile(t, logFile)
+	pid := int32(cmd.Process.Pid)
+
+	// Wait a bit to make sure the process is started
+	time.Sleep(100 * time.Millisecond)
+
+	logFiles, err := getLogFiles(pid)
+	require.NoError(t, err)
+
+	assert.Contains(t, logFiles, logFilePath)
+}
+
+func TestInvalidFD(t *testing.T) {
+	// this test is intended to ensure that getSockets doesn't fail on invalid file descriptors
+	_, err := getSockets(int32(os.Getpid()), make([]byte, 1))
+	assert.NoError(t, err)
+}

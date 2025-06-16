@@ -521,6 +521,22 @@ func (s *discovery) getServiceInfo(pid int32) (*core.ServiceInfo, error) {
 	}, nil
 }
 
+func (s *discovery) getServiceInfoWithLogs(pid int32) (*core.ServiceInfo, error) {
+	info, err := s.getServiceInfo(pid)
+	if err != nil {
+		return nil, err
+	}
+
+	logFiles, err := getLogFiles(pid)
+	if err != nil {
+		log.Tracef("[pid: %d] could not get log files: %v", pid, err)
+	} else if len(logFiles) > 0 {
+		info.LogFiles = logFiles
+	}
+
+	return info, nil
+}
+
 // maxNumberOfPorts is the maximum number of listening ports which we report per
 // service.
 const maxNumberOfPorts = 50
@@ -584,6 +600,73 @@ func (s *discovery) getPorts(context parsingContext, pid int32) ([]uint16, error
 	return ports, nil
 }
 
+func getLogFiles(pid int32) ([]string, error) {
+	fdPath := kernel.HostProc(fmt.Sprintf("%d/fd", pid))
+	fds, err := os.ReadDir(fdPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not read %s: %w", fdPath, err)
+	}
+
+	var logFiles []string
+	seen := make(map[string]struct{})
+
+	for _, fd := range fds {
+		linkPath := fmt.Sprintf("%s/%s", fdPath, fd.Name())
+		filePath, err := os.Readlink(linkPath)
+		if err != nil {
+			// Can happen if the file descriptor was closed between ReadDir and Readlink
+			continue
+		}
+
+		// We are only interested in files under /var/log
+		if !strings.HasPrefix(filePath, "/var/log/") {
+			continue
+		}
+
+		// Check if we've already processed this file path
+		if _, ok := seen[filePath]; ok {
+			continue
+		}
+		seen[filePath] = struct{}{}
+
+		// Check if the file is a regular file
+		stat, err := os.Stat(filePath)
+		if err != nil || !stat.Mode().IsRegular() {
+			continue
+		}
+
+		// Check if the file is opened for writing.
+		// fdinfo contains the open flags.
+		fdInfoPath := kernel.HostProc(fmt.Sprintf("%d/fdinfo/%s", pid, fd.Name()))
+		fdInfo, err := os.ReadFile(fdInfoPath)
+		if err != nil {
+			continue
+		}
+
+		// The flags are in the first line, in octal.
+		// Example: "pos:\t0\nflags:\t0100002\nmnt_id:\t29\n"
+		lines := strings.SplitN(string(fdInfo), "\n", 2)
+		if len(lines) < 2 || !strings.HasPrefix(lines[1], "flags:") {
+			continue
+		}
+		fields := strings.Fields(lines[1])
+		if len(fields) < 2 {
+			continue
+		}
+		flags, err := strconv.ParseUint(fields[1], 8, 32)
+		if err != nil {
+			continue
+		}
+
+		// O_WRONLY is 1, O_RDWR is 2. We check if the write bit is set.
+		if flags&1 == 1 || flags&2 == 2 {
+			logFiles = append(logFiles, filePath)
+		}
+	}
+
+	return logFiles, nil
+}
+
 // addIgnoredPid stores excluded pid.
 func (s *discovery) addIgnoredPid(pid int32) {
 	s.core.IgnorePids[pid] = struct{}{}
@@ -630,7 +713,7 @@ func (s *discovery) getService(context parsingContext, pid int32) *model.Service
 	if ok {
 		info = cached
 	} else {
-		info, err = s.getServiceInfo(pid)
+		info, err = s.getServiceInfoWithLogs(pid)
 		if err != nil {
 			return nil
 		}
@@ -710,7 +793,7 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 		return nil
 	}
 
-	info, err := s.getServiceInfo(pid)
+	info, err := s.getServiceInfoWithLogs(pid)
 	if err != nil {
 		log.Tracef("[pid: %d] could not get service info: %v", pid, err)
 		return nil

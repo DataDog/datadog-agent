@@ -1206,6 +1206,9 @@ type Service struct {
 	// GeneratedName is the name generated from the process info
 	GeneratedName string
 
+	// LogFiles are the log files associated with this service
+	LogFiles []string
+
 	// GeneratedNameSource indicates the source of the generated name
 	GeneratedNameSource string
 

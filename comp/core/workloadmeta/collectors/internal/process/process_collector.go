@@ -374,18 +374,19 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		StartTimeMilli:             modelService.StartTimeMilli,
 		ContainerID:                modelService.ContainerID,
 		LastHeartbeat:              modelService.LastHeartbeat,
+		LogFiles:                   modelService.LogFiles,
 	}
 }
 
 // cleanPidMaps deletes dead PIDs from the provided maps.
 func cleanPidMaps[T any](alivePids core.PidSet, maps ...map[int32]T) {
-	for _, m := range maps {
-		for pid := range m {
+	for _, pidMap := range maps {
+		for pid := range pidMap {
 			if alivePids.Has(pid) {
 				continue
 			}
 
-			delete(m, pid)
+			delete(pidMap, pid)
 		}
 	}
 }
