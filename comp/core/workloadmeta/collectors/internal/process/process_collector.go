@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -60,6 +61,7 @@ type collector struct {
 	systemProbeConfig      pkgconfigmodel.Reader
 	processEventsCh        chan *Event
 	lastCollectedProcesses map[int32]*procutil.Process
+	mux                    sync.RWMutex
 	containerProvider      proccontainers.ContainerProvider
 
 	// Service discovery fields
@@ -132,7 +134,7 @@ func GetFxOptions() fx.Option {
 func (c *collector) isEnabled() bool {
 	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
 	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
-	return false
+	return true
 }
 
 // isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
@@ -464,7 +466,9 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 			}
 
 			// store latest collected processes
+			c.mux.Lock()
 			c.lastCollectedProcesses = procs
+			c.mux.Unlock()
 		case <-ctx.Done():
 			log.Infof("The %s collector has stopped", collectorID)
 			return
@@ -481,10 +485,12 @@ func (c *collector) collectServices(ctx context.Context, collectionTicker *clock
 		select {
 		case <-collectionTicker.C:
 			// Get alive PIDs from last collected processes
+			c.mux.RLock()
 			alivePids := make(core.PidSet, len(c.lastCollectedProcesses))
 			for pid := range c.lastCollectedProcesses {
 				alivePids.Add(pid)
 			}
+			c.mux.RUnlock()
 
 			if len(alivePids) == 0 {
 				continue // No processes to check
