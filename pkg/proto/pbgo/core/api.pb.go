@@ -30,23 +30,24 @@ var File_datadog_api_v1_api_proto protoreflect.FileDescriptor
 
 const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\n" +
-	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto2q\n" +
-	"\x05Agent\x12h\n" +
-	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply\"\x15\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/grpc/host2\xd5\x0f\n" +
-	"\vAgentSecure\x12\x8f\x01\n" +
-	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/grpc/tagger/stream_entities0\x01\x12\xe5\x01\n" +
-	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\"A\x82\xd3\xe4\x93\x02;:\x01*\"6/v1/grpc/tagger/generate_container_id_from_origin_info\x12\x89\x01\n" +
-	"\x11TaggerFetchEntity\x12$.datadog.model.v1.FetchEntityRequest\x1a%.datadog.model.v1.FetchEntityResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/v1/grpc/tagger/fetch_entity\x12\x9b\x01\n" +
-	"\x17DogstatsdCaptureTrigger\x12'.datadog.model.v1.CaptureTriggerRequest\x1a(.datadog.model.v1.CaptureTriggerResponse\"-\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/grpc/dogstatsd/capture/trigger\x12\x8c\x01\n" +
-	"\x17DogstatsdSetTaggerState\x12\x1d.datadog.model.v1.TaggerState\x1a%.datadog.model.v1.TaggerStateResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /v1/grpc/dogstatsd/capture/state\x12\x8f\x01\n" +
-	"\x10ClientGetConfigs\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\"(\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/v1/grpc/remoteconfig/configs\x12x\n" +
-	"\x0eGetConfigState\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/grpc/remoteconfig/state\x12\x94\x01\n" +
-	"\x12ClientGetConfigsHA\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /v1/grpc/remoteconfig/configs_ha\x12}\n" +
-	"\x10GetConfigStateHA\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v1/grpc/remoteconfig/state_ha\x12\xb3\x01\n" +
-	"\x1aWorkloadmetaStreamEntities\x12/.datadog.workloadmeta.WorkloadmetaStreamRequest\x1a0.datadog.workloadmeta.WorkloadmetaStreamResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/grpc/workloadmeta/stream_entities0\x01\x12\xaf\x01\n" +
-	"\x13RegisterRemoteAgent\x12/.datadog.remoteagent.RegisterRemoteAgentRequest\x1a0.datadog.remoteagent.RegisterRemoteAgentResponse\"5\x82\xd3\xe4\x93\x02/:\x01*\"*/v1/grpc/remoteagent/register_remote_agent\x12\x9b\x01\n" +
-	"\x19AutodiscoveryStreamConfig\x12\x16.google.protobuf.Empty\x1a2.datadog.autodiscovery.AutodiscoveryStreamResponse\"0\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/grpc/autodiscovery/stream_configs0\x01\x12k\n" +
-	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply\"\x1a\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/grpc/host_tags2\xcb\x02\n" +
+	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto2Z\n" +
+	"\x05Agent\x12Q\n" +
+	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xf8\n" +
+	"\n" +
+	"\vAgentSecure\x12c\n" +
+	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse0\x01\x12\xa2\x01\n" +
+	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\x12`\n" +
+	"\x11TaggerFetchEntity\x12$.datadog.model.v1.FetchEntityRequest\x1a%.datadog.model.v1.FetchEntityResponse\x12l\n" +
+	"\x17DogstatsdCaptureTrigger\x12'.datadog.model.v1.CaptureTriggerRequest\x1a(.datadog.model.v1.CaptureTriggerResponse\x12_\n" +
+	"\x17DogstatsdSetTaggerState\x12\x1d.datadog.model.v1.TaggerState\x1a%.datadog.model.v1.TaggerStateResponse\x12e\n" +
+	"\x10ClientGetConfigs\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\x12P\n" +
+	"\x0eGetConfigState\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\x12g\n" +
+	"\x12ClientGetConfigsHA\x12'.datadog.config.ClientGetConfigsRequest\x1a(.datadog.config.ClientGetConfigsResponse\x12R\n" +
+	"\x10GetConfigStateHA\x12\x16.google.protobuf.Empty\x1a&.datadog.config.GetStateConfigResponse\x12\x81\x01\n" +
+	"\x1aWorkloadmetaStreamEntities\x12/.datadog.workloadmeta.WorkloadmetaStreamRequest\x1a0.datadog.workloadmeta.WorkloadmetaStreamResponse0\x01\x12x\n" +
+	"\x13RegisterRemoteAgent\x12/.datadog.remoteagent.RegisterRemoteAgentRequest\x1a0.datadog.remoteagent.RegisterRemoteAgentResponse\x12i\n" +
+	"\x19AutodiscoveryStreamConfig\x12\x16.google.protobuf.Empty\x1a2.datadog.autodiscovery.AutodiscoveryStreamResponse0\x01\x12O\n" +
+	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply2\xcb\x02\n" +
 	"\vRemoteAgent\x12o\n" +
 	"\x10GetStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a-.datadog.remoteagent.GetStatusDetailsResponse\x12f\n" +
 	"\rGetFlareFiles\x12).datadog.remoteagent.GetFlareFilesRequest\x1a*.datadog.remoteagent.GetFlareFilesResponse\x12c\n" +
@@ -241,66 +242,14 @@ var _Agent_serviceDesc = grpc.ServiceDesc{
 type AgentSecureClient interface {
 	// subscribes to added, removed, or changed entities in the Tagger
 	// and streams them to clients as events.
-	// can be called through the HTTP gateway, and events will be streamed as JSON:
-	//
-	//	  $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
-	//	  {
-	//	   "result": {
-	//	       "entity": {
-	//	           "id": {
-	//	               "prefix": "kubernetes_pod_uid",
-	//	               "uid": "4025461f832caf3fceb7fc2a32f879c6"
-	//	           },
-	//	           "hash": "cad4fc8fc409fcc1",
-	//	           "lowCardinalityTags": [
-	//	               "kube_namespace:kube-system",
-	//	               "pod_phase:running"
-	//	           ]
-	//	       }
-	//	   }
-	//	}
 	TaggerStreamEntities(ctx context.Context, in *StreamTagsRequest, opts ...grpc.CallOption) (AgentSecure_TaggerStreamEntitiesClient, error)
 	// Generates a container ID from Origin Info.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	$ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
-	//	   https://localhost:5001/v1/grpc/tagger/generate_container_id_from_origin_info
-	//	{
-	//	  "containerID":"c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
-	//	}
 	TaggerGenerateContainerIDFromOriginInfo(ctx context.Context, in *GenerateContainerIDFromOriginInfoRequest, opts ...grpc.CallOption) (*GenerateContainerIDFromOriginInfoResponse, error)
 	// fetches an entity from the Tagger with the desired cardinality tags.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k -H "Content-Type: application/json" \
-	//	     --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
-	//	     https://localhost:5001/v1/grpc/tagger/fetch_entity
-	//	  {
-	//	   "id": {
-	//	       "prefix": "kubernetes_pod_uid",
-	//	       "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
-	//	   },
-	//	   "tags": [
-	//	       "kube_namespace:kube-system",
-	//	       "pod_phase:running",
-	//	       "kube_deployment:coredns",
-	//	       "kube_service:kube-dns"
-	//	   ]
-	//	}
 	TaggerFetchEntity(ctx context.Context, in *FetchEntityRequest, opts ...grpc.CallOption) (*FetchEntityResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	TODO: add the curl code here
 	DogstatsdCaptureTrigger(ctx context.Context, in *CaptureTriggerRequest, opts ...grpc.CallOption) (*CaptureTriggerResponse, error)
-	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	TODO: add the curl code here
+	// Set the tagger state for dogstatsd.
 	DogstatsdSetTaggerState(ctx context.Context, in *TaggerState, opts ...grpc.CallOption) (*TaggerStateResponse, error)
 	ClientGetConfigs(ctx context.Context, in *ClientGetConfigsRequest, opts ...grpc.CallOption) (*ClientGetConfigsResponse, error)
 	GetConfigState(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
@@ -308,25 +257,6 @@ type AgentSecureClient interface {
 	GetConfigStateHA(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*GetStateConfigResponse, error)
 	// Subscribes to added, removed, or changed entities in the Workloadmeta and
 	// streams them to clients as events.
-	// Can be called through the HTTP gateway, and events will be streamed as JSON.
-	// Example call that receives all the events:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
-	//
-	// Example call that receives only unset events:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"eventType":2}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
-	//
-	// Example call that receives only from the cluster orchestrator:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"source":3}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
 	WorkloadmetaStreamEntities(ctx context.Context, in *WorkloadmetaStreamRequest, opts ...grpc.CallOption) (AgentSecure_WorkloadmetaStreamEntitiesClient, error)
 	// Registers a remote agent.
 	RegisterRemoteAgent(ctx context.Context, in *RegisterRemoteAgentRequest, opts ...grpc.CallOption) (*RegisterRemoteAgentResponse, error)
@@ -534,66 +464,14 @@ func (c *agentSecureClient) GetHostTags(ctx context.Context, in *HostTagRequest,
 type AgentSecureServer interface {
 	// subscribes to added, removed, or changed entities in the Tagger
 	// and streams them to clients as events.
-	// can be called through the HTTP gateway, and events will be streamed as JSON:
-	//
-	//	  $  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k https://localhost:5001/v1/grpc/tagger/stream_entities
-	//	  {
-	//	   "result": {
-	//	       "entity": {
-	//	           "id": {
-	//	               "prefix": "kubernetes_pod_uid",
-	//	               "uid": "4025461f832caf3fceb7fc2a32f879c6"
-	//	           },
-	//	           "hash": "cad4fc8fc409fcc1",
-	//	           "lowCardinalityTags": [
-	//	               "kube_namespace:kube-system",
-	//	               "pod_phase:running"
-	//	           ]
-	//	       }
-	//	   }
-	//	}
 	TaggerStreamEntities(*StreamTagsRequest, AgentSecure_TaggerStreamEntitiesServer) error
 	// Generates a container ID from Origin Info.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	$ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"externalData": {"init": false,"containerName": "dd-trace-py","podUID": "c4b45c6a-b296-4bd5-88df-7c2d6bcaabef"}}' \
-	//	   https://localhost:5001/v1/grpc/tagger/generate_container_id_from_origin_info
-	//	{
-	//	  "containerID":"c9fd60251b5237467462dad48999815eb0025f367c6e1abe91e0bd787d5915fc"
-	//	}
 	TaggerGenerateContainerIDFromOriginInfo(context.Context, *GenerateContainerIDFromOriginInfoRequest) (*GenerateContainerIDFromOriginInfoResponse, error)
 	// fetches an entity from the Tagger with the desired cardinality tags.
-	// can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	  $ curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	     -XPOST -k -H "Content-Type: application/json" \
-	//	     --data '{"id":{"prefix":"kubernetes_pod_uid","uid":"d575fb58-82dc-418e-bfb1-aececc9bc507"}}' \
-	//	     https://localhost:5001/v1/grpc/tagger/fetch_entity
-	//	  {
-	//	   "id": {
-	//	       "prefix": "kubernetes_pod_uid",
-	//	       "uid": "d575fb58-82dc-418e-bfb1-aececc9bc507"
-	//	   },
-	//	   "tags": [
-	//	       "kube_namespace:kube-system",
-	//	       "pod_phase:running",
-	//	       "kube_deployment:coredns",
-	//	       "kube_service:kube-dns"
-	//	   ]
-	//	}
 	TaggerFetchEntity(context.Context, *FetchEntityRequest) (*FetchEntityResponse, error)
 	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	TODO: add the curl code here
 	DogstatsdCaptureTrigger(context.Context, *CaptureTriggerRequest) (*CaptureTriggerResponse, error)
-	// Trigger a dogstatsd capture. Only one capture can be triggered at a time.
-	// Can be called through the HTTP gateway, and entity will be returned as JSON:
-	//
-	//	TODO: add the curl code here
+	// Set the tagger state for dogstatsd.
 	DogstatsdSetTaggerState(context.Context, *TaggerState) (*TaggerStateResponse, error)
 	ClientGetConfigs(context.Context, *ClientGetConfigsRequest) (*ClientGetConfigsResponse, error)
 	GetConfigState(context.Context, *empty.Empty) (*GetStateConfigResponse, error)
@@ -601,25 +479,6 @@ type AgentSecureServer interface {
 	GetConfigStateHA(context.Context, *empty.Empty) (*GetStateConfigResponse, error)
 	// Subscribes to added, removed, or changed entities in the Workloadmeta and
 	// streams them to clients as events.
-	// Can be called through the HTTP gateway, and events will be streamed as JSON.
-	// Example call that receives all the events:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k https://localhost:5001/v1/grpc/workloadmeta/stream_entities
-	//
-	// Example call that receives only unset events:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"eventType":2}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
-	//
-	// Example call that receives only from the cluster orchestrator:
-	//
-	//	$  curl -H "authorization: Bearer $(cat /etc/datadog-agent/auth_token)" \
-	//	   -XPOST -k -H "Content-Type: application/json" \
-	//	   --data '{"filter":{"source":3}}' \
-	//	   https://localhost:5001/v1/grpc/workloadmeta/stream_entities
 	WorkloadmetaStreamEntities(*WorkloadmetaStreamRequest, AgentSecure_WorkloadmetaStreamEntitiesServer) error
 	// Registers a remote agent.
 	RegisterRemoteAgent(context.Context, *RegisterRemoteAgentRequest) (*RegisterRemoteAgentResponse, error)

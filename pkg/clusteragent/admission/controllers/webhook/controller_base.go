@@ -90,6 +90,8 @@ type Webhook interface {
 	MatchConditions() []admiv1.MatchCondition
 	// WebhookFunc runs the logic of the webhook and returns the admission response
 	WebhookFunc() admission.WebhookFunc
+	// Timeout returns the timeout for the webhook
+	Timeout() int32
 }
 
 // generateWebhooks returns the list of webhooks. The order of the webhooks returned

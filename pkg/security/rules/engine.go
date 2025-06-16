@@ -384,7 +384,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, policies, filterReport)
+		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, rs, policies, filterReport)
 		e.policyMonitor.SetPolicies(policies)
 	}
 

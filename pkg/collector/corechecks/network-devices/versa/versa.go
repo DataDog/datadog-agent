@@ -37,6 +37,7 @@ type checkCfg struct {
 	// add versa specific fields
 	Name                            string   `yaml:"name"` // TODO: remove this field, only added it for testing
 	DirectorEndpoint                string   `yaml:"director_endpoint"`
+	AnalyticsEndpoint               string   `yaml:"analytics_endpoint"`
 	Username                        string   `yaml:"username"`
 	Password                        string   `yaml:"password"`
 	UseHTTP                         bool     `yaml:"use_http"`
@@ -71,7 +72,7 @@ func (v *VersaCheck) Run() error {
 
 	log.Infof("Running Versa check for instance: %s", v.config.Name)
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
@@ -131,17 +132,6 @@ func (v *VersaCheck) Run() error {
 	}
 	v.metricsSender.SetDeviceTagsMap(deviceTags)
 
-	// Temporarily commenting out the SLA metrics collection until Versa Analytics auth is sorted out
-	//if *v.config.CollectSLAMetrics {
-	//	deviceNameToIDMap := generateDeviceNameToIDMap(deviceMetadata)
-	//	v.metricsSender.SetDeviceTagsMap(deviceTags)
-	//	slaMetrics, err := c.GetSLAMetrics()
-	//	if err != nil {
-	//		log.Warnf("error getting SLA metrics from Versa client: %v", err)
-	//	}
-	//	v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
-	//}
-
 	// Send the metadata to the metrics sender
 	if *v.config.SendNDMMetadata {
 		v.metricsSender.SendMetadata(deviceMetadata, nil, nil)
@@ -160,6 +150,15 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendDirectorDeviceMetrics(directorStatus)
 		v.metricsSender.SendDirectorUptimeMetrics(directorStatus)
 		v.metricsSender.SendDirectorStatus(directorStatus)
+	}
+
+	if *v.config.CollectSLAMetrics {
+		deviceNameToIDMap := generateDeviceNameToIPMap(deviceMetadata)
+		slaMetrics, err := c.GetSLAMetrics()
+		if err != nil {
+			log.Warnf("error getting SLA metrics from Versa client: %v", err)
+		}
+		v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
 	}
 
 	// Commit
@@ -266,15 +265,16 @@ func filterOrganizations(orgs []client.Organization, includedOrgs []string, excl
 	return filteredOrgs
 }
 
-// generateDeviceNameToIDMap generates a map of device ID to device name to enrich the results from Analytics responses
-func generateDeviceNameToIDMap(deviceMetadata []devicemetadata.DeviceMetadata) map[string]string {
-	deviceNameToIDMap := make(map[string]string)
+// TODO: should we convert the tags map to use ID instead of IP?
+// generateDeviceNameToIPMap generates a map of device IP to device name to enrich the results from Analytics responses
+func generateDeviceNameToIPMap(deviceMetadata []devicemetadata.DeviceMetadata) map[string]string {
+	deviceNameToIPMap := make(map[string]string)
 	for _, device := range deviceMetadata {
 		if device.Name != "" {
-			deviceNameToIDMap[device.Name] = device.ID
+			deviceNameToIPMap[device.Name] = device.IPAddress
 		}
 	}
-	return deviceNameToIDMap
+	return deviceNameToIPMap
 }
 
 func boolPointer(b bool) *bool {

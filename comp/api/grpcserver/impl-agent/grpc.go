@@ -7,12 +7,9 @@
 package agentimpl
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -111,25 +108,6 @@ func (s *server) BuildServer() http.Handler {
 	})
 
 	return grpcServer
-}
-
-func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
-	dopts := []googleGrpc.DialOption{googleGrpc.WithTransportCredentials(credentials.NewTLS(s.IPC.GetTLSClientConfig()))}
-	ctx := context.Background()
-	gwmux := runtime.NewServeMux()
-	err := pb.RegisterAgentHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	err = pb.RegisterAgentSecureHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent secure handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	return gwmux, nil
 }
 
 // Provides defines the output of the grpc component
