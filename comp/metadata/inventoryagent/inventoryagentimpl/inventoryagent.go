@@ -483,8 +483,8 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 	ia.getConfigs(data)
 
-	if !ia.conf.GetBool("inventories_diagnoses_enabled") {
-		delete(data, "diagnoses")
+	if !ia.conf.GetBool("inventories_diagnostics_enabled") {
+		delete(data, "diagnostics")
 	}
 
 	return &Payload{
