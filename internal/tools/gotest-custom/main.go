@@ -168,7 +168,7 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 			return nil, nil, fmt.Errorf("failed to get target packages: %v", err)
 		}
 		for _, pkg := range strings.Split(string(targetPackages), "\n") {
-			pkg = strings.TrimPrefix(pkg, "github.com/DataDog/datadog-agent/")
+			pkg = strings.TrimPrefix(pkg, "github.com/DataDog/datadog-agent/test/new-e2e/")
 			for _, binaryInfo := range manifest.Binaries {
 				if binaryInfo.Package == pkg {
 					binaryPath := filepath.Join(binariesPath, binaryInfo.Binary)
