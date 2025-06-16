@@ -347,6 +347,12 @@ func TestConvert(t *testing.T) {
 			expectedResult: "features/core-only/config-result.yaml",
 			agentConfig:    "features/core-only/acfg.yaml",
 		},
+		{
+			name:           "features/no-defined-features",
+			provided:       "features/no-defined-features/config.yaml",
+			expectedResult: "features/no-defined-features/config-result.yaml",
+			agentConfig:    "features/no-defined-features/acfg.yaml",
+		},
 	}
 
 	for _, tc := range tests {
