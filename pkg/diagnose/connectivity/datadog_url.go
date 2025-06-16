@@ -11,101 +11,90 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptrace"
-	"os"
 	"strings"
 	"time"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+
+	"crypto/tls"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
+
+type method int
 
 // URL types for different services
 const (
-	httpProtocol = iota
-	ociProtocol
+	head method = iota
+	intake
 )
 
-type serviceURL struct {
-	prefix   string
-	protocol int
+type serviceInfo struct {
+	method method
+	route  string
 }
 
-var (
-	// Map of services to check
-	services = map[string]serviceURL{
-		"Installer HTTP": {prefix: "install", protocol: httpProtocol},
-		"Installer OCI":  {prefix: "install", protocol: ociProtocol},
-		"YUM":            {prefix: "yum", protocol: httpProtocol},
-		"APT":            {prefix: "apt", protocol: httpProtocol},
+func getServicesInfo(cfg model.Reader) []serviceInfo {
+	site := cfg.GetString("site")
+	if site == "" {
+		site = pkgconfigsetup.DefaultSite
 	}
-)
 
-func init() {
-	// Register all service checks
-	for name := range services {
-		diagnose.RegisterMetadataAvail(name+" connectivity", func(name string) func() error {
-			return func() error { return checkServiceConnectivity(name) }
-		}(name))
+	return []serviceInfo{
+		{route: buildFromPrefix("install", site), method: head},
+		{route: buildFromPrefix("yum", site), method: head},
+		{route: buildFromPrefix("apt", site), method: head},
+		{route: buildFromPrefix("keys", site), method: head},
+		{route: buildFromPrefix("process", site), method: head},
+		{route: helpers.GetFlareEndpoint(cfg), method: head},
 	}
 }
 
-// getDomainForSite returns the appropriate domain based on the site
-// For example:
-// - datadoghq.com -> datadoghq.com
-// - datad0g.com -> datad0g.com
-// - datadoghq.eu -> datadoghq.eu
-func getDomainForSite(site string) string {
-	// Extract the domain from the site
-	parts := strings.Split(site, ".")
-	if len(parts) < 2 {
-		return "datadoghq.com" // Default to datadoghq.com if site is invalid
+func buildFromPrefix(prefix string, site string) string {
+	return fmt.Sprintf("https://%s.%s", prefix, site)
+}
+
+// DiagnoseDatadogURL checks connectivity to Datadog endpoints
+func DiagnoseDatadogURL(cfg model.Reader) []diagnose.Diagnosis {
+	services := getServicesInfo(cfg)
+	var diagnoses []diagnose.Diagnosis
+	for _, service := range services {
+		diagnosis, err := checkServiceConnectivity(service)
+		diagnoses = append(diagnoses, diagnose.Diagnosis{
+			Status:    diagnose.DiagnosisFail,
+			Name:      service.route,
+			Diagnosis: diagnosis,
+			RawError:  err.Error(),
+		})
 	}
-	return strings.Join(parts[len(parts)-2:], ".")
+	return diagnoses
 }
 
 // checkServiceConnectivity checks connectivity for a specific service
-func checkServiceConnectivity(serviceName string) error {
-	site := os.Getenv("DD_SITE")
-	if site == "" {
-		site = "datadoghq.com"
-	}
-
-	domain := getDomainForSite(site)
-	service := services[serviceName]
-
+func checkServiceConnectivity(serviceInfo serviceInfo) (string, error) {
 	// Build URL based on service type
-	var url string
-	switch service.protocol {
-	case httpProtocol:
-		url = fmt.Sprintf("https://%s.%s", service.prefix, domain)
-		return checkHTTPConnectivity(url)
-	case ociProtocol:
-		url = fmt.Sprintf("oci://%s.%s", service.prefix, domain)
-		return checkURL(url)
+	switch serviceInfo.method {
+	case head:
+		return checkURL(serviceInfo.route)
 	default:
-		return fmt.Errorf("unknown URL type for service %s", serviceName)
+		return "Unknown URL type", fmt.Errorf("unknown URL type for service %s", serviceInfo.route)
 	}
 }
 
 // checkURL verifies if a URL is accessible
-func checkURL(url string) error {
-	// Add https:// prefix if not present and not an OCI URL
-	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "oci://") {
-		url = "https://" + url
-	}
-
-	// For OCI URLs, check DNS resolution only
-	if strings.HasPrefix(url, "oci://") {
-		host := strings.TrimPrefix(url, "oci://")
-		return checkDNSResolution(host)
-	}
-
-	// For HTTP URLs, check both DNS resolution and HTTP connectivity
-	host := strings.TrimPrefix(strings.TrimPrefix(url, "http://"), "https://")
+func checkURL(url string) (string, error) {
+	host := strings.TrimPrefix(url, "https://")
 	if err := checkDNSResolution(host); err != nil {
-		return err
+		return "Failed DNS resolution", err
 	}
 
-	return checkHTTPConnectivity(url)
+	if err := checkHTTPConnectivity(url); err != nil {
+		return "Failed HTTP connectivity", err
+	}
+
+	return "Success", nil
 }
 
 // checkDNSResolution verifies if a hostname can be resolved
@@ -122,21 +111,29 @@ func checkDNSResolution(host string) error {
 
 // checkHTTPConnectivity verifies if an HTTP URL is accessible
 func checkHTTPConnectivity(url string) error {
+
 	var httpTraces []string
 	ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
 
-	client := &http.Client{
-		Timeout: 10 * time.Second,
+	client2 := &http.Client{
+		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
 				Timeout:   5 * time.Second,
 				KeepAlive: 5 * time.Second,
 			}).DialContext,
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
 			TLSHandshakeTimeout:   5 * time.Second,
 			ResponseHeaderTimeout: 5 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 			MaxIdleConns:          2,
 			IdleConnTimeout:       30 * time.Second,
+			ForceAttemptHTTP2:     true,
+		},
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
 		},
 	}
 
@@ -145,7 +142,7 @@ func checkHTTPConnectivity(url string) error {
 		return fmt.Errorf("failed to create request for %s: %w", url, err)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := client2.Do(req)
 	if err != nil {
 		// Include HTTP traces in error message if available
 		if len(httpTraces) > 0 {
