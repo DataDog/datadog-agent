@@ -474,12 +474,9 @@ func toInt(str string) int {
 // FingerprintTestSuite tests the fingerprinting functionality
 type FingerprintTestSuite struct {
 	suite.Suite
-	testDir     string
-	testPath    string
-	testFile    *os.File
-	testsPassed int
-	testsFailed int
-	testNames   []string
+	testDir  string
+	testPath string
+	testFile *os.File
 }
 
 func (suite *FingerprintTestSuite) SetupTest() {
@@ -494,34 +491,6 @@ func (suite *FingerprintTestSuite) SetupTest() {
 
 func (suite *FingerprintTestSuite) TearDownTest() {
 	suite.testFile.Close()
-}
-
-// AfterTest is called after each test method
-func (suite *FingerprintTestSuite) AfterTest(suiteName, testName string) {
-	suite.testNames = append(suite.testNames, testName)
-	if suite.T().Failed() {
-		suite.testsFailed++
-		fmt.Printf("❌ FAILED: %s\n", testName)
-	} else {
-		suite.testsPassed++
-		fmt.Printf("✅ PASSED: %s\n", testName)
-	}
-}
-
-// TearDownSuite is called after all tests are finished
-func (suite *FingerprintTestSuite) TearDownSuite() {
-	total := suite.testsPassed + suite.testsFailed
-	separator := strings.Repeat("=", 60)
-	fmt.Print("\n" + separator + "\n")
-	fmt.Print("FINGERPRINT TEST RESULTS SUMMARY\n")
-	fmt.Print(separator + "\n")
-	fmt.Printf("Total Tests: %d\n", total)
-	fmt.Printf("Passed: %d\n", suite.testsPassed)
-	fmt.Printf("Failed: %d\n", suite.testsFailed)
-	if total > 0 {
-		fmt.Printf("Success Rate: %.1f%%\n", float64(suite.testsPassed)/float64(total)*100)
-	}
-	fmt.Print(separator + "\n")
 }
 
 func TestFingerprintTestSuite(t *testing.T) {
@@ -549,7 +518,7 @@ func (suite *FingerprintTestSuite) createTailerWithConfig(fpConfig FingerprintCo
 	return tailer
 }
 
-func (suite *FingerprintTestSuite) TestLineBased_BasicFunctionality() {
+func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 	// Write test data
 	lines := []string{
 		"header line\n",
@@ -585,7 +554,7 @@ func (suite *FingerprintTestSuite) TestLineBased_BasicFunctionality() {
 }
 
 func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
-	// Create a single line that exceeds maxBytes
+	// Create a single line that exceeds maxBytes; thus we should only hash up to maxBytes
 	longLine := make([]byte, 3000)
 	for i := range longLine {
 		longLine[i] = 'A'
@@ -602,12 +571,12 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 
 	config := FingerprintConfig{
 		maxLines:    5,
-		maxBytes:    2048, // Smaller than the line
+		maxBytes:    2048,
 		linesToSkip: 0,
 		bytesToSkip: 0,
 	}
 
-	// Expected: line should be truncated to maxBytes (2048)
+	// Expected: line should be cut off and hashed up to maxBytes (2048)
 	expectedText := make([]byte, 2048)
 	for i := range expectedText {
 		expectedText[i] = 'A'
@@ -624,8 +593,8 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
-func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesByteLimit() {
-	// Write multiple lines that together exceed maxBytes
+func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit() {
+	// Write multiple lines that together exceed maxBytes; thus we should only hash up to maxBytes
 	line1Content := string(make([]byte, 800))
 	line2Content := string(make([]byte, 800))
 	line3Content := string(make([]byte, 800))
@@ -654,10 +623,7 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesByteLimit() {
 		bytesToSkip: 0,
 	}
 
-	// Expected: first line (808 bytes) + part of second line (692 bytes) = 1500 bytes
-	// First line: "line1: " (7 bytes) + 800 null bytes + "\n" (1 byte) = 808 bytes
-	// Remaining bytes for second line: 1500 - 808 = 692 bytes
-	// Second line starts with "line2: " (7 bytes) + 685 null bytes
+	//Should hash up to maxBytes (1500) which includes the 807 bytes of line1 and the first 693 bytes of line2 (which accounts for the text "line1: ", "line2: ", and the line break)
 	expectedText := "line1: " + line1Content + "\n" + "line2: " + line2Content[:685]
 
 	table := crc64.MakeTable(crc64.ISO)
@@ -671,7 +637,7 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesByteLimit() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
-func (suite *FingerprintTestSuite) TestLineBased_SkipLines() {
+func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 	lines := []string{
 		"skip1\n",
 		"skip2\n",
@@ -722,7 +688,7 @@ func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 		bytesToSkip: 0,
 	}
 
-	// Expected: empty file should return 0
+	// Expected: empty file should return 0 since we don't have any data to hash
 	expectedChecksum := uint64(0)
 
 	tailer := suite.createTailerWithConfig(config)
@@ -732,8 +698,9 @@ func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
-func (suite *FingerprintTestSuite) TestLineBased_InsufficientLines() {
-	// Write fewer lines than maxLines
+// We don't have enough data to hash with the maxLines we configured we have neither the appropriate number of lines or bytes
+func (suite *FingerprintTestSuite) TestLineBased_InsufficientData() {
+	// Write fewer lines than maxLines with not enough data to hash
 	lines := []string{"line1\n", "line2\n"}
 
 	for _, line := range lines {
@@ -753,7 +720,7 @@ func (suite *FingerprintTestSuite) TestLineBased_InsufficientLines() {
 		bytesToSkip: 0,
 	}
 
-	// Expected: should return 0 because we have fewer lines than maxLines
+	// Expected: should return 0 because we have fewer lines than maxLines and less than 1024 bytes
 	expectedChecksum := uint64(0)
 
 	tailer := suite.createTailerWithConfig(config)
@@ -763,7 +730,8 @@ func (suite *FingerprintTestSuite) TestLineBased_InsufficientLines() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
-func (suite *FingerprintTestSuite) TestByteBased_BasicFunctionality() {
+// Skip x bytes and hash the next y bytes
+func (suite *FingerprintTestSuite) TestByteBased_WithSkip1() {
 	data := "header data that should be skipped" +
 		"this is the actual data we want to fingerprint for testing purposes"
 
@@ -795,6 +763,37 @@ func (suite *FingerprintTestSuite) TestByteBased_BasicFunctionality() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
+// Skip x bytes but there is not enough data to hash with the remaining y bytes
+func (suite *FingerprintTestSuite) TestByteBased_WithSkip_InvalidNotEnoughData() {
+	data := "header data that should be skipped" +
+		"this is the actual data we want to fingerprint for testing purposes"
+
+	_, err := suite.testFile.WriteString(data)
+	suite.Nil(err)
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    0,
+		maxBytes:    1000,
+		linesToSkip: 0,
+		bytesToSkip: 34, // Skip "header data that should be skipped"
+	}
+
+	// Expected: skip first 34 bytes, but unable to fingerprint since less than 1000 we configured
+	expectedChecksum := uint64(0)
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	receivedChecksum := tailer.computeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+// Test byte-based fingerprinting functionality with no skip
 func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 	data := "this data should be fingerprinted from the beginning"
 
@@ -826,6 +825,7 @@ func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
+// We don't have enough data to hash with the maxBytes we configured
 func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 	data := "short"
 
@@ -854,7 +854,8 @@ func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
-func (suite *FingerprintTestSuite) TestModeSelection_LineMode() {
+// Given our current config, we should skip the first line and hash the remaining lines
+func (suite *FingerprintTestSuite) TestLineBased_WithSkip3() {
 	// Write some test data
 	lines := []string{"line1\n", "line2\n", "line3\n"}
 	for _, line := range lines {
@@ -870,8 +871,8 @@ func (suite *FingerprintTestSuite) TestModeSelection_LineMode() {
 	config := FingerprintConfig{
 		maxLines:    2,
 		maxBytes:    1024,
-		linesToSkip: 1, // > 0, should trigger line mode
-		bytesToSkip: 10,
+		linesToSkip: 1,
+		bytesToSkip: 0,
 	}
 
 	// Expected: skip first line, then fingerprint remaining lines
@@ -887,7 +888,8 @@ func (suite *FingerprintTestSuite) TestModeSelection_LineMode() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
-func (suite *FingerprintTestSuite) TestModeSelection_ByteMode() {
+// Given our current config, we should infer the user wants to fingerprint using bytes even though there is a maxLines in the config
+func (suite *FingerprintTestSuite) TestByteBased_WithSkip2() {
 	// Write some test data
 	data := "this is test data for byte mode"
 	_, err := suite.testFile.WriteString(data)
@@ -901,8 +903,8 @@ func (suite *FingerprintTestSuite) TestModeSelection_ByteMode() {
 	config := FingerprintConfig{
 		maxLines:    5,
 		maxBytes:    21,
-		linesToSkip: 0,  // = 0, should trigger byte mode
-		bytesToSkip: 10, // > 0
+		linesToSkip: 0,
+		bytesToSkip: 10, //Because we have a certain number of bytes to skip, then we can assume the user's header info is x bytes long and thus will fingerprint by hash
 	}
 
 	expectedText := "st data for byte mode"
@@ -916,8 +918,8 @@ func (suite *FingerprintTestSuite) TestModeSelection_ByteMode() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
-func (suite *FingerprintTestSuite) TestModeSelection_DefaultToLineMode() {
-	// Write some test data
+// Given our current config, we should default or infer the user wants to hash lines (3 to be exact)
+func (suite *FingerprintTestSuite) TestLineBased_NoSkip() {
 	lines := []string{"line1\n", "line2\n", "line3\n"}
 	for _, line := range lines {
 		_, err := suite.testFile.WriteString(line)
@@ -932,11 +934,11 @@ func (suite *FingerprintTestSuite) TestModeSelection_DefaultToLineMode() {
 	config := FingerprintConfig{
 		maxLines:    3,
 		maxBytes:    1024,
-		linesToSkip: 0, // Both skip values are 0
-		bytesToSkip: 0, // Should default to line mode
+		linesToSkip: 0,
+		bytesToSkip: 0,
 	}
 
-	// Expected: should fingerprint all lines (default line mode, skip first line by default)
+	// Expected: should fingerprint all lines
 	expectedText := "line1\nline2\nline3\n"
 
 	table := crc64.MakeTable(crc64.ISO)
@@ -949,7 +951,7 @@ func (suite *FingerprintTestSuite) TestModeSelection_DefaultToLineMode() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
-func (suite *FingerprintTestSuite) TestShowStoredFingerprint() {
+func (suite *FingerprintTestSuite) TestLineBased_WithSkip5() {
 	// Write test data
 	lines := []string{
 		"skip this header line\n",
@@ -998,7 +1000,8 @@ func (suite *FingerprintTestSuite) TestShowStoredFingerprint() {
 	suite.Equal(expectedFingerprint, fingerprint)
 }
 
-func (suite *FingerprintTestSuite) TestShowStoredFingerprint_ByteMode() {
+// Skips header info in bytes and hashes the rest of the data
+func (suite *FingerprintTestSuite) TestByteBased_WithSkip3() {
 	data := "SKIP_THIS_PART" + "thisisexactly20chars"
 
 	_, err := suite.testFile.WriteString(data)
@@ -1027,7 +1030,7 @@ func (suite *FingerprintTestSuite) TestShowStoredFingerprint_ByteMode() {
 	suite.Equal(expectedHash, fingerprint)
 }
 
-func (suite *FingerprintTestSuite) TestShowFingerprint_EdgeCases() {
+func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() {
 	fmt.Printf("\n=== Edge Cases Tests ===\n")
 
 	// Test 1: Empty file
@@ -1066,7 +1069,7 @@ func (suite *FingerprintTestSuite) TestShowFingerprint_EdgeCases() {
 	suite.Equal(uint64(0), fingerprint, "Insufficient data should return 0")
 }
 
-func (suite *FingerprintTestSuite) TestShowFingerprint_LongLineTruncation() {
+func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
 	// Create a line longer than maxBytes to test truncation
 	longContent := strings.Repeat("X", 80) + strings.Repeat("Y", 80)
 	longLine := longContent + "\n"
@@ -1098,8 +1101,8 @@ func (suite *FingerprintTestSuite) TestShowFingerprint_LongLineTruncation() {
 	suite.Equal(expectedHash, fingerprint)
 }
 
-func (suite *FingerprintTestSuite) TestShowFingerprint_MultipleLines_ByteLimit() {
-	// Test the "whichever comes first" logic
+// Tests the "whichever comes first" logic (X lines or Y bytes)
+func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 	lines := []string{
 		strings.Repeat("A", 30) + "\n", // ~31 bytes
 		strings.Repeat("B", 30) + "\n", // ~31 bytes
@@ -1135,8 +1138,7 @@ func (suite *FingerprintTestSuite) TestShowFingerprint_MultipleLines_ByteLimit()
 
 	suite.Equal(expectedHash, fingerprint)
 }
-
-func (suite *FingerprintTestSuite) TestShowFingerprint_ModeSelection() {
+func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	data := "line1\nline2\nline3\n"
 
 	fmt.Printf("\n=== Mode Selection Tests ===\n")
@@ -1150,8 +1152,8 @@ func (suite *FingerprintTestSuite) TestShowFingerprint_ModeSelection() {
 	config := FingerprintConfig{
 		maxLines:    2,
 		maxBytes:    1024,
-		linesToSkip: 1, // This triggers line mode
-		bytesToSkip: 5,
+		linesToSkip: 1,
+		bytesToSkip: 0,
 	}
 
 	osFile, err := os.Open(suite.testPath)
@@ -1179,7 +1181,7 @@ func (suite *FingerprintTestSuite) TestShowFingerprint_ModeSelection() {
 	config = FingerprintConfig{
 		maxLines:    2,
 		maxBytes:    10,
-		linesToSkip: 0, // This with bytesToSkip > 0 triggers byte mode
+		linesToSkip: 0,
 		bytesToSkip: 5,
 	}
 
@@ -1195,4 +1197,42 @@ func (suite *FingerprintTestSuite) TestShowFingerprint_ModeSelection() {
 	table = crc64.MakeTable(crc64.ISO)
 	expectedHash2 := crc64.Checksum([]byte(textToHash2), table)
 	suite.Equal(expectedHash2, fingerprint2)
+}
+
+func (suite *FingerprintTestSuite) TestInvalidConfig_BothSkipValuesSet() {
+	// This test handles when bytesToSkip and linesToSkip are non-zero,
+	// the content to hash is a single line, and this line is longer than maxBytes.
+	// Because linesToSkip > 0, we operate in line-mode. The tailer should skip the
+	// specified number of lines, read the next line, truncate it to maxBytes, and hash that.
+
+	lines := []string{
+		"this line should be skipped\n",
+	}
+
+	for _, line := range lines {
+		_, err := suite.testFile.WriteString(line)
+		suite.Nil(err)
+	}
+	suite.testFile.Sync()
+
+	osFile, err := os.Open(suite.testPath)
+	suite.Nil(err)
+	defer osFile.Close()
+
+	config := FingerprintConfig{
+		maxLines:    1,
+		maxBytes:    4,  // smaller than longLine
+		linesToSkip: 1,  // skip the first line
+		bytesToSkip: 10, // should be ignored in line-mode
+	}
+
+	// Expected: skip the first line. Read the second line, but only up to maxBytes.
+
+	tailer := suite.createTailerWithConfig(config)
+	tailer.osFile = osFile
+
+	expectedChecksum := uint64(0)
+	receivedChecksum := tailer.computeFingerPrint()
+
+	suite.Equal(expectedChecksum, receivedChecksum)
 }

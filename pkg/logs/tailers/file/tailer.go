@@ -417,14 +417,17 @@ func (t *Tailer) computeFingerPrint() uint64 {
 		return 0
 	}
 
+	if t.fingerprintConfig.linesToSkip != 0 && t.fingerprintConfig.bytesToSkip != 0 {
+		log.Warnf("Invalid configuration: both linesToSkip and bytesToSkip are set. Skipping fingerprinting")
+		return uint64(0)
+	}
+
 	// Determine the fingerprinting mode based on configuration
 	if t.fingerprintConfig.linesToSkip > 0 || (t.fingerprintConfig.linesToSkip == 0 && t.fingerprintConfig.bytesToSkip == 0 && t.fingerprintConfig.maxLines != 0) {
 		// Line-based fingerprinting mode
-		fmt.Printf("We are in the line-based fingerprinting mode\n")
 		return t.computeFingerPrintByLines()
 	} else {
 		// Byte-based fingerprinting mode
-		fmt.Printf("We are in the byte-based fingerprinting mode\n")
 		return t.computeFingerPrintByBytes()
 	}
 }
