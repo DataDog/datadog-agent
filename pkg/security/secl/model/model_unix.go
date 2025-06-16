@@ -52,6 +52,11 @@ func NewFakeEvent() *Event {
 	}
 }
 
+// ResolveProcessCacheEntryFromPID stub implementation
+func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry {
+	return GetPlaceholderProcessCacheEntry(pid, pid, false)
+}
+
 // Event represents an event sent from the kernel
 // genaccessors
 // gengetter: GetContainerCreatedAt
@@ -86,20 +91,21 @@ type Event struct {
 	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events
-	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
-	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
-	Open        OpenEvent     `field:"open" event:"open"`               // [7.27] [File] A file was opened
-	Mkdir       MkdirEvent    `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
-	Rmdir       RmdirEvent    `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
-	Rename      RenameEvent   `field:"rename" event:"rename"`           // [7.27] [File] A file/directory was renamed
-	Unlink      UnlinkEvent   `field:"unlink" event:"unlink"`           // [7.27] [File] A file was deleted
-	Utimes      UtimesEvent   `field:"utimes" event:"utimes"`           // [7.27] [File] Change file access/modification times
-	Link        LinkEvent     `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
-	SetXAttr    SetXAttrEvent `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
-	RemoveXAttr SetXAttrEvent `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
-	Splice      SpliceEvent   `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
-	Mount       MountEvent    `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
-	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
+	Chmod       ChmodEvent     `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
+	Chown       ChownEvent     `field:"chown" event:"chown"`             // [7.27] [File] A file's owner was changed
+	Open        OpenEvent      `field:"open" event:"open"`               // [7.27] [File] A file was opened
+	Mkdir       MkdirEvent     `field:"mkdir" event:"mkdir"`             // [7.27] [File] A directory was created
+	Rmdir       RmdirEvent     `field:"rmdir" event:"rmdir"`             // [7.27] [File] A directory was removed
+	Rename      RenameEvent    `field:"rename" event:"rename"`           // [7.27] [File] A file/directory was renamed
+	Unlink      UnlinkEvent    `field:"unlink" event:"unlink"`           // [7.27] [File] A file was deleted
+	Utimes      UtimesEvent    `field:"utimes" event:"utimes"`           // [7.27] [File] Change file access/modification times
+	Link        LinkEvent      `field:"link" event:"link"`               // [7.27] [File] Create a new name/alias for a file
+	SetXAttr    SetXAttrEvent  `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
+	RemoveXAttr SetXAttrEvent  `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
+	Splice      SpliceEvent    `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
+	Mount       MountEvent     `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
+	Chdir       ChdirEvent     `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
+	Setrlimit   SetrlimitEvent `field:"setrlimit" event:"setrlimit"`     // [7.68] [Process] A setrlimit command was executed
 
 	// process events
 	Exec          ExecEvent          `field:"exec" event:"exec"`     // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
@@ -404,6 +410,7 @@ func (pc *ProcessCacheEntry) ParentScope() (eval.VariableScope, bool) {
 type ExecEvent struct {
 	SyscallContext
 	*Process
+	FileMetadata FileMetadata `field:"file.metadata"`
 
 	// Syscall context aliases
 	SyscallPath string `field:"syscall.path,ref:exec.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
@@ -987,6 +994,16 @@ type SysCtlEvent struct {
 	OldValueTruncated bool   `field:"old_value_truncated"` // SECLDoc[old_value_truncated] Definition:`Indicates that the old value field is truncated`
 	Value             string `field:"value"`               // SECLDoc[value] Definition:`New and/or current value for the system control parameter depending on the action type`
 	ValueTruncated    bool   `field:"value_truncated"`     // SECLDoc[value_truncated] Definition:`Indicates that the value field is truncated`
+}
+
+// SetrlimitEvent represents a setrlimit event
+type SetrlimitEvent struct {
+	SyscallEvent
+	Resource  int             `field:"resource"` // SECLDoc[resource] Definition:`Resource type being limited` Constants:`Resource limit types`
+	RlimCur   uint64          `field:"rlim_cur"` // SECLDoc[rlim_cur] Definition:`Current (soft) limit value`
+	RlimMax   uint64          `field:"rlim_max"` // SECLDoc[rlim_max] Definition:`Maximum (hard) limit value`
+	TargetPid uint32          `field:"-"`        // Internal field, not exposed to users
+	Target    *ProcessContext `field:"target"`   // SECLDoc[target] Definition:`Process context of the target process`
 }
 
 // SetSockOptEvent represents a set socket option event

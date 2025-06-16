@@ -11,6 +11,8 @@ package kfilters
 import (
 	"testing"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -161,13 +163,13 @@ func TestApproverAUIDRange(t *testing.T) {
 			}
 		}
 
-		key := makeEntryKey(auidRangeApproversTable, model.FileOpenEventType)
+		key := makeKFilterKey(auidRangeApproversTable, model.FileOpenEventType)
 		entry := kfilters[key]
 		if entry == nil {
 			t.Fatalf("expected kfilter not found: %+v => %+v", key, kfilters)
 		}
 
-		value := entry.(*hashEntry).value.(*ebpf.UInt32RangeMapItem)
+		value := entry.(*hashKFilter).value.(*ebpf.UInt32RangeMapItem)
 		if value.Min != min || value.Max != max {
 			t.Fatalf("expected kfilter not found: %+v => %+v", kfilters, value)
 		}
@@ -195,4 +197,52 @@ func TestApproverAUIDRange(t *testing.T) {
 	assert(t, []string{
 		`open.file.path =~ "/tmp/*" && process.auid != AUDIT_AUID_UNSET`,
 	}, 0, maxAUID)
+}
+
+func TestApproversConnect(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	testCases := []struct {
+		name            string
+		ruleExpressions []string
+		assertionsCb    func(_ *testing.T, _ *rules.RuleSet, _ rules.Approvers)
+	}{
+		{
+			name:            "addr-family-af-inet",
+			ruleExpressions: []string{`connect.addr.family == AF_INET`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				values, exists := approvers["connect.addr.family"]
+				if !exists || len(values) != 1 {
+					t.Fatal("expected approver values not found")
+				}
+
+				if values[0].Value != unix.AF_INET {
+					t.Fatalf("expected AF_INET, got %v", values[0].Value)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+			for _, expr := range tc.ruleExpressions {
+				rules.AddTestRuleExpr(t, rs, expr)
+			}
+
+			capabilities, exists := allCapabilities["connect"]
+			if !exists {
+				t.Fatal("no capabilities for connect")
+			}
+
+			approvers, _, _, err := rs.GetEventTypeApprovers("connect", capabilities)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tc.assertionsCb(t, rs, approvers)
+		})
+	}
 }
