@@ -1,0 +1,19 @@
+bazel_dep(name = "rules_python", version = "1.4.1")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    python_version = "3.13",
+)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+
+pip.parse(
+    hub_name = "invoke_build_deps",
+    requirements_lock = "//requirements:requirements_build.txt",
+    python_version = "3.13",
+)
+
+use_repo(
+    pip,
+    "invoke_build_deps"
+)

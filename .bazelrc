@@ -1,0 +1,3 @@
+# Make bazel run commands run from the current directory instead of runtimes
+# (see https://github.com/bazelbuild/bazel/issues/3325#issuecomment-1298665314)
+run --run_under='cd "$BUILD_WORKING_DIRECTORY" && exec'

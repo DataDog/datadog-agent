@@ -1,0 +1,27 @@
+awscli==1.40.7
+boto3==1.38.8
+codeowners==0.6.0
+datadog-api-client==2.34.0
+docker-squash==1.1.0
+docker==6.1.3
+dulwich==0.21.6
+invoke==2.2.0
+jinja2~=3.1.6
+mypy==1.10.0
+# https://github.com/pypa/setuptools/issues/45
+packaging==25.0
+parameterized==0.9.0
+pygithub==1.59.1
+pyright==1.1.391
+python-gitlab==4.4.0
+reno==3.5.0
+requests==2.32.3
+ruff==0.3.5
+semver==2.10.0
+toml==0.10.2
+# mypy
+types-pyyaml==6.0.12.20240311
+types-requests==2.32.0.20250328
+types-tabulate==0.9.0.20240106
+types-toml==0.10.8.20240310
+vulture==2.6
