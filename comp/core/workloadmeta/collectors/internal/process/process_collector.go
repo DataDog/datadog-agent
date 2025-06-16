@@ -41,9 +41,10 @@ import (
 )
 
 const (
-	collectorID       = "process-collector"
-	componentName     = "workloadmeta-process"
-	cacheValidityNoRT = 2 * time.Second
+	collectorID               = "process-collector"
+	componentName             = "workloadmeta-process"
+	cacheValidityNoRT         = 2 * time.Second
+	serviceCollectionInterval = 60 * time.Second
 
 	// Service discovery constants
 	maxPortCheckTries = 10
@@ -159,7 +160,8 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 			c.containerProvider = containerProvider
 		}
 		c.store = store
-		go c.collect(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
+		go c.collectProcesses(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
+		go c.collectServices(ctx, c.clock.Ticker(serviceCollectionInterval))
 		go c.stream(ctx)
 	} else {
 		return errors.NewDisabled(componentName, "process collection is disabled")
@@ -357,20 +359,12 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		GeneratedName:              modelService.GeneratedName,
 		GeneratedNameSource:        modelService.GeneratedNameSource,
 		AdditionalGeneratedNames:   modelService.AdditionalGeneratedNames,
-		ContainerServiceName:       modelService.ContainerServiceName,
-		ContainerServiceNameSource: modelService.ContainerServiceNameSource,
-		ContainerTags:              modelService.ContainerTags,
 		TracerMetadata:             modelService.TracerMetadata,
 		DDService:                  modelService.DDService,
 		DDServiceInjected:          modelService.DDServiceInjected,
-		CheckedContainerData:       modelService.CheckedContainerData,
 		Ports:                      modelService.Ports,
 		APMInstrumentation:         modelService.APMInstrumentation,
-		Language:                   modelService.Language,
 		Type:                       modelService.Type,
-		CommandLine:                modelService.CommandLine,
-		StartTimeMilli:             modelService.StartTimeMilli,
-		ContainerID:                modelService.ContainerID,
 		LastHeartbeat:              modelService.LastHeartbeat,
 	}
 }
@@ -434,8 +428,8 @@ func getDiscoveryURL(endpoint string, pids []int32) string {
 	return URL.String()
 }
 
-// collect captures all the required process data for the process check
-func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker) {
+// collectProcesses captures all the required process data for the process check
+func (c *collector) collectProcesses(ctx context.Context, collectionTicker *clock.Ticker) {
 	// TODO: implement the full collection logic for the process collector. Once collection is done, submit events.
 	ctx, cancel := context.WithCancel(ctx)
 	defer collectionTicker.Stop()
@@ -471,10 +465,29 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 
 			// store latest collected processes
 			c.lastCollectedProcesses = procs
+		case <-ctx.Done():
+			log.Infof("The %s collector has stopped", collectorID)
+			return
+		}
+	}
+}
 
-			alivePids := make(core.PidSet, len(procs))
-			for pid := range procs {
+// collectServices captures service discovery data for alive processes
+func (c *collector) collectServices(ctx context.Context, collectionTicker *clock.Ticker) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer collectionTicker.Stop()
+	defer cancel()
+	for {
+		select {
+		case <-collectionTicker.C:
+			// Get alive PIDs from last collected processes
+			alivePids := make(core.PidSet, len(c.lastCollectedProcesses))
+			for pid := range c.lastCollectedProcesses {
 				alivePids.Add(pid)
+			}
+
+			if len(alivePids) == 0 {
+				continue // No processes to check
 			}
 
 			// update services from service discovery
@@ -489,7 +502,7 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 			cleanPidMaps(alivePids, c.ignoredPids)
 			cleanPidMaps(alivePids, c.serviceRetries)
 		case <-ctx.Done():
-			log.Infof("The %s collector has stopped", collectorID)
+			log.Infof("The %s service collector has stopped", collectorID)
 			return
 		}
 	}

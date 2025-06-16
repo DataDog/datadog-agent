@@ -1212,15 +1212,6 @@ type Service struct {
 	// AdditionalGeneratedNames contains other potential names for the service
 	AdditionalGeneratedNames []string
 
-	// ContainerServiceName is the service name from container tags
-	ContainerServiceName string
-
-	// ContainerServiceNameSource indicates the source of the container service name
-	ContainerServiceNameSource string
-
-	// ContainerTags are the container tags associated with the service
-	ContainerTags []string
-
 	// TracerMetadata contains APM tracer metadata
 	TracerMetadata []tracermetadata.TracerMetadata
 
@@ -1230,29 +1221,14 @@ type Service struct {
 	// DDServiceInjected indicates if DD_SERVICE was injected
 	DDServiceInjected bool
 
-	// CheckedContainerData indicates if container data was checked
-	CheckedContainerData bool
-
 	// Ports is the list of ports the service is listening on
 	Ports []uint16
 
 	// APMInstrumentation indicates the APM instrumentation status
 	APMInstrumentation string
 
-	// Language is the programming language of the service
-	Language string
-
 	// Type is the service type (e.g., "web_service")
 	Type string
-
-	// CommandLine contains the command line arguments
-	CommandLine []string
-
-	// StartTimeMilli is the service start time in milliseconds since epoch
-	StartTimeMilli uint64
-
-	// ContainerID is the container ID if running in a container
-	ContainerID string
 
 	// LastHeartbeat is the timestamp of the last heartbeat update (Unix seconds)
 	LastHeartbeat int64
@@ -1326,7 +1302,16 @@ func (p Process) String(_ bool) string {
 		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
 	}
 	if p.Service != nil {
-		_, _ = fmt.Fprintln(&sb, "Service:", p.Service.GeneratedName)
+		_, _ = fmt.Fprintln(&sb, "Service Generated Name:", p.Service.GeneratedName)
+		_, _ = fmt.Fprintln(&sb, "Service Generated Name Source:", p.Service.GeneratedNameSource)
+		_, _ = fmt.Fprintln(&sb, "Service Additional Generated Names:", p.Service.AdditionalGeneratedNames)
+		_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
+		_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
+		_, _ = fmt.Fprintln(&sb, "Service DD Service Injected:", p.Service.DDServiceInjected)
+		_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
+		_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
+		_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+		_, _ = fmt.Fprintln(&sb, "Service Last Heartbeat:", p.Service.LastHeartbeat)
 	}
 	// TODO: add new fields once the new wlm process collector can be enabled
 

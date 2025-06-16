@@ -128,10 +128,7 @@ func makeProcessEntityService(pid int32, name string, lastHeartbeat time.Time) *
 			DDServiceInjected:  false,
 			Ports:              []uint16{3000, 4000},
 			APMInstrumentation: "manual",
-			Language:           "python",
 			Type:               "database",
-			CommandLine:        []string{"python", "-m", "myservice"},
-			StartTimeMilli:     uint64(baseTime.Add(-1 * time.Minute).UnixMilli()),
 			LastHeartbeat:      lastHeartbeat.Unix(),
 		},
 	}
@@ -158,10 +155,7 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 			assert.Equal(collectT, expectedProcess.Service.DDServiceInjected, entity.Service.DDServiceInjected)
 			assert.Equal(collectT, expectedProcess.Service.Ports, entity.Service.Ports)
 			assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)
-			assert.Equal(collectT, expectedProcess.Service.Language, entity.Service.Language)
 			assert.Equal(collectT, expectedProcess.Service.Type, entity.Service.Type)
-			assert.Equal(collectT, expectedProcess.Service.CommandLine, entity.Service.CommandLine)
-			assert.Equal(collectT, expectedProcess.Service.StartTimeMilli, entity.Service.StartTimeMilli)
 			assert.Equal(collectT, expectedProcess.Service.LastHeartbeat, entity.Service.LastHeartbeat)
 		}, 2*time.Second, 100*time.Millisecond)
 	}
@@ -180,6 +174,21 @@ func assertProcessWithoutServices(t *testing.T, store workloadmetamock.Mock, pid
 			assert.NotNil(collectT, entity, "PID %d should exist in store", pid)
 			// Process should exist but have no service data
 			assert.Nil(collectT, entity.Service, "PID %d should not have service data", pid)
+		}
+	}, 1*time.Second, 100*time.Millisecond)
+}
+
+func assertProcessesExist(t *testing.T, store workloadmetamock.Mock, pids []int32) {
+	if len(pids) == 0 {
+		return
+	}
+
+	// Verify that processes exist (regardless of service data)
+	assert.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		for _, pid := range pids {
+			entity, err := store.GetProcess(pid)
+			assert.NoError(collectT, err, "PID %d should exist in store", pid)
+			assert.NotNil(collectT, entity, "PID %d should exist in store", pid)
 		}
 	}, 1*time.Second, 100*time.Millisecond)
 }
@@ -298,16 +307,23 @@ func TestServiceStoreLifetime(t *testing.T) {
 			// Set mock clock to baseTime to control LastHeartbeat in tests
 			c.mockClock.Set(baseTime)
 
-			// TODO: we should use Start() instead of 3 lines below when configuration is sorted as Start() is currently
+			// TODO: we should use Start() instead of these lines below when configuration is sorted as Start() is currently
 			// by default disabled
 			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
-			go c.collector.collect(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.collectServices(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
 
-			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(makeProcessMap(tc.alivePids...), nil).Times(1)
+			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(makeProcessMap(tc.alivePids...), nil).Maybe()
 
-			// Trigger next update
+			// Trigger process collection first to populate lastCollectedProcesses
+			c.mockClock.Add(collectionInterval)
+
+			// Wait for processes to be stored (confirms process collection completed)
+			assertProcessesExist(t, c.mockStore, tc.alivePids)
+
+			// Trigger service collection
 			c.mockClock.Add(collectionInterval)
 
 			assertStoredServices(t, c.mockStore, tc.expectStored)
