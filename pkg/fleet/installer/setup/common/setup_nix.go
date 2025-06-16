@@ -20,10 +20,17 @@ func (s *Setup) preInstallPackages() (err error) {
 }
 
 func (s *Setup) addAgentToAdditionalGroups() {
+	_, err := user.Lookup("dd-agent")
+	if err != nil {
+		s.Out.WriteString("Failed to lookup dd-agent user: " + err.Error())
+		return
+	}
+
 	for _, group := range s.DdAgentAdditionalGroups {
 		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
 		if _, err := user.LookupGroup(group); err != nil {
 			log.Infof("Skipping group %s as it does not exist", group)
+			s.Out.WriteString("Skipping group " + group + " as it does not exist")
 			continue
 		}
 		_, err := ExecuteCommandWithTimeout(s, "usermod", "-aG", group, "dd-agent")
