@@ -29,6 +29,8 @@ func parseConfig(product string, raw []byte, metadata Metadata) (interface{}, er
 		return parseConfigASMDD(raw, metadata)
 	case ProductASMData:
 		return parseConfigASMData(raw, metadata)
+	case ProductRemoteShell:
+		return ParseConfigRemoteShell(raw, metadata)
 	// case ProductAgentTask:
 	// 	return ParseConfigAgentTask(raw, metadata)
 	// Other products are parsed separately
