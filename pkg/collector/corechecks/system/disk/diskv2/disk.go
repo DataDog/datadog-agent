@@ -18,6 +18,7 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/common"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	"github.com/spf13/afero"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -113,6 +114,9 @@ func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 	return re, err
 }
 
+// StatFunc type alias
+type StatFunc func(path string, st *StatT) error
+
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
@@ -120,6 +124,8 @@ type Check struct {
 	diskPartitionsWithContext func(context.Context, bool) ([]gopsutil_disk.PartitionStat, error)
 	diskUsage                 func(string) (*gopsutil_disk.UsageStat, error)
 	diskIOCounters            func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
+	fs                        afero.Fs
+	statFn                    StatFunc
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -697,6 +703,8 @@ func newCheck() check.Check {
 		diskPartitionsWithContext: gopsutil_disk.PartitionsWithContext,
 		diskUsage:                 gopsutil_disk.Usage,
 		diskIOCounters:            gopsutil_disk.IOCounters,
+		fs:                        afero.NewOsFs(),
+		statFn:                    defaultStatFn,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},

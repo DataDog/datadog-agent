@@ -19,6 +19,13 @@ import (
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
+// On Windows we don’t use StatT; provide stub.
+type StatT struct{}
+
+func dummyStat(path string, st *StatT) error { return nil }
+
+var defaultStatFn StatFunc = dummyStat
+
 func defaultIgnoreCase() bool {
 	return true
 }

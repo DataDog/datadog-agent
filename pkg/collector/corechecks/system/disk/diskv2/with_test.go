@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/benbjohnson/clock"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	"github.com/spf13/afero"
 )
 
 // Test helpers
@@ -37,5 +38,17 @@ func WithDiskUsage(c check.Check, f func(string) (*gopsutil_disk.UsageStat, erro
 // WithDiskIOCounters sets a diskIOCounters call on the Check and returns the updated Check.
 func WithDiskIOCounters(c check.Check, f func(...string) (map[string]gopsutil_disk.IOCountersStat, error)) check.Check {
 	c.(*Check).diskIOCounters = f
+	return c
+}
+
+// WithFs sets a custom clock on the Check and returns the updated Check.
+func WithFs(c check.Check, fs afero.Fs) check.Check {
+	c.(*Check).fs = fs
+	return c
+}
+
+// WithStat sets a statFn call on the Check and returns the updated Check.
+func WithStat(c check.Check, f func(path string, st *StatT) error) check.Check {
+	c.(*Check).statFn = f
 	return c
 }

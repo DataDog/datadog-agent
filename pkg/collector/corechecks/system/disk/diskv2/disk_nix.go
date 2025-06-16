@@ -23,8 +23,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	"github.com/spf13/afero"
 	"golang.org/x/sys/unix"
 )
+
+// StatT type alias
+type StatT = unix.Stat_t
+
+var defaultStatFn StatFunc = unix.Stat
 
 func defaultIgnoreCase() bool {
 	return false
@@ -216,8 +222,8 @@ func (c *Check) getProcMountInfoPath() string {
 	return hpmPath
 }
 
-func readAllLines(filename string) ([]string, error) {
-	f, err := os.Open(filename)
+func readAllLines(fs afero.Fs, filename string) ([]string, error) {
+	f, err := fs.Open(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -234,13 +240,13 @@ func readAllLines(filename string) ([]string, error) {
 	return lines, nil
 }
 
-func readMountFile(root string) (lines []string, useMounts bool, filename string, err error) {
+func readMountFile(fs afero.Fs, root string) (lines []string, useMounts bool, filename string, err error) {
 	filename = path.Join(root, "mountinfo")
-	lines, err = readAllLines(filename)
+	lines, err = readAllLines(fs, filename)
 	if err != nil {
 		useMounts = true
 		filename = path.Join(root, "mounts")
-		lines, err = readAllLines(filename)
+		lines, err = readAllLines(fs, filename)
 		if err != nil {
 			return
 		}
@@ -250,23 +256,26 @@ func readMountFile(root string) (lines []string, useMounts bool, filename string
 }
 
 type rootFsDeviceFinder struct {
+	Fs    afero.Fs
 	major uint32
 	minor uint32
 }
 
-func newRootFsDeviceFinder() (*rootFsDeviceFinder, error) {
-	var st unix.Stat_t
-	if err := unix.Stat("/", &st); err != nil {
+func newRootFsDeviceFinder(fs afero.Fs, statFunc StatFunc) (*rootFsDeviceFinder, error) {
+	var st StatT
+	if err := statFunc("/", &st); err != nil {
 		return nil, err
 	}
+	log.Debugf("Major[%v], Minor[%v]", unix.Major(uint64(st.Dev)), unix.Minor(uint64(st.Dev)))
 	return &rootFsDeviceFinder{
+		Fs:    fs,
 		major: unix.Major(uint64(st.Dev)),
 		minor: unix.Minor(uint64(st.Dev)),
 	}, nil
 }
 
 func (r *rootFsDeviceFinder) askProcPartitions() (string, error) {
-	f, err := os.Open(filepath.Join(getProcfsPath(), "partitions"))
+	f, err := r.Fs.Open(filepath.Join(getProcfsPath(), "partitions"))
 	if err != nil {
 		return "", err
 	}
@@ -298,7 +307,7 @@ func (r *rootFsDeviceFinder) askProcPartitions() (string, error) {
 
 func (r *rootFsDeviceFinder) askSysDevBlock() (string, error) {
 	path := fmt.Sprintf("/sys/dev/block/%d:%d/uevent", r.major, r.minor)
-	f, err := os.Open(path)
+	f, err := r.Fs.Open(path)
 	if err != nil {
 		return "", err
 	}
@@ -344,26 +353,36 @@ func (r *rootFsDeviceFinder) askSysClassBlock() (string, error) {
 func (r *rootFsDeviceFinder) Find() (string, error) {
 	// Try /proc/partitions
 	if path, err := r.askProcPartitions(); err == nil && path != "" {
-		if _, err := os.Stat(path); err == nil {
+		if _, err := r.Fs.Stat(path); err == nil {
 			return path, nil
 		}
 	}
 
 	// Try /sys/dev/block
 	if path, err := r.askSysDevBlock(); err == nil && path != "" {
-		if _, err := os.Stat(path); err == nil {
+		if _, err := r.Fs.Stat(path); err == nil {
 			return path, nil
 		}
 	}
 
 	// Try /sys/class/block
 	if path, err := r.askSysClassBlock(); err == nil && path != "" {
-		if _, err := os.Stat(path); err == nil {
+		if _, err := r.Fs.Stat(path); err == nil {
 			return path, nil
 		}
 	}
 
 	return "", fmt.Errorf("could not determine rootfs device")
+}
+
+// ReadlinkFs method
+func ReadlinkFs(fs afero.Fs, name string) (string, error) {
+	if lf, ok := fs.(afero.LinkReader); ok {
+		if target, err := lf.ReadlinkIfPossible(name); err == nil {
+			return target, nil
+		}
+	}
+	return os.Readlink(name)
 }
 
 func (c *Check) loadRootDevices() (map[string]string, error) {
@@ -376,11 +395,11 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 		root = filepath.Dir(hpmPath)
 	}
 	// Try reading mount data
-	lines, useMounts, filename, err := readMountFile(root)
+	lines, useMounts, filename, err := readMountFile(c.fs, root)
 	if err != nil && hpmPath == "" {
 		// fallback to /proc/self
 		root = filepath.Join(hostProc, "self")
-		lines, useMounts, filename, err = readMountFile(root)
+		lines, useMounts, filename, err = readMountFile(c.fs, root)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("reading mount file: %w", err)
@@ -388,7 +407,7 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 	// Build the map
 	rootDevices := make(map[string]string)
 	if !useMounts {
-		finder, err := newRootFsDeviceFinder()
+		finder, err := newRootFsDeviceFinder(c.fs, c.statFn)
 		var rootFsDevice string
 		if err == nil {
 			rootFsDevice, err = finder.Find()
@@ -419,7 +438,7 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 			if device == "/dev/root" || device == "rootfs" {
 				log.Debugf("/dev/root line: '%s'", line)
 				linkPath := filepath.Join(hostSys, "dev", "block", blockDeviceID)
-				devPath, err := os.Readlink(linkPath)
+				devPath, err := ReadlinkFs(c.fs, linkPath)
 				if err == nil {
 					base := filepath.Base(devPath)
 					deviceResolved := strings.Replace(device, "root", base, 1)
