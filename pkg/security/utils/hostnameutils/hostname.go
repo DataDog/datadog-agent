@@ -13,7 +13,7 @@ import (
 
 	"github.com/avast/retry-go/v4"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -34,7 +34,7 @@ var (
 
 // GetHostname attempts to acquire a hostname by connecting to the core
 // agent's gRPC endpoints.
-func GetHostname() (string, error) {
+func GetHostname(ipcComp ipc.Component) (string, error) {
 	hostnameLock.RLock()
 	if cachedHostname != "" {
 		hostnameLock.RUnlock()
@@ -42,7 +42,7 @@ func GetHostname() (string, error) {
 	}
 	hostnameLock.RUnlock()
 
-	hostname, err := getHostnameFromAgent(context.Background())
+	hostname, err := getHostnameFromAgent(context.Background(), ipcComp)
 
 	if hostname != "" {
 		hostnameLock.Lock()
@@ -55,7 +55,7 @@ func GetHostname() (string, error) {
 
 // getHostnameFromAgent attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context.
-func getHostnameFromAgent(ctx context.Context) (string, error) {
+func getHostnameFromAgent(ctx context.Context, ipc ipc.Component) (string, error) {
 	var hostname string
 	err := retry.Do(func() error {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
@@ -66,7 +66,7 @@ func getHostnameFromAgent(ctx context.Context) (string, error) {
 			return err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), util.GetTLSClientConfig())
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipc.GetTLSClientConfig())
 		if err != nil {
 			return err
 		}
@@ -86,8 +86,8 @@ func getHostnameFromAgent(ctx context.Context) (string, error) {
 
 // GetHostnameWithContextAndFallback attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context, or falls back to local resolution
-func GetHostnameWithContextAndFallback(ctx context.Context) (string, error) {
-	hostnameDetected, err := getHostnameFromAgent(ctx)
+func GetHostnameWithContextAndFallback(ctx context.Context, ipcComp ipc.Component) (string, error) {
+	hostnameDetected, err := getHostnameFromAgent(ctx, ipcComp)
 	if err != nil {
 		log.Warnf("Could not resolve hostname from core-agent: %v", err)
 		hostnameDetected, err = hostname.Get(ctx)
