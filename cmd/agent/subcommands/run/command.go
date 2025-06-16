@@ -19,6 +19,7 @@ import (
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/expr-lang/expr"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -290,6 +291,15 @@ func run(log log.Component,
 
 	// Make a channel to exit the function
 	stopCh := make(chan error)
+
+	// Dummy code to pull in the expr dependency
+	prg, _ := expr.Compile("true || false")
+	o, _ := expr.Run(prg, nil)
+	if o != nil {
+		log.Infof("Expression evaluation result: %v", o)
+	} else {
+		log.Warnf("Expression evaluation returned nil, this is unexpected")
+	}
 
 	go func() {
 		// Set up the signals async so we can Start the agent
