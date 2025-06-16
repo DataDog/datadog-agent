@@ -96,7 +96,7 @@ if debian_target?
   maintainer 'Datadog Packages <package@datadoghq.com>'
   runtime_dependency "datadog-agent (= 1:#{build_version}-1)"
   runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
-elsif redhat_target?
+elsif redhat_target? || suse_target?
   maintainer 'Datadog, Inc <package@datadoghq.com>'
   # RPM packages can't have dashes in their version segment, so we use
   # the same sanitization function that gets applied for the Agent version

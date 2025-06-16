@@ -73,6 +73,7 @@ agent_oci*                           @DataDog/agent-delivery
 installer_oci*                       @DataDog/agent-delivery
 ot_agent_deb*                        @DataDog/agent-delivery
 ot_agent_rpm*                        @DataDog/agent-delivery
+ot_agent_suse_rpm*                   @DataDog/agent-delivery
 check_pkg_size                       @DataDog/agent-delivery
 
 # Testing package deploy
