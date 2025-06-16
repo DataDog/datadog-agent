@@ -94,10 +94,8 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 		enableReceiveResourceSpansV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_receive_resource_spans_v2", enableReceiveResourceSpansV2Val, nil, 1)
-	grpcMaxRecvMsgSize := 10 * 1024 * 1024
-	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
-		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
-	}
+	grpcMaxRecvMsgSize := cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
+
 	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
 }
 

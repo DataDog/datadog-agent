@@ -9,6 +9,7 @@
 package configcheck
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/mohae/deepcopy"
@@ -75,7 +76,23 @@ var intConfigs = map[string]struct{}{
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
 func IsEnabled(cfg config.Reader) bool {
-	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
+	for _, key := range cfg.AllKeysLowercased() {
+		if strings.HasPrefix(key, "otlp_config.receiver") {
+			// otlp_config.receiver key does not exist. If it is present in AllKeysLowercased,
+			// this means that otlp_config.receiver was set in agent config 
+			// to an empty section, in which case OTLP Ingest is enabled.
+			if key == "otlp_config.receiver" {
+				return true
+			} else {
+				if cfg.IsConfigured(key) {
+					// if any of the otlp_config.receiver.* keys are configured,
+					// enable the OTLP ingest.					
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
@@ -89,6 +106,7 @@ func hasSection(cfg config.Reader, section string) bool {
 	//
 	// IsSet won't work here: it will return false if the section is present but empty.
 	// To work around this, we check if the receiver key is present in the string map, which does the 'correct' thing.
+	fmt.Println("SECTION: \n", ReadConfigSection(cfg, coreconfig.OTLPSection).ToStringMap())
 	_, ok := ReadConfigSection(cfg, coreconfig.OTLPSection).ToStringMap()[section]
 	return ok
 }
