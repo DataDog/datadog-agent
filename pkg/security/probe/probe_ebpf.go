@@ -248,37 +248,37 @@ func isFentrySupported(kernelVersion *kernel.Version) error {
 
 func isFentrySupportedImpl(kernelVersion *kernel.Version) error {
 	if kernelVersion.Code < kernel.Kernel6_1 {
-		return errors.New("fentry enabled but not fully supported on this kernel version (< 6.1), falling back to kprobe mode")
+		return errors.New("fentry enabled but not fully supported on this kernel version (< 6.1)")
 	}
 
 	if !kernelVersion.HaveFentrySupport() {
-		return errors.New("fentry enabled but not supported, falling back to kprobe mode")
+		return errors.New("fentry enabled but not supported")
 	}
 
 	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
 	if err != nil {
-		return fmt.Errorf("fentry enabled but failed to verify tail call support, falling back to kprobe mode: %w", err)
+		return fmt.Errorf("fentry enabled but failed to verify tail call support: %w", err)
 	}
 
 	if tailCallsBroken {
-		return errors.New("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported), falling back to kprobe mode")
+		return errors.New("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported)")
 	}
 
 	if !kernelVersion.HaveFentrySupportWithStructArgs() {
-		return errors.New("fentry enabled but not supported with struct args, falling back to kprobe mode")
+		return errors.New("fentry enabled but not supported with struct args")
 	}
 
 	if !kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
-		return errors.New("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
+		return errors.New("fentry enabled but not supported with duplicated weak symbols")
 	}
 
 	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
 	if err != nil {
-		return errors.New("fentry enabled but failed to verify kernel symbols, falling back to kprobe mode")
+		return errors.New("fentry enabled but failed to verify kernel symbols")
 	}
 
 	if hasPotentialFentryDeadlock {
-		return errors.New("fentry enabled but lock responsible for deadlock was found in kernel symbols, falling back to kprobe mode")
+		return errors.New("fentry enabled but lock responsible for deadlock was found in kernel symbols")
 	}
 
 	return nil
@@ -292,7 +292,7 @@ func (p *EBPFProbe) selectFentryMode() {
 
 	if err := isFentrySupported(p.kernelVersion); err != nil {
 		p.useFentry = false
-		seclog.Warnf("%v", err)
+		seclog.Warnf("disabling fentry and falling back to kprobe mode: %v", err)
 		return
 	}
 
