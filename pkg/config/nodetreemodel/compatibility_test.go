@@ -388,5 +388,158 @@ apm_config:
 
 	assert.True(t, viperConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
 	assert.True(t, ntmConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
+}
 
+func TestCompareEmptyConfigSection(t *testing.T) {
+	// Create a config yaml file that only declares "sections" but no individual settings
+	dataYaml := `
+apm_config:
+  telemetry:
+database_monitoring:
+  samples:
+logs_config:
+  auto_multi_line:
+runtime_security_config:
+  endpoints:
+unknown_section:
+  info:
+`
+	// Due to how the yaml parser works, in memory this will actually look like this:
+	//
+	// apm_config:
+	//   telemetry: ""
+	//
+	// etc
+	//
+	// In other words, "telemetry:" does not open up an "empty section", instead it is a leaf
+	// whose value is nil / the empty string. This almost certainly does not match the user's
+	// intent, whatever it may be. How this ends up being treated by the config is dependent
+	// on the implementation.
+	//
+	// The rest of this test sees what happens in a different case for each of these sections:
+	//
+	// apm_config.telemetry        - declared "known" by the schema (generally, not a useful thing to do)
+	// database_monitoring.samples - defines a default, the standard we want to end up at for each setting
+	// logs_config.auto_multi_line - bind an env var and assign a value to that env var
+	// runtime_security_config.endpoints - bind an env var but leave that env var undefined
+	// unknown_section.info        - undefined, neither default nor env var, only shows up in the config.yaml
+
+	t.Setenv("DD_LOGS_CONFIG_AUTO_MULTI_LINE_TOKENIZER_MAX_INPUT_BYTES", "100")
+
+	viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+		cfg.SetKnown("apm_config.telemetry.dd_url")
+		cfg.SetDefault("database_monitoring.samples.dd_url", "")
+		cfg.BindEnv("runtime_security_config.endpoints.dd_url", "DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")
+		cfg.BindEnv("logs_config.auto_multi_line.tokenizer_max_input_bytes", "DD_LOGS_CONFIG_AUTO_MULTI_LINE_TOKENIZER_MAX_INPUT_BYTES")
+	})
+
+	// AllKeysLowercased does not match between the implementations.
+	// It turns out viper will create a "key" from the parsed yaml for all of these "empty sections"
+	// because it actually sees them as leaf nodes with an empty value
+	expectedKeys := []string{
+		"apm_config.telemetry",
+		"database_monitoring.samples",
+		"logs_config.auto_multi_line",
+		"logs_config.auto_multi_line.tokenizer_max_input_bytes",
+		"runtime_security_config.endpoints",
+		"runtime_security_config.endpoints.dd_url",
+		"unknown_section.info",
+	}
+	expectedKeys2 := []string{
+		"apm_config.telemetry.dd_url",
+		"database_monitoring.samples.dd_url",
+		"logs_config.auto_multi_line.tokenizer_max_input_bytes",
+		"runtime_security_config.endpoints.dd_url",
+		"unknown_section.info",
+	}
+	assert.Equal(t, expectedKeys, viperConf.AllKeysLowercased())
+	assert.Equal(t, expectedKeys2, ntmConf.AllKeysLowercased())
+
+	// AllSettings does not match either.
+	// 1) viper doesn't split "auto_multi_line.tokenizer_max_input_bytes" because it comes from an env var
+	// 2) ntm includes "unknown_section.info" (a bug)
+	expectedSettings := map[string]interface{}{
+		"database_monitoring": map[string]interface{}{
+			"samples": map[string]interface{}{
+				"dd_url": "",
+			},
+		},
+		"logs_config": map[string]interface{}{
+			"auto_multi_line.tokenizer_max_input_bytes": "100",
+		},
+	}
+	expectedSettings2 := map[string]interface{}{
+		"database_monitoring": map[string]interface{}{
+			"samples": map[string]interface{}{
+				"dd_url": "",
+			},
+		},
+		"logs_config": map[string]interface{}{
+			"auto_multi_line": map[string]interface{}{
+				"tokenizer_max_input_bytes": "100",
+			},
+		},
+		"unknown_section": map[string]interface{}{
+			"info": nil,
+		},
+	}
+	assert.Equal(t, expectedSettings, viperConf.AllSettings())
+	assert.Equal(t, expectedSettings2, ntmConf.AllSettings())
+
+	// Show the raw data structure that nodetreemodel builds.
+	// Note how settings that have defaults declared in the schema (like apm_config.telemetry)
+	// are only inner nodes, while the undeclared (unknown_section.info) is built as a leaf
+	// This is because NTM's builder tries to match nodes from the file against the declared schema
+	fmt.Printf("================\n%s\n", ntmConf.Stringify("all"))
+
+	// Now call IsConfigured and IsSet for each section / inner node to see what each
+	// implementation returns. These should all match if we want to ensure compatibility
+
+	// not configured because known does not define a setting
+	assert.False(t, viperConf.IsConfigured("apm_config.telemetry"))
+	assert.False(t, ntmConf.IsConfigured("apm_config.telemetry"))
+
+	// not configured, default is defined but configured is only true for non-default sources
+	assert.False(t, viperConf.IsConfigured("database_monitoring.samples"))
+	assert.False(t, ntmConf.IsConfigured("database_monitoring.samples"))
+
+	// not configured, an env var is bound but that env var is undefined
+	assert.False(t, viperConf.IsConfigured("runtime_security_config.endpoints"))
+	assert.False(t, ntmConf.IsConfigured("runtime_security_config.endpoints"))
+
+	// yes configured, because an env var is defined that contains this setting
+	assert.True(t, viperConf.IsConfigured("logs_config.auto_multi_line"))
+	assert.True(t, ntmConf.IsConfigured("logs_config.auto_multi_line"))
+
+	// DIFFERENCE, ntm says true because it thinks unknown_section.info is a leaf node
+	// TODO: we should change IsConfigured to ensure the leaf value is non-empty
+	assert.False(t, viperConf.IsConfigured("unknown_section.info"))
+	assert.True(t, ntmConf.IsConfigured("unknown_section.info"))
+
+	// False, apm_config.telemetry.dd_url is known, but that does not define it in
+	// the schema. This node is not set.
+	// DIFFERENCE, ntm says true, which is a bug
+	assert.False(t, viperConf.IsSet("apm_config.telemetry"))
+	assert.True(t, ntmConf.IsSet("apm_config.telemetry"))
+
+	// correct, this has a default value so it is configured
+	assert.True(t, viperConf.IsSet("database_monitoring.samples"))
+	assert.True(t, ntmConf.IsSet("database_monitoring.samples"))
+
+	// DIFFERENCE, ntm says true, which is a bug
+	assert.False(t, viperConf.IsSet("runtime_security_config.endpoints"))
+	assert.True(t, ntmConf.IsSet("runtime_security_config.endpoints"))
+
+	// DIFFERENCE. Viper arguably should return true here, but Viper doesn't
+	// connect bound env vars to their parent settings. This bug (in viper)
+	// is a good reason to encourage callers to switch to IsConfigured
+	assert.False(t, viperConf.IsSet("logs_config.auto_multi_line"))
+	assert.True(t, ntmConf.IsSet("logs_config.auto_multi_line"))
+
+	// DIFFERENCE. Unclear what the correct behavior here should be since
+	// this setting is unknown.
+	assert.False(t, viperConf.IsSet("unknown_section.info"))
+	assert.True(t, ntmConf.IsSet("unknown_section.info"))
+
+	assert.Equal(t, nil, "WIP: test incomplete")
 }
