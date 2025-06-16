@@ -79,6 +79,7 @@ type Concentrator interface {
 	// Stop stops the Concentrator and attempts to flush whatever is left in the buffers
 	Stop()
 	// Add a stats Input to be concentrated and flushed
+	// The processed traces in the stats input are cloned so may be modified after being sent to the concentrator
 	Add(t stats.Input)
 }
 
@@ -323,7 +324,6 @@ func (a *Agent) Process(p *api.Payload) {
 	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	sampledChunks := new(writer.SampledChunks)
-	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, p.ProcessTags)
 
 	p.TracerPayload.Env = normalize.NormalizeTagValue(p.TracerPayload.Env)
 	// TODO: We should find a way to not repeat container tags resolution downstream in the stats writer.
@@ -411,7 +411,11 @@ func (a *Agent) Process(p *api.Payload) {
 
 		pt := processedTrace(p, chunk, root, imageTag, gitCommitSha)
 		if !p.ClientComputedStats {
-			statsInput.Traces = append(statsInput.Traces, *pt.Clone())
+			// Send the trace chunk to the concentrator now so that we don't need to clone it
+			// (To avoid the modifications made by the sampler)
+			statsInput := stats.NewStatsInput(1, p.TracerPayload.ContainerID, p.ClientComputedStats, p.ProcessTags)
+			statsInput.Traces = append(statsInput.Traces, *pt)
+			a.Concentrator.Add(statsInput)
 		}
 
 		keep, numEvents := a.sample(now, ts, pt)
@@ -448,9 +452,9 @@ func (a *Agent) Process(p *api.Payload) {
 	if sampledChunks.Size > 0 {
 		a.TraceWriter.WriteChunks(sampledChunks)
 	}
-	if len(statsInput.Traces) > 0 {
-		a.Concentrator.Add(statsInput)
-	}
+	// if len(statsInput.Traces) > 0 {
+	// 	a.Concentrator.Add(statsInput)
+	// }
 }
 
 func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
