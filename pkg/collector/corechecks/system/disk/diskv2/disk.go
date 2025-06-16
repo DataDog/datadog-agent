@@ -432,14 +432,13 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 			rootDevices = map[string]string{}
 		}
 	}
-	log.Debugf("partitions '%s'", partitions)
 	log.Debugf("rootDevices '%s'", rootDevices)
 	for _, partition := range partitions {
 		if rootDev, ok := rootDevices[partition.Device]; ok {
 			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
 			partition.Device = rootDev
 		}
-		log.Debugf("Checking partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
+		log.Debugf("Checking partition: [device: %s] [mountpoint: %s] [fstype: %s] [opts: %s]", partition.Device, partition.Mountpoint, partition.Fstype, partition.Opts)
 		if c.excludePartition(partition) {
 			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 			continue
