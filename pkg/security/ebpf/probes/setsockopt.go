@@ -27,18 +27,6 @@ func getSetSockOptProbe(fentry bool) []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_bpf_prog_put",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "hook_bpf_prog_free",
-			},
-		},
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
 				EBPFFuncName: "rethook_sk_attach_filter",
 			},
 		},
