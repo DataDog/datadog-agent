@@ -409,27 +409,36 @@ func (t *Tailer) forwardMessages() {
 
 // computeFingerPrint computes the fingerprint for the file
 func (t *Tailer) computeFingerPrint() uint64 {
-	// Always start from the beginning of the file.
-	if _, err := t.osFile.Seek(0, io.SeekStart); err != nil {
-		log.Warnf("Could not seek file %q: %v", t.file.Path, err)
+	linesSkipSet := t.fingerprintConfig.linesToSkip != 0
+	bytesSkipSet := t.fingerprintConfig.bytesToSkip != 0
+
+	// Explicitly check for an invalid configuration where both skip modes are specified.
+	if linesSkipSet && bytesSkipSet {
+		log.Warnf("Invalid configuration for fingerprinting file %q: both linesToSkip and bytesToSkip are set. Fingerprinting is disabled.", t.file.Path)
 		return 0
 	}
 
-	if t.fingerprintConfig.linesToSkip != 0 && t.fingerprintConfig.bytesToSkip != 0 {
-		log.Warnf("Invalid configuration: both linesToSkip and bytesToSkip are set. Skipping fingerprinting")
-		return uint64(0)
+	// Mode selection:
+	// - If bytesToSkip is set, it's byte-mode.
+	// - If maxLines is 0, it implies byte-mode as line-mode is not viable.
+	// - Otherwise, it's line-mode.
+	if bytesSkipSet || t.fingerprintConfig.maxLines == 0 {
+		return t.computeFingerPrintByBytes()
 	}
 
-	// Determine the fingerprinting mode based on configuration
-	if t.fingerprintConfig.linesToSkip > 0 || (t.fingerprintConfig.linesToSkip == 0 && t.fingerprintConfig.bytesToSkip == 0 && t.fingerprintConfig.maxLines != 0) {
-		// Line-based fingerprinting mode
-		return t.computeFingerPrintByLines()
+	// Line-based fingerprinting mode
+	fingerprint := t.computeFingerPrintByLines()
+	if fingerprint == 0 {
+		log.Debugf("Not enough data for line-based fingerprinting of file %q", t.file.Path)
 	}
-	// Byte-based fingerprinting mode
-	return t.computeFingerPrintByBytes()
+	return fingerprint
 }
 
 func (t *Tailer) computeFingerPrintByBytes() uint64 {
+	if t.osFile == nil {
+		log.Warnf("osFile is nil for file %q", t.file.Path)
+		return 0
+	}
 
 	fmt.Printf("We are in the byte-based fingerprinting mode\n")
 	// Skip the configured number of bytes

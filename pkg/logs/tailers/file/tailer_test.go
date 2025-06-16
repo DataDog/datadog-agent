@@ -1219,11 +1219,12 @@ func (suite *FingerprintTestSuite) TestInvalidConfig_BothSkipValuesSet() {
 	suite.Nil(err)
 	defer osFile.Close()
 
+	//invalid config
 	config := FingerprintConfig{
 		maxLines:    1,
-		maxBytes:    4,  // smaller than longLine
-		linesToSkip: 1,  // skip the first line
-		bytesToSkip: 10, // should be ignored in line-mode
+		maxBytes:    4,
+		linesToSkip: 1,
+		bytesToSkip: 10,
 	}
 
 	// Expected: skip the first line. Read the second line, but only up to maxBytes.
