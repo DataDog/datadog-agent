@@ -634,7 +634,7 @@ func TestHandleGetInstallInfo(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			req := httptest.NewRequest(tt.method, "/api/v1/install-info", nil)
+			req := httptest.NewRequest(tt.method, "/api/v1/install-info/get", nil)
 			w := httptest.NewRecorder()
 
 			HandleGetInstallInfo(w, req)
