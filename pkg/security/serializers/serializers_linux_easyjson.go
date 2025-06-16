@@ -1123,8 +1123,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(i
 		switch key {
 		case "socket_type":
 			out.Socket_type = uint32(in.Uint32())
-		case "socket_protocol":
-			out.Socket_protocol = uint16(in.Uint16())
+		case "sk_protocol":
+			out.Sk_protocol = uint16(in.Uint16())
 		case "level":
 			out.Level = uint32(in.Uint32())
 		case "optname":
@@ -1182,9 +1182,9 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		out.Uint32(uint32(in.Socket_type))
 	}
 	{
-		const prefix string = ",\"socket_protocol\":"
+		const prefix string = ",\"sk_protocol\":"
 		out.RawString(prefix)
-		out.Uint16(uint16(in.Socket_protocol))
+		out.Uint16(uint16(in.Sk_protocol))
 	}
 	{
 		const prefix string = ",\"level\":"
