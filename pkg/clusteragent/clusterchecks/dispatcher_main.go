@@ -9,20 +9,16 @@ package clusterchecks
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -80,22 +76,6 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
-
-	hname, _ := hostname.Get(context.TODO())
-	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
-	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
-	if clusterTagValue != "" {
-		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
-			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
-		}
-		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
-	}
-
-	clusterIDTagValue, _ := clustername.GetClusterID()
-	if clusterIDTagValue != "" {
-		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
-	}
 
 	d.advancedDispatching = pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !d.advancedDispatching {

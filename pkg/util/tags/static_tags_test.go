@@ -93,12 +93,14 @@ func TestStaticTagsSlice(t *testing.T) {
 	})
 }
 
-func TestExtraGlobalEnvTags(t *testing.T) {
+func TestClusterAgentGlobalTags(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("tags", []string{"some:tag", "nocolon"})
 	mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag", "missingcolon"})
 	mockConfig.SetWithoutSource("cluster_checks.extra_tags", []string{"cluster:tag", "nocolon"})
 	mockConfig.SetWithoutSource("orchestrator_explorer.extra_tags", []string{"orch:tag", "missingcolon"})
+	clusterID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
+	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", clusterID)
 
 	recordFlavor := flavor.GetFlavor()
 	defer func() {
@@ -107,18 +109,19 @@ func TestExtraGlobalEnvTags(t *testing.T) {
 
 	t.Run("Agent extraGlobalTags", func(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
-		globalTags := GetGlobalEnvTags(mockConfig)
+		globalTags := GetClusterAgentStaticTags(mockConfig)
 		assert.Equal(t, map[string][]string(nil), globalTags)
 	})
 
 	t.Run("ClusterAgent extraGlobalTags", func(t *testing.T) {
 		flavor.SetFlavor(flavor.ClusterAgent)
-		globalTags := GetGlobalEnvTags(mockConfig)
+		globalTags := GetClusterAgentStaticTags(mockConfig)
 		assert.Equal(t, map[string][]string{
-			"some":    {"tag"},
-			"extra":   {"tag"},
-			"cluster": {"tag"},
-			"orch":    {"tag"},
+			"some":            {"tag"},
+			"extra":           {"tag"},
+			"cluster":         {"tag"},
+			"orch":            {"tag"},
+			"orch_cluster_id": {clusterID},
 		}, globalTags)
 	})
 }
