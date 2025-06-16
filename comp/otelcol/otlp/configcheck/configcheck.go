@@ -9,7 +9,6 @@
 package configcheck
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/mohae/deepcopy"
@@ -79,14 +78,14 @@ func IsEnabled(cfg config.Reader) bool {
 	for _, key := range cfg.AllKeysLowercased() {
 		if strings.HasPrefix(key, "otlp_config.receiver") {
 			// otlp_config.receiver key does not exist. If it is present in AllKeysLowercased,
-			// this means that otlp_config.receiver was set in agent config 
+			// this means that otlp_config.receiver was set in agent config
 			// to an empty section, in which case OTLP Ingest is enabled.
 			if key == "otlp_config.receiver" {
 				return true
 			} else {
 				if cfg.IsConfigured(key) {
 					// if any of the otlp_config.receiver.* keys are configured,
-					// enable the OTLP ingest.					
+					// enable the OTLP ingest.
 					return true
 				}
 			}
