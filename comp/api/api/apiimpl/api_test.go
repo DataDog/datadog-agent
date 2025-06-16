@@ -6,6 +6,7 @@
 package apiimpl
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -35,6 +36,38 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+)
+
+// The following certificate and key are used for testing purposes only.
+// They have been generated using the following command:
+//
+//	openssl req -x509 -newkey ec:<(openssl ecparam -name prime256v1) -keyout key.pem -out cert.pem -days 3650 \
+//	  -subj "/O=Datadog, Inc." \
+//	  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+//	  -addext "keyUsage=digitalSignature,keyEncipherment" \
+//	  -addext "extendedKeyUsage=serverAuth,clientAuth" \
+//	  -addext "basicConstraints=CA:TRUE" \
+//	  -nodes
+var (
+	unknownIPCCert = []byte(`-----BEGIN CERTIFICATE-----
+MIIByzCCAXKgAwIBAgIUS1FJz1+ha1R1nNhi8E8nZhr5X6YwCgYIKoZIzj0EAwIw
+GDEWMBQGA1UECgwNRGF0YWRvZywgSW5jLjAeFw0yNTA2MTYxMzE1MjZaFw0zNTA2
+MTQxMzE1MjZaMBgxFjAUBgNVBAoMDURhdGFkb2csIEluYy4wWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAAS7B0LbAe5NsNzPt8swHTTCkXEGL9g1sDivlYOZffXo1wCJ
+K1xQo0EcgnYUkiAoVqJXQoA9FFP+KAKEy1HFEcRTo4GZMIGWMB0GA1UdDgQWBBTx
+k3F9kxVd6tg8pWPTxl1qxzL9djAfBgNVHSMEGDAWgBTxk3F9kxVd6tg8pWPTxl1q
+xzL9djAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwCwYDVR0PBAQDAgWgMB0G
+A1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNVHRMEBTADAQH/MAoGCCqG
+SM49BAMCA0cAMEQCIH2ZuPES7+uwxjIF72poM16EJE8F2nG3qKDDPWtOTrUHAiBF
+R+jl3j1r8H6k8BatF4eUWagFev35hLz7VMuHVLR5Mw==
+-----END CERTIFICATE-----
+`)
+	unknownIPCKey = []byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg0MgVZJY0NrncRALD
+GpnnYROePY82rJHHNeVtcG/VsyGhRANCAAS7B0LbAe5NsNzPt8swHTTCkXEGL9g1
+sDivlYOZffXo1wCJK1xQo0EcgnYUkiAoVqJXQoA9FFP+KAKEy1HFEcRT
+-----END PRIVATE KEY-----
+`)
 )
 
 type testdeps struct {
@@ -143,6 +176,29 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			assert.True(t, hasLabelValue(metric.GetLabel(), "path", "/this_does_not_exist"))
 		})
 	}
+
+	t.Run("IPC Server Only Accepts mTLS", func(t *testing.T) {
+		addr := deps.API.IPCServerAddress().String()
+		url := fmt.Sprintf("https://%s/config/v1/", addr)
+
+		// With the IPC HTTP Client this should succeed
+		_, err := deps.IPC.GetClient().Get(url)
+		require.NoError(t, err)
+
+		// With a client configured with another certificate, it should fail
+		tr := &http.Transport{
+			TLSClientConfig: deps.IPC.GetTLSClientConfig(),
+		}
+		unknownCert, err := tls.X509KeyPair(unknownIPCCert, unknownIPCKey)
+		require.NoError(t, err)
+		tr.TLSClientConfig.Certificates = []tls.Certificate{unknownCert}
+		httpClient := &http.Client{
+			Transport: tr,
+		}
+
+		_, err = httpClient.Get(url) //nolint:bodyclose We don't need to close the body here since we expect an error
+		require.ErrorContains(t, err, "remote error: tls: unknown certificate authority")
+	})
 }
 
 type s struct {
