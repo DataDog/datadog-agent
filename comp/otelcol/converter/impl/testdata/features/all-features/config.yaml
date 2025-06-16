@@ -1,8 +1,6 @@
 exporters:
   datadog:
     api: 
-      key: ggggg77777
-      site: datadoghq.eu
 
 processors:
   batch:
