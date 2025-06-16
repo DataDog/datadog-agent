@@ -153,17 +153,6 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 		}
 	}
 
-	// TODO: Implementation is slow
-	// podAutoscalers := pa.store.GetFiltered(func(podAutoscaler model.PodAutoscalerInternal) bool {
-	// 	if podAutoscaler.Namespace() == pod.Namespace &&
-	// 		podAutoscaler.Spec().TargetRef.Name == ownerRef.Name &&
-	// 		podAutoscaler.Spec().TargetRef.Kind == ownerRef.Kind &&
-	// 		podAutoscaler.Spec().TargetRef.APIVersion == ownerRef.APIVersion {
-	// 		return true
-	// 	}
-	// 	return false
-	// })
-
 	podAutoscalers := pa.store.GetFilteredByOwner(model.OwnerReference{
 		Namespace:  pod.Namespace,
 		Name:       ownerRef.Name,
@@ -176,7 +165,7 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 	}
 
 	if len(podAutoscalers) > 1 {
-		return nil, log.Errorf("Multiple autoscaler found for POD %s/%s, ownerRef: %s/%s, cannot update POD", pod.Namespace, pod.Name, ownerRef.Kind, ownerRef.Name)
+		return nil, log.Errorf("Multiple autoscalers found for POD %s/%s, ownerRef: %s/%s, cannot update POD", pod.Namespace, pod.Name, ownerRef.Kind, ownerRef.Name)
 	}
 
 	return &podAutoscalers[0], nil
