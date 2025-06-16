@@ -195,32 +195,19 @@ func (t *LinuxResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
 		return nil, fmt.Errorf("nil workload id")
 	}
 
-	workload, ok := t.workloads[containerutils.CGroupID(id.(string))]
-	if !ok {
-		return nil, fmt.Errorf("workload not found")
-	}
-
-	cgroupManager := containerutils.CGroupManager(workload.CGroupFlags & containerutils.CGroupManagerMask).String()
-
 	switch v := id.(type) {
 	case containerutils.ContainerID:
 		if len(v) == 0 {
 			return nil, fmt.Errorf("empty container id")
 		}
 		// Resolve as a container ID
-		tags, err := GetTagsOfContainer(t.tagger, v)
-		if err != nil {
-			return nil, err
-		}
-		tags = append(tags, "cgroup_manager:"+cgroupManager)
-		return tags, nil
+		return GetTagsOfContainer(t.tagger, v)
 	case containerutils.CGroupID:
 		if len(v) == 0 {
 			return nil, fmt.Errorf("empty cgroup id")
 		}
 		// Generate systemd service tags for cgroup workloads
 		tags := t.getCGroupTags(v)
-		tags = append(tags, "cgroup_manager:"+cgroupManager)
 		return tags, nil
 	default:
 		return nil, fmt.Errorf("unknown workload id type: %T", id)
