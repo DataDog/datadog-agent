@@ -195,7 +195,7 @@ func (t *LinuxResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
 		return nil, fmt.Errorf("nil workload id")
 	}
 
-	workload, ok := t.workloads[id.(containerutils.CGroupID)]
+	workload, ok := t.workloads[containerutils.CGroupID(id.(string))]
 	if !ok {
 		return nil, fmt.Errorf("workload not found")
 	}
