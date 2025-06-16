@@ -6,8 +6,9 @@ package output
 type EventHeader struct {
 	Data_byte_len  uint32
 	Prog_id        uint32
+	Event_id       uint32
 	Stack_byte_len uint16
-	X__padding     [6]int8
+	X__padding     [2]int8
 	Stack_hash     uint64
 	Ktime_ns       uint64
 }

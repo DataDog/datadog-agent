@@ -36,6 +36,7 @@
 #include "utimes.h"
 #include "on_demand.h"
 #include "chdir.h"
+#include "setrlimit.h"
 
 #include "network/accept.h"
 #include "network/bind.h"
