@@ -196,7 +196,7 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			Transport: tr,
 		}
 
-		_, err = httpClient.Get(url) //nolint:bodyclose We don't need to close the body here since we expect an error
+		_, err = httpClient.Get(url) //nolint:bodyclose
 		require.ErrorContains(t, err, "remote error: tls: unknown certificate authority")
 	})
 }
