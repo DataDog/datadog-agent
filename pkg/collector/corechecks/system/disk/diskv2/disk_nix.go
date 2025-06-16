@@ -238,7 +238,6 @@ func readMountFile(root string) (lines []string, useMounts bool, filename string
 	filename = path.Join(root, "mountinfo")
 	lines, err = readAllLines(filename)
 	if err != nil {
-		// if kernel does not support 1/mountinfo, fallback to 1/mounts (<2.6.26)
 		useMounts = true
 		filename = path.Join(root, "mounts")
 		lines, err = readAllLines(filename)
