@@ -250,8 +250,9 @@ instances:
     #
     # proc_mountinfo_path: /proc/self/mounts
 
-    ## @param preserve_root_device - boolean - optional - default: true
-    ## Instruct the check to report '/dev/root' from /proc/self/mounts instead of resolve device.
+    ## @param resolve_root_device - boolean - optional - default: false
+    ## Instruct the check to resolve '/dev/root' from /proc/self/mounts to underlying block device.
+    
     #
-    # preserve_root_device: true
+    # resolve_root_device: false
     
