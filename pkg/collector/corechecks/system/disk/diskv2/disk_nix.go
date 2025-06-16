@@ -387,7 +387,6 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 	}
 	// Build the map
 	rootDevices := make(map[string]string)
-	log.Debugf("mountfile [%s] lines: '%s'", filename, lines)
 	if !useMounts {
 		finder, err := newRootFsDeviceFinder()
 		var rootFsDevice string
@@ -401,6 +400,7 @@ func (c *Check) loadRootDevices() (map[string]string, error) {
 		}
 		hostSys := getSysfsPath()
 		for _, line := range lines {
+			log.Debugf("parsing line: '%s'", line)
 			// a line of 1/mountinfo has the following structure:
 			// 36  35  98:0 /mnt1 /mnt2 rw,noatime master:1 - ext3 /dev/root rw,errors=continue
 			// (1) (2) (3)   (4)   (5)      (6)      (7)   (8) (9)   (10)         (11)
