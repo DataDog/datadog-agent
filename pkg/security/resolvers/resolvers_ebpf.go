@@ -101,7 +101,19 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver)
+	// Create version resolver function that uses SBOM resolver if available
+	var versionResolver func(servicePath string) string
+	if config.RuntimeSecurity.SBOMResolverEnabled && sbomResolver != nil {
+		versionResolver = func(servicePath string) string {
+
+			if pkg := sbomResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
+				return pkg.Version
+			}
+			return ""
+		}
+	}
+
+	tagsResolver := tags.NewResolver(opts.Tagger, cgroupsResolver, versionResolver)
 
 	userGroupResolver, err := usergroup.NewResolver(cgroupsResolver)
 	if err != nil {

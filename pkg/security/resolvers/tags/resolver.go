@@ -35,9 +35,9 @@ type Tagger interface {
 type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Resolve(id containerutils.ContainerID) []string
-	ResolveWithErr(fid containerutils.ContainerID) ([]string, error)
-	GetValue(id containerutils.ContainerID, tag string) string
+	Resolve(id interface{}) []string
+	ResolveWithErr(id interface{}) ([]string, error)
+	GetValue(id interface{}, tag string) string
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
@@ -46,14 +46,38 @@ type DefaultResolver struct {
 }
 
 // Resolve returns the tags for the given id
-func (t *DefaultResolver) Resolve(id containerutils.ContainerID) []string {
+func (t *DefaultResolver) Resolve(id interface{}) []string {
 	tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *DefaultResolver) ResolveWithErr(id containerutils.ContainerID) ([]string, error) {
-	return GetTagsOfContainer(t.tagger, id)
+func (t *DefaultResolver) ResolveWithErr(id interface{}) ([]string, error) {
+	return t.resolveWorkloadTags(id)
+}
+
+// resolveWorkloadTags resolves tags for a workload ID, handling both container and cgroup workloads
+func (t *DefaultResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
+	if id == nil {
+		return nil, nil
+	}
+
+	switch v := id.(type) {
+	case containerutils.ContainerID:
+		if len(v) == 0 {
+			return nil, nil
+		}
+		// Resolve as a container ID
+		return GetTagsOfContainer(t.tagger, v)
+	case containerutils.CGroupID:
+		if len(v) == 0 {
+			return nil, nil
+		}
+		// CGroup resolution is only supported on Linux
+		return nil, nil
+	default:
+		return nil, nil
+	}
 }
 
 // GetTagsOfContainer returns the tags for the given container id
@@ -68,7 +92,7 @@ func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *DefaultResolver) GetValue(id containerutils.ContainerID, tag string) string {
+func (t *DefaultResolver) GetValue(id interface{}, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 
