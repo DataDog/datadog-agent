@@ -19,6 +19,3 @@ type SecretVal struct {
 // `oldValue`: the value that the secret used to have, the empty string "" is it hasn't been resolved before
 // `newValue`: the new value that the secret has resolved to
 type SecretChangeCallback func(handle, origin string, path []string, oldValue, newValue any)
-
-// PayloadVersion defines the current payload version sent to a secret backend
-const PayloadVersion = "1.0"
