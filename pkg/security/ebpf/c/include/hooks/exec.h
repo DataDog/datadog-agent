@@ -432,7 +432,6 @@ TAIL_CALL_FNC(get_envs_offset, void *ctx) {
         return 0;
     }
 
-    bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_GET_ENVS_OFFSET);
 
     // make sure to reset envs_offset if the tailcall limit is reached and all args couldn't be read
     if (args_count != syscall->exec.args.count) {
@@ -542,8 +541,6 @@ TAIL_CALL_FNC(parse_args_envs_split, void *ctx) {
 
     parse_args_envs(ctx, &syscall->exec.args_envs_ctx, args_envs);
 
-    bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS_SPLIT);
-
     args_envs->truncated = 1;
 
     return 0;
@@ -566,8 +563,6 @@ TAIL_CALL_FNC(parse_args_envs, void *ctx) {
     }
 
     parse_args_envs(ctx, &syscall->exec.args_envs_ctx, args_envs);
-
-    bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS);
 
     args_envs->truncated = 1;
 
@@ -644,7 +639,6 @@ int hook_setup_new_exec_args_envs(ctx_t *ctx) {
     syscall->exec.args.count = argc;
     syscall->exec.envs.count = envc;
 
-    bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_GET_ENVS_OFFSET);
 
     return 0;
 }
@@ -654,12 +648,6 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
-    }
-
-    if (syscall->exec.args_envs_ctx.envs_offset != 0) {
-        bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS_SPLIT);
-    } else {
-        bpf_tail_call_compat(ctx, &args_envs_progs, EXEC_PARSE_ARGS_ENVS);
     }
 
     return 0;
