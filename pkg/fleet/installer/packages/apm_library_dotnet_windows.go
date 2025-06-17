@@ -179,8 +179,14 @@ func instrumentDotnetLibrary(ctx context.Context, method, target string) (err er
 		_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
 		return err
 	case env.APMInstrumentationEnabledDotnet:
-		// TODO
-		return nil
+		var installDir string
+		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+		if err != nil {
+			return err
+		}
+		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+		_, err = dotnetExec.EnableGlobalInstrumentation(ctx, getLibraryPath(installDir))
+		return err
 	default:
 		return fmt.Errorf("unsupported injection method: %s", method)
 	}
@@ -210,8 +216,14 @@ func uninstrumentDotnetLibrary(ctx context.Context, method, target string) (err 
 		_, err := dotnetExec.RemoveIISInstrumentation(ctx)
 		return err
 	case env.APMInstrumentationEnabledDotnet:
-		// TODO
-		return nil
+		var installDir string
+		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
+		if err != nil {
+			return err
+		}
+		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
+		_, err = dotnetExec.RemoveGlobalInstrumentation(ctx)
+		return err
 	default:
 		return fmt.Errorf("unsupported injection method: %s", method)
 	}
