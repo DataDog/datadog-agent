@@ -79,7 +79,7 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	defer func() { assert.NoError(t, objectFile.Close()) }()
 
 	var sink testMessageSink
-	reporter := makeTestReporter()
+	reporter := makeTestReporter(t)
 	a, err := actuator.NewActuator(
 		actuator.WithMessageSink(&sink),
 		actuator.WithReporter(reporter),
@@ -139,6 +139,9 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 
 	// Wait for the process to be attached.
 	<-reporter.attached
+	if t.Failed() {
+		return
+	}
 
 	// Trigger the function calls, receive the events, and wait for the process
 	// to exit.
@@ -218,10 +221,37 @@ func (d *testMessageSink) UnregisterProgram(ir.ProgramID) {
 
 type testReporter struct {
 	attached chan struct{}
+	t        *testing.T
 }
 
-func makeTestReporter() *testReporter {
+// ReportAttachingFailed implements actuator.Reporter.
+func (r *testReporter) ReportAttachingFailed(
+	programID ir.ProgramID, processID actuator.ProcessID, err error,
+) {
+	defer close(r.attached)
+	r.t.Fatalf(
+		"attaching failed for program %d to process %d: %v",
+		programID, processID, err,
+	)
+}
+
+// ReportCompilationFailed implements actuator.Reporter.
+func (r *testReporter) ReportCompilationFailed(
+	programID ir.ProgramID, err error,
+) {
+	defer close(r.attached)
+	r.t.Fatalf("compilation failed for program %d: %v", programID, err)
+}
+
+// ReportLoadingFailed implements actuator.Reporter.
+func (r *testReporter) ReportLoadingFailed(programID ir.ProgramID, err error) {
+	defer close(r.attached)
+	r.t.Fatalf("loading failed for program %d: %v", programID, err)
+}
+
+func makeTestReporter(t *testing.T) *testReporter {
 	return &testReporter{
+		t:        t,
 		attached: make(chan struct{}, 1),
 	}
 }
