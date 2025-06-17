@@ -81,6 +81,10 @@ type Concentrator interface {
 	// Add a stats Input to be concentrated and flushed
 	// The processed traces in the stats input are cloned so may be modified after being sent to the concentrator
 	Add(t stats.Input)
+	// AddOne adds a single trace to the concentrator.
+	// This is used by the agent to more efficiently add a single chunk to the concentrator
+	// avoiding allocating a new Input struct.
+	AddOne(pt traceutil.ProcessedTrace, containerID string, containerTags []string, processTags string)
 }
 
 // Agent struct holds all the sub-routines structs and make the data flow between them
@@ -413,9 +417,7 @@ func (a *Agent) Process(p *api.Payload) {
 		if !p.ClientComputedStats {
 			// Send the trace chunk to the concentrator now so that we don't need to clone it
 			// (To avoid the modifications made by the sampler)
-			statsInput := stats.NewStatsInput(1, p.TracerPayload.ContainerID, p.ClientComputedStats, p.ProcessTags)
-			statsInput.Traces = append(statsInput.Traces, *pt)
-			a.Concentrator.Add(statsInput)
+			a.Concentrator.AddOne(*pt, p.TracerPayload.ContainerID, p.ContainerTags, p.ProcessTags)
 		}
 
 		keep, numEvents := a.sample(now, ts, pt)

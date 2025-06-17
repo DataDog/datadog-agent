@@ -100,6 +100,17 @@ func (c *mockConcentrator) Add(t stats.Input) {
 	}
 	c.stats = append(c.stats, t)
 }
+func (c *mockConcentrator) AddOne(pt traceutil.ProcessedTrace, containerID string, containerTags []string, processTags string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stats = append(c.stats, stats.Input{
+		ContainerID:   containerID,
+		ContainerTags: containerTags,
+		ProcessTags:   processTags,
+		Traces:        []traceutil.ProcessedTrace{*pt.Clone()},
+	})
+}
+
 func (c *mockConcentrator) Reset() []stats.Input {
 	c.mu.Lock()
 	defer c.mu.Unlock()
