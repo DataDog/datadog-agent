@@ -343,6 +343,10 @@ func (m *mockRawConn) ReadFrom(_ []byte) (*ipv4.Header, []byte, *ipv4.ControlMes
 	if m.readFromErr != nil {
 		return nil, nil, nil, m.readFromErr
 	}
+	if m.payload == nil {
+		// it reads in a loop, so sleep for a bit to avoid log spam
+		time.Sleep(time.Until(m.readDeadline))
+	}
 
 	return m.header, m.payload, m.cm, nil
 }
