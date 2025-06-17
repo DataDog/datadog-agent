@@ -105,12 +105,8 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 // fetchSecret receives a list of secrets name to fetch, exec a custom
 // executable to fetch the actual secrets and returns them.
 func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string, error) {
-	payloadVersion := "1.0"
-	if r.embeddedBackendUsed {
-		payloadVersion = "1.1"
-	}
 	payload := map[string]interface{}{
-		"version": payloadVersion,
+		"version": secrets.PayloadVersion,
 		"secrets": secretsHandle,
 	}
 	if r.backendType != "" {
