@@ -53,6 +53,19 @@
           echo "Extracting installer to temporary input dir $INSTALLER_INPUT_FILE -> $INSTALLER_INPUT_DIR"
           tar xJf ${INSTALLER_INPUT_FILE} -C ${INSTALLER_INPUT_DIR}
           EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
+          if [ "${ARCH}" = "arm64" ]; then
+            # Hack for Darwin -- the agent layer is empty
+            mkdir -p /tmp/darwin
+            datadog-package create \
+              --version ${PACKAGE_VERSION} \
+              --package ${OCI_PRODUCT} \
+              --os darwin \
+              --arch arm64 \
+              --archive --archive-path "${OUTPUT_DIR}/${OUTPUT_FILE/.tar/-darwin.tar}" \
+              --configs ${INPUT_DIR}/etc/datadog-agent \
+              --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer-darwin \
+              /tmp/darwin/
+          fi
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"

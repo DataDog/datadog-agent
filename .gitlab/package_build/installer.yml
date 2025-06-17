@@ -100,11 +100,12 @@ installer-install-scripts:
     - mkdir -p $OMNIBUS_PACKAGE_DIR
     - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*amd64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-amd64
     - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*arm64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-arm64
-    - dda inv -- -e installer.build-linux-script "default" "$VERSION" "installer-amd64" "installer-arm64" "install.sh" --package="agent-package"
-    - dda inv -- -e installer.build-linux-script "APM SSI" "$VERSION" "installer-amd64" "installer-arm64" "install-ssi.sh" --package="agent-package"
-    - dda inv -- -e installer.build-linux-script "databricks" "$VERSION" "installer-amd64" "installer-arm64" "install-databricks.sh"
-    - dda inv -- -e installer.build-linux-script "emr" "$VERSION" "installer-amd64" "installer-arm64" "install-emr.sh"
-    - dda inv -- -e installer.build-linux-script "dataproc" "$VERSION" "installer-amd64" "installer-arm64" "install-dataproc.sh"
+    - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*arm64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer-darwin" > installer-darwin-arm64
+    - dda inv -- -e installer.build-linux-script "default" "$VERSION" "installer-amd64" "installer-arm64" "installer-darwin-arm64" "install.sh" --package="agent-package"
+    - dda inv -- -e installer.build-linux-script "APM SSI" "$VERSION" "installer-amd64" "installer-arm64" "installer-darwin-arm64"  "install-ssi.sh" --package="agent-package"
+    - dda inv -- -e installer.build-linux-script "databricks" "$VERSION" "installer-amd64" "installer-arm64" "installer-darwin-arm64"  "install-databricks.sh"
+    - dda inv -- -e installer.build-linux-script "emr" "$VERSION" "installer-amd64" "installer-arm64" "installer-darwin-arm64"  "install-emr.sh"
+    - dda inv -- -e installer.build-linux-script "dataproc" "$VERSION" "installer-amd64" "installer-arm64" "installer-darwin-arm64"  "install-dataproc.sh"
     - mv ./bin/installer/install*.sh $OMNIBUS_PACKAGE_DIR/
     - ls -la $OMNIBUS_PACKAGE_DIR
   artifacts:
