@@ -749,7 +749,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 
 	err = packages.UninstrumentAPMInjector(ctx, method)
 	if err != nil {
-		return fmt.Errorf("could not instrument APM: %w", err)
+		return fmt.Errorf("could not uninstrument APM: %w", err)
 	}
 	return nil
 }

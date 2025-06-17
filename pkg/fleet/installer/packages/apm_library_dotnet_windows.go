@@ -144,11 +144,18 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err er
 	envInst := env.FromEnv()
 	newMethod := envInst.InstallScript.APMInstrumentationEnabled
 
-	if currentMethod == "" && newMethod == env.APMInstrumentationNotSet {
-		return nil
+	fmt.Printf("currentMethod: %s, newMethod: %s\n", currentMethod, newMethod)
+
+	if currentMethod == env.APMInstrumentationNotSet {
+		if newMethod != env.APMInstrumentationNotSet {
+			return instrumentDotnetLibrary(ctx, newMethod, target)
+		} else {
+			return nil
+		}
+
 	}
 
-	if currentMethod != "" && newMethod != currentMethod {
+	if newMethod != env.APMInstrumentationNotSet && newMethod != currentMethod {
 		err = uninstrumentDotnetLibrary(ctx, currentMethod, target)
 		if err != nil {
 			log.Errorf("Error changing instrumentation method for dotnet library, could not uninstrument the current method (%s): %v", currentMethod, err)
@@ -161,7 +168,8 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err er
 }
 
 func instrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
-	if method == env.APMInstrumentationEnabledIIS {
+	switch method {
+	case env.APMInstrumentationEnabledIIS:
 		var installDir string
 		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
 		if err != nil {
@@ -170,11 +178,12 @@ func instrumentDotnetLibrary(ctx context.Context, method, target string) (err er
 		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
 		_, err = dotnetExec.EnableIISInstrumentation(ctx, getLibraryPath(installDir))
 		return err
-	}
-	if method == env.APMInstrumentationEnabledDotnet {
+	case env.APMInstrumentationEnabledDotnet:
 		// TODO
+		return nil
+	default:
+		return fmt.Errorf("unsupported injection method: %s", method)
 	}
-	return fmt.Errorf("unsupported injection method: %s", method)
 }
 
 func uninstrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
@@ -183,14 +192,15 @@ func uninstrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err 
 	if err != nil {
 		return err
 	}
-	if method == "" {
+	if method == env.APMInstrumentationNotSet {
 		return nil
 	}
 	return uninstrumentDotnetLibrary(ctx, method, target)
 }
 
 func uninstrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
-	if method == env.APMInstrumentationEnabledIIS {
+	switch method {
+	case env.APMInstrumentationEnabledIIS:
 		var installDir string
 		installDir, err = filepath.EvalSymlinks(getTargetPath(target))
 		if err != nil {
@@ -198,12 +208,11 @@ func uninstrumentDotnetLibrary(ctx context.Context, method, target string) (err 
 		}
 		dotnetExec := exec.NewDotnetLibraryExec(getExecutablePath(installDir))
 		_, err := dotnetExec.RemoveIISInstrumentation(ctx)
-		if err != nil {
-			return err
-		}
-	}
-	if method == env.APMInstrumentationEnabledDotnet {
+		return err
+	case env.APMInstrumentationEnabledDotnet:
 		// TODO
+		return nil
+	default:
+		return fmt.Errorf("unsupported injection method: %s", method)
 	}
-	return fmt.Errorf("unsupported injection method: %s", method)
 }
