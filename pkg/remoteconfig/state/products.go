@@ -36,6 +36,7 @@ var validProducts = map[string]struct{}{
 	ProductHaAgent:                      {},
 	ProductNDMDeviceProfilesCustom:      {},
 	ProductMetricControl:                {},
+	ProductRemoteShell:                  {},
 }
 
 const (
@@ -99,4 +100,6 @@ const (
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
 	// ProductMetricControl receives configuration for the metrics control.
 	ProductMetricControl = "METRIC_CONTROL"
+	// ProductRemoteShell is used to receive remote shell session configurations
+	ProductRemoteShell = "REMOTE_SHELL"
 )
