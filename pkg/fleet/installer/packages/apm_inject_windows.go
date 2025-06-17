@@ -106,15 +106,33 @@ func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	return setAPMInjectionMethod(method)
 }
 
-// UninstrumentAPMInjector uninstruments the APM injector for IIS on Windows
+// UninstrumentAPMInjector un-instruments the APM injector for IIS on Windows
 func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(ctx, "uninstrument_injector")
 	defer func() { span.Finish(err) }()
+
+	var currentMethod string
+	currentMethod, err = getAPMInjectionMethod()
+	if err != nil {
+		return err
+	}
+
+	if currentMethod == env.APMInstrumentationNotSet && method == env.APMInstrumentationNotSet {
+		return fmt.Errorf("No instrumentation method to uninstrument")
+	}
+
+	if currentMethod != env.APMInstrumentationNotSet && method == env.APMInstrumentationNotSet {
+		method = currentMethod
+	}
 
 	err = uninstrumentDotnetLibrary(ctx, method, "stable")
 	if err != nil {
 		return err
 	}
 
+	// If we un-instrumented another method than the one currently set, we do not want to change the configuration
+	if currentMethod != method {
+		return nil
+	}
 	return unsetAPMInjectionMethod()
 }
