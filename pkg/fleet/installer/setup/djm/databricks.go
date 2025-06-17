@@ -29,7 +29,7 @@ const (
 	databricksAgentVersion       = "7.66.0-1"
 	fetchTimeoutDuration         = 5 * time.Second
 	gpuIntegrationRestartTimeout = 30 * time.Second
-	restartLogFile               = "/var/log/gpu-restart"
+	restartLogFile               = "/var/log/datadog/gpu-restart"
 )
 
 var (
@@ -253,7 +253,7 @@ func setupGPUIntegration(s *common.Setup) {
 func scheduleDelayedAgentRestart(s *common.Setup, delay time.Duration) {
 	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", delay))
 
-	cmd := exec.Command("nohup", "bash", "-c", fmt.Sprintf("echo '[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Waiting %v...' >> %[2]s && sleep %d && echo '[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting agent...' >> %[2]s && systemctl restart datadog-agent >> %[2]s 2>&1", delay, restartLogFile, int(delay.Seconds())))
+	cmd := exec.Command("nohup", "bash", "-c", fmt.Sprintf("echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Waiting %v...\" >> %[2]s && sleep %d && echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting agent...\" >> %[2]s.log && systemctl restart datadog-agent >> %[2]s.log 2>&1", delay, restartLogFile, int(delay.Seconds())))
 	if err := cmd.Start(); err != nil {
 		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
 		return
