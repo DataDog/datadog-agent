@@ -9,8 +9,6 @@ package autoscaling
 
 import (
 	"sync"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -118,10 +116,8 @@ func (s *Store[T]) GetFiltered(filter func(T) bool) []T {
 	return objects
 }
 
-// GetFilteredByOwner returns a copy of all store values matched by the owner index key
-func (s *Store[T]) GetFilteredByOwner(indexKey any) []T {
-	log.Debugf("Getting filtered by owner: %+v", indexKey)
-	log.Debugf("Indexer: %+v", s.indexer)
+// GetFilteredByIndexKey returns a copy of all store values matched by the index key
+func (s *Store[T]) GetFilteredByIndexKey(indexKey any) []T {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
