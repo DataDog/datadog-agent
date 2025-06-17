@@ -427,6 +427,9 @@ type RuntimeSecurityConfig struct {
 
 	// FileMetadataResolverEnabled defines if the file metadata is enabled
 	FileMetadataResolverEnabled bool
+
+	// ActivityDumpInterval defines the interval at which activity dump stats are sent
+	ActivityDumpInterval time.Duration
 }
 
 // Config defines a security config
@@ -540,6 +543,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		ActivityDumpSilentWorkloadsTicker:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
 		ActivityDumpWorkloadDenyList:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.workload_deny_list"),
 		ActivityDumpAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.auto_suppression.enabled"),
+		ActivityDumpInterval:                  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.interval"),
 		// activity dump dynamic fields
 		ActivityDumpMaxDumpSize: func() int {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize)

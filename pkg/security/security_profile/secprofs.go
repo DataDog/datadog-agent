@@ -21,6 +21,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // fetchSilentWorkloads returns the list of workloads for which we haven't received any profile
@@ -163,7 +164,14 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		} else {
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 			if m.canGenerateAnomaliesFor(event) {
-				event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
+				// Try to insert first
+				wasInserted, err := profile.Insert(event, insertMissingProcesses, imageTag, activity_tree.ProfileDrift, m.resolvers)
+				if err != nil {
+					log.Errorf("couldn't insert event into profile: %v", err)
+				} else if wasInserted {
+					// Only flag as anomaly if the event was actually inserted (wasn't already there)
+					event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
+				}
 			}
 		}
 	}
@@ -203,10 +211,11 @@ func (m *Manager) tryAutolearn(profile *profile.Profile, ctx *profile.VersionCon
 		}
 
 		// if a previous version of this profile was stable for this event type,
-		// and a new entry was added, trigger an anomaly detection
+		// and a new entry was added, trigger an anomaly detection but add it as normal drift
 		globalEventTypeState := profile.GetGlobalEventTypeState(event.GetEventType())
 		if globalEventTypeState == model.StableEventType && m.canGenerateAnomaliesFor(event) {
 			event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
+			// The event will be added as a normal drift since we're using nodeType (ProfileDrift)
 		} else {
 			// The anomaly flag can be set in kernel space by our eBPF programs (currently applies only to syscalls), reset
 			// the anomaly flag if the user space profile considers it to not be an anomaly: there is a new entry and no
