@@ -45,7 +45,7 @@ func TestCombineWith(t *testing.T) {
 
 	stats2.AddRequest(false, 10, 1, 10.0)
 	stats3.AddRequest(false, 15, 2, 15.0)
-	stats4.AddRequest(false, 20, 5, 20.0)
+	stats4.AddRequest(false, 20, 4, 20.0)
 
 	stats.CombineWith(stats2)
 	stats.CombineWith(stats3)
