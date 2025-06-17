@@ -498,8 +498,8 @@ api_key:
 #
 # gce_metadata_timeout: 1000
 
-## @param collect_gpu_tags - boolean - optional - default: false
-## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: false
+## @param collect_gpu_tags - boolean - optional - default: true
+## @env DD_COLLECT_GPU_TAGS - boolean - optional - default: true
 ## Collect GPU related host tags
 #
 # collect_gpu_tags: false
@@ -4751,10 +4751,10 @@ api_key:
 ##
 ## Settings can be configured via environment variables or the application_monitoring.yaml file.
 ## Configuration precedence (highest to lowest priority):
-##   1. Fleet-managed config file 
+##   1. Fleet-managed config file
 ##      (etc/datadog-agent/managed/datadog-agent/stable/application_monitoring.yaml)
 ##   2. Environment variables
-##   3. Local config file 
+##   3. Local config file
 ##      (etc/datadog-agent/application_monitoring.yaml)
 # apm_configuration_rules:
 
