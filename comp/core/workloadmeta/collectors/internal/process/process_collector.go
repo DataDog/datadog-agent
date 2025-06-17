@@ -45,7 +45,7 @@ const (
 	collectorID               = "process-collector"
 	componentName             = "workloadmeta-process"
 	cacheValidityNoRT         = 2 * time.Second
-	serviceCollectionInterval = 60 * time.Second
+	serviceCollectionInterval = 60 * time.Second // TODO: this should be made configurable in the future
 
 	// Service discovery constants
 	maxPortCheckTries = 10
@@ -134,7 +134,7 @@ func GetFxOptions() fx.Option {
 func (c *collector) isEnabled() bool {
 	// TODO: implement the logic to check if the process collector is enabled based on dependent configs (process collection, language detection, service discovery)
 	// hardcoded to false until the new collector has all functionality/consolidation completed (service discovery, language collection, etc)
-	return true
+	return false
 }
 
 // isLanguageCollectionEnabled returns a boolean indicating if language collection is enabled
@@ -486,7 +486,7 @@ func (c *collector) collectServices(ctx context.Context, collectionTicker *clock
 		case <-collectionTicker.C:
 			// Get alive PIDs from last collected processes
 			c.mux.RLock()
-			if c.lastCollectedProcesses == nil || len(c.lastCollectedProcesses) == 0 {
+			if len(c.lastCollectedProcesses) == 0 {
 				// no processes to check
 				c.mux.RUnlock()
 				continue
