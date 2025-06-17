@@ -299,6 +299,81 @@ endpoints:
 	}
 }
 
+func TestUnmarshalAllMapString(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test")
+
+	type testString struct {
+		A string
+		B string
+	}
+	checkString := func() {
+		obj := testString{}
+		err := unmarshalKeyReflection(mockConfig, "test", &obj)
+		require.NoError(t, err)
+		assert.Equal(t, testString{A: "a", B: "b"}, obj)
+	}
+	mockConfig.Set("test", map[string]string{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[interface{}]string{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[string]interface{}{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+}
+
+func TestUnmarshalAllMapInt(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test")
+
+	type testInt struct {
+		A int
+		B int
+	}
+	checkInt := func() {
+		objInt := testInt{}
+		err := unmarshalKeyReflection(mockConfig, "test", &objInt)
+		require.NoError(t, err)
+		assert.Equal(t, testInt{A: 1, B: 2}, objInt)
+	}
+	mockConfig.Set("test", map[string]int{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+
+	mockConfig.Set("test", map[interface{}]int{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+}
+
+func TestUnmarshalAllMapBool(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test")
+
+	type testBool struct {
+		A bool
+		B bool
+	}
+	checkBool := func() {
+		objBool := testBool{}
+		err := unmarshalKeyReflection(mockConfig, "test", &objBool)
+		require.NoError(t, err)
+		assert.Equal(t, testBool{A: true, B: true}, objBool)
+	}
+	mockConfig.Set("test", map[string]bool{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+
+	mockConfig.Set("test", map[interface{}]bool{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+}
+
 type featureConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
