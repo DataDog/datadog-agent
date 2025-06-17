@@ -361,8 +361,12 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 	seclog.Debugf("Filter Report: %s", filterReport)
 
-	e.currentRuleSet.Store(rs)
+	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	rulesetLoadedEvent := monitor.NewRuleSetLoadedEvent(e.probe.GetAgentContainerContext(), rs, policies, filterReport)
+
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
+
+	e.currentRuleSet.Store(rs)
 
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
@@ -377,11 +381,10 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	// update the stats of auto-suppression rules
 	e.AutoSuppression.Apply(rs)
 
-	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, rs, policies, filterReport)
+		monitor.ReportRuleSetLoaded(rulesetLoadedEvent, e.eventSender, e.statsdClient)
 		e.policyMonitor.SetPolicies(policies)
 	}
 
