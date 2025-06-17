@@ -9,12 +9,16 @@ package ddflareextensionimpl
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
 	"net"
 	"net/http"
 
 	"github.com/gorilla/mux"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -32,13 +36,17 @@ func newServer(endpoint string, handler http.Handler, optIpcComp option.Option[i
 		Handler: r,
 	}
 
-	// no easy way currently to pass required bearer auth token to OSS collector;
-	// skip the validation if running inside a separate collector
-	// TODO: determine way to allow OSS collector to authenticate with agent, OTEL-2226
 	if ipcComp, ok := optIpcComp.Get(); ok {
 		// Use the TLS configuration from the IPC component if available
 		s.TLSConfig = ipcComp.GetTLSServerConfig()
 		r.Use(ipcComp.HTTPMiddleware)
+	} else {
+		// Use generated self-signed certificate if running outside of the Agent
+		tlsConfig, err := generateSelfSignedCert()
+		if err != nil {
+			return nil, err
+		}
+		s.TLSConfig = &tlsConfig
 	}
 
 	listener, err := net.Listen("tcp", endpoint)
@@ -61,4 +69,29 @@ func (s *server) start() error {
 
 func (s *server) shutdown(ctx context.Context) error {
 	return s.srv.Shutdown(ctx)
+}
+
+func generateSelfSignedCert() (tls.Config, error) {
+	// create cert
+	hosts := []string{"127.0.0.1", "localhost", "::1"}
+	_, rootCertPEM, rootKey, err := pkgtoken.GenerateRootCert(hosts, 2048)
+	if err != nil {
+		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
+	}
+
+	// PEM encode the private key
+	rootKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(rootKey),
+	})
+
+	// Create a TLS cert using the private key and certificate
+	rootTLSCert, err := tls.X509KeyPair(rootCertPEM, rootKeyPEM)
+	if err != nil {
+		return tls.Config{}, fmt.Errorf("unable to generate a self-signed certificate: %v", err)
+
+	}
+
+	return tls.Config{
+		Certificates: []tls.Certificate{rootTLSCert},
+	}, nil
 }
