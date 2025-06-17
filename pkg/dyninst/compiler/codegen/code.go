@@ -86,7 +86,10 @@ func GenerateCCode(program sm.Program, out io.Writer) (attachpoints []BPFAttachP
 				PC:     f.InjectionPC,
 				Cookie: uint64(len(attachpoints)),
 			})
-			mustFprintf(out, "\t{.stack_machine_pc = 0x%x, .stream_id = %d, .frameless = false},\n", metadata.FunctionLoc[f], 0)
+			mustFprintf(
+				out, "\t{.throttler_idx = %d, .stack_machine_pc = 0x%x, .pointer_chasing_limit = %d, .frameless = false},\n",
+				f.ThrottlerIdx, metadata.FunctionLoc[f], f.PointerChasingLimit,
+			)
 		}
 	}
 	mustFprintf(out, "};\n")
@@ -96,6 +99,14 @@ func GenerateCCode(program sm.Program, out io.Writer) (attachpoints []BPFAttachP
 	if err != nil {
 		return nil, err
 	}
+
+	mustFprintf(out, "const throttler_params_t throttler_params[] = {\n")
+	for _, t := range program.Throttlers {
+		mustFprintf(out, "\t{.period_ns = %d, .budget = %d},\n", t.PeriodNs, t.Budget)
+	}
+	mustFprintf(out, "};\n")
+	mustFprintf(out, "#define NUM_THROTTLERS %d\n", len(program.Throttlers))
+
 	return attachpoints, nil
 }
 
