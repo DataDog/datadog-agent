@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
@@ -254,33 +255,45 @@ func setupGPUIntegration(s *common.Setup) {
 func scheduleDelayedAgentRestart(s *common.Setup, delay time.Duration) {
 	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", delay))
 
-	script := fmt.Sprintf(`#!/bin/bash
-echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] GPU restart script started, waiting %v..." >> %s.log
-sleep %d
-echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting Datadog agent for GPU monitoring..." >> %s.log
-service datadog-agent restart >> %s.log 2>&1
-if [ $? -eq 0 ]; then
-    echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Successfully restarted Datadog agent for GPU monitoring" >> %s.log
-else
-    echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Failed to restart agent for GPU monitoring" >> %s.log
-fi
-`, delay, restartScriptPath, int(delay.Seconds()), restartScriptPath, restartScriptPath, restartScriptPath, restartScriptPath)
-
-	scriptFile := restartScriptPath + ".sh"
-	err := os.WriteFile(scriptFile, []byte(script), 0755)
+	// Create log file for the restart process
+	logFile, err := os.OpenFile(restartScriptPath+".log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		s.Out.WriteString(fmt.Sprintf("Failed to write restart script: %v\n", err))
+		s.Out.WriteString(fmt.Sprintf("Failed to create log file: %v\n", err))
 		return
 	}
 
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("nohup %s > /dev/null 2>&1 &", scriptFile))
-	err = cmd.Run()
-	if err != nil {
-		s.Out.WriteString(fmt.Sprintf("Failed to start background restart script: %v\n", err))
+	fmt.Fprintf(logFile, "[%s] GPU restart process initiated, delay: %v\n", time.Now().UTC().Format(time.RFC3339), delay)
+	logFile.Close()
+
+	restartCmd := fmt.Sprintf(
+		`sleep %d && \
+echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting Datadog agent for GPU monitoring..." >> %s.log && \
+systemctl restart datadog-agent.service >> %s.log 2>&1 && \
+echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Successfully restarted Datadog agent for GPU monitoring" >> %s.log || \
+echo "[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Failed to restart agent for GPU monitoring: $?" >> %s.log`,
+		int(delay.Seconds()),
+		restartScriptPath,
+		restartScriptPath,
+		restartScriptPath,
+		restartScriptPath,
+	)
+
+	cmd := exec.Command("sh", "-c", restartCmd)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid: true, // Create a new session, detaching from the parent
+	}
+
+	if err := cmd.Start(); err != nil {
+		s.Out.WriteString(fmt.Sprintf("Failed to start restart process: %v\n", err))
 		return
 	}
 
-	s.Out.WriteString(fmt.Sprintf("GPU restart script started in background (check %s.log)\n", restartScriptPath))
+	if err := cmd.Process.Release(); err != nil {
+		s.Out.WriteString(fmt.Sprintf("Failed to release process: %v\n", err))
+		return
+	}
+
+	s.Out.WriteString(fmt.Sprintf("GPU restart process started in background (check %s.log)\n", restartScriptPath))
 }
 
 func setupDatabricksDriver(s *common.Setup) {
