@@ -9,6 +9,7 @@ package ebpf
 
 import (
 	"archive/tar"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -127,24 +128,26 @@ type orderedBTFLoader struct {
 	delayedFlusher *time.Timer
 	rcclient       rcclient.Component
 	rcTimeout      time.Duration
+	rcDownloadHost string
 }
 
 func initBTFLoader(cfg *Config, rcclient rcclient.Component) *orderedBTFLoader {
 	btfLoader := &orderedBTFLoader{
-		userBTFPath:  cfg.BTFPath,
-		embeddedDir:  filepath.Join(cfg.BPFDir, "co-re", "btf"),
-		btfOutputDir: filepath.Join(cfg.BTFOutputDir, version.AgentVersion),
-		result:       BtfNotFound,
-		rcBTFEnabled: cfg.RemoteConfigBTFEnabled,
-		rcclient:     rcclient,
-		rcTimeout:    30 * time.Second,
+		userBTFPath:    cfg.BTFPath,
+		embeddedDir:    filepath.Join(cfg.BPFDir, "co-re", "btf"),
+		btfOutputDir:   filepath.Join(cfg.BTFOutputDir, version.AgentVersion),
+		result:         BtfNotFound,
+		rcBTFEnabled:   cfg.RemoteConfigBTFEnabled && rcclient != nil,
+		rcclient:       rcclient,
+		rcTimeout:      cfg.RemoteConfigBTFTimeout,
+		rcDownloadHost: cfg.RemoteConfigBTFDownloadHost,
 	}
 	btfLoader.loadFunc = funcs.CacheWithCallback[returnBTF](btfLoader.get, loadKernelSpec.Flush)
 	btfLoader.delayedFlusher = time.AfterFunc(btfFlushDelay, btfLoader.Flush)
 	return btfLoader
 }
 
-type btfLoaderFunc func() (*returnBTF, error)
+type btfLoaderFunc func(context.Context) (*returnBTF, error)
 
 // Get returns BTF for the running kernel
 func (b *orderedBTFLoader) Get() (*returnBTF, COREResult, error) {
@@ -178,7 +181,7 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 	var ret *returnBTF
 	for _, l := range loaders {
 		log.Debugf("attempting BTF load from %s", l.desc)
-		ret, err = l.loader()
+		ret, err = l.loader(context.Background())
 		if err != nil {
 			err = fmt.Errorf("BTF load from %s: %w", l.desc, err)
 			// attempting default kernel when not supported will return this error
@@ -197,7 +200,7 @@ func (b *orderedBTFLoader) get() (*returnBTF, error) {
 	return nil, err
 }
 
-func (b *orderedBTFLoader) loadKernel() (*returnBTF, error) {
+func (b *orderedBTFLoader) loadKernel(_ context.Context) (*returnBTF, error) {
 	spec, err := GetKernelSpec()
 	if err != nil {
 		return nil, err
@@ -208,7 +211,7 @@ func (b *orderedBTFLoader) loadKernel() (*returnBTF, error) {
 	}, nil
 }
 
-func (b *orderedBTFLoader) loadUser() (*returnBTF, error) {
+func (b *orderedBTFLoader) loadUser(_ context.Context) (*returnBTF, error) {
 	if b.userBTFPath == "" {
 		return nil, nil
 	}
@@ -267,7 +270,7 @@ func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
 	return nil, nil
 }
 
-func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
+func (b *orderedBTFLoader) loadEmbedded(_ context.Context) (*returnBTF, error) {
 	btfRelativeTarballFilename, err := b.embeddedPath()
 	if err != nil {
 		return nil, err

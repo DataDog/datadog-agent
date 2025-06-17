@@ -34,7 +34,7 @@ type coreAssetLoader struct {
 // asset and BTF options pre-filled. You should attempt to load the CO-RE program in the startFn func for telemetry to
 // be correctly recorded.
 func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
-	loader, err := coreLoader(NewConfig())
+	loader, err := coreLoader(NewConfig(), nil)
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.O
 
 // GetBTFLoaderInfo Returns where the ebpf BTF files were sourced from
 func GetBTFLoaderInfo() (string, error) {
-	loader, err := coreLoader(NewConfig())
+	loader, err := coreLoader(NewConfig(), nil)
 	if err != nil {
 		return "", err
 	}

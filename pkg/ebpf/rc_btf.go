@@ -53,18 +53,24 @@ type btfEntry struct {
 	SHA256 string `json:"sha256"`
 }
 
-func (b *orderedBTFLoader) loadRemoteConfig() (*returnBTF, error) {
+func rcArchitecture() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64"
+	case "arm64":
+		return "arm64"
+	default:
+		return ""
+	}
+}
+
+func (b *orderedBTFLoader) loadRemoteConfig(ctx context.Context) (*returnBTF, error) {
 	if !b.rcBTFEnabled {
 		return nil, nil
 	}
 
-	var arch string
-	switch runtime.GOARCH {
-	case "amd64":
-		arch = "x86_64"
-	case "arm64":
-		arch = "arm64"
-	default:
+	arch := rcArchitecture()
+	if arch == "" {
 		log.Warnf("unsupported BTF architecture: %s", runtime.GOARCH)
 		return nil, nil
 	}
@@ -82,11 +88,12 @@ func (b *orderedBTFLoader) loadRemoteConfig() (*returnBTF, error) {
 		return nil, fmt.Errorf("kernel release: %s", err)
 	}
 
-	ctx, cancelCause := context.WithCancelCause(context.Background())
+	ctx, cancelCause := context.WithCancelCause(ctx)
 	ctx, cancel := context.WithTimeout(ctx, b.rcTimeout)
 	defer cancel()
 
 	rcLoader := rcBTFLoader{
+		b:               b,
 		ctx:             ctx,
 		cancelCause:     cancelCause,
 		platform:        platform,
@@ -142,7 +149,7 @@ func (r *rcBTFLoader) rcCallback(update map[string]state.RawConfig, applyStateCa
 		entry, err := r.findEntry(config)
 		if err != nil {
 			log.Errorf("BTF remote config key %q: %s", k, err)
-			applyStateCallback(k, state.ApplyStatus{Error: err.Error()})
+			applyStateCallback(k, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
 
@@ -150,21 +157,21 @@ func (r *rcBTFLoader) rcCallback(update map[string]state.RawConfig, applyStateCa
 			rbtf, err = r.processEntry(entry)
 			if err != nil {
 				log.Error(err)
-				applyStateCallback(k, state.ApplyStatus{Error: err.Error()})
+				applyStateCallback(k, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 				continue
 			}
 		}
 		applyStateCallback(k, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 	if rbtf == nil {
-		r.cancelCause(fmt.Errorf("no BTF in catalog found for %s/%s/%s", r.platform, r.platformVersion, r.kernelVersion))
+		r.cancelCause(fmt.Errorf("no BTF in catalog found for %s/%s/%s/%s", r.arch, r.platform, r.platformVersion, r.kernelVersion))
 		return
 	}
 	r.result <- rbtf
 }
 
 func (r *rcBTFLoader) processEntry(entry *btfEntry) (*returnBTF, error) {
-	btfURL := fmt.Sprintf("https://install.datadoghq.com/btfs/%s/%s/%s/%s.btf.tar.xz", r.platform, r.platformVersion, r.arch, r.kernelVersion)
+	btfURL := fmt.Sprintf("%s/btfs/%s/%s/%s/%s.btf.tar.xz", r.b.rcDownloadHost, r.platform, r.platformVersion, r.arch, r.kernelVersion)
 	btfTarballBuffer, err := r.downloadFile(btfURL, entry.SHA256)
 	if err != nil {
 		return nil, fmt.Errorf("BTF download: %s", err)
@@ -207,6 +214,9 @@ func (r *rcBTFLoader) downloadFile(url string, hash string) (*bytes.Reader, erro
 		return nil, fmt.Errorf("do http request: %s", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("bad http status: %s", resp.Status)
+	}
 
 	memOut := &bytes.Buffer{}
 	h := sha256.New()
