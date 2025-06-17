@@ -32,7 +32,7 @@ import (
 const (
 	// CheckName is the name of the check
 	CheckName                    = "ntp"
-	defaultMinCollectionInterval = 90 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+	defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
 )
 
 var (
