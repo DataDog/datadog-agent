@@ -13,10 +13,12 @@ import tempfile
 import time
 import traceback
 import uuid
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
+from io import BufferedWriter
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
@@ -632,6 +634,37 @@ def download_to_tempfile(url, checksum=None):
                     if checksum:
                         checksum.update(chunk)
                     f.write(chunk)
+        yield tmp_path
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+@contextmanager
+def closed_tmpfile(action: Callable[[BufferedWriter], None]):
+    """
+    Create a temporary file and call the action to fill the file.
+    After the action is called, the file is closed and the path is yielded.
+    The file is closed and removed when the context manager exits.
+
+    Differs from NamedTemporaryFile by allowing the file to be acted upon
+    after close and still be automatically removed.
+
+    Example:
+    >>> def fetch(f: BufferedWriter) -> None:
+    ...     download("https://example.com/artifacts.zip", f)
+    ...
+    >>> with closed_tmpfile(fetch) as tmp_path:
+    ...     zipfile.ZipFile(tmp_path, "r").extractall(output_dir)
+    """
+    fd, tmp_path = tempfile.mkstemp()
+    try:
+        with os.fdopen(fd, "wb") as f:
+            # fd will be closed by context manager, so we no longer need it
+            fd = None
+            action(f)
         yield tmp_path
     finally:
         if fd is not None:
