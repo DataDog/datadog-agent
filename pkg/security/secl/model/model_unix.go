@@ -103,7 +103,7 @@ type Event struct {
 	SetXAttr    SetXAttrEvent  `field:"setxattr" event:"setxattr"`       // [7.27] [File] Set exteneded attributes
 	RemoveXAttr SetXAttrEvent  `field:"removexattr" event:"removexattr"` // [7.27] [File] Remove extended attributes
 	Splice      SpliceEvent    `field:"splice" event:"splice"`           // [7.36] [File] A splice command was executed
-	Fsmount     FsmountEvent  `field:"fsmount" event:"fsmount"`         // [7.42] [File] [Experimental] A filesystem was mounted with fsmount (not attached to the main tree yet)
+	Fsmount     FsmountEvent   `field:"fsmount" event:"fsmount"`         // [7.69] [File] [Experimental] A filesystem was mounted with fsmount (not attached to the main tree yet)
 	Mount       MountEvent     `field:"mount" event:"mount"`             // [7.42] [File] [Experimental] A filesystem was mounted
 	Chdir       ChdirEvent     `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 	Setrlimit   SetrlimitEvent `field:"setrlimit" event:"setrlimit"`     // [7.68] [Process] A setrlimit command was executed
