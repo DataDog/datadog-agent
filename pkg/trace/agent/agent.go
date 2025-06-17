@@ -452,9 +452,6 @@ func (a *Agent) Process(p *api.Payload) {
 	if sampledChunks.Size > 0 {
 		a.TraceWriter.WriteChunks(sampledChunks)
 	}
-	// if len(statsInput.Traces) > 0 {
-	// 	a.Concentrator.Add(statsInput)
-	// }
 }
 
 func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
