@@ -153,7 +153,7 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 		}
 	}
 
-	podAutoscalers := pa.store.GetFilteredByOwner(model.OwnerReference{
+	podAutoscalers := pa.store.GetFilteredByIndexKey(model.OwnerReference{
 		Namespace:  pod.Namespace,
 		Name:       ownerRef.Name,
 		Kind:       ownerRef.Kind,
