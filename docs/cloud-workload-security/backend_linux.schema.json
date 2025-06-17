@@ -140,35 +140,6 @@
       ],
       "description": "BPFEventSerializer serializes a BPF event to JSON"
     },
-    "BPFFilter": {
-      "properties": {
-        "code": {
-          "type": "integer",
-          "description": "code is the BPF filter code"
-        },
-        "jt": {
-          "type": "integer",
-          "description": "jt is the BPF filter jmp true"
-        },
-        "jf": {
-          "type": "integer",
-          "description": "jf is the BPF filter jmp false"
-        },
-        "k": {
-          "type": "integer",
-          "description": "k is the BPF filter k value"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "code",
-        "jt",
-        "jf",
-        "k"
-      ],
-      "description": "BPFFilterSerializer serializes a BPF filter to JSON"
-    },
     "BPFMap": {
       "properties": {
         "name": {
@@ -1748,9 +1719,13 @@
           "type": "integer",
           "description": "Socket file descriptor"
         },
-        "sk_protocol": {
+        "socket_protocol": {
           "type": "integer",
           "description": "Socket protocol"
+        },
+        "socket_family": {
+          "type": "integer",
+          "description": "Socket family"
         },
         "level": {
           "type": "integer",
@@ -1765,18 +1740,20 @@
           "description": "Length of the filter"
         },
         "filter": {
-          "items": {
-            "$ref": "#/$defs/BPFFilter"
-          },
-          "type": "array",
+          "type": "string",
           "description": "Filter data"
+        },
+        "filter_hash": {
+          "type": "string",
+          "description": "Filter Hash"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
         "socket_type",
-        "sk_protocol",
+        "socket_protocol",
+        "socket_family",
         "level",
         "optname",
         "filter_len"
