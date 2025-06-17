@@ -1720,16 +1720,14 @@ A setsockopt was executed
 
 | Property | Definition |
 | -------- | ------------- |
-| [`setsockopt.filter.code`](#setsockopt-filter-code-doc) | Socket filter code |
-| [`setsockopt.filter.jf`](#setsockopt-filter-jf-doc) | Socket filter jump false |
-| [`setsockopt.filter.jt`](#setsockopt-filter-jt-doc) | Socket filter jump true |
-| [`setsockopt.filter.k`](#setsockopt-filter-k-doc) | Socket filter constant |
-| [`setsockopt.filter.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setsockopt.filter`](#setsockopt-filter-doc) | Socket filter |
+| [`setsockopt.filter_hash`](#setsockopt-filter_hash-doc) | Hash of the socket filter |
 | [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the filter |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`setsockopt.sk_protocol`](#setsockopt-sk_protocol-doc) | Socket protocol |
+| [`setsockopt.socket_family`](#setsockopt-socket_family-doc) | Socket family |
+| [`setsockopt.socket_protocol`](#setsockopt-socket_protocol-doc) | Socket protocol |
 | [`setsockopt.socket_type`](#setsockopt-socket_type-doc) | Socket type |
 
 ### Event `setuid`
@@ -2635,8 +2633,8 @@ Type: int
 
 Definition: Length of the corresponding element
 
-`*.length` has 99 possible prefixes:
-`cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setsockopt.filter` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+`*.length` has 98 possible prefixes:
+`cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
 ### `*.manager` {#common-cgroupcontext-manager-doc}
@@ -3791,31 +3789,17 @@ Definition: Maximum (hard) limit value
 
 
 
-### `setsockopt.filter.code` {#setsockopt-filter-code-doc}
-Type: int
+### `setsockopt.filter` {#setsockopt-filter-doc}
+Type: string
 
-Definition: Socket filter code
-
-
-
-### `setsockopt.filter.jf` {#setsockopt-filter-jf-doc}
-Type: int
-
-Definition: Socket filter jump false
+Definition: Socket filter
 
 
 
-### `setsockopt.filter.jt` {#setsockopt-filter-jt-doc}
-Type: int
+### `setsockopt.filter_hash` {#setsockopt-filter_hash-doc}
+Type: string
 
-Definition: Socket filter jump true
-
-
-
-### `setsockopt.filter.k` {#setsockopt-filter-k-doc}
-Type: int
-
-Definition: Socket filter constant
+Definition: Hash of the socket filter
 
 
 
@@ -3840,7 +3824,14 @@ Definition: Socket option name
 
 
 
-### `setsockopt.sk_protocol` {#setsockopt-sk_protocol-doc}
+### `setsockopt.socket_family` {#setsockopt-socket_family-doc}
+Type: int
+
+Definition: Socket family
+
+
+
+### `setsockopt.socket_protocol` {#setsockopt-socket_protocol-doc}
 Type: int
 
 Definition: Socket protocol
