@@ -265,8 +265,9 @@ struct syscall_cache_t {
         } sysctl;
 
         struct {
-            int socket_type;
-            u16 sk_protocol;
+            short socket_type;
+            u16 socket_protocol;
+            u16 socket_family;
             int level;
             int optname;
             struct sock_fprog *fprog;
