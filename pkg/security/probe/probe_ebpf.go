@@ -2018,16 +2018,17 @@ func (p *EBPFProbe) handleNewMount(eventType model.EventType, ev *model.Event, m
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
-	// Resolve mount point
+	// fsmount mounts a detached mountpoint, therefore there's no mount point and the root is always "/"
 	if eventType != model.FileFsmountEventType {
+		// Resolve mount point
 		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 			return fmt.Errorf("failed to set mount point: %w", err)
 		}
-	}
 
-	// Resolve root
-	if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
-		return fmt.Errorf("failed to set mount root: %w", err)
+		// Resolve root
+		if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
+			return fmt.Errorf("failed to set mount root: %w", err)
+		}
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
