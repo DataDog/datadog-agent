@@ -43,7 +43,7 @@ class TestPost(unittest.TestCase):
         with open(diff_file, 'w', encoding='utf-8') as f:
             pass
 
-        result = post(install_directory, storage_location)
+        result = post(install_directory, storage_location, skip_flag=False)
 
         # assert it ran with no errors 
         self.assertEqual(result, 0)
