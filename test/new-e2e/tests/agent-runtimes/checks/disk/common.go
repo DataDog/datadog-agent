@@ -7,7 +7,6 @@
 package checkdisk
 
 import (
-	"cmp"
 	"fmt"
 	"math"
 	"slices"
@@ -19,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/checks/disk/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -70,7 +70,7 @@ instances:
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
 				gocmp.Comparer(func(a, b check.Metric) bool {
-					if !equalMetrics(a, b) {
+					if !common.EqualMetrics(a, b) {
 						return false
 					}
 					aValue := a.Points[0][1]
@@ -79,42 +79,13 @@ instances:
 					if a.Metric == "system.disk.total" {
 						return aValue == bValue
 					}
-					return compareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
+					return common.CompareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
 				}),
-				gocmpopts.SortSlices(metricPayloadCompare), // sort metrics
+				gocmpopts.SortSlices(common.MetricPayloadCompare), // sort metrics
 			)
 			require.Empty(v.T(), diff)
 		})
 	}
-}
-
-func equalMetrics(a, b check.Metric) bool {
-	return a.Host == b.Host &&
-		a.Interval == b.Interval &&
-		a.Metric == b.Metric &&
-		a.SourceTypeName == b.SourceTypeName &&
-		a.Type == b.Type && gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string]))
-}
-
-func compareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
-	x := math.Round(a*p) / p
-	y := math.Round(b*p) / p
-	relMarg := fraction * math.Abs(x)
-	return math.Abs(x-y) <= relMarg
-}
-
-func metricPayloadCompare(a, b check.Metric) int {
-	return cmp.Or(
-		cmp.Compare(a.Host, b.Host),
-		cmp.Compare(a.Metric, b.Metric),
-		cmp.Compare(a.Type, b.Type),
-		cmp.Compare(a.SourceTypeName, b.SourceTypeName),
-		cmp.Compare(a.Interval, b.Interval),
-		slices.Compare(a.Tags, b.Tags),
-		slices.CompareFunc(a.Points, b.Points, func(a, b []float64) int {
-			return slices.Compare(a, b)
-		}),
-	)
 }
 
 func (v *diskCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
