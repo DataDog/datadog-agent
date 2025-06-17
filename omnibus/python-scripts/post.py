@@ -20,7 +20,7 @@ def post(install_directory, storage_location, skip_flag=False):
             if os.name == "nt":
                 flag_path = os.path.join(storage_location, ".skip_install_python_third_party_deps")
 
-            if not os.path.exists(flag_path) or not skip_flag:
+            if not os.path.exists(flag_path) or skip_flag:
                 diff_python_installed_packages_file = packages.diff_python_installed_packages_file(storage_location)
                 if os.path.exists(diff_python_installed_packages_file):
                     requirements_agent_release_file = packages.requirements_agent_release_file(install_directory)
