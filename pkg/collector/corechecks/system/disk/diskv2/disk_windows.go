@@ -19,10 +19,10 @@ import (
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
-// On Windows we don’t use StatT; provide stub.
+// StatT stub.
 type StatT struct{}
 
-func dummyStat(path string, st *StatT) error { return nil }
+func dummyStat(_ string, _ *StatT) error { return nil }
 
 var defaultStatFn StatFunc = dummyStat
 
