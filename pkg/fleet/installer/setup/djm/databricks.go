@@ -29,7 +29,7 @@ const (
 	databricksAgentVersion       = "7.66.0-1"
 	fetchTimeoutDuration         = 5 * time.Second
 	gpuIntegrationRestartTimeout = 30 * time.Second
-	restartLogFile               = "/var/log/datadog/gpu-restart"
+	restartLogFile               = "/var/log/datadog-gpu-restart"
 )
 
 var (
