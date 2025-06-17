@@ -27,13 +27,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// StatT type alias
-type StatT = unix.Stat_t
-
-var defaultStatFn StatFunc = func(path string) (StatT, error) {
-	var st StatT
+var defaultStatFn statFunc = func(path string) (StatT, error) {
+	var st unix.Stat_t
 	err := unix.Stat(path, &st)
-	return st, err
+	return StatT{Major: unix.Major(uint64(st.Dev)),
+		Minor: unix.Minor(uint64(st.Dev))}, err
 }
 
 func defaultIgnoreCase() bool {
@@ -265,17 +263,17 @@ type rootFsDeviceFinder struct {
 	minor uint32
 }
 
-func newRootFsDeviceFinder(fs afero.Fs, statFunc StatFunc) (*rootFsDeviceFinder, error) {
+func newRootFsDeviceFinder(fs afero.Fs, statFn statFunc) (*rootFsDeviceFinder, error) {
 	var st StatT
-	st, err := statFunc("/")
+	st, err := statFn("/")
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Major[%v], Minor[%v]", unix.Major(uint64(st.Dev)), unix.Minor(uint64(st.Dev)))
+	log.Debugf("Major[%v], Minor[%v]", unix.Major(uint64(st.Major)), unix.Minor(uint64(st.Minor)))
 	return &rootFsDeviceFinder{
 		Fs:    fs,
-		major: unix.Major(uint64(st.Dev)),
-		minor: unix.Minor(uint64(st.Dev)),
+		major: st.Major,
+		minor: st.Minor,
 	}, nil
 }
 

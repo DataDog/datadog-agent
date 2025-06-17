@@ -19,10 +19,7 @@ import (
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 )
 
-// StatT stub.
-type StatT struct{}
-
-var defaultStatFn StatFunc = func(_ string) (StatT, error) { return StatT{}, nil }
+var defaultStatFn statFunc = func(_ string) (StatT, error) { return StatT{}, nil }
 
 func defaultIgnoreCase() bool {
 	return true

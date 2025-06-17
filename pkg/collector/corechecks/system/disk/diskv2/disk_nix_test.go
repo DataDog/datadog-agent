@@ -1175,9 +1175,7 @@ resolve_root_device: true
 
 func TestResolveRootDeviceFlagFalse(t *testing.T) {
 	fakeStatFn := func(_ string) (diskv2.StatT, error) {
-		var st diskv2.StatT
-		st.Dev = int32(134217729)
-		return st, nil
+		return diskv2.StatT{Major: 8, Minor: 1}, nil
 	}
 	base := afero.NewMemMapFs()
 	fs := newSymlinkFs(base)

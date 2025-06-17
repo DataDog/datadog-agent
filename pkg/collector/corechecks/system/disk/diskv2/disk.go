@@ -114,8 +114,13 @@ func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 	return re, err
 }
 
-// StatFunc type alias
-type StatFunc func(string) (StatT, error)
+// StatT type
+type StatT struct {
+	Major uint32
+	Minor uint32
+}
+
+type statFunc func(string) (StatT, error)
 
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
@@ -125,7 +130,7 @@ type Check struct {
 	diskUsage                 func(string) (*gopsutil_disk.UsageStat, error)
 	diskIOCounters            func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
 	fs                        afero.Fs
-	statFn                    StatFunc
+	statFn                    statFunc
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
