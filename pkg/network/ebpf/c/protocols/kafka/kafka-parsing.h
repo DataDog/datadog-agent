@@ -526,7 +526,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     enum parse_result ret;
 
 
-    log_debug("GUY carry_over_offset %d", response->carry_over_offset);
+    extra_debug("carry_over_offset %d", response->carry_over_offset);
 
     if (response->carry_over_offset < 0) {
         log_debug("GUY 1 returning RET_ERR");
@@ -997,7 +997,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             // Assume flexible=true because we don't support old versions
             s16 host_size = read_nullable_string_size(pkt, true, &offset);
             if (host_size <= 0) {
-                log_debug("GUY invalid broker host length: %d", host_size);
+                extra_debug("invalid broker host length: %d", host_size);
                 log_debug("GUY returning RET_ERR due to invalid broker host length: %d", host_size);
                 return RET_ERR;
             }
@@ -1882,7 +1882,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     kafka_header.correlation_id = bpf_ntohl(kafka_header.correlation_id);
     kafka_header.client_id_size = bpf_ntohs(kafka_header.client_id_size);
 
-    log_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
+    extra_debug("kafka: kafka_header.api_key: %d api_version: %d", kafka_header.api_key, kafka_header.api_version);
 
     if (!is_valid_kafka_request_header(&kafka_header)) {
         return false;
@@ -1977,6 +1977,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     // Skipping number of entries for now
     if (flexible) {
         if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
+            log_debug("GUY number of topics exceeds max %u", NUM_TOPICS_MAX);
             return false;
         }
     } else {
@@ -2009,6 +2010,9 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
             if (topic_name_result == NULL) {
                 log_debug("GUY map lookup failed for topic_id %02x%02x%02x", topic_id[0], topic_id[1], topic_id[2]);
                 return false;
+            } else {
+                log_debug("GUY map lookup successful for topic_id %02x%02x found in map with topic_name_size %u",
+                    topic_id[0], topic_id[1], topic_name_result->topic_name_size);
             }
 
             // Check is only for the verifier, as we only populate the map with valid values.

@@ -60,19 +60,29 @@ func NewClient(opts Options) (*Client, error) {
 
 // CreateTopic creates a topic named topicName.
 func (c *Client) CreateTopic(topicName string) (kadm.CreateTopicResponse, error) {
-	adminClient := kadm.NewClient(c.Client)
-	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-	responses, err := adminClient.CreateTopics(ctxTimeout, 2, 1, nil, topicName)
-	if len(responses) != 1 {
-		return kadm.CreateTopicResponse{}, fmt.Errorf("expected 1 response, got %d", len(responses))
-	}
-	if err != nil {
+	res, err := c.CreateTopics(topicName)
+	if err != nil || len(res) == 0 {
 		return kadm.CreateTopicResponse{}, err
 	}
 
-	if err := c.waitForLeaders(topicName); err != nil {
-		return kadm.CreateTopicResponse{}, err
+	return res[0], nil
+}
+
+// CreateTopics creates topics named topicName.
+func (c *Client) CreateTopics(topicNames ...string) ([]kadm.CreateTopicResponse, error) {
+	adminClient := kadm.NewClient(c.Client)
+	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+	responses, err := adminClient.CreateTopics(ctxTimeout, 2, 1, nil, topicNames...)
+	if len(responses) != len(topicNames) {
+		return []kadm.CreateTopicResponse{}, fmt.Errorf("expected %d responses, got %d", len(topicNames), len(responses))
+	}
+	if err != nil {
+		return []kadm.CreateTopicResponse{}, err
+	}
+
+	if err := c.waitForLeaders(topicNames...); err != nil {
+		return []kadm.CreateTopicResponse{}, err
 	}
 
 	c.Client.ForceMetadataRefresh()
@@ -81,27 +91,34 @@ func (c *Client) CreateTopic(topicName string) (kadm.CreateTopicResponse, error)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	return responses[topicName], c.Client.Ping(ctx)
+	return responses.Sorted(), c.Client.Ping(ctx)
 }
 
-func (c *Client) waitForLeaders(topicName string) error {
+func (c *Client) waitForLeaders(topicNames ...string) error {
 	admin := kadm.NewClient(c.Client)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	for {
-		meta, err := admin.Metadata(ctx, topicName)
+		meta, err := admin.Metadata(ctx, topicNames...)
 		if err != nil {
 			return err
 		}
-		topicMeta, ok := meta.Topics[topicName]
-		if !ok {
-			return fmt.Errorf("topic %s not found", topicName)
-		}
+
 		allReady := true
-		for _, p := range topicMeta.Partitions {
-			if p.Leader == -1 {
-				allReady = false
+		for _, topicName := range topicNames {
+			topicMeta, ok := meta.Topics[topicName]
+			if !ok {
+				return fmt.Errorf("topic %s not found", topicName)
+			}
+			for _, p := range topicMeta.Partitions {
+				if p.Leader == -1 {
+					allReady = false
+					break
+				}
+			}
+
+			if !allReady {
 				break
 			}
 		}

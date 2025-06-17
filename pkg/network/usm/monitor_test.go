@@ -669,6 +669,7 @@ func cleanMaps(t *testing.T, protocolName string, maps map[string]*ebpf.Map) {
 		if !strings.Contains(name, protocolName) || strings.Contains(name, fmt.Sprintf("%s_batch", protocolName)) {
 			continue
 		}
+		fmt.Println("Cleaning map:", name)
 		cleanMapEntries(t, m)
 	}
 }
