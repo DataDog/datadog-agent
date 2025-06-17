@@ -409,6 +409,26 @@ func (t *Tailer) forwardMessages() {
 
 // computeFingerPrint computes the fingerprint for the file
 func (t *Tailer) computeFingerPrint() uint64 {
+	if t.osFile == nil {
+		log.Warnf("could not open file for fingerprinting %s: file handle is not set", t.file.Path)
+		return 0
+	}
+	currentOffset, err := t.osFile.Seek(0, io.SeekCurrent)
+	if err != nil {
+		log.Warnf("could not get current offset for file %s: %v", t.file.Path, err)
+		return 0
+	}
+	// Whatever happens, seek back to the original offset
+	defer func() {
+		if _, err := t.osFile.Seek(currentOffset, io.SeekStart); err != nil {
+			log.Warnf("could not seek back to original offset for file %s: %v", t.file.Path, err)
+		}
+	}()
+	if _, err := t.osFile.Seek(0, io.SeekStart); err != nil {
+		log.Warnf("could not seek to start of file %s: %v", t.file.Path, err)
+		return 0
+	}
+
 	linesSkipSet := t.fingerprintConfig.linesToSkip != 0
 	bytesSkipSet := t.fingerprintConfig.bytesToSkip != 0
 
@@ -423,27 +443,22 @@ func (t *Tailer) computeFingerPrint() uint64 {
 	// - If maxLines is 0, it implies byte-mode as line-mode is not viable.
 	// - Otherwise, it's line-mode.
 	if bytesSkipSet || t.fingerprintConfig.maxLines == 0 {
-		return t.computeFingerPrintByBytes()
+		return t.computeFingerPrintByBytes(t.osFile)
 	}
 
 	// Line-based fingerprinting mode
-	fingerprint := t.computeFingerPrintByLines()
+	fingerprint := t.computeFingerPrintByLines(t.osFile)
 	if fingerprint == 0 {
 		log.Debugf("Not enough data for line-based fingerprinting of file %q", t.file.Path)
 	}
 	return fingerprint
 }
 
-func (t *Tailer) computeFingerPrintByBytes() uint64 {
-	if t.osFile == nil {
-		log.Warnf("osFile is nil for file %q", t.file.Path)
-		return 0
-	}
-
+func (t *Tailer) computeFingerPrintByBytes(fpFile *os.File) uint64 {
 	fmt.Printf("We are in the byte-based fingerprinting mode\n")
 	// Skip the configured number of bytes
 	if t.fingerprintConfig.bytesToSkip > 0 {
-		bytesSkipped, err := io.CopyN(io.Discard, t.osFile, int64(t.fingerprintConfig.bytesToSkip))
+		bytesSkipped, err := io.CopyN(io.Discard, fpFile, int64(t.fingerprintConfig.bytesToSkip))
 		fmt.Printf("Requested to skip: %d bytes, actually skipped: %d bytes\n", t.fingerprintConfig.bytesToSkip, bytesSkipped)
 
 		if err != nil && err != io.EOF {
@@ -453,7 +468,7 @@ func (t *Tailer) computeFingerPrintByBytes() uint64 {
 	}
 
 	// Create a limited reader for the bytes we want to hash
-	limitedReader := &io.LimitedReader{R: t.osFile, N: int64(t.fingerprintConfig.maxBytes)}
+	limitedReader := &io.LimitedReader{R: fpFile, N: int64(t.fingerprintConfig.maxBytes)}
 
 	// Read up to maxBytes for hashing
 	buffer := make([]byte, t.fingerprintConfig.maxBytes)
@@ -485,8 +500,8 @@ func (t *Tailer) computeFingerPrintByBytes() uint64 {
 	return checksum
 }
 
-func (t *Tailer) computeFingerPrintByLines() uint64 {
-	reader := bufio.NewReader(t.osFile)
+func (t *Tailer) computeFingerPrintByLines(fpFile *os.File) uint64 {
+	reader := bufio.NewReader(fpFile)
 
 	// Skip the configured number of lines
 	for i := 0; i < t.fingerprintConfig.linesToSkip; i++ {

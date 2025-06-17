@@ -497,6 +497,35 @@ func TestFingerprintTestSuite(t *testing.T) {
 	suite.Run(t, new(FingerprintTestSuite))
 }
 
+func (suite *FingerprintTestSuite) TestFingerprintOffsetCorrection() {
+	// 1. Write known content to the file
+	content := "line1\nline2\nline3\nline4\nline5\n"
+	_, err := suite.testFile.WriteString(content)
+	suite.Require().Nil(err)
+
+	// 2. Create a tailer and set it up
+	tailer := suite.createTailerWithConfig(defaultFingerprintConfig())
+	initialOffset := int64(len("line1\nline2\n"))
+	err = tailer.setup(initialOffset, io.SeekStart)
+	suite.Require().Nil(err)
+
+	// 3. Compute the fingerprint
+	tailer.computeFingerPrint()
+
+	// 4. Verify the offset is restored
+	currentOffset, err := tailer.osFile.Seek(0, io.SeekCurrent)
+	suite.Require().Nil(err)
+	suite.Equal(initialOffset, currentOffset, "The file offset should be restored to its initial position after fingerprinting")
+
+	// 5. (Optional but good) Verify reading starts from the correct place
+	go tailer.readForever()
+	tailer.decoder.Start()
+	go tailer.forwardMessages()
+
+	msg := <-tailer.outputChan
+	suite.Equal("line3", string(msg.GetContent()))
+}
+
 func (suite *FingerprintTestSuite) createTailerWithConfig(fpConfig FingerprintConfig) *Tailer {
 	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
