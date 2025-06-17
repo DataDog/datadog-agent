@@ -40,6 +40,7 @@ type udpDriver struct {
 	sentProbes map[probeID]probeData
 }
 
+//nolint:unused // This is used, but not on all platforms yet
 func newUDPDriver(config *UDPv4, sink packets.Sink, source packets.Source) *udpDriver {
 	return &udpDriver{
 		config: config,
