@@ -1,60 +1,24 @@
 ---
-include:
-  - .gitlab/common/container_publish_job_templates.yml
+# deploy cws-instrumentation stage
+# Contains jobs which create child pipelines to deploy CWS Instrumentation to staging repositories and to Dockerhub / GCR.
 
-#
-# CWS Instrumentation image tagging & manifest publication
-#
-
-.deploy_containers-cws-instrumentation-base:
-  extends: .docker_publish_job_definition
+deploy_containers-cws-instrumentation:
   stage: deploy_cws_instrumentation
-  needs:
-    - job: "docker_build_cws_instrumentation_amd64"
-      artifacts: false
-    - job: "docker_build_cws_instrumentation_arm64"
-      artifacts: false
-  before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
-    - if [[ "$CWS_INSTRUMENTATION_REPOSITORY" == "" ]]; then export CWS_INSTRUMENTATION_REPOSITORY="cws-instrumentation"; fi
-    - export IMG_BASE_SRC="${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
-    - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
-    - export IMG_DESTINATIONS="${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}"
+  rules:
+    !reference [.on_deploy]
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    BUCKET_BRANCH: $BUCKET_BRANCH
+  trigger:
+    include: .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation_trigger.yml
 
-.deploy_mutable_cws-instrumentation_tags_base:
-  extends: .docker_publish_job_definition
+deploy_containers-cws-instrumentation-on-failure:
   stage: deploy_cws_instrumentation
-  dependencies: []
-  before_script:
-    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
-    - export IMG_TAG_REFERENCE=${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}
-
-# will push the `7.xx.y-rc.z` tags
-deploy_containers-cws-instrumentation-rc-versioned:
-  extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_manual_auto_on_rc]
-
-# will update the `rc` tag
-deploy_containers-cws-instrumentation-rc-mutable:
-  extends: .deploy_mutable_cws-instrumentation_tags_base
-  rules: !reference [.on_deploy_rc]
-  needs:
-    - job: deploy_containers-cws-instrumentation-rc-versioned
-      artifacts: false
+  rules:
+    !reference [.on_deploy_failure]
   variables:
-    IMG_NEW_TAGS: rc
-
-# will push the `7.xx.y` tags
-deploy_containers-cws-instrumentation-final-versioned:
-  extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_manual_final]
-
-# will update the `latest` tag
-deploy_containers-cws-instrumentation-latest:
-  extends: .deploy_mutable_cws-instrumentation_tags_base
-  rules: !reference [.on_deploy_manual_final]
-  needs:
-    - job: deploy_containers-cws-instrumentation-final-versioned
-      artifacts: false
-  variables:
-    IMG_NEW_TAGS: latest
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    BUCKET_BRANCH: $BUCKET_BRANCH
+    FORCE_MANUAL: "true"
+  trigger:
+    include: .gitlab/deploy_cws_instrumentation/deploy_cws_instrumentation_trigger.yml
