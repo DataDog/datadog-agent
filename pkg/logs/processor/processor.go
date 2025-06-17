@@ -39,6 +39,7 @@ type Processor struct {
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
 	hostname                  hostnameinterface.Component
+	config                    pkgconfigmodel.Reader
 
 	sds sdsProcessor
 
@@ -79,6 +80,7 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 		hostname:                  hostname,
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor("processor"),
+		config:                    cfg,
 
 		sds: sdsProcessor{
 			// will immediately starts buffering if it has been configured as so
@@ -167,6 +169,20 @@ func (p *Processor) run() {
 	}
 }
 
+func (p *Processor) getFailoverAllowlist() (bool, map[string]struct{}) {
+	failoverActive := p.config.GetBool("multi_region_failover.failover_logs")
+	var allowlist map[string]struct{}
+	if failoverActive && p.config.IsConfigured("multi_region_failover.logs_allowlist") {
+		rawList := p.config.GetStringSlice("multi_region_failover.logs_allowlist")
+		allowlist = make(map[string]struct{}, len(rawList))
+		for _, allowed := range rawList {
+			allowlist[allowed] = struct{}{}
+		}
+	}
+
+	return failoverActive, allowlist
+}
+
 func (p *Processor) applySDSReconfiguration(order sds.ReconfigureOrder) {
 	isActive, err := p.sds.scanner.Reconfigure(order)
 	response := sds.ReconfigureResponse{
@@ -243,6 +259,12 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
+
+		failoverActiveForMRF, allowlistForMRF := p.getFailoverAllowlist()
+		failoverActive := failoverActiveForMRF && len(allowlistForMRF) > 0
+		if _, failoverSource := allowlistForMRF[msg.Origin.Service()]; failoverActive && failoverSource {
+			msg.IsMRFAllow = true
+		}
 
 		// encode the message to its final format, it is done in-place
 		if err := p.encoder.Encode(msg, p.GetHostname(msg)); err != nil {

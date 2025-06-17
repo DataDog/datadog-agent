@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -440,6 +442,37 @@ func TestBuffering(t *testing.T) {
 	// make sure it continues to process normally without buffering now
 	p.inputChan <- newMessage([]byte("usual work"), &src, "")
 	messagesDequeue(t, func() bool { return processedMessages.Load() == 4 }, "should continue processing now")
+}
+
+func TestFailoverAllowlist(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("multi_region_failover.failover_logs", true)
+	mockConfig.SetWithoutSource("multi_region_failover.logs_allowlist", []string{"test"})
+
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	sources.NewConfigSources()
+	msg := newMessage([]byte("hello"), source, "")
+	msg.Origin.SetService("test")
+
+	p := &Processor{
+		config: mockConfig,
+	}
+
+	failoverActiveForMRF, allowlistForMRF := p.getFailoverAllowlist()
+	failoverActive := failoverActiveForMRF && len(allowlistForMRF) > 0
+
+	assert.True(t, failoverActiveForMRF)
+	assert.True(t, failoverActive)
+
+	_, serviceInAllowList := allowlistForMRF[msg.Origin.Service()]
+
+	assert.True(t, serviceInAllowList)
+
+	if failoverActive && serviceInAllowList {
+		msg.IsMRFAllow = true
+	}
+
+	assert.True(t, msg.IsMRFAllow)
 }
 
 // messagesDequeue let the other routines being scheduled

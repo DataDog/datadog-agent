@@ -201,6 +201,7 @@ type ParsingExtra struct {
 	IsPartial   bool
 	IsTruncated bool
 	IsMultiLine bool
+	IsMRFAllow  bool
 	Tags        []string
 }
 
