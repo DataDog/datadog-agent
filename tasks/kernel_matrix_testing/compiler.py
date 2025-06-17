@@ -150,9 +150,7 @@ class CompilerImage:
                 f"[-] .git directory not found in {repo_root}, this command needs to be run from a git repository"
             )
         elif not git_dir.is_dir():
-            # incase we are in a worktree, .git will be a file
-            if not git_dir.is_file():
-                raise Exit(f"[-] Unable to recognize .git in {repo_root}.")
+            raise Exit(f"[-] .git directory is not a directory in {repo_root}, git worktrees are not supported")
 
     def exec(
         self,

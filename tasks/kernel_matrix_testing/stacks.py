@@ -41,19 +41,9 @@ ARM_INSTANCE_TYPE = "m6gd.metal"
 
 
 def _get_active_branch_name() -> str:
-    git_dir = Path("./.git")
-    if not git_dir.exists():
-        raise Exit("[-] .git directory not found, this command needs to be run from a git repository")
-
-    if git_dir.is_dir():
-        head_dir = git_dir / "HEAD"
-        with head_dir.open() as f:
-            content = f.read().splitlines()
-    elif git_dir.is_file():  # handle worktrees
-        with git_dir.open() as f:
-            git_info = f.read().rstrip().splitlines()[0].split(":")[1].replace(' ', '')
-            with open(f"{git_info}/HEAD") as f:
-                content = f.read().splitlines()
+    head_dir = Path(".") / ".git" / "HEAD"
+    with head_dir.open() as f:
+        content = f.read().splitlines()
 
     for line in content:
         if line.startswith("ref:"):
