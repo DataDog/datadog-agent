@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/internal/tools/worksynchronizer
 go 1.24.0
 
 require (
-	golang.org/x/mod v0.24.0
+	golang.org/x/mod v0.25.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
