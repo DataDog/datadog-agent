@@ -33,7 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	ipcmock "github.com/DataDog/datadog-agent/comp/ipc/mock"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"

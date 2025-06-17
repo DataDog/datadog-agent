@@ -14,7 +14,7 @@ import (
 	"runtime"
 	"testing"
 
-	ipcmock "github.com/DataDog/datadog-agent/comp/ipc/mock"
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
