@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 )
 
-func (t *TCPv4) getTracerouteDriver() (*tcpDriver, error) {
+func (t *TCPv4) newTracerouteDriver() (*tcpDriver, error) {
 	targetAddr, ok := common.UnmappedAddrFromSlice(t.Target)
 	if !ok {
 		return nil, fmt.Errorf("failed to get netipAddr for target %s", t.Target)

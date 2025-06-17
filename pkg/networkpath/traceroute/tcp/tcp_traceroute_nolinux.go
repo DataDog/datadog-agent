@@ -11,6 +11,6 @@ import (
 	"fmt"
 )
 
-func (*TCPv4) getTracerouteDriver() (*tcpDriver, error) {
+func (*TCPv4) newTracerouteDriver() (*tcpDriver, error) {
 	return nil, fmt.Errorf("TCP getTracerouteDriver is not yet supported on this platform")
 }

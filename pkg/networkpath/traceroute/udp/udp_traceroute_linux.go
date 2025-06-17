@@ -14,7 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 )
 
-func (u *UDPv4) getTracerouteDriver() (*udpDriver, error) {
+//nolint:unused // This is used, but not on all platforms yet
+func (u *UDPv4) newTracerouteDriver() (*udpDriver, error) {
 	targetAddr, ok := common.UnmappedAddrFromSlice(u.Target)
 	if !ok {
 		return nil, fmt.Errorf("failed to get netipAddr for target %s", u.Target)

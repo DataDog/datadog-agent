@@ -24,7 +24,7 @@ func (t *UDPv4) Traceroute() (*common.Results, error) {
 	t.srcPort = uint16(addr.Port)
 
 	// get this platform's tcpDriver implementation
-	driver, err := t.getTracerouteDriver()
+	driver, err := t.newTracerouteDriver()
 	if err != nil {
 		return nil, fmt.Errorf("UDP Traceroute failed to getTracerouteDriver: %w", err)
 	}

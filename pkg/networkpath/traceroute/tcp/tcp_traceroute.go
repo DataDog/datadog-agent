@@ -31,7 +31,7 @@ func (t *TCPv4) Traceroute() (*common.Results, error) {
 	t.srcPort = port
 
 	// get this platform's tcpDriver implementation
-	driver, err := t.getTracerouteDriver()
+	driver, err := t.newTracerouteDriver()
 	if err != nil {
 		return nil, fmt.Errorf("TCP Traceroute failed to getTracerouteDriver: %w", err)
 	}

@@ -11,6 +11,6 @@ import (
 	"fmt"
 )
 
-func (*UDPv4) getTracerouteDriver() (*udpDriver, error) {
+func (*UDPv4) newTracerouteDriver() (*udpDriver, error) {
 	return nil, fmt.Errorf("UDP getTracerouteDriver is not supported on this platform")
 }
