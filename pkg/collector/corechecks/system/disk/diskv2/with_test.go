@@ -48,7 +48,7 @@ func WithFs(c check.Check, fs afero.Fs) check.Check {
 }
 
 // WithStat sets a statFn call on the Check and returns the updated Check.
-func WithStat(c check.Check, f func(path string, st *StatT) error) check.Check {
+func WithStat(c check.Check, f func(string) (StatT, error)) check.Check {
 	c.(*Check).statFn = f
 	return c
 }

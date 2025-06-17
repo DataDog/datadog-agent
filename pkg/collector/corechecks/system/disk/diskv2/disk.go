@@ -115,7 +115,7 @@ func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 }
 
 // StatFunc type alias
-type StatFunc func(path string, st *StatT) error
+type StatFunc func(string) (StatT, error)
 
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {

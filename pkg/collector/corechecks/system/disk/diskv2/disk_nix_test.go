@@ -17,7 +17,6 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -1150,10 +1149,35 @@ func (s *symlinkFs) ReadlinkIfPossible(name string) (string, error) {
 }
 
 func TestResolveRootDeviceFlagTrue(t *testing.T) {
-	fakeStatFn := func(_ string, st *diskv2.StatT) error {
-		dev := unix.Mkdev(8, 1)
-		st.Dev = int32(dev)
-		return nil
+	setupDefaultMocks()
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "/dev/sda1",
+				Mountpoint: "/home",
+				Fstype:     "ext4",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	})
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+resolve_root_device: true
+`))
+
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+	err := diskCheck.Run()
+
+	assert.Nil(t, err)
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})
+}
+
+func TestResolveRootDeviceFlagFalse(t *testing.T) {
+	fakeStatFn := func(_ string) (diskv2.StatT, error) {
+		var st diskv2.StatT
+		st.Dev = int32(134217729)
+		return st, nil
 	}
 	base := afero.NewMemMapFs()
 	fs := newSymlinkFs(base)
@@ -1193,44 +1217,6 @@ UEVENT_SEQNUM=42
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
-resolve_root_device: true
-`))
-
-	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
-	err = diskCheck.Run()
-
-	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})
-}
-
-func TestResolveRootDeviceFlagFalse(t *testing.T) {
-	fakeStatFn := func(_ string, st *diskv2.StatT) error {
-		dev := unix.Mkdev(8, 1)
-		st.Dev = int32(dev)
-		return nil
-	}
-	base := afero.NewMemMapFs()
-	fs := newSymlinkFs(base)
-	err := afero.WriteFile(fs, "/proc/self/mountinfo", []byte(
-		`36 35 8:1 / / rw,relatime - ext4 /dev/root rw,errors=continue
-50 25 0:31 / /mnt/strange\\040name rw,relatime - ext4 /dev/sdd1 rw
-`),
-		0644)
-	assert.Nil(t, err)
-	setupDefaultMocks()
-	diskCheck := createDiskCheck(t)
-	diskCheck = diskv2.WithFs(diskv2.WithStat(diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "/dev/root",
-				Mountpoint: "/home",
-				Fstype:     "ext4",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}), fakeStatFn), fs)
-	m := mocksender.NewMockSender(diskCheck.ID())
-	m.SetupAcceptAll()
-	config := integration.Data([]byte(`
 resolve_root_device: false
 `))
 
@@ -1238,5 +1224,5 @@ resolve_root_device: false
 	err = diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/root", "device_name:root"})
+	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{"device:/dev/sda1", "device_name:sda1"})
 }

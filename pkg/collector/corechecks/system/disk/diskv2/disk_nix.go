@@ -30,7 +30,11 @@ import (
 // StatT type alias
 type StatT = unix.Stat_t
 
-var defaultStatFn StatFunc = unix.Stat
+var defaultStatFn StatFunc = func(path string) (StatT, error) {
+	var st StatT
+	err := unix.Stat(path, &st)
+	return st, err
+}
 
 func defaultIgnoreCase() bool {
 	return false
@@ -263,7 +267,8 @@ type rootFsDeviceFinder struct {
 
 func newRootFsDeviceFinder(fs afero.Fs, statFunc StatFunc) (*rootFsDeviceFinder, error) {
 	var st StatT
-	if err := statFunc("/", &st); err != nil {
+	st, err := statFunc("/")
+	if err != nil {
 		return nil, err
 	}
 	log.Debugf("Major[%v], Minor[%v]", unix.Major(uint64(st.Dev)), unix.Minor(uint64(st.Dev)))

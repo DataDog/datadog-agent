@@ -22,9 +22,7 @@ import (
 // StatT stub.
 type StatT struct{}
 
-func dummyStat(_ string, _ *StatT) error { return nil }
-
-var defaultStatFn StatFunc = dummyStat
+var defaultStatFn StatFunc = func(_ string) (StatT, error) { return StatT{}, nil }
 
 func defaultIgnoreCase() bool {
 	return true
