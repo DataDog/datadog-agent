@@ -2471,6 +2471,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		playSnapShotState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
+		ipc:                  ipc,
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
