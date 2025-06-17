@@ -19,7 +19,6 @@ import (
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/expr-lang/expr"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -41,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
+	"github.com/DataDog/datadog-agent/pkg/util/exprfilter"
 
 	// checks implemented as components
 
@@ -293,13 +293,7 @@ func run(log log.Component,
 	stopCh := make(chan error)
 
 	// Dummy code to pull in the expr dependency
-	prg, _ := expr.Compile("true || false")
-	o, _ := expr.Run(prg, nil)
-	if o != nil {
-		log.Infof("Expression evaluation result: %v", o)
-	} else {
-		log.Warnf("Expression evaluation returned nil, this is unexpected")
-	}
+	exprfilter.DummyCall()
 
 	go func() {
 		// Set up the signals async so we can Start the agent
