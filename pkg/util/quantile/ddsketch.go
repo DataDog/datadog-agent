@@ -40,7 +40,15 @@ func createDDSketchWithSketchMapping(c *Config, inputSketch *ddsketch.DDSketch) 
 		return nil, fmt.Errorf("couldn't create LogarithmicMapping for DDSketch: %w", err)
 	}
 
-	newSketch := inputSketch.ChangeMapping(newMapping, positiveStore, negativeStore, 1.0)
+	var newSketch *ddsketch.DDSketch
+	if inputSketch.GetCount() == 1.0 {
+		// We know the exact value of this one point: it is the sum.
+		// Avoid remapping artifacts in that special case.
+		newSketch = ddsketch.NewDDSketch(newMapping, positiveStore, negativeStore)
+		newSketch.Add(inputSketch.GetSum())
+	} else {
+		newSketch = inputSketch.ChangeMapping(newMapping, positiveStore, negativeStore, 1.0)
+	}
 	return newSketch, nil
 }
 
@@ -65,7 +73,9 @@ func convertFloatCountsToIntCounts(floatKeyCounts []floatKeyCount) ([]KeyCount, 
 		rounded := uint(math.Round(floatTotal)) - intTotal
 		intTotal += rounded
 		// At this point, intTotal == Round(floatTotal)
-		keyCounts = append(keyCounts, KeyCount{k: Key(fkc.k), n: rounded})
+		if rounded > 0 {
+			keyCounts = append(keyCounts, KeyCount{k: Key(fkc.k), n: rounded})
+		}
 	}
 
 	return keyCounts, intTotal
@@ -137,7 +147,9 @@ func convertDDSketchIntoSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sket
 	zeroes += inputSketch.GetZeroCount()
 
 	// Finally, add the 0 key
-	floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: 0, c: zeroes})
+	if zeroes != 0 {
+		floatKeyCounts = append(floatKeyCounts, floatKeyCount{k: 0, c: zeroes})
+	}
 
 	// Generate the integer KeyCount objects from the counts we retrieved
 	keyCounts, cnt := convertFloatCountsToIntCounts(floatKeyCounts)

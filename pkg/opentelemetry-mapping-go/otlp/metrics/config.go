@@ -208,7 +208,8 @@ func WithStatsOut(statsOut chan<- []byte) TranslatorOption {
 
 // InitialCumulMonoValueMode defines what the exporter should do with the initial value
 // of a cumulative monotonic sum when under the 'cumulative_to_delta' mode.
-// It is not used when the mode is 'raw_value'.
+// It also affects the count field for summary metrics.
+// It is not used for cumulative monotonic sums when the mode is 'raw_value'.
 type InitialCumulMonoValueMode string
 
 const (
