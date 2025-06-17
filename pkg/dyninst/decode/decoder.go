@@ -317,7 +317,6 @@ func (d *Decoder) encodeValue(
 			return errors.New("passed data not long enough for slice header")
 		}
 		address := binary.NativeEndian.Uint64(data)
-		sliceLength := binary.NativeEndian.Uint64(data[8:16])
 		elementType := v.Data.ID
 		elementSize := int(v.Data.Element.GetByteSize())
 		sliceDataItem, ok := dataItems[typeAndAddr{
@@ -331,6 +330,7 @@ func (d *Decoder) encodeValue(
 		if err != nil {
 			return err
 		}
+		sliceLength := int(sliceDataItem.Header().Length) / elementSize
 		sliceData := sliceDataItem.Data()
 		for i := range int(sliceLength) {
 			elementData := sliceData[i*elementSize : (i+1)*elementSize]
@@ -347,18 +347,13 @@ func (d *Decoder) encodeValue(
 	case *ir.GoChannelType:
 		return errorUnimplemented
 	case *ir.GoStringHeaderType:
-		var address, length uint64
+		var address uint64
 		for _, field := range v.Fields {
 			if field.Name == "str" {
 				if uint32(field.Type.GetByteSize()) != 8 || len(data) < int(field.Offset+field.Type.GetByteSize()) {
 					return errors.New("malformed string field 'str'")
 				}
 				address = binary.NativeEndian.Uint64(data[field.Offset : field.Offset+uint32(field.Type.GetByteSize())])
-			} else if field.Name == "len" {
-				if field.Type.GetByteSize() != 8 {
-					return errors.New("malformed string field 'len'")
-				}
-				length = binary.NativeEndian.Uint64(data[field.Offset : field.Offset+uint32(field.Type.GetByteSize())])
 			}
 		}
 		stringValue, ok := dataItems[typeAndAddr{
@@ -368,6 +363,7 @@ func (d *Decoder) encodeValue(
 		if !ok {
 			return fmt.Errorf("string content not present in data items")
 		}
+		length := stringValue.Header().Length
 		if len(stringValue.Data()) < int(length) {
 			return errors.New("string content not long enough for known length")
 		}
