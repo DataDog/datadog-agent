@@ -6,7 +6,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.59.0-rc.6
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.1
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.60.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.60.0
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
@@ -27,6 +26,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/structure v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
