@@ -32,7 +32,7 @@ import (
 const (
 	// CheckName is the name of the check
 	CheckName                    = "ntp"
-	defaultMinCollectionInterval = 900 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
+	defaultMinCollectionInterval = 90 // 15 minutes, to follow pool.ntp.org's guidelines on the query rate
 )
 
 var (
@@ -200,9 +200,8 @@ func (c *NTPCheck) Run() error {
 					strings.Join(c.cfg.instance.Hosts, ", "),
 					strings.Join(servers, ", "))
 				c.cfg.instance.Hosts = servers // Update the list of hosts for this run
-			} else {
-				log.Debugf("Re-discovered same NTP servers: [%s]", strings.Join(servers, ", "))
 			}
+			// Silent when no change - removed repetitive debug logging
 		}
 	}
 

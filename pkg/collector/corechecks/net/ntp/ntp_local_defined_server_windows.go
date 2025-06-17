@@ -74,12 +74,14 @@ func getLocalDefinedNTPServers() ([]string, error) {
 		log.Debug("NT5DS detected, attempting PDC discovery")
 
 		// First, try proactive PDC discovery
-		if servers, err := discoverPDC(); err == nil && len(servers) > 0 {
+		servers, err := discoverPDC()
+		if err == nil && len(servers) > 0 {
 			log.Infof("Successfully discovered PDC: %s", strings.Join(servers, ", "))
 			return servers, nil
-		} else {
-			return nil, fmt.Errorf("PDC discovery failed: %v", err)
 		}
+		// If PDC discovery fails, log a warning and fall through to the registry method.
+		// This handles cases where a machine is configured for NT5DS but is off-domain.
+		log.Warnf("PDC discovery failed (%v), falling back to registry NTP servers.", err)
 
 	case "NOSYNC":
 		// Go directly to registry method
