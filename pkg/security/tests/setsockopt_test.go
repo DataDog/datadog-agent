@@ -24,7 +24,7 @@ func TestSetSockOpt(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_setsockopt",
-			Expression: `setsockopt.level == SOL_SOCKET && setsockopt.optname == SO_ATTACH_FILTER && setsockopt.socket_type == 3 && setsockopt.sk_protocol == 6`,
+			Expression: `setsockopt.level == SOL_SOCKET && setsockopt.optname == SO_ATTACH_FILTER && setsockopt.socket_type == 3 && setsockopt.socket_protocol == 6 && setsockopt.socket_family == AF_INET`,
 		},
 	}
 
@@ -90,10 +90,6 @@ func TestSetSockOpt(t *testing.T) {
 				Len:    uint16(len(program)),
 				Filter: &program[0],
 			}
-			// Print structure for debugging
-			fmt.Printf("Len: %d\n", filter.Len)
-			fmt.Printf("Filter: %+v\n", filter)
-
 			_, _, errno := syscall.Syscall6(
 				syscall.SYS_SETSOCKOPT,
 				uintptr(fd),

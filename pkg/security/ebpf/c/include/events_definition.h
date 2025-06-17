@@ -547,8 +547,9 @@ struct setsockopt_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
 
-    int socket_type;
-    u16 sk_protocol; // socket protocol
+    short socket_type;
+    u16 socket_protocol; // socket protocol
+    u16 socket_family;
     int level;
     int optname;
     unsigned short filter_len;
