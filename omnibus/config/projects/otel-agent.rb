@@ -94,7 +94,9 @@ debug_path ".debug"  # the strip symbols will be in here
 # Maintainer names are chosen to match those on agent.rb
 if debian_target?
   maintainer 'Datadog Packages <package@datadoghq.com>'
-  runtime_dependency "datadog-agent (= 1:#{build_version}-1)"
+  # Use sanitized version to ensure it matches the actual version used for datadog-agent
+  safe_version = Omnibus::Packager::DEB::safe_version(build_version)
+  runtime_dependency "datadog-agent (= 1:#{safe_version}-1)"
   runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.4.0)'
 elsif redhat_target? || suse_target?
   maintainer 'Datadog, Inc <package@datadoghq.com>'
