@@ -273,6 +273,7 @@ func TestMultipleProcesses(t *testing.T) {
 	}
 	assert.True(t, found1)
 	assert.True(t, found2)
+	assert.Len(t, p.configCache, 0)
 }
 
 func TestInvalidEvent(t *testing.T) {
@@ -447,14 +448,9 @@ func TestOneProcessMultipleLogFiles(t *testing.T) {
 	changes = p.processEvents(unsetBundle)
 	assert.Len(t, changes.Schedule, 0)
 	assert.Len(t, changes.Unschedule, 2)
-	found1, found2 = false, false
-	for _, config := range changes.Unschedule {
-		if config.Name == "process-123-test-service-gen" {
-			found1 = true
-		}
-	}
-	// both configs have the same name, but different digests. The unschedule logic only uses name.
-	// let's check that both configs are unscheduled
-	assert.True(t, found1)
+	// both configs have the same name, but different digests. The unschedule logic uses ServiceID,
+	// so both configs should be unscheduled.
+	assert.Equal(t, "process-123-test-service-gen", changes.Unschedule[0].Name)
+	assert.Equal(t, "process-123-test-service-gen", changes.Unschedule[1].Name)
 	assert.Len(t, p.configCache, 0)
 }
