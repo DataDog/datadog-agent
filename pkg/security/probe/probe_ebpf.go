@@ -1010,7 +1010,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if err := p.handleNewMount(eventType, event, &event.UnshareMountNS.Mount); err != nil {
+		if err := p.handleNewMount(event, &event.UnshareMountNS.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from unshare mnt ns event: %s", err)
 		}
 		return
@@ -1079,7 +1079,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if err := p.handleNewMount(eventType, event, event.Fsmount.ToMount()); err != nil {
+		if err := p.handleNewMount(event, event.Fsmount.ToMount()); err != nil {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return
 		}
@@ -1089,7 +1089,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-		if err := p.handleNewMount(eventType, event, &event.Mount.Mount); err != nil {
+		if err := p.handleNewMount(event, &event.Mount.Mount); err != nil {
 			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
 			return
 		}
@@ -2009,7 +2009,7 @@ func (p *EBPFProbe) FlushNetworkNamespace(namespace *netns.NetworkNamespace) {
 	p.Resolvers.TCResolver.FlushNetworkNamespaceID(namespace.ID(), p.Manager)
 }
 
-func (p *EBPFProbe) handleNewMount(eventType model.EventType, ev *model.Event, m *model.Mount) error {
+func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// There could be entries of a previous mount_id in the cache for instance,
 	// runc does the following : it bind mounts itself (using /proc/exe/self),
 	// opens a file descriptor on the new file with O_CLOEXEC then umount the bind mount using
@@ -2019,7 +2019,7 @@ func (p *EBPFProbe) handleNewMount(eventType model.EventType, ev *model.Event, m
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
 	// fsmount mounts a detached mountpoint, therefore there's no mount point and the root is always "/"
-	if eventType != model.FileFsmountEventType {
+	if m.Origin != model.MountOriginFsmount {
 		// Resolve mount point
 		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
 			return fmt.Errorf("failed to set mount point: %w", err)
