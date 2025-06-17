@@ -5765,29 +5765,14 @@
       "experimental": false,
       "properties": [
         {
-          "name": "setsockopt.filter.code",
-          "definition": "Socket filter code",
-          "property_doc_link": "setsockopt-filter-code-doc"
+          "name": "setsockopt.filter",
+          "definition": "Socket filter",
+          "property_doc_link": "setsockopt-filter-doc"
         },
         {
-          "name": "setsockopt.filter.jf",
-          "definition": "Socket filter jump false",
-          "property_doc_link": "setsockopt-filter-jf-doc"
-        },
-        {
-          "name": "setsockopt.filter.jt",
-          "definition": "Socket filter jump true",
-          "property_doc_link": "setsockopt-filter-jt-doc"
-        },
-        {
-          "name": "setsockopt.filter.k",
-          "definition": "Socket filter constant",
-          "property_doc_link": "setsockopt-filter-k-doc"
-        },
-        {
-          "name": "setsockopt.filter.length",
-          "definition": "Length of the corresponding element",
-          "property_doc_link": "common-string-length-doc"
+          "name": "setsockopt.filter_hash",
+          "definition": "Hash of the socket filter",
+          "property_doc_link": "setsockopt-filter_hash-doc"
         },
         {
           "name": "setsockopt.filter_len",
@@ -5810,9 +5795,14 @@
           "property_doc_link": "common-syscallevent-retval-doc"
         },
         {
-          "name": "setsockopt.sk_protocol",
+          "name": "setsockopt.socket_family",
+          "definition": "Socket family",
+          "property_doc_link": "setsockopt-socket_family-doc"
+        },
+        {
+          "name": "setsockopt.socket_protocol",
           "definition": "Socket protocol",
-          "property_doc_link": "setsockopt-sk_protocol-doc"
+          "property_doc_link": "setsockopt-socket_protocol-doc"
         },
         {
           "name": "setsockopt.socket_type",
@@ -8968,7 +8958,6 @@
         "rename.file.path",
         "rmdir.file.name",
         "rmdir.file.path",
-        "setsockopt.filter",
         "setxattr.file.name",
         "setxattr.file.path",
         "signal.target.ancestors",
@@ -11086,48 +11075,24 @@
       "examples": []
     },
     {
-      "name": "setsockopt.filter.code",
-      "link": "setsockopt-filter-code-doc",
-      "type": "int",
-      "definition": "Socket filter code",
+      "name": "setsockopt.filter",
+      "link": "setsockopt-filter-doc",
+      "type": "string",
+      "definition": "Socket filter",
       "prefixes": [
-        "setsockopt.filter"
+        "setsockopt"
       ],
       "constants": "",
       "constants_link": "",
       "examples": []
     },
     {
-      "name": "setsockopt.filter.jf",
-      "link": "setsockopt-filter-jf-doc",
-      "type": "int",
-      "definition": "Socket filter jump false",
+      "name": "setsockopt.filter_hash",
+      "link": "setsockopt-filter_hash-doc",
+      "type": "string",
+      "definition": "Hash of the socket filter",
       "prefixes": [
-        "setsockopt.filter"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "setsockopt.filter.jt",
-      "link": "setsockopt-filter-jt-doc",
-      "type": "int",
-      "definition": "Socket filter jump true",
-      "prefixes": [
-        "setsockopt.filter"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "setsockopt.filter.k",
-      "link": "setsockopt-filter-k-doc",
-      "type": "int",
-      "definition": "Socket filter constant",
-      "prefixes": [
-        "setsockopt.filter"
+        "setsockopt"
       ],
       "constants": "",
       "constants_link": "",
@@ -11170,8 +11135,20 @@
       "examples": []
     },
     {
-      "name": "setsockopt.sk_protocol",
-      "link": "setsockopt-sk_protocol-doc",
+      "name": "setsockopt.socket_family",
+      "link": "setsockopt-socket_family-doc",
+      "type": "int",
+      "definition": "Socket family",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.socket_protocol",
+      "link": "setsockopt-socket_protocol-doc",
       "type": "int",
       "definition": "Socket protocol",
       "prefixes": [

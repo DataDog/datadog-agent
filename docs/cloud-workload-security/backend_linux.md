@@ -151,35 +151,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "BPFEventSerializer serializes a BPF event to JSON"
         },
-        "BPFFilter": {
-            "properties": {
-                "code": {
-                    "type": "integer",
-                    "description": "code is the BPF filter code"
-                },
-                "jt": {
-                    "type": "integer",
-                    "description": "jt is the BPF filter jmp true"
-                },
-                "jf": {
-                    "type": "integer",
-                    "description": "jf is the BPF filter jmp false"
-                },
-                "k": {
-                    "type": "integer",
-                    "description": "k is the BPF filter k value"
-                }
-            },
-            "additionalProperties": false,
-            "type": "object",
-            "required": [
-                "code",
-                "jt",
-                "jf",
-                "k"
-            ],
-            "description": "BPFFilterSerializer serializes a BPF filter to JSON"
-        },
         "BPFMap": {
             "properties": {
                 "name": {
@@ -1696,9 +1667,13 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "integer",
                     "description": "Socket file descriptor"
                 },
-                "sk_protocol": {
+                "socket_protocol": {
                     "type": "integer",
                     "description": "Socket protocol"
+                },
+                "socket_family": {
+                    "type": "integer",
+                    "description": "Socket family"
                 },
                 "level": {
                     "type": "integer",
@@ -1713,18 +1688,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "description": "Length of the filter"
                 },
                 "filter": {
-                    "items": {
-                        "$ref": "#/$defs/BPFFilter"
-                    },
-                    "type": "array",
+                    "type": "string",
                     "description": "Filter data"
+                },
+                "filter_hash": {
+                    "type": "string",
+                    "description": "Filter Hash"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
                 "socket_type",
-                "sk_protocol",
+                "socket_protocol",
+                "socket_family",
                 "level",
                 "optname",
                 "filter_len"
@@ -2356,50 +2333,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ---------- |
 | [BPFMap](#bpfmap) |
 | [BPFProgram](#bpfprogram) |
-
-## `BPFFilter`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "properties": {
-        "code": {
-            "type": "integer",
-            "description": "code is the BPF filter code"
-        },
-        "jt": {
-            "type": "integer",
-            "description": "jt is the BPF filter jmp true"
-        },
-        "jf": {
-            "type": "integer",
-            "description": "jf is the BPF filter jmp false"
-        },
-        "k": {
-            "type": "integer",
-            "description": "k is the BPF filter k value"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "required": [
-        "code",
-        "jt",
-        "jf",
-        "k"
-    ],
-    "description": "BPFFilterSerializer serializes a BPF filter to JSON"
-}
-
-{{< /code-block >}}
-
-| Field | Description |
-| ----- | ----------- |
-| `code` | code is the BPF filter code |
-| `jt` | jt is the BPF filter jmp true |
-| `jf` | jf is the BPF filter jmp false |
-| `k` | k is the BPF filter k value |
-
 
 ## `BPFMap`
 
@@ -4661,9 +4594,13 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer",
             "description": "Socket file descriptor"
         },
-        "sk_protocol": {
+        "socket_protocol": {
             "type": "integer",
             "description": "Socket protocol"
+        },
+        "socket_family": {
+            "type": "integer",
+            "description": "Socket family"
         },
         "level": {
             "type": "integer",
@@ -4678,18 +4615,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             "description": "Length of the filter"
         },
         "filter": {
-            "items": {
-                "$ref": "#/$defs/BPFFilter"
-            },
-            "type": "array",
+            "type": "string",
             "description": "Filter data"
+        },
+        "filter_hash": {
+            "type": "string",
+            "description": "Filter Hash"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
         "socket_type",
-        "sk_protocol",
+        "socket_protocol",
+        "socket_family",
         "level",
         "optname",
         "filter_len"
@@ -4702,11 +4641,13 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `socket_type` | Socket file descriptor |
-| `sk_protocol` | Socket protocol |
+| `socket_protocol` | Socket protocol |
+| `socket_family` | Socket family |
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
 | `filter_len` | Length of the filter |
 | `filter` | Filter data |
+| `filter_hash` | Filter Hash |
 
 
 ## `SignalEvent`

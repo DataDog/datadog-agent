@@ -65,14 +65,15 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     event->syscall.retval = retval;
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
     event->socket_type = syscall->setsockopt.socket_type;
-    event->sk_protocol = syscall->setsockopt.sk_protocol;
+    event->socket_protocol = syscall->setsockopt.socket_protocol;
+    event->socket_family = syscall->setsockopt.socket_family;
     event->level = syscall->setsockopt.level;
     event->optname = syscall->setsockopt.optname;
     event->filter_len = syscall->setsockopt.filter_len;
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_container_context(entry, &event->container);
     fill_span_context(&event->span);
-    
+
     if (syscall->setsockopt.filter_len > MAX_BPF_FILTER_LEN){
         return 0;
     }
@@ -167,7 +168,7 @@ int hook_security_socket_setsockopt(ctx_t *ctx) {
     }
     // We assume that optname is always SO_ATTACH_FILTER
     struct socket *sock = (struct socket *)CTX_PARM1(ctx);
-    short socket_type = 0;
+    short socket_type;
     bpf_probe_read(&socket_type, sizeof(socket_type), &sock->type);
     if (socket_type) {
         syscall->setsockopt.socket_type = socket_type;
@@ -246,9 +247,12 @@ int hook_release_sock(ctx_t *ctx) {
         return 0;
     } // checkez ça pour sk
     struct sock *sk = (struct sock *)CTX_PARM1(ctx);
-    u16 sk_protocol;
-    bpf_probe_read(&sk_protocol, sizeof(u16), &(sk->sk_protocol));
-    syscall->setsockopt.sk_protocol = sk_protocol;
+    struct sock_common *sockcommon = (void *)sk;
+    u16 socket_family = get_family_from_sock_common(sockcommon);
+    u16 socket_protocol;
+    bpf_probe_read(&socket_protocol, sizeof(u16), &(sk->sk_protocol));
+    syscall->setsockopt.socket_protocol = socket_protocol;
+    syscall->setsockopt.socket_family = socket_family;
 
 
     // bpf_printk("ENTRY RELEASE_SOCK | Fprog ptr sent in cache: %p", syscall->setsockopt.fprog);

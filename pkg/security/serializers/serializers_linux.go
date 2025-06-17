@@ -546,17 +546,21 @@ type SyscallArgsSerializer struct {
 // easyjson:json
 type SetSockOptEventSerializer struct {
 	// Socket file descriptor
-	Socket_type uint32 `json:"socket_type"`
+	SocketType uint16 `json:"socket_type"`
 	// Socket protocol
-	Sk_protocol uint16 `json:"sk_protocol"`
+	SocketProtocol uint16 `json:"socket_protocol"`
+	// Socket family
+	SocketFamily uint16 `json:"socket_family"`
 	// Level at which the option is defined
 	Level uint32 `json:"level"`
 	// Name of the option being set
 	OptName uint32 `json:"optname"`
 	// Length of the filter
-	Filter_len uint16 `json:"filter_len"`
+	FilterLen uint16 `json:"filter_len"`
 	// Filter data
-	Filter []*BPFFilterSerializer `json:"filter,omitempty"`
+	Filter string `json:"filter,omitempty"`
+	//Filter Hash
+	FilterHash string `json:"filter_hash,omitempty"`
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
@@ -1274,27 +1278,19 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 	}
 }
 
-func newFilterSerializer(filter *model.SockFilter, e *model.Event) *BPFFilterSerializer {
-	return &BPFFilterSerializer{
-		Code: filter.Code,
-		Jt:   filter.Jt,
-		Jf:   filter.Jf,
-		K:    filter.K,
-	}
-}
-
-func newSetSockOptEventSerializer(se *model.SetSockOptEvent, e *model.Event) *SetSockOptEventSerializer {
+func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	s := &SetSockOptEventSerializer{
-		Socket_type: e.SetSockOpt.Socket_type,
-		Sk_protocol: e.SetSockOpt.Sk_protocol,
-		Level:       e.SetSockOpt.Level,
-		OptName:     e.SetSockOpt.OptName,
-		Filter_len:  e.SetSockOpt.Filter_len,
-	}
-	for _, filter := range se.Filter {
-		s.Filter = append(s.Filter, newFilterSerializer(&filter, e))
+		SocketType:     e.SetSockOpt.Socket_type,
+		SocketProtocol: e.SetSockOpt.Socket_protocol,
+		SocketFamily:   e.SetSockOpt.Socket_family,
+		Level:          e.SetSockOpt.Level,
+		OptName:        e.SetSockOpt.OptName,
+		FilterLen:      e.SetSockOpt.Filter_len,
+		Filter:         e.SetSockOpt.Filter,
+		FilterHash:     e.SetSockOpt.Filter_hash,
 	}
 	return s
+
 }
 
 // ToJSON returns json
@@ -1598,7 +1594,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.SysCtlEventSerializer = newSysCtlEventSerializer(&event.SysCtl, event)
 	case model.SetSockOptEventType:
-		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(&event.SetSockOpt, event)
+		s.SetSockOptEventSerializer = newSetSockOptEventSerializer(event)
 	}
 
 	return s
