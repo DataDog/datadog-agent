@@ -124,6 +124,8 @@ ot_agent_rpm-amd64:
   variables:
     DD_PROJECT: otel-agent
     PACKAGE_REQUIRED_FILES_LIST: ""
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
 
 ot_agent_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_arm64]
@@ -131,6 +133,8 @@ ot_agent_rpm-arm64:
   variables:
     DD_PROJECT: otel-agent
     PACKAGE_REQUIRED_FILES_LIST: ""
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
 
 ot_agent_suse_rpm-amd64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
@@ -138,6 +142,8 @@ ot_agent_suse_rpm-amd64:
   variables:
     DD_PROJECT: otel-agent
     PACKAGE_REQUIRED_FILES_LIST: ""
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
 
 ot_agent_suse_rpm-arm64:
   extends: [.package_suse_rpm_common, .package_rpm_arm64]
@@ -145,6 +151,8 @@ ot_agent_suse_rpm-arm64:
   variables:
     DD_PROJECT: otel-agent
     PACKAGE_REQUIRED_FILES_LIST: ""
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
 
 installer_rpm-arm64:
   extends: [.package_rpm_common, .package_rpm_arm64]
