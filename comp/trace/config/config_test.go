@@ -2301,6 +2301,7 @@ func TestSetConfigHandler(t *testing.T) {
 	// Refuse non POST query
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/config", nil)
+	req.Header.Set("Authorization", "Bearer "+ipcComp.GetAuthToken())
 	handler(resp, req)
 	assert.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
