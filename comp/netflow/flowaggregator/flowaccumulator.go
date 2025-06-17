@@ -6,14 +6,16 @@
 package flowaggregator
 
 import (
+	"fmt"
 	"sync"
 	"time"
+
+	"go.uber.org/atomic"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
-	"go.uber.org/atomic"
 )
 
 var timeNow = time.Now
@@ -45,11 +47,10 @@ type flowAccumulator struct {
 	rdnsQuerier rdnsquerier.Component
 }
 
-func newFlowContext(flow *common.Flow) flowContext {
-	now := timeNow()
+func newFlowContext(flow *common.Flow, now time.Time, flowFlushInterval time.Duration) flowContext {
 	return flowContext{
 		flow:      flow,
-		nextFlush: now,
+		nextFlush: now.Add(flowFlushInterval),
 	}
 }
 
@@ -84,6 +85,7 @@ func (f *flowAccumulator) flush() []*common.Flow {
 	var flowsToFlush []*common.Flow
 	for key, flowCtx := range f.flows {
 		now := timeNow()
+		fmt.Println("now", now)
 		if flowCtx.flow == nil && (flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now)) {
 			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
@@ -125,7 +127,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
-		f.flows[aggHash] = newFlowContext(flowToAdd)
+		now := timeNow
+		fmt.Println("now", now())
+		f.flows[aggHash] = newFlowContext(flowToAdd, now(), f.flowFlushInterval)
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}

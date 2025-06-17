@@ -8,14 +8,16 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -234,14 +236,14 @@ func (agg *FlowAggregator) flushLoop() {
 			return
 		// automatic flush sequence
 		case <-flushFlowsToSendTicker:
-			now := time.Now()
+			now := agg.TimeNowFunction()
 			if !lastFlushTime.IsZero() {
 				flushInterval := now.Sub(lastFlushTime)
 				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
 			}
 			lastFlushTime = now
 
-			flushStartTime := time.Now()
+			flushStartTime := agg.TimeNowFunction()
 			agg.flush()
 			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
 			agg.sender.Commit()
@@ -256,6 +258,7 @@ func (agg *FlowAggregator) flushLoop() {
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := agg.TimeNowFunction()
+	fmt.Println("flushTime", flushTime)
 	flowsToFlush := agg.flowAcc.flush()
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
