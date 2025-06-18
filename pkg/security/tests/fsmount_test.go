@@ -77,7 +77,7 @@ func TestFsmount(t *testing.T) {
 
 		fsfd, err := unix.Fsopen("tmpfs", 0)
 		if err != nil {
-			assert.Fail(t, "fsopen failed")
+			t.Skip("This kernel doesn't have the new mount api")
 			return
 		}
 		defer unix.Close(fsfd)
