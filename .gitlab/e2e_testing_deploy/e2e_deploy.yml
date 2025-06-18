@@ -33,8 +33,8 @@
   - popd
 
 .setup_signing: &setup_signing
-  - aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/release/gpg-vault-v1.1.0-linux-amd64.tar.gz .
-  - tar -xzf gpg-vault-v1.1.0-linux-amd64.tar.gz
+  - aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/dev/gpg-vault-v1.2.0-linux-amd64.tar.gz .
+  - tar -xzf gpg-vault-v1.2.0-linux-amd64.tar.gz
   - mv gpg-vault-linux-amd64 /usr/bin/gpg-vault
 
   # Set up gpg shim
