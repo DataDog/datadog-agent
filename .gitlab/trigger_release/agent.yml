@@ -15,6 +15,8 @@
     RELEASE_PRODUCT: datadog-agent
   script:
     - !reference [.setup_dd_pkg]
+    - echo $BUCKET_BRANCH
+    - echo $CI_COMMIT_TAG
     - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format)-1" || exit $?; export RELEASE_VERSION
     - GITLAB_TOKEN="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api)" || exit $?; export GITLAB_TOKEN
     - |-
