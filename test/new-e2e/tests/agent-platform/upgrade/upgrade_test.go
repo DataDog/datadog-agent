@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -94,6 +95,7 @@ func (is *upgradeSuite) TestUpgrade() {
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 	is.SetupAgentStartVersion(VMclient)
 	is.UpgradeAgentVersion(VMclient)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
 	is.CheckUpgradeAgentInstallation(VMclient)
 }
 
