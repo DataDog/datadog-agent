@@ -119,7 +119,9 @@ func SetupDatabricks(s *common.Setup) error {
 	}
 	s.Span.SetTag("install_method", installMethod)
 
-	setupGPUIntegration(s)
+	if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+		setupGPUIntegration(s)
+	}
 
 	switch os.Getenv("DB_IS_DRIVER") {
 	case "TRUE":
@@ -226,11 +228,7 @@ func setClearHostTag(s *common.Setup, tagKey, value string) {
 
 // setupGPUIntegration configures GPU monitoring integration
 func setupGPUIntegration(s *common.Setup) {
-	if os.Getenv("DD_GPU_MONITORING_ENABLED") != "true" {
-		return
-	}
-
-	s.Out.WriteString("GPU monitoring enabled via GPU_MONITORING_ENABLED environment variable\n")
+	s.Out.WriteString("Setting up GPU monitoring based on env variable GPU_MONITORING_ENABLED=true\n")
 
 	s.Config.DatadogYAML.CollectGPUTags = true
 	s.Config.DatadogYAML.EnableNVMLDetection = true
@@ -245,7 +243,6 @@ func setupGPUIntegration(s *common.Setup) {
 	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
 
 	// Agent must be restarted after NVML initialization, which occurs after init script execution
-	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", gpuIntegrationRestartDelay))
 	s.DelayedAgentRestartConfig.Scheduled = true
 	s.DelayedAgentRestartConfig.Delay = gpuIntegrationRestartDelay
 	s.DelayedAgentRestartConfig.LogFile = restartLogFile

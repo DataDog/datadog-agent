@@ -568,7 +568,9 @@ func TestSetupGPUIntegration(t *testing.T) {
 				},
 			}
 
-			setupGPUIntegration(s)
+			if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+				setupGPUIntegration(s)
+			}
 
 			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
 			assert.Equal(t, tt.expectedEnableNVML, s.Config.DatadogYAML.EnableNVMLDetection)
