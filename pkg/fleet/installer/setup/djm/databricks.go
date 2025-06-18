@@ -246,8 +246,9 @@ func setupGPUIntegration(s *common.Setup) {
 
 	// Agent must be restarted after NVML initialization, which occurs after init script execution
 	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", gpuIntegrationRestartDelay))
-	common.ScheduleDelayedAgentRestart(s, gpuIntegrationRestartDelay, restartLogFile)
-	s.Out.WriteString("Restart scheduled\n")
+	s.DelayedAgentRestartConfig.Scheduled = true
+	s.DelayedAgentRestartConfig.Delay = gpuIntegrationRestartDelay
+	s.DelayedAgentRestartConfig.LogFile = restartLogFile
 }
 
 func setupDatabricksDriver(s *common.Setup) {

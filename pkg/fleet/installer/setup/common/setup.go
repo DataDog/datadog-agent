@@ -43,13 +43,14 @@ type Setup struct {
 	start     time.Time
 	flavor    string
 
-	Out                     *Output
-	Env                     *env.Env
-	Ctx                     context.Context
-	Span                    *telemetry.Span
-	Packages                Packages
-	Config                  config.Config
-	DdAgentAdditionalGroups []string
+	Out                       *Output
+	Env                       *env.Env
+	Ctx                       context.Context
+	Span                      *telemetry.Span
+	Packages                  Packages
+	Config                    config.Config
+	DdAgentAdditionalGroups   []string
+	DelayedAgentRestartConfig config.DelayedAgentRestartConfig
 }
 
 // NewSetup creates a new Setup structure with some default values.
@@ -140,6 +141,9 @@ func (s *Setup) Run() (err error) {
 	err = s.restartServices(packages)
 	if err != nil {
 		return fmt.Errorf("failed to restart services: %w", err)
+	}
+	if s.DelayedAgentRestartConfig.Scheduled {
+		ScheduleDelayedAgentRestart(s, s.DelayedAgentRestartConfig.Delay, s.DelayedAgentRestartConfig.LogFile)
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
