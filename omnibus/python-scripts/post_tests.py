@@ -29,6 +29,7 @@ class TestPost(unittest.TestCase):
         os.rmdir(install_directory)
         os.rmdir(storage_location)
 
+    @unittest.skipIf(os.name == "nt", "windows is behavior is tested separately")
     def test_post_with_empty_files(self):
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
