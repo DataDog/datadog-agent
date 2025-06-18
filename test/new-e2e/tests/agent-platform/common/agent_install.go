@@ -54,10 +54,10 @@ func CheckInstallationMajorAgentVersion(t *testing.T, client *TestClient, expect
 			versionRegexPattern := regexp.MustCompile(`(?m:^(IoT )?Agent \(v([0-9]).*\)$)`)
 			tmpCmd := fmt.Sprintf("sudo %s status", client.Helper.GetBinaryPath())
 			output, err := client.ExecuteWithRetry(tmpCmd)
-			require.NoError(tt, err, "datadog-agent status failed")
+			require.NoError(c, err, "datadog-agent status failed")
 			matchList := versionRegexPattern.FindStringSubmatch(output)
-			require.NotEmpty(tt, matchList, "wasn't able to retrieve datadog-agent major version on the following output : %s", output)
-			require.True(tt, matchList[2] == expectedVersion, "Expected datadog-agent major version %s got %s", expectedVersion, matchList[2])
+			require.NotEmpty(c, matchList, "wasn't able to retrieve datadog-agent major version on the following output : %s", output)
+			require.True(c, matchList[2] == expectedVersion, "Expected datadog-agent major version %s got %s", expectedVersion, matchList[2])
 		}, 2*time.Minute, 5*time.Second)
 	})
 }
