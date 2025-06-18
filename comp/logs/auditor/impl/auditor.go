@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
@@ -27,6 +28,7 @@ const defaultCleanupPeriod = 300 * time.Second
 
 // latest version of the API used by the auditor to retrieve the registry from disk.
 const registryAPIVersion = 2
+const registryAPIVersionFingerprint = 3
 
 // defaultRegistryFilename is the default registry filename
 const defaultRegistryFilename = "registry.json"
@@ -38,12 +40,29 @@ type RegistryEntry struct {
 	Offset             string
 	TailingMode        string
 	IngestionTimestamp int64
+	FilePath           string
 }
 
 // JSONRegistry represents the registry that will be written on disk
 type JSONRegistry struct {
 	Version  int
 	Registry map[string]RegistryEntry
+}
+
+// JSONRegistryV3 represents the V3 registry that will be written on disk
+type JSONRegistryV3 struct {
+	Version  int
+	Registry map[string]RegistryEntryV3
+}
+
+// RegistryEntryV3 represents a V3 entry in the registry where we keep track
+// of current offsets
+type RegistryEntryV3 struct {
+	LastUpdated        time.Time `json:"LastUpdated"`
+	Offset             int64     `json:"Offset"`
+	TailingMode        string    `json:"TailingMode"`
+	IngestionTimestamp int64     `json:"IngestionTimestamp"`
+	FilePath           string    `json:"FilePath"`
 }
 
 // A registryAuditor is storing the Auditor information using a registry.
@@ -205,7 +224,7 @@ func (a *registryAuditor) run() {
 			}
 			// update the registry with the new entry
 			for _, msg := range payload.MessageMetas {
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp)
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.FilePath)
 			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry
@@ -260,7 +279,7 @@ func (a *registryAuditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry entry matching identifier with the new offset and timestamp
-func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64) {
+func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, filePath string) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -277,12 +296,22 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 			return
 		}
 	}
-
-	a.registry[identifier] = &RegistryEntry{
-		LastUpdated:        time.Now().UTC(),
-		Offset:             offset,
-		TailingMode:        tailingMode,
-		IngestionTimestamp: ingestionTimestamp,
+	fingerprintEnabled := pkgconfigsetup.Datadog().GetBool("logs_config.enable_experimental_fingerprint")
+	if fingerprintEnabled {
+		a.registry[identifier] = &RegistryEntry{
+			LastUpdated:        time.Now().UTC(),
+			Offset:             offset,
+			TailingMode:        tailingMode,
+			IngestionTimestamp: ingestionTimestamp,
+			FilePath:           filePath,
+		}
+	} else {
+		a.registry[identifier] = &RegistryEntry{
+			LastUpdated:        time.Now().UTC(),
+			Offset:             offset,
+			TailingMode:        tailingMode,
+			IngestionTimestamp: ingestionTimestamp,
+		}
 	}
 }
 

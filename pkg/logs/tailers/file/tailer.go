@@ -23,8 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
@@ -32,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // FingerprintConfig is the configuration for the fingerprinting algorithm
@@ -142,6 +141,7 @@ type Tailer struct {
 	PipelineMonitor metrics.PipelineMonitor
 
 	fingerprintConfig FingerprintConfig
+	fingerprint       uint64
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -211,6 +211,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		movingSum:              movingSum,
 		PipelineMonitor:        opts.PipelineMonitor,
 		fingerprintConfig:      fingerprintConfig,
+		fingerprint:            0,
 	}
 
 	if fileRotated {
@@ -253,6 +254,10 @@ func (t *Tailer) Identifier() string {
 	//
 	// This is the identifier used in the registry, so changing it will invalidate existing
 	// registry entries on upgrade.
+	fingerprintEnabled := pkgconfigsetup.Datadog().GetBool("logs_config.enable_experimental_fingerprint")
+	if fingerprintEnabled && t.fingerprint != 0 { //if fingerprint is enabled and valid, return the fingerprint
+		return fmt.Sprintf("fingerprint:%d", t.fingerprint)
+	}
 	return fmt.Sprintf("file:%s", t.file.Path)
 }
 
@@ -266,7 +271,7 @@ func (t *Tailer) Start(offset int64, whence int) error {
 	t.file.Source.Status().Success()
 	t.file.Source.AddInput(t.file.Path)
 
-	t.computeFingerPrint()
+	t.fingerprint = t.ComputeFingerPrint() // store current fingerprint
 
 	go t.forwardMessages()
 	t.decoder.Start()
@@ -383,6 +388,7 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
+		origin.FilePath = t.file.Path
 
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
@@ -407,27 +413,14 @@ func (t *Tailer) forwardMessages() {
 	}
 }
 
-// computeFingerPrint computes the fingerprint for the file
-func (t *Tailer) computeFingerPrint() uint64 {
-	if t.osFile == nil {
-		log.Warnf("could not open file for fingerprinting %s: file handle is not set", t.file.Path)
-		return 0
-	}
-	currentOffset, err := t.osFile.Seek(0, io.SeekCurrent)
+// ComputeFingerPrint computes the fingerprint for the file
+func (t *Tailer) ComputeFingerPrint() uint64 {
+	fpFile, err := os.Open(t.file.Path)
 	if err != nil {
-		log.Warnf("could not get current offset for file %s: %v", t.file.Path, err)
+		log.Warnf("could not open file for fingerprinting %s: %v", t.file.Path, err)
 		return 0
 	}
-	// Whatever happens, seek back to the original offset
-	defer func() {
-		if _, err := t.osFile.Seek(currentOffset, io.SeekStart); err != nil {
-			log.Warnf("could not seek back to original offset for file %s: %v", t.file.Path, err)
-		}
-	}()
-	if _, err := t.osFile.Seek(0, io.SeekStart); err != nil {
-		log.Warnf("could not seek to start of file %s: %v", t.file.Path, err)
-		return 0
-	}
+	defer fpFile.Close()
 
 	linesSkipSet := t.fingerprintConfig.linesToSkip != 0
 	bytesSkipSet := t.fingerprintConfig.bytesToSkip != 0
@@ -443,11 +436,11 @@ func (t *Tailer) computeFingerPrint() uint64 {
 	// - If maxLines is 0, it implies byte-mode as line-mode is not viable.
 	// - Otherwise, it's line-mode.
 	if bytesSkipSet || t.fingerprintConfig.maxLines == 0 {
-		return t.computeFingerPrintByBytes(t.osFile)
+		return t.computeFingerPrintByBytes(fpFile)
 	}
 
 	// Line-based fingerprinting mode
-	fingerprint := t.computeFingerPrintByLines(t.osFile)
+	fingerprint := t.computeFingerPrintByLines(fpFile)
 	if fingerprint == 0 {
 		log.Debugf("Not enough data for line-based fingerprinting of file %q", t.file.Path)
 	}

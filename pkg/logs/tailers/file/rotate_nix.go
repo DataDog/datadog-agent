@@ -52,3 +52,17 @@ func (t *Tailer) DidRotate() (bool, error) {
 
 	return recreated || truncated, nil
 }
+
+func (t *Tailer) DidRotateViaFingerprint() (bool, error) {
+	f, err := filesystem.OpenShared(t.fullpath)
+	if err != nil {
+		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
+	}
+	defer f.Close()
+	//get current fingerprint of tailer
+	//compare to the fingerprint in the registry
+	//if they are different, return true
+	//if they are the same, return false
+
+	return false, nil
+}

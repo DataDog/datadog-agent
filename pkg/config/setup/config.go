@@ -1541,6 +1541,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
+	// enable experimental fingerprinting
+	config.BindEnvAndSetDefault("logs_config.enable_experimental_fingerprint", false)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 

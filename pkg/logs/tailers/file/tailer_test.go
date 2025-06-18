@@ -510,7 +510,7 @@ func (suite *FingerprintTestSuite) TestFingerprintOffsetCorrection() {
 	suite.Require().Nil(err)
 
 	// 3. Compute the fingerprint
-	tailer.computeFingerPrint()
+	tailer.ComputeFingerPrint()
 
 	// 4. Verify the offset is restored
 	currentOffset, err := tailer.osFile.Seek(0, io.SeekCurrent)
@@ -578,7 +578,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -618,7 +618,7 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -662,7 +662,7 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -700,7 +700,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -723,7 +723,7 @@ func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -755,7 +755,7 @@ func (suite *FingerprintTestSuite) TestLineBased_InsufficientData() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -788,7 +788,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip1() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -818,7 +818,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip_InvalidNotEnoughData()
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -850,7 +850,7 @@ func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -879,7 +879,7 @@ func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -913,7 +913,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip3() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -943,7 +943,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip2() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -976,7 +976,7 @@ func (suite *FingerprintTestSuite) TestLineBased_NoSkip() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -1009,7 +1009,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip5() {
 	tailer.osFile = osFile
 
 	// Compute fingerprint (now returns uint64 directly)
-	fingerprint := tailer.computeFingerPrint()
+	fingerprint := tailer.ComputeFingerPrint()
 
 	fmt.Printf("\n=== Line-Based Fingerprint Test ===\n")
 	fmt.Printf("File content written:\n")
@@ -1050,7 +1050,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip3() {
 
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
-	fingerprint := tailer.computeFingerPrint()
+	fingerprint := tailer.ComputeFingerPrint()
 
 	textToHash := "thisisexactly20chars"
 	table := crc64.MakeTable(crc64.ISO)
@@ -1075,7 +1075,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
-	fingerprint := tailer.computeFingerPrint()
+	fingerprint := tailer.ComputeFingerPrint()
 	fmt.Printf("Empty file fingerprint: 0x%x (should be 0)\n", fingerprint)
 	suite.Equal(uint64(0), fingerprint, "Empty file should return 0")
 	osFile.Close()
@@ -1093,7 +1093,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 
 	tailer = suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
-	fingerprint = tailer.computeFingerPrint()
+	fingerprint = tailer.ComputeFingerPrint()
 	fmt.Printf("Insufficient data fingerprint: 0x%x (should be 0)\n", fingerprint)
 	suite.Equal(uint64(0), fingerprint, "Insufficient data should return 0")
 }
@@ -1121,7 +1121,7 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
 	fmt.Println(longLine)
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
-	fingerprint := tailer.computeFingerPrint()
+	fingerprint := tailer.ComputeFingerPrint()
 
 	expectedText := strings.Repeat("X", 80)
 	table := crc64.MakeTable(crc64.ISO)
@@ -1158,7 +1158,7 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
-	fingerprint := tailer.computeFingerPrint()
+	fingerprint := tailer.ComputeFingerPrint()
 
 	fmt.Println(lines)
 	stringToHash := strings.Repeat("A", 30) + "\n" + strings.Repeat("B", 30) + "\n" + strings.Repeat("C", 18)
@@ -1190,7 +1190,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
-	fingerprint1 := tailer.computeFingerPrint()
+	fingerprint1 := tailer.ComputeFingerPrint()
 	fmt.Printf("Line mode fingerprint (linesToSkip=1): 0x%x\n", fingerprint1)
 	osFile.Close()
 
@@ -1220,7 +1220,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 
 	tailer = suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
-	fingerprint2 := tailer.computeFingerPrint()
+	fingerprint2 := tailer.ComputeFingerPrint()
 	fmt.Printf("Byte mode fingerprint (bytesToSkip=5): 0x%x\n", fingerprint2)
 	textToHash2 := "\nline2\nlin"
 	table = crc64.MakeTable(crc64.ISO)
@@ -1262,7 +1262,7 @@ func (suite *FingerprintTestSuite) TestInvalidConfig_BothSkipValuesSet() {
 	tailer.osFile = osFile
 
 	expectedChecksum := uint64(0)
-	receivedChecksum := tailer.computeFingerPrint()
+	receivedChecksum := tailer.ComputeFingerPrint()
 
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
