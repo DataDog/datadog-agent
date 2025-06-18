@@ -3977,7 +3977,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers27(
 	out.BindEventSerializer = new(BindEventSerializer)
 	out.ConnectEventSerializer = new(ConnectEventSerializer)
 	out.MountEventSerializer = new(MountEventSerializer)
-	out.FsmountEventSerializer = new(FsmountEventSerializer)
 	out.SyscallsEventSerializer = new(SyscallsEventSerializer)
 	out.UserContextSerializer = new(UserContextSerializer)
 	out.SyscallContextSerializer = new(SyscallContextSerializer)
@@ -4175,16 +4174,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers27(
 					out.MountEventSerializer = new(MountEventSerializer)
 				}
 				(*out.MountEventSerializer).UnmarshalEasyJSON(in)
-			}
-		case "fsmount":
-			if in.IsNull() {
-				in.Skip()
-				out.FsmountEventSerializer = nil
-			} else {
-				if out.FsmountEventSerializer == nil {
-					out.FsmountEventSerializer = new(FsmountEventSerializer)
-				}
-				(*out.FsmountEventSerializer).UnmarshalEasyJSON(in)
 			}
 		case "syscalls":
 			if in.IsNull() {
@@ -4522,16 +4511,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers27(
 			out.RawString(prefix)
 		}
 		(*in.MountEventSerializer).MarshalEasyJSON(out)
-	}
-	if in.FsmountEventSerializer != nil {
-		const prefix string = ",\"fsmount\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		(*in.FsmountEventSerializer).MarshalEasyJSON(out)
 	}
 	if in.SyscallsEventSerializer != nil {
 		const prefix string = ",\"syscalls\":"

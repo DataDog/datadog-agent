@@ -712,7 +712,6 @@ type EventSerializer struct {
 	*BindEventSerializer          `json:"bind,omitempty"`
 	*ConnectEventSerializer       `json:"connect,omitempty"`
 	*MountEventSerializer         `json:"mount,omitempty"`
-	*FsmountEventSerializer       `json:"fsmount,omitempty"`
 	*SyscallsEventSerializer      `json:"syscalls,omitempty"`
 	*UserContextSerializer        `json:"usr,omitempty"`
 	*SyscallContextSerializer     `json:"syscall,omitempty"`
