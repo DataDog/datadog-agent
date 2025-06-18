@@ -22,7 +22,7 @@ func GetSharedMetricsFilters() [][]ContainerFilter {
 	// TODO: Add config option for users to configure AD annotations to take lower priority
 	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations}
 
-	low := []ContainerFilter{ContainerGlobal, ContainerMetrics}
+	low := []ContainerFilter{LegacyContainerGlobal, LegacyContainerMetrics}
 
 	includeList := pkgconfigsetup.Datadog().GetStringSlice("container_include")
 	excludeList := pkgconfigsetup.Datadog().GetStringSlice("container_exclude")
@@ -30,10 +30,10 @@ func GetSharedMetricsFilters() [][]ContainerFilter {
 	excludeList = append(excludeList, pkgconfigsetup.Datadog().GetStringSlice("container_exclude_metrics")...)
 
 	if len(includeList) == 0 {
-		low = append(low, ContainerACLegacyInclude)
+		low = append(low, LegacyContainerACInclude)
 	}
 	if len(excludeList) == 0 {
-		low = append(low, ContainerACLegacyExclude)
+		low = append(low, LegacyContainerACExclude)
 
 	}
 
@@ -63,20 +63,20 @@ func GetAutodiscoveryFilters(filterScope Scope) [][]ContainerFilter {
 	// TODO: Add config option for users to configure AD annotations to take lower priority
 	flist[highPrecedence] = []ContainerFilter{ContainerADAnnotations}
 
-	low := []ContainerFilter{ContainerGlobal}
+	low := []ContainerFilter{LegacyContainerGlobal}
 
 	switch filterScope {
 	case GlobalFilter:
 		if len(pkgconfigsetup.Datadog().GetStringSlice("container_include")) == 0 {
-			low = append(low, ContainerACLegacyInclude)
+			low = append(low, LegacyContainerACInclude)
 		}
 		if len(pkgconfigsetup.Datadog().GetStringSlice("container_exclude")) == 0 {
-			low = append(low, ContainerACLegacyExclude)
+			low = append(low, LegacyContainerACExclude)
 		}
 	case MetricsFilter:
-		low = append(low, ContainerMetrics)
+		low = append(low, LegacyContainerMetrics)
 	case LogsFilter:
-		low = append(low, ContainerLogs)
+		low = append(low, LegacyContainerLogs)
 	}
 
 	flist[lowPrecedence] = low

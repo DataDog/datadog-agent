@@ -20,7 +20,7 @@ const (
 	Unknown
 )
 
-// Filterable is an interface that defines a method to convert an object to a map.
+// Filterable is an interface for objects that can be filtered.
 type Filterable interface {
 	// Serialize converts the object into a filterable object.
 	Serialize() any
@@ -72,7 +72,7 @@ func CreateContainer(container workloadmeta.Container, owner Filterable) *Contai
 
 var _ Filterable = &Container{}
 
-// Serialize converts the Container object to a map.
+// Serialize converts the Container object to a filterable object.
 func (c *Container) Serialize() any {
 	return c.FilterContainer
 }
@@ -87,14 +87,14 @@ type ContainerFilter int
 
 // Defined Container filter Kinds
 const (
-	ContainerMetrics ContainerFilter = iota
-	ContainerLogs
-	ContainerGlobal
-	ContainerACLegacyInclude
-	ContainerACLegacyExclude
+	LegacyContainerMetrics ContainerFilter = iota
+	LegacyContainerLogs
+	LegacyContainerGlobal
+	LegacyContainerACInclude
+	LegacyContainerACExclude
+	LegacyContainerSBOM
 	ContainerADAnnotations
 	ContainerPaused
-	ContainerSBOM
 )
 
 //
@@ -120,7 +120,7 @@ func CreatePod(pod workloadmeta.KubernetesPod) *Pod {
 
 var _ Filterable = &Pod{}
 
-// Serialize converts the Pod object to a map.
+// Serialize converts the Pod object to a filterable object.
 func (p *Pod) Serialize() any {
 	return p.FilterPod
 }

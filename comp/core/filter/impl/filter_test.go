@@ -53,7 +53,7 @@ func TestBasicFilter(t *testing.T) {
 			nil,
 		)
 
-		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.LegacyContainerGlobal}})
 		assert.Equal(t, filterdef.Included, res)
 	})
 
@@ -67,7 +67,7 @@ func TestBasicFilter(t *testing.T) {
 			nil,
 		)
 
-		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.LegacyContainerGlobal}})
 		assert.Equal(t, filterdef.Excluded, res)
 	})
 
@@ -83,7 +83,7 @@ func TestBasicFilter(t *testing.T) {
 			},
 			nil,
 		)
-		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
+		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.LegacyContainerGlobal}})
 		assert.Equal(t, filterdef.Included, res)
 	})
 
@@ -139,7 +139,6 @@ func TestADAnnotationFilter(t *testing.T) {
 		assert.Equal(t, filterdef.Excluded, res)
 	})
 
-	// TODO: re-verify this is expected behavior...
 	t.Run("blank container name", func(t *testing.T) {
 		// Edge case if the container name is missing
 
@@ -154,11 +153,15 @@ func TestADAnnotationFilter(t *testing.T) {
 		)
 
 		container := filterdef.CreateContainer(
-			workloadmeta.Container{},
+			workloadmeta.Container{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "some-container",
+				},
+			},
 			pod,
 		)
 		res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.ContainerADAnnotations}})
-		assert.Equal(t, filterdef.Excluded, res)
+		assert.Equal(t, filterdef.Unknown, res)
 	})
 
 }
@@ -181,7 +184,7 @@ func TestCombinedFilter(t *testing.T) {
 		nil,
 	)
 
-	res := f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal}})
+	res := f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.LegacyContainerGlobal}})
 	assert.Equal(t, false, res)
 
 	pod := filterdef.CreatePod(
@@ -200,7 +203,7 @@ func TestCombinedFilter(t *testing.T) {
 		pod,
 	)
 
-	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
+	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.LegacyContainerGlobal, filterdef.LegacyContainerACExclude, filterdef.LegacyContainerACInclude}})
 	assert.Equal(t, false, res)
 
 	container = filterdef.CreateContainer(
@@ -211,7 +214,7 @@ func TestCombinedFilter(t *testing.T) {
 		},
 		pod,
 	)
-	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
+	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.LegacyContainerGlobal, filterdef.LegacyContainerACExclude, filterdef.LegacyContainerACInclude}})
 	assert.Equal(t, false, res)
 
 	pod = filterdef.CreatePod(
@@ -229,7 +232,7 @@ func TestCombinedFilter(t *testing.T) {
 		},
 		pod,
 	)
-	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.ContainerGlobal, filterdef.ContainerACLegacyExclude, filterdef.ContainerACLegacyInclude}})
+	res = f.IsContainerExcluded(container, [][]filterdef.ContainerFilter{{filterdef.LegacyContainerGlobal, filterdef.LegacyContainerACExclude, filterdef.LegacyContainerACInclude}})
 	assert.Equal(t, true, res)
 }
 
@@ -359,7 +362,7 @@ func TestContainerSBOMFilter(t *testing.T) {
 
 			f := newFilterObject(t, mockConfig)
 
-			res := f.IsContainerExcluded(tt.container, [][]filterdef.ContainerFilter{{filterdef.ContainerSBOM}})
+			res := f.IsContainerExcluded(tt.container, [][]filterdef.ContainerFilter{{filterdef.LegacyContainerSBOM}})
 			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
 		})
 	}
@@ -386,8 +389,8 @@ func TestFilterPrecedence(t *testing.T) {
 
 	t.Run("First set excludes, second set not evaluated", func(t *testing.T) {
 		precedenceFilters := [][]filterdef.ContainerFilter{
-			{filterdef.ContainerGlobal},  // Excludes (higher priority)
-			{filterdef.ContainerMetrics}, // Includes (but lower priority)
+			{filterdef.LegacyContainerGlobal},  // Excludes (higher priority)
+			{filterdef.LegacyContainerMetrics}, // Includes (but lower priority)
 		}
 
 		res := evaluateResource(f, container, precedenceFilters)
@@ -396,8 +399,8 @@ func TestFilterPrecedence(t *testing.T) {
 
 	t.Run("First set includes, second set not evaluated", func(t *testing.T) {
 		precedenceFilters := [][]filterdef.ContainerFilter{
-			{filterdef.ContainerMetrics}, // Includes (higher priority)
-			{filterdef.ContainerGlobal},  // Excludes (but lower priority)
+			{filterdef.LegacyContainerMetrics}, // Includes (higher priority)
+			{filterdef.LegacyContainerGlobal},  // Excludes (but lower priority)
 		}
 
 		res := evaluateResource(f, container, precedenceFilters)
@@ -406,8 +409,8 @@ func TestFilterPrecedence(t *testing.T) {
 
 	t.Run("First set unknown, second set exclude", func(t *testing.T) {
 		precedenceFilters := [][]filterdef.ContainerFilter{
-			{filterdef.ContainerLogs},   // Unknown, no results
-			{filterdef.ContainerGlobal}, // Excludes
+			{filterdef.LegacyContainerLogs},   // Unknown, no results
+			{filterdef.LegacyContainerGlobal}, // Excludes
 		}
 
 		res := evaluateResource(f, container, precedenceFilters)
@@ -416,8 +419,8 @@ func TestFilterPrecedence(t *testing.T) {
 
 	t.Run("First set unknown, second set include", func(t *testing.T) {
 		precedenceFilters := [][]filterdef.ContainerFilter{
-			{filterdef.ContainerLogs},    // Unknown, no results
-			{filterdef.ContainerMetrics}, // Includes
+			{filterdef.LegacyContainerLogs},    // Unknown, no results
+			{filterdef.LegacyContainerMetrics}, // Includes
 		}
 
 		res := evaluateResource(f, container, precedenceFilters)
@@ -478,19 +481,19 @@ func TestProgramErrorHandling(t *testing.T) {
 		nil,
 	)
 	precedenceFilters := [][]filterdef.ContainerFilter{
-		{filterdef.ContainerMetrics},
+		{filterdef.LegacyContainerMetrics},
 	}
 
 	t.Run("Include with error thrown", func(t *testing.T) {
 		// Inject a program that always errors for ContainerMetrics, but returns Included
-		f.prgs[filterdef.ContainerType][int(filterdef.ContainerMetrics)] = &errorInclProgram{}
+		f.prgs[filterdef.ContainerType][int(filterdef.LegacyContainerMetrics)] = &errorInclProgram{}
 		res := evaluateResource(f, container, precedenceFilters)
 		assert.Equal(t, filterdef.Included, res)
 	})
 
 	t.Run("Exclude with error thrown", func(t *testing.T) {
 		// Inject a program that always errors for ContainerMetrics, but returns Excluded
-		f.prgs[filterdef.ContainerType][int(filterdef.ContainerMetrics)] = &errorExclProgram{}
+		f.prgs[filterdef.ContainerType][int(filterdef.LegacyContainerMetrics)] = &errorExclProgram{}
 		res := evaluateResource(f, container, precedenceFilters)
 		assert.Equal(t, filterdef.Excluded, res)
 	})

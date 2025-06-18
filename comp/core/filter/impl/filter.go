@@ -81,14 +81,15 @@ func newFilter(config config.Component, logger log.Component, telemetry coretele
 	}
 
 	// Container Filters
-	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerMetrics), catalog.ContainerMetricsProgram(config, logger))
-	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerLogs), catalog.ContainerLogsProgram(config, logger))
-	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerACLegacyInclude), catalog.ContainerACLegacyIncludeProgram(config, logger))
-	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerACLegacyExclude), catalog.ContainerACLegacyExcludeProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.LegacyContainerMetrics), catalog.ContainerMetricsProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.LegacyContainerLogs), catalog.ContainerLogsProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.LegacyContainerACInclude), catalog.ContainerACLegacyIncludeProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.LegacyContainerACExclude), catalog.ContainerACLegacyExcludeProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.LegacyContainerGlobal), catalog.ContainerGlobalProgram(config, logger))
+	filter.registerProgram(filterdef.ContainerType, int(filterdef.LegacyContainerSBOM), catalog.ContainerSBOMProgram(config, logger))
+
 	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerADAnnotations), catalog.ContainerADAnnotationsProgram(config, logger))
-	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerGlobal), catalog.ContainerGlobalProgram(config, logger))
 	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerPaused), catalog.ContainerPausedProgram(config, logger))
-	filter.registerProgram(filterdef.ContainerType, int(filterdef.ContainerSBOM), catalog.ContainerSBOMProgram(config, logger))
 
 	// WIP: Pod Filters
 
