@@ -40,12 +40,19 @@ function Update-DatadogConfigFile($regex, $replacement) {
    if (-Not (Test-Path $configFile)) {
       throw "datadog.yaml doesn't exist"
    }
-   if (((Get-Content $configFile) | Select-String $regex | Measure-Object).Count -eq 0) {
-      Add-Content -Path $configFile -Value $replacement
+
+   # Read file as list of lines
+   $content = Get-Content $configFile
+   if (($content | Select-String $regex | Measure-Object).Count -eq 0) {
+      # Entry does not exist, append to list
+      $content += $replacement
    }
    else {
-    (Get-Content $configFile) -replace $regex, $replacement | Out-File $configFile
+      # Replace existing line that matches regex
+      $content = $content -replace $regex, $replacement
    }
+
+   Set-Content -Path $configFile -Value $content
 }
 
 function Send-Telemetry($payload) {
