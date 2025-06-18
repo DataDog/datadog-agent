@@ -5,6 +5,7 @@
 
 //go:build !darwin && !windows
 
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 var (
