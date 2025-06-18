@@ -49,10 +49,10 @@ type flowAccumulator struct {
 	ticker      *time.Ticker
 }
 
-func newFlowContext(flow *common.Flow, flowFlushInterval time.Duration, now time.Time) flowContext {
+func newFlowContext(flow *common.Flow, nextFlush time.Time) flowContext {
 	return flowContext{
 		flow:      flow,
-		nextFlush: now.Add(flowFlushInterval),
+		nextFlush: nextFlush,
 	}
 }
 
@@ -138,7 +138,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow, now time.Time) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
-		f.flows[aggHash] = newFlowContext(flowToAdd, f.flowFlushInterval, now)
+		f.flows[aggHash] = newFlowContext(flowToAdd, now.Add(f.flowFlushInterval))
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}

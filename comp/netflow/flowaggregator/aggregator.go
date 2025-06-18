@@ -8,7 +8,6 @@ package flowaggregator
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -258,7 +257,6 @@ func (agg *FlowAggregator) flushLoop() {
 func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := agg.TimeNowFunction()
-	fmt.Println("flushTime", flushTime)
 	flowsToFlush := agg.flowAcc.flush(flushTime)
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
