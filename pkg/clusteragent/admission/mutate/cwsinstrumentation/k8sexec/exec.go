@@ -11,6 +11,8 @@ package k8sexec
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -50,14 +52,14 @@ func NewExec(apiClient *apiserver.APIClient) Exec {
 }
 
 // Execute runs the exec command
-func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOptions) error {
+func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOptions, timeout time.Duration) error {
 	restClient, err := e.APIClient.RESTClient(
 		"/api",
 		&schema.GroupVersion{Version: "v1"},
 		serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs},
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("new REST client error: %v", err)
 	}
 
 	req := restClient.Post().
@@ -81,12 +83,18 @@ func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOpt
 		req.URL(),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("new SPDY executor error: %v", err)
 	}
 
-	return exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdin:  streamOptions.In,
 		Stdout: streamOptions.Out,
 		Stderr: streamOptions.ErrOut,
 	})
+	if err != nil {
+		return fmt.Errorf("SPDY stream error: %v", err)
+	}
+	return nil
 }
