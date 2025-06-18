@@ -151,7 +151,7 @@ func TestCreateDatabaseIdentifier(t *testing.T) {
 			config: func(c *Check) {
 				c.config.Server = "empty-server"
 				c.config.Port = 5432
-				c.config.ServiceName = "empty-service"
+				c.config.OracleServiceName = "empty-service"
 				c.config.DatabaseIdentifier.Template = ""
 				c.dbResolvedHostname = "empty-hostname"
 				c.cdbName = "empty-cdb"

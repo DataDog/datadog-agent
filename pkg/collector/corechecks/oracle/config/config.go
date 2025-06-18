@@ -141,6 +141,7 @@ type ConnectionConfig struct {
 	Server             string `yaml:"server"`
 	Port               int    `yaml:"port"`
 	ServiceName        string `yaml:"service_name"`
+	OracleServiceName  string `yaml:"oracle_service_name"`
 	Username           string `yaml:"username"`
 	Password           string `yaml:"password"`
 	TnsAlias           string `yaml:"tns_alias"`
@@ -217,11 +218,15 @@ type CheckConfig struct {
 
 // ToString returns a string representation of the CheckConfig without sensitive information.
 func (c *CheckConfig) String() string {
+	serviceName := c.OracleServiceName
+	if serviceName == "" {
+		serviceName = c.ServiceName
+	}
 	return fmt.Sprintf(`CheckConfig:
 Server: '%s'
 ServiceName: '%s'
 Port: '%d'
-`, c.Server, c.ServiceName, c.Port)
+`, c.Server, serviceName, c.Port)
 }
 
 // GetDefaultObfuscatorOptions return default obfuscator options
@@ -350,6 +355,13 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c := &CheckConfig{
 		InstanceConfig: instance,
 		InitConfig:     initCfg,
+	}
+
+	// We want to allow users to migrate off `service_name`, which can cause undesired
+	// interactions with APM
+	if c.config.OracleServiceName == "" {
+		c.config.OracleServiceName = c.config.ServiceName
+		log.Warnf("The `service_name` parameter is deprecated and will be removed in future versions. Please use `oracle_service_name` instead.")
 	}
 
 	log.Debugf("%s@%d/%s Oracle config: %s", instance.Server, instance.Port, instance.ServiceName, c.String())
