@@ -18,9 +18,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
+
+type CheckSuite struct {
+	e2e.BaseSuite[environments.Host]
+	descriptor            e2eos.Descriptor
+	metricCompareFraction float64
+	metricCompareDecimals int
+}
 
 type CheckContext struct {
 	checkName    string
@@ -61,7 +69,7 @@ func MetricPayloadCompare(a, b check.Metric) int {
 	)
 }
 
-func RunCheck[Env any](v e2e.Suite[Env], ctxCheck CheckContext) []check.Metric {
+func RunCheck(v CheckSuite, ctxCheck CheckContext) []check.Metric {
 	v.T().Helper()
 
 	var checkVersionTag string
@@ -70,7 +78,8 @@ func RunCheck[Env any](v e2e.Suite[Env], ctxCheck CheckContext) []check.Metric {
 	} else {
 		checkVersionTag = fmt.Sprintf("%s_check_version:old", ctxCheck.checkName)
 	}
-	checkConfig = fmt.Sprintf("%s\n    tags:\n      - %s", ctxCheck.checkConfig, checkVersionTag)
+	checkConfig := fmt.Sprintf("%s\n    tags:\n      - %s", ctxCheck.checkConfig, checkVersionTag)
+
 	host := v.Env().RemoteHost
 
 	tmpFolder, err := host.GetTmpFolder()
@@ -110,7 +119,7 @@ func RunCheck[Env any](v e2e.Suite[Env], ctxCheck CheckContext) []check.Metric {
 			return tag == checkVersionTag
 		})
 		removedElements := tagLen - len(metrics[i].Tags)
-		if !assert.Equalf(v.T(), 1, removedElements, "expected tag %s once in metric %s", diskCheckVersion, metrics[i].Metric) {
+		if !assert.Equalf(v.T(), 1, removedElements, "expected tag %s once in metric %s", checkVersionTag, metrics[i].Metric) {
 			v.T().Logf("metric: %+v", metrics[i])
 		}
 	}

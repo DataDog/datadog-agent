@@ -9,7 +9,6 @@ package checkdisk
 import (
 	"math"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
@@ -17,16 +16,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/checks/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 )
 
 type diskCheckSuite struct {
-	e2e.BaseSuite[environments.Host]
-	descriptor            e2eos.Descriptor
-	metricCompareFraction float64
-	metricCompareDecimals int
+	common.CheckSuite
 }
 
 func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
