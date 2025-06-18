@@ -116,7 +116,7 @@ func provideAuthTokenPerm(fb flaretypes.FlareBuilder) error {
 }
 
 func provideInstallInfo(fb flaretypes.FlareBuilder) error {
-	fb.CopyFile(installinfo.GetFilePath(pkgconfigsetup.Datadog())) //nolint:errcheck
+	fb.CopyFileTo(installinfo.GetFilePath(pkgconfigsetup.Datadog()), "install_info.log") //nolint:errcheck
 	return nil
 }
 

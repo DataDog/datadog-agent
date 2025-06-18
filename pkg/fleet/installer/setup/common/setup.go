@@ -122,15 +122,15 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
-	if err = s.preInstallPackages(); err != nil {
-		return fmt.Errorf("failed during pre-package installation: %w", err)
-	}
 	for _, p := range packages {
 		url := oci.PackageURL(s.Env, p.name, p.version)
 		err = s.installPackage(p.name, url)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
+	}
+	if err = s.postInstallPackages(); err != nil {
+		return fmt.Errorf("failed during post-package installation: %w", err)
 	}
 	if s.Packages.copyInstallerSSI {
 		if err := copyInstallerSSI(); err != nil {
