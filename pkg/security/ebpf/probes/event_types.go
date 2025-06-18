@@ -469,8 +469,6 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setsockopt", fentry, EntryAndExit)},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_socket_setsockopt"),
-				hookFunc("hook_bpf_prog_put"),
-				hookFunc("hook_bpf_prog_free"),
 				hookFunc("hook_sk_attach_filter"),
 				hookFunc("rethook_sk_attach_filter"),
 				hookFunc("hook_sock_setsockopt"),
