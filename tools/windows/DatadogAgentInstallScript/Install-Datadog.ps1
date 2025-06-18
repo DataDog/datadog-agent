@@ -182,6 +182,12 @@ function Update-DatadogAgentConfig() {
    }
 }
 
+if ($env:SCRIPT_IMPORT_ONLY) {
+   # exit if we are just importing the script
+   # used so we can test the above functions without running the below installation code
+   Exit 0
+}
+
 try {
    Write-Host "Welcome to the Datadog Install Script"
    if (-not [Environment]::Is64BitProcess) {
