@@ -1023,12 +1023,12 @@ type SetrlimitEvent struct {
 // SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
-	Socket_type     uint16 `field:"socket_type"`     // SECLDoc[socket_type] Definition:`Socket type`
-	Socket_protocol uint16 `field:"socket_protocol"` // SECLDoc[socket_protocol] Definition:`Socket protocol`
-	Socket_family   uint16 `field:"socket_family"`   // SECLDoc[socket_family] Definition:`Socket family`
-	Level           uint32 `field:"level"`           // SECLDoc[level] Definition:`Socket level`
-	OptName         uint32 `field:"optname"`         // SECLDoc[optname] Definition:`Socket option name`
-	Filter_len      uint16 `field:"filter_len"`      // SECLDoc[filter_len] Definition:`Length of the filter`
-	Filter          string `field:"filter"`          // SECLDoc[filter] Definition:`Socket filter`
-	Filter_hash     string `field:"filter_hash"`     // SECLDoc[filter_hash] Definition:`Hash of the socket filter`
+	SocketType     uint16 `field:"socket_type"`     // SECLDoc[socket_type] Definition:`Socket type`
+	SocketProtocol uint16 `field:"socket_protocol"` // SECLDoc[socket_protocol] Definition:`Socket protocol`
+	SocketFamily   uint16 `field:"socket_family"`   // SECLDoc[socket_family] Definition:`Socket family`
+	Level          uint32 `field:"level"`           // SECLDoc[level] Definition:`Socket level`
+	OptName        uint32 `field:"optname"`         // SECLDoc[optname] Definition:`Socket option name`
+	FilterLen      uint16 `field:"filter_len"`      // SECLDoc[filter_len] Definition:`Length of the filter`
+	Filter         string `field:"filter"`          // SECLDoc[filter] Definition:`Socket filter`
+	FilterHash     string `field:"filter_hash"`     // SECLDoc[filter_hash] Definition:`Hash of the socket filter`
 }
