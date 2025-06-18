@@ -543,6 +543,8 @@ typedef RtLoader *(create_t)(const char *python_home, const char *python_exe, cb
 */
 typedef void(destroy_t)(RtLoader *);
 
+typedef void *(so_run_t)(void);
+
 #ifndef _WIN32
 /*! core_trigger_t function pointer
   \brief function pointer to the core triggering routine.
