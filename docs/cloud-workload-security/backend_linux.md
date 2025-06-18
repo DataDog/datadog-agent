@@ -771,30 +771,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "FlowSerializer defines a new flow serializer"
         },
-        "FsmountEvent": {
-            "properties": {
-                "fd": {
-                    "type": "integer",
-                    "description": "File descriptor passed to the syscall"
-                },
-                "flags": {
-                    "type": "integer",
-                    "description": "Flags passed to the syscall"
-                },
-                "mount_attrs": {
-                    "type": "integer",
-                    "description": "Mount attributes passed to the syscall"
-                }
-            },
-            "additionalProperties": false,
-            "type": "object",
-            "required": [
-                "fd",
-                "flags",
-                "mount_attrs"
-            ],
-            "description": "FsmountEventSerializer serializes an fsmount event to JSON"
-        },
         "IMDSEvent": {
             "properties": {
                 "type": {
@@ -2113,9 +2089,6 @@ Workload Protection events for Linux systems have the following JSON schema:
         "mount": {
             "$ref": "#/$defs/MountEvent"
         },
-        "fsmount": {
-            "$ref": "#/$defs/FsmountEvent"
-        },
         "syscalls": {
             "$ref": "#/$defs/SyscallsEvent"
         },
@@ -2179,7 +2152,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `connect` | $ref | Please see [ConnectEvent](#connectevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
-| `fsmount` | $ref | Please see [FsmountEvent](#fsmountevent) |
 | `syscalls` | $ref | Please see [SyscallsEvent](#syscallsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `syscall` | $ref | Please see [SyscallContext](#syscallcontext) |
@@ -3334,44 +3306,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ---------- |
 | [IPPort](#ipport) |
 | [NetworkStats](#networkstats) |
-
-## `FsmountEvent`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "properties": {
-        "fd": {
-            "type": "integer",
-            "description": "File descriptor passed to the syscall"
-        },
-        "flags": {
-            "type": "integer",
-            "description": "Flags passed to the syscall"
-        },
-        "mount_attrs": {
-            "type": "integer",
-            "description": "Mount attributes passed to the syscall"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "required": [
-        "fd",
-        "flags",
-        "mount_attrs"
-    ],
-    "description": "FsmountEventSerializer serializes an fsmount event to JSON"
-}
-
-{{< /code-block >}}
-
-| Field | Description |
-| ----- | ----------- |
-| `fd` | File descriptor passed to the syscall |
-| `flags` | Flags passed to the syscall |
-| `mount_attrs` | Mount attributes passed to the syscall |
-
 
 ## `IMDSEvent`
 
