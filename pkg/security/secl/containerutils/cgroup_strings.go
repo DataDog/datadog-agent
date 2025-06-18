@@ -19,7 +19,7 @@ func _() {
 
 const (
 	_CGroupManager_name_0 = "dockercri-opodmancontainerdsystemdecs"
-	_CGroupManager_name_1 = "CgroupManagerUndefined"
+	_CGroupManager_name_1 = "undefined"
 )
 
 var (

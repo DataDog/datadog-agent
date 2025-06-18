@@ -24,7 +24,7 @@ const (
 	CGroupManagerSystemd                          // systemd
 	CGroupManagerECS                              // ecs
 
-	CgroupManagerUndefined CGroupManager = 255
+	CgroupManagerUndefined CGroupManager = 255 // undefined
 )
 
 // CGroup flags
