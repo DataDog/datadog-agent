@@ -54,6 +54,7 @@ default:
 
 stages:
   - .pre
+  - trigger_distribution
   - setup
   - maintenance_jobs
   - deps_build
@@ -90,7 +91,6 @@ stages:
   - e2e_k8s
   - e2e_install_packages
   - functional_test
-  - trigger_distribution
   - junit_upload
   - internal_kubernetes_deploy
   - post_rc_build
