@@ -11,7 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo, get_pipeline
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
 from tasks.libs.common.utils import is_conductor_scheduled_pipeline, running_in_ci
@@ -48,8 +48,15 @@ def get_debug_job_url():
     pipeline_id = os.environ.get("CI_PIPELINE_ID")
     if not pipeline_id:
         return ""
-    git_pipeline = get_pipeline('DataDog/datadog-agent', pipeline_id)
-    job_generator = filter(lambda job: job.name == "debug_static_quality_gates", git_pipeline.jobs.list(as_list=False))
+    try:
+        repo = get_gitlab_repo("DataDog/datadog-agent")
+        git_pipeline = repo.pipelines.get(pipeline_id)
+        job_generator = filter(
+            lambda job: job.name == "debug_static_quality_gates", git_pipeline.jobs.list(as_list=False)
+        )
+    except Exception as e:
+        print(f"Failed to fetch debug_static_quality_gates url !\n{traceback.format_exc()}\n{str(e)}")
+        return ""
     if not any(job_generator):
         return ""
     debug_job = next(job_generator)

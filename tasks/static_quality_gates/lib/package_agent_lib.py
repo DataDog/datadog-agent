@@ -100,6 +100,19 @@ def download_ancestor_packages(ancestor_sha, ancestor_download_dir, build_job_na
     download_job_artifacts(repo, ancestor_job.get_id(), ancestor_download_dir)
 
 
+def download_current_packages(current_pipeline_id, current_download_dir, build_job_name):
+    # Fetch the ancestor's build_job object with the gitlab API
+    repo = get_gitlab_repo("DataDog/datadog-agent")
+    current_pipeline = repo.pipelines.get(current_pipeline_id)
+    if not current_pipeline:
+        raise Exit(code=1, message=f"Failed to fetch current {build_job_name} package")
+    ancestor_job: ProjectPipelineJob = next(
+        filter(lambda job: job.name == build_job_name, current_pipeline.jobs.list(iterator=True))
+    )
+    # Download & extract the artifact from the build_job
+    download_job_artifacts(repo, ancestor_job.get_id(), current_download_dir)
+
+
 def debug_package_size(ctx, package_os, package_path, ancestor_package_path):
     # Manual control over temporary folders
     current_pipeline_extract_dir = tempfile.TemporaryDirectory()
@@ -142,13 +155,21 @@ def generic_debug_package_agent_quality_gate(arch, sys_os, flavor, **kwargs):
     if sys_os == "heroku":
         package_os = "debian"
 
-    with tempfile.TemporaryDirectory() as ancestor_download_dir:
-        ancestor_sha = get_common_ancestor(ctx, "HEAD")
-        download_ancestor_packages(ancestor_sha, ancestor_download_dir, build_job_name)
+    ancestor_download_dir = tempfile.TemporaryDirectory()
+    current_download_dir = tempfile.TemporaryDirectory()
 
-        package_path = find_package_path(flavor, package_os, package_arch)
-        # Find the ancestor package path from its download directory
-        os.environ['OMNIBUS_PACKAGE_DIR'] = f"{ancestor_download_dir}/omnibus/pkg"
-        ancestor_package_path = find_package_path(flavor, package_os, package_arch)
+    ancestor_sha = get_common_ancestor(ctx, "HEAD")
+    download_ancestor_packages(ancestor_sha, ancestor_download_dir.name, build_job_name)
+    download_current_packages(os.environ.get("CI_PIPELINE_ID"), current_download_dir.name, build_job_name)
 
-        debug_package_size(ctx, sys_os, package_path, ancestor_package_path)
+    # Find the current package path from its download directory
+    os.environ['OMNIBUS_PACKAGE_DIR'] = f"{current_download_dir.name}/omnibus/pkg"
+    package_path = find_package_path(flavor, package_os, package_arch)
+    # Find the ancestor package path from its download directory
+    os.environ['OMNIBUS_PACKAGE_DIR'] = f"{ancestor_download_dir.name}/omnibus/pkg"
+    ancestor_package_path = find_package_path(flavor, package_os, package_arch)
+
+    debug_package_size(ctx, sys_os, package_path, ancestor_package_path)
+
+    ancestor_download_dir.cleanup()
+    current_download_dir.cleanup()

@@ -143,13 +143,10 @@ def get_images_content_diff(ctx, url_1, url_2):
             "tar -tvf " + f"{src_folder}/output.tar" + " | awk -F' ' '{print $3; print $6}'", hide=True
         ).stdout.splitlines()
         image_tar_gz = []
-        print(f"On disk content for {src_folder}:")
-        for k, line in enumerate(image_content):
+        for k, _ in enumerate(image_content):
             if k % 2 == 0:
                 if "tar.gz" in image_content[k + 1]:
                     image_tar_gz.append(image_content[k + 1])
-            else:
-                print(f"  - {line}")
         if image_tar_gz:
             for image in image_tar_gz:
                 ctx.run(f"cd {src_folder} && tar -xf {image} -C ./out", hide=True)
