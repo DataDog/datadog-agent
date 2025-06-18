@@ -32,6 +32,16 @@
   - filename=$(ls datadog-signing-keys*.deb); mv $filename datadog-signing-keys_${DD_PIPELINE_ID}.deb
   - popd
 
+.setup_signing:
+  - aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/dev/gpg-vault-v1.1.0-linux-amd64.tar.gz .
+  - tar -xzf gpg-vault-v1.1.0-linux-amd64.tar.gz
+  - mv gpg-vault-linux-amd64 /usr/bin/gpg-vault
+
+  # Set up gpg shim
+  - echo '#!/bin/bash' > /usr/bin/gpg
+  - echo 'GPG_VAULT_COMPAT_MODE=true GPG_USER_ID="Datadog Packages" GPG_USER_EMAIL="package@datadoghq.com" /usr/bin/gpg-vault $@' >> /usr/bin/gpg
+  - chmod +x /usr/bin/gpg
+
 .deploy_deb_testing-a7:
   stage: e2e_deploy
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
@@ -63,14 +73,7 @@ deploy_deb_testing-a7_x64:
 
     - *setup_signing_keys_package
 
-    - aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/dev/gpg-client-v1.0.0-linux-amd64.tar.gz .
-    - tar -xzf gpg-client-v1.0.0-linux-amd64.tar.gz
-    - mv gpg-vault-linux-amd64 /usr/bin/gpg-vault
-
-    # Set up gpg shim
-    - echo '#!/bin/bash' > /usr/bin/gpg
-    - echo 'GPG_VAULT_COMPAT_MODE=true /usr/bin/gpg-vault $@' >> /usr/bin/gpg
-    - chmod +x /usr/bin/gpg
+    - *setup_signing
 
     - DEB_GPG_KEY_ID=crypto/k8s/keys/k8s_gitlab-runner_datadog-agent_testing-signing-key
     - /usr/bin/gpg-vault export-public-key $DEB_GPG_KEY_ID > gpg-public-key.asc
@@ -96,14 +99,7 @@ deploy_deb_testing-a7_arm64:
 
     - *setup_signing_keys_package
 
-    - aws s3 cp s3://binaries-ddbuild-io-prod/dd-source/domains/seceng/sit/apps/artifact-security/vault-gpg-client/gpg-vault/dev/gpg-client-v1.0.0-linux-arm64.tar.gz .
-    - tar -xzf gpg-client-v1.0.0-linux-arm64.tar.gz
-    - mv gpg-vault-linux-arm64 /usr/bin/gpg-vault
-
-    # Set up gpg shim
-    - echo '#!/bin/bash' > /usr/bin/gpg
-    - echo 'GPG_VAULT_COMPAT_MODE=true /usr/bin/gpg-vault $@' >> /usr/bin/gpg
-    - chmod +x /usr/bin/gpg
+    - *setup_signing
 
     - DEB_GPG_KEY_ID=crypto/k8s/keys/k8s_gitlab-runner_datadog-agent_testing-signing-key
     - /usr/bin/gpg-vault export-public-key $DEB_GPG_KEY_ID > gpg-public-key.asc
