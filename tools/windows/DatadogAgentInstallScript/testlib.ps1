@@ -18,25 +18,25 @@ function Get-DatadogConfigPath() {
 function Start-Test($TestName) {
     $global:TestCount++
     Write-Host "Running Test $global:TestCount`: $TestName" -ForegroundColor Cyan
-    
+
     # Reset test status
     $global:CurrentTestPassed = $true
-    
+
     # Create a unique temporary config file for this test
     $tempFile = [System.IO.Path]::GetTempFileName()
     $global:CurrentTestConfigPath = $tempFile
     $global:TempConfigFiles += $tempFile
-    
+
     # Create initial config file content
     $initialContent = @(
         "# Test datadog.yaml configuration file",
         "# api_key: placeholder_key",
-        "# site: datadoghq.com", 
+        "# site: datadoghq.com",
         "# dd_url: https://app.datadoghq.com",
         "# remote_updates: false"
     )
     Set-Content -Path $tempFile -Value $initialContent
-    
+
     # Clear environment variables
     $env:DD_API_KEY = $null
     $env:DD_SITE = $null
@@ -53,6 +53,65 @@ function Get-TestConfigContent() {
 
 function Set-InitialConfigContent($Content) {
     Set-Content -Path $global:CurrentTestConfigPath -Value $Content
+}
+
+# Helper function to create config file without trailing EOL
+function Set-InitialConfigContentWithoutEOL($Content) {
+    # Join content with CRLF and write without trailing newline
+    $contentString = $Content -join "`r`n"
+    [System.IO.File]::WriteAllText($global:CurrentTestConfigPath, $contentString)
+
+    $rawContent = [System.IO.File]::ReadAllText($global:CurrentTestConfigPath)
+    $endsWithNewline = $rawContent[-1] -eq "`n"
+    if ($endsWithNewline) {
+        throw "File should NOT end with newline for this test"
+    }
+}
+
+# Helper function to streamline common test pattern
+function Test-ConfigUpdate {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TestName,
+
+        [Parameter(Mandatory=$false)]
+        [string[]]$InitialConfig,
+
+        [Parameter(Mandatory=$false)]
+        [hashtable]$EnvironmentVariables = @{},
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$ExpectedConfig,
+
+        [Parameter(Mandatory=$false)]
+        [scriptblock]$TestAction = { Update-DatadogAgentConfig },
+
+        [Parameter(Mandatory=$false)]
+        [string]$AssertMessage = "Config should match expected content"
+    )
+
+    Start-Test $TestName
+
+    # Set initial config
+    Set-InitialConfigContent $InitialConfig
+
+    # Set environment variables
+    foreach ($key in $EnvironmentVariables.Keys) {
+        Set-Item -Path "env:$key" -Value $EnvironmentVariables[$key]
+    }
+
+    try {
+        # Execute the test action
+        & $TestAction
+
+        # Assert the result
+        Assert-ConfigEquals $ExpectedConfig $AssertMessage
+    } catch {
+        Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
+        $global:CurrentTestPassed = $false
+    }
+
+    End-Test $TestName
 }
 
 function Assert-ConfigContains($ExpectedLine, $Message) {
@@ -88,7 +147,7 @@ function Assert-ConfigMatches($Pattern, $Message) {
 
 function Assert-ConfigEquals($ExpectedContent, $Message) {
     $actualContent = Get-TestConfigContent
-    
+
     # Compare lengths first
     if ($ExpectedContent.Count -ne $actualContent.Count) {
         Write-Host "  ✗ $Message" -ForegroundColor Red
@@ -100,7 +159,7 @@ function Assert-ConfigEquals($ExpectedContent, $Message) {
         $global:CurrentTestPassed = $false
         return $false
     }
-    
+
     # Compare line by line
     for ($i = 0; $i -lt $ExpectedContent.Count; $i++) {
         if ($ExpectedContent[$i] -ne $actualContent[$i]) {
@@ -116,7 +175,7 @@ function Assert-ConfigEquals($ExpectedContent, $Message) {
             return $false
         }
     }
-    
+
     Write-Host "  ✓ $Message" -ForegroundColor Green
     return $true
 }
@@ -153,7 +212,7 @@ function End-Test($TestName) {
         Name = $TestName
         Passed = $testPassed
     }
-    
+
     if ($testPassed) {
         $global:PassedTests++
         Write-Host "Test Passed: $TestName" -ForegroundColor Green

@@ -7,283 +7,171 @@ $env:SCRIPT_IMPORT_ONLY = "true"
 
 . (Join-Path $PSScriptRoot "testlib.ps1")
 
+# Define common config templates
+$defaultInitialConfig = @(
+    "# Test datadog.yaml configuration file",
+    "# api_key: placeholder_key",
+    "# site: datadoghq.com",
+    "# dd_url: https://app.datadoghq.com",
+    "# remote_updates: false"
+)
+
 # Test Cases
 
-# Test 1: Update-DatadogAgentConfig with DD_API_KEY set
-Start-Test "Update-DatadogAgentConfig with DD_API_KEY set"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "# site: datadoghq.com", 
-    "# dd_url: https://app.datadoghq.com",
-    "# remote_updates: false"
-)
-Set-InitialConfigContent $initialContent
-
-$env:DD_API_KEY = "test_api_key_123"
-try {
-    Update-DatadogAgentConfig
-    $expectedContent = @(
+# Test: Update-DatadogAgentConfig with DD_API_KEY set
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_API_KEY set" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{ DD_API_KEY = "test_api_key_123" } `
+    -ExpectedConfig @(
         "# Test datadog.yaml configuration file",
         "api_key: test_api_key_123",
-        "# site: datadoghq.com", 
+        "# site: datadoghq.com",
         "# dd_url: https://app.datadoghq.com",
         "# remote_updates: false"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with API key updated"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogAgentConfig with DD_API_KEY set"
+    ) `
+    -AssertMessage "Config should match expected content with API key updated"
 
-# Test 2: Update-DatadogAgentConfig with DD_SITE set
-Start-Test "Update-DatadogAgentConfig with DD_SITE set"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "# site: datadoghq.com", 
-    "# dd_url: https://app.datadoghq.com",
-    "# remote_updates: false"
-)
-Set-InitialConfigContent $initialContent
-
-$env:DD_SITE = "datadoghq.eu"
-try {
-    Update-DatadogAgentConfig
-    $expectedContent = @(
+# Test: Update-DatadogAgentConfig with DD_SITE set
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_SITE set" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{ DD_SITE = "datadoghq.eu" } `
+    -ExpectedConfig @(
         "# Test datadog.yaml configuration file",
         "# api_key: placeholder_key",
-        "site: datadoghq.eu", 
+        "site: datadoghq.eu",
         "# dd_url: https://app.datadoghq.com",
         "# remote_updates: false"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with site updated"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogAgentConfig with DD_SITE set"
+    ) `
+    -AssertMessage "Config should match expected content with site updated"
 
-# Test 3: Update-DatadogAgentConfig with DD_URL set
-Start-Test "Update-DatadogAgentConfig with DD_URL set"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "# site: datadoghq.com", 
-    "# dd_url: https://app.datadoghq.com",
-    "# remote_updates: false"
-)
-Set-InitialConfigContent $initialContent
-
-$env:DD_URL = "https://custom.datadoghq.com"
-try {
-    Update-DatadogAgentConfig
-    $expectedContent = @(
+# Test: Update-DatadogAgentConfig with DD_URL set
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_URL set" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{ DD_URL = "https://custom.datadoghq.com" } `
+    -ExpectedConfig @(
         "# Test datadog.yaml configuration file",
         "# api_key: placeholder_key",
-        "# site: datadoghq.com", 
+        "# site: datadoghq.com",
         "dd_url: https://custom.datadoghq.com",
         "# remote_updates: false"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with URL updated"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogAgentConfig with DD_URL set"
+    ) `
+    -AssertMessage "Config should match expected content with URL updated"
 
-# Test 4: Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to true
-Start-Test "Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to true"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "# site: datadoghq.com", 
-    "# dd_url: https://app.datadoghq.com",
-    "# remote_updates: false"
-)
-Set-InitialConfigContent $initialContent
-
-$env:DD_REMOTE_UPDATES = "True"
-try {
-    Update-DatadogAgentConfig
-    $expectedContent = @(
+# Test: Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to true
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to true" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{ DD_REMOTE_UPDATES = "True" } `
+    -ExpectedConfig @(
         "# Test datadog.yaml configuration file",
         "# api_key: placeholder_key",
-        "# site: datadoghq.com", 
+        "# site: datadoghq.com",
         "# dd_url: https://app.datadoghq.com",
         "remote_updates: true"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with remote_updates set to true"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to true"
+    ) `
+    -AssertMessage "Config should match expected content with remote_updates set to true"
 
-# Test 5: Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to false
-Start-Test "Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to false"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "# site: datadoghq.com", 
-    "# dd_url: https://app.datadoghq.com",
-    "# remote_updates: false"
-)
-Set-InitialConfigContent $initialContent
-
-$env:DD_REMOTE_UPDATES = "False"
-try {
-    Update-DatadogAgentConfig
-    $expectedContent = @(
+# Test: Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to false
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to false" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{ DD_REMOTE_UPDATES = "False" } `
+    -ExpectedConfig @(
         "# Test datadog.yaml configuration file",
         "# api_key: placeholder_key",
-        "# site: datadoghq.com", 
+        "# site: datadoghq.com",
         "# dd_url: https://app.datadoghq.com",
         "remote_updates: false"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with remote_updates set to false"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogAgentConfig with DD_REMOTE_UPDATES set to false"
+    ) `
+    -AssertMessage "Config should match expected content with remote_updates set to false"
 
-# Test 6: Update-DatadogAgentConfig with all environment variables set
-Start-Test "Update-DatadogAgentConfig with all environment variables set"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "# site: datadoghq.com", 
-    "# dd_url: https://app.datadoghq.com",
-    "# remote_updates: false"
-)
-Set-InitialConfigContent $initialContent
-
-$env:DD_API_KEY = "full_test_key"
-$env:DD_SITE = "datadoghq.com"
-$env:DD_URL = "https://app.datadoghq.com"
-$env:DD_REMOTE_UPDATES = "true"
-try {
-    Update-DatadogAgentConfig
-    $expectedContent = @(
+# Test: Update-DatadogAgentConfig with all environment variables set
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with all environment variables set" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{
+        DD_API_KEY = "full_test_key"
+        DD_SITE = "datadoghq.com"
+        DD_URL = "https://app.datadoghq.com"
+        DD_REMOTE_UPDATES = "true"
+    } `
+    -ExpectedConfig @(
         "# Test datadog.yaml configuration file",
         "api_key: full_test_key",
-        "site: datadoghq.com", 
+        "site: datadoghq.com",
         "dd_url: https://app.datadoghq.com",
         "remote_updates: true"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with all variables updated"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogAgentConfig with all environment variables set"
+    ) `
+    -AssertMessage "Config should match expected content with all variables updated"
 
-# Test 7: Update-DatadogAgentConfig with no environment variables set
-Start-Test "Update-DatadogAgentConfig with no environment variables set"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "# site: datadoghq.com", 
-    "# dd_url: https://app.datadoghq.com",
-    "# remote_updates: false"
-)
-Set-InitialConfigContent $initialContent
+# Test: Update-DatadogAgentConfig with no environment variables set
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with no environment variables set" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{} `
+    -ExpectedConfig $defaultInitialConfig `
+    -AssertMessage "Config should remain unchanged when no env vars are set"
 
-try {
-    Update-DatadogAgentConfig
-    $expectedContent = $initialContent
-    Assert-ConfigEquals $expectedContent "Config should remain unchanged when no env vars are set"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogAgentConfig with no environment variables set"
+# Test: Update-DatadogAgentConfig with empty string environment variables
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with empty string environment variables" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{
+        DD_API_KEY = ""
+        DD_SITE = ""
+        DD_URL = ""
+        DD_REMOTE_UPDATES = ""
+    } `
+    -ExpectedConfig $defaultInitialConfig `
+    -AssertMessage "Config should remain unchanged when env vars are empty strings"
 
-# Test 8: Update-DatadogAgentConfig with empty string environment variables
-Start-Test "Update-DatadogAgentConfig with empty string environment variables"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "# site: datadoghq.com", 
-    "# dd_url: https://app.datadoghq.com",
-    "# remote_updates: false"
-)
-Set-InitialConfigContent $initialContent
+# Test: Update-DatadogAgentConfig with all options set starting from minimal config
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with all options set starting from minimal config" `
+    -InitialConfig @(
+        "# Minimal datadog.yaml configuration file"
+    ) `
+    -EnvironmentVariables @{
+        DD_API_KEY = "minimal_test_key"
+        DD_SITE = "datadoghq.eu"
+        DD_URL = "https://custom.datadoghq.eu"
+        DD_REMOTE_UPDATES = "true"
+    } `
+    -ExpectedConfig @(
+        "# Minimal datadog.yaml configuration file",
+        "api_key: minimal_test_key",
+        "site: datadoghq.eu",
+        "dd_url: https://custom.datadoghq.eu",
+        "remote_updates: true"
+    ) `
+    -AssertMessage "Config should add all new settings to minimal config file"
 
-$env:DD_API_KEY = ""
-$env:DD_SITE = ""
-$env:DD_URL = ""
-$env:DD_REMOTE_UPDATES = ""
-try {
-    Update-DatadogAgentConfig
-    $expectedContent = @(
+# Test: Update-DatadogConfigFile function directly - Add new config line
+Test-ConfigUpdate -TestName "Update-DatadogConfigFile function directly - Add new config line" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{} `
+    -TestAction { Update-DatadogConfigFile "^[ #]*new_setting:.*" "new_setting: test_value" } `
+    -ExpectedConfig @(
         "# Test datadog.yaml configuration file",
         "# api_key: placeholder_key",
-        "# site: datadoghq.com", 
-        "# dd_url: https://app.datadoghq.com",
-        "# remote_updates: false"
-    )
-    Assert-ConfigEquals $expectedContent "Config should remain unchanged when env vars are empty strings"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogAgentConfig with empty string environment variables"
-
-# Test 9: Update-DatadogConfigFile function directly - Add new config line
-Start-Test "Update-DatadogConfigFile function directly - Add new config line"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "# site: datadoghq.com", 
-    "# dd_url: https://app.datadoghq.com",
-    "# remote_updates: false"
-)
-Set-InitialConfigContent $initialContent
-
-try {
-    Update-DatadogConfigFile "^[ #]*new_setting:.*" "new_setting: test_value"
-    $expectedContent = @(
-        "# Test datadog.yaml configuration file",
-        "# api_key: placeholder_key",
-        "# site: datadoghq.com", 
+        "# site: datadoghq.com",
         "# dd_url: https://app.datadoghq.com",
         "# remote_updates: false",
         "new_setting: test_value"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with new setting added"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogConfigFile function directly - Add new config line"
+    ) `
+    -AssertMessage "Config should match expected content with new setting added"
 
-# Test 10: Update-DatadogConfigFile function directly - Replace existing config line
-Start-Test "Update-DatadogConfigFile function directly - Replace existing config line"
-$initialContent = @(
-    "# Test config",
-    "api_key: old_value",
-    "# site: old_site"
-)
-Set-InitialConfigContent $initialContent
-
-try {
-    Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: new_value"
-    $expectedContent = @(
+# Test: Update-DatadogConfigFile function directly - Replace existing config line
+Test-ConfigUpdate -TestName "Update-DatadogConfigFile function directly - Replace existing config line" `
+    -InitialConfig @(
+        "# Test config",
+        "api_key: old_value",
+        "# site: old_site"
+    ) `
+    -EnvironmentVariables @{} `
+    -TestAction { Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: new_value" } `
+    -ExpectedConfig @(
         "# Test config",
         "api_key: new_value",
         "# site: old_site"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with api_key replaced"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogConfigFile function directly - Replace existing config line"
+    ) `
+    -AssertMessage "Config should match expected content with api_key replaced"
 
-# Test 11: Update-DatadogConfigFile function with non-existent file
+# Test: Update-DatadogConfigFile function with non-existent file
 Start-Test "Update-DatadogConfigFile function with non-existent file"
 $global:CurrentTestConfigPath = "C:\NonExistent\datadog.yaml"
 try {
@@ -300,80 +188,78 @@ try {
 }
 End-Test "Update-DatadogConfigFile function with non-existent file"
 
-# Test 12: Update-DatadogConfigFile with file that has EOL at end
-Start-Test "Update-DatadogConfigFile with file that has EOL at end"
-$initialContent = @(
-    "# Test datadog.yaml configuration file",
-    "# api_key: placeholder_key",
-    "existing_setting: value"
-)
-Set-InitialConfigContent $initialContent
+# Test: Update-DatadogConfigFile with file that has EOL at end
+Test-ConfigUpdate -TestName "Update-DatadogConfigFile with file that has EOL at end" `
+    -TestAction {
+        # Set up initial content with EOL
+        $initialContent = @(
+            "# Test datadog.yaml configuration file",
+            "# api_key: placeholder_key",
+            "existing_setting: value"
+        )
+        Set-InitialConfigContent $initialContent
 
-try {
-    # Verify file ends with newline by reading as raw bytes
-    $rawContent = [System.IO.File]::ReadAllText($global:CurrentTestConfigPath)
-    $endsWithNewline = $rawContent[-1] -eq "`n"
-    Assert-Equal $true $endsWithNewline "File should end with newline for this test"
-    
-    Update-DatadogConfigFile "^[ #]*new_setting:.*" "new_setting: added_value"
-    $expectedContent = @(
+        # Verify file ends with newline by reading as raw bytes
+        $rawContent = [System.IO.File]::ReadAllText($global:CurrentTestConfigPath)
+        $endsWithNewline = $rawContent[-1] -eq "`n"
+        Assert-Equal $true $endsWithNewline "File should end with newline for this test"
+
+        # Perform the actual test operation
+        Update-DatadogConfigFile "^[ #]*new_setting:.*" "new_setting: added_value"
+    } `
+    -ExpectedConfig @(
         "# Test datadog.yaml configuration file",
         "# api_key: placeholder_key",
         "existing_setting: value",
         "new_setting: added_value"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with new setting added to file with EOL"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogConfigFile with file that has EOL at end"
+    ) `
+    -AssertMessage "Config should match expected content with new setting added to file with EOL"
 
-# Test 13: Update-DatadogConfigFile with file that does NOT have EOL at end
-Start-Test "Update-DatadogConfigFile with file that does NOT have EOL at end"
-# Create file without trailing newline using raw file operations
-$contentWithoutEOL = "# Test datadog.yaml configuration file`r`n# api_key: placeholder_key`r`nexisting_setting: value_no_eol"
-[System.IO.File]::WriteAllText($global:CurrentTestConfigPath, $contentWithoutEOL)
+# Test: Update-DatadogConfigFile with file that does NOT have EOL at end
+Test-ConfigUpdate -TestName "Update-DatadogConfigFile with file that does NOT have EOL at end" `
+    -TestAction {
+        # Create file without trailing newline using helper function
+        Set-InitialConfigContentWithoutEOL @(
+            "# Test datadog.yaml configuration file",
+            "# api_key: placeholder_key",
+            "existing_setting: value_no_eol"
+        )
 
-try {
-    # Verify file doesn't end with newline
-    $rawContent = [System.IO.File]::ReadAllText($global:CurrentTestConfigPath)
-    $endsWithNewline = $rawContent[-1] -eq "`n"
-    Assert-Equal $false $endsWithNewline "File should NOT end with newline for this test"
-    
-    Update-DatadogConfigFile "^[ #]*new_setting:.*" "new_setting: added_to_no_eol"
-    $expectedContent = @(
+        # Verify file doesn't end with newline
+        $rawContent = [System.IO.File]::ReadAllText($global:CurrentTestConfigPath)
+        $endsWithNewline = $rawContent[-1] -eq "`n"
+        Assert-Equal $false $endsWithNewline "File should NOT end with newline for this test"
+
+        # Perform the actual test operation
+        Update-DatadogConfigFile "^[ #]*new_setting:.*" "new_setting: added_to_no_eol"
+    } `
+    -ExpectedConfig @(
         "# Test datadog.yaml configuration file",
         "# api_key: placeholder_key",
         "existing_setting: value_no_eol",
         "new_setting: added_to_no_eol"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with new setting added to file without EOL"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogConfigFile with file that does NOT have EOL at end"
+    ) `
+    -AssertMessage "Config should match expected content with new setting added to file without EOL"
 
-# Test 14: Update-DatadogConfigFile replacing content in file without EOL
-Start-Test "Update-DatadogConfigFile replacing content in file without EOL"
-# Create file without trailing newline containing content to replace
-$contentToReplace = "# Test config`r`napi_key: old_key_no_eol`r`nsite: existing_site"
-[System.IO.File]::WriteAllText($global:CurrentTestConfigPath, $contentToReplace)
+# Test: Update-DatadogConfigFile replacing content in file without EOL
+Test-ConfigUpdate -TestName "Update-DatadogConfigFile replacing content in file without EOL" `
+    -TestAction {
+        # Create file without trailing newline containing content to replace
+        Set-InitialConfigContentWithoutEOL @(
+            "# Test config",
+            "api_key: old_key_no_eol",
+            "site: existing_site"
+        )
 
-try {
-    Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: replaced_key"
-    $expectedContent = @(
+        # Perform the actual test operation
+        Update-DatadogConfigFile "^[ #]*api_key:.*" "api_key: replaced_key"
+    } `
+    -ExpectedConfig @(
         "# Test config",
         "api_key: replaced_key",
         "site: existing_site"
-    )
-    Assert-ConfigEquals $expectedContent "Config should match expected content with api_key replaced in file without EOL"
-} catch {
-    Write-Host "  ✗ Test threw exception: $($_.Exception.Message)" -ForegroundColor Red
-    $global:CurrentTestPassed = $false
-}
-End-Test "Update-DatadogConfigFile replacing content in file without EOL"
+    ) `
+    -AssertMessage "Config should match expected content with api_key replaced in file without EOL"
 
 # Cleanup
 Cleanup-Tests
