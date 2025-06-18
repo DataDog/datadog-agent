@@ -130,7 +130,7 @@ func (s *Setup) Run() (err error) {
 		}
 	}
 	if err = s.postInstallPackages(); err != nil {
-		return fmt.Errorf("failed during pre-package installation: %w", err)
+		return fmt.Errorf("failed during post-package installation: %w", err)
 	}
 	if s.Packages.copyInstallerSSI {
 		if err := copyInstallerSSI(); err != nil {
