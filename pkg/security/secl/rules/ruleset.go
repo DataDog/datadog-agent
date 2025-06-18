@@ -1046,7 +1046,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 	rs.policies = policies
 
 	for _, policy := range policies {
-		if len(policy.macros) == 0 && len(policy.rules) == 0 {
+		if len(policy.macros) == 0 && len(policy.rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
 			errs = multierror.Append(errs, &ErrPolicyLoad{Name: policy.Info.Name, Version: policy.Info.Version, Source: policy.Info.Source, Err: ErrPolicyIsEmpty})
 			continue
 		}
