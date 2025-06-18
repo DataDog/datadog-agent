@@ -128,7 +128,7 @@
   - <<: *if_not_stable_repo_branch
     when: manual
     allow_failure: true
-  - when: on_success
+  - when: always
 
 .on_deploy_installer:
   - <<: *if_deploy_installer
