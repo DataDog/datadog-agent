@@ -3,6 +3,8 @@
 
 #include "constants/custom.h"
 #include "structs/all.h"
+#include <uapi/linux/filter.h>
+
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;
