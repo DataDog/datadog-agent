@@ -23,8 +23,13 @@ func TestSetSockOpt(t *testing.T) {
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
-			ID:         "test_rule_setsockopt",
-			Expression: `setsockopt.level == SOL_SOCKET && setsockopt.optname == SO_ATTACH_FILTER && setsockopt.socket_type == SOCK_RAW && setsockopt.socket_protocol == 6 && setsockopt.socket_family == AF_INET`,
+			ID: "test_rule_setsockopt",
+			Expression: `setsockopt.level == SOL_SOCKET 
+			&& setsockopt.optname == SO_ATTACH_FILTER 
+			&& setsockopt.socket_type == SOCK_RAW 
+			&& setsockopt.socket_protocol == 6 
+			&& setsockopt.socket_family == AF_INET 
+			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"`,
 		},
 	}
 
