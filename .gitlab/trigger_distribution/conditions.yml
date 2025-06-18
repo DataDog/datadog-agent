@@ -132,6 +132,7 @@
 
 .on_deploy_installer:
   - <<: *if_deploy_installer
+    when: always
 
 # This rule will add the job as manual when running on beta deploy branch
 # and will add it as a regular automatically running job when running
@@ -144,7 +145,7 @@
   - <<: *if_not_stable_repo_branch
     when: manual
     allow_failure: true
-  - when: on_success
+  - when: always
 
 # The windows-v2 runner is currently only used in container_build jobs needed to do authenticated push. It should not replace the basic windows runner, unless agreeded first with #ci-infra team
 .windows_docker_v2_2022:
