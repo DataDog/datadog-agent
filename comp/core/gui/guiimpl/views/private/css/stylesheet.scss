@@ -201,7 +201,7 @@ a {
     text-align: center;
   }
   #restart_status {
-    color: #ff0000; 
+    color: #ff0000;
   }
   #agent_info {
     position: absolute;
@@ -774,12 +774,12 @@ a {
   font-weight: normal;
   margin-left: 5px;
 
-  &.msi {
+  &.installed {
     background-color: #E3F2FD;
     color: #1976D2;
   }
 
-  &.registry {
+  &.broken {
     background-color: #F3E5F5;
     color: #7B1FA2;
   }
