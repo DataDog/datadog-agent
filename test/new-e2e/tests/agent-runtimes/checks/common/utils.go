@@ -8,16 +8,29 @@ package common
 
 import (
 	"cmp"
+	"fmt"
 	"math"
 	"slices"
 
+	"github.com/bmizerany/assert"
+	gocmp "github.com/google/go-cmp/cmp"
+	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
-// metric payload output comparison
-// metric output comparison
-// tag output comparison
-// format config yaml from struct
+type CheckContext struct {
+	checkName    string
+	agentConfig  string
+	checkConfig  string
+	isNewVersion bool
+}
+
+// TODO:
+// * format config yaml from struct
 
 func EqualMetrics(a, b check.Metric) bool {
 	return a.Host == b.Host &&
@@ -46,4 +59,61 @@ func MetricPayloadCompare(a, b check.Metric) int {
 			return slices.Compare(a, b)
 		}),
 	)
+}
+
+func RunCheck(v e2e.Suite, ctxCheck CheckContext) []check.Metric {
+	v.T().Helper()
+
+	var checkVersionTag string
+	if ctxCheck.isNewVersion {
+		checkVersionTag = fmt.Sprintf("%s_check_version:new", ctxCheck.checkName)
+	} else {
+		checkVersionTag = fmt.Sprintf("%s_check_version:old", ctxCheck.checkName)
+	}
+	checkConfig = fmt.Sprintf("%s\n    tags:\n      - %s", ctxCheck.checkConfig, checkVersionTag)
+	host := v.Env().RemoteHost
+
+	tmpFolder, err := host.GetTmpFolder()
+	require.NoError(v.T(), err)
+
+	confFolder, err := host.GetAgentConfigFolder()
+	require.NoError(v.T(), err)
+
+	// update agent configuration without restarting it, so that we can run both versions of the check
+	// quickly one after the other, to minimize flakes in metric values
+	extraConfigFilePath := host.JoinPath(tmpFolder, "datadog.yaml")
+	_, err = host.WriteFile(extraConfigFilePath, []byte(ctxCheck.agentConfig))
+	require.NoError(v.T(), err)
+	// we need to write to a temp file and then copy due to permission issues
+	tmpCheckConfigFile := host.JoinPath(tmpFolder, "check_config.yaml")
+	_, err = host.WriteFile(tmpCheckConfigFile, []byte(checkConfig))
+	require.NoError(v.T(), err)
+
+	checkConfigDir := fmt.Sprintf("%s.d", ctxCheck.checkName)
+	configFile := host.JoinPath(confFolder, "conf.d", checkConfigDir, "conf.yaml")
+	if v.descriptor.Family() == e2eos.WindowsFamily {
+		host.MustExecute(fmt.Sprintf("copy %s %s", tmpCheckConfigFile, configFile))
+	} else {
+		host.MustExecute(fmt.Sprintf("sudo -u dd-agent cp %s %s", tmpCheckConfigFile, configFile))
+	}
+
+	// run the check
+	output := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{ctxCheck.checkName, "--json", "--extracfgpath", extraConfigFilePath}))
+	data := check.ParseJSONOutput(v.T(), []byte(output))
+
+	require.Len(v.T(), data, 1)
+	metrics := data[0].Aggregator.Metrics
+	for i := range metrics {
+		// remove the disk_check_version tag
+		tagLen := len(metrics[i].Tags)
+		metrics[i].Tags = slices.DeleteFunc(metrics[i].Tags, func(tag string) bool {
+			return tag == checkVersionTag
+		})
+		removedElements := tagLen - len(metrics[i].Tags)
+		if !assert.Equalf(v.T(), 1, removedElements, "expected tag %s once in metric %s", diskCheckVersion, metrics[i].Metric) {
+			v.T().Logf("metric: %+v", metrics[i])
+		}
+	}
+
+	return metrics
 }

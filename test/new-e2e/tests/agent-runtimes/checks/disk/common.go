@@ -7,23 +7,19 @@
 package checkdisk
 
 import (
-	"fmt"
 	"math"
-	"slices"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/checks/disk/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/checks/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type diskCheckSuite struct {
@@ -89,59 +85,19 @@ instances:
 }
 
 func (v *diskCheckSuite) runDiskCheck(agentConfig string, checkConfig string, useNewVersion bool) []check.Metric {
-	v.T().Helper()
-
-	host := v.Env().RemoteHost
-
-	diskCheckVersion := "old"
 	if useNewVersion {
 		agentConfig += "\nuse_diskv2_check: true"
 		checkConfig += "\n    loader: core"
-		diskCheckVersion = "new"
-	}
-	diskCheckVersionTag := fmt.Sprintf("disk_check_version:%s", diskCheckVersion)
-	checkConfig += fmt.Sprintf("\n    tags:\n      - %s", diskCheckVersionTag)
-
-	tmpFolder, err := host.GetTmpFolder()
-	require.NoError(v.T(), err)
-
-	confFolder, err := host.GetAgentConfigFolder()
-	require.NoError(v.T(), err)
-
-	// update agent configuration without restarting it, so that we can run both versions of the check
-	// quickly one after the other, to minimize flakes in metric values
-	extraConfigFilePath := host.JoinPath(tmpFolder, "datadog.yaml")
-	_, err = host.WriteFile(extraConfigFilePath, []byte(agentConfig))
-	require.NoError(v.T(), err)
-	// we need to write to a temp file and then copy due to permission issues
-	tmpCheckConfigFile := host.JoinPath(tmpFolder, "check_config.yaml")
-	_, err = host.WriteFile(tmpCheckConfigFile, []byte(checkConfig))
-	require.NoError(v.T(), err)
-
-	configFile := host.JoinPath(confFolder, "conf.d", "disk.d", "conf.yaml")
-	if v.descriptor.Family() == e2eos.WindowsFamily {
-		host.MustExecute(fmt.Sprintf("copy %s %s", tmpCheckConfigFile, configFile))
-	} else {
-		host.MustExecute(fmt.Sprintf("sudo -u dd-agent cp %s %s", tmpCheckConfigFile, configFile))
 	}
 
-	// run the check
-	output := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk", "--json", "--extracfgpath", extraConfigFilePath}))
-	data := check.ParseJSONOutput(v.T(), []byte(output))
-
-	require.Len(v.T(), data, 1)
-	metrics := data[0].Aggregator.Metrics
-	for i := range metrics {
-		// remove the disk_check_version tag
-		tagLen := len(metrics[i].Tags)
-		metrics[i].Tags = slices.DeleteFunc(metrics[i].Tags, func(tag string) bool {
-			return tag == diskCheckVersionTag
-		})
-		removedElements := tagLen - len(metrics[i].Tags)
-		if !assert.Equalf(v.T(), 1, removedElements, "expected tag %s once in metric %s", diskCheckVersion, metrics[i].Metric) {
-			v.T().Logf("metric: %+v", metrics[i])
-		}
+	ctx := common.CheckContext{
+		checkName:    "disk",
+		agentConfig:  agentConfig,
+		checkConfig:  checkConfig,
+		isNewVersion: useNewVersion,
 	}
+
+	metrics := common.RunCheck(ctx)
 
 	return metrics
 }
