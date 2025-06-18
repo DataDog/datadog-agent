@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    changed `collect_gpu_tags` config flag to be enabled by default. Now the agent will collect an additional `gpu_host` host tag for all hosts that have Nvidia GPUs
+    Change `collect_gpu_tags` config flag to be enabled by default. Now the Agent collects an additional `gpu_host` host tag for all hosts that have Nvidia GPUs.
