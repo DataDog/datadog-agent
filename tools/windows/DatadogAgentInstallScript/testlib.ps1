@@ -1,4 +1,3 @@
-
 # Test framework variables
 $global:TestResults = @()
 $global:TestCount = 0
@@ -52,6 +51,10 @@ function Get-TestConfigContent() {
     return @()
 }
 
+function Set-InitialConfigContent($Content) {
+    Set-Content -Path $global:CurrentTestConfigPath -Value $Content
+}
+
 function Assert-ConfigContains($ExpectedLine, $Message) {
     $content = Get-TestConfigContent
     if ($content -contains $ExpectedLine) {
@@ -81,6 +84,41 @@ function Assert-ConfigMatches($Pattern, $Message) {
         $global:CurrentTestPassed = $false
         return $false
     }
+}
+
+function Assert-ConfigEquals($ExpectedContent, $Message) {
+    $actualContent = Get-TestConfigContent
+    
+    # Compare lengths first
+    if ($ExpectedContent.Count -ne $actualContent.Count) {
+        Write-Host "  ✗ $Message" -ForegroundColor Red
+        Write-Host "    Expected $($ExpectedContent.Count) lines, got $($actualContent.Count) lines" -ForegroundColor Red
+        Write-Host "    Expected content:" -ForegroundColor Red
+        $ExpectedContent | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
+        Write-Host "    Actual content:" -ForegroundColor Red
+        $actualContent | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
+        $global:CurrentTestPassed = $false
+        return $false
+    }
+    
+    # Compare line by line
+    for ($i = 0; $i -lt $ExpectedContent.Count; $i++) {
+        if ($ExpectedContent[$i] -ne $actualContent[$i]) {
+            Write-Host "  ✗ $Message" -ForegroundColor Red
+            Write-Host "    Line $($i + 1) differs:" -ForegroundColor Red
+            Write-Host "      Expected: '$($ExpectedContent[$i])'" -ForegroundColor Red
+            Write-Host "      Actual:   '$($actualContent[$i])'" -ForegroundColor Red
+            Write-Host "    Full expected content:" -ForegroundColor Red
+            $ExpectedContent | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
+            Write-Host "    Full actual content:" -ForegroundColor Red
+            $actualContent | ForEach-Object { Write-Host "      $_" -ForegroundColor Red }
+            $global:CurrentTestPassed = $false
+            return $false
+        }
+    }
+    
+    Write-Host "  ✓ $Message" -ForegroundColor Green
+    return $true
 }
 
 function Assert-Equal($Expected, $Actual, $Message) {
