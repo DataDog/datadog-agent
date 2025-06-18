@@ -395,7 +395,7 @@ func getQueueMetrics(ipVersion string, procfsPath string) (map[string][]uint64, 
 	return parseQueueMetrics(output)
 }
 
-func getQueueMetricsNetstat(ipVersion string, _ string) (map[string][]uint64, error) {
+func getQueueMetricsNetstat(_ string, _ string) (map[string][]uint64, error) {
 	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"}, []string{})
 	if err != nil {
 		return nil, fmt.Errorf("error executing netstat command: %v", err)
