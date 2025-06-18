@@ -100,6 +100,7 @@ func jsonEncodeFastPath(payload fastPathPayload) ([]byte, error) {
 	// {} + all fields + (number of fields - 1) commas
 	preAlloc := 2 +
 		preAllocKeyValue(len("message"), len(payload.content)) +
+		bytes.Count(payload.content, []byte{'"'}) + // for escaping quotes, quotes are the most commonly escaped character because of JSON content
 		preAllocKeyValue(len("status"), len(payload.status)) +
 		preAllocKeyValue(len("timestamp"), 19) + // max int64 in string is 19 chars
 		preAllocKeyValue(len("hostname"), len(payload.hostname)) +
