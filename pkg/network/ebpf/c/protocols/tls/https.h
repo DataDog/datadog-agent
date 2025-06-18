@@ -367,4 +367,22 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
     return bpf_map_lookup_elem(&offsets_data, &key);
 }
 
+static __always_inline void https_cleanup_maps(conn_tuple_t *tup) {
+    bpf_printk("tasik1");
+    // We perform the cleanup of the SSL maps here.
+    void **ssl_ctx_ptr = bpf_map_lookup_elem(&ssl_ctx_by_tuple, tup);
+    if (ssl_ctx_ptr) {
+        bpf_printk("tasik2");
+        void *ssl_ctx = *ssl_ctx_ptr;
+        // Delete from tuple -> ctx map first
+        bpf_map_delete_elem(&ssl_ctx_by_tuple, tup);
+        // Then delete from original ctx -> sock_t map
+        if (ssl_ctx) {
+            bpf_printk("tasik3");
+            bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+            bpf_printk("tasik4");
+        }
+    }
+}
+
 #endif
