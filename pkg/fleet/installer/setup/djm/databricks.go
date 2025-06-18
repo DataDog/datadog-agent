@@ -12,7 +12,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 	"time"
@@ -246,19 +245,8 @@ func setupGPUIntegration(s *common.Setup) {
 	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
 
 	// Agent must be restarted after NVML initialization, which occurs after init script execution
-	scheduleDelayedAgentRestart(s, gpuIntegrationRestartDelay)
-}
-
-// scheduleDelayedAgentRestart schedules an agent restart after the specified delay
-func scheduleDelayedAgentRestart(s *common.Setup, delay time.Duration) {
-	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", delay))
-
-	cmd := exec.Command("nohup", "bash", "-c", fmt.Sprintf("echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Waiting %v...\" >> %[2]s.log && sleep %d && echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting agent...\" >> %[2]s.log && systemctl restart datadog-agent >> %[2]s.log 2>&1", delay, restartLogFile, int(delay.Seconds())))
-	if err := cmd.Start(); err != nil {
-		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
-		return
-	}
-
+	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", gpuIntegrationRestartDelay))
+	common.ScheduleDelayedAgentRestart(s, gpuIntegrationRestartDelay, restartLogFile)
 	s.Out.WriteString("Restart scheduled\n")
 }
 

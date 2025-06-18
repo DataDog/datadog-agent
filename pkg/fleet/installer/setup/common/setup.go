@@ -183,3 +183,12 @@ var ExecuteCommandWithTimeout = func(s *Setup, command string, args ...string) (
 	}
 	return output, nil
 }
+
+// ScheduleDelayedAgentRestart schedules an agent restart after the specified delay
+func ScheduleDelayedAgentRestart(s *Setup, delay time.Duration, logFile string) {
+	cmd := exec.Command("nohup", "bash", "-c", fmt.Sprintf("echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Waiting %v...\" >> %[2]s.log && sleep %d && echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting agent...\" >> %[2]s.log && systemctl restart datadog-agent >> %[2]s.log 2>&1", delay, logFile, int(delay.Seconds())))
+	if err := cmd.Start(); err != nil {
+		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
+		return
+	}
+}
