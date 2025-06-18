@@ -32,7 +32,6 @@ import (
 type mockRCClient struct {
 	t   *testing.T
 	sub func(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
-	cb  func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 }
 
 func (rc *mockRCClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
@@ -46,7 +45,7 @@ func TestRemoteConfigBTFTimeout(t *testing.T) {
 		RemoteConfigBTFEnabled: true,
 		RemoteConfigBTFTimeout: 1 * time.Millisecond,
 	}
-	mockRC := &mockRCClient{t: t, sub: func(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	mockRC := &mockRCClient{t: t, sub: func(product data.Product, _ func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
 		require.Equal(t, string(product), state.ProductBTFDD)
 	}}
 	loader := initBTFLoader(cfg, mockRC)
@@ -130,7 +129,7 @@ func setupBTFServer(t *testing.T) (string, string) {
 	require.NoError(t, err)
 	archiveFile, shasum := setupBTFTarXZFile(t, kernelVersion)
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		f, err := os.Open(archiveFile)
 		if err != nil {
 			t.Error(err)
@@ -165,7 +164,7 @@ func TestRemoteConfigBTFFoundEntry(t *testing.T) {
 			go func() {
 				time.Sleep(1 * time.Millisecond)
 				update := map[string]state.RawConfig{"testkey": {Config: []byte(catalog)}}
-				fn(update, func(s string, status state.ApplyStatus) {
+				fn(update, func(_ string, status state.ApplyStatus) {
 					assert.Equal(t, state.ApplyStateAcknowledged, status.State)
 					assert.Empty(t, status.Error)
 				})
@@ -193,7 +192,7 @@ func TestRemoteConfigBTFHashMismatch(t *testing.T) {
 			go func() {
 				time.Sleep(1 * time.Millisecond)
 				update := map[string]state.RawConfig{"testkey": {Config: []byte(catalog)}}
-				fn(update, func(s string, status state.ApplyStatus) {
+				fn(update, func(_ string, status state.ApplyStatus) {
 					assert.Equal(t, state.ApplyStateError, status.State)
 					assert.NotEmpty(t, status.Error)
 				})
@@ -221,7 +220,7 @@ func TestRemoteConfigBTFMissingEntry(t *testing.T) {
 			go func() {
 				time.Sleep(1 * time.Millisecond)
 				update := map[string]state.RawConfig{"testkey": {Config: []byte(catalog)}}
-				fn(update, func(s string, status state.ApplyStatus) {
+				fn(update, func(_ string, status state.ApplyStatus) {
 					assert.Equal(t, state.ApplyStateAcknowledged, status.State)
 					assert.Empty(t, status.Error)
 				})
