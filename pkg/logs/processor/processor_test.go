@@ -27,6 +27,7 @@ type processorTestCase struct {
 	input         []byte
 	output        []byte
 	shouldProcess bool
+	matchCount    int64
 }
 
 // exclusions tests
@@ -38,24 +39,28 @@ var exclusionTests = []processorTestCase{
 		input:         []byte("hello"),
 		output:        []byte("hello"),
 		shouldProcess: true,
+		matchCount:    0,
 	},
 	{
 		source:        newSource("exclude_at_match", "", "world"),
 		input:         []byte("world"),
 		output:        []byte{},
 		shouldProcess: false,
+		matchCount:    1,
 	},
 	{
 		source:        newSource("exclude_at_match", "", "world"),
 		input:         []byte("a brand new world"),
 		output:        []byte{},
 		shouldProcess: false,
+		matchCount:    1,
 	},
 	{
 		source:        newSource("exclude_at_match", "", "$world"),
 		input:         []byte("a brand new world"),
 		output:        []byte("a brand new world"),
 		shouldProcess: true,
+		matchCount:    0,
 	},
 }
 
@@ -65,24 +70,28 @@ func TestExclusion(t *testing.T) {
 
 	// unstructured messages
 
-	for _, test := range exclusionTests {
+	for idx, test := range exclusionTests {
 		msg := newMessage(test.input, &test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
+		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(ruleName), "match count should be equal for test %d", idx)
 		if test.shouldProcess {
 			assert.Equal(test.output, msg.GetContent())
 		}
+		msg.Origin.LogSource.ProcessingInfo.Reset()
 	}
 
 	// structured messages
 
-	for _, test := range exclusionTests {
+	for idx, test := range exclusionTests {
 		msg := newStructuredMessage(test.input, &test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
+		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(ruleName), "match count should be equal for test %d", idx)
 		if test.shouldProcess {
 			assert.Equal(test.output, msg.GetContent())
 		}
+		msg.Origin.LogSource.ProcessingInfo.Reset()
 	}
 }
 
@@ -91,28 +100,32 @@ func TestExclusion(t *testing.T) {
 
 var inclusionTests = []processorTestCase{
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{}),
 		input:         []byte("hello"),
 		output:        []byte("hello"),
 		shouldProcess: false,
+		matchCount:    0,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{}),
 		input:         []byte("world"),
 		output:        []byte("world"),
 		shouldProcess: true,
+		matchCount:    1,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{}),
 		input:         []byte("a brand new world"),
 		output:        []byte("a brand new world"),
 		shouldProcess: true,
+		matchCount:    1,
 	},
 	{
 		source:        newSource("include_at_match", "", "^world"),
 		input:         []byte("a brand new world"),
 		output:        []byte("a brand new world"),
 		shouldProcess: false,
+		matchCount:    1,
 	},
 }
 
@@ -122,24 +135,28 @@ func TestInclusion(t *testing.T) {
 
 	// unstructured messages
 
-	for _, test := range inclusionTests {
+	for idx, test := range inclusionTests {
 		msg := newMessage(test.input, &test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
+		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(ruleName), "match count should be equal for test %d", idx)
 		if test.shouldProcess {
 			assert.Equal(test.output, msg.GetContent())
 		}
+		msg.Origin.LogSource.ProcessingInfo.Reset()
 	}
 
 	// structured messages
 
-	for _, test := range inclusionTests {
+	for idx, test := range inclusionTests {
 		msg := newStructuredMessage(test.input, &test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
+		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(ruleName), "match count should be equal for test %d", idx)
 		if test.shouldProcess {
 			assert.Equal(test.output, msg.GetContent())
 		}
+		msg.Origin.LogSource.ProcessingInfo.Reset()
 	}
 
 }
@@ -152,28 +169,32 @@ var inclusionRule *config.ProcessingRule = newProcessingRule("include_at_match",
 
 var exclusionInclusionTests = []processorTestCase{
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bob@datadoghq.com"),
 		output:        []byte("bob@datadoghq.com"),
 		shouldProcess: false,
+		matchCount:    1,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bill@datadoghq.com"),
 		output:        []byte("bill@datadoghq.com"),
 		shouldProcess: true,
+		matchCount:    1,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bob@amail.com"),
 		output:        []byte("bob@amail.com"),
 		shouldProcess: false,
+		matchCount:    1,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bill@amail.com"),
 		output:        []byte("bill@amail.com"),
 		shouldProcess: false,
+		matchCount:    0,
 	},
 }
 
@@ -183,24 +204,28 @@ func TestExclusionWithInclusion(t *testing.T) {
 
 	// unstructured messages
 
-	for _, test := range exclusionInclusionTests {
+	for idx, test := range exclusionInclusionTests {
 		msg := newMessage(test.input, &test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
+		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(ruleName), "match count should be equal for test %d", idx)
 		if test.shouldProcess {
 			assert.Equal(test.output, msg.GetContent())
 		}
+		msg.Origin.LogSource.ProcessingInfo.Reset()
 	}
 
 	// structured messages
 
-	for _, test := range exclusionInclusionTests {
+	for idx, test := range exclusionInclusionTests {
 		msg := newStructuredMessage(test.input, &test.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(test.shouldProcess, shouldProcess)
+		assert.Equal(test.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(ruleName), "match count should be equal for test %d", idx)
 		if test.shouldProcess {
 			assert.Equal(test.output, msg.GetContent())
 		}
+		msg.Origin.LogSource.ProcessingInfo.Reset()
 	}
 }
 
@@ -213,42 +238,49 @@ var masksTests = []processorTestCase{
 		input:         []byte("hello"),
 		output:        []byte("hello"),
 		shouldProcess: true,
+		matchCount:    0,
 	},
 	{
 		source:        newSource("mask_sequences", "[masked_world]", "world"),
 		input:         []byte("hello world!"),
 		output:        []byte("hello [masked_world]!"),
 		shouldProcess: true,
+		matchCount:    1,
 	},
 	{
 		source:        newSource("mask_sequences", "[masked_user]", "User=\\w+@datadoghq.com"),
 		input:         []byte("new test launched by User=beats@datadoghq.com on localhost"),
 		output:        []byte("new test launched by [masked_user] on localhost"),
 		shouldProcess: true,
+		matchCount:    1,
 	},
 	{
 		source:        newSource("mask_sequences", "[masked_credit_card]", "(?:4[0-9]{12}(?:[0-9]{3})?|[25][1-7][0-9]{14}|6(?:011|5[0-9][0-9])[0-9]{12}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|(?:2131|1800|35\\d{3})\\d{11})"),
 		input:         []byte("The credit card 4323124312341234 was used to buy some time"),
 		output:        []byte("The credit card [masked_credit_card] was used to buy some time"),
 		shouldProcess: true,
+		matchCount:    1,
 	},
 	{
 		source:        newSource("mask_sequences", "${1}[masked_value]", "([Dd]ata_?values=)\\S+"),
 		input:         []byte("New data added to Datavalues=123456 on prod"),
 		output:        []byte("New data added to Datavalues=[masked_value] on prod"),
 		shouldProcess: true,
+		matchCount:    1,
 	},
 	{
 		source:        newSource("mask_sequences", "${1}[masked_value]", "([Dd]ata_?values=)\\S+"),
 		input:         []byte("New data added to data_values=123456 on prod"),
 		output:        []byte("New data added to data_values=[masked_value] on prod"),
 		shouldProcess: true,
+		matchCount:    1,
 	},
 	{
 		source:        newSource("mask_sequences", "${1}[masked_value]", "([Dd]ata_?values=)\\S+"),
 		input:         []byte("New data added to data_values= on prod"),
 		output:        []byte("New data added to data_values= on prod"),
 		shouldProcess: true,
+		matchCount:    0,
 	},
 }
 
@@ -258,24 +290,28 @@ func TestMask(t *testing.T) {
 
 	// unstructured messages
 
-	for _, maskTest := range masksTests {
+	for idx, maskTest := range masksTests {
 		msg := newMessage(maskTest.input, &maskTest.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(maskTest.shouldProcess, shouldProcess)
+		assert.Equal(maskTest.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(ruleName), "match count should be equal for test %d", idx)
 		if maskTest.shouldProcess {
 			assert.Equal(maskTest.output, msg.GetContent())
 		}
+		msg.Origin.LogSource.ProcessingInfo.Reset()
 	}
 
 	// structured messages
 
-	for _, maskTest := range masksTests {
+	for idx, maskTest := range masksTests {
 		msg := newStructuredMessage(maskTest.input, &maskTest.source, "")
 		shouldProcess := p.applyRedactingRules(msg)
 		assert.Equal(maskTest.shouldProcess, shouldProcess)
+		assert.Equal(maskTest.matchCount, msg.Origin.LogSource.ProcessingInfo.GetCount(ruleName), "match count should be equal for test %d", idx)
 		if maskTest.shouldProcess {
 			assert.Equal(maskTest.output, msg.GetContent())
 		}
+		msg.Origin.LogSource.ProcessingInfo.Reset()
 	}
 }
 
@@ -468,10 +504,12 @@ func messagesDequeue(t *testing.T, f func() bool, errorLog string) {
 // helpers
 // -
 
+var ruleName = "test"
+
 func newProcessingRule(ruleType, replacePlaceholder, pattern string) *config.ProcessingRule {
 	return &config.ProcessingRule{
 		Type:               ruleType,
-		Name:               "test",
+		Name:               ruleName,
 		ReplacePlaceholder: replacePlaceholder,
 		Placeholder:        []byte(replacePlaceholder),
 		Pattern:            pattern,
@@ -480,7 +518,7 @@ func newProcessingRule(ruleType, replacePlaceholder, pattern string) *config.Pro
 }
 
 func newSource(ruleType, replacePlaceholder, pattern string) sources.LogSource {
-	return sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newProcessingRule(ruleType, replacePlaceholder, pattern)}}}
+	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newProcessingRule(ruleType, replacePlaceholder, pattern)}})
 }
 
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Message {
