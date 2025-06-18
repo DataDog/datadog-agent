@@ -42,7 +42,7 @@ function Update-DatadogConfigFile($regex, $replacement) {
    }
 
    # Read file as list of lines
-   $content = Get-Content $configFile
+   $content = @(Get-Content $configFile)
    if (($content | Select-String $regex | Measure-Object).Count -eq 0) {
       # Entry does not exist, append to list
       $content += $replacement
