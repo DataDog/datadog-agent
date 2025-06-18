@@ -214,29 +214,37 @@ inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
   return true;
 }
 
-static bool sm_enqueue_pointer(global_ctx_t* ctx,
-                               data_item_header_t data_item) {
-  data_item_header_t* elem =
-      pointers_queue_push(&ctx->stack_machine->pointers_queue);
-  if (elem == NULL) {
-    return false;
-  }
-  *elem = data_item;
-  return true;
-}
-
-// Call the enqueue function for the given type. If the type has no enqueue an
-// enqueue function, returns false and is otherwise a no-op.
 inline __attribute__((always_inline)) bool
-sm_call_enqueue_for_type(stack_machine_t* sm, const type_info_t* t) {
-  if (!t->enqueue_pc) {
+sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
+  stack_machine_t* sm = ctx->stack_machine;
+
+  // Serialize object entry.
+  const type_info_t* info;
+  if (!get_type_info((type_t)item.di.type, &info)) {
+    return true;
+  }
+  LOG(4, "chase: :%d !%d >%x", item.di.type, info->byte_len, info->enqueue_pc);
+  if (info->byte_len == 0) {
+    return true;
+  }
+  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, info->byte_len);
+  if (!sm->offset) {
+    LOG(3, "chase: failed to serialize type %d", item.di.type);
+    return true;
+  }
+
+  // Recurse if there is more to capture object of this type.
+  sm->pointer_chasing_ttl = item.ttl;
+  sm->di_0 = item.di;
+  sm->di_0.length = info->byte_len;
+  if (!info->enqueue_pc) {
     return false;
   }
-  if (t->enqueue_pc >= stack_machine_code_len) {
+  if (info->enqueue_pc >= stack_machine_code_len) {
     LOG(1,
         "chase: enqueue_pc out of "
         "bounds %ld >= %ld",
-        t->enqueue_pc, stack_machine_code_len);
+        info->enqueue_pc, stack_machine_code_len);
     return false;
   }
   if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
@@ -245,33 +253,8 @@ sm_call_enqueue_for_type(stack_machine_t* sm, const type_info_t* t) {
   }
   sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
   sm->pc_stack_pointer++;
-  sm->pc = t->enqueue_pc;
+  sm->pc = info->enqueue_pc;
   return true;
-}
-
-inline __attribute__((always_inline)) bool
-sm_chase_pointer(global_ctx_t* ctx, data_item_header_t data_item) {
-  stack_machine_t* sm = ctx->stack_machine;
-
-  // Serialize object entry.
-  const type_info_t* info;
-  if (!get_type_info((type_t)data_item.type, &info)) {
-    return true;
-  }
-  LOG(4, "chase: :%d !%d >%x", data_item.type, info->byte_len, info->enqueue_pc);
-  if (info->byte_len == 0) {
-    return true;
-  }
-  sm->offset = scratch_buf_serialize(ctx->buf, &data_item, info->byte_len);
-  if (!sm->offset) {
-    LOG(3, "chase: failed to serialize type %d", data_item.type);
-    return true;
-  }
-
-  // Recurse if there is more to capture object of this type.
-  sm->di_0 = data_item;
-  sm->di_0.length = info->byte_len;
-  return sm_call_enqueue_for_type(sm, info);
 }
 
 // Returns false if the pointer has already been memoized.
@@ -285,20 +268,36 @@ sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
 
 inline __attribute__((always_inline)) bool
 sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
+                  bool decrease_ttl,
                   uint32_t maybe_len) {
   stack_machine_t* sm = ctx->stack_machine;
   if (addr == 0) {
     return true;
   }
+  if (decrease_ttl && sm->pointer_chasing_ttl == 0) {
+    return true;
+  }
   if (!sm_memoize_pointer(ctx, type, addr)) {
     return true;
   }
-  data_item_header_t data_item = {
+  pointers_queue_item_t* item;
+  if (decrease_ttl) {
+    item = pointers_queue_push_back(&ctx->stack_machine->pointers_queue);
+  } else {
+    item = pointers_queue_push_front(&ctx->stack_machine->pointers_queue);
+  }
+  if (item == NULL) {
+    return false;
+  }
+  *item = (pointers_queue_item_t){
+    .di = {
       .type = type,
       .length = maybe_len,
       .address = addr,
+    },
+    .ttl = sm->pointer_chasing_ttl - (decrease_ttl ? 1 : 0),
   };
-  return sm_enqueue_pointer(ctx, data_item);
+  return true;
 }
 
 // inline __attribute__((always_inline)) bool
@@ -554,7 +553,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     return 1;
   }
   const sm_opcode_t op = (sm_opcode_t)sm_read_program_uint8(sm);
-  LOG(4, "%8d %s %s", sm->pc - 1, padding(sm->pc_stack_pointer), op_code_name(op));
+  LOG(4, "%6x %s %s", sm->pc - 1, padding(sm->pc_stack_pointer), op_code_name(op));
   if (sm->pc >= stack_machine_code_len - stack_machine_code_max_op + 1) {
     return 1;
   }
@@ -739,7 +738,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
 
-    if (!sm_record_pointer(ctx, elem_type, addr, ENQUEUE_LEN_SENTINEL)) {
+    if (!sm_record_pointer(ctx, elem_type, addr, /*decrease_ttl=*/true, ENQUEUE_LEN_SENTINEL)) {
       LOG(3, "enqueue: failed pointer chase");
     }
   } break;
@@ -755,7 +754,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
     int64_t len = *(int64_t*)(&(*buf)[sm->offset + 8]);
     if (len > 0) {
-      if (!sm_record_pointer(ctx, slice_data_type, addr, len * elem_byte_len)) {
+      if (!sm_record_pointer(ctx, slice_data_type, addr, /*decrease_ttl=*/false, len * elem_byte_len)) {
         LOG(3, "enqueue: failed slice chase");
       }
     }
@@ -814,7 +813,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[sm->offset]);
     int64_t len = *(int64_t*)(&(*buf)[sm->offset + 8]);
     if (len > 0) {
-      if (!sm_record_pointer(ctx, string_data_type, addr, len)) {
+      if (!sm_record_pointer(ctx, string_data_type, addr, /*decrease_ttl=*/false, len)) {
         LOG(3, "enqueue: failed string chase");
       }
     }
@@ -837,11 +836,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   // } break;
 
   case SM_OP_CHASE_POINTERS: {
-    data_item_header_t* elem = pointers_queue_pop(&sm->pointers_queue);
-    if (elem != NULL) {
+    pointers_queue_item_t* item = pointers_queue_pop_front(&sm->pointers_queue);
+    if (item != NULL) {
       // Loop as long as there are more pointers to chase.
       sm->pc--;
-      sm_chase_pointer(ctx, *elem);
+      sm_chase_pointer(ctx, *item);
     }
   } break;
 

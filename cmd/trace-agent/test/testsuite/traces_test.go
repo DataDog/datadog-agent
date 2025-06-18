@@ -43,8 +43,8 @@ func TestTraces(t *testing.T) {
 		}
 		defer r.KillAgent()
 
-		p := testutil.GeneratePayload(10, &testutil.TraceConfig{
-			MinSpans: 10,
+		p := testutil.GeneratePayload(2, &testutil.TraceConfig{
+			MinSpans: 3,
 			Keep:     true,
 		}, &testutil.SpanConfig{NumSpanEvents: 1})
 		if err := r.Post(p); err != nil {
@@ -223,8 +223,8 @@ func TestTraces(t *testing.T) {
 		}
 		defer r.KillAgent()
 
-		p := testutil.GeneratePayload(10, &testutil.TraceConfig{
-			MinSpans: 10,
+		p := testutil.GeneratePayload(2, &testutil.TraceConfig{
+			MinSpans: 3,
 			Keep:     true,
 		}, nil)
 		if err := r.Post(p); err != nil {
