@@ -157,6 +157,7 @@ func TestRemoteConfigBTFFoundEntry(t *testing.T) {
 	cfg.RemoteConfigBTFEnabled = true
 	cfg.RemoteConfigBTFDownloadHost = serverURL
 	cfg.RemoteConfigBTFTimeout = 5 * time.Second
+	cfg.BTFOutputDir = t.TempDir() // must use temporary directory to not pollute BTF for other tests
 	mockRC := &mockRCClient{
 		t: t,
 		sub: func(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
