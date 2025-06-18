@@ -133,7 +133,7 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
-			agg.flowAcc.add(flow)
+			agg.flowAcc.add(flow, agg.TimeNowFunction())
 		}
 	}
 }
@@ -259,7 +259,7 @@ func (agg *FlowAggregator) flush() int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := agg.TimeNowFunction()
 	fmt.Println("flushTime", flushTime)
-	flowsToFlush := agg.flowAcc.flush()
+	flowsToFlush := agg.flowAcc.flush(flushTime)
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)

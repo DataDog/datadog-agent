@@ -6,7 +6,6 @@
 package flowaggregator
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -18,7 +17,9 @@ import (
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 )
 
-var timeNow = time.Now
+const (
+	tickerDuration = 10 * time.Millisecond
+)
 
 // flowContext contains flow information and additional flush related data
 type flowContext struct {
@@ -45,9 +46,10 @@ type flowAccumulator struct {
 
 	logger      log.Component
 	rdnsQuerier rdnsquerier.Component
+	ticker      *time.Ticker
 }
 
-func newFlowContext(flow *common.Flow, now time.Time, flowFlushInterval time.Duration) flowContext {
+func newFlowContext(flow *common.Flow, flowFlushInterval time.Duration, now time.Time) flowContext {
 	return flowContext{
 		flow:      flow,
 		nextFlush: now.Add(flowFlushInterval),
@@ -65,6 +67,7 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 		hashCollisionFlowCount: atomic.NewUint64(0),
 		logger:                 logger,
 		rdnsQuerier:            rdnsQuerier,
+		ticker:                 time.NewTicker(tickerDuration),
 	}
 }
 
@@ -78,14 +81,19 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 // We need to keep flowContext (contains `nextFlush` and `lastSuccessfulFlush`) after flush
 // to be able to flush at regular interval (`flowFlushInterval`).
 // Example, after a flush, flowContext will have a new nextFlush, that will be the next flush time for new flows being added.
-func (f *flowAccumulator) flush() []*common.Flow {
+func (f *flowAccumulator) flush(start time.Time) []*common.Flow {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
+	now := start
 
 	var flowsToFlush []*common.Flow
 	for key, flowCtx := range f.flows {
-		now := timeNow()
-		fmt.Println("now", now)
+		select {
+		case t := <-f.ticker.C:
+			now = t
+		default:
+			// If no tick is ready, continue with current time
+		}
 		if flowCtx.flow == nil && (flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now)) {
 			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
 			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
@@ -103,10 +111,13 @@ func (f *flowAccumulator) flush() []*common.Flow {
 		flowCtx.nextFlush = flowCtx.nextFlush.Add(f.flowFlushInterval)
 		f.flows[key] = flowCtx
 	}
+	if f.ticker != nil {
+		f.ticker.Stop()
+	}
 	return flowsToFlush
 }
 
-func (f *flowAccumulator) add(flowToAdd *common.Flow) {
+func (f *flowAccumulator) add(flowToAdd *common.Flow, now time.Time) {
 	f.logger.Tracef("Add new flow: %+v", flowToAdd)
 
 	if !f.portRollupDisabled {
@@ -127,9 +138,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
-		now := timeNow
-		fmt.Println("now", now())
-		f.flows[aggHash] = newFlowContext(flowToAdd, now(), f.flowFlushInterval)
+		f.flows[aggHash] = newFlowContext(flowToAdd, f.flowFlushInterval, now)
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}

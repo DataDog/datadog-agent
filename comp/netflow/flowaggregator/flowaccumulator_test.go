@@ -27,12 +27,6 @@ var TestStartTime = func() time.Time {
 	return t
 }
 
-func setMockTimeNow(newTime time.Time) {
-	timeNow = func() time.Time {
-		return newTime
-	}
-}
-
 func Test_flowAccumulator_add(t *testing.T) {
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
@@ -93,9 +87,9 @@ func Test_flowAccumulator_add(t *testing.T) {
 
 	// When
 	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
-	acc.add(flowA1)
-	acc.add(flowA2)
-	acc.add(flowB1)
+	acc.add(flowA1, TestStartTime())
+	acc.add(flowA2, TestStartTime())
+	acc.add(flowB1, TestStartTime())
 
 	// Then
 	assert.Equal(t, 2, len(acc.flows))
@@ -167,31 +161,31 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 
 	// When
 	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3, false, logger, rdnsQuerier)
-	acc.add(flowA1)
-	acc.add(flowA2)
+	acc.add(flowA1, TestStartTime())
+	acc.add(flowA2, TestStartTime())
 
 	flowB1a := flowB1
-	acc.add(&flowB1a)
+	acc.add(&flowB1a, TestStartTime())
 	flowB1b := flowB1 // send flowB1 twice to test that it's not counted twice by portRollup tracker
-	acc.add(&flowB1b)
+	acc.add(&flowB1b, TestStartTime())
 	assert.Equal(t, uint16(1), acc.portRollup.GetSourceToDestPortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 80))
 	assert.Equal(t, uint16(1), acc.portRollup.GetDestToSourcePortCount([]byte{10, 10, 10, 10}, []byte{10, 10, 10, 30}, 2001))
 
 	flowB2 := flowB1
 	flowB2.DstPort = 2002
-	acc.add(&flowB2)
+	acc.add(&flowB2, TestStartTime())
 	flowB3 := flowB1
 	flowB3.DstPort = 2003
-	acc.add(&flowB3)
+	acc.add(&flowB3, TestStartTime())
 	flowB4 := flowB1
 	flowB4.DstPort = 2004
-	acc.add(&flowB4)
+	acc.add(&flowB4, TestStartTime())
 	flowB5 := flowB1
 	flowB5.DstPort = 2005
-	acc.add(&flowB5)
+	acc.add(&flowB5, TestStartTime())
 	flowB6 := flowB1
 	flowB6.DstPort = 2006
-	acc.add(&flowB6)
+	acc.add(&flowB6, TestStartTime())
 
 	flowBwithPortRollup := flowB1
 	flowBwithPortRollup.DstPort = portrollup.EphemeralPort
@@ -243,8 +237,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 
 	// When
 	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
-	setMockTimeNow(TestStartTime())
-	acc.add(flow)
+	acc.add(flow, TestStartTime())
 
 	// Then
 	assert.Equal(t, 1, len(acc.flows))
@@ -258,24 +251,21 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	// test first flush
 	// set flush time
 	firstFlushTime := TestStartTime().Add(acc.flowFlushInterval)
-	setMockTimeNow(firstFlushTime)
-	acc.flush() // successful flush
+	acc.flush(firstFlushTime) // successful flush
 	flowContext = acc.flows[flow.AggregationHash()]
 	assert.Equal(t, firstFlushTime.Add(acc.flowFlushInterval), flowContext.nextFlush)
 	assert.Equal(t, firstFlushTime, flowContext.lastSuccessfulFlush)
 
 	// test skip flush if nextFlush is not reached yet
 	timeBeforeNextFlush := TestStartTime().Add(acc.flowFlushInterval + (1 * time.Second))
-	setMockTimeNow(timeBeforeNextFlush)
-	acc.flush() // no flush because nextFlush is not reached yet
+	acc.flush(timeBeforeNextFlush) // no flush because nextFlush is not reached yet
 	flowContext = acc.flows[flow.AggregationHash()]
 	assert.Equal(t, firstFlushTime.Add(acc.flowFlushInterval), flowContext.nextFlush)
 	assert.Equal(t, firstFlushTime, flowContext.lastSuccessfulFlush)
 
 	// test flush with no new flow after nextFlush is reached
 	secondFlushTime := TestStartTime().Add(acc.flowFlushInterval + (acc.flowContextTTL / 2))
-	setMockTimeNow(secondFlushTime)
-	acc.flush()
+	acc.flush(secondFlushTime)
 	flowContext = acc.flows[flow.AggregationHash()]
 	assert.Equal(t, TestStartTime().Add(acc.flowFlushInterval*2), flowContext.nextFlush)
 	// lastSuccessfulFlush time doesn't change because there is no new flow
@@ -283,34 +273,29 @@ func Test_flowAccumulator_flush(t *testing.T) {
 
 	// test flush with new flow after nextFlush is reached
 	thirdFlushTime := TestStartTime().Add(acc.flowFlushInterval*2 + (1 * time.Second))
-	setMockTimeNow(thirdFlushTime)
-	acc.add(flow)
-	acc.flush() // successful flush
+	acc.add(flow, thirdFlushTime)
+	acc.flush(thirdFlushTime) // successful flush
 	flowContext = acc.flows[flow.AggregationHash()]
 	assert.Equal(t, TestStartTime().Add(acc.flowFlushInterval*3), flowContext.nextFlush)
 	assert.Equal(t, thirdFlushTime, flowContext.lastSuccessfulFlush)
 
 	// test flush with TTL reached (now+ttl is equal last successful flush) to clean up entry
 	ttlExpirationTime := thirdFlushTime.Add(flowContextTTL + 1*time.Second)
-	setMockTimeNow(ttlExpirationTime)
-	acc.flush()
+	acc.flush(ttlExpirationTime)
 	_, ok := acc.flows[flow.AggregationHash()]
 	assert.False(t, ok)
 
 	// test flush with TTL reached for a newly added flow
 	// This test case verifies that when a new flow is added and flushed,
 	// it will be cleaned up if no new flows are seen for the TTL period
-	setMockTimeNow(TestStartTime())
-	acc.add(flow)
+	acc.add(flow, TestStartTime())
 	flowContext = acc.flows[flow.AggregationHash()]
 	// Wait for the flush interval before flushing
 	flushTime := TestStartTime().Add(acc.flowFlushInterval)
-	setMockTimeNow(flushTime)
-	acc.flush()
+	acc.flush(flushTime)
 	flowContext = acc.flows[flow.AggregationHash()]
 	finalTTLExpirationTime := flushTime.Add(flowContextTTL + 1*time.Second)
-	setMockTimeNow(finalTTLExpirationTime)
-	acc.flush()
+	acc.flush(finalTTLExpirationTime)
 	_, ok = acc.flows[flow.AggregationHash()]
 	assert.False(t, ok)
 }
