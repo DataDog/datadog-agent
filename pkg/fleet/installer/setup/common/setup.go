@@ -43,13 +43,14 @@ type Setup struct {
 	start     time.Time
 	flavor    string
 
-	Out                     *Output
-	Env                     *env.Env
-	Ctx                     context.Context
-	Span                    *telemetry.Span
-	Packages                Packages
-	Config                  config.Config
-	DdAgentAdditionalGroups []string
+	Out                       *Output
+	Env                       *env.Env
+	Ctx                       context.Context
+	Span                      *telemetry.Span
+	Packages                  Packages
+	Config                    config.Config
+	DdAgentAdditionalGroups   []string
+	DelayedAgentRestartConfig config.DelayedAgentRestartConfig
 }
 
 // NewSetup creates a new Setup structure with some default values.
@@ -141,6 +142,9 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to restart services: %w", err)
 	}
+	if s.DelayedAgentRestartConfig.Scheduled {
+		ScheduleDelayedAgentRestart(s, s.DelayedAgentRestartConfig.Delay, s.DelayedAgentRestartConfig.LogFile)
+	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
 }
@@ -182,4 +186,13 @@ var ExecuteCommandWithTimeout = func(s *Setup, command string, args ...string) (
 		return nil, err
 	}
 	return output, nil
+}
+
+// ScheduleDelayedAgentRestart schedules an agent restart after the specified delay
+func ScheduleDelayedAgentRestart(s *Setup, delay time.Duration, logFile string) {
+	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", delay))
+	cmd := exec.Command("nohup", "bash", "-c", fmt.Sprintf("echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Waiting %v...\" >> %[2]s.log && sleep %d && echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting agent...\" >> %[2]s.log && systemctl restart datadog-agent >> %[2]s.log 2>&1", delay, logFile, int(delay.Seconds())))
+	if err := cmd.Start(); err != nil {
+		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
+	}
 }
