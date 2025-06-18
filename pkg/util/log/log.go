@@ -757,11 +757,19 @@ func formatErrorc(message string, context ...interface{}) error {
 
 // Trace logs at the trace level
 func Trace(v ...interface{}) {
+	if !ShouldLog(TraceLvl) {
+		return
+	}
+
 	log(TraceLvl, func() { Trace(v...) }, logger.trace, v...)
 }
 
 // Tracef logs with format at the trace level
 func Tracef(format string, params ...interface{}) {
+	if !ShouldLog(TraceLvl) {
+		return
+	}
+
 	logFormat(TraceLvl, func() { Tracef(format, params...) }, logger.tracef, format, params...)
 }
 
