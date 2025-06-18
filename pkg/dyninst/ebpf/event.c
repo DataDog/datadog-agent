@@ -42,7 +42,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
   global_ctx_t global_ctx;
-  global_ctx.stack_machine = stack_machine_ctx_load();
+  global_ctx.stack_machine = stack_machine_ctx_load(params->pointer_chasing_limit);
   if (!global_ctx.stack_machine) {
     return 0;
   }

@@ -13,7 +13,6 @@ import (
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 )
@@ -39,11 +38,9 @@ func (server *apiServer) startCMDServer(
 	// Setup multiplexer
 	// create the REST HTTP router
 	agentMux := gorilla.NewRouter()
-	checkMux := gorilla.NewRouter()
 
 	// Validate token for every request
 	agentMux.Use(validateToken)
-	checkMux.Use(validateToken)
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(
@@ -53,7 +50,6 @@ func (server *apiServer) startCMDServer(
 				agentMux,
 				server.endpointProviders,
 			)))
-	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 
 	// Add some observability in the API server
 	cmdMuxHandler := tmf.Middleware(cmdServerShortName)(cmdMux)
