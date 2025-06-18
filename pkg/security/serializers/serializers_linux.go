@@ -1322,14 +1322,14 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	s := &SetSockOptEventSerializer{
-		SocketType:     e.SetSockOpt.Socket_type,
-		SocketProtocol: e.SetSockOpt.Socket_protocol,
-		SocketFamily:   e.SetSockOpt.Socket_family,
+		SocketType:     e.SetSockOpt.SocketType,
+		SocketProtocol: e.SetSockOpt.SocketProtocol,
+		SocketFamily:   e.SetSockOpt.SocketFamily,
 		Level:          e.SetSockOpt.Level,
 		OptName:        e.SetSockOpt.OptName,
-		FilterLen:      e.SetSockOpt.Filter_len,
+		FilterLen:      e.SetSockOpt.FilterLen,
 		Filter:         e.SetSockOpt.Filter,
-		FilterHash:     e.SetSockOpt.Filter_hash,
+		FilterHash:     e.SetSockOpt.FilterHash,
 	}
 	return s
 

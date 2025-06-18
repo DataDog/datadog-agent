@@ -1558,16 +1558,16 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 	fmt.Printf("IN MARSHALLER: %d bytes\n", len(data))
-	e.Socket_type = binary.NativeEndian.Uint16(data[0:2])
-	e.Socket_protocol = binary.NativeEndian.Uint16(data[2:4])
-	e.Socket_family = binary.NativeEndian.Uint16(data[4:6])
+	e.SocketType = binary.NativeEndian.Uint16(data[0:2])
+	e.SocketProtocol = binary.NativeEndian.Uint16(data[2:4])
+	e.SocketFamily = binary.NativeEndian.Uint16(data[4:6])
 	// Padding here
 	e.Level = binary.NativeEndian.Uint32(data[8:12])
 	e.OptName = binary.NativeEndian.Uint32(data[12:16])
-	e.Filter_len = binary.NativeEndian.Uint16(data[16:18])
+	e.FilterLen = binary.NativeEndian.Uint16(data[16:18])
 	// Parse the filter here
 	filterStart := 18
-	filterLen := int(e.Filter_len)
+	filterLen := int(e.FilterLen)
 	filterSize := 8 // sizeof(sock_filter): 2 bytes Code, 1 byte Jt, 1 byte Jf, 4 bytes K
 	if len(data) < filterStart+filterLen*filterSize {
 		return 0, ErrNotEnoughData
@@ -1575,7 +1575,7 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 	h := sha256.New()
 	h.Write([]byte(data[filterStart : filterStart+filterLen*filterSize]))
 	bs := h.Sum(nil)
-	e.Filter_hash = fmt.Sprintf("%x", bs)
+	e.FilterHash = fmt.Sprintf("%x", bs)
 	raw := []bpf.RawInstruction{}
 	for i := 0; i < filterLen; i++ {
 		offset := filterStart + i*filterSize
