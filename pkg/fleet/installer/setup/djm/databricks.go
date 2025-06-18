@@ -24,12 +24,12 @@ import (
 )
 
 const (
-	databricksInjectorVersion    = "0.40.0-1"
-	databricksJavaTracerVersion  = "1.49.0-1"
-	databricksAgentVersion       = "7.66.0-1"
-	fetchTimeoutDuration         = 5 * time.Second
-	gpuIntegrationRestartTimeout = 30 * time.Second
-	restartLogFile               = "/var/log/datadog-gpu-restart"
+	databricksInjectorVersion   = "0.40.0-1"
+	databricksJavaTracerVersion = "1.49.0-1"
+	databricksAgentVersion      = "7.66.0-1"
+	fetchTimeoutDuration        = 5 * time.Second
+	gpuIntegrationRestartDelay  = 60 * time.Second
+	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
 
 var (
@@ -246,14 +246,14 @@ func setupGPUIntegration(s *common.Setup) {
 	s.Span.SetTag("host_tag_set.gpu_monitoring_enabled", "true")
 
 	// Agent must be restarted after NVML initialization, which occurs after init script execution
-	scheduleDelayedAgentRestart(s, gpuIntegrationRestartTimeout)
+	scheduleDelayedAgentRestart(s, gpuIntegrationRestartDelay)
 }
 
 // scheduleDelayedAgentRestart schedules an agent restart after the specified delay
 func scheduleDelayedAgentRestart(s *common.Setup, delay time.Duration) {
 	s.Out.WriteString(fmt.Sprintf("Scheduling agent restart in %v for GPU monitoring\n", delay))
 
-	cmd := exec.Command("nohup", "bash", "-c", fmt.Sprintf("echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Waiting %v...\" >> %[2]s && sleep %d && echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting agent...\" >> %[2]s.log && systemctl restart datadog-agent >> %[2]s.log 2>&1", delay, restartLogFile, int(delay.Seconds())))
+	cmd := exec.Command("nohup", "bash", "-c", fmt.Sprintf("echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Waiting %v...\" >> %[2]s.log && sleep %d && echo \"[$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)] Restarting agent...\" >> %[2]s.log && systemctl restart datadog-agent >> %[2]s.log 2>&1", delay, restartLogFile, int(delay.Seconds())))
 	if err := cmd.Start(); err != nil {
 		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
 		return
