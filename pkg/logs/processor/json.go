@@ -7,7 +7,6 @@ package processor
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -50,32 +49,16 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 	}
 
 	msgContent := msg.GetContent()
-	var (
-		encoded []byte
-		err     error
-	)
 
-	if isValidRawString(msgContent) { // fast path
-		encoded, err = jsonEncodeFastPath(fastPathPayload{
-			content:   msgContent,
-			status:    msg.GetStatus(),
-			timestamp: ts.UnixNano() / nanoToMillis,
-			hostname:  hostname,
-			service:   msg.Origin.Service(),
-			source:    msg.Origin.Source(),
-			tags:      msg.TagsToString(),
-		})
-	} else { // slow path
-		encoded, err = json.Marshal(jsonPayload{
-			Message:   toValidUtf8(msgContent),
-			Status:    msg.GetStatus(),
-			Timestamp: ts.UnixNano() / nanoToMillis,
-			Hostname:  hostname,
-			Service:   msg.Origin.Service(),
-			Source:    msg.Origin.Source(),
-			Tags:      msg.TagsToString(),
-		})
-	}
+	encoded, err := jsonEncodeFastPath(fastPathPayload{
+		content:   msgContent,
+		status:    msg.GetStatus(),
+		timestamp: ts.UnixNano() / nanoToMillis,
+		hostname:  hostname,
+		service:   msg.Origin.Service(),
+		source:    msg.Origin.Source(),
+		tags:      msg.TagsToString(),
+	})
 
 	if err != nil {
 		return fmt.Errorf("can't encode the message: %v", err)
@@ -131,9 +114,7 @@ func jsonEncodeFastPath(payload fastPathPayload) ([]byte, error) {
 
 	// message
 	buff.WriteString(`"message":`)
-	buff.WriteByte('"')
-	buff.Write(payload.content)
-	buff.WriteByte('"')
+	writeEscapedString(&buff, payload.content)
 	buff.WriteByte(',')
 
 	// status
@@ -161,16 +142,86 @@ func jsonEncodeFastPath(payload fastPathPayload) ([]byte, error) {
 	return buff.Bytes(), nil
 }
 
-func isValidRawString(s []byte) bool {
-	if !utf8.Valid(s) {
-		return false
-	}
+func isHTMLJSONSafe(b byte) bool {
+	// Check if the byte is a valid HTML JSON safe character
+	return b >= 0x20 && b != '"' && b != '\\' && b != '<' && b != '>' && b != '&'
+}
 
-	for _, b := range s {
-		if b < 0x20 || b == '"' || b == '\\' || b == '<' || b == '>' || b == '&' {
-			return false
+func writeEscapedString(buff *bytes.Buffer, src []byte) {
+	const hex = "0123456789abcdef"
+
+	buff.WriteByte('"')
+	start := 0
+	for i := 0; i < len(src); {
+		if b := src[i]; b < utf8.RuneSelf {
+			if isHTMLJSONSafe(b) {
+				i++
+				continue
+			}
+			buff.Write(src[start:i])
+			switch b {
+			case '\\', '"':
+				buff.WriteByte('\\')
+				buff.WriteByte(b)
+			case '\b':
+				buff.WriteByte('\\')
+				buff.WriteByte('b')
+			case '\f':
+				buff.WriteByte('\\')
+				buff.WriteByte('f')
+			case '\n':
+				buff.WriteByte('\\')
+				buff.WriteByte('n')
+			case '\r':
+				buff.WriteByte('\\')
+				buff.WriteByte('r')
+			case '\t':
+				buff.WriteByte('\\')
+				buff.WriteByte('t')
+			default:
+				// This encodes bytes < 0x20 except for \b, \f, \n, \r and \t.
+				// If escapeHTML is set, it also escapes <, >, and &
+				// because they can lead to security holes when
+				// user-controlled strings are rendered into JSON
+				// and served to some browsers.
+				buff.Write([]byte{'\\', 'u', '0', '0', hex[b>>4], hex[b&0xF]})
+			}
+			i++
+			start = i
+			continue
 		}
+		// TODO(https://go.dev/issue/56948): Use generic utf8 functionality.
+		// For now, cast only a small portion of byte slices to a string
+		// so that it can be stack allocated. This slows down []byte slightly
+		// due to the extra copy, but keeps string performance roughly the same.
+		n := len(src) - i
+		if n > utf8.UTFMax {
+			n = utf8.UTFMax
+		}
+		c, size := utf8.DecodeRuneInString(string(src[i : i+n]))
+		if c == utf8.RuneError && size == 1 {
+			buff.Write(src[start:i])
+			buff.WriteString(`\ufffd`)
+			i += size
+			start = i
+			continue
+		}
+		// U+2028 is LINE SEPARATOR.
+		// U+2029 is PARAGRAPH SEPARATOR.
+		// They are both technically valid characters in JSON strings,
+		// but don't work in JSONP, which has to be evaluated as JavaScript,
+		// and can lead to security holes there. It is valid JSON to
+		// escape them, so we do so unconditionally.
+		// See https://en.wikipedia.org/wiki/JSON#Safety.
+		if c == '\u2028' || c == '\u2029' {
+			buff.Write(src[start:i])
+			buff.Write([]byte{'\\', 'u', '2', '0', '2', hex[c&0xF]})
+			i += size
+			start = i
+			continue
+		}
+		i += size
 	}
-
-	return true
+	buff.Write(src[start:])
+	buff.WriteByte('"')
 }
