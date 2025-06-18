@@ -205,7 +205,7 @@ func getKeyLastWriteTime(key registry.Key) (string, error) {
 		return "", err
 	}
 	// Convert FILETIME to time.Time
-	return time.Unix(0, ft.Nanoseconds()).Format(time.RFC3339Nano), nil
+	return time.Unix(0, ft.Nanoseconds()).UTC().Format(time.RFC3339Nano), nil
 }
 
 // Helper to collect from a given root key and subkey
