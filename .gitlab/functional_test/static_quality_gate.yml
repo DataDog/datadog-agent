@@ -88,6 +88,7 @@ debug_static_quality_gates:
       allow_failure: true
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64"]
+  needs: []
   script:
     - !reference [.login_to_docker_readonly_crane]
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
