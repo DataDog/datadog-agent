@@ -5,8 +5,8 @@
 require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
 
-name 'otel-agent'
-package_name 'datadog-otel-agent'
+name 'ddot'
+package_name 'datadog-agent-ddot'
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -39,8 +39,8 @@ install_dir INSTALL_DIR
 
 third_party_licenses_path "LICENSES-ddot"
 license_file_path "LICENSE-ddot"
-json_manifest_path File.join(install_dir, "version-manifest.otel-agent.json")
-text_manifest_path File.join(install_dir, "version-manifest.otel-agent.txt")
+json_manifest_path File.join(install_dir, "version-manifest.ddot.json")
+text_manifest_path File.join(install_dir, "version-manifest.ddot.txt")
 
 # build_version is computed by an invoke command/function.
 # We can't call it directly from there, we pass it through the environment instead.
