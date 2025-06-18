@@ -5429,6 +5429,19 @@ Signal constants are the supported signals for the kill syscall.
 | `SIGPWR` | all |
 | `SIGSYS` | all |
 
+### `Socket types` {#socket-types}
+Socket types are the supported socket types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `SOCK_STREAM` | all |
+| `SOCK_DGRAM` | all |
+| `SOCK_RAW` | all |
+| `SOCK_RDM` | all |
+| `SOCK_SEQPACKET` | all |
+| `SOCK_DCCP` | all |
+| `SOCK_PACKET` | all |
+
 ### `SysCtl Actions` {#sysctl-actions}
 SysCtl Actions are the supported actions for the sysctl event.
 

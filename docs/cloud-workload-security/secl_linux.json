@@ -18352,6 +18352,41 @@
       ]
     },
     {
+      "name": "Socket types",
+      "link": "socket-types",
+      "description": "Socket types are the supported socket types.",
+      "all": [
+        {
+          "name": "SOCK_STREAM",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_DGRAM",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_RAW",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_RDM",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_SEQPACKET",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_DCCP",
+          "architecture": "all"
+        },
+        {
+          "name": "SOCK_PACKET",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "SysCtl Actions",
       "link": "sysctl-actions",
       "description": "SysCtl Actions are the supported actions for the sysctl event.",

@@ -867,6 +867,18 @@ var (
 		"RLIMIT_RTTIME":     unix.RLIMIT_RTTIME,
 	}
 
+	// SocketTypeConstants is the list of socket types
+	// generate_constants:Socket types,Socket types are the supported socket types.
+	SocketTypeConstants = map[string]int{
+		"SOCK_STREAM":    syscall.SOCK_STREAM,
+		"SOCK_DGRAM":     syscall.SOCK_DGRAM,
+		"SOCK_RAW":       syscall.SOCK_RAW,
+		"SOCK_RDM":       syscall.SOCK_RDM,
+		"SOCK_SEQPACKET": syscall.SOCK_SEQPACKET,
+		"SOCK_DCCP":      syscall.SOCK_DCCP,
+		"SOCK_PACKET":    syscall.SOCK_PACKET,
+	}
+
 	// SetSockoptLevelConstants is the list of available levels for setsockopt events
 	// generate_constants:SetSockopt Levels,SetSockopt Levels are the supported levels for the setsockopt event.
 	SetSockoptLevelConstants = map[string]int{
@@ -1108,18 +1120,6 @@ var (
 		"IPV6_RECVFRAGSIZE":         unix.IPV6_RECVFRAGSIZE,
 		"IPV6_FREEBIND":             unix.IPV6_FREEBIND,
 	}
-
-	// SocketTypeConstants is the list of socket types
-	// generate_constants:Socket types,Socket types are the supported socket types.
-	SocketTypeConstants = map[string]int{
-		"SOCK_STREAM":    syscall.SOCK_STREAM,
-		"SOCK_DGRAM":     syscall.SOCK_DGRAM,
-		"SOCK_RAW":       syscall.SOCK_RAW,
-		"SOCK_RDM":       syscall.SOCK_RDM,
-		"SOCK_SEQPACKET": syscall.SOCK_SEQPACKET,
-		"SOCK_DCCP":      syscall.SOCK_DCCP,
-		"SOCK_PACKET":    syscall.SOCK_PACKET,
-	}
 )
 
 func initVMConstants() {
@@ -1275,6 +1275,11 @@ func initSetSockOptLevelConstants() {
 }
 func initSetSockOptOptNameConstants() {
 	for k, v := range SetSockOptOptNameConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+	}
+}
+func initSocketTypeConstants() {
+	for k, v := range SocketTypeConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
 	}
 }

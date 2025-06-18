@@ -43,3 +43,4 @@ func initSysCtlActionConstants()      {}
 func initSetSockOptLevelConstants()   {}
 func initSetSockOptOptNameConstants() {}
 func initRlimitConstants()            {}
+func initSocketTypeConstants()        {}

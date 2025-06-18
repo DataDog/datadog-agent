@@ -617,6 +617,7 @@ func initConstants() {
 	initCompressionTypeConstants()
 	initFileTypeConstants()
 	initLinkageTypeConstants()
+	initSocketTypeConstants()
 }
 
 // RetValError represents a syscall return error value
