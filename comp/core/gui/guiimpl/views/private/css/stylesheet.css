@@ -623,11 +623,11 @@ a {
   font-weight: normal;
   margin-left: 5px;
 }
-.source-bubble.msi {
+.source-bubble.installed {
   background-color: #e3f2fd;
   color: #1976d2;
 }
-.source-bubble.registry {
+.source-bubble.broken {
   background-color: #f3e5f5;
   color: #7b1fa2;
 }

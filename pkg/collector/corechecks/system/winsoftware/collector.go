@@ -47,7 +47,7 @@ func convertTimestamp(dateStr string) (string, error) {
 	}
 
 	// Convert to RFC3339Nano format
-	return t.Format(time.RFC3339Nano), nil
+	return t.UTC().Format(time.RFC3339Nano), nil
 }
 
 func (d *desktopAppCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
