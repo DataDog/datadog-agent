@@ -29,12 +29,6 @@ build do
             conf_dir = "#{install_dir}/etc/datadog-agent"
             confd_dir = "#{conf_dir}/conf.d"
 
-            # TODO: subservice files probably don't exist anymore
-            # remove the config files for the subservices; they'll be started
-            # based on the config file
-            delete "#{conf_dir}/apm.yaml.default"
-            delete "#{conf_dir}/process_agent.yaml.default"
-
             # load isn't supported by windows
             delete "#{confd_dir}/load.d"
 
