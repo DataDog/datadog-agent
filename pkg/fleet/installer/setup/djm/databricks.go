@@ -165,7 +165,7 @@ func setupCommonHostTags(s *common.Setup) {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
 		setHostTag(s, "dd.internal.resource:databricks_job", jobID)
-		
+
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
