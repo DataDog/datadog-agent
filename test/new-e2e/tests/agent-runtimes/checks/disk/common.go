@@ -97,7 +97,7 @@ func (v *diskCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 		isNewVersion: useNewVersion,
 	}
 
-	metrics := common.RunCheck(ctx)
+	metrics := common.RunCheck(v, ctx)
 
 	return metrics
 }

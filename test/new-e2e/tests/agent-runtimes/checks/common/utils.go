@@ -61,7 +61,7 @@ func MetricPayloadCompare(a, b check.Metric) int {
 	)
 }
 
-func RunCheck(v e2e.Suite, ctxCheck CheckContext) []check.Metric {
+func RunCheck[Env any](v e2e.Suite[Env], ctxCheck CheckContext) []check.Metric {
 	v.T().Helper()
 
 	var checkVersionTag string
