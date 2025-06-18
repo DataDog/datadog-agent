@@ -372,46 +372,31 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	c.IPCTLSServerConfig = &tls.Config{}
 	c.AuthToken = ""
 
-	// Scrub sensitive data from the config using a JSON-preservation approach.
-	// We use JSON → YAML → JSON conversion to leverage structure-aware scrubbing
-	// while preserving JSON null semantics:
+	// Scrub sensitive data from the config using structure-aware scrubbing.
+	// We use Config → YAML → scrub → struct → JSON conversion to leverage
+	// YAML's structure-aware scrubbing while maintaining JSON output:
 	//
-	// 1. Marshal config to JSON first to preserve Go's nil → JSON null semantics
-	// 2. Convert JSON to YAML via interface{} for structure-aware scrubbing
-	// 3. Apply ScrubYaml to safely remove sensitive data without breaking structure
-	// 4. Convert back to JSON via interface{} to maintain original null representation
-	jsonData, err := json.Marshal(&c)
+	// 1. Marshal config struct directly to YAML
+	// 2. Apply ScrubYaml to safely remove sensitive data without breaking structure
+	// 3. Unmarshal back to struct to preserve Go semantics
+	// 4. Marshal struct to JSON for final output
+	yamlData, err := yaml.Marshal(&c)
 	if err != nil {
 		return err
 	}
 
-	// 1. Convert JSON to interface{}
-	var data interface{}
-	err = json.Unmarshal(jsonData, &data)
-	if err != nil {
-		return err
-	}
-
-	// 2. Convert to YAML for scrubbing
-	yamlData, err := yaml.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	// 3. Scrub the YAML
 	scrubbedYaml, err := scrubber.ScrubYaml(yamlData)
 	if err != nil {
 		return err
 	}
 
-	// 4. Convert back: YAML → interface{} → JSON
-	var scrubbedData interface{}
-	err = yaml.Unmarshal(scrubbedYaml, &scrubbedData)
+	var scrubbedConfig config.AgentConfig
+	err = yaml.Unmarshal(scrubbedYaml, &scrubbedConfig)
 	if err != nil {
 		return err
 	}
 
-	scrubbed, err := json.Marshal(scrubbedData)
+	scrubbed, err := json.Marshal(&scrubbedConfig)
 	if err != nil {
 		return err
 	}
