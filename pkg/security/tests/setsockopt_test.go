@@ -36,18 +36,6 @@ func TestSetSockOpt(t *testing.T) {
 
 	t.Run("setsockopt", func(t *testing.T) {
 		var fd int
-		type SockFilter struct {
-			Code uint16
-			Jt   uint8
-			Jf   uint8
-			K    uint32
-		}
-
-		type SockFprog struct {
-			Len    uint16
-			_      [6]byte
-			Filter *SockFilter
-		}
 
 		test.WaitSignal(t, func() error {
 			var err error
