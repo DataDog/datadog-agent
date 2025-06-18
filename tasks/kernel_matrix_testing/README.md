@@ -100,8 +100,11 @@ dda inv -e kmt.status
 The primary way to interact with the VMs is by running tests using the `kmt.test` command.
 
 ```bash
-# Run all tests on the VM
+# Run all tests on the VM (this will run ALL tests, which can take a while)
 dda inv -e kmt.test --vms=ubuntu_22.04-local-distro
+
+# Run a specific test (recommended for development)
+dda inv -e kmt.test --vms=ubuntu_22.04-local-distro --packages ./pkg/network/usm/tests --run TestFullMonitorWithTracer
 ```
 
 Optionally, for debugging or manual inspection, you can connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
@@ -176,8 +179,13 @@ dda inv -e kmt.status
 The primary way to interact with the VMs is by running tests using the `kmt.test` command.
 
 ```bash
-# Run all tests on the VM
+# Run all tests on the VM (this will run ALL tests, which can take a while)
 dda inv -e kmt.test --vms=x86-jammy-distro
+
+# Run a specific test (recommended for development)
+dda inv -e kmt.test --vms=x86-jammy-distro --packages ./pkg/network/usm/tests --run TestFullMonitorWithTracer
+
+# See the kmt.test command section below for more test options
 ```
 
 Optionally, for debugging or manual inspection, you can connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
