@@ -49,22 +49,6 @@ type JSONRegistry struct {
 	Registry map[string]RegistryEntry
 }
 
-// JSONRegistryV3 represents the V3 registry that will be written on disk
-type JSONRegistryV3 struct {
-	Version  int
-	Registry map[string]RegistryEntryV3
-}
-
-// RegistryEntryV3 represents a V3 entry in the registry where we keep track
-// of current offsets
-type RegistryEntryV3 struct {
-	LastUpdated        time.Time `json:"LastUpdated"`
-	Offset             int64     `json:"Offset"`
-	TailingMode        string    `json:"TailingMode"`
-	IngestionTimestamp int64     `json:"IngestionTimestamp"`
-	FilePath           string    `json:"FilePath"`
-}
-
 // A registryAuditor is storing the Auditor information using a registry.
 type registryAuditor struct {
 	health             *health.Handle
@@ -348,8 +332,12 @@ func (a *registryAuditor) flushRegistry() error {
 
 // marshalRegistry marshals a regsistry
 func (a *registryAuditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
+	version := registryAPIVersion
+	if pkgconfigsetup.Datadog().GetBool("logs_config.enable_experimental_fingerprint") {
+		version = registryAPIVersionFingerprint
+	}
 	r := JSONRegistry{
-		Version:  registryAPIVersion,
+		Version:  version,
 		Registry: registry,
 	}
 	return json.Marshal(r)
@@ -368,6 +356,8 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 	}
 	// ensure backward compatibility
 	switch int(version) {
+	case 3:
+		return unmarshalRegistryV3(b)
 	case 2:
 		return unmarshalRegistryV2(b)
 	case 1:

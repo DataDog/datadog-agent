@@ -19,6 +19,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
@@ -75,6 +77,8 @@ func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 }
 
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
+	pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", false, model.SourceAgentRuntime)
+	defer pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", nil, model.SourceAgentRuntime)
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
@@ -89,6 +93,49 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry = suite.a.recoverRegistry()
 	suite.Equal("42", suite.a.registry[suite.source.Config.Path].Offset)
+}
+
+func (suite *AuditorTestSuite) TestAuditorUpdatesRegistryWithFingerprint() {
+	pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", true, model.SourceAgentRuntime)
+	defer pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", nil, model.SourceAgentRuntime)
+
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.Equal(0, len(suite.a.registry))
+
+	identifier := "fingerprint:12345"
+	filePath := "/var/log/test.log"
+
+	suite.a.updateRegistry(identifier, "100", "end", 1, filePath)
+	suite.Equal(1, len(suite.a.registry))
+	suite.Equal("100", suite.a.registry[identifier].Offset)
+	suite.Equal("end", suite.a.registry[identifier].TailingMode)
+	suite.Equal(filePath, suite.a.registry[identifier].FilePath)
+}
+
+func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistryWithFingerprint() {
+	pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", true, model.SourceAgentRuntime)
+	defer pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", nil, model.SourceAgentRuntime)
+	identifier := "fingerprint:12345"
+	filePath := "/var/log/test.log"
+
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.registry[identifier] = &RegistryEntry{
+		LastUpdated: time.Date(2024, time.July, 18, 1, 1, 1, 1, time.UTC),
+		Offset:      "150",
+		TailingMode: "end",
+		FilePath:    filePath,
+	}
+	suite.NoError(suite.a.flushRegistry())
+
+	r, err := os.ReadFile(suite.testRegistryPath)
+	suite.NoError(err)
+	expectedJSON := `{"Version":3,"Registry":{"fingerprint:12345":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"FilePath":"/var/log/test.log"}}}`
+	suite.Equal(expectedJSON, string(r))
+
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.registry = suite.a.recoverRegistry()
+	suite.Equal("150", suite.a.registry[identifier].Offset)
+	suite.Equal(filePath, suite.a.registry[identifier].FilePath)
 }
 
 func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
