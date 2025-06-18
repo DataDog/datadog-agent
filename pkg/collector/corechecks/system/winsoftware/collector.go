@@ -9,7 +9,10 @@
 package winsoftware
 
 import (
+	"errors"
+	"fmt"
 	"strings"
+	"time"
 )
 
 // SoftwareCollector defines the interface for collecting software entries
@@ -21,9 +24,63 @@ type SoftwareCollector interface {
 // defaultCollectors returns the default collectors for production use
 func defaultCollectors() []SoftwareCollector {
 	return []SoftwareCollector{
-		&MSICollector{},
-		&RegistryCollector{},
+		// desktopAppCollector aggregates MSI and Registry collectors
+		&desktopAppCollector{},
 	}
+}
+
+// desktopAppCollector aggregates multiple sources to identify desktop apps.
+// It will flag apps that are in broken states by comparing them between multiple sources.
+// I.e. if an application is present in the MSI database and not in the registry.
+type desktopAppCollector struct{}
+
+func convertTimestamp(dateStr string) (string, error) {
+	var t time.Time
+	var err error
+
+	t, err = time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		t, err = time.Parse("20060102", dateStr)
+		if err != nil {
+			return "", fmt.Errorf("unable to parse date: %v", err)
+		}
+	}
+
+	// Convert to RFC3339Nano format
+	return t.Format(time.RFC3339Nano), nil
+}
+
+func (d *desktopAppCollector) Collect() ([]*SoftwareEntry, []*Warning, error) {
+	regCollector := registryCollector{}
+	regEntries, regWarnings, err := regCollector.Collect()
+	if err != nil {
+		return nil, regWarnings, err
+	}
+	// Build a map of software entry for quick lookup
+	regMap := map[string]*SoftwareEntry{}
+	for _, regEntry := range regEntries {
+		regMap[regEntry.GetID()] = regEntry
+	}
+
+	msiCollector := mSICollector{}
+	msiEntries, msiWarnings, err := msiCollector.Collect()
+	if err != nil {
+		return nil, msiWarnings, err
+	}
+
+	for _, msiEntry := range msiEntries {
+		if regEntry, ok := regMap[msiEntry.GetID()]; !ok {
+			// Software is present in MSI but not in registry
+			msiEntry.Status = "broken"
+			regEntries = append(regEntries, msiEntry)
+		} else {
+			if regEntry.InstallDate == "" {
+				regEntry.InstallDate = msiEntry.InstallDate
+			}
+		}
+	}
+
+	return regEntries, append(regWarnings, msiWarnings...), nil
 }
 
 // GetSoftwareInventory returns a list of software entries found on the system
@@ -35,25 +92,23 @@ func GetSoftwareInventory() ([]*SoftwareEntry, []*Warning, error) {
 func GetSoftwareInventoryWithCollectors(collectors []SoftwareCollector) ([]*SoftwareEntry, []*Warning, error) {
 	var warn []*Warning
 	var allEntries []*SoftwareEntry
+	var allErrors error
 
 	// Collect from all sources
 	for _, collector := range collectors {
 		entries, warnings, err := collector.Collect()
-		if err != nil {
-			// Log error but continue with other collectors
-			warn = append(warn, warnf("error collecting software: %v", err))
-			continue
-		}
 
 		// Add any warnings from the collector
 		warn = append(warn, warnings...)
 
+		if err != nil {
+			// Log error but continue with other collectors
+			allErrors = errors.Join(allErrors, err)
+			continue
+		}
+
 		// Add entries to result list
 		for _, entry := range entries {
-			if entry == nil {
-				warn = append(warn, warnf("invalid software detected"))
-				continue
-			}
 			allEntries = append(allEntries, entry)
 		}
 	}

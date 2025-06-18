@@ -10,6 +10,7 @@ package inventorysoftware
 import (
 	"embed"
 	"io"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
@@ -44,12 +45,22 @@ func (is *inventorySoftware) HTML(_ bool, buffer io.Writer) error {
 	return status.RenderHTML(templatesFS, "inventoryHTML.tmpl", buffer, is.getStatusInfo())
 }
 
+// For display in status we format the date as YYYYMMDD
+func formatYYYYMMDD(ts string) (string, error) {
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return "", err
+	}
+	return t.Format("2006/01/02"), nil
+}
+
 func (is *inventorySoftware) populateStatus(status map[string]interface{}) {
 	data := map[string]interface{}{}
 	if is.cachedInventory == nil {
 		_ = is.refreshCachedValues()
 	}
 	for _, inventory := range is.cachedInventory {
+		inventory.InstallDate, _ = formatYYYYMMDD(inventory.InstallDate)
 		data[inventory.GetID()] = inventory
 	}
 	status["software_inventory_metadata"] = data
