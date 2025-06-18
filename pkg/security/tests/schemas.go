@@ -274,16 +274,6 @@ func (tm *testModule) validateConnectSchema(t *testing.T, event *model.Event) bo
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) validateFsmountSchema(t *testing.T, event *model.Event) bool {
-	if ebpfLessEnabled {
-		return true
-	}
-
-	t.Helper()
-	return tm.validateEventSchema(t, event, "file:///fsmount.schema.json")
-}
-
-//nolint:deadcode,unused
 func (tm *testModule) validateMountSchema(t *testing.T, event *model.Event) bool {
 	if ebpfLessEnabled {
 		return true
