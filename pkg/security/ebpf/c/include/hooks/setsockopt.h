@@ -115,8 +115,7 @@ int hook_release_sock(ctx_t *ctx) {
     struct sock *sk = (struct sock *)CTX_PARM1(ctx);
     struct sock_common *sockcommon = (void *)sk;
     u16 socket_family = get_family_from_sock_common(sockcommon);
-    u16 socket_protocol;
-    bpf_probe_read(&socket_protocol, sizeof(u16), &(sk->sk_protocol));
+    u16 socket_protocol = get_protocol_from_sock(sk);
     syscall->setsockopt.socket_protocol = socket_protocol;
     syscall->setsockopt.socket_family = socket_family;
 

@@ -1562,6 +1562,7 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.SocketProtocol = binary.NativeEndian.Uint16(data[2:4])
 	e.SocketFamily = binary.NativeEndian.Uint16(data[4:6])
 	// Padding here
+	fmt.Printf("IN MARSHALLER, probably an error of padding here : %d/n", data[6:8])
 	e.Level = binary.NativeEndian.Uint32(data[8:12])
 	e.OptName = binary.NativeEndian.Uint32(data[12:16])
 	e.FilterLen = binary.NativeEndian.Uint16(data[16:18])
@@ -1598,6 +1599,9 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 	for i, inst := range instructions {
 		e.Filter += fmt.Sprintf("%03d: %s\n", i, inst)
 	}
+	fmt.Printf("IN MARSHALLER: event sent is: %d, %d, %d, %d, %d, %d, %s\n",
+		e.SocketType, e.SocketProtocol, e.SocketFamily, e.Level, e.OptName, e.FilterLen, e.FilterHash)
+
 	return filterStart + filterLen*filterSize + read, nil
 }
 
