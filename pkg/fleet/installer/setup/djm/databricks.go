@@ -159,13 +159,13 @@ func setupCommonHostTags(s *common.Setup) {
 
 	if jobName := os.Getenv("DD_JOB_NAME"); jobName != "" {
 		setHostTag(s, "dd.internal.resource:databricks_job", jobName)
-	} else {
-		jobID, runID, ok := getJobAndRunIDs()
-		if ok {
-			setHostTag(s, "jobid", jobID)
-			setHostTag(s, "runid", runID)
-			setHostTag(s, "dd.internal.resource:databricks_job", jobID)
-		}
+	}
+	jobID, runID, ok := getJobAndRunIDs()
+	if ok {
+		setHostTag(s, "jobid", jobID)
+		setHostTag(s, "runid", runID)
+		setHostTag(s, "dd.internal.resource:databricks_job", jobID)
+		
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
