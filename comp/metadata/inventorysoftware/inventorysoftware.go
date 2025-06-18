@@ -9,8 +9,11 @@
 package inventorysoftware
 
 import (
+	"context"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winsoftware"
 	"net/http"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
@@ -61,6 +64,7 @@ type inventorySoftware struct {
 	log             log.Component
 	sysProbeClient  SysProbeClient
 	cachedInventory []winsoftware.SoftwareEntry
+	hostname        string
 }
 
 // Dependencies is the dependencies for the inventory software component.
@@ -70,6 +74,7 @@ type Dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
 }
 
 // Provides defines the output of the hostgpu component
@@ -90,9 +95,11 @@ func NewWithClient(deps Dependencies, client SysProbeClient) Provides {
 			client: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 		}
 	}
+	hname, _ := deps.Hostname.Get(context.Background())
 	is := &inventorySoftware{
 		log:            deps.Log,
 		sysProbeClient: client,
+		hostname:       hname,
 	}
 	is.log.Infof("Starting the inventory software component")
 	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, flareFileName)
@@ -129,9 +136,14 @@ func (is *inventorySoftware) getPayload() marshaler.JSONMarshaler {
 	}
 
 	return &Payload{
-		Metadata: is.cachedInventory,
+		Hostname:  is.hostname,           // Set from the component's hostname field
+		Timestamp: time.Now().UnixNano(), // Set to current time (nanoseconds)
+		Metadata:  HostSoftware{
+			Software: is.cachedInventory,
+		},
 	}
 }
+
 
 func (is *inventorySoftware) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	json, err := is.GetAsJSON()

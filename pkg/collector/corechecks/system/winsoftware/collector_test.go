@@ -339,8 +339,8 @@ func TestUnicodeCollectFromKey(t *testing.T) {
 		assert.Equal(t, trimVersion(td.version), entry.Version, "Version should be trimmed")
 		assert.Equal(t, "desktop[registry]", entry.Source, "Source should be registry")
 		assert.True(t, entry.Is64Bit, "Should be marked as 64-bit for WOW64_64KEY")
-		assert.Equal(t, td.publisher, entry.Properties["Publisher"], "Publisher should match")
-		assert.Equal(t, td.subKey, entry.Properties["ProductCode"], "ProductCode should be subkey name")
+		assert.Equal(t, td.publisher, entry.Publisher, "Publisher should match")
+		assert.Equal(t, td.subKey, entry.ProductCode, "ProductCode should be subkey name")
 	}
 }
 

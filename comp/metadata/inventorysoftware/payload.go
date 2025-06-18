@@ -16,7 +16,13 @@ import (
 
 // Payload is the payload for the inventory software component
 type Payload struct {
-	Metadata []winsoftware.SoftwareEntry `json:"software_inventory_metadata"`
+	Hostname  string       `json:"hostname"`
+	Timestamp int64        `json:"timestamp"`
+	Metadata  HostSoftware `json:"host_software"`
+}
+
+type HostSoftware struct {
+	Software []winsoftware.SoftwareEntry `json:"software"`
 }
 
 // MarshalJSON serialization a Payload to JSON

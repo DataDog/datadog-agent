@@ -42,8 +42,8 @@ func (sim *softwareInventoryModule) Register(httpMux *module.Router) error {
 			w.WriteHeader(500)
 			return
 		}
-		if warn != nil {
-			log.Warnf("warning: %v", warn)
+		for _, warning := range warn {
+			_ = log.Warnf("warning: %s", warning)
 		}
 		utils.WriteAsJSON(w, inventory, utils.CompactOutput)
 	}))

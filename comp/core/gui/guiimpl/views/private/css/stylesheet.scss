@@ -765,3 +765,22 @@ a {
   scrollbar-width: thin;
   scrollbar-color: $purple #e8e0f2;
 }
+
+.source-bubble {
+  display: inline-block;
+  padding: 0px 6px;
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: normal;
+  margin-left: 5px;
+
+  &.msi {
+    background-color: #E3F2FD;
+    color: #1976D2;
+  }
+
+  &.registry {
+    background-color: #F3E5F5;
+    color: #7B1FA2;
+  }
+}
