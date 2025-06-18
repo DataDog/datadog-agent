@@ -34,7 +34,6 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("dns"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
-		eval.EventType("fsmount"),
 		eval.EventType("imds"),
 		eval.EventType("link"),
 		eval.EventType("load_module"),
@@ -3923,50 +3922,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "fsmount.fd":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.Fsmount.Fd)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "fsmount.flags":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.Fsmount.Flags)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "fsmount.mount_attrs":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.Fsmount.MountAttrs)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "fsmount.retval":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.Fsmount.SyscallEvent.Retval)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "imds.aws.is_imds_v2":
@@ -27849,10 +27804,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.user_session.k8s_groups",
 		"exit.user_session.k8s_uid",
 		"exit.user_session.k8s_username",
-		"fsmount.fd",
-		"fsmount.flags",
-		"fsmount.mount_attrs",
-		"fsmount.retval",
 		"imds.aws.is_imds_v2",
 		"imds.aws.security_credentials.type",
 		"imds.cloud_provider",
@@ -29937,14 +29888,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.String, "string", nil
 	case "exit.user_session.k8s_username":
 		return "exit", reflect.String, "string", nil
-	case "fsmount.fd":
-		return "fsmount", reflect.Int, "int", nil
-	case "fsmount.flags":
-		return "fsmount", reflect.Int, "int", nil
-	case "fsmount.mount_attrs":
-		return "fsmount", reflect.Int, "int", nil
-	case "fsmount.retval":
-		return "fsmount", reflect.Int, "int", nil
 	case "imds.aws.is_imds_v2":
 		return "imds", reflect.Bool, "bool", nil
 	case "imds.aws.security_credentials.type":
@@ -35809,34 +35752,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "exit.user_session.k8s_username"}
 		}
 		ev.Exit.Process.UserSession.K8SUsername = rv
-		return nil
-	case "fsmount.fd":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "fsmount.fd"}
-		}
-		ev.Fsmount.Fd = int32(rv)
-		return nil
-	case "fsmount.flags":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "fsmount.flags"}
-		}
-		ev.Fsmount.Flags = uint32(rv)
-		return nil
-	case "fsmount.mount_attrs":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "fsmount.mount_attrs"}
-		}
-		ev.Fsmount.MountAttrs = uint32(rv)
-		return nil
-	case "fsmount.retval":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "fsmount.retval"}
-		}
-		ev.Fsmount.SyscallEvent.Retval = int64(rv)
 		return nil
 	case "imds.aws.is_imds_v2":
 		rv, ok := value.(bool)

@@ -285,8 +285,6 @@ func (t EventType) String() string {
 		return "dns_response"
 	case SetSockOptEventType:
 		return "setsockopt"
-	case FileFsmountEventType:
-		return "fsmount"
 	default:
 		return "unknown"
 	}
