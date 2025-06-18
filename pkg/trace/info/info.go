@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"gopkg.in/yaml.v3"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -371,13 +372,46 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	c.IPCTLSServerConfig = &tls.Config{}
 	c.AuthToken = ""
 
-	var buf []byte
-	buf, err := json.Marshal(&c)
+	// Scrub sensitive data from the config using a JSON-preservation approach.
+	// We use JSON → YAML → JSON conversion to leverage structure-aware scrubbing
+	// while preserving JSON null semantics:
+	//
+	// 1. Marshal config to JSON first to preserve Go's nil → JSON null semantics
+	// 2. Convert JSON to YAML via interface{} for structure-aware scrubbing
+	// 3. Apply ScrubYaml to safely remove sensitive data without breaking structure
+	// 4. Convert back to JSON via interface{} to maintain original null representation
+	jsonData, err := json.Marshal(&c)
 	if err != nil {
 		return err
 	}
 
-	scrubbed, err := scrubber.ScrubBytes(buf)
+	// 1. Convert JSON to interface{}
+	var data interface{}
+	err = json.Unmarshal(jsonData, &data)
+	if err != nil {
+		return err
+	}
+
+	// 2. Convert to YAML for scrubbing
+	yamlData, err := yaml.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	// 3. Scrub the YAML
+	scrubbedYaml, err := scrubber.ScrubYaml(yamlData)
+	if err != nil {
+		return err
+	}
+
+	// 4. Convert back: YAML → interface{} → JSON
+	var scrubbedData interface{}
+	err = yaml.Unmarshal(scrubbedYaml, &scrubbedData)
+	if err != nil {
+		return err
+	}
+
+	scrubbed, err := json.Marshal(scrubbedData)
 	if err != nil {
 		return err
 	}
