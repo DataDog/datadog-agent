@@ -14,16 +14,26 @@ func _() {
 	_ = x[CGroupManagerCRI-4]
 	_ = x[CGroupManagerSystemd-5]
 	_ = x[CGroupManagerECS-6]
+	_ = x[CgroupManagerUndefined-255]
 }
 
-const _CGroupManager_name = "dockercri-opodmancontainerdsystemdecs"
+const (
+	_CGroupManager_name_0 = "dockercri-opodmancontainerdsystemdecs"
+	_CGroupManager_name_1 = "CgroupManagerUndefined"
+)
 
-var _CGroupManager_index = [...]uint8{0, 6, 11, 17, 27, 34, 37}
+var (
+	_CGroupManager_index_0 = [...]uint8{0, 6, 11, 17, 27, 34, 37}
+)
 
 func (i CGroupManager) String() string {
-	i -= 1
-	if i >= CGroupManager(len(_CGroupManager_index)-1) {
-		return "CGroupManager(" + strconv.FormatInt(int64(i+1), 10) + ")"
+	switch {
+	case 1 <= i && i <= 6:
+		i -= 1
+		return _CGroupManager_name_0[_CGroupManager_index_0[i]:_CGroupManager_index_0[i+1]]
+	case i == 255:
+		return _CGroupManager_name_1
+	default:
+		return "CGroupManager(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _CGroupManager_name[_CGroupManager_index[i]:_CGroupManager_index[i+1]]
 }
