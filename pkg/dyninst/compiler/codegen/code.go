@@ -78,6 +78,7 @@ func GenerateCCode(program sm.Program, out io.Writer) (attachpoints []BPFAttachP
 	mustFprintf(out, "const uint64_t stack_machine_code_len = %d;\n", metadata.Len)
 	mustFprintf(out, "const uint32_t stack_machine_code_max_op = %d;\n", metadata.MaxOpLen)
 	mustFprintf(out, "const uint32_t chase_pointers_entrypoint = 0x%x;\n\n", metadata.FunctionLoc[sm.ChasePointers{}])
+	mustFprintf(out, "const uint32_t prog_id = %d;\n\n", program.ID)
 
 	mustFprintf(out, "const probe_params_t probe_params[] = {\n")
 	for _, f := range program.Functions {
