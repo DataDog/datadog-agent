@@ -12,9 +12,8 @@ if (-Not $ddInstallerUrl) {
    $ddInstallerUrl = "https://install.datadoghq.com/datadog-installer-x86_64.exe"
 }
 
-$ddRemoteUpdates = $env:DD_REMOTE_UPDATES
-if (-Not $ddRemoteUpdates) {
-   $ddRemoteUpdates = "false"
+if (-Not $env:DD_REMOTE_UPDATES) {
+   $env:DD_REMOTE_UPDATES = "false"
 }
 
 # ExitCodeException can be used to report failures from executables that set $LASTEXITCODE
@@ -176,9 +175,9 @@ function Update-DatadogAgentConfig() {
       Update-DatadogConfigFile "^[ #]*dd_url:.*" "dd_url: $env:DD_URL"
    }
 
-   if ($ddRemoteUpdates) {
+   if ($env:DD_REMOTE_UPDATES) {
       Write-Host "Writing DD_REMOTE_UPDATES"
-      Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($ddRemoteUpdates.ToLower())"
+      Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($env:DD_REMOTE_UPDATES.ToLower())"
    }
 }
 
