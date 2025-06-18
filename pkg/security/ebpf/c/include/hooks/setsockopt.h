@@ -3,7 +3,7 @@
 
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
-
+#include <uapi/linux/filter.h>
 long __attribute__((always_inline)) trace__sys_setsock_opt(u8 async, int socket_fd, int level, int optname) {
     if (is_discarded_by_pid()) {
         return 0;
