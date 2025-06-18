@@ -60,15 +60,15 @@ func (t *Tailer) DidRotate() (bool, error) {
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotateViaFingerprint() (bool, error) {
-	f, err := filesystem.OpenShared(t.fullpath)
-	if err != nil {
-		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
-	}
-	defer f.Close()
-	//get current fingerprint of tailer
-	//compare to the fingerprint in the registry
-	//if they are different, return true
-	//if they are the same, return false
+	newFingerprint := t.ComputeFingerPrint()
 
-	return false, nil
+	// If the old fingerprint is 0, we can't know for sure.
+	// This can happen if the file was empty when the tailer started.
+	if t.fingerprint == 0 {
+		return false, nil
+	}
+
+	// If fingerprints are different, it means the file was rotated.
+	// This is also true if the new fingerprint is 0, which means the file was truncated.
+	return newFingerprint != t.fingerprint, nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
@@ -50,7 +51,7 @@ type Launcher struct {
 	done                chan struct{}
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
-	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
+	// Feature flag defaulting to false,
 	validatePodContainerID bool
 	scanPeriod             time.Duration
 	flarecontroller        *flareController.FlareController
@@ -178,7 +179,14 @@ func (s *Launcher) scan() {
 
 		// If the file is currently being tailed, check for rotation and handle it appropriately.
 		if isTailed {
-			didRotate, err := tailer.DidRotate()
+			var didRotate bool
+			var err error
+			fingerprintEnabled := pkgconfigsetup.Datadog().GetBool("logs_config.enable_experimental_fingerprint")
+			if fingerprintEnabled {
+				didRotate, err = tailer.DidRotateViaFingerprint()
+			} else {
+				didRotate, err = tailer.DidRotate()
+			}
 			if err != nil {
 				log.Debugf("failed to detect log rotation: %v", err)
 				continue
