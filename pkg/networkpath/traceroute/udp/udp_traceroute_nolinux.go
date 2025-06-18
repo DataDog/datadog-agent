@@ -5,12 +5,12 @@
 
 //go:build !linux
 
-package tcp
+package udp
 
 import (
 	"fmt"
 )
 
-func (*TCPv4) newTracerouteDriver() (*tcpDriver, error) {
-	return nil, fmt.Errorf("TCP getTracerouteDriver is not yet supported on this platform")
+func (*UDPv4) newTracerouteDriver() (*udpDriver, error) {
+	return nil, fmt.Errorf("UDP getTracerouteDriver is not supported on this platform")
 }

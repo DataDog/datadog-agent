@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package tcp
+//go:build linux
+
+package udp
 
 import (
 	"fmt"
@@ -12,12 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 )
 
-func (t *TCPv4) newTracerouteDriver() (*tcpDriver, error) {
-	targetAddr, ok := common.UnmappedAddrFromSlice(t.Target)
+//nolint:unused // This is used, but not on all platforms yet
+func (u *UDPv4) newTracerouteDriver() (*udpDriver, error) {
+	targetAddr, ok := common.UnmappedAddrFromSlice(u.Target)
 	if !ok {
-		return nil, fmt.Errorf("failed to get netipAddr for target %s", t.Target)
+		return nil, fmt.Errorf("failed to get netipAddr for target %s", u.Target)
 	}
-	t.Target = targetAddr.AsSlice()
+	u.Target = targetAddr.AsSlice()
 
 	sink, err := packets.NewSinkUnix(targetAddr)
 	if err != nil {
@@ -30,5 +33,5 @@ func (t *TCPv4) newTracerouteDriver() (*tcpDriver, error) {
 		return nil, fmt.Errorf("Traceroute failed to make AFPacketSource: %w", err)
 	}
 
-	return newTCPDriver(t, sink, source), nil
+	return newUDPDriver(u, sink, source), nil
 }
