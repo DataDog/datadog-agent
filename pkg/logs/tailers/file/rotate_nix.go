@@ -53,6 +53,12 @@ func (t *Tailer) DidRotate() (bool, error) {
 	return recreated || truncated, nil
 }
 
+// DidRotateViaFingerprint returns true if the file has been log-rotated via fingerprint.
+//
+// On *nix, when a log rotation occurs, the file can be either:
+// - renamed and recreated
+// - removed and recreated
+// - truncated
 func (t *Tailer) DidRotateViaFingerprint() (bool, error) {
 	f, err := filesystem.OpenShared(t.fullpath)
 	if err != nil {
