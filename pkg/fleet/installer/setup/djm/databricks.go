@@ -157,9 +157,6 @@ func setupCommonHostTags(s *common.Setup) {
 		return clusterNameRegex.ReplaceAllString(v, "_")
 	})
 
-	if jobName := os.Getenv("DD_JOB_NAME"); jobName != "" {
-		setHostTag(s, "dd.internal.resource:databricks_job", jobName)
-	}
 	jobID, runID, ok := getJobAndRunIDs()
 	if ok {
 		setHostTag(s, "jobid", jobID)
