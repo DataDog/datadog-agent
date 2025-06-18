@@ -7,6 +7,7 @@ package server
 
 import (
 	"fmt"
+	"unique"
 )
 
 // stringInterner is a string cache providing a longer life for strings,
@@ -50,26 +51,5 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 // If we need to store a new entry and the cache is at its maximum capacity,
 // it is reset.
 func (i *stringInterner) LoadOrStore(key []byte) string {
-	// here is the string interner trick: the map lookup using
-	// string(key) doesn't actually allocate a string, but is
-	// returning the string value -> no new heap allocation
-	// for this string.
-	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
-	if s, found := i.strings[string(key)]; found {
-		i.telemetry.Hit()
-		return s
-	}
-
-	if len(i.strings) >= i.maxSize {
-		i.telemetry.Reset(len(i.strings))
-
-		i.strings = make(map[string]string)
-	}
-
-	s := string(key)
-	i.strings[s] = s
-
-	i.telemetry.Miss(len(s))
-
-	return s
+	return unique.Make(string(key)).Value()
 }
