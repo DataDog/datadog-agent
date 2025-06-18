@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package tcp
+package udp
 
 import (
 	"context"
@@ -14,29 +14,22 @@ import (
 )
 
 // Traceroute runs a TCP traceroute
-func (t *TCPv4) Traceroute() (*common.Results, error) {
-	addr, conn, err := common.LocalAddrForHost(t.Target, t.DestPort)
+func (t *UDPv4) Traceroute() (*common.Results, error) {
+	addr, conn, err := common.LocalAddrForHost(t.Target, t.TargetPort)
 	if err != nil {
-		return nil, fmt.Errorf("TCP Traceroute failed to get local address for target: %w", err)
+		return nil, fmt.Errorf("UDP Traceroute failed to get local address for target: %w", err)
 	}
-	conn.Close() // we don't need the UDP port here
+	defer conn.Close()
 	t.srcIP = addr.IP
-
-	// reserve a local port so that the tcpDriver has free reign to safely send packets on it
-	port, tcpListener, err := reserveLocalPort()
-	if err != nil {
-		return nil, fmt.Errorf("TCP Traceroute failed to create TCP listener: %w", err)
-	}
-	defer tcpListener.Close()
-	t.srcPort = port
+	t.srcPort = uint16(addr.Port)
 
 	// get this platform's tcpDriver implementation
 	driver, err := t.newTracerouteDriver()
 	if err != nil {
-		return nil, fmt.Errorf("TCP Traceroute failed to getTracerouteDriver: %w", err)
+		return nil, fmt.Errorf("UDP Traceroute failed to getTracerouteDriver: %w", err)
 	}
 
-	params := common.TracerouteSerialParams{
+	params := common.TracerouteParallelParams{
 		TracerouteParams: common.TracerouteParams{
 			MinTTL:            t.MinTTL,
 			MaxTTL:            t.MaxTTL,
@@ -45,23 +38,23 @@ func (t *TCPv4) Traceroute() (*common.Results, error) {
 			SendDelay:         t.Delay,
 		},
 	}
-	resp, err := common.TracerouteSerial(context.Background(), driver, params)
+	resp, err := common.TracerouteParallel(context.Background(), driver, params)
 	if err != nil {
 		return nil, err
 	}
 
 	hops, err := common.ToHops(params.TracerouteParams, resp)
 	if err != nil {
-		return nil, fmt.Errorf("SYN traceroute ToHops failed: %w", err)
+		return nil, fmt.Errorf("UDP traceroute ToHops failed: %w", err)
 	}
 
 	result := &common.Results{
 		Source:     t.srcIP,
 		SourcePort: t.srcPort,
 		Target:     t.Target,
-		DstPort:    t.DestPort,
+		DstPort:    t.TargetPort,
 		Hops:       hops,
-		Tags:       []string{"tcp_method:syn", fmt.Sprintf("paris_traceroute_mode_enabled:%t", t.ParisTracerouteMode)},
+		Tags:       nil,
 	}
 
 	return result, nil
