@@ -8,6 +8,7 @@ package server
 import (
 	"fmt"
 	"unique"
+	"unsafe"
 )
 
 // stringInterner is a string cache providing a longer life for strings,
@@ -51,5 +52,11 @@ func newStringInterner(maxSize int, internerID int, siTelemetry *stringInternerT
 // If we need to store a new entry and the cache is at its maximum capacity,
 // it is reset.
 func (i *stringInterner) LoadOrStore(key []byte) string {
-	return unique.Make(string(key)).Value()
+	if len(key) == 0 {
+		return ""
+	}
+
+	// TODO: doc this optimization, go 1.25
+	tmp := unsafe.String(&key[0], len(key))
+	return unique.Make(tmp).Value()
 }
