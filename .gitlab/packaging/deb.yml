@@ -71,24 +71,24 @@ agent_deb-arm64-a7-fips:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
 
-ot_agent_deb-x64-a7:
+ddot_deb-x64:
   extends: [.package_deb_common, .package_deb_x86]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["datadog-otel-agent-x64"]
   variables:
-    DD_PROJECT: "otel-agent"
+    DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: ""
 
-ot_agent_deb-arm64-a7:
+ddot_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["datadog-otel-agent-arm64"]
   variables:
-    DD_PROJECT: "otel-agent"
+    DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 installer_deb-amd64:

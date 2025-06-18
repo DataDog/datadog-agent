@@ -18,7 +18,7 @@ build do
     end
   end
 
-  unless project.name == "otel-agent"
+  unless project.name == "ddot"
     # Merge version manifests together
     # The agent file is the main one, with no .$product suffix.
     # We will merge suffixed files into the main one
