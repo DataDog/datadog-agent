@@ -1108,6 +1108,18 @@ var (
 		"IPV6_RECVFRAGSIZE":         unix.IPV6_RECVFRAGSIZE,
 		"IPV6_FREEBIND":             unix.IPV6_FREEBIND,
 	}
+
+	// SocketTypeConstants is the list of socket types
+	// generate_constants:Socket types,Socket types are the supported socket types.
+	SocketTypeConstants = map[string]int{
+		"SOCK_STREAM":    syscall.SOCK_STREAM,
+		"SOCK_DGRAM":     syscall.SOCK_DGRAM,
+		"SOCK_RAW":       syscall.SOCK_RAW,
+		"SOCK_RDM":       syscall.SOCK_RDM,
+		"SOCK_SEQPACKET": syscall.SOCK_SEQPACKET,
+		"SOCK_DCCP":      syscall.SOCK_DCCP,
+		"SOCK_PACKET":    syscall.SOCK_PACKET,
+	}
 )
 
 func initVMConstants() {
