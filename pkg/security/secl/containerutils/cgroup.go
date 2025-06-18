@@ -17,14 +17,13 @@ type CGroupManager uint64
 
 // CGroup managers
 const (
-	CGroupManagerDocker  CGroupManager = iota + 1 // docker
-	CGroupManagerCRIO                             // cri-o
-	CGroupManagerPodman                           // podman
-	CGroupManagerCRI                              // containerd
-	CGroupManagerSystemd                          // systemd
-	CGroupManagerECS                              // ecs
-
-	CgroupManagerUndefined CGroupManager = 255 // undefined
+	CgroupManagerUndefined CGroupManager = iota // unknown
+	CGroupManagerDocker                         // docker
+	CGroupManagerCRIO                           // cri-o
+	CGroupManagerPodman                         // podman
+	CGroupManagerCRI                            // containerd
+	CGroupManagerSystemd                        // systemd
+	CGroupManagerECS                            // ecs
 )
 
 // CGroup flags
@@ -45,7 +44,7 @@ var RuntimeToken = []struct {
 	{"libpod-", CGroupManagerPodman},
 	{"ecs/", CGroupManagerECS},
 
-	// default to containerd in case of kubepods
+	// fallback to containerd in case of kubepods a
 	{"kubepods", CGroupManagerCRI},
 }
 
