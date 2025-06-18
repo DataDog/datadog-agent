@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package checktests contains e2e tests for core checks
+// Package common contains shared functions for running e2e tests against core check versions
 package common
 
 import (
@@ -12,9 +12,9 @@ import (
 	"math"
 	"slices"
 
-	"github.com/bmizerany/assert"
 	gocmp "github.com/google/go-cmp/cmp"
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
