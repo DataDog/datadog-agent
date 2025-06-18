@@ -119,16 +119,16 @@ Error code: $($errorCode)
 
 function Start-ProcessWithOutput {
    param ([string]$Path, [string[]]$ArgumentList)
-   $psi = New-object System.Diagnostics.ProcessStartInfo 
-   $psi.CreateNoWindow = $true 
-   $psi.UseShellExecute = $false 
-   $psi.RedirectStandardOutput = $true 
-   $psi.RedirectStandardError = $true 
+   $psi = New-object System.Diagnostics.ProcessStartInfo
+   $psi.CreateNoWindow = $true
+   $psi.UseShellExecute = $false
+   $psi.RedirectStandardOutput = $true
+   $psi.RedirectStandardError = $true
    $psi.FileName = $Path
    if ($ArgumentList.Count -gt 0) {
       $psi.Arguments = $ArgumentList
    }
-   $process = New-Object System.Diagnostics.Process 
+   $process = New-Object System.Diagnostics.Process
    $process.StartInfo = $psi
    $stdout = Register-ObjectEvent -InputObject $process -EventName 'OutputDataReceived'`
       -Action {
@@ -159,7 +159,7 @@ function Start-ProcessWithOutput {
 function Test-DatadogAgentPresence() {
    # Rudimentary check for the Agent presence, the `datadogagent` service should exist, and so should the `InstallPath` key in the registry.
    # We check that particular key since we use it later in the script to restart the service.
-   return ( 
+   return (
       ((Get-Service "datadogagent" -ea silent | Measure-Object).Count -eq 1) -and
       (Test-Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent") -and
       ($null -ne (Get-Item -Path "HKLM:\\SOFTWARE\\Datadog\\Datadog Agent").GetValue("InstallPath"))

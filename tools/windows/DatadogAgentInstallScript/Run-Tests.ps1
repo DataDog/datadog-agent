@@ -28,14 +28,14 @@ try {
     # Execute the test file
     & $testFile
     $exitCode = $LASTEXITCODE
-    
+
     Write-Host ""
     if ($exitCode -eq 0) {
         Write-Host "All tests completed successfully!" -ForegroundColor Green
     } else {
         Write-Host "Tests completed with failures. Exit code: $exitCode" -ForegroundColor Red
     }
-    
+
     exit $exitCode
 } catch {
     Write-Host "Error running tests: $($_.Exception.Message)" -ForegroundColor Red
