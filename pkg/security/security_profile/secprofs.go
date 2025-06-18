@@ -137,7 +137,7 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 	case model.StableEventType:
 		// check if the event is in its profile
 		// and if this is not an exec event, check if we can benefit of the occasion to add missing processes
-		insertMissingProcesses := false
+		insertMissingProcesses := true
 		if event.GetEventType() != model.ExecEventType {
 			if execState := m.getEventTypeState(profile, ctx, event, model.ExecEventType, imageTag); execState == model.AutoLearning || execState == model.WorkloadWarmup {
 				insertMissingProcesses = true
@@ -164,7 +164,10 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 		} else {
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, NotInProfile)
 			if m.canGenerateAnomaliesFor(event) {
-				// Try to insert first
+				// Flag as anomaly first
+				event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
+
+				// Try to insert after flagging
 				wasInserted, err := profile.Insert(event, insertMissingProcesses, imageTag, activity_tree.ProfileDrift, m.resolvers)
 				if err != nil {
 					log.Errorf("couldn't insert event into profile: %v", err)
@@ -414,16 +417,19 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 			// insert the profile in the list of active profiles
 			m.profiles[selector] = p
 
-			// try to load the profile from local storage
-			ok, err := m.localStorage.Load(&selector, p)
-			if err != nil {
-				seclog.Warnf("couldn't load profile from local storage: %v", err)
-				return
-			} else if ok {
-				err = m.loadProfileMap(p)
+			// try to load the profile from local storage only if not already loaded in kernel
+			// to avoid overwriting profiles that are actively being used for anomaly detection
+			if !p.LoadedInKernel.Load() {
+				ok, err := m.localStorage.Load(&selector, p)
 				if err != nil {
-					seclog.Errorf("couldn't load security profile %s in kernel space: %v", p.GetSelectorStr(), err)
+					seclog.Warnf("couldn't load profile from local storage: %v", err)
 					return
+				} else if ok {
+					err = m.loadProfileMap(p)
+					if err != nil {
+						seclog.Errorf("couldn't load security profile %s in kernel space: %v", p.GetSelectorStr(), err)
+						return
+					}
 				}
 			}
 		}
@@ -432,6 +438,7 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 	m.linkProfile(p, workload)
 }
 
+// onWorkloadDeletedEvent handles the deletion of a workload
 func (m *Manager) onWorkloadDeletedEvent(workload *tags.Workload) {
 	// lookup the profile
 	selector := cgroupModel.WorkloadSelector{
@@ -525,27 +532,44 @@ func (m *Manager) onNewProfile(newProfile *profile.Profile) {
 		return
 	}
 
-	// if profile was waited, push it
-	if !p.LoadedInKernel.Load() {
-		// merge the content of the new profile
-		p.LoadFromNewProfile(newProfile)
-
-		// load the profile in kernel space
-		if err := m.loadProfileMap(p); err != nil {
-			seclog.Errorf("couldn't load security profile %s in kernel space: %v", p.GetWorkloadSelector(), err)
-			return
-		}
-		// link all workloads
-		for _, workload := range p.Instances {
-			m.linkProfileMap(p, workload)
-		}
+	// Check if profile is already loaded in kernel space
+	if p.LoadedInKernel.Load() {
+		// Profile is already loaded in kernel space and potentially contains anomaly insertions
+		// Don't replace it with activity dump data to preserve anomaly detection state
+		seclog.Infof("Ignoring new profile from activity dump for %s: profile already loaded in kernel space with potential anomaly insertions", p.GetSelectorStr())
+		return
 	}
 
-	// if we already have a loaded profile for this workload, just ignore the new one
+	// Profile is not loaded in kernel, safe to load from activity dump
+	seclog.Infof("Loading new profile from activity dump for %s (profile was not loaded in kernel)", p.GetSelectorStr())
+	// merge the content of the new profile
+	p.LoadFromNewProfile(newProfile)
+
+	// load the profile in kernel space
+	if err := m.loadProfileMap(p); err != nil {
+		seclog.Errorf("couldn't load security profile %s in kernel space: %v", p.GetWorkloadSelector(), err)
+		return
+	}
+	// link all workloads
+	for _, workload := range p.Instances {
+		m.linkProfileMap(p, workload)
+	}
 }
 
 func (m *Manager) canGenerateAnomaliesFor(e *model.Event) bool {
-	return m.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(m.config.RuntimeSecurity.AnomalyDetectionEventTypes, e.GetEventType())
+	anomalyDetectionEnabled := m.config.RuntimeSecurity.AnomalyDetectionEnabled
+	eventTypeAllowed := slices.Contains(m.config.RuntimeSecurity.AnomalyDetectionEventTypes, e.GetEventType())
+
+	canGenerate := anomalyDetectionEnabled && eventTypeAllowed
+
+	seclog.Debugf("Anomaly generation check for event %s: enabled=%t, eventTypeAllowed=%t, canGenerate=%t, allowedEventTypes=%v",
+		e.GetType(),
+		anomalyDetectionEnabled,
+		eventTypeAllowed,
+		canGenerate,
+		m.config.RuntimeSecurity.AnomalyDetectionEventTypes)
+
+	return canGenerate
 }
 
 func (m *Manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionContext, event *model.Event, eventType model.EventType, imageTag string) model.EventFilteringProfileState {
@@ -565,10 +589,32 @@ func (m *Manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionCon
 		return model.UnstableEventType
 	}
 
+	// Check if this profile has been loaded/processed before (not first time)
+	// If profile has been loaded before and we're not in warmup period, go directly to stable
+	if p.LoadedNano.Load() > 0 {
+		containerAge := event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt)))
+		warmupPeriod := m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod
+
+		// Skip warmup and auto-learning phases, go directly to stable for anomaly detection
+		if containerAge >= warmupPeriod {
+			seclog.Infof("Profile %s transitioning to STABLE (previously loaded): LoadedNano=%d, containerAge=%v, warmupPeriod=%v",
+				p.GetSelectorStr(), p.LoadedNano.Load(), containerAge, warmupPeriod)
+			return model.StableEventType
+		}
+		// Still in warmup period even for loaded profiles
+		seclog.Infof("Profile %s still in warmup despite being loaded: LoadedNano=%d, containerAge=%v, warmupPeriod=%v",
+			p.GetSelectorStr(), p.LoadedNano.Load(), containerAge, warmupPeriod)
+		return model.WorkloadWarmup
+	}
+
 	var nodeType activity_tree.NodeGenerationType
 	var profileState model.EventFilteringProfileState
+
+	containerAge := event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt)))
+	warmupPeriod := m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod
+
 	// check if we are at the beginning of a workload lifetime
-	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
+	if containerAge < warmupPeriod {
 		nodeType = activity_tree.WorkloadWarmup
 		profileState = model.WorkloadWarmup
 	} else {
@@ -578,8 +624,11 @@ func (m *Manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionCon
 		}
 
 		if eventType == event.GetEventType() { // update the stable/unstable states only for the event event type
+			timeSinceLastAnomaly := time.Duration(event.TimestampRaw - eventState.LastAnomalyNano)
+			minimumStablePeriod := m.config.RuntimeSecurity.GetAnomalyDetectionMinimumStablePeriod(eventType)
+
 			// did we reached the stable state time limit ?
-			if time.Duration(event.TimestampRaw-eventState.LastAnomalyNano) >= m.config.RuntimeSecurity.GetAnomalyDetectionMinimumStablePeriod(eventType) {
+			if timeSinceLastAnomaly >= minimumStablePeriod {
 				eventState.State = model.StableEventType
 				// call the activity dump manager to stop dumping workloads from the current profile selector
 				if m.config.RuntimeSecurity.ActivityDumpEnabled {
@@ -590,8 +639,11 @@ func (m *Manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionCon
 				return model.StableEventType
 			}
 
+			profileAge := time.Duration(event.TimestampRaw - p.LoadedNano.Load())
+			unstableThreshold := m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold
+
 			// did we reached the unstable time limit ?
-			if time.Duration(event.TimestampRaw-p.LoadedNano.Load()) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
+			if profileAge >= unstableThreshold {
 				eventState.State = model.UnstableEventType
 				return model.UnstableEventType
 			}
@@ -602,22 +654,29 @@ func (m *Manager) getEventTypeState(p *profile.Profile, pctx *profile.VersionCon
 	}
 
 	// check if the unstable size limit was reached, but only for the event event type
-	if eventType == event.GetEventType() && p.ComputeInMemorySize() >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold {
-		// for each event type we want to reach either the StableEventType or UnstableEventType states, even
-		// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
-		// rearming the lastAnomalyNano timer based on if it's something new or not.
-		found, err := p.Contains(event, false /*insertMissingProcesses*/, imageTag, nodeType, m.resolvers)
-		if err != nil {
-			m.incrementEventFilteringStat(eventType, model.NoProfile, NA)
-			return model.NoProfile
-		} else if !found {
-			eventState.LastAnomalyNano = event.TimestampRaw
-		} else if profileState == model.WorkloadWarmup {
-			// if it's NOT something's new AND we are on container warmup period, just pretend
-			// we are in learning/warmup phase (as we know, this event is already present on the profile)
-			return model.WorkloadWarmup
+	if eventType == event.GetEventType() {
+		profileSize := p.ComputeInMemorySize()
+		sizeThreshold := m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileSizeThreshold
+
+		if profileSize >= sizeThreshold {
+			seclog.Infof("Profile %s at max size for event %s: size=%d, threshold=%d",
+				p.GetSelectorStr(), eventType, profileSize, sizeThreshold)
+			// for each event type we want to reach either the StableEventType or UnstableEventType states, even
+			// if we already reach the AnomalyDetectionUnstableProfileSizeThreshold. That's why we have to keep
+			// rearming the lastAnomalyNano timer based on if it's something new or not.
+			found, err := p.Contains(event, true /*insertMissingProcesses*/, imageTag, nodeType, m.resolvers)
+			if err != nil {
+				m.incrementEventFilteringStat(eventType, model.NoProfile, NA)
+				return model.NoProfile
+			} else if !found {
+				eventState.LastAnomalyNano = event.TimestampRaw
+			} else if profileState == model.WorkloadWarmup {
+				// if it's NOT something's new AND we are on container warmup period, just pretend
+				// we are in learning/warmup phase (as we know, this event is already present on the profile)
+				return model.WorkloadWarmup
+			}
+			return model.ProfileAtMaxSize
 		}
-		return model.ProfileAtMaxSize
 	}
 	return profileState
 }
