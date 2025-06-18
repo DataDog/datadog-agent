@@ -40,7 +40,7 @@ type RegistryEntry struct {
 	Offset             string
 	TailingMode        string
 	IngestionTimestamp int64
-	FilePath           string
+	Fingerprint        uint64
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -208,7 +208,7 @@ func (a *registryAuditor) run() {
 			}
 			// update the registry with the new entry
 			for _, msg := range payload.MessageMetas {
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.FilePath)
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.Fingerprint)
 			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry
@@ -263,7 +263,7 @@ func (a *registryAuditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry entry matching identifier with the new offset and timestamp
-func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, filePath string) {
+func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, fingerprint uint64) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -287,7 +287,7 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 			Offset:             offset,
 			TailingMode:        tailingMode,
 			IngestionTimestamp: ingestionTimestamp,
-			FilePath:           filePath,
+			Fingerprint:        fingerprint,
 		}
 	} else {
 		a.registry[identifier] = &RegistryEntry{

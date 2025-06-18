@@ -66,11 +66,11 @@ func (suite *AuditorTestSuite) TestAuditorStartStop() {
 func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.Equal(0, len(suite.a.registry))
-	suite.a.updateRegistry(suite.source.Config.Path, "42", "end", 0, suite.source.Config.Path)
+	suite.a.updateRegistry(suite.source.Config.Path, "42", "end", 0, 0)
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("42", suite.a.registry[suite.source.Config.Path].Offset)
 	suite.Equal("end", suite.a.registry[suite.source.Config.Path].TailingMode)
-	suite.a.updateRegistry(suite.source.Config.Path, "43", "beginning", 1, suite.source.Config.Path)
+	suite.a.updateRegistry(suite.source.Config.Path, "43", "beginning", 1, 0)
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("43", suite.a.registry[suite.source.Config.Path].Offset)
 	suite.Equal("beginning", suite.a.registry[suite.source.Config.Path].TailingMode)
@@ -88,7 +88,7 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 	suite.NoError(suite.a.flushRegistry())
 	r, err := os.ReadFile(suite.testRegistryPath)
 	suite.NoError(err)
-	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0,\"FilePath\":\"\"}}}", string(r))
+	suite.Equal("{\"Version\":2,\"Registry\":{\"testpath\":{\"LastUpdated\":\"2006-01-12T01:01:01.000000001Z\",\"Offset\":\"42\",\"TailingMode\":\"end\",\"IngestionTimestamp\":0,\"Fingerprint\":0}}}", string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry = suite.a.recoverRegistry()
@@ -102,40 +102,40 @@ func (suite *AuditorTestSuite) TestAuditorUpdatesRegistryWithFingerprint() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.Equal(0, len(suite.a.registry))
 
-	identifier := "fingerprint:12345"
-	filePath := "/var/log/test.log"
+	identifier := "file:/var/log/test.log"
+	fingerprint := uint64(12345)
 
-	suite.a.updateRegistry(identifier, "100", "end", 1, filePath)
+	suite.a.updateRegistry(identifier, "100", "end", 1, fingerprint)
 	suite.Equal(1, len(suite.a.registry))
 	suite.Equal("100", suite.a.registry[identifier].Offset)
 	suite.Equal("end", suite.a.registry[identifier].TailingMode)
-	suite.Equal(filePath, suite.a.registry[identifier].FilePath)
+	suite.Equal(fingerprint, suite.a.registry[identifier].Fingerprint)
 }
 
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistryWithFingerprint() {
 	pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", true, model.SourceAgentRuntime)
 	defer pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", nil, model.SourceAgentRuntime)
-	identifier := "fingerprint:12345"
-	filePath := "/var/log/test.log"
+	identifier := "file:/var/log/test.log"
+	fingerprint := uint64(12345)
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry[identifier] = &RegistryEntry{
 		LastUpdated: time.Date(2024, time.July, 18, 1, 1, 1, 1, time.UTC),
 		Offset:      "150",
 		TailingMode: "end",
-		FilePath:    filePath,
+		Fingerprint: fingerprint,
 	}
 	suite.NoError(suite.a.flushRegistry())
 
 	r, err := os.ReadFile(suite.testRegistryPath)
 	suite.NoError(err)
-	expectedJSON := `{"Version":3,"Registry":{"fingerprint:12345":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"FilePath":"/var/log/test.log"}}}`
+	expectedJSON := `{"Version":3,"Registry":{"file:/var/log/test.log":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"Fingerprint":12345}}}`
 	suite.Equal(expectedJSON, string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry = suite.a.recoverRegistry()
 	suite.Equal("150", suite.a.registry[identifier].Offset)
-	suite.Equal(filePath, suite.a.registry[identifier].FilePath)
+	suite.Equal(fingerprint, suite.a.registry[identifier].Fingerprint)
 }
 
 func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {

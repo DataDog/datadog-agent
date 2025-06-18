@@ -19,10 +19,11 @@ type Origin struct {
 	// FilePath is the concrete path to the file that the message originated from.
 	// This is only populated for file and journald sources. It is used by the
 	// auditor to store the file path when fingerprinting is enabled.
-	FilePath string
-	service  string
-	source   string
-	tags     []string
+	FilePath    string
+	Fingerprint uint64
+	service     string
+	source      string
+	tags        []string
 }
 
 // NewOrigin returns a new Origin

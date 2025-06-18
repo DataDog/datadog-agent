@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 )
 
-// v3: In the fourth version of the auditor, we added the FilePath to handle experimental fingerprinting.
+// v3: In the fourth version of the auditor, we replaced FilePath with Fingerprint to handle experimental fingerprinting.
 
 func unmarshalRegistryV3(b []byte) (map[string]*RegistryEntry, error) {
 	var r JSONRegistry
