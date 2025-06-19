@@ -184,8 +184,6 @@ func NewExtension(ctx context.Context, cfg *Config, telemetry component.Telemetr
 		}
 	}
 
-	// auth = providedConfigSupported; if value true, component was likely built by Agent and has
-	// bearer auth token, if false, component was likely built by OCB and has no auth token
 	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ipcComp)
 	if err != nil {
 		return nil, err
