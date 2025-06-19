@@ -180,8 +180,8 @@ def run(
         "nocache": "-count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
         "commit": get_commit_sha(ctx, short=True),
-        "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
-        "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
+        "run": ('-test.run ' + _create_test_selection_regex(clean_run)) if run else "",
+        "skip": ('-test.skip ' + _create_test_selection_regex(clean_skip)) if skip else "",
         "test_run_arg": test_run_arg,
         "osversion": f"-osversion {osversion}" if osversion else "",
         "platform": f"-platform {platform}" if platform else "",
@@ -236,7 +236,7 @@ def run(
             # Retry the failed tests only
             affected_packages = {package.partition("/test/new-e2e/")[2] for package, _ in to_retry}
             e2e_module.test_targets = list(affected_packages)
-            args["run"] = '-test.run ' + '"{}"'.format('|'.join([test for _, test in to_retry]))
+            args["run"] = '-test.run ' + _create_test_selection_regex([test for _, test in to_retry])
         else:
             break
 
@@ -459,6 +459,28 @@ def write_result_to_log_files(logs_per_test, log_folder, test_depth=1):
         sanitized_test_name = re.sub(r"[^\w_. -]", "_", test)
         with open(f"{log_folder}/{sanitized_package_name}.{sanitized_test_name}.log", "w") as f:
             f.write("".join(logs))
+
+
+def _create_test_selection_regex(test_names: list[str]) -> str:
+    """
+    Create a regex to exact-match the tests in the targets list.
+    Ex: ["TestFoo", "TestBar"] -> "^(?:TestFoo|TestBar)$"
+    """
+    if not test_names:
+        return ""
+
+    if len(test_names) == 1:
+        # If there's only one test, no need to use a capture group
+        return f'"^{re.escape(test_names[0])}$"'
+
+    # Remove any whitespace and eventual ^$ surrounding the test names
+    processed_names = (name.strip().strip("^$") for name in test_names)
+
+    # Escape special characters in the targets
+    processed_names = (re.escape(target) for target in processed_names)
+    # Join them with a pipe to create an OR regex
+    regex_body = "|".join(processed_names)
+    return f'"^(?:{regex_body})$"'
 
 
 class TooManyLogsError(Exception):
