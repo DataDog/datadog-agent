@@ -6,7 +6,7 @@
 //go:build windows
 
 // Package winsoftware implements code to collect installed software from a Windows system.
-package winsoftware
+package softwareinventory
 
 import (
 	"errors"

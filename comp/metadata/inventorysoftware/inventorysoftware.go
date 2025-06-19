@@ -45,7 +45,7 @@ func Module() fxutil.Module {
 
 // SysProbeClient is an interface for the sysprobeclient used for dependency injection and testing.
 type SysProbeClient interface {
-	GetCheck(module types.ModuleName) ([]winsoftware.SoftwareEntry, error)
+	GetCheck(module types.ModuleName) ([]softwareinventory.SoftwareEntry, error)
 }
 
 // sysProbeClientWrapper wraps the real sysprobeclient.CheckClient to implement SysProbeClient.
@@ -53,8 +53,8 @@ type sysProbeClientWrapper struct {
 	client *sysprobeclient.CheckClient
 }
 
-func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]winsoftware.SoftwareEntry, error) {
-	return sysprobeclient.GetCheck[[]winsoftware.SoftwareEntry](w.client, module)
+func (w *sysProbeClientWrapper) GetCheck(module types.ModuleName) ([]softwareinventory.SoftwareEntry, error) {
+	return sysprobeclient.GetCheck[[]softwareinventory.SoftwareEntry](w.client, module)
 }
 
 // inventorySoftware is the implementation of the Component interface.
@@ -63,7 +63,7 @@ type inventorySoftware struct {
 
 	log             log.Component
 	sysProbeClient  SysProbeClient
-	cachedInventory []winsoftware.SoftwareEntry
+	cachedInventory []softwareinventory.SoftwareEntry
 	hostname        string
 }
 
