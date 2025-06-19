@@ -41,6 +41,12 @@ func main() {
 	}
 	errChannel := make(chan error, len(binaries))
 	// printLock := sync.Mutex{}
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Error getting current working directory: %v\n", err)
+		os.Exit(1)
+	}
+
 	for idx, binary := range binaries {
 		go func(idx int, binary string) {
 			defer wg.Done()
@@ -63,8 +69,8 @@ func main() {
 				return
 			}
 			args = append(args, parsedTestArgs...)
-
 			command := exec.Command("go", args...)
+			command.Dir = filepath.Join(cwd, pkgNames[idx])
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stdout
 			errCmd := command.Run()
