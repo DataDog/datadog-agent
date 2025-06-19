@@ -7,6 +7,7 @@ package serializers
 
 import (
 	json "encoding/json"
+
 	utils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
@@ -1134,7 +1135,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(i
 		case "filter_len":
 			out.FilterLen = uint16(in.Uint16())
 		case "filter":
-			out.Filter = string(in.String())
+			out.FilterInstructions = string(in.String())
 		case "filter_hash":
 			out.FilterHash = string(in.String())
 		default:
@@ -1181,10 +1182,10 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		out.RawString(prefix)
 		out.Uint16(uint16(in.FilterLen))
 	}
-	if in.Filter != "" {
+	if in.FilterInstructions != "" {
 		const prefix string = ",\"filter\":"
 		out.RawString(prefix)
-		out.String(string(in.Filter))
+		out.String(string(in.FilterInstructions))
 	}
 	if in.FilterHash != "" {
 		const prefix string = ",\"filter_hash\":"

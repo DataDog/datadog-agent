@@ -564,8 +564,8 @@ type SetSockOptEventSerializer struct {
 	OptName uint32 `json:"optname"`
 	// Length of the filter
 	FilterLen uint16 `json:"filter_len"`
-	// Filter data
-	Filter string `json:"filter,omitempty"`
+	// Filter instructions
+	FilterInstructions string `json:"filter,omitempty"`
 	//Filter hash
 	FilterHash string `json:"filter_hash,omitempty"`
 }
@@ -1322,14 +1322,14 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 
 func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	s := &SetSockOptEventSerializer{
-		SocketType:     e.SetSockOpt.SocketType,
-		SocketProtocol: e.SetSockOpt.SocketProtocol,
-		SocketFamily:   e.SetSockOpt.SocketFamily,
-		Level:          e.SetSockOpt.Level,
-		OptName:        e.SetSockOpt.OptName,
-		FilterLen:      e.SetSockOpt.FilterLen,
-		Filter:         e.SetSockOpt.Filter,
-		FilterHash:     e.SetSockOpt.FilterHash,
+		SocketType:         e.SetSockOpt.SocketType,
+		SocketProtocol:     e.SetSockOpt.SocketProtocol,
+		SocketFamily:       e.SetSockOpt.SocketFamily,
+		Level:              e.SetSockOpt.Level,
+		OptName:            e.SetSockOpt.OptName,
+		FilterLen:          e.SetSockOpt.FilterLen,
+		FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
+		FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),
 	}
 	return s
 

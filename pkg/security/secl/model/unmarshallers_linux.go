@@ -9,7 +9,6 @@ package model
 import (
 	"bufio"
 	"bytes"
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -20,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -1557,12 +1555,10 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-	fmt.Printf("IN MARSHALLER: %d bytes\n", len(data))
 	e.SocketType = binary.NativeEndian.Uint16(data[0:2])
 	e.SocketProtocol = binary.NativeEndian.Uint16(data[2:4])
 	e.SocketFamily = binary.NativeEndian.Uint16(data[4:6])
 	// Padding here
-	fmt.Printf("IN MARSHALLER, probably an error of padding here : %d/n", data[6:8])
 	e.Level = binary.NativeEndian.Uint32(data[8:12])
 	e.OptName = binary.NativeEndian.Uint32(data[12:16])
 	e.FilterLen = binary.NativeEndian.Uint16(data[16:18])
@@ -1573,34 +1569,8 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < filterStart+filterLen*filterSize {
 		return 0, ErrNotEnoughData
 	}
-	h := sha256.New()
-	h.Write([]byte(data[filterStart : filterStart+filterLen*filterSize]))
-	bs := h.Sum(nil)
-	e.FilterHash = fmt.Sprintf("%x", bs)
-	raw := []bpf.RawInstruction{}
-	for i := 0; i < filterLen; i++ {
-		offset := filterStart + i*filterSize
-
-		Code := binary.NativeEndian.Uint16(data[offset : offset+2])
-		Jt := data[offset+2]
-		Jf := data[offset+3]
-		K := binary.NativeEndian.Uint32(data[offset+4 : offset+8])
-
-		raw = append(raw, bpf.RawInstruction{
-			Op: Code,
-			Jt: Jt,
-			Jf: Jf,
-			K:  K,
-		})
-	}
-
-	instructions, _ := bpf.Disassemble(raw)
-
-	for i, inst := range instructions {
-		e.Filter += fmt.Sprintf("%03d: %s\n", i, inst)
-	}
-	fmt.Printf("IN MARSHALLER: event sent is: %d, %d, %d, %d, %d, %d, %s\n",
-		e.SocketType, e.SocketProtocol, e.SocketFamily, e.Level, e.OptName, e.FilterLen, e.FilterHash)
+	// Store the filter
+	e.RawFilter = []byte(data[filterStart : filterStart+filterLen*filterSize])
 
 	return filterStart + filterLen*filterSize + read, nil
 }
