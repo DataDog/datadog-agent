@@ -7,7 +7,11 @@
 
 package setup
 
-import "path/filepath"
+import (
+	"path/filepath"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
 
 // Variables to initialize at build time
 var (
@@ -55,4 +59,8 @@ func osinit() {
 	if defaultRunPath == "" {
 		defaultRunPath = filepath.Join(InstallPath, "run")
 	}
+}
+
+// FleetConfigOverride is a no-op on Linux
+func FleetConfigOverride(_ pkgconfigmodel.Config) {
 }

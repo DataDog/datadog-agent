@@ -22,10 +22,18 @@ type Function struct {
 	Ops []Op
 }
 
+// Throttler corresponds to a throttler instance with specified limits.
+type Throttler struct {
+	PeriodNs uint64
+	Budget   int64
+}
+
 // Program represents stack machine program.
 type Program struct {
-	Functions []Function
-	Types     []ir.Type
+	ID         uint32
+	Functions  []Function
+	Types      []ir.Type
+	Throttlers []Throttler
 }
 
 type generator struct {
@@ -48,7 +56,7 @@ type typeFuncMetadata struct {
 }
 
 // GenerateProgram generates stack machine program for a given IR program.
-func GenerateProgram(program ir.Program) (Program, error) {
+func GenerateProgram(program *ir.Program) (Program, error) {
 	g := generator{
 		typeFuncMetadata: make(map[ir.TypeID]typeFuncMetadata, len(program.Types)),
 		functionReg:      make(map[FunctionID]struct{}),
@@ -60,14 +68,25 @@ func GenerateProgram(program ir.Program) (Program, error) {
 	if err != nil {
 		return Program{}, err
 	}
+	throttlers := make([]Throttler, 0, len(program.Probes))
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
 			for _, injectionPC := range event.InjectionPCs {
-				err := g.addEventHandler(injectionPC, event.Type)
+				err := g.addEventHandler(
+					injectionPC,
+					len(throttlers),
+					probe.PointerChasingLimit,
+					event.Type,
+				)
 				if err != nil {
 					return Program{}, err
 				}
 			}
+			// We throttle each event individually, across all its injection points.
+			throttlers = append(throttlers, Throttler{
+				PeriodNs: uint64(probe.ThrottlePeriodMs) * 1000 * 1000,
+				Budget:   probe.ThrottleBudget,
+			})
 		}
 	}
 	for len(g.typeQueue) > 0 {
@@ -82,18 +101,27 @@ func GenerateProgram(program ir.Program) (Program, error) {
 		types = append(types, t)
 	}
 	return Program{
-		Functions: g.functions,
-		Types:     types,
+		ID:         uint32(program.ID),
+		Functions:  g.functions,
+		Types:      types,
+		Throttlers: throttlers,
 	}, nil
 }
 
 // Generates a function called when a probe (represented by the root type)
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
-func (g *generator) addEventHandler(injectionPC uint64, rootType *ir.EventRootType) error {
+func (g *generator) addEventHandler(
+	injectionPC uint64,
+	throttlerIdx int,
+	pointerChasingLimit uint32,
+	rootType *ir.EventRootType,
+) error {
 	id := ProcessEvent{
-		EventRootType: rootType,
-		InjectionPC:   injectionPC,
+		InjectionPC:         injectionPC,
+		ThrottlerIdx:        throttlerIdx,
+		PointerChasingLimit: pointerChasingLimit,
+		EventRootType:       rootType,
 	}
 	ops := make([]Op, 0, 2+len(rootType.Expressions))
 	ops = append(ops, PrepareEventRootOp{
@@ -226,11 +254,11 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		needed = true
 		offsetShift = uint32(t.GetByteSize())
 		ops = []Op{
-			ProcessArrayPrepOp{},
+			ProcessArrayDataPrepOp{ArrayByteLen: t.GetByteSize()},
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessArrayRepeatOp{},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
 			ReturnOp{},
 		}
 
@@ -249,7 +277,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 			CallOp{
 				FunctionID: elemFunc,
 			},
-			ProcessSliceDataRepeatOp{},
+			ProcessSliceDataRepeatOp{ElemByteLen: t.Element.GetByteSize()},
 			ReturnOp{},
 		}
 
@@ -274,7 +302,7 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		needed = true
 		offsetShift = 0
 		ops = []Op{
-			ProcessSliceOp{},
+			ProcessSliceOp{SliceData: t.Data},
 			ReturnOp{},
 		}
 
@@ -283,7 +311,9 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		needed = true
 		offsetShift = 0
 		ops = []Op{
-			ProcessStringOp{},
+			ProcessStringOp{
+				StringData: t.Data,
+			},
 			ReturnOp{},
 		}
 
@@ -436,7 +466,10 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			return nil, err
 		}
 		layoutIdx := 0
-		outputOffset := op.Offset
+		if len(loclist.Pieces) == 0 {
+			// Variable has loclist entry for relevant PC range, but it is still unavailable.
+			break
+		}
 		for _, locPiece := range loclist.Pieces {
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
@@ -446,19 +479,17 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 			// Layout pieces in [layoutIdx, nextLayoutIdx) range correspond to current locPiece.
 			layoutIdx = nextLayoutIdx
 			if op.Offset <= paddedOffset && paddedOffset < op.Offset+op.ByteSize {
-				if outputOffset < paddedOffset {
-					ops = append(ops, IncrementOutputOffsetOp{Value: paddedOffset - outputOffset})
-					outputOffset = paddedOffset
-				}
 				if locPiece.InReg {
 					ops = append(ops, ExprReadRegisterOp{
-						Register: uint8(locPiece.Register),
-						Size:     uint8(locPiece.Size),
+						Register:     uint8(locPiece.Register),
+						Size:         uint8(locPiece.Size),
+						OutputOffset: paddedOffset - op.Offset,
 					})
 				} else {
 					ops = append(ops, ExprDereferenceCfaOp{
-						Offset: uint32(locPiece.StackOffset),
-						Len:    uint32(locPiece.Size),
+						Offset:       uint32(locPiece.StackOffset),
+						Len:          uint32(locPiece.Size),
+						OutputOffset: paddedOffset - op.Offset,
 					})
 				}
 			}

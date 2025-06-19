@@ -8,31 +8,28 @@
 package dyninst_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"io"
+	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"testing"
-	"time"
-	"unsafe"
 
-	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
-	"github.com/cilium/ebpf/ringbuf"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
-	object "github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var MinimumKernelVersion = kernel.VersionCode(5, 17, 0)
@@ -47,151 +44,193 @@ func skipIfKernelNotSupported(t *testing.T) {
 
 func TestDyninst(t *testing.T) {
 	skipIfKernelNotSupported(t)
-	cfgs := testprogs.GetCommonConfigs(t)
+	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, cfg := range cfgs {
 		t.Run(cfg.String(), func(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
 			}
-			bin := testprogs.GetBinary(t, "events_simple", cfg)
+			bin := testprogs.MustGetBinary(t, "simple", cfg)
 			testDyninst(t, bin)
 		})
 	}
 }
 
 func testDyninst(t *testing.T, sampleServicePath string) {
-	t.Logf("loading binary")
-	tempDir, err := os.MkdirTemp(os.TempDir(), "dyninst-integration-test-")
+	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
+		os.Stderr, log.DebugLvl, "[%LEVEL] %Msg\n",
+	)
 	require.NoError(t, err)
-	defer func() {
-		if t.Failed() {
-			t.Logf("leaving temp dir %s for inspection", tempDir)
-		} else {
-			require.NoError(t, os.RemoveAll(tempDir))
-		}
-	}()
+	log.SetupLogger(logger, "debug")
+	t.Logf("Testing with actuator")
+	tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-integration-test")
+	defer cleanup()
 
-	// Load the binary and generate the IR.
-	binary, err := safeelf.Open(sampleServicePath)
+	irDump, err := os.Create(filepath.Join(tempDir, "probe.ir.yaml"))
 	require.NoError(t, err)
-	defer func() { require.NoError(t, binary.Close()) }()
+	defer func() { assert.NoError(t, irDump.Close()) }()
 
-	probes := []config.Probe{
-		&config.LogProbe{
-			ID: "intArg",
-			Where: &config.Where{
-				MethodName: "main.intArg",
+	codeDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.c"))
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, codeDump.Close()) }()
+
+	objectFile, err := os.Create(filepath.Join(tempDir, "probe.bpf.o"))
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, objectFile.Close()) }()
+
+	var sink testMessageSink
+	reporter := makeTestReporter()
+	a, err := actuator.NewActuator(
+		actuator.WithMessageSink(&sink),
+		actuator.WithReporter(reporter),
+		actuator.WithCodegenWriter(func(p *ir.Program) io.Writer {
+			yaml, err := irprinter.PrintYAML(p)
+			assert.NoError(t, err)
+			_, err = io.Copy(irDump, bytes.NewReader(yaml))
+			assert.NoError(t, err)
+			return codeDump
+		}),
+		actuator.WithCompiledCallback(func(
+			program *actuator.CompiledProgram,
+		) {
+			// Use a SectionReader to avoid messing with the offset
+			// of the underlying io.Reader.
+			r := io.NewSectionReader(program.CompiledBPF.Obj, 0, math.MaxInt64)
+			_, err = io.Copy(objectFile, r)
+			assert.NoError(t, err)
+		}),
+	)
+	require.NoError(t, err)
+
+	// Launch the sample service.
+	t.Logf("launching sample service")
+	ctx := context.Background()
+	sampleProc, sampleStdin := dyninsttest.StartProcess(
+		ctx, t, tempDir, sampleServicePath,
+	)
+
+	probes := testprogs.MustGetProbeCfgs(t, "simple")
+	stat, err := os.Stat(sampleServicePath)
+	require.NoError(t, err)
+	fileInfo := stat.Sys().(*syscall.Stat_t)
+	exe := actuator.Executable{
+		Path: sampleServicePath,
+		Key: actuator.FileKey{
+			FileHandle: actuator.FileHandle{
+				Dev: uint64(fileInfo.Dev),
+				Ino: fileInfo.Ino,
 			},
 		},
 	}
 
-	obj, err := object.NewElfObject(binary)
-	require.NoError(t, err)
-
-	irp, err := irgen.GenerateIR(1, obj, probes)
-	require.NoError(t, err)
-
-	irDump, err := os.Create(filepath.Join(tempDir, "probe.ir.yaml"))
-	require.NoError(t, err)
-	defer func() { require.NoError(t, irDump.Close()) }()
-	irYaml, err := irprinter.PrintYAML(irp)
-	require.NoError(t, err)
-	_, err = irDump.Write(irYaml)
-	require.NoError(t, err)
-
-	// Compile the IR and prepare the BPF program.
-	t.Logf("compiling BPF")
-	codeDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.c"))
-	require.NoError(t, err)
-	defer func() { require.NoError(t, codeDump.Close()) }()
-
-	bpfObj, err := compiler.CompileBPFProgram(*irp, codeDump)
-	require.NoError(t, err)
-	defer func() { bpfObj.Close() }()
-
-	bpfObjDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.o"))
-	require.NoError(t, err)
-	defer func() { require.NoError(t, bpfObjDump.Close()) }()
-	_, err = io.Copy(bpfObjDump, bpfObj)
-	require.NoError(t, err)
-
-	spec, err := ebpf.LoadCollectionSpecFromReader(bpfObj)
-	require.NoError(t, err)
-
-	bpfCollection, err := ebpf.NewCollectionWithOptions(spec, ebpf.CollectionOptions{})
-	require.NoError(t, err)
-	defer func() { bpfCollection.Close() }()
-
-	bpfProg, ok := bpfCollection.Programs["probe_run_with_cookie"]
-	require.True(t, ok)
-
-	sampleLink, err := link.OpenExecutable(sampleServicePath)
-	require.NoError(t, err)
-
-	// Launch the sample service, inject the BPF program and collect the output.
-	t.Logf("running and instrumenting sample")
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	sampleProc := exec.CommandContext(ctx, sampleServicePath)
-	sampleStdin, err := sampleProc.StdinPipe()
-	require.NoError(t, err)
-	sampleProc.Stdout, err = os.Create(filepath.Join(tempDir, "sample.out"))
-	require.NoError(t, err)
-	sampleProc.Stderr, err = os.Create(filepath.Join(tempDir, "sample.err"))
-	require.NoError(t, err)
-	err = sampleProc.Start()
-	require.NoError(t, err)
-
-	bpfProbe, err := sampleLink.Uprobe(
-		"main.intArg",
-		bpfProg,
-		&link.UprobeOptions{
-			PID: os.Getpid(),
+	// Send update to actuator to instrument the process.
+	a.HandleUpdate(actuator.ProcessesUpdate{
+		Processes: []actuator.ProcessUpdate{
+			{
+				ProcessID: actuator.ProcessID{
+					PID: int32(sampleProc.Process.Pid),
+				},
+				Executable: exe,
+				Probes:     probes,
+			},
 		},
-	)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, bpfProbe.Close()) }()
-
-	attached, err := sampleLink.Uprobe("main.intArg", bpfProg, &link.UprobeOptions{
-		PID:    sampleProc.Process.Pid,
-		Cookie: 0,
+		Removals: []actuator.ProcessID{},
 	})
-	require.NoError(t, err)
-	defer func() { require.NoError(t, attached.Close()) }()
 
-	// Trigger the function calls.
+	// Wait for the process to be attached.
+	<-reporter.attached
+
+	// Trigger the function calls, receive the events, and wait for the process
+	// to exit.
+	t.Logf("Triggering function calls")
 	sampleStdin.Write([]byte("\n"))
 
-	err = sampleProc.Wait()
-	require.NoError(t, err)
+	// Inlined function is called twice, hence extra event.
+	expNumEvents := len(probes) + 1
+	read := []actuator.Message{}
+	for m := range sink.ch {
+		read = append(read, m)
+		if len(read) == expNumEvents {
+			break
+		}
+	}
+	require.NoError(t, sampleProc.Wait())
 
-	// Validate the output. For now we just check the total length.
+	a.HandleUpdate(actuator.ProcessesUpdate{
+		Removals: []actuator.ProcessID{
+			{PID: int32(sampleProc.Process.Pid)},
+		},
+	})
+	require.NoError(t, a.Shutdown())
+
 	t.Logf("processing output")
-	rd, err := ringbuf.NewReader(bpfCollection.Maps["out_ringbuf"])
-	require.NoError(t, err)
-
 	bpfOutDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.out"))
 	require.NoError(t, err)
 	defer func() { require.NoError(t, bpfOutDump.Close()) }()
 
-	require.Greater(t, rd.AvailableBytes(), 0)
-	record, err := rd.Read()
-	require.NoError(t, err)
-	bpfOutDump.Write(record.RawSample)
+	for _, msg := range read {
+		event := msg.Event()
+		_, err := bpfOutDump.Write([]byte(event))
+		require.NoError(t, err)
 
-	header := (*output.EventHeader)(unsafe.Pointer(&record.RawSample[0]))
-	require.Equal(t, uint32(len(record.RawSample)), header.Data_byte_len)
+		header, err := event.Header()
+		require.NoError(t, err)
+		require.Equal(t, uint32(len(event)), header.Data_byte_len)
+		t.Logf("message header: %#v", *header)
 
-	pos := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len)
-	di := (*output.DataItemHeader)(unsafe.Pointer(&record.RawSample[pos]))
-	typ, ok := irp.Types[ir.TypeID(di.Type)]
-	require.True(t, ok)
-	require.IsType(t, &ir.EventRootType{}, typ)
-	require.Equal(t, di.Length, typ.GetByteSize())
-
-	expectedTotalLen := uint32(unsafe.Sizeof(*header)) + uint32(header.Stack_byte_len) + uint32(unsafe.Sizeof(*di)) + uint32(di.Length)
-	if expectedTotalLen%8 > 0 {
-		expectedTotalLen += 8 - expectedTotalLen%8
+		var i int
+		for di, err := range event.DataItems() {
+			require.NoError(t, err, "data item %d", i)
+			diHeader := di.Header()
+			typ, ok := sink.irp.Types[ir.TypeID(diHeader.Type)]
+			require.True(t, ok, "unknown type: %d", diHeader.Type)
+			if i == 0 {
+				require.IsType(t, (*ir.EventRootType)(nil), typ)
+			}
+			t.Logf(
+				"di %d: %s @0x%x: %s",
+				i, typ.GetName(), diHeader.Address,
+				hex.EncodeToString(di.Data()),
+			)
+			i++
+		}
 	}
-	require.Equal(t, expectedTotalLen, header.Data_byte_len)
 }
+
+type testMessageSink struct {
+	irp *ir.Program
+	ch  chan actuator.Message
+}
+
+func (d *testMessageSink) HandleMessage(m actuator.Message) error {
+	d.ch <- m
+	return nil
+}
+
+func (d *testMessageSink) RegisterProgram(p *ir.Program) {
+	d.irp = p
+	d.ch = make(chan actuator.Message, 100)
+}
+
+func (d *testMessageSink) UnregisterProgram(ir.ProgramID) {
+	close(d.ch)
+}
+
+type testReporter struct {
+	attached chan struct{}
+}
+
+func makeTestReporter() *testReporter {
+	return &testReporter{
+		attached: make(chan struct{}, 1),
+	}
+}
+
+func (r *testReporter) ReportAttached(actuator.ProcessID, []config.Probe) {
+	select {
+	case r.attached <- struct{}{}:
+	default:
+	}
+}
+
+func (r *testReporter) ReportDetached(actuator.ProcessID, []config.Probe) {}
