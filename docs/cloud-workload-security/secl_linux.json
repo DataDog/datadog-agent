@@ -7183,14 +7183,14 @@
       "experimental": false,
       "properties": [
         {
-          "name": "setsockopt.filter",
-          "definition": "Socket filter",
-          "property_doc_link": "setsockopt-filter-doc"
-        },
-        {
           "name": "setsockopt.filter_hash",
           "definition": "Hash of the socket filter",
           "property_doc_link": "setsockopt-filter_hash-doc"
+        },
+        {
+          "name": "setsockopt.filter_instructions",
+          "definition": "Filter instructions",
+          "property_doc_link": "setsockopt-filter_instructions-doc"
         },
         {
           "name": "setsockopt.filter_len",
@@ -12905,10 +12905,10 @@
       "examples": []
     },
     {
-      "name": "setsockopt.filter",
-      "link": "setsockopt-filter-doc",
+      "name": "setsockopt.filter_hash",
+      "link": "setsockopt-filter_hash-doc",
       "type": "string",
-      "definition": "Socket filter",
+      "definition": "Hash of the socket filter",
       "prefixes": [
         "setsockopt"
       ],
@@ -12917,10 +12917,10 @@
       "examples": []
     },
     {
-      "name": "setsockopt.filter_hash",
-      "link": "setsockopt-filter_hash-doc",
+      "name": "setsockopt.filter_instructions",
+      "link": "setsockopt-filter_instructions-doc",
       "type": "string",
-      "definition": "Hash of the socket filter",
+      "definition": "Filter instructions",
       "prefixes": [
         "setsockopt"
       ],
