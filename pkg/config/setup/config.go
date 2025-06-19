@@ -318,7 +318,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
 
 	// If true, then the go loader will be prioritized over the python loader.
-	config.BindEnvAndSetDefault("prioritize_go_check_loader", false)
+	config.BindEnvAndSetDefault("prioritize_go_check_loader", true)
 
 	// If true, then new version of disk v2 check will be used.
 	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
