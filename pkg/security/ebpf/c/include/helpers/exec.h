@@ -7,9 +7,9 @@
 #include "process.h"
 
 int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct inode *inode) {
-    if (syscall->exec.is_parsed) {
+    struct dentry *dentry  = get_file_dentry(file);
+    if (syscall->exec.dentry) {
         // handle nlink that needs to be collected in the second pass
-        struct dentry *dentry  = get_file_dentry(file);
         if (dentry) {
             u32 nlink = get_dentry_nlink(dentry);
             if (nlink > syscall->exec.file.metadata.nlink) {
@@ -18,9 +18,7 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
         }
         return 0;
     }
-    syscall->exec.is_parsed = 1;
-
-    syscall->exec.dentry = get_file_dentry(file);
+    syscall->exec.dentry = dentry;
 
     struct path *path = get_file_f_path_addr(file);
 

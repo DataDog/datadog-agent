@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -1990,6 +1991,12 @@ func TestProcessBusyboxSymlink(t *testing.T) {
 }
 
 func TestProcessBusyboxHardlink(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "Not supported on kernels < 5.12", func(kv *kernel.Version) bool {
+		return kv.Code < kernel.Kernel5_12
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_busybox_hardlink_1",
@@ -2014,7 +2021,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 		return
 	}
 
-	wrapper.Run(t, "busybox-1", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	wrapper.Run(t, "busybox-1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("/bin/free", []string{"-m"}, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
