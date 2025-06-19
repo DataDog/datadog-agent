@@ -27,11 +27,13 @@ import (
 
 type SharedLibraryCheck struct {
 	libName string
+	handle  unsafe.Pointer
 }
 
-func NewSharedLibraryCheck(name string) (*SharedLibraryCheck, error) {
+func NewSharedLibraryCheck(name string, handle unsafe.Pointer) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
 		libName: name,
+		handle:  handle,
 	}
 
 	return check, nil
@@ -40,24 +42,19 @@ func NewSharedLibraryCheck(name string) (*SharedLibraryCheck, error) {
 func (c *SharedLibraryCheck) Run() error {
 	var err *C.char
 
-	C.load_shared_library(C.CString(c.libName), &err)
-	C.run_shared_library(C.CString(c.libName), &err)
+	C.run_shared_library(c.handle, &err)
 
 	if err != nil {
 		defer C._free(unsafe.Pointer(err))
-		return fmt.Errorf("failed to run shared library %s: %s", c.libName, C.GoString(err))
+		return fmt.Errorf("failed to run shared library check %s: %s", c.libName, C.GoString(err))
 	}
 
 	return nil
 }
 
-func (c *SharedLibraryCheck) Name() string {
-	return c.libName
-}
-
 // check interface methods
 func (c *SharedLibraryCheck) String() string {
-	return ""
+	return c.libName
 }
 
 func (c *SharedLibraryCheck) Cancel() {

@@ -16,6 +16,9 @@ import "C"
 import (
 	//"fmt"
 
+	"fmt"
+	"unsafe"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -38,38 +41,23 @@ func (*SharedLibraryCheckLoader) Name() string {
 }
 
 // Load returns a Shared Library check
-func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
-	// moduleName := config.Name
-	// wheelNamespace := "datadog_checks"
+func (cl *SharedLibraryCheckLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
+	var err *C.char
 
-	// // Looking for wheels first
-	// modules := []string{fmt.Sprintf("%s.%s", wheelNamespace, moduleName), moduleName}
+	name := "lib" + config.Name + ".dylib"
+	cName := C.CString(name)
+	defer C._free(unsafe.Pointer(cName))
 
-	// var name string
+	hanlde := C.load_shared_library(cName, &err)
 
-	// for _, name = range modules {
-	// 	// TrackedCStrings untracked by memory tracker currently
-	// 	libName := C.CString("lib" + name + "dylib")
-	// 	var soErr *C.char
+	if hanlde == nil {
+		if err != nil {
+			defer C._free(unsafe.Pointer(err))
+			return nil, fmt.Errorf("failed to load shared library %s: %s", config.Name, C.GoString(err))
+		}
+	}
 
-	// 	//C.load_shared_library(libName, &soErr);
-	// 	fmt.Println("Loading shared library: ", C.GoString(libName))
-
-	// 	if soErr != nil {
-	// 		fmt.Println("Error loading shared library: ", C.GoString(soErr))
-	// 	} else {
-	// 		break
-	// 	}
-	// }
-
-	// fmt.Println("Loading shared library check with info:")
-	// fmt.Printf("%+v\n", senderManager)
-	// fmt.Printf("%+v\n", config)
-	//fmt.Printf("%+v\n\n\n\n", config)
-
-	c, _ := NewSharedLibraryCheck("libhello.dylib")
-
-	return c, nil
+	return NewSharedLibraryCheck(config.Name, hanlde)
 }
 
 func (gl *SharedLibraryCheckLoader) String() string {
