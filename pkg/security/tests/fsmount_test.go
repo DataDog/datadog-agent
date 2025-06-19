@@ -103,5 +103,4 @@ func TestFsmount(t *testing.T) {
 		assert.Equal(t, mnt.Origin, model.MountOriginFsmount)
 		assert.Equal(t, mnt.RootStr, "/")
 	})
-
 }
