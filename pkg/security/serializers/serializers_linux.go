@@ -566,7 +566,7 @@ type SetSockOptEventSerializer struct {
 	FilterLen uint16 `json:"filter_len"`
 	// Filter data
 	Filter string `json:"filter,omitempty"`
-	//Filter Hash
+	//Filter hash
 	FilterHash string `json:"filter_hash,omitempty"`
 }
 
