@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -50,9 +51,10 @@ func main() {
 	for idx, binary := range binaries {
 		go func(idx int, binary string) {
 			defer wg.Done()
+			binaryPath := path.Join(cwd, binary)
 
 			// Build the base command
-			args := []string{"tool", "test2json", "-p", pkgNames[idx], "-t", "./" + binary, "-test.v=test2json"}
+			args := []string{"tool", "test2json", "-p", pkgNames[idx], "-t", binaryPath, "-test.v=test2json"}
 
 			parsedGoTestArgs, err := shlex.Split(strings.Join(gotestArgs, " "))
 			if err != nil {
@@ -70,7 +72,7 @@ func main() {
 			}
 			args = append(args, parsedTestArgs...)
 			command := exec.Command("go", args...)
-			command.Dir = filepath.Join(cwd, pkgNames[idx])
+			command.Dir = filepath.Join(cwd, "test/new-e2e", pkgNames[idx])
 			command.Stdout = os.Stdout
 			command.Stderr = os.Stdout
 			errCmd := command.Run()
