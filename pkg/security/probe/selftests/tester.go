@@ -63,8 +63,8 @@ func (t *SelfTester) RunSelfTest(ctx context.Context, timeout time.Duration) err
 		return err
 	}
 
-	// allow 10 seconds for the self test event to be generated
-	ctx, cancelFnc := context.WithTimeout(ctx, 10*time.Second)
+	// allow 30 seconds for the self test event to be generated
+	ctx, cancelFnc := context.WithTimeout(ctx, 30*time.Second)
 	defer cancelFnc()
 
 	for _, selfTest := range t.selfTests {
