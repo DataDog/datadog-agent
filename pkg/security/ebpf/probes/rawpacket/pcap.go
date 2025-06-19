@@ -29,6 +29,11 @@ const (
 
 	// packetCaptureSize see kernel definition
 	packetCaptureSize = 256
+
+	// state of tc action
+	tcActOk     = 0  // will terminate the packet processing pipeline and allows the packet to proceed
+	tcActShot   = 2  // will terminate the packet processing pipeline and drop the packet
+	tcActUnspec = -1 // will continue packet processing
 )
 
 // ProgOpts defines options
@@ -122,7 +127,7 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts as
 
 	// prepend a return instruction in case of fail
 	footerInsts := append(asm.Instructions{
-		asm.Mov.Imm(asm.R0, 0),
+		asm.Mov.Imm(asm.R0, tcActUnspec),
 		asm.Return(),
 	}, senderInsts...)
 
