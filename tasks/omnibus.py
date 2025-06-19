@@ -262,7 +262,7 @@ def build(
     remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
     use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
     cache_state = None
-    aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
+    aws_cmd = "aws.exe" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
         # the git repository itself will be located in a subfolder that replicates
