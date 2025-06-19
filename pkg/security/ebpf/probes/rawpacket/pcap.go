@@ -194,7 +194,7 @@ func FiltersToProgramSpecs(rawPacketEventMapFd, clsRouterMapFd int, filters []Fi
 	const (
 		// raw packet data, see kernel definition
 		dataSize   = 256
-		dataOffset = 164
+		dataOffset = 140
 	)
 
 	opts.tailCallMapFd = clsRouterMapFd
