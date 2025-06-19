@@ -17,6 +17,7 @@ namespace Datadog.CustomActions
         private readonly string _site;
         private readonly string _apiKey;
         private readonly string _overrideRegistryUrl;
+        private readonly string _apmInstrumentationMethod;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
@@ -26,6 +27,7 @@ namespace Datadog.CustomActions
             _site = session.Property("SITE");
             _apiKey = session.Property("APIKEY");
             _overrideRegistryUrl = session.Property("DD_INSTALLER_REGISTRY_URL");
+            _apmInstrumentationMethod = session.Property("DD_APM_INSTRUMENTATION_ENABLED");
             _installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
@@ -91,14 +93,14 @@ namespace Datadog.CustomActions
                 var instrumentationEnabled = _session.Property("DD_APM_INSTRUMENTATION_ENABLED");
                 var librariesRaw = _session.Property("DD_APM_INSTRUMENTATION_LIBRARIES");
                 _session.Log($"instrumentationEnabled: {instrumentationEnabled}");
-                if (string.IsNullOrEmpty(instrumentationEnabled) || string.IsNullOrEmpty(librariesRaw))
+                if (string.IsNullOrEmpty(librariesRaw))
                 {
-                    _session.Log($"instrumentation is disabled or no library is provided skipping");
+                    _session.Log($"no library is provided skipping");
                     return ActionResult.Success;
                 }
-                if (instrumentationEnabled != "iis")
+                if (!string.IsNullOrEmpty(instrumentationEnabled) && instrumentationEnabled != "iis" && instrumentationEnabled != "dotnet")
                 {
-                    _session.Log("Only DD_APM_INSTRUMENTATION_ENABLED=iis is supported");
+                    _session.Log("Only DD_APM_INSTRUMENTATION_ENABLED=iis or DD_APM_INSTRUMENTATION_ENABLED=dotnet are supported");
                     return ActionResult.Failure;
                 }
                 var libraries = librariesRaw.Split(',');
