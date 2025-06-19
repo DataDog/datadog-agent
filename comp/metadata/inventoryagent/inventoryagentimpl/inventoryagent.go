@@ -75,7 +75,6 @@ type Payload struct {
 	Hostname     string        `json:"hostname"`
 	Timestamp    int64         `json:"timestamp"`
 	Metadata     agentMetadata `json:"agent_metadata"`
-	HostSoftware agentMetadata `json:"host_software"`
 	UUID         string        `json:"uuid"`
 }
 
@@ -484,27 +483,10 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 	ia.getConfigs(data)
 
-	hostSoftware := map[string]interface{}{
-		"software": []map[string]interface{}{
-			{
-				"software_type":     "broken",
-				"name":              "NotGood",
-				"version":           "99.1.0",
-				"publisher":         "Azgag publisher",
-				"deployment_time":   "2029-01-01 12:00:00",
-				"deployment_status": "instlled",
-				"location":          "_Cbar",
-				"is_system_wide":    true,
-				"is_64_bit":         true,
-			},
-		},
-	}
-
 	return &Payload{
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  data,
-		HostSoftware: hostSoftware,
 		UUID:      uuid.GetUUID(),
 	}
 }
