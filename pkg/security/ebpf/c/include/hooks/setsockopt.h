@@ -113,6 +113,15 @@ int hook_release_sock(ctx_t *ctx) {
     struct sock_common *sockcommon = (void *)sk;
     u16 socket_family = get_family_from_sock_common(sockcommon);
     u16 socket_protocol = get_protocol_from_sock(sk);
+
+    if (socket_protocol == 0) {
+        // The socket protocol is imposed by the socket type
+        if (syscall->setsockopt.socket_type == SOCK_STREAM) {
+            syscall->connect.protocol = IPPROTO_TCP;
+        } else if (syscall->setsockopt.socket_type == SOCK_DGRAM) {
+            syscall->connect.protocol = IPPROTO_UDP;
+        }
+    }
     syscall->setsockopt.socket_protocol = socket_protocol;
     syscall->setsockopt.socket_family = socket_family;
 
