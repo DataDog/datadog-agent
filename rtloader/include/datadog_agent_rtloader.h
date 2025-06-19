@@ -28,8 +28,6 @@ typedef struct rtloader_s rtloader_t;
 struct rtloader_pyobject_s;
 typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 
-
-
 // FACTORY
 /*! \fn rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     \brief Factory function to load the python3 backend DLL and create its relevant RtLoader
@@ -42,8 +40,8 @@ typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 */
 DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *python_home, const char *python_exe, char **error);
 
-DATADOG_AGENT_RTLOADER_API void load_shared_library(const char *lib_name, const char **error);
-DATADOG_AGENT_RTLOADER_API void run_shared_library(const char *lib_name, const char **error);
+DATADOG_AGENT_RTLOADER_API void *load_shared_library(const char *lib_name, const char **error);
+DATADOG_AGENT_RTLOADER_API void run_shared_library(void *handle, const char **error);
 
 // HELPERS
 /*! \fn void set_memory_tracker_cb(cb_memory_tracker_t)

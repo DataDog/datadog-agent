@@ -31,7 +31,7 @@
 #include "datadog_agent_rtloader.h"
 #include "rtloader.h"
 #include "rtloader_mem.h"
-//#include "../sharedlibrary/sharedlibrary.h"
+// #include "../sharedlibrary/sharedlibrary.h"
 
 #if __linux__
 #    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
@@ -53,7 +53,6 @@
 static HMODULE rtloader_backend = NULL;
 #else
 static void *rtloader_backend = NULL;
-static void *shared_library = NULL;
 #endif
 
 #ifdef _WIN32
@@ -170,31 +169,38 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
 }
 
 // rtloader_t *init_shared_library() {
-//     return AS_TYPE(rtloader_t, SharedLibrary()); // can't initialize rtloader object for shared library because of pure virtual python specific methods
+//     return AS_TYPE(rtloader_t, SharedLibrary()); // can't initialize rtloader object for shared library because of
+//     pure virtual python specific methods
 // }
 
-// those methods should be in SharedLibrary.cpp, but we need to keep them here until the pure virtual python specific methods are moved to the Three class
-void load_shared_library(const char *lib_name, const char **error) {
+// those methods should be in SharedLibrary.cpp, but we need to keep them here until the pure virtual python specific
+// methods are moved to the Three class
+void *load_shared_library(const char *lib_name, const char **error)
+{
     // load the library
-    shared_library = dlopen(lib_name, RTLD_LAZY | RTLD_GLOBAL);
+    void *shared_library = dlopen(lib_name, RTLD_LAZY | RTLD_GLOBAL);
     if (!shared_library) {
         std::ostringstream err_msg;
         err_msg << "Unable to open shared library: " << dlerror();
         *error = strdupe(err_msg.str().c_str());
+        return NULL;
     }
 
     std::cout << "Shared library loaded: " << lib_name << std::endl;
+
+    return shared_library;
 }
 
-void run_shared_library(const char *lib_name, const char **error) {
-    if (!shared_library) {
+void run_shared_library(void *handle, const char **error)
+{
+    if (!handle) {
         std::ostringstream err_msg;
         err_msg << "Shared library not loaded: " << dlerror();
         *error = strdupe(err_msg.str().c_str());
     }
 
     // dlsym run function
-    so_run_t *run_function = (so_run_t *)dlsym(shared_library, "Run");
+    so_run_t *run_function = (so_run_t *)dlsym(handle, "Run");
     const char *dlsym_error = dlerror();
     if (dlsym_error) {
         std::ostringstream err_msg;
@@ -202,7 +208,7 @@ void run_shared_library(const char *lib_name, const char **error) {
         *error = strdupe(err_msg.str().c_str());
     }
 
-    std::cout << "Running shared library: " << lib_name << std::endl;
+    std::cout << "Running shared library:" << std::endl;
 
     run_function();
 }
