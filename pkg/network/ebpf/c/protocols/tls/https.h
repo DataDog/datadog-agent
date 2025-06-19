@@ -327,6 +327,21 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     // copy map value to stack. required for older kernels
     void *ssl_ctx = *ssl_ctx_map_val;
     bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
+    bpf_map_update_with_telemetry(ssl_ctx_by_tuple, &ssl_sock.tup, &ssl_ctx, BPF_ANY);
+}
+
+static __always_inline void opessl_cleanup_maps(conn_tuple_t *tup) {
+    // We perform the cleanup of the SSL maps here.
+    void **ssl_ctx_ptr = bpf_map_lookup_elem(&ssl_ctx_by_tuple, tup);
+    if (ssl_ctx_ptr) {
+        void *ssl_ctx = *ssl_ctx_ptr;
+        // Delete from tuple -> ctx map first
+        bpf_map_delete_elem(&ssl_ctx_by_tuple, tup);
+        // Then delete from original ctx -> sock_t map
+        if (ssl_ctx) {
+            bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
+        }
+    }
 }
 
 /**
