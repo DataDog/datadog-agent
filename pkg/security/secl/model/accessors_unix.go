@@ -21556,26 +21556,26 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "setsockopt.filter":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.SetSockOpt.Filter
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
 	case "setsockopt.filter_hash":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.SetSockOpt.FilterHash
+				return ev.FieldHandlers.ResolveSetSockOptFilterHash(ev, &ev.SetSockOpt)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setsockopt.filter_instructions":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSetSockOptFilterInstructions(ev, &ev.SetSockOpt)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "setsockopt.filter_len":
@@ -28928,8 +28928,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.user_session.k8s_groups",
 		"setrlimit.target.user_session.k8s_uid",
 		"setrlimit.target.user_session.k8s_username",
-		"setsockopt.filter",
 		"setsockopt.filter_hash",
+		"setsockopt.filter_instructions",
 		"setsockopt.filter_len",
 		"setsockopt.level",
 		"setsockopt.optname",
@@ -32076,9 +32076,9 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.String, "string", nil
 	case "setrlimit.target.user_session.k8s_username":
 		return "setrlimit", reflect.String, "string", nil
-	case "setsockopt.filter":
-		return "setsockopt", reflect.String, "string", nil
 	case "setsockopt.filter_hash":
+		return "setsockopt", reflect.String, "string", nil
+	case "setsockopt.filter_instructions":
 		return "setsockopt", reflect.String, "string", nil
 	case "setsockopt.filter_len":
 		return "setsockopt", reflect.Int, "int", nil
@@ -47794,19 +47794,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Setrlimit.Target.Process.UserSession.K8SUsername = rv
 		return nil
-	case "setsockopt.filter":
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "setsockopt.filter"}
-		}
-		ev.SetSockOpt.Filter = rv
-		return nil
 	case "setsockopt.filter_hash":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "setsockopt.filter_hash"}
 		}
 		ev.SetSockOpt.FilterHash = rv
+		return nil
+	case "setsockopt.filter_instructions":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.filter_instructions"}
+		}
+		ev.SetSockOpt.FilterInstructions = rv
 		return nil
 	case "setsockopt.filter_len":
 		rv, ok := value.(int)

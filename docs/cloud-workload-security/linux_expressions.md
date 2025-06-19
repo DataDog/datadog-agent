@@ -1720,8 +1720,8 @@ A setsockopt was executed
 
 | Property | Definition |
 | -------- | ------------- |
-| [`setsockopt.filter`](#setsockopt-filter-doc) | Socket filter |
 | [`setsockopt.filter_hash`](#setsockopt-filter_hash-doc) | Hash of the socket filter |
+| [`setsockopt.filter_instructions`](#setsockopt-filter_instructions-doc) | Filter instructions |
 | [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the filter |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
@@ -3789,17 +3789,17 @@ Definition: Maximum (hard) limit value
 
 
 
-### `setsockopt.filter` {#setsockopt-filter-doc}
-Type: string
-
-Definition: Socket filter
-
-
-
 ### `setsockopt.filter_hash` {#setsockopt-filter_hash-doc}
 Type: string
 
 Definition: Hash of the socket filter
+
+
+
+### `setsockopt.filter_instructions` {#setsockopt-filter_instructions-doc}
+Type: string
+
+Definition: Filter instructions
 
 
 

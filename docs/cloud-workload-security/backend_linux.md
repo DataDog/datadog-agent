@@ -1752,7 +1752,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "filter": {
                     "type": "string",
-                    "description": "Filter data"
+                    "description": "Filter instructions"
                 },
                 "filter_hash": {
                     "type": "string",
@@ -4779,7 +4779,7 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "filter": {
             "type": "string",
-            "description": "Filter data"
+            "description": "Filter instructions"
         },
         "filter_hash": {
             "type": "string",
@@ -4809,7 +4809,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
 | `filter_len` | Length of the filter |
-| `filter` | Filter data |
+| `filter` | Filter instructions |
 | `filter_hash` | Filter hash |
 
 
