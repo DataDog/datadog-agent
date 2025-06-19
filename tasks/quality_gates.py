@@ -45,14 +45,17 @@ Key: `GATE_NAME`, Value: `static_quality_gate_agent_deb_amd64`
 
 
 def get_debug_job_url():
-    pipeline_id = os.environ.get("CI_PIPELINE_ID")
-    if not pipeline_id:
+    commit_sha = os.environ.get("CI_COMMIT_SHA")
+    if not commit_sha:
         return ""
     try:
         repo = get_gitlab_repo("DataDog/datadog-agent")
-        git_pipeline = repo.pipelines.get(pipeline_id)
+        pipeline_list = repo.pipelines.list(sha=commit_sha)
+        if not len(pipeline_list):
+            raise Exit(code=1, message="The current commit has no pipeline attached.")
+        current_pipeline = pipeline_list[0]
         job_generator = filter(
-            lambda job: job.name == "debug_static_quality_gates", git_pipeline.jobs.list(as_list=False)
+            lambda job: job.name == "debug_static_quality_gates", current_pipeline.jobs.list(iterator=True)
         )
     except Exception as e:
         print(f"Failed to fetch debug_static_quality_gates url !\n{traceback.format_exc()}\n{str(e)}")

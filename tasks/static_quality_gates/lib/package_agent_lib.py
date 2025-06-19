@@ -86,10 +86,10 @@ def generic_package_agent_quality_gate(gate_name, arch, sys_os, flavor, **kwargs
     check_package_size(package_on_wire_size, package_on_disk_size, max_on_wire_size, max_on_disk_size)
 
 
-def download_ancestor_packages(ancestor_sha, ancestor_download_dir, build_job_name):
+def download_packages(sha, download_dir, build_job_name):
     # Fetch the ancestor's build_job object with the gitlab API
     repo = get_gitlab_repo("DataDog/datadog-agent")
-    pipeline_list = repo.pipelines.list(sha=ancestor_sha)
+    pipeline_list = repo.pipelines.list(sha=sha)
     if not len(pipeline_list):
         raise Exit(code=1, message="Ancestor commit has no pipeline attached.")
     ancestor_pipeline: ProjectPipeline = pipeline_list[0]
@@ -97,20 +97,7 @@ def download_ancestor_packages(ancestor_sha, ancestor_download_dir, build_job_na
         filter(lambda job: job.name == build_job_name, ancestor_pipeline.jobs.list(iterator=True))
     )
     # Download & extract the artifact from the build_job
-    download_job_artifacts(repo, ancestor_job.get_id(), ancestor_download_dir)
-
-
-def download_current_packages(current_pipeline_id, current_download_dir, build_job_name):
-    # Fetch the ancestor's build_job object with the gitlab API
-    repo = get_gitlab_repo("DataDog/datadog-agent")
-    current_pipeline = repo.pipelines.get(current_pipeline_id)
-    if not current_pipeline:
-        raise Exit(code=1, message=f"Failed to fetch current {build_job_name} package")
-    ancestor_job: ProjectPipelineJob = next(
-        filter(lambda job: job.name == build_job_name, current_pipeline.jobs.list(iterator=True))
-    )
-    # Download & extract the artifact from the build_job
-    download_job_artifacts(repo, ancestor_job.get_id(), current_download_dir)
+    download_job_artifacts(repo, ancestor_job.get_id(), download_dir)
 
 
 def debug_package_size(ctx, package_os, package_path, ancestor_package_path):
@@ -159,8 +146,8 @@ def generic_debug_package_agent_quality_gate(arch, sys_os, flavor, **kwargs):
     current_download_dir = tempfile.TemporaryDirectory()
 
     ancestor_sha = get_common_ancestor(ctx, "HEAD")
-    download_ancestor_packages(ancestor_sha, ancestor_download_dir.name, build_job_name)
-    download_current_packages(os.environ.get("CI_PIPELINE_ID"), current_download_dir.name, build_job_name)
+    download_packages(ancestor_sha, ancestor_download_dir.name, build_job_name)
+    download_packages(os.environ.get("CI_COMMIT_SHA"), current_download_dir.name, build_job_name)
 
     # Find the current package path from its download directory
     os.environ['OMNIBUS_PACKAGE_DIR'] = f"{current_download_dir.name}/omnibus/pkg"
