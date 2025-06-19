@@ -47,7 +47,7 @@ func newSackDriver(params Params, localAddr netip.Addr) (*sackDriver, error) {
 	source, err := packets.NewAFPacketSource()
 	if err != nil {
 		sink.Close()
-		return nil, fmt.Errorf("newSackDriver failed to make ICMP raw conn: %w", err)
+		return nil, fmt.Errorf("newSackDriver failed to make AFPacketSource: %w", err)
 	}
 
 	retval := &sackDriver{
@@ -218,13 +218,15 @@ func (s *sackDriver) handleProbeLayers(parser *packets.FrameParser) (*common.Pro
 			IsDest: true,
 		}, nil
 	case layers.LayerTypeICMPv4:
+		if !parser.IsTTLExceeded() {
+			return nil, errPacketDidNotMatchTraceroute
+		}
+
 		icmpInfo, err := parser.GetICMPInfo()
 		if err != nil {
 			return nil, &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to get ICMP info: %w", err)}
 		}
-		if icmpInfo.ICMPType != packets.TTLExceeded4 {
-			return nil, errPacketDidNotMatchTraceroute
-		}
+
 		tcpInfo, err := packets.ParseTCPFirstBytes(icmpInfo.Payload)
 		if err != nil {
 			return nil, &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to parse TCP info: %w", err)}

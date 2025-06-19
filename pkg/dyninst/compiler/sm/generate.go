@@ -30,6 +30,7 @@ type Throttler struct {
 
 // Program represents stack machine program.
 type Program struct {
+	ID         uint32
 	Functions  []Function
 	Types      []ir.Type
 	Throttlers []Throttler
@@ -100,6 +101,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		types = append(types, t)
 	}
 	return Program{
+		ID:         uint32(program.ID),
 		Functions:  g.functions,
 		Types:      types,
 		Throttlers: throttlers,
