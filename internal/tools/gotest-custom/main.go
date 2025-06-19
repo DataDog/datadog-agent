@@ -5,10 +5,13 @@
 package main
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -48,6 +51,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	//
 	for idx, binary := range binaries {
 		go func(idx int, binary string) {
 			defer wg.Done()
@@ -146,8 +150,9 @@ type Manifest struct {
 }
 
 func getBinariesFromPackages(packages []string) ([]string, []string, error) {
-	binariesPath := "test-binaries"
+	binariesPath := "test-binaries.tar.gz"
 	manifestPath := "manifest.json"
+	extractPath := "test-binaries"
 
 	// Check if manifest exists
 	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
@@ -166,8 +171,14 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 		return nil, nil, fmt.Errorf("failed to parse manifest: %v", err)
 	}
 
+	// Create extraction directory if it doesn't exist
+	if err := os.MkdirAll(extractPath, 0755); err != nil {
+		return nil, nil, fmt.Errorf("failed to create extraction directory: %v", err)
+	}
+
 	var binaries []string
 	var matchedPackages []string
+	var targetBinaries = make(map[string]bool)
 
 	// For each target package, find matching binaries
 	for _, target := range packages {
@@ -179,12 +190,59 @@ func getBinariesFromPackages(packages []string) ([]string, []string, error) {
 			pkg = strings.TrimPrefix(pkg, "github.com/DataDog/datadog-agent/test/new-e2e/")
 			for _, binaryInfo := range manifest.Binaries {
 				if binaryInfo.Package == pkg {
-					binaryPath := filepath.Join(binariesPath, binaryInfo.Binary)
+					binaryPath := filepath.Join(extractPath, binaryInfo.Binary)
 					binaries = append(binaries, binaryPath)
 					matchedPackages = append(matchedPackages, binaryInfo.Package)
+					targetBinaries[binaryInfo.Binary] = true
 				}
 			}
 		}
 	}
+
+	// Open and extract tar.gz file
+	file, err := os.Open(binariesPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to open archive: %v", err)
+	}
+	defer file.Close()
+
+	gzr, err := gzip.NewReader(file)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create gzip reader: %v", err)
+	}
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+
+	// Extract only the targeted binaries
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read tar header: %v", err)
+		}
+
+		// Skip if not a targeted binary
+		baseName := filepath.Base(header.Name)
+		if !targetBinaries[baseName] {
+			continue
+		}
+
+		// Create the file
+		outPath := filepath.Join(extractPath, baseName)
+		outFile, err := os.OpenFile(outPath, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create output file %s: %v", outPath, err)
+		}
+
+		if _, err := io.Copy(outFile, tr); err != nil {
+			outFile.Close()
+			return nil, nil, fmt.Errorf("failed to write output file %s: %v", outPath, err)
+		}
+		outFile.Close()
+	}
+
 	return binaries, matchedPackages, nil
 }
