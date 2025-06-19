@@ -45,6 +45,7 @@ var envVariablesByStoreKey = map[StoreKey]string{
 	MajorVersion:                 "E2E_MAJOR_VERSION",
 	PreInitialized:               "E2E_PRE_INITIALIZED",
 	FIPS:                         "E2E_FIPS",
+	RemainingRetries:             "E2E_REMAINING_RETRIES",
 }
 
 type envValueStore struct {

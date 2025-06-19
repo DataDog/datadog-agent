@@ -148,6 +148,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -661,6 +662,23 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
 		bs.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
 			"The environment of %v was kept.", bs.firstFailTest, bs.firstFailTest, bs.firstFailTest))
+		return
+	}
+
+	remainingRetriesStr, err := runner.GetProfile().SecretStore().Get(parameters.RemainingRetries)
+	if err != nil {
+		bs.T().Logf("unable to get remaining retries, err: %v, defaulting to 0", err)
+		remainingRetriesStr = "0"
+	}
+
+	remainingRetries, err := strconv.Atoi(remainingRetriesStr)
+	if err != nil {
+		bs.T().Logf("unable to parse remaining retries, err: %v, defaulting to 0", err)
+		remainingRetries = 0
+	}
+
+	if bs.firstFailTest != "" && remainingRetries > 0 {
+		bs.T().Logf("Skipping stack deletion as failing tests will be retried %d more times", remainingRetries)
 		return
 	}
 

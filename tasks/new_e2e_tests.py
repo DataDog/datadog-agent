@@ -197,10 +197,10 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    tries = 0
     washer = TestWasher(test_output_json_file=result_json)
-    while tries < max_retries + 1:
-        tries += 1
+    for attempt in range(max_retries + 1):
+        env_vars["E2E_REMAINING_RETRIES"] = str(max_retries - attempt)
+
         test_res = test_flavor(
             ctx,
             flavor=AgentFlavor.base,
