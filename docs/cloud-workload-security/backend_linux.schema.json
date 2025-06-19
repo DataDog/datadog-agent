@@ -1745,7 +1745,7 @@
         },
         "filter_hash": {
           "type": "string",
-          "description": "Filter Hash"
+          "description": "Filter hash"
         }
       },
       "additionalProperties": false,
