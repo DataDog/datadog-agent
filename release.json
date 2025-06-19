@@ -2,7 +2,7 @@
     "base_branch": "main",
     "current_milestone": "7.69.0",
     "dependencies": {
-        "OMNIBUS_RUBY_VERSION": "alopez/expose-rpm-safe-version-function",
+        "OMNIBUS_RUBY_VERSION": "27b51322a7e8a5d42527fbb8c15d4507b194a914",
         "JMXFETCH_VERSION": "0.49.7",
         "JMXFETCH_HASH": "470b1a19933efca4a48157b54ce48ab08a6ec6fb51f0b10337003dc428f50676",
         "MACOS_BUILD_VERSION": "master",
