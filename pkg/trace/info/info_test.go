@@ -141,6 +141,15 @@ func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
 	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
 
+	// throw some complex scrubbing patterns
+	conf.ConfigPath = "/config/with/aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb/inside/path"
+	conf.DefaultEnv = "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb-suffix"
+	conf.DDAgentBin = "/usr/bin/agent-aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"
+	conf.GlobalTags = map[string]string{
+		"simple_api_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+		"url_with_key":   "https://api.example.com/token/aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb/endpoint",
+	}
+
 	// creating in-memory auth artifacts
 	conf.AuthToken = "fake-auth-token"
 	// If a serverConfig is provided, we need to add the server's certificate to the client config
@@ -451,6 +460,14 @@ func TestInfoConfig(t *testing.T) {
 	// Any key-like data should scrubbed
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
+
+	conf.DefaultEnv = "env-\"***************************abbbb\"-suffix"
+	conf.ConfigPath = "/config/with/***************************abbbb/inside/path"
+	conf.DDAgentBin = "/usr/bin/agent-\"***************************abbbb\""
+	conf.GlobalTags = map[string]string{
+		"simple_api_key": "***************************abbbb",
+		"url_with_key":   "https://api.example.com/token/***************************abbbb/endpoint",
+	}
 
 	conf.ContainerTags = nil
 	conf.ContainerIDFromOriginInfo = nil
