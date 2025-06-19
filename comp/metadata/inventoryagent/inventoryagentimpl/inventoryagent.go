@@ -75,7 +75,6 @@ type Payload struct {
 	Hostname     string        `json:"hostname"`
 	Timestamp    int64         `json:"timestamp"`
 	Metadata     agentMetadata `json:"agent_metadata"`
-	HostSoftware agentMetadata `json:"host_software"`
 	UUID         string        `json:"uuid"`
 }
 
@@ -486,8 +485,6 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 
 	if !ia.conf.GetBool("inventories_diagnostics_enabled") {
 		delete(data, "diagnostics")
-	}
-
 	return &Payload{
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),
