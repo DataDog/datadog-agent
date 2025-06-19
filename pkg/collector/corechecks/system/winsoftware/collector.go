@@ -90,7 +90,7 @@ func GetSoftwareInventory() ([]*SoftwareEntry, []*Warning, error) {
 
 // GetSoftwareInventoryWithCollectors returns a list of software entries using the provided collectors
 func GetSoftwareInventoryWithCollectors(collectors []SoftwareCollector) ([]*SoftwareEntry, []*Warning, error) {
-	var warn []*Warning
+	var allWarnings []*Warning
 	var allEntries []*SoftwareEntry
 	var allErrors error
 
@@ -99,7 +99,7 @@ func GetSoftwareInventoryWithCollectors(collectors []SoftwareCollector) ([]*Soft
 		entries, warnings, err := collector.Collect()
 
 		// Add any warnings from the collector
-		warn = append(warn, warnings...)
+		allWarnings = append(allWarnings, warnings...)
 
 		if err != nil {
 			// Log error but continue with other collectors
@@ -108,12 +108,10 @@ func GetSoftwareInventoryWithCollectors(collectors []SoftwareCollector) ([]*Soft
 		}
 
 		// Add entries to result list
-		for _, entry := range entries {
-			allEntries = append(allEntries, entry)
-		}
+		allEntries = append(allEntries, entries...)
 	}
 
-	return allEntries, warn, nil
+	return allEntries, allWarnings, allErrors
 }
 
 // trimVersion trims leading zeros from each part of a version string.
