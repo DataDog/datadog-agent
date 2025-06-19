@@ -21,8 +21,9 @@ type Payload struct {
 	Metadata  HostSoftware `json:"host_software"`
 }
 
+// HostSofware is a simple struct containing the list of software entries
 type HostSoftware struct {
-	Software []winsoftware.SoftwareEntry `json:"software"`
+	Software []softwareinventory.SoftwareEntry `json:"software"`
 }
 
 // MarshalJSON serialization a Payload to JSON

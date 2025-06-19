@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winsoftware
+package softwareinventory
 
 import (
 	"testing"
