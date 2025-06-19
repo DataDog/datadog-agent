@@ -58,3 +58,4 @@ func initAUIDConstants()              {}
 func initSysCtlActionConstants()      {}
 func initSetSockOptLevelConstants()   {}
 func initSetSockOptOptNameConstants() {}
+func initRlimitConstants()            {}

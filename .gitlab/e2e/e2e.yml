@@ -290,6 +290,19 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
 
+new-e2e-windows-certificate:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_certificate_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  variables:
+    TARGETS: ./tests/windows/windows-certificate
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run "TestRemoteCertificates$"
+
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
