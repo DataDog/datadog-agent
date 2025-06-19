@@ -40,12 +40,7 @@ func (server *apiServer) startCMDServer(
 	agentMux := gorilla.NewRouter()
 
 	// Validate token for every request
-<<<<<<< HEAD
 	agentMux.Use(server.ipc.HTTPMiddleware)
-	checkMux.Use(server.ipc.HTTPMiddleware)
-=======
-	agentMux.Use(validateToken)
->>>>>>> bf87d3a11e81fac74cbd81b25225ca56118b1a73
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(
