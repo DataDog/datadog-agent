@@ -1,0 +1,6 @@
+binary: busyloop
+probes:
+- id: a
+  type: LOG_PROBE
+  where:
+    method_name: main.noop

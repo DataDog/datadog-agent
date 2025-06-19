@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -72,6 +73,7 @@ func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 
 	lambdaSpanChan := make(chan *pb.Span)
 
+	configmock.SetDefaultConfigType(t, "yaml")
 	t.Setenv("DD_API_KEY", "x")
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
 		Enabled:         true,

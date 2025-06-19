@@ -7,6 +7,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -79,6 +80,77 @@ func TestMain(m *testing.M) {
 		fmt.Println()
 	}
 	os.Exit(m.Run())
+}
+
+func TestServerShutdown(t *testing.T) {
+	// prepare the msgpack payload
+	bts, err := testutil.GetTestTraces(10, 10, true).MarshalMsg(nil)
+	assert.Nil(t, err)
+
+	// prepare the receiver
+	conf := newTestReceiverConfig()
+	conf.ReceiverSocket = t.TempDir() + "/somesock.sock"
+	dynConf := sampler.NewDynamicConfig()
+
+	rawTraceChan := make(chan *Payload)
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+
+	receiver.Start()
+
+	go func() {
+		for {
+			// simulate the channel being busy
+			time.Sleep(100 * time.Millisecond)
+			_, ok := <-rawTraceChan
+			if !ok {
+				return
+			}
+		}
+	}()
+
+	// Create two clients - one for TCP and one for UDS
+	tcpClient := http.Client{Timeout: 10 * time.Second}
+	udsClient := http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", conf.ReceiverSocket)
+			},
+		},
+	}
+
+	wg := &sync.WaitGroup{}
+
+	// Send requests to both TCP and UDS endpoints
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for n := 0; n < 200; n++ {
+				// Send to TCP endpoint
+				req, _ := http.NewRequest("POST", "http://localhost:8326/v0.4/traces", bytes.NewReader(bts))
+				req.Header.Set("Content-Type", "application/msgpack")
+				resp, _ := tcpClient.Do(req)
+				if resp != nil {
+					resp.Body.Close()
+				}
+
+				// Send to UDS endpoint
+				req, _ = http.NewRequest("POST", "http://unix/v0.4/traces", bytes.NewReader(bts))
+				req.Header.Set("Content-Type", "application/msgpack")
+				resp, _ = udsClient.Do(req)
+				if resp != nil {
+					resp.Body.Close()
+				}
+			}
+		}()
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	receiver.Stop()
+
+	wg.Wait()
 }
 
 func TestReceiverRequestBodyLength(t *testing.T) {

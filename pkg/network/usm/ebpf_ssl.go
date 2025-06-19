@@ -66,6 +66,15 @@ const (
 
 	// UsmTLSAttacherName holds the name used for the uprobe attacher of tls programs. Used for tests.
 	UsmTLSAttacherName = "usm_tls"
+
+	sslSockByCtxMap     = "ssl_sock_by_ctx"
+	sslCtxByPIDTGIDMap  = "ssl_ctx_by_pid_tgid"
+	sslReadArgsMap      = "ssl_read_args"
+	sslReadExArgsMap    = "ssl_read_ex_args"
+	sslWriteArgsMap     = "ssl_write_args"
+	sslWriteExArgsMap   = "ssl_write_ex_args"
+	bioNewSocketArgsMap = "bio_new_socket_args"
+	fdBySSLBioMap       = "fd_by_ssl_bio"
 )
 
 var openSSLProbes = []manager.ProbesSelector{
@@ -233,32 +242,27 @@ var gnuTLSProbes = []manager.ProbesSelector{
 	},
 }
 
-const (
-	sslSockByCtxMap    = "ssl_sock_by_ctx"
-	sslCtxByPIDTGIDMap = "ssl_ctx_by_pid_tgid"
-)
-
 var sharedLibrariesMaps = []*manager.Map{
 	{
 		Name: sslSockByCtxMap,
 	},
 	{
-		Name: "ssl_read_args",
+		Name: sslReadArgsMap,
 	},
 	{
-		Name: "ssl_read_ex_args",
+		Name: sslReadExArgsMap,
 	},
 	{
-		Name: "ssl_write_args",
+		Name: sslWriteArgsMap,
 	},
 	{
-		Name: "ssl_write_ex_args",
+		Name: sslWriteExArgsMap,
 	},
 	{
-		Name: "bio_new_socket_args",
+		Name: bioNewSocketArgsMap,
 	},
 	{
-		Name: "fd_by_ssl_bio",
+		Name: fdBySSLBioMap,
 	},
 	{
 		Name: sslCtxByPIDTGIDMap,
@@ -468,6 +472,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		PerformInitialScan:             true,
 		EnablePeriodicScanNewProcesses: true,
 		SharedLibsLibset:               sharedlibraries.LibsetCrypto,
+		EnableDetailedLogging:          false,
 	}
 
 	o := &sslProgram{
@@ -545,7 +550,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_read_args": // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
+	case sslReadArgsMap: // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -554,7 +559,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_read_ex_args": // maps/ssl_read_ex_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_ex_args_t
+	case sslReadExArgsMap: // maps/ssl_read_ex_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_ex_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_ex_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -563,7 +568,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_write_args": // maps/ssl_write_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+	case sslWriteArgsMap: // maps/ssl_write_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -572,7 +577,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "ssl_write_ex_args_t": // maps/ssl_write_ex_args_t (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
+	case sslWriteExArgsMap: // maps/ssl_write_ex_args_t (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_write_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_write_ex_args_t'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -581,7 +586,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "bio_new_socket_args": // maps/bio_new_socket_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
+	case bioNewSocketArgsMap: // maps/bio_new_socket_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.__u32
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.__u32'\n")
 		iter := currentMap.Iterate()
 		var key uint64
@@ -590,7 +595,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 			spew.Fdump(w, key, value)
 		}
 
-	case "fd_by_ssl_bio": // maps/fd_by_ssl_bio (BPF_MAP_TYPE_HASH), key C.__u32, value uintptr // C.void *
+	case fdBySSLBioMap: // maps/fd_by_ssl_bio (BPF_MAP_TYPE_HASH), key C.__u32, value uintptr // C.void *
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u32', value: 'uintptr // C.void *'\n")
 		iter := currentMap.Iterate()
 		var key uint32
@@ -646,12 +651,12 @@ func (o *sslProgram) addProcessExitProbe(options *manager.Options) {
 }
 
 var sslPidKeyMaps = []string{
-	"ssl_read_args",
-	"ssl_read_ex_args",
-	"ssl_write_args",
-	"ssl_write_ex_args",
-	"ssl_ctx_by_pid_tgid",
-	"bio_new_socket_args",
+	sslReadArgsMap,
+	sslReadExArgsMap,
+	sslWriteArgsMap,
+	sslWriteExArgsMap,
+	sslCtxByPIDTGIDMap,
+	bioNewSocketArgsMap,
 }
 
 // cleanupDeadPids clears maps of terminated processes, is invoked when raw tracepoints unavailable.

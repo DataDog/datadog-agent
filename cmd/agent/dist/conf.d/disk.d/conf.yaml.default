@@ -241,3 +241,18 @@ instances:
     #     host: nfsserver
     #     share: /mnt/nfs_share
     #     type: nfs
+
+    ## @param proc_mountinfo_path - string - optional
+    ## Path to the file from which to read mount information when enumerating disk partitions.
+    ## By default this points at /proc/self/mounts (the same source used by Python’s disk check).
+    ## If this setting is empty or does not exist, Go’s disk check built-in fallback
+    ## logic will be used in order: /proc/1/mountinfo → /proc/self/mountinfo → /proc/mounts.
+    #
+    # proc_mountinfo_path: /proc/self/mounts
+
+    ## @param resolve_root_device - boolean - optional - default: false
+    ## Instruct the check to resolve '/dev/root' from /proc/self/mounts to underlying block device.
+    ## (Linux only)
+    #
+    # resolve_root_device: false
+    

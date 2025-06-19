@@ -15,7 +15,10 @@ from tasks.libs.common.git import get_default_branch
 
 
 def trigger_windows_bump_workflow(
-    repo="buildenv", workflow_name="runner-bump.yml", github_action_ref="master", new_version=None
+    repo="ci-platform-machine-images",
+    workflow_name="windows-runner-agent-bump.yml",
+    github_action_ref="main",
+    new_version=None,
 ):
     """
     Trigger a workflow to bump windows gitlab runner

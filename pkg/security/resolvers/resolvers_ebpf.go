@@ -11,9 +11,10 @@ package resolvers
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 	"os"
 	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/file"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -65,6 +67,7 @@ type EBPFResolvers struct {
 	UserSessionsResolver *usersessions.Resolver
 	SyscallCtxResolver   *syscallctx.Resolver
 	DNSResolver          *dns.Resolver
+	FileMetadataResolver *file.Resolver
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
@@ -174,6 +177,11 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
+	fileMetadataResolver, err := file.NewResolver(config.RuntimeSecurity, statsdClient, &file.Opt{CgroupResolver: cgroupsResolver})
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &EBPFResolvers{
 		manager:              manager,
 		MountResolver:        mountResolver,
@@ -192,6 +200,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		UserSessionsResolver: userSessionsResolver,
 		SyscallCtxResolver:   syscallctx.NewResolver(),
 		DNSResolver:          dnsResolver,
+		FileMetadataResolver: fileMetadataResolver,
 	}
 
 	return resolvers, nil
@@ -337,8 +346,10 @@ func (r *EBPFResolvers) snapshotBoundSockets() error {
 		return err
 	}
 
+	boundSocketSnapshotter := procfs.NewBoundSocketSnapshotter()
+
 	for _, proc := range processes {
-		bs, err := procfs.GetBoundSockets(proc)
+		bs, err := boundSocketSnapshotter.GetBoundSockets(proc)
 		if err != nil {
 			log.Debugf("sockets snapshot failed for (pid: %v): %s", proc.Pid, err)
 			continue

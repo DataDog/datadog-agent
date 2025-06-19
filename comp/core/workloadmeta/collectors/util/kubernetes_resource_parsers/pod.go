@@ -42,6 +42,16 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		})
 	}
 
+	var ready bool
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodReady {
+			if condition.Status == corev1.ConditionTrue {
+				ready = true
+			}
+			break
+		}
+	}
+
 	var pvcNames []string
 	for _, volume := range pod.Spec.Volumes {
 		if volume.PersistentVolumeClaim != nil {
@@ -96,7 +106,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		Phase:                      string(pod.Status.Phase),
 		Owners:                     owners,
 		PersistentVolumeClaimNames: pvcNames,
-		Ready:                      isPodReady(pod),
+		Ready:                      ready,
 		IP:                         pod.Status.PodIP,
 		PriorityClass:              pod.Spec.PriorityClassName,
 		QOSClass:                   string(pod.Status.QOSClass),
@@ -104,19 +114,4 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		GPUVendorList:              gpuVendorList,
 		Containers:                 containersList,
 	}
-}
-
-// Should be aligned with pkg/util/kubernetes/kubelet/kubelet.go
-// (Except the static pods that should go away as fixed long time ago)
-func isPodReady(pod *corev1.Pod) bool {
-	if pod.Status.Phase != corev1.PodRunning {
-		return false
-	}
-
-	for _, condition := range pod.Status.Conditions {
-		if condition.Type == corev1.PodReady {
-			return condition.Status == corev1.ConditionTrue
-		}
-	}
-	return false
 }

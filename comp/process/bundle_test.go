@@ -67,6 +67,7 @@ func TestBundleDependencies(t *testing.T) {
 		}),
 		secretsimpl.MockModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 	)
 }
 
@@ -111,6 +112,8 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Provide(func() ddgostatsd.ClientInterface {
 			return &ddgostatsd.NoOpClient{}
 		}),
+		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
+		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		Bundle(),
 	)
 	require.NoError(t, err)

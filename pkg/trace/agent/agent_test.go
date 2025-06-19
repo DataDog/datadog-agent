@@ -129,6 +129,67 @@ func TestFormatTrace(t *testing.T) {
 	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
 }
 
+func TestStopWaits(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation.Cache.Enabled = true
+	cfg.Obfuscation.Cache.MaxSize = 1_000
+	// Disable the HTTP server to avoid colliding with a real agent on CI machines
+	cfg.ReceiverPort = 0
+	// But keep a ReceiverSocket so that the Receiver can start and shutdown normally
+	cfg.ReceiverSocket = t.TempDir() + "/trace-agent-test.sock"
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		agnt.Run()
+	}()
+
+	now := time.Now()
+	span := &pb.Span{
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "SELECT name FROM people WHERE age = 42 AND extra = 55",
+		Type:     "sql",
+		Start:    now.Add(-time.Second).UnixNano(),
+		Duration: (500 * time.Millisecond).Nanoseconds(),
+	}
+
+	// Use select to avoid blocking if channel is closed
+	payload := &api.Payload{
+		TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+	}
+
+	select {
+	case agnt.In <- payload:
+		// Successfully sent payload
+	case <-ctx.Done():
+		// Context cancelled before we could send
+		t.Fatal("Context cancelled before payload could be sent")
+	case <-time.After(100 * time.Millisecond):
+		// Timeout - this shouldn't happen in normal operation
+		t.Fatal("Timeout sending payload to agent")
+	}
+
+	cancel()
+	wg.Wait() // Wait for agent to completely exit
+
+	mtw, ok := agnt.TraceWriter.(*mockTraceWriter)
+	if !ok {
+		t.Fatal("Expected mockTraceWriter")
+	}
+	mtw.mu.Lock()
+	defer mtw.mu.Unlock()
+
+	assert := assert.New(t)
+	assert.Len(mtw.payloads, 1)
+	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", mtw.payloads[0].TracerPayload.Chunks[0].Spans[0].Meta["sql.query"])
+}
+
 func TestProcess(t *testing.T) {
 	t.Run("Replacer", func(t *testing.T) {
 		// Ensures that for "sql" type spans:

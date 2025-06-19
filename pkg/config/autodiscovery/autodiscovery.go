@@ -41,6 +41,11 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "database-monitoring-aurora"})
 		log.Info("Database monitoring aurora discovery is enabled: Adding the aurora listener")
 	}
+	// Add database-monitoring rds listener if the feature is enabled
+	if pkgconfigsetup.Datadog().GetBool("database_monitoring.autodiscovery.rds.enabled") {
+		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "database-monitoring-rds"})
+		log.Info("Database monitoring rds discovery is enabled: Adding the rds listener")
+	}
 
 	// Auto-add file-based kube service and endpoints config providers based on check config files.
 	if flavor.GetFlavor() == flavor.ClusterAgent {

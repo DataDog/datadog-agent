@@ -216,6 +216,8 @@ runtime_security_config:
         enabled: {{.EnforcementDisarmerExecutableEnabled}}
         max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
         period: {{.EnforcementDisarmerExecutablePeriod}}
+  file_metadata_resolver:
+    enabled: true
 `
 
 const (
@@ -642,7 +644,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
+	if err := setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 

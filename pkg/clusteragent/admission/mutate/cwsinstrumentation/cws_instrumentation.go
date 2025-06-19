@@ -94,6 +94,7 @@ type WebhookForPods struct {
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
+	timeout         int32
 }
 
 func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
@@ -106,6 +107,7 @@ func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
+		timeout:         pkgconfigsetup.Datadog().GetInt32("admission_controller.cws_instrumentation.timeout"),
 	}
 }
 
@@ -133,6 +135,11 @@ func (w *WebhookForPods) Endpoint() string {
 // be invoked
 func (w *WebhookForPods) Resources() map[string][]string {
 	return w.resources
+}
+
+// Timeout returns the timeout for the webhook
+func (w *WebhookForPods) Timeout() int32 {
+	return w.timeout
 }
 
 // Operations returns the operations on the resources specified for which
@@ -167,6 +174,7 @@ type WebhookForCommands struct {
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
+	timeout         int32
 }
 
 func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {
@@ -179,6 +187,7 @@ func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForComma
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Connect},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
+		timeout:         pkgconfigsetup.Datadog().GetInt32("admission_controller.cws_instrumentation.timeout"),
 	}
 }
 
@@ -206,6 +215,11 @@ func (w *WebhookForCommands) Endpoint() string {
 // be invoked
 func (w *WebhookForCommands) Resources() map[string][]string {
 	return w.resources
+}
+
+// Timeout returns the timeout for the webhook
+func (w *WebhookForCommands) Timeout() int32 {
+	return w.timeout
 }
 
 // Operations returns the operations on the resources specified for which

@@ -43,7 +43,7 @@ func addFactories(factories otelcol.Factories) {
 		return "hostname", nil
 	})
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(nil, nil)
-	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{})
+	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{}, false)
 }
 
 func TestGetConfDump(t *testing.T) {
@@ -60,7 +60,7 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, true)
+	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, true, false)
 	assert.NoError(t, err)
 
 	ext, ok := extension.(*ddExtension)

@@ -7,11 +7,7 @@
 package agentimpl
 
 import (
-	"context"
-	"fmt"
 	"net/http"
-
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 
 	grpc "github.com/DataDog/datadog-agent/comp/api/grpcserver/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -108,37 +104,6 @@ func (s *server) BuildServer() http.Handler {
 	})
 
 	return grpcServer
-}
-
-func (s *server) BuildGatewayMux(cmdAddr string) (http.Handler, error) {
-	dopts := []googleGrpc.DialOption{googleGrpc.WithTransportCredentials(credentials.NewTLS(s.IPC.GetTLSClientConfig()))}
-	ctx := context.Background()
-	gwmux := runtime.NewServeMux(runtime.WithMiddlewares(mTLSMiddleware))
-	err := pb.RegisterAgentHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	err = pb.RegisterAgentSecureHandlerFromEndpoint(
-		ctx, gwmux, cmdAddr, dopts)
-	if err != nil {
-		return nil, fmt.Errorf("error registering agent secure handler from endpoint %s: %v", cmdAddr, err)
-	}
-
-	return gwmux, nil
-}
-
-// mTLSMiddleware is a middleware that prevents access to the grpc gateway if the request is not using mTLS.
-// The underlying gRPC server is enforcing mTLS, so this middleware is only needed for the HTTP gateway.
-func mTLSMiddleware(h runtime.HandlerFunc) runtime.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request, m map[string]string) {
-		if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		h(w, r, m)
-	}
 }
 
 // Provides defines the output of the grpc component

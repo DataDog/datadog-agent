@@ -88,6 +88,36 @@ func (d *RemoteWindowsInstallerPackageAssertions) WithExperimentVersionMatchPred
 	return d
 }
 
+// HasConfigState asserts that a package config is present in the status output.
+func (d *RemoteWindowsInstallerStatusAssertions) HasConfigState(name string) *RemoteWindowsInstallerConfigStateAssertions {
+	d.suite.T().Helper()
+	d.require.Contains(d.status.Packages.ConfigStates, name)
+	return &RemoteWindowsInstallerConfigStateAssertions{
+		RemoteWindowsInstallerStatusAssertions: d,
+		name:                                   name,
+	}
+}
+
+// RemoteWindowsInstallerConfigStateAssertions provides assertions on a package's config state in the status output.
+type RemoteWindowsInstallerConfigStateAssertions struct {
+	*RemoteWindowsInstallerStatusAssertions
+	name string
+}
+
+// WithStableConfigEqual asserts the stable config of a package matches what's expected.
+func (d *RemoteWindowsInstallerConfigStateAssertions) WithStableConfigEqual(config string) *RemoteWindowsInstallerConfigStateAssertions {
+	d.suite.T().Helper()
+	d.require.Equal(config, d.status.Packages.ConfigStates[d.name].Stable, "expected matching stable config for package %s", d.name)
+	return d
+}
+
+// WithExperimentConfigEqual asserts the experiment config of a package matches
+func (d *RemoteWindowsInstallerConfigStateAssertions) WithExperimentConfigEqual(config string) *RemoteWindowsInstallerConfigStateAssertions {
+	d.suite.T().Helper()
+	d.require.Equal(config, d.status.Packages.ConfigStates[d.name].Experiment, "expected matching experiment config for package %s", d.name)
+	return d
+}
+
 type packageStatus struct {
 	States       map[string]stableExperimentStatus `json:"states"`
 	ConfigStates map[string]stableExperimentStatus `json:"config_states"`

@@ -7,6 +7,7 @@ package tcp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strconv"
 	"testing"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -116,4 +119,36 @@ func TestConnectivityDiagnoseOperationFail(t *testing.T) {
 
 	_, err = connManager.NewConnection(ctx)
 	assert.NotNil(t, err)
+}
+
+type mockConn struct {
+	net.TCPConn
+}
+
+func (c *mockConn) Write(_ []byte) (n int, err error) {
+	return 0, errors.New("write error")
+}
+
+func (c *mockConn) Close() (err error) {
+	return nil
+}
+
+// TestNoRetryAndWriteError ensures that a write error successfully exits the send loop when
+// retry is disabled.
+func TestNoRetryAndWriteError(t *testing.T) {
+	endpoint := config.NewEndpoint("api-key", "", "localhost", 0, false)
+
+	dest := NewDestination(endpoint, false, client.NewDestinationsContext(), false, statusinterface.NewStatusProviderMock())
+	output := make(chan *message.Payload, 1)
+	dest.conn = &mockConn{}
+
+	// Connection resets prompted a panic on earlier code versions, make sure that wasn't reintroduced.
+	dest.connCreationTime = time.Now().Add(-2 * time.Second)
+	endpoint.ConnectionResetInterval = time.Second
+
+	dest.sendAndRetry(message.NewPayload([]*message.MessageMetadata{}, []byte("test"), "source", 1), output, nil)
+	drops := metrics.DestinationLogsDropped.Get(endpoint.Host)
+	assert.Equal(t, "1", drops.String())
+	assert.Empty(t, output)
+	assert.Nil(t, dest.conn)
 }

@@ -67,6 +67,7 @@ func (t *APITailer) tryStartTailer() (*containerTailerPkg.Tailer, chan string, e
 		erroredContainerID,
 		t.readTimeout,
 		t.tagger,
+		t.registry,
 	)
 	since, err := since(t.registry, inner.Identifier())
 	if err != nil {

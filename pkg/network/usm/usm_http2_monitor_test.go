@@ -160,7 +160,7 @@ func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	matches := PrintableInt(0)
 
 	require.Eventuallyf(t, func() bool {
-		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
+		for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP2) {
 			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				matches.Add(stat.Data[200].Count)
 			}
@@ -286,7 +286,7 @@ func (s *usmHTTP2Suite) TestSimpleHTTP2() {
 
 				res := make(map[usmhttp.Key]int)
 				assert.Eventually(t, func() bool {
-					for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
+					for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP2) {
 						if key.DstPort == srvPort || key.SrcPort == srvPort {
 							count := stat.Data[200].Count
 							newKey := usmhttp.Key{
@@ -556,7 +556,7 @@ func (s *usmHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 	seenRequests := map[string]int{}
 	assert.Eventuallyf(t, func() bool {
-		for key, stat := range getHTTPLikeProtocolStats(monitor, protocols.HTTP2) {
+		for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP2) {
 			if (key.DstPort == srvPort || key.SrcPort == srvPort) && key.Method == usmhttp.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
 				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
 					seenRequests[key.Path.Content.Get()] = 0
@@ -1334,7 +1334,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
-				return validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS)
+				return validateStats(t, usmMonitor, res, tt.expectedEndpoints, s.isTLS)
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
 			if t.Failed() {
 				for key := range tt.expectedEndpoints {
@@ -1409,7 +1409,7 @@ func (s *usmHTTP2Suite) TestDynamicTable() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				require.True(t, validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS))
+				require.True(t, validateStats(t, usmMonitor, res, tt.expectedEndpoints, s.isTLS))
 
 				validateDynamicTableMap(t, usmMonitor.ebpfProgram, tt.expectedDynamicTablePathIndexes)
 
@@ -1565,7 +1565,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 			res := make(map[usmhttp.Key]int)
 			assert.Eventually(t, func() bool {
 				// validate the stats we get
-				if !validateStats(usmMonitor, res, tt.expectedEndpoints, s.isTLS) {
+				if !validateStats(t, usmMonitor, res, tt.expectedEndpoints, s.isTLS) {
 					return false
 				}
 
@@ -1614,8 +1614,8 @@ func TestHTTP2InFlightMapCleaner(t *testing.T) {
 }
 
 // validateStats validates that the stats we get from the monitor are as expected.
-func validateStats(usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int, isTLS bool) bool {
-	for key, stat := range getHTTPLikeProtocolStats(usmMonitor, protocols.HTTP2) {
+func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map[usmhttp.Key]int, isTLS bool) bool {
+	for key, stat := range getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP2) {
 		if key.DstPort == srvPort || key.SrcPort == srvPort {
 			statusCode := testutil.StatusFromPath(key.Path.Content.Get())
 			// statusCode 0 represents an error returned from the function, which means the URL is not in the special

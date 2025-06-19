@@ -47,3 +47,8 @@ func GetHasVFSRenameStructArgs() (bool, error) {
 func GetBTFFunctionArgCount(_ string) (int, error) {
 	return 0, errors.New("unsupported BTF request")
 }
+
+// AreFentryTailCallsBroken not available
+func AreFentryTailCallsBroken() (bool, error) {
+	return false, errors.New("unsupported BTF request")
+}

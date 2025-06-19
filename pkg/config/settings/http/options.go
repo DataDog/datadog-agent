@@ -6,14 +6,23 @@
 // Package http implements helpers for the runtime settings HTTP API
 package http
 
-import "github.com/DataDog/datadog-agent/pkg/api/util"
+// ShouldCloseConnection is an option to DoGet to indicate whether to close the underlying
+// connection after reading the response
+type ShouldCloseConnection int
+
+const (
+	// LeaveConnectionOpen keeps the underlying connection open after reading the request response
+	LeaveConnectionOpen ShouldCloseConnection = iota
+	// CloseConnection closes the underlying connection after reading the request response
+	CloseConnection
+)
 
 // ClientOptions holds options for the HTTP client
 type ClientOptions struct {
-	CloseConnection util.ShouldCloseConnection
+	CloseConnection ShouldCloseConnection
 }
 
 // NewHTTPClientOptions returns a new struct containing the HTTP client options
-func NewHTTPClientOptions(closeConnection util.ShouldCloseConnection) ClientOptions {
+func NewHTTPClientOptions(closeConnection ShouldCloseConnection) ClientOptions {
 	return ClientOptions{closeConnection}
 }

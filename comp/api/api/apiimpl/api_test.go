@@ -6,7 +6,6 @@
 package apiimpl
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 
 	// package dependencies
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	// third-party dependencies
@@ -52,25 +51,6 @@ func getAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option
 		Module(),
 		fx.Replace(params),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
-		fx.Provide(func() api.AgentEndpointProvider {
-			return api.AgentEndpointProvider{
-				Provider: nil,
-			}
-		}),
-		telemetryimpl.MockModule(),
-		config.MockModule(),
-		grpcNonefx.Module(),
-		fx.Options(fxOptions...),
-	)
-}
-
-func testAPIServer(t *testing.T, params config.MockParams, fxOptions ...fx.Option) (*fx.App, testdeps, error) {
-	return fxutil.TestApp[testdeps](
-		Module(),
-		fx.Replace(params),
-		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
-		fx.Supply(context.Background()),
 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
 		fx.Provide(func() api.AgentEndpointProvider {
 			return api.AgentEndpointProvider{
@@ -134,16 +114,8 @@ func TestStartBothServersWithObservability(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			resp, err := util.GetClient().Do(req)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			// for debug purpose
-			if content, err := io.ReadAll(resp.Body); assert.NoError(t, err) {
-				t.Log(string(content))
-			}
-
-			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+			_, err = deps.IPC.GetClient().Do(req)
+			require.ErrorContains(t, err, "status code: 404")
 
 			metricFamilies, err := registry.Gather()
 			require.NoError(t, err)
@@ -184,7 +156,6 @@ func (s *s) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 type grpcServer struct {
 	grpcServer bool
-	gateway    bool
 }
 
 func (grpc *grpcServer) BuildServer() http.Handler {
@@ -194,16 +165,6 @@ func (grpc *grpcServer) BuildServer() http.Handler {
 		}
 	}
 	return nil
-}
-
-func (grpc *grpcServer) BuildGatewayMux(string) (http.Handler, error) {
-	if grpc.gateway {
-		return &s{
-			body: "GRPC GATEWAY OK",
-		}, nil
-	}
-
-	return nil, fmt.Errorf("error")
 }
 
 func TestStartServerWithGrpcServer(t *testing.T) {
@@ -217,7 +178,6 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 		fx.Replace(
 			fx.Annotate(&grpcServer{
 				grpcServer: true,
-				gateway:    true,
 			}, fx.As(new(grpc.Component))),
 		)))
 
@@ -225,21 +185,6 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 
 	url := fmt.Sprintf("https://%s", addr)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
-	require.NoError(t, err)
-
-	resp, err := util.GetClient().Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	content, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	t.Log(string(content))
-
-	// test the gateway is monted at the root
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "GRPC GATEWAY OK", string(content))
-
-	req, err = http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/grpc")
 
@@ -252,35 +197,17 @@ func TestStartServerWithGrpcServer(t *testing.T) {
 		Transport: transport,
 	}
 
-	resp, err = http2Client.Do(req)
+	resp, err := http2Client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	content, err = io.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	t.Log(string(content))
 
 	// test the api routes grpc request to the grpc server
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "GRPC SERVER OK", string(content))
-}
-
-func TestStartServerWithGrpcServerFailGateway(t *testing.T) {
-	cfgOverride := config.MockParams{Overrides: map[string]interface{}{
-		"cmd_port": 0,
-		// doesn't test agent_ipc because it would try to register an already registered expvar in TestStartBothServersWithObservability
-		"agent_ipc.port": 0,
-	}}
-
-	_, _, errApp := testAPIServer(t, cfgOverride, fx.Options(
-		fx.Replace(
-			fx.Annotate(&grpcServer{
-				grpcServer: true,
-				gateway:    false,
-			}, fx.As(new(grpc.Component))),
-		)))
-
-	assert.Error(t, errApp)
 }
 
 func TestStartServerWithoutGrpcServer(t *testing.T) {
@@ -294,7 +221,6 @@ func TestStartServerWithoutGrpcServer(t *testing.T) {
 		fx.Replace(
 			fx.Annotate(&grpcServer{
 				grpcServer: false,
-				gateway:    true,
 			}, fx.As(new(grpc.Component))),
 		)))
 
@@ -320,10 +246,6 @@ func TestStartServerWithoutGrpcServer(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	content, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	t.Log(string(content))
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, "GRPC GATEWAY OK", string(content))
+	// The server does not have a grpc server, so it should return a 404
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

@@ -73,6 +73,13 @@ func newFakeEvent() eval.Event {
 
 func newRuleSet() *RuleSet {
 	ruleOpts, evalOpts := NewBothOpts(map[eval.EventType]bool{"*": true})
+
+	ruleOpts.WithSupportedDiscarders(map[eval.Field]bool{
+		"open.file.path":  true,
+		"mkdir.file.path": true,
+		"process.uid":     true,
+	})
+
 	return NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 }
 
@@ -177,7 +184,7 @@ func TestRuleSetApprovers1(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) == 0 {
 		t.Fatal("should get an approver")
 	}
@@ -201,7 +208,7 @@ func TestRuleSetApprovers1(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ = rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ = rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) == 0 {
 		t.Fatal("should get an approver")
 	}
@@ -227,7 +234,7 @@ func TestRuleSetApprovers2(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get any approver")
 	}
@@ -245,7 +252,7 @@ func TestRuleSetApprovers2(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ = rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ = rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 2 {
 		t.Fatal("should get 2 field approvers")
 	}
@@ -270,7 +277,7 @@ func TestRuleSetApprovers3(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 {
 		t.Fatal("should get only one field approver")
 	}
@@ -291,7 +298,7 @@ func TestRuleSetApprovers4(t *testing.T) {
 		},
 	}
 
-	if approvers, _, _ := rs.GetEventTypeApprovers("open", caps); len(approvers) != 0 {
+	if approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps); len(approvers) != 0 {
 		t.Fatalf("shouldn't get any approver, got: %+v", approvers)
 	}
 
@@ -302,7 +309,7 @@ func TestRuleSetApprovers4(t *testing.T) {
 		},
 	}
 
-	if approvers, _, _ := rs.GetEventTypeApprovers("open", caps); len(approvers) == 0 {
+	if approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps); len(approvers) == 0 {
 		t.Fatal("expected approver not found")
 	}
 }
@@ -318,7 +325,7 @@ func TestRuleSetApprovers5(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) == 0 {
 		t.Fatal("expected approver not found")
 	}
@@ -344,7 +351,7 @@ func TestRuleSetApprovers6(t *testing.T) {
 		},
 	}
 
-	if approvers, _, _ := rs.GetEventTypeApprovers("open", caps); len(approvers) == 0 {
+	if approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps); len(approvers) == 0 {
 		t.Fatal("expected approver not found")
 	}
 
@@ -358,7 +365,7 @@ func TestRuleSetApprovers6(t *testing.T) {
 		},
 	}
 
-	if approvers, _, _ := rs.GetEventTypeApprovers("open", caps); len(approvers) > 0 {
+	if approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps); len(approvers) > 0 {
 		t.Fatal("shouldn't get any approver")
 	}
 }
@@ -374,7 +381,7 @@ func TestRuleSetApprovers7(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) == 0 {
 		t.Fatal("expected approver not found")
 	}
@@ -400,7 +407,7 @@ func TestRuleSetApprovers8(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) == 0 {
 		t.Fatal("expected approver not found")
 	}
@@ -430,7 +437,7 @@ func TestRuleSetApprovers9(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) == 0 {
 		t.Fatal("expected approver not found")
 	}
@@ -456,7 +463,7 @@ func TestRuleSetApprovers10(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get an approver for `open.file.path`")
 	}
@@ -474,7 +481,7 @@ func TestRuleSetApprovers11(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) == 0 {
 		t.Fatal("expected approver not found")
 	}
@@ -497,7 +504,7 @@ func TestRuleSetApprovers12(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get an approver for `open.file.path`")
 	}
@@ -514,7 +521,7 @@ func TestRuleSetApprovers13(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get an approver for `open.file.flags`")
 	}
@@ -537,7 +544,7 @@ func TestRuleSetApprovers14(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 || len(approvers["open.file.path"]) != 2 {
 		t.Fatalf("should get an approver for `open.file.path`: %v", approvers)
 	}
@@ -559,10 +566,18 @@ func TestRuleSetApprovers15(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 || len(approvers["open.file.name"]) != 1 {
 		t.Fatalf("should get an approver for `open.file.name`: %v", approvers)
 	}
+}
+
+func ruleListToMap(rules []*Rule) map[eval.RuleID]bool {
+	m := make(map[eval.RuleID]bool, len(rules))
+	for _, rule := range rules {
+		m[rule.ID] = true
+	}
+	return m
 }
 
 func TestRuleSetApprovers16(t *testing.T) {
@@ -588,7 +603,7 @@ func TestRuleSetApprovers16(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get an approver")
 	}
@@ -605,7 +620,7 @@ func TestRuleSetApprovers16(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ = rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ = rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get an approver")
 	}
@@ -637,10 +652,12 @@ func TestRuleSetApprovers16(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ = rs.GetEventTypeApprovers("open", caps)
+	approvers, _, noDiscarderRules, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 2 || len(approvers["open.file.path"]) != 1 || len(approvers["process.auid"]) != 1 {
 		t.Fatalf("should get an approver`: %v", approvers)
 	}
+
+	rs.WithExcludedRuleFromDiscarders(ruleListToMap(noDiscarderRules))
 
 	if !rs.Evaluate(ev) {
 		rs.EvaluateDiscarders(ev)
@@ -668,7 +685,7 @@ func TestRuleSetApprovers17(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 || len(approvers["open.file.path"]) != 3 {
 		t.Fatalf("should get an approver for `open.file.path`: %v", approvers)
 	}
@@ -695,7 +712,7 @@ func TestRuleSetApprovers18(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 2 || len(approvers["open.file.path"]) != 2 || len(approvers["open.flags"]) != 1 {
 		t.Fatalf("should get approvers: %v", approvers)
 	}
@@ -718,7 +735,7 @@ func TestRuleSetApprovers19(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatal("shouldn't get an approver")
 	}
@@ -741,7 +758,7 @@ func TestRuleSetApprovers20(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 || len(approvers["open.file.path"]) != 2 {
 		t.Fatalf("should get approvers: %v", approvers)
 	}
@@ -763,7 +780,7 @@ func TestRuleSetApprovers21(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 {
 		t.Fatalf("should get approvers: %v", approvers)
 	}
@@ -785,7 +802,7 @@ func TestRuleSetApprovers22(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatalf("shouldn't get approvers: %v", approvers)
 	}
@@ -807,7 +824,7 @@ func TestRuleSetApprovers23(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 {
 		t.Fatalf("should get approvers: %v", approvers)
 	}
@@ -829,7 +846,7 @@ func TestRuleSetApprovers24(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 0 {
 		t.Fatalf("shouldn't get approvers: %v", approvers)
 	}
@@ -851,7 +868,7 @@ func TestRuleSetApprovers25(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 {
 		t.Fatalf("should get approvers: %v", approvers)
 	}
@@ -873,7 +890,7 @@ func TestRuleSetApprovers26(t *testing.T) {
 		},
 	}
 
-	approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+	approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 	if len(approvers) != 1 {
 		t.Fatalf("should get approvers: %v", approvers)
 	}
@@ -919,7 +936,7 @@ func TestRuleSetAUDApprovers(t *testing.T) {
 
 		AddTestRuleExpr(t, rs, exprs...)
 
-		approvers, _, _ := rs.GetEventTypeApprovers("open", caps)
+		approvers, _, _, _ := rs.GetEventTypeApprovers("open", caps)
 		return approvers
 	}
 

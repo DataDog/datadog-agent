@@ -9,6 +9,7 @@ package eval
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"net"
 )
@@ -17,7 +18,24 @@ import (
 func NotOfValue(value interface{}) (interface{}, error) {
 	switch v := value.(type) {
 	case int:
-		return ^v, nil
+		if v >= 0 {
+			if v <= math.MaxUint8 {
+				return int(^uint8(v)), nil
+			} else if v <= math.MaxUint16 {
+				return int(^uint16(v)), nil
+			} else if v <= math.MaxUint32 {
+				return int(^uint32(v)), nil
+			}
+			return int(^uint64(v)), nil
+		}
+		if v >= math.MinInt8 && v <= math.MaxInt8 {
+			return int(^int8(v)), nil
+		} else if v >= math.MinInt16 && v <= math.MaxInt16 {
+			return int(^int16(v)), nil
+		} else if v >= math.MinInt32 && v <= math.MaxInt32 {
+			return int(^int32(v)), nil
+		}
+		return int(^int64(v)), nil
 	case string:
 		// ensure the not value is different
 		if v == "" {
