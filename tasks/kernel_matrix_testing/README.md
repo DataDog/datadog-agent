@@ -89,7 +89,7 @@ dda inv -e kmt.launch-stack
 
 **4. Check Status**
 
-You can view the running VMs and their IP addresses.
+You can view the running VMs and their IP addresses in the current stack.
 
 ```bash
 dda inv -e kmt.status
@@ -168,7 +168,7 @@ dda inv -e kmt.launch-stack
 
 **4. Check Status**
 
-You can view the running VMs and their IP addresses. It may take a few moments for the VM to be assigned an IP.
+You can view the running VMs and their IP addresses in the current stack. It may take a few moments for the VM to be assigned an IP.
 
 ```bash
 dda inv -e kmt.status
@@ -184,8 +184,6 @@ dda inv -e kmt.test --vms=x86-jammy-distro
 
 # Run a specific test (recommended for development)
 dda inv -e kmt.test --vms=x86-jammy-distro --packages ./pkg/network/usm/tests --run TestFullMonitorWithTracer
-
-# See the kmt.test command section below for more test options
 ```
 
 Optionally, for debugging or manual inspection, you can connect to the VM directly using SSH. The easiest way is to generate an SSH configuration file. The stack name will be automatically inferred from your git branch.
