@@ -34,16 +34,18 @@
 // #include "../sharedlibrary/sharedlibrary.h"
 
 #if __linux__
-#    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
+#    define LIB_EXTENSION ".so"
 #elif __APPLE__
-#    define DATADOG_AGENT_THREE "libdatadog-agent-three.dylib"
+#    define LIB_EXTENSION ".dylib"
 #elif __FreeBSD__
-#    define DATADOG_AGENT_THREE "libdatadog-agent-three.so"
+#    define LIB_EXTENSION ".so"
 #elif _WIN32
-#    define DATADOG_AGENT_THREE "libdatadog-agent-three.dll"
+#    define LIB_EXTENSION ".dll"
 #else
 #    error Platform not supported
 #endif
+
+#define DATADOG_AGENT_THREE "libdatadog-agent-three" LIB_EXTENSION
 
 #define AS_TYPE(Type, Obj) reinterpret_cast<Type *>(Obj)
 #define AS_PTYPE(Type, Obj) reinterpret_cast<Type **>(Obj)
@@ -177,8 +179,12 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
 // methods are moved to the Three class
 void *load_shared_library(const char *lib_name, const char **error)
 {
+    // resolve the library full name
+    char lib_full_name[256];
+    snprintf(lib_full_name, strlen(lib_name) + strlen(LIB_EXTENSION) + 1, "%s%s", lib_name, LIB_EXTENSION);
+
     // load the library
-    void *shared_library = dlopen(lib_name, RTLD_LAZY | RTLD_GLOBAL);
+    void *shared_library = dlopen(lib_full_name, RTLD_LAZY | RTLD_GLOBAL);
     if (!shared_library) {
         std::ostringstream err_msg;
         err_msg << "Unable to open shared library: " << dlerror();

@@ -14,8 +14,6 @@ package sharedlibrary
 import "C"
 
 import (
-	"fmt"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -37,8 +35,6 @@ func init() {
 	}
 
 	loaders.RegisterLoader(factory)
-
-	fmt.Println("Shared Library loader registered")
 
 	// get rtloader shared library object pointer
 	//rtloader = C.init_shared_library() // can't implement this now, see api.cpp to understand why
