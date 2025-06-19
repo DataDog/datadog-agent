@@ -234,7 +234,9 @@ def run(
             )
 
             # Retry the failed tests only
-            affected_packages = {package.partition("/test/new-e2e/")[2] for package, _ in to_retry}
+            affected_packages = {
+                os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_retry
+            }
             e2e_module.test_targets = list(affected_packages)
             args["run"] = '-test.run ' + _create_test_selection_regex([test for _, test in to_retry])
         else:
