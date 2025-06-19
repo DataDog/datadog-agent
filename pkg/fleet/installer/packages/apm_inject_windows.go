@@ -32,6 +32,7 @@ func setAPMInjectionMethod(method string) error {
 	}
 	defer k.Close()
 
+	fmt.Printf("setting APM injection method to: %s\n", method)
 	return k.SetStringValue(APMInjectionMethodKey, method)
 }
 
