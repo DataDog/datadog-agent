@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -30,6 +29,8 @@ func TestRunCheckCmdCommand(t *testing.T) {
 	err := os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
+	configComponent.NewMockFromYAMLFile(t, configPath)
+
 	// Check command should work when an Agent is running, so we need to
 	// ensure we have exisiting IPC auth artifacts.
 	// This is done by building the IPC component
@@ -37,11 +38,6 @@ func TestRunCheckCmdCommand(t *testing.T) {
 	fxutil.Test[ipc.Component](t,
 		ipcfx.ModuleReadWrite(),
 		core.MockBundle(),
-		fx.Replace(configComponent.MockParams{
-			Params: configComponent.Params{
-				ConfFilePath: configPath,
-			},
-		}),
 	)
 
 	fxutil.TestOneShotSubcommand(t,
