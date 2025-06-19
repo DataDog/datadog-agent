@@ -242,6 +242,14 @@ func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 		panic("You cannot set a struct as a value")
 	}
 	c.Set(key, value, model.SourceUnknown)
+	keySet := make(map[string]struct{}, len(c.allSettings))
+	for _, k := range c.allSettings {
+		keySet[k] = struct{}{}
+	}
+	keySet[key] = struct{}{}
+	allKeys := slices.Collect(maps.Keys(keySet))
+	slices.Sort(allKeys)
+	c.allSettings = allKeys
 }
 
 // SetDefault assigns the value to the given key using source Default
@@ -454,10 +462,7 @@ func (c *ntmConfig) computeAllSettings(path string) []string {
 	// 3. Collect all unknown keys, even if they have no value set
 	c.collectKeysFromNode(c.unknown, "", keySet, true)
 
-	var allKeys []string
-	for key := range maps.Keys(keySet) {
-		allKeys = append(allKeys, key)
-	}
+	allKeys := slices.Collect(maps.Keys(keySet))
 	slices.Sort(allKeys)
 	return allKeys
 }
