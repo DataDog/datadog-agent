@@ -197,7 +197,7 @@ func TestStartBothServersWithObservability(t *testing.T) {
 		}
 
 		_, err = httpClient.Get(url) //nolint:bodyclose
-		require.ErrorContains(t, err, "remote error: tls: unknown certificate authority")
+		assert.ErrorContains(t, err, "remote error: tls: unknown certificate authority")
 	})
 }
 
