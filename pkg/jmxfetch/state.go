@@ -95,7 +95,7 @@ func StopJmxfetch() {
 	}
 }
 
-// InitRunner inits the runner and injects the dogstatsd server component
+// InitRunner inits the runner and injects the dogstatsd server component and the IPC component (used to get the auth token for the jmxfetch process).
 func InitRunner(server dogstatsdServer.Component, logger jmxlogger.Component, ipc ipc.Component) {
 	state.runner.initRunner(server, logger, ipc)
 }
