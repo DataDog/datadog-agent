@@ -306,7 +306,11 @@ This command will also guide you through the [default SSH key configuration](#km
 Updates the resources for launching VMs, such as VM images and tools.
 
 ```bash
+# Update all resources
 dda inv -e kmt.update-resources
+
+# Update only specific images
+dda inv -e kmt.update-resources --images=ubuntu_22.04,debian_11
 ```
 
 This command will first destroy all running stacks, then use checksums to decide which packages need to be updated from S3. Original packages are restored from a backup if an error occurs.
