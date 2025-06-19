@@ -162,9 +162,6 @@ func (t *LinuxResolver) fetchTags(workload *Workload) error {
 		if len(serviceName) != 0 {
 			workload.Selector.Image = serviceName
 			workload.Selector.Tag = utils.GetTagValue("version", newTags)
-			if len(workload.Selector.Tag) == 0 {
-				workload.Selector.Tag = "latest"
-			}
 		}
 	}
 
@@ -231,7 +228,9 @@ func (t *LinuxResolver) getCGroupTags(cgroupID containerutils.CGroupID) []string
 
 	tags := []string{
 		"service:" + systemdService,
-		"version:" + serviceVersion,
+	}
+	if len(serviceVersion) != 0 {
+		tags = append(tags, "version:"+serviceVersion)
 	}
 
 	return tags
