@@ -1,7 +1,4 @@
 ---
-
-# I am changing this file to trigger all tests!!!
-
 # e2e stage
 # Contains test jobs based on the new-e2e tests framework
 .new_e2e_template:

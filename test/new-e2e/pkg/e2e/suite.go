@@ -649,45 +649,10 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 func (bs *BaseSuite[Env]) TearDownSuite() {
 	bs.endTime = time.Now()
 
-	if bs.params.devMode {
-		return
-	}
-
-	if bs.initOnly {
-		bs.T().Logf("INIT_ONLY is set, skipping deletion")
-		return
-	}
-
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
 		bs.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
 			"The environment of %v was kept.", bs.firstFailTest, bs.firstFailTest, bs.firstFailTest))
 		return
-	}
-
-	ctx, cancel := bs.providerContext(deleteTimeout)
-	defer cancel()
-
-	for id, provisioner := range bs.originalProvisioners {
-		// Run provisioner Diagnose before tearing down the stack
-		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok {
-			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
-			if err != nil {
-				bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
-			} else {
-				diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
-				if diagnoseErr != nil {
-					bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
-				} else if diagnoseResult != "" {
-					bs.T().Logf("Diagnose result: %s", diagnoseResult)
-				}
-			}
-		}
-
-		fmt.Printf("CELIAN NOT DESTROYING STACK %s WITH PROVISIONER %s\n", bs.params.stackName, id)
-
-		// if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
-		// 	bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
-		// }
 	}
 }
 
