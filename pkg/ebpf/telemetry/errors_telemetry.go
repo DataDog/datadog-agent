@@ -300,7 +300,7 @@ func patchEBPFTelemetry(programSpecs map[string]*ebpf.ProgramSpec, enable bool, 
 		}
 
 		// patch telemetry helper calls
-		const ebpfTelemetryPatchCall = -1
+		const ebpfTelemetryPatchCall = math.MaxUint16 // uint16(-1)
 		iter := ins.Iterate()
 		for iter.Next() {
 			ins := iter.Ins

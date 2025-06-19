@@ -21,7 +21,7 @@
 BPF_HASH_MAP(map_err_telemetry_map, unsigned long, map_err_telemetry_t, 0)
 BPF_HASH_MAP(helper_err_telemetry_map, unsigned long, helper_err_telemetry_t, 0)
 
-#define PATCH_TARGET_TELEMETRY -1
+#define PATCH_TARGET_TELEMETRY ((u16)(-1))
 static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_TARGET_TELEMETRY;
 
 #define __record_map_telemetry(map, errno_ret) \
