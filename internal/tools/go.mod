@@ -9,7 +9,7 @@ require (
 	github.com/goware/modvendor v0.5.0
 	github.com/stormcat24/protodep v0.1.8
 	github.com/uber-go/gopatch v0.4.0
-	github.com/vektra/mockery/v2 v2.49.2
+	github.com/vektra/mockery/v2 v2.53.4
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	golang.org/x/mobile v0.0.0-20201217150744-e6ae53a27f4f
 	golang.org/x/perf v0.0.0-20210220033136-40a54f11e909
@@ -121,7 +121,7 @@ require (
 	github.com/jessevdk/go-flags v1.6.1 // indirect
 	github.com/jgautheron/goconst v1.7.1 // indirect
 	github.com/jingyugao/rowserrcheck v1.1.1 // indirect
-	github.com/jinzhu/copier v0.3.5 // indirect
+	github.com/jinzhu/copier v0.4.0 // indirect
 	github.com/jirfag/go-printf-func-name v0.0.0-20200119135958-7558a9eaa5af // indirect
 	github.com/jjti/go-spancheck v0.6.2 // indirect
 	github.com/julz/importas v0.1.0 // indirect
