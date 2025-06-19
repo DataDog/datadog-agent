@@ -192,38 +192,29 @@ func (w *noAggregationStreamWorker) run() {
 						countUnsupportedType := 0
 
 						for _, sample := range samples {
-							mtype, supported := metricSampleAPIType(sample)
-
-							if !supported {
-								if !w.logThrottling.ShouldThrottle() {
-									log.Warnf("Discarding unsupported metric sample in the no-aggregation pipeline for sample '%s', sample type '%s'", sample.Name, sample.Mtype.String())
-								}
-								countUnsupportedType++
-								continue
-							}
-
 							// enrich metric sample tags
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger.EnrichTags)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 
-							// if the value is a rate, we have to account for the 10s interval
-							if mtype == metrics.APIRateType {
-								sample.Value /= bucketSize
+							countProcessed++
+							switch sample.Mtype {
+							case metrics.SketchType:
+								w.handleSketchSample(sample)
+							case metrics.GaugeType:
+								w.handleMetricSample(sample, metrics.APIGaugeType)
+							case metrics.CounterType:
+								w.handleMetricSample(sample, metrics.APIRateType)
+							case metrics.RateType:
+								w.handleMetricSample(sample, metrics.APIRateType)
+							default:
+								if !w.logThrottling.ShouldThrottle() {
+									log.Warnf("Discarding unsupported metric sample in the no-aggregation pipeline for sample '%s', sample type '%s'", sample.Name, sample.Mtype.String())
+								}
+								countProcessed--
+								countUnsupportedType++
 							}
-
-							// turns this metric sample into a serie
-							var serie metrics.Serie
-							serie.Name = sample.Name
-							serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
-							serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
-							serie.Host = sample.Host
-							serie.MType = mtype
-							serie.Interval = bucketSize
-							w.seriesSink.Append(&serie)
-
 							w.taggerBuffer.Reset()
 							w.metricBuffer.Reset()
-							countProcessed++
 						}
 
 						lastStream = time.Now()
@@ -245,8 +236,13 @@ func (w *noAggregationStreamWorker) run() {
 				}
 			}, func(serieSource metrics.SerieSource) {
 				sendIterableSeries(w.serializer, start, serieSource)
-			}, func(_ metrics.SketchesSource) {
-				// noop: we do not support sketches in the no-agg pipeline.
+			}, func(sketchesSource metrics.SketchesSource) {
+				if sketchesSource.WaitForValue() {
+					err := w.serializer.SendSketch(sketchesSource)
+					if err != nil {
+						log.Warnf("failed to serializer no-agg sketches: %v", err)
+					}
+				}
 			})
 
 		if stopped {
@@ -276,4 +272,33 @@ func metricSampleAPIType(m metrics.MetricSample) (metrics.APIMetricType, bool) {
 	default:
 		return metrics.APIGaugeType, false
 	}
+}
+
+func (w *noAggregationStreamWorker) handleMetricSample(sample metrics.MetricSample, mtype metrics.APIMetricType) {
+	// if the value is a rate, we have to account for the 10s interval
+	if mtype == metrics.APIRateType {
+		sample.Value /= bucketSize
+	}
+
+	// turns this metric sample into a serie
+	var serie metrics.Serie
+	serie.Name = sample.Name
+	serie.Points = []metrics.Point{{Ts: sample.Timestamp, Value: sample.Value}}
+	serie.Tags = tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
+	serie.Host = sample.Host
+	serie.MType = mtype
+	serie.Interval = bucketSize
+	w.seriesSink.Append(&serie)
+}
+
+func (w *noAggregationStreamWorker) handleSketchSample(sample metrics.MetricSample) {
+	ss := &metrics.SketchSeries{
+		Name:     sample.Name,
+		Tags:     tagset.CompositeTagsFromSlice(w.metricBuffer.Copy()),
+		Host:     sample.Host,
+		Interval: bucketSize,
+		Source:   sample.Source,
+		RawPnt:   sample.RawValue,
+	}
+	w.sketchesSink.Append(ss)
 }
