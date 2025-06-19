@@ -32,7 +32,7 @@ func init() {
 	// add the shared library loader to the scheduler
 	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
 		loader, err := NewSharedLibraryCheckLoader()
-		priority := 10
+		priority := 40
 		return loader, priority, err
 	}
 
