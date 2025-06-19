@@ -10,6 +10,7 @@ package usm
 import (
 	"context"
 	"fmt"
+	nethttp "net/http"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -23,6 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -205,4 +208,152 @@ func cleanDeadPidsInSslMaps(t *testing.T, manager *manager.Manager) {
 		err := deleteDeadPidsInMap(manager, mapName, nil)
 		require.NoError(t, err)
 	}
+}
+
+// TestNativeTLSMapsCleanup verifies that the eBPF cleanup mechanism
+// correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
+// when the TCP connection associated with a TLS session is closed.
+func TestNativeTLSMapsCleanup(t *testing.T) {
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+		t.Skip("TLS not supported for this setup")
+	}
+
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableNativeTLSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	// Clean SSL maps before starting the test to ensure clean state
+	cleanProtocolMaps(t, "ssl", usmMonitor.ebpfProgram.Manager.Manager)
+
+	addressOfHTTPPythonServer := "127.0.0.1:8001"
+	_ = testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
+		EnableTLS: true,
+	})
+
+	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
+	var requests []*nethttp.Request
+	for i := 0; i < numberOfRequests; i++ {
+		requests = append(requests, requestFn())
+	}
+
+	sslSockMap, mapExists, errMap := usmMonitor.ebpfProgram.Manager.GetMap(sslSockByCtxMap)
+	require.NoErrorf(t, errMap, "Error getting map %s", sslSockByCtxMap)
+	require.Truef(t, mapExists, "Map %s does not exist on this branch. This test expects it.", sslSockByCtxMap)
+	require.NotNilf(t, sslSockMap, "Map %s object is nil.", sslSockByCtxMap)
+
+	sslTupleMap, tupleMapExists, errTupleMap := usmMonitor.ebpfProgram.Manager.GetMap(sslCtxByTupleMap)
+	require.NoErrorf(t, errTupleMap, "Error getting map %s", sslCtxByTupleMap)
+	require.Truef(t, tupleMapExists, "Map %s does not exist on this branch. This test expects it.", sslCtxByTupleMap)
+	require.NotNilf(t, sslTupleMap, "Map %s object is nil.", sslCtxByTupleMap)
+
+	ctxMapCountBefore := countMapEntries(t, sslSockMap)
+	tupleMapCountBefore := countMapEntries(t, sslTupleMap)
+	t.Logf("Count for map '%s' BEFORE CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCountBefore)
+	t.Logf("Count for map '%s' BEFORE CloseIdleConnections(): %d", sslCtxByTupleMap, tupleMapCountBefore)
+
+	client.CloseIdleConnections()
+
+	time.Sleep(1 * time.Second)
+
+	ctxMapCountAfter := countMapEntries(t, sslSockMap)
+	tupleMapCountAfter := countMapEntries(t, sslTupleMap)
+	t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCountAfter)
+	t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d", sslCtxByTupleMap, tupleMapCountAfter)
+
+	cleanProtocolMaps(t, "ssl", usmMonitor.ebpfProgram.Manager.Manager)
+
+	ctxMapCountAfterCleanup := countMapEntries(t, sslSockMap)
+	tupleMapCountAfterCleanup := countMapEntries(t, sslTupleMap)
+	t.Logf("Count for map '%s' AFTER manual cleanup: %d", sslSockByCtxMap, ctxMapCountAfterCleanup)
+	t.Logf("Count for map '%s' AFTER manual cleanup: %d", sslCtxByTupleMap, tupleMapCountAfterCleanup)
+
+	if ctxMapCountBefore > 0 || tupleMapCountBefore > 0 {
+		t.Logf("SSL connections were established (ssl_sock_by_ctx: %d, ssl_ctx_by_tuple: %d)", ctxMapCountBefore, tupleMapCountBefore)
+
+		if ctxMapCountAfter == 0 && tupleMapCountAfter == 0 {
+			t.Logf("SUCCESS: All SSL maps were cleaned by tcp_close")
+		} else if ctxMapCountAfter < ctxMapCountBefore || tupleMapCountAfter < tupleMapCountBefore {
+			t.Logf("PARTIAL: SSL maps were partially cleaned by tcp_close")
+			t.Logf("ssl_sock_by_ctx: %d -> %d (remaining: %d)", ctxMapCountBefore, ctxMapCountAfter, ctxMapCountAfter)
+			t.Logf("ssl_ctx_by_tuple: %d -> %d (remaining: %d)", tupleMapCountBefore, tupleMapCountAfter, tupleMapCountAfter)
+		} else {
+			t.Logf("FAILURE: SSL maps were NOT cleaned")
+		}
+	} else {
+		t.Logf("No SSL connections were established - test may not be triggering the right code path")
+	}
+
+	assert.Equalf(t, 0, ctxMapCountAfter, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslSockByCtxMap)
+	assert.Equalf(t, 0, tupleMapCountAfter, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslCtxByTupleMap)
+
+	requestsExist := make([]bool, len(requests))
+
+	require.Eventually(t, func() bool {
+		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
+		if stats == nil {
+			return false
+		}
+
+		if len(stats) == 0 {
+			return false
+		}
+
+		for reqIndex, req := range requests {
+			if !requestsExist[reqIndex] {
+				requestsExist[reqIndex] = isRequestIncluded(stats, req)
+			}
+		}
+
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+			}
+		}
+
+		return true
+	}, 3*time.Second, 100*time.Millisecond, "connection not found")
+	if t.Failed() {
+		// Dump relevant maps on failure
+		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, sslSockByCtxMap, sslCtxByTupleMap)
+		t.FailNow()
+	}
+}
+
+// countMapEntries counts entries in a specific BPF map.
+func countMapEntries(t *testing.T, m *ebpf.Map) int {
+	t.Helper()
+	if m == nil {
+		t.Logf("Map provided to countMapEntries is nil")
+		return -1
+	}
+
+	mapInfo, err := m.Info()
+	if err != nil {
+		t.Logf("Failed to get map info for map %s: %v", m.String(), err)
+		return -1
+	}
+	mapName := mapInfo.Name
+	count := 0
+	iter := m.Iterate()
+
+	switch mapName {
+	case "ssl_sock_by_ctx":
+		var key uintptr
+		var value http.SslSock
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			count++
+		}
+	case "ssl_ctx_by_tuple":
+		var key http.ConnTuple
+		var value uintptr
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			count++
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		t.Logf("Error iterating map %s: %v", mapName, err)
+	}
+	return count
 }
