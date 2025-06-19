@@ -69,6 +69,7 @@ const (
 	UsmTLSAttacherName = "usm_tls"
 
 	sslSockByCtxMap     = "ssl_sock_by_ctx"
+	sslCtxByTupleMap    = "ssl_ctx_by_tuple"
 	sslCtxByPIDTGIDMap  = "ssl_ctx_by_pid_tgid"
 	sslReadArgsMap      = "ssl_read_args"
 	sslReadExArgsMap    = "ssl_read_ex_args"
@@ -246,6 +247,9 @@ var gnuTLSProbes = []manager.ProbesSelector{
 var sharedLibrariesMaps = []*manager.Map{
 	{
 		Name: sslSockByCtxMap,
+	},
+	{
+		Name: sslCtxByTupleMap,
 	},
 	{
 		Name: sslReadArgsMap,
@@ -442,6 +446,7 @@ type sslProgram struct {
 
 	sslCtxByPIDTGIDMapCleaner *ddebpf.MapCleaner[uint64, uint64]
 	sslSockByCtxMapCleaner    *ddebpf.MapCleaner[uint64, http.SslSock]
+	sslCtxByTupleMapCleaner   *ddebpf.MapCleaner[http.ConnTuple, uint64]
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
@@ -512,6 +517,10 @@ func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Confi
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
+	options.MapSpecEditors[sslCtxByTupleMap] = manager.MapSpecEditor{
+		MaxEntries: cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -554,6 +563,10 @@ func (o *sslProgram) initAllMapCleaners() error {
 		return err
 	}
 
+	o.sslCtxByTupleMapCleaner, err = initMapCleaner[http.ConnTuple, uint64](o.ebpfManager, sslCtxByTupleMap)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -583,6 +596,15 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 		iter := currentMap.Iterate()
 		var key uintptr // C.void *
 		var value http.SslSock
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case sslCtxByTupleMap: // maps/ssl_ctx_by_tuple (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.void *
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'uintptr // C.void *'\n")
+		iter := currentMap.Iterate()
+		var key http.ConnTuple
+		var value uintptr
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
 		}
@@ -755,6 +777,12 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 
 	// Second pass: Clean ssl_sock_by_ctx map using collected SSL contexts
 	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, sslCtx uint64, _ http.SslSock) bool {
+		_, shouldClean := sslCtxToClean[sslCtx]
+		return shouldClean
+	})
+
+	// Third pass: Clean ssl_ctx_by_tuple map using collected SSL contexts
+	o.sslCtxByTupleMapCleaner.Clean(nil, nil, func(_ int64, _ http.ConnTuple, sslCtx uint64) bool {
 		_, shouldClean := sslCtxToClean[sslCtx]
 		return shouldClean
 	})
