@@ -14,8 +14,6 @@ package sharedlibrary
 import "C"
 
 import (
-	//"fmt"
-
 	"fmt"
 	"unsafe"
 
@@ -44,20 +42,23 @@ func (*SharedLibraryCheckLoader) Name() string {
 func (cl *SharedLibraryCheckLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
 	var err *C.char
 
-	name := "lib" + config.Name + ".dylib"
+	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
+	// ".dylib" is likely to change when there will be an automatic way of choosing the extension (Rtloader might handle this)
+	name := "libdatadog-agent-" + config.Name + ".dylib"
+
 	cName := C.CString(name)
 	defer C._free(unsafe.Pointer(cName))
 
-	hanlde := C.load_shared_library(cName, &err)
+	handle := C.load_shared_library(cName, &err)
 
-	if hanlde == nil {
+	if handle == nil {
 		if err != nil {
 			defer C._free(unsafe.Pointer(err))
 			return nil, fmt.Errorf("failed to load shared library %s: %s", config.Name, C.GoString(err))
 		}
 	}
 
-	return NewSharedLibraryCheck(config.Name, hanlde)
+	return NewSharedLibraryCheck(config.Name, handle)
 }
 
 func (gl *SharedLibraryCheckLoader) String() string {
