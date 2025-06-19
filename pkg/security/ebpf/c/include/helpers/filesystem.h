@@ -112,11 +112,13 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
     file->dev = get_dentry_dev(dentry);
 
     // nlink is mostly used userspace side to invalidate cache. use the higher value found
-    if (!file->metadata.nlink) {
-        u64 inode_nlink_offset;
-        LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
+    u64 inode_nlink_offset;
+    LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
 
-        bpf_probe_read(&file->metadata.nlink, sizeof(file->metadata.nlink), (void *)d_inode + inode_nlink_offset);
+    u32 nlink = 0;
+    bpf_probe_read(&nlink, sizeof(nlink), (void *)d_inode + inode_nlink_offset);
+    if (nlink > file->metadata.nlink) {
+      file->metadata.nlink = nlink;
     }
 
     u64 inode_gid_offset;
