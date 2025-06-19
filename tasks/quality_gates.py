@@ -54,16 +54,17 @@ def get_debug_job_url():
         if not len(pipeline_list):
             raise Exit(code=1, message="The current commit has no pipeline attached.")
         current_pipeline = pipeline_list[0]
-        job_generator = filter(
-            lambda job: job.name == "debug_static_quality_gates", current_pipeline.jobs.list(iterator=True)
+        debug_job = next(
+            job for job in current_pipeline.jobs.list(iterator=True) if job.name == "debug_static_quality_gates"
         )
+    except StopIteration:
+        print("Job debug_static_quality_gates wasn't found in the current pipeline !")
+        return ""
     except Exception as e:
         print(f"Failed to fetch debug_static_quality_gates url !\n{traceback.format_exc()}\n{str(e)}")
         return ""
-    if not any(job_generator):
-        return ""
-    debug_job = next(job_generator)
-    return f"https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/{debug_job.get_id()}"
+
+    return f"{debug_job._attrs['web_url']}"
 
 
 def display_pr_comment(
