@@ -677,6 +677,9 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		remainingRetries = 0
 	}
 
+	// Note: this check might sometimes skip stack deletion even if it would be needed
+	// For example if the only tests that failed were known flaky tests and thus not retried.
+	// This is not too big a deal as the stack is cleaned up manually in the invoke task handling retries.
 	if bs.firstFailTest != "" && remainingRetries > 0 {
 		bs.T().Logf("Skipping stack deletion as failing tests will be retried %d more times", remainingRetries)
 		return

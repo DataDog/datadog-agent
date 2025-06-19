@@ -240,6 +240,10 @@ def run(
         else:
             break
 
+    # In some cases the retry logic might leave resources undestroyed - make sure they are cleaned up
+    if max_retries > 0:
+        _clean_stacks(ctx, skip_destroy=not keep_stacks)
+
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
     if running_in_ci():
