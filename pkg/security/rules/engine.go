@@ -364,8 +364,12 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	}
 	seclog.Debugf("Filter Report: %s", filterReport)
 
-	e.currentRuleSet.Store(rs)
+	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	rulesetLoadedEvent := monitor.NewRuleSetLoadedEvent(e.probe.GetAgentContainerContext(), rs, policies, filterReport)
+
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
+
+	e.currentRuleSet.Store(rs)
 
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
@@ -380,11 +384,10 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	// update the stats of auto-suppression rules
 	e.AutoSuppression.Apply(rs)
 
-	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, rs, policies, filterReport)
+		monitor.ReportRuleSetLoaded(rulesetLoadedEvent, e.eventSender, e.statsdClient)
 		e.policyMonitor.SetPolicies(policies)
 	}
 
@@ -643,15 +646,30 @@ func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 
 func logLoadingErrors(msg string, m *multierror.Error) {
 	for _, err := range m.Errors {
-		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) && !errors.Is(rErr.Err, rules.ErrRuleAgentFilter) {
-				seclog.Errorf(msg, rErr.Error())
+		// Handle policy load errors
+		if policyErr, ok := err.(*rules.ErrPolicyLoad); ok {
+			// Empty policies are expected in some cases
+			if errors.Is(policyErr.Err, rules.ErrPolicyIsEmpty) {
+				seclog.Warnf(msg, policyErr.Error())
 			} else {
-				seclog.Warnf(msg, rErr.Error())
+				seclog.Errorf(msg, policyErr.Error())
 			}
-		} else {
-			seclog.Errorf(msg, err.Error())
+			continue
 		}
+
+		// Handle rule load errors
+		if ruleErr, ok := err.(*rules.ErrRuleLoad); ok {
+			// Some rule errors are accepted and should only generate warnings
+			if errors.Is(ruleErr.Err, rules.ErrEventTypeNotEnabled) || errors.Is(ruleErr.Err, rules.ErrRuleAgentFilter) {
+				seclog.Warnf(msg, ruleErr.Error())
+			} else {
+				seclog.Errorf(msg, ruleErr.Error())
+			}
+			continue
+		}
+
+		// Handle all other errors
+		seclog.Errorf(msg, err.Error())
 	}
 }
 

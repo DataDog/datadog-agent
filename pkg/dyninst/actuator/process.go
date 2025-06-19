@@ -59,6 +59,11 @@ type ProcessID struct {
 	// possible.
 }
 
+// String returns a string representation of the process ID.
+func (p ProcessID) String() string {
+	return fmt.Sprintf("{PID:%d}", p.PID)
+}
+
 // FileHandle identifies a file on a device.
 type FileHandle struct {
 	Dev uint64
