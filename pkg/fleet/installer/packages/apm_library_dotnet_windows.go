@@ -133,6 +133,7 @@ func asyncPreRemoveHookAPMLibraryDotnet(ctx context.Context, pkgRepositoryPath s
 }
 
 func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err error) {
+	// TODO What if it's a reinstall and the injection method config was not properly cleaned up by the previous installation?
 	// Check if a an injection method was set during a previous installation
 	var currentMethod string
 	currentMethod, err = getAPMInjectionMethod()
@@ -148,7 +149,11 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err er
 
 	if currentMethod == env.APMInstrumentationNotSet {
 		if newMethod != env.APMInstrumentationNotSet {
-			return instrumentDotnetLibrary(ctx, newMethod, target)
+			err = instrumentDotnetLibrary(ctx, newMethod, target)
+			if err != nil {
+				return fmt.Errorf("could not instrument dotnet library: %w", err)
+			}
+			return setAPMInjectionMethod(newMethod)
 		} else {
 			return nil
 		}
@@ -164,7 +169,11 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err er
 		newMethod = currentMethod
 	}
 
-	return instrumentDotnetLibrary(ctx, newMethod, target)
+	err = instrumentDotnetLibrary(ctx, newMethod, target)
+	if err != nil {
+		return fmt.Errorf("could not instrument dotnet library: %w", err)
+	}
+	return setAPMInjectionMethod(newMethod)
 }
 
 func instrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
@@ -198,10 +207,15 @@ func uninstrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err 
 	if err != nil {
 		return err
 	}
+	fmt.Printf("uninstrumenting dotnet library with method: %s\n", method)
 	if method == env.APMInstrumentationNotSet {
 		return nil
 	}
-	return uninstrumentDotnetLibrary(ctx, method, target)
+	err = uninstrumentDotnetLibrary(ctx, method, target)
+	if err != nil {
+		return fmt.Errorf("could not uninstrument dotnet library: %w", err)
+	}
+	return unsetAPMInjectionMethod()
 }
 
 func uninstrumentDotnetLibrary(ctx context.Context, method, target string) (err error) {
