@@ -64,10 +64,16 @@ func TestWrapperMethods(t *testing.T) {
 	})
 }
 
-func TestWrapperFlush(_ *testing.T) {
+func TestWrapperFlush(t *testing.T) {
+	SetupLogger(Default(), DebugStr)
+
 	wrapper := NewWrapper(3)
 
-	wrapper.Debug("debug message")
+	// check if the wrapper logs correctly
+	printedLog := captureStdout(func() {
+		wrapper.Debug("message")
+		wrapper.Flush()
+	})
 
-	wrapper.Flush() // should print debug log
+	assert.NotEqual(t, "", printedLog)
 }
