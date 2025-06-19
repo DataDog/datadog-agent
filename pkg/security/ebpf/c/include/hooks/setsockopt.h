@@ -57,9 +57,6 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
         return 0;
     }
     send_event_with_size_ptr(ctx, EVENT_SETSOCKOPT, event, (offsetof(struct setsockopt_event_t, bpf_filters_buffer) + sizeof(struct sock_filter) * syscall->setsockopt.filter_len) );
-
-    // if the tail call fails, we need to pop the syscall cache entry
-    pop_syscall(EVENT_SETSOCKOPT);
     
 
     return 0;
