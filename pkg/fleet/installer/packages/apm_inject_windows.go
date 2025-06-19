@@ -70,6 +70,7 @@ func getAPMInjectionMethod() (string, error) {
 	return method, nil
 }
 
+// ValidateAPMInstrumentationMethod validates that the provided method is supported
 func ValidateAPMInstrumentationMethod(method string) error {
 	if method != env.APMInstrumentationEnabledIIS && method != env.APMInstrumentationEnabledDotnet {
 		return fmt.Errorf("Unsupported injection method: %s", method)

@@ -148,16 +148,14 @@ func instrumentDotnetLibraryIfNeeded(ctx context.Context, target string) (err er
 	fmt.Printf("currentMethod: %s, newMethod: %s\n", currentMethod, newMethod)
 
 	if currentMethod == env.APMInstrumentationNotSet {
-		if newMethod != env.APMInstrumentationNotSet {
-			err = instrumentDotnetLibrary(ctx, newMethod, target)
-			if err != nil {
-				return fmt.Errorf("could not instrument dotnet library: %w", err)
-			}
-			return setAPMInjectionMethod(newMethod)
-		} else {
+		if newMethod == env.APMInstrumentationNotSet {
 			return nil
 		}
-
+		err = instrumentDotnetLibrary(ctx, newMethod, target)
+		if err != nil {
+			return fmt.Errorf("could not instrument dotnet library: %w", err)
+		}
+		return setAPMInjectionMethod(newMethod)
 	}
 
 	if newMethod != env.APMInstrumentationNotSet && newMethod != currentMethod {
