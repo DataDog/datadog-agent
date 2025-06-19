@@ -10,6 +10,8 @@ package probe
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"slices"
 	"strings"
@@ -17,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"golang.org/x/net/bpf"
 )
 
 func bestGuessServiceTag(serviceValues []string) string {
@@ -137,4 +140,44 @@ func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent
 	}
 
 	return service
+}
+
+// ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
+func (fh *BaseFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
+	h := sha256.New()
+	h.Write(e.RawFilter)
+	bs := h.Sum(nil)
+	e.FilterHash = fmt.Sprintf("%x", bs)
+	return e.FilterHash
+}
+
+// ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
+func (fh *BaseFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
+	raw := []bpf.RawInstruction{}
+	filterSize := 8
+	filterLen := int(e.FilterLen)
+	rawFilter := e.RawFilter
+	for i := 0; i < filterLen; i++ {
+		offset := i * filterSize
+
+		Code := binary.NativeEndian.Uint16(rawFilter[offset : offset+2])
+		Jt := rawFilter[offset+2]
+		Jf := rawFilter[offset+3]
+		K := binary.NativeEndian.Uint32(rawFilter[offset+4 : offset+8])
+
+		raw = append(raw, bpf.RawInstruction{
+			Op: Code,
+			Jt: Jt,
+			Jf: Jf,
+			K:  K,
+		})
+	}
+
+	instructions, _ := bpf.Disassemble(raw)
+
+	for i, inst := range instructions {
+		e.FilterInstructions += fmt.Sprintf("%03d: %s\n", i, inst)
+	}
+
+	return e.FilterInstructions
 }

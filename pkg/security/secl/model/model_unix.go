@@ -1023,12 +1023,13 @@ type SetrlimitEvent struct {
 // SetSockOptEvent represents a set socket option event
 type SetSockOptEvent struct {
 	SyscallEvent
-	SocketType     uint16 `field:"socket_type"`     // SECLDoc[socket_type] Definition:`Socket type`
-	SocketProtocol uint16 `field:"socket_protocol"` // SECLDoc[socket_protocol] Definition:`Socket protocol`
-	SocketFamily   uint16 `field:"socket_family"`   // SECLDoc[socket_family] Definition:`Socket family`
-	Level          uint32 `field:"level"`           // SECLDoc[level] Definition:`Socket level`
-	OptName        uint32 `field:"optname"`         // SECLDoc[optname] Definition:`Socket option name`
-	FilterLen      uint16 `field:"filter_len"`      // SECLDoc[filter_len] Definition:`Length of the filter`
-	Filter         string `field:"filter"`          // SECLDoc[filter] Definition:`Socket filter`
-	FilterHash     string `field:"filter_hash"`     // SECLDoc[filter_hash] Definition:`Hash of the socket filter`
+	SocketType         uint16 `field:"socket_type"`                                                     // SECLDoc[socket_type] Definition:`Socket type`
+	SocketProtocol     uint16 `field:"socket_protocol"`                                                 // SECLDoc[socket_protocol] Definition:`Socket protocol`
+	SocketFamily       uint16 `field:"socket_family"`                                                   // SECLDoc[socket_family] Definition:`Socket family`
+	Level              uint32 `field:"level"`                                                           // SECLDoc[level] Definition:`Socket level`
+	OptName            uint32 `field:"optname"`                                                         // SECLDoc[optname] Definition:`Socket option name`
+	FilterLen          uint16 `field:"filter_len"`                                                      // SECLDoc[filter_len] Definition:`Length of the filter`
+	RawFilter          []byte `field:"-"`                                                               // Internal field, not exposed to users
+	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"` // SECLDoc[filter_instructions] Definition:`Filter instructions`
+	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                // SECLDoc[filter_hash] Definition:`Hash of the socket filter`
 }
