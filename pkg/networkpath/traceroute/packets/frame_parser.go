@@ -203,11 +203,9 @@ func ParseUDPFirstBytes(buffer []byte) (UDPInfo, error) {
 	}
 	// Check for minimum payload length for NSMNC + 2-byte ID
 	if len(buffer) >= 16 && string(buffer[8:13]) == "NSMNC" {
-		if len(buffer) >= 16 { // 8-byte header + 8-byte payload
-			idHigh := buffer[14]
-			idLow := buffer[15]
-			udp.ID = (uint16(idHigh) << 8) | uint16(idLow)
-		}
+		idHigh := buffer[14]
+		idLow := buffer[15]
+		udp.ID = (uint16(idHigh) << 8) | uint16(idLow)
 	}
 
 	return udp, nil
@@ -307,7 +305,6 @@ func (p *FrameParser) GetICMPInfo() (ICMPInfo, error) {
 		}
 		return icmpInfo, nil
 	default:
-		// TODO IPv6
 		return ICMPInfo{}, fmt.Errorf("GetICMPInfo: unexpected layer type %s", p.Layers[1])
 	}
 }
