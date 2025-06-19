@@ -95,7 +95,7 @@ generate_windows_gitlab_runner_bump_pr:
       when: never
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
   script:
-    # We are using the agent platform auto PR github app to access the buildenv repository (already used for macOS builds)
+    # We are using the agent platform auto PR github app to access the ci-platform-machine-images repository (already used for macOS builds)
     - !reference [.setup_github_app_agent_platform_auto_pr]
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     - python3 -m dda self dep sync -f legacy-tasks
@@ -103,7 +103,7 @@ generate_windows_gitlab_runner_bump_pr:
     - SLACK_DATADOG_AGENT_BOT_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SLACK_AGENT token) || exit $?; export SLACK_DATADOG_AGENT_BOT_TOKEN
     - dda inv -- -e github.update-windows-runner-version
 
-# Manual job to generate the gitlab bump pr on buildenv if trigger_auto_staging_release fails
+# Manual job to generate the gitlab bump pr on ci-platform-machine-images if trigger_auto_staging_release fails
 generate_windows_gitlab_runner_bump_pr_manual:
   stage: trigger_release
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
@@ -115,7 +115,7 @@ generate_windows_gitlab_runner_bump_pr_manual:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
       when: manual
   script:
-    # We are using the agent platform auto PR github app to access the buildenv repository (already used for macOS builds)
+    # We are using the agent platform auto PR github app to access the ci-platform-machine-images repository (already used for macOS builds)
     - !reference [.setup_github_app_agent_platform_auto_pr]
     - python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
     - python3 -m dda self dep sync -f legacy-tasks

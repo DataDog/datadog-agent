@@ -75,6 +75,15 @@ struct syscall_cache_t {
         } rename;
 
         struct {
+            int resource;
+            u64 rlim_cur;
+            u64 rlim_max;
+            u32 pid;
+            struct process_context_t target_process;
+            struct container_context_t target_container;
+        } setrlimit;
+
+        struct {
             struct dentry *dentry;
             struct path *path;
             struct file_t file;
@@ -247,6 +256,11 @@ struct syscall_cache_t {
         struct {
             u32 action;
         } sysctl;
+
+        struct {
+            int level;
+            int optname;
+        } setsockopt;
     };
 };
 

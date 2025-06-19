@@ -60,6 +60,8 @@ func TestConnectEvent(t *testing.T) {
 	}
 
 	t.Run("connect-af-inet-any-tcp-success", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		listener, err := net.Listen("tcp", ":4242")
 		if err != nil {
 			t.Fatal(err)
@@ -85,6 +87,8 @@ func TestConnectEvent(t *testing.T) {
 	})
 
 	t.Run("io-uring-connect-af-inet-any-tcp-success", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		listener, err := net.Listen("tcp", ":4242")
 		if err != nil {
 			t.Fatal(err)

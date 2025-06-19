@@ -108,3 +108,9 @@ func (c *TerminatedPodCollector) Process(rcfg *collectors.CollectorRunConfig, li
 
 	return result, nil
 }
+
+// GetNodeName is used to get the node name from the resource.
+func (c *TerminatedPodCollector) GetNodeName(_ processors.ProcessorContext, resource interface{}) string {
+	r := resource.(*v1.Pod)
+	return r.Spec.NodeName
+}

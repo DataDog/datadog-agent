@@ -2,6 +2,52 @@
 Release Notes
 =============
 
+.. _Release Notes_7.67.0:
+
+7.67.0
+======
+
+.. _Release Notes_7.67.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-06-18
+Pinned to datadog-agent v7.67.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7670>`_.
+
+
+.. _Release Notes_7.67.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The Kubernetes State check no longer supports VPA versions <0.7.0.
+
+
+.. _Release Notes_7.67.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixes a bug where the Kubernetes State check could not generate VPA metrics for VPA versions 1.3.0+
+
+- Fix data race in the orchestrator check for the sensitive data scrubber. Note: This
+  would only occur when running the check on Datadog cluster check runners.
+
+
+.. _Release Notes_7.66.1:
+
+7.66.1
+======
+
+.. _Release Notes_7.66.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-06-03
+Pinned to datadog-agent v7.66.1: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7661>`_.
+
 .. _Release Notes_7.66.0:
 
 7.66.0

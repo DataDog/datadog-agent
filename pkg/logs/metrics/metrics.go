@@ -100,6 +100,10 @@ var (
 	TlmDestVirtualLatency = telemetry.NewGauge("logs_destination", "virtual_latency", []string{"instance"}, "Gauge of the destination's average latency")
 	// TlmDestWorkerResets tracks the count of times the destination worker pool resets the worker count after encountering a retryable error.
 	TlmDestWorkerResets = telemetry.NewCounter("logs_destination", "destination_worker_resets", []string{"instance"}, "Count of times the destination worker pool resets the worker count")
+	// LogsTruncated is the number of logs truncated by the Agent
+	LogsTruncated = expvar.Int{}
+	// TlmTruncatedCount tracks the count of times a log is truncated
+	TlmTruncatedCount = telemetry.NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
 )
 
 func init() {
@@ -116,4 +120,5 @@ func init() {
 	LogsExpvars.Set("BytesMissed", &BytesMissed)
 	LogsExpvars.Set("SenderLatency", &SenderLatency)
 	LogsExpvars.Set("HttpDestinationStats", &DestinationExpVars)
+	LogsExpvars.Set("LogsTruncated", &LogsTruncated)
 }

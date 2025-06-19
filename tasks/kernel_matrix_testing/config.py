@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class ConfigManager:
     def __init__(self):
-        self._cfg_path = get_kmt_os().kmt_dir / "config.json"
+        self._cfg_path = get_kmt_os().config_path
         self._config: KMTConfig | None = None
 
     def load(self):

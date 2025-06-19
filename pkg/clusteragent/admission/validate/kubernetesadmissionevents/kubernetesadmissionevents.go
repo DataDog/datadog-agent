@@ -98,6 +98,11 @@ func (w *Webhook) Resources() map[string][]string {
 	return w.resources
 }
 
+// Timeout returns the timeout for the webhook
+func (w *Webhook) Timeout() int32 {
+	return 0
+}
+
 // Operations returns the operations on the resources specified for which
 // the webhook should be invoked
 func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
