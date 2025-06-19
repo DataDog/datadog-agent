@@ -40,9 +40,10 @@ func New(demux aggregator.Demultiplexer) (lp *httpsec.ProxyLifecycleProcessor, e
 func NewWithShutdown(demux aggregator.Demultiplexer) (lp *httpsec.ProxyLifecycleProcessor, shutdown func(context.Context) error, err error) {
 	appsecInstance, err := newAppSec() // note that the assigned variable is in the parent scope
 	if err != nil {
-		return nil, nil, err
-	}
-	if appsecInstance == nil {
+		log.Warnf("appsec: failed to start appsec: %v -- appsec features are not available!", err)
+		// Nil-out the error so we don't incorrectly report it later on...
+		err = nil
+	} else if appsecInstance == nil {
 		return nil, nil, nil // appsec disabled
 	}
 
@@ -61,11 +62,12 @@ func NewWithShutdown(demux aggregator.Demultiplexer) (lp *httpsec.ProxyLifecycle
 	log.Debug("appsec: started successfully using the runtime api proxy monitoring mode")
 
 	shutdown = func(ctx context.Context) error {
-		// Note: `errors.Join` discards any `nil` error it receives.
-		return errors.Join(
-			shutdownProxy(ctx),
-			appsecInstance.Close(),
-		)
+		err := shutdownProxy(ctx)
+		if appsecInstance != nil {
+			// Note: `errors.Join` discards any `nil` error it receives.
+			err = errors.Join(err, appsecInstance.Close())
+		}
+		return err
 	}
 
 	return
@@ -141,6 +143,11 @@ func (a *AppSec) Close() error {
 //
 // This function always returns nil when an error occurs.
 func (a *AppSec) Monitor(addresses map[string]any) *httpsec.MonitorResult {
+	if a == nil {
+		// This needs to be nil-safe so a nil [AppSec] instance is effectvely a no-op [httpsec.Monitorer].
+		return nil
+	}
+
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx, err := a.handle.NewContextWithBudget(a.cfg.WafTimeout)
 	if err != nil {
@@ -199,7 +206,10 @@ func wafHealth() error {
 // canExtractSchemas checks that API Security is enabled
 // and that sampling rate allows schema extraction for a specific monitoring instance
 func (a *AppSec) canExtractSchemas() bool {
-	return a.cfg.APISec.Enabled && a.cfg.APISec.SampleRate >= rand.Float64()
+	return a.cfg.APISec.Enabled &&
+		//nolint:staticcheck // SA1019 we will migrate to the new APISec sampler at a later point.
+		a.cfg.APISec.SampleRate >=
+			rand.Float64()
 }
 
 func init() {

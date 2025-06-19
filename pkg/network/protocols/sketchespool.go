@@ -18,10 +18,15 @@ const RelativeAccuracy = 0.01
 var (
 	// SketchesPool is a pool of DDSketches
 	SketchesPool = ddsync.NewTypedPool[ddsketch.DDSketch](func() *ddsketch.DDSketch {
-		latencies, err := ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+		latencies, err := NewSketch()
 		if err != nil {
 			return nil
 		}
 		return latencies
 	})
 )
+
+// NewSketch creates a new DDSketch from the pool.
+func NewSketch() (*ddsketch.DDSketch, error) {
+	return ddsketch.NewDefaultDDSketch(RelativeAccuracy)
+}

@@ -50,10 +50,12 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import (
-    get_gitlab_ci_configuration,
     get_gitlab_job_dependencies,
     get_gitlab_repo,
+    post_process_gitlab_ci_configuration,
+    resolve_gitlab_ci_configuration,
 )
+from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
@@ -73,6 +75,7 @@ from tasks.system_probe import (
     get_sysprobe_test_buildtags,
     get_test_timeout,
     go_package_dirs,
+    ninja_add_dyninst_test_programs,
     ninja_generate,
     setup_runtime_clang,
 )
@@ -1034,6 +1037,12 @@ def kmt_sysprobe_prepare(
         ninja_define_rules(nw)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
+        ninja_add_dyninst_test_programs(
+            ctx,
+            nw,
+            kmt_paths.sysprobe_tests,
+            go_path,
+        )
 
         build_tags = get_sysprobe_test_buildtags(False, False)
         for pkg in target_packages:
@@ -2347,7 +2356,10 @@ def download_complexity_data(
 
         if gitlab_config_file is None:
             gitlab_ci_file = os.fspath(Path(__file__).parent.parent / ".gitlab-ci.yml")
-            gitlab_config = get_gitlab_ci_configuration(ctx, gitlab_ci_file, job="notify_ebpf_complexity_changes")
+            gitlab_config = resolve_gitlab_ci_configuration(ctx, gitlab_ci_file)
+            gitlab_config = post_process_gitlab_ci_configuration(
+                gitlab_config, filter_jobs="notify_ebpf_complexity_changes"
+            )
         else:
             with open(gitlab_config_file) as f:
                 parsed_file = yaml.safe_load(f)
@@ -2480,3 +2492,54 @@ def retry_failed_pipeline(ctx: Context, pipeline_id: int, component: str | None 
             continue
 
     info(f"[+] All jobs retried, job IDs: {retried_jobs}")
+
+
+@task
+def start_microvms(
+    ctx,
+    infra_env,
+    instance_type_x86=None,
+    instance_type_arm=None,
+    x86_ami_id=None,
+    arm_ami_id=None,
+    destroy=False,
+    ssh_key_name=None,
+    ssh_key_path=None,
+    dependencies_dir=None,
+    shutdown_period=320,
+    stack_name="kernel-matrix-testing-system",
+    vmconfig=None,
+    local=False,
+    provision_instance=False,
+    provision_microvms=False,
+    run_agent=False,
+    agent_version=None,
+):
+    stacks.build_start_microvms_binary(ctx)
+    print(
+        color_message(
+            "[+] Creating and provisioning microVMs.\n[+] If you want to see the pulumi progress, set configParams.pulumi.verboseProgressStreams: true in ~/.test_infra_config.yaml",
+            "green",
+        )
+    )
+    ctx.run(
+        stacks.start_microvms_cmd(
+            infra_env=infra_env,
+            instance_type_x86=instance_type_x86,
+            instance_type_arm=instance_type_arm,
+            x86_ami_id=x86_ami_id,
+            arm_ami_id=arm_ami_id,
+            destroy=destroy,
+            ssh_key_name=ssh_key_name,
+            ssh_key_path=ssh_key_path,
+            dependencies_dir=dependencies_dir,
+            shutdown_period=shutdown_period,
+            stack_name=stack_name,
+            vmconfig=vmconfig,
+            local=local,
+            provision_instance=provision_instance,
+            provision_microvms=provision_microvms,
+            run_agent=run_agent,
+            agent_version=agent_version,
+        )
+    )

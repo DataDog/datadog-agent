@@ -21,9 +21,9 @@ import (
 // This is a very basic test of loading a Go elf object file
 // and that it more or less works and sanely loads dwarf.
 func TestElfObject(t *testing.T) {
-	for _, cfg := range testprogs.CommonConfigs {
-		binaryPath, err := testprogs.GetBinary("simple", cfg)
-		require.NoError(t, err)
+	cfgs := testprogs.MustGetCommonConfigs(t)
+	for _, cfg := range cfgs {
+		binaryPath := testprogs.MustGetBinary(t, "simple", cfg)
 		elf, err := safeelf.Open(binaryPath)
 		require.NoError(t, err)
 		obj, err := object.NewElfObject(elf)

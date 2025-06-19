@@ -15,6 +15,8 @@ from subprocess import check_output
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+import tasks.libs.cws.backend_doc_gen as backend_doc_gen
+import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.agent import generate_config
 from tasks.build_tags import add_fips_tags, get_default_build_tags
 from tasks.go import run_golangci_lint
@@ -171,11 +173,8 @@ def gen_mocks(ctx):
 
 
 @task
-def run_functional_tests(ctx, testsuite, verbose=False, testflags='', fentry=False):
+def run_functional_tests(ctx, testsuite, verbose=False, testflags=''):
     cmd = '{testsuite} {verbose_opt} {testflags}'
-    if fentry:
-        cmd = "DD_EVENT_MONITORING_CONFIG_EVENT_STREAM_USE_FENTRY=true " + cmd
-
     if os.getuid() != 0:
         cmd = 'sudo -E PATH={path} ' + cmd
 
@@ -400,7 +399,6 @@ def functional_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
-    fentry=False,
 ):
     build_functional_tests(
         ctx,
@@ -417,7 +415,6 @@ def functional_tests(
         testsuite=output,
         verbose=verbose,
         testflags=testflags,
-        fentry=fentry,
     )
 
 
@@ -514,23 +511,28 @@ def docker_functional_tests(
 
 
 @task
-def generate_cws_documentation(ctx, go_generate=False):
-    if go_generate:
-        cws_go_generate(ctx)
-
+def generate_cws_documentation(ctx):
     # secl docs
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_linux.json --output ./docs/cloud-workload-security/linux_expressions.md --template ./linux_expressions.md"
+    secl_doc_gen.generate_secl_documentation(
+        "./docs/cloud-workload-security/secl_linux.json",
+        "./docs/cloud-workload-security/linux_expressions.md",
+        "./linux_expressions.md",
     )
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_windows.json --output ./docs/cloud-workload-security/windows_expressions.md --template ./windows_expressions.md"
+    secl_doc_gen.generate_secl_documentation(
+        "./docs/cloud-workload-security/secl_windows.json",
+        "./docs/cloud-workload-security/windows_expressions.md",
+        "./windows_expressions.md",
     )
     # backend event docs
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_linux.schema.json --output ./docs/cloud-workload-security/backend_linux.md --template ./backend_linux.md"
+    backend_doc_gen.generate_backend_documentation(
+        "./docs/cloud-workload-security/backend_linux.schema.json",
+        "./docs/cloud-workload-security/backend_linux.md",
+        "./backend_linux.md",
     )
-    ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_windows.schema.json --output ./docs/cloud-workload-security/backend_windows.md --template ./backend_windows.md"
+    backend_doc_gen.generate_backend_documentation(
+        "./docs/cloud-workload-security/backend_windows.schema.json",
+        "./docs/cloud-workload-security/backend_windows.md",
+        "./backend_windows.md",
     )
 
 
@@ -562,6 +564,9 @@ def cws_go_generate(ctx, verbose=False):
 
     # synchronize the seclwin package from the secl package
     sync_secl_win_pkg(ctx)
+
+    # generate documentation
+    generate_cws_documentation(ctx)
 
 
 @task
@@ -705,7 +710,6 @@ class FailingTask:
 def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
-        [generate_cws_documentation],
         [gen_mocks],
     ]
     failing_tasks = []
