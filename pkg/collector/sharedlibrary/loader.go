@@ -44,7 +44,7 @@ func (cl *SharedLibraryCheckLoader) Load(_ sender.SenderManager, config integrat
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	// ".dylib" is likely to change when there will be an automatic way of choosing the extension (Rtloader might handle this)
-	name := "libdatadog-agent-" + config.Name + ".dylib"
+	name := "libdatadog-agent-" + config.Name
 
 	cName := C.CString(name)
 	defer C._free(unsafe.Pointer(cName))
