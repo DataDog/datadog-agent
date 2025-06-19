@@ -18,9 +18,11 @@ import (
 	"time"
 
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	adintegration "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -31,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -52,11 +55,12 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname     string                `json:"hostname"`
-	Timestamp    int64                 `json:"timestamp"`
-	Metadata     map[string][]metadata `json:"check_metadata"`
-	LogsMetadata map[string][]metadata `json:"logs_metadata"`
-	UUID         string                `json:"uuid"`
+	Hostname          string                `json:"hostname"`
+	Timestamp         int64                 `json:"timestamp"`
+	Metadata          map[string][]metadata `json:"check_metadata"`
+	LogsMetadata      map[string][]metadata `json:"logs_metadata"`
+	JMXChecksMetadata map[string][]metadata `json:"jmx_checks_metadata,omitempty"`
+	UUID              string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -264,12 +268,53 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		}
 	}
 
+	jmxMetadata := make(map[string][]metadata)
+	jmxIntegrations, err := jmxfetch.GetIntegrations()
+	if err != nil {
+		ic.log.Warnf("could not get JMX metadata: %v", err)
+	} else {
+		if configsRaw, ok := jmxIntegrations["configurations"]; ok {
+			configs := configsRaw.(map[string]adintegration.JSONMap)
+			for _, jmxIntegration := range configs {
+				jmxName := jmxIntegration["check_name"].(string)
+				initConfig := jmxfetch.GetJSONSerializableMap(jmxIntegration["init_config"])
+				initConfigYaml, err := yaml.Marshal(initConfig)
+				if err != nil {
+					ic.log.Warnf("could not marshal JMX init_config for %s: %v", jmxName, err)
+					continue
+				}
+				instances := jmxIntegration["instances"].([]adintegration.JSONMap)
+				for _, instance := range instances {
+					configHash := jmxName
+					instanceConfig := jmxfetch.GetJSONSerializableMap(instance)
+					instanceYaml, err := yaml.Marshal(instanceConfig)
+					if err != nil {
+						ic.log.Warnf("could not marshal JMX instance config for %s: %v", jmxName, err)
+						continue
+					}
+					if instance["name"] != nil {
+						// It is recommended to put the instance name in the JMX instance config, but it is not mandatory.
+						configHash = fmt.Sprintf("%s:%s", jmxName, fmt.Sprint(instance["name"]))
+					}
+
+					jmxMetadata[jmxName] = append(jmxMetadata[jmxName], metadata{
+						"init_config":     string(initConfigYaml),
+						"instance":        string(instanceYaml),
+						"config_provider": "file",
+						"config_hash":     configHash,
+					})
+				}
+			}
+		}
+	}
+
 	return &Payload{
-		Hostname:     ic.hostname,
-		Timestamp:    time.Now().UnixNano(),
-		Metadata:     payloadData,
-		LogsMetadata: logsMetadata,
-		UUID:         uuid.GetUUID(),
+		Hostname:          ic.hostname,
+		Timestamp:         time.Now().UnixNano(),
+		Metadata:          payloadData,
+		LogsMetadata:      logsMetadata,
+		JMXChecksMetadata: jmxMetadata,
+		UUID:              uuid.GetUUID(),
 	}
 }
 
