@@ -317,16 +317,11 @@ This command will first destroy all running stacks before downloading the images
 
 ### `kmt.ls`
 
-Lists available VM images.
+Lists available VM images and indicates which ones are already downloaded locally.
 
 ```bash
 dda inv -e kmt.ls
 ```
-
-Arguments:
-
--   `--distro`: Only list distribution images (default).
--   `--custom`: Only list custom kernel images.
 
 ### `kmt.create-stack`
 
