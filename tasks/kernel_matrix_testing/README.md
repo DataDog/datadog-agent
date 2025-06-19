@@ -10,6 +10,7 @@
     *   [Stacks](#stacks)
     *   [VMsets File](#vmsets-file)
     *   [Local vs. Remote VMs](#local-vs-remote-vms)
+*   [Updating and Adding Resources](#updating-and-adding-resources)
 *   [Command Reference](#command-reference)
     *   [kmt.init](#kmtinit)
     *   [kmt.update-resources](#kmtupdate-resources)
@@ -284,6 +285,27 @@ KMT can manage two types of VMs:
 -   **Local VMs**: These run directly on your machine using `libvirt` and `qemu`. They will have the same architecture as your host machine.
 -   **Remote VMs**: These are EC2 instances launched in AWS. KMT can manage both x86_64 and arm64 remote VMs. Launching remote VMs requires configuring an SSH key.
 
+## Updating and Adding Resources
+
+A common task is to download new VM images or update existing ones. It is important to choose the right command to avoid unintended consequences.
+
+*   **`kmt.init`**: This command is for the initial setup of the KMT environment. As noted previously, running it again will reset the entire KMT state, including configurations and previously downloaded resources. You should only use this for a first-time install or if you want to start from a completely clean slate.
+
+*   **`kmt.update-resources`**: This is the correct command to use when you want to download additional VM images or update existing ones to their latest versions. Unlike `kmt.init`, it does not reset your entire KMT configuration.
+
+The `update-resources` command is efficient and avoids re-downloading data unnecessarily. It works by:
+1.  Checking for the presence of local VM images.
+2.  Comparing the checksums of local images against the remote ones.
+3.  Downloading only the images that are missing or have been updated.
+
+> **Warning:** To ensure a consistent state, `kmt.update-resources` will first destroy all currently running stacks before starting the download process. Make sure you have saved any work and are ready to tear down your active VMs.
+
+Example:
+```bash
+# Download a new debian image without resetting everything
+dda inv -e kmt.update-resources --images=debian_11
+```
+
 ## Command Reference
 
 This section provides a detailed reference for all `kmt` tasks.
@@ -313,17 +335,17 @@ This command will also guide you through the [default SSH key configuration](#km
 
 ### `kmt.update-resources`
 
-Updates the resources for launching VMs, such as VM images and tools.
+Downloads new or updates existing VM images. For a detailed explanation of when and how to use this command, see the [Updating and Adding Resources](#updating-and-adding-resources) section.
+
+> **Warning:** This command will first destroy all running stacks before downloading the images.
 
 ```bash
-# Update all resources
+# Update all available images
 dda inv -e kmt.update-resources
 
 # Update only specific images
 dda inv -e kmt.update-resources --images=ubuntu_22.04,debian_11
 ```
-
-This command will first destroy all running stacks before downloading the images.
 
 ### `kmt.ls`
 
