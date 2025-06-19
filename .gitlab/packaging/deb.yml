@@ -80,6 +80,8 @@ ddot_deb-x64:
   variables:
     DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
 
 ddot_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64]
@@ -90,6 +92,8 @@ ddot_deb-arm64:
   variables:
     DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
+    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
+    DD_DISABLE_VPA: true
 
 installer_deb-amd64:
   extends: [.package_deb_common, .package_deb_x86]
