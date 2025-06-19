@@ -1,0 +1,1 @@
+/opt/datadog-agent/embedded/bin/otel-agent

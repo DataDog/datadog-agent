@@ -79,7 +79,7 @@ ddot_deb-x64:
   needs: ["datadog-otel-agent-x64"]
   variables:
     DD_PROJECT: "ddot"
-    PACKAGE_REQUIRED_FILES_LIST: ""
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
 
 ddot_deb-arm64:
   extends: [.package_deb_common, .package_deb_arm64]
@@ -89,7 +89,7 @@ ddot_deb-arm64:
   needs: ["datadog-otel-agent-arm64"]
   variables:
     DD_PROJECT: "ddot"
-    PACKAGE_REQUIRED_FILES_LIST: ""
+    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
 
 installer_deb-amd64:
   extends: [.package_deb_common, .package_deb_x86]
