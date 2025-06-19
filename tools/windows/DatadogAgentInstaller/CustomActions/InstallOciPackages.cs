@@ -82,6 +82,10 @@ namespace Datadog.CustomActions
             {
                 env["DD_INSTALLER_REGISTRY_URL"] = _overrideRegistryUrl;
             }
+            if (!string.IsNullOrEmpty(_apmInstrumentationMethod))
+            {
+                env["DD_APM_INSTRUMENTATION_ENABLED"] = _apmInstrumentationMethod;
+            }
             return env;
         }
 
