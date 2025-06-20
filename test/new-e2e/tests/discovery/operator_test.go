@@ -145,12 +145,12 @@ func (s *operatorDiscoveryTestSuite) TestDiscoveryOperator() {
 
 		t.Logf("Found %d service discovery payloads", len(payloads))
 		for _, p := range payloads {
-			t.Logf("Service discovery: RequestType=%s, ServiceName=%s", p.RequestType, p.Payload.ServiceName)
+			t.Logf("Service discovery: RequestType=%s, GeneratedServiceName=%s", p.RequestType, p.Payload.GeneratedServiceName)
 		}
 
 		found := false
 		for _, p := range payloads {
-			if p.RequestType == "start-service" && p.Payload.ServiceName == "http.server" {
+			if p.RequestType == "start-service" && p.Payload.GeneratedServiceName == "http.server" {
 				t.Logf("Found service discovery for http.server: %v", p.Payload)
 				found = true
 				break
