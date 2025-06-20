@@ -23,8 +23,10 @@ set (CGO_CFLAGS \"-I${CMAKE_SOURCE_DIR}/include -I${CMAKE_SOURCE_DIR}/common -Wn
 
 if (WIN32)
     set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -lstdc++ -static)
-else()
+elseif(APPLE)
     set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl -rpath ${PROJECT_BINARY_DIR}/../../dev/lib)
+else()
+	set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl)
 endif()
 
 set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/three/ ${CGO_LDFLAGS}\")
