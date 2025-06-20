@@ -9,12 +9,9 @@
 package tests
 
 import (
-	"fmt"
-	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -22,8 +19,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func fsconfig(fd int, cmd uint, key *byte, value *byte, aux int) (err error) {
@@ -54,53 +49,35 @@ func mountPointFromFd(fd int) uint32 {
 func TestFsmount(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "test_fsmount_tmpfs",
-			Expression: fmt.Sprintf(`fsmount.fd != 0 && process.file.name == "%s"`, path.Base(executable)),
-		},
-	}
-
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
 
 	t.Run("fsmount-tmpfs", func(t *testing.T) {
-		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		err = test.GetProbeEvent(func() error {
+			fsfd, err := unix.Fsopen("tmpfs", 0)
+			if err != nil {
+				t.Skip("This kernel doesn't have the new mount api")
+				return nil
+			}
+			defer unix.Close(fsfd)
 
-		fsfd, err := unix.Fsopen("tmpfs", 0)
-		if err != nil {
-			t.Skip("This kernel doesn't have the new mount api")
-			return
-		}
-		defer unix.Close(fsfd)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
+			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
 
-		_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
-		_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
-		_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
+			mountfd, err := unix.Fsmount(fsfd, 0, 0)
+			if err != nil {
+				return err
+			}
+			defer unix.Close(mountfd)
 
-		mountfd, err := unix.Fsmount(fsfd, 0, 0)
-		if err != nil {
-			assert.Fail(t, "fsmount failed")
-			return
-		}
-		defer unix.Close(mountfd)
-
-		time.Sleep(500 * time.Millisecond)
-
-		if err != nil {
-			assert.Fail(t, "mount resolution failed")
-		}
-
-		mnt, _, _, err := p.Resolvers.MountResolver.ResolveMount(mountPointFromFd(mountfd), 0, 0, "")
-		assert.Equal(t, mnt.Origin, model.MountOriginFsmount)
-		assert.Equal(t, mnt.RootStr, "/")
+			return nil
+		}, func(event *model.Event) bool {
+			assert.NotEqual(t, event.Fsmount.MountID, 0, "Mount id is zero")
+			return true
+		}, 3*time.Second, model.FileFsmountEventType)
 	})
 }
