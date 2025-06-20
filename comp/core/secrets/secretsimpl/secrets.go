@@ -16,8 +16,10 @@ import (
 	stdmaps "maps"
 	"math/rand"
 	"net/http"
+	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -36,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -88,10 +91,13 @@ type secretResolver struct {
 	// list of handles and where they were found
 	origin handleToContext
 
+	backendType             string
+	backendConfig           map[string]interface{}
 	backendCommand          string
 	backendArguments        []string
 	backendTimeout          int
 	commandAllowGroupExec   bool
+	embeddedBackendUsed     bool
 	removeTrailingLinebreak bool
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
@@ -217,7 +223,22 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	if !r.enabled {
 		return
 	}
+	r.backendType = params.Type
+	r.backendConfig = params.Config
 	r.backendCommand = params.Command
+	r.embeddedBackendUsed = false
+	if r.backendCommand != "" && r.backendType != "" {
+		log.Warnf("Both 'secret_backend_command' and 'secret_backend_type' are set, 'secret_backend_type' will be ignored")
+	}
+	// only use the backend type option if the backend command is not set
+	if r.backendType != "" && r.backendCommand == "" {
+		if runtime.GOOS == "windows" {
+			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "secret-generic-connector.exe")
+		} else {
+			r.backendCommand = path.Join(defaultpaths.GetInstallPath(), "..", "..", "embedded", "bin", "secret-generic-connector")
+		}
+		r.embeddedBackendUsed = true
+	}
 	r.backendArguments = params.Arguments
 	r.backendTimeout = params.Timeout
 	if r.backendTimeout == 0 {
@@ -672,12 +693,12 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 		fmt.Fprintf(w, "error parsing secret permissions details template: %s\n", err)
 		return
 	}
-
-	err = checkRights(r.backendCommand, r.commandAllowGroupExec)
-
 	permissions := "OK, the executable has the correct permissions"
-	if err != nil {
-		permissions = fmt.Sprintf("error: %s", err)
+	if !r.embeddedBackendUsed {
+		err = checkRights(r.backendCommand, r.commandAllowGroupExec)
+		if err != nil {
+			permissions = "error: the executable does not have the correct permissions"
+		}
 	}
 
 	details, err := r.getExecutablePermissions()

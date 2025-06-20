@@ -30,6 +30,7 @@ type Throttler struct {
 
 // Program represents stack machine program.
 type Program struct {
+	ID         uint32
 	Functions  []Function
 	Types      []ir.Type
 	Throttlers []Throttler
@@ -71,7 +72,12 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
 			for _, injectionPC := range event.InjectionPCs {
-				err := g.addEventHandler(len(throttlers), injectionPC, event.Type)
+				err := g.addEventHandler(
+					injectionPC,
+					len(throttlers),
+					probe.PointerChasingLimit,
+					event.Type,
+				)
 				if err != nil {
 					return Program{}, err
 				}
@@ -95,6 +101,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		types = append(types, t)
 	}
 	return Program{
+		ID:         uint32(program.ID),
 		Functions:  g.functions,
 		Types:      types,
 		Throttlers: throttlers,
@@ -104,11 +111,17 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 // Generates a function called when a probe (represented by the root type)
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
-func (g *generator) addEventHandler(throttlerIdx int, injectionPC uint64, rootType *ir.EventRootType) error {
+func (g *generator) addEventHandler(
+	injectionPC uint64,
+	throttlerIdx int,
+	pointerChasingLimit uint32,
+	rootType *ir.EventRootType,
+) error {
 	id := ProcessEvent{
-		ThrottlerIdx:  throttlerIdx,
-		InjectionPC:   injectionPC,
-		EventRootType: rootType,
+		InjectionPC:         injectionPC,
+		ThrottlerIdx:        throttlerIdx,
+		PointerChasingLimit: pointerChasingLimit,
+		EventRootType:       rootType,
 	}
 	ops := make([]Op, 0, 2+len(rootType.Expressions))
 	ops = append(ops, PrepareEventRootOp{

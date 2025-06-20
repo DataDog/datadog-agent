@@ -145,7 +145,7 @@ type EBPFProbe struct {
 	erpcRequest              *erpc.Request
 	inodeDiscarders          *inodeDiscarders
 	discarderPushedCallbacks []DiscarderPushedCallback
-	kfilters                 map[eval.EventType]kfilters.ActiveKFilters
+	kfilters                 map[eval.EventType]kfilters.KFilters
 
 	// Approvers / discarders section
 	discarderPushedCallbacksLock sync.RWMutex
@@ -226,59 +226,73 @@ func (p *EBPFProbe) GetUseFentry() bool {
 	return p.useFentry
 }
 
+var fentrySupportCache struct {
+	sync.Mutex
+	previousErr error
+	kv          *kernel.Version
+}
+
+func isFentrySupported(kernelVersion *kernel.Version) error {
+	fentrySupportCache.Lock()
+	defer fentrySupportCache.Unlock()
+
+	if fentrySupportCache.kv == kernelVersion {
+		return fentrySupportCache.previousErr
+	}
+
+	err := isFentrySupportedImpl(kernelVersion)
+	fentrySupportCache.kv = kernelVersion
+	fentrySupportCache.previousErr = err
+	return err
+}
+
+func isFentrySupportedImpl(kernelVersion *kernel.Version) error {
+	if kernelVersion.Code < kernel.Kernel6_1 {
+		return errors.New("fentry enabled but not fully supported on this kernel version (< 6.1)")
+	}
+
+	if !kernelVersion.HaveFentrySupport() {
+		return errors.New("fentry enabled but not supported")
+	}
+
+	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
+	if err != nil {
+		return fmt.Errorf("fentry enabled but failed to verify tail call support: %w", err)
+	}
+
+	if tailCallsBroken {
+		return errors.New("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported)")
+	}
+
+	if !kernelVersion.HaveFentrySupportWithStructArgs() {
+		return errors.New("fentry enabled but not supported with struct args")
+	}
+
+	if !kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
+		return errors.New("fentry enabled but not supported with duplicated weak symbols")
+	}
+
+	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	if err != nil {
+		return errors.New("fentry enabled but failed to verify kernel symbols")
+	}
+
+	if hasPotentialFentryDeadlock {
+		return errors.New("fentry enabled but lock responsible for deadlock was found in kernel symbols")
+	}
+
+	return nil
+}
+
 func (p *EBPFProbe) selectFentryMode() {
 	if !p.config.Probe.EventStreamUseFentry {
 		p.useFentry = false
 		return
 	}
 
-	if p.kernelVersion.Code < kernel.Kernel6_1 {
+	if err := isFentrySupported(p.kernelVersion); err != nil {
 		p.useFentry = false
-		seclog.Warnf("fentry enabled but not fully supported on this kernel version (< 6.1), falling back to kprobe mode")
-		return
-	}
-
-	if !p.kernelVersion.HaveFentrySupport() {
-		p.useFentry = false
-		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
-		return
-	}
-
-	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
-	if err != nil {
-		p.useFentry = false
-		seclog.Errorf("fentry enabled but failed to verify tail call support: %v, falling back to kprobe mode", err)
-		return
-	}
-
-	if tailCallsBroken {
-		p.useFentry = false
-		seclog.Errorf("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported), falling back to kprobe mode")
-		return
-	}
-
-	if !p.kernelVersion.HaveFentrySupportWithStructArgs() {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but not supported with struct args, falling back to kprobe mode")
-		return
-	}
-
-	if !p.kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
-		return
-	}
-
-	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
-	if err != nil {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but failed to verify kernel symbols, falling back to kprobe mode")
-		return
-	}
-
-	if hasPotentialFentryDeadlock {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but lock responsible for deadlock was found in kernel symbols, falling back to kprobe mode")
+		seclog.Warnf("disabling fentry and falling back to kprobe mode: %v", err)
 		return
 	}
 
@@ -1441,6 +1455,21 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.SetrlimitEventType:
+		if _, err = event.Setrlimit.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode setrlimit event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		// resolve target process context
+		var pce *model.ProcessCacheEntry
+		if event.Setrlimit.TargetPid > 0 {
+			pce = p.Resolvers.ProcessResolver.Resolve(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, 0, false, newEntryCb)
+		}
+		if pce == nil {
+			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
+		}
+		event.Setrlimit.Target = &pce.ProcessContext
+
 	}
 
 	// resolve the container context
@@ -2444,7 +2473,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		opts:                 opts,
 		statsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		kfilters:             make(map[eval.EventType]kfilters.ActiveKFilters),
+		kfilters:             make(map[eval.EventType]kfilters.KFilters),
 		Erpc:                 nerpc,
 		erpcRequest:          erpc.NewERPCRequest(0),
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
