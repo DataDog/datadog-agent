@@ -29,6 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+func skipIfUnsupported(t *testing.T) {
+	_, err := getBTFPlatform()
+	if err != nil {
+		t.Skip(err)
+	}
+}
+
 type mockRCClient struct {
 	t   *testing.T
 	sub func(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
@@ -41,6 +48,7 @@ func (rc *mockRCClient) Subscribe(product data.Product, fn func(update map[strin
 func (rc *mockRCClient) SubscribeAgentTask() {}
 
 func TestRemoteConfigBTFTimeout(t *testing.T) {
+	skipIfUnsupported(t)
 	cfg := &Config{
 		RemoteConfigBTFEnabled: true,
 		RemoteConfigBTFTimeout: 1 * time.Millisecond,
@@ -150,6 +158,7 @@ func setupBTFServer(t *testing.T) (string, string) {
 }
 
 func TestRemoteConfigBTFFoundEntry(t *testing.T) {
+	skipIfUnsupported(t)
 	serverURL, shasum := setupBTFServer(t)
 	catalog := getCatalog(t, shasum)
 
@@ -179,6 +188,7 @@ func TestRemoteConfigBTFFoundEntry(t *testing.T) {
 }
 
 func TestRemoteConfigBTFHashMismatch(t *testing.T) {
+	skipIfUnsupported(t)
 	serverURL, _ := setupBTFServer(t)
 	catalog := getCatalog(t, "badsum")
 
@@ -207,6 +217,7 @@ func TestRemoteConfigBTFHashMismatch(t *testing.T) {
 }
 
 func TestRemoteConfigBTFMissingEntry(t *testing.T) {
+	skipIfUnsupported(t)
 	serverURL, _ := setupBTFServer(t)
 	catalog := fmt.Sprintf(configTemplate, rcArchitecture(), "otherplatform", "2", "3.10", "badsum")
 
