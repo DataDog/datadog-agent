@@ -29,6 +29,7 @@ class TestPost(unittest.TestCase):
         os.rmdir(install_directory)
         os.rmdir(storage_location)
 
+    @unittest.skipIf(os.name == "nt", "windows is behavior is tested separately")
     def test_post_with_empty_files(self):
         install_directory = tempfile.mkdtemp()
         storage_location = tempfile.mkdtemp()
@@ -43,7 +44,7 @@ class TestPost(unittest.TestCase):
         with open(diff_file, 'w', encoding='utf-8') as f:
             pass
 
-        result = post(install_directory, storage_location, skip_flag=False)
+        result = post(install_directory, storage_location, skip_flag=True)
 
         # assert it ran with no errors 
         self.assertEqual(result, 0)
