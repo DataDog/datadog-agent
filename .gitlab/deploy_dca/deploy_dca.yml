@@ -8,9 +8,9 @@
   extends: .docker_publish_job_definition
   stage: deploy_dca
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi
-    - export IMG_BASE_SRC="${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_BASE_SRC="${SRC_DCA}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
     - export IMG_DESTINATIONS="${CLUSTER_AGENT_REPOSITORY}:${VERSION}"
 
@@ -71,9 +71,9 @@ deploy_containers-dca_internal-latest:
   extends: .docker_publish_job_definition
   stage: deploy_dca
   before_script:
-    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe)" || exit $?; fi
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
     - if [[ "$CLUSTER_AGENT_REPOSITORY" == "" ]]; then export CLUSTER_AGENT_REPOSITORY="cluster-agent"; fi
-    - export IMG_BASE_SRC="${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_BASE_SRC="${SRC_DCA}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
     - export IMG_SOURCES="${IMG_BASE_SRC}-fips-amd64,${IMG_BASE_SRC}-fips-arm64"
     - export IMG_DESTINATIONS="${CLUSTER_AGENT_REPOSITORY}:${VERSION}-fips"
 

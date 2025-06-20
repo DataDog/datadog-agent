@@ -17,11 +17,11 @@
     RELEASE_PRODUCT: datadog-installer
   script:
     - !reference [.setup_dd_pkg]
-    - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format)-1" || exit $?; export RELEASE_VERSION
+    - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
     - GITLAB_TOKEN="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api)" || exit $?; export GITLAB_TOKEN
     - |-
       dd-pkg promote \
-        --build-pipeline-id $CI_PIPELINE_ID \
+        --build-pipeline-id $PARENT_PIPELINE_ID \
         --release-product $RELEASE_PRODUCT \
         --key-id $PIPELINE_KEY_ALIAS \
         --release-version $RELEASE_VERSION \
