@@ -1270,3 +1270,23 @@ workflow:
 # Current default: Windows Server 2022
 .windows_docker_default:
   extends: .windows_docker_v2_2022
+
+
+test_api:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
+  tags: ["arch:amd64"]
+  stage: source_test
+  needs: []
+  script:
+    - which ddtool || true
+    - which curl || true
+    - which http || true
+
+    - curl https://agent-ci-api.us1.staging.dog/internal/agent-ci-api -w "%{http_code}\n" || true
+    - curl https://agent-ci-api.us1.staging.dog/internal/agent-ci-api/hello -w "%{http_code}\n" || true
+    - curl https://agent-ci-api.us1.staging.dog/hello -w "%{http_code}\n" || true
+
+    - curl https://agent-ci-api.us1.staging.dog/internal/agent-ci-api -w "%{http_code}\n" -H "$(ddtool auth token rapid-agent-devx --datacenter us1.staging.dog --http-header)" || true
+    - curl https://agent-ci-api.us1.staging.dog/internal/agent-ci-api/hello -w "%{http_code}\n" -H "$(ddtool auth token rapid-agent-devx --datacenter us1.staging.dog --http-header)" || true
+    - curl https://agent-ci-api.us1.staging.dog/hello -w "%{http_code}\n" -H "$(ddtool auth token rapid-agent-devx --datacenter us1.staging.dog --http-header)" || true
+
