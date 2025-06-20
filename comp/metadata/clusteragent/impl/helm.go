@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,15 +28,11 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-const (
-	defaultHelmDriver = "configmap"
-	releaseName       = "datadog-agent" // TODO: Retrieve this from pod labels
-	releaseNamespace  = "default"       // TODO: Retrieve this from pod
-)
-
 var (
-	releasePrefix = fmt.Sprintf("sh.helm.release.v1.%s.v", releaseName)
-	versionRegexp = regexp.MustCompile(`\.v(\d+)$`)
+	releaseNamespace   = os.Getenv("DD_KUBE_RESOURCES_NAMESPACE")
+	releaseTemplate    = "sh.helm.release.v1.%s.v"
+	versionRegexp      = regexp.MustCompile(`\.v(\d+)$`)
+	noHelmReleaseError = fmt.Errorf("no Helm release found in pod labels")
 )
 
 // HelmReleaseMinimal represents the minimal structure we care about
@@ -45,7 +42,7 @@ type HelmReleaseMinimal struct {
 }
 
 // getLatestHelmRevision finds and returns the latest ConfigMap data for a Helm release.
-func getLatestHelmRevision(ctx context.Context, clientset *kubernetes.Clientset) (int, error) {
+func getLatestHelmRevision(ctx context.Context, clientset *kubernetes.Clientset, releaseName string) (int, error) {
 	cmList, err := clientset.CoreV1().ConfigMaps(releaseNamespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("error listing ConfigMaps: %w", err)
@@ -53,7 +50,7 @@ func getLatestHelmRevision(ctx context.Context, clientset *kubernetes.Clientset)
 
 	maxVersion := 0
 	for _, cm := range cmList.Items {
-		if strings.HasPrefix(cm.Name, releasePrefix) {
+		if strings.HasPrefix(cm.Name, fmt.Sprintf(releaseTemplate, releaseName)) {
 			match := versionRegexp.FindStringSubmatch(cm.Name)
 			if len(match) != 2 {
 				continue
@@ -76,6 +73,22 @@ func getLatestHelmRevision(ctx context.Context, clientset *kubernetes.Clientset)
 	return maxVersion, nil
 }
 
+// Retrieves the release name from the pod labels or returns a default value.
+func getReleaseName(ctx context.Context, clientset *kubernetes.Clientset) (string, error) {
+	// Get the pod
+	pod, err := clientset.CoreV1().Pods(releaseNamespace).Get(context.TODO(), os.Getenv("DD_POD_NAME"), metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get pod: %w", err)
+	}
+
+	// Get Helm release name from labels
+	releaseName := pod.Labels["app.kubernetes.io/instance"]
+	if releaseName != "" {
+		return releaseName, nil
+	}
+	return "", noHelmReleaseError
+}
+
 func retrieveHelmValues(ctx context.Context) ([]byte, error) {
 	restConfig, err := rest.InClusterConfig() // use kubeconfig for local dev
 	if err != nil {
@@ -87,13 +100,22 @@ func retrieveHelmValues(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("failed to create metadata client: %w", err)
 	}
 
-	latestHelmRevision, err := getLatestHelmRevision(ctx, kubernetesClient)
+	// Get the release name from the pod labels
+	releaseName, err := getReleaseName(ctx, kubernetesClient)
+	if err != nil {
+		if err == noHelmReleaseError {
+			return nil, nil // No Helm release found, return nil
+		}
+		return nil, fmt.Errorf("failed to get Helm release name: %w", err)
+	}
+
+	latestHelmRevision, err := getLatestHelmRevision(ctx, kubernetesClient, releaseName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest Helm revision: %w", err)
 	}
 
 	// Get the configmap
-	cm, err := kubernetesClient.CoreV1().ConfigMaps(releaseNamespace).Get(ctx, fmt.Sprintf("%s%d", releasePrefix, latestHelmRevision), metav1.GetOptions{})
+	cm, err := kubernetesClient.CoreV1().ConfigMaps(releaseNamespace).Get(ctx, fmt.Sprintf("%s%d", fmt.Sprintf(releaseTemplate, releaseName), latestHelmRevision), metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ConfigMap for latest Helm revision: %w", err)
 	}
