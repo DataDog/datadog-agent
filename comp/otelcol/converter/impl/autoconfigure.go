@@ -7,6 +7,7 @@
 package converterimpl
 
 import (
+	"slices"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -23,9 +24,16 @@ type component struct {
 	Config       any
 }
 
+// Applies selected feature changes
 func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
-	// extensions
+	var enabledFeatures []string = c.coreConfig.GetStringSlice("otelcollector.converter.features")
+
+	// extensions (pprof, zpages, health_check, ddflare)
 	for _, extension := range extensions {
+		if !slices.Contains(enabledFeatures, extension.Name) {
+			continue
+		}
+
 		if extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
@@ -34,10 +42,13 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	}
 
 	// infra attributes processor
-	addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
-
+	if slices.Contains(enabledFeatures, "infraattributes") {
+		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
+	}
 	// prometheus receiver
-	addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+	if slices.Contains(enabledFeatures, "prometheus") {
+		addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+	}
 
 	// add datadog agent sourced config
 	addCoreAgentConfig(conf, c.coreConfig)

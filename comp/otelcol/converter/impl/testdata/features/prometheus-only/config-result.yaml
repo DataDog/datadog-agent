@@ -1,6 +1,6 @@
 receivers:
     otlp:
-    prometheus/user-defined:
+    prometheus/dd-autoconfigured:
       config:
         scrape_configs:
           - fallback_scrape_protocol: PrometheusText0.0.4
@@ -17,11 +17,7 @@ exporters:
     datadog:
       api:
         key: abcde12345
-        site: "datadoghq.com"
-    datadog/2:
-      api:
-        key: abcde12345
-        site: "datadoghq.com"
+        site: datadoghq.com
 
 extensions:
   pprof/user-defined:
@@ -41,10 +37,13 @@ service:
             processors: [infraattributes/user-defined]
             exporters: [datadog]
         metrics:
-            receivers: [nop, prometheus/user-defined]
+            receivers: [nop]
             processors: [infraattributes/user-defined]
-            exporters: [datadog, datadog/2]
+            exporters: [datadog]
         logs:
             receivers: [nop]
             processors: [infraattributes/user-defined]
+            exporters: [datadog]
+        metrics/dd-autoconfigured/datadog:
+            receivers: [prometheus/dd-autoconfigured]
             exporters: [datadog]
