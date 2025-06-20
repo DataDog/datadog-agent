@@ -11,6 +11,7 @@ exporters:
   datadog:
     api:
       key: "0000"
+      site: "datadoghq.com"
 processors:
   infraattributes/dd-autoconfigured:
   batch:
