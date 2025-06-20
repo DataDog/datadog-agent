@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
@@ -321,8 +322,13 @@ func (a *registryAuditor) flushRegistry() error {
 
 // marshalRegistry marshals a regsistry
 func (a *registryAuditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
+	version := registryAPIVersion
+	fingerprintStrategy := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
+	if fingerprintStrategy == "checksum" {
+		version = registryAPIVersionFingerprint
+	}
 	r := JSONRegistry{
-		Version:  registryAPIVersion,
+		Version:  version,
 		Registry: registry,
 	}
 	return json.Marshal(r)
