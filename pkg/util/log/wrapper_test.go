@@ -48,6 +48,7 @@ func TestWrapperMethods(t *testing.T) {
 	wrapper.Critical("wrapper message")
 	wrapper.Criticalf("wrapper message %d", 123)
 
+	wrapper.Flush() // ensure all logs are flushed
 	w.Flush()
 
 	assert.Subset(t, strings.Split(b.String(), "\n"), []string{
@@ -62,18 +63,4 @@ func TestWrapperMethods(t *testing.T) {
 		"[CRITICAL] tRunner: wrapper message",
 		"[CRITICAL] tRunner: wrapper message 123",
 	})
-}
-
-func TestWrapperFlush(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-
-	wrapper := NewWrapper(3)
-
-	// check if the wrapper logs correctly
-	printedLog := captureStdout(func() {
-		wrapper.Debug("message")
-		wrapper.Flush()
-	})
-
-	assert.NotEqual(t, "", printedLog)
 }

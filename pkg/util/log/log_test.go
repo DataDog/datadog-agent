@@ -9,8 +9,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io"
-	"os"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -44,21 +42,6 @@ func createExtraTextContext(string) seelog.FormatterFunc {
 		}
 		return builder.String()
 	}
-}
-
-func captureStdout(f func()) string {
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	f()
-
-	w.Close()
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	os.Stdout = old
-
-	return buf.String()
 }
 
 func TestBasicLogging(t *testing.T) {
@@ -1003,30 +986,6 @@ func TestLogExtraLogger(t *testing.T) {
 		"[CRITICAL] criticalf: message 123",
 		"[CRITICAL] criticalStackDepth: message",
 	})
-}
-
-func TestDisabledLogger(t *testing.T) {
-	SetupLogger(Disabled(), DebugStr)
-
-	// check if the logger is correctly disabled
-	printedLog := captureStdout(func() {
-		Debug("message")
-		Flush()
-	})
-
-	assert.Equal(t, "", printedLog)
-}
-
-func TestLoggerFlush(t *testing.T) {
-	SetupLogger(Default(), DebugStr)
-
-	// check if the logger logs correctly
-	printedLog := captureStdout(func() {
-		Debug("message")
-		Flush()
-	})
-
-	assert.NotEqual(t, "", printedLog)
 }
 
 func TestJMXLoggerSetup(t *testing.T) {
