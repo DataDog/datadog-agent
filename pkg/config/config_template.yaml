@@ -1040,7 +1040,7 @@ api_key:
 
   ## @param close_timeout - integer - optional - default: 60
   ## @env DD_LOGS_CONFIG_CLOSE_TIMEOUT - integer - optional - default: 60
-  ## The maximum number of seconds the agent will spend reading from a file after it has been rotated.
+  ## The maximum number of seconds the Agent spends reading from a file after it has been rotated.
   #
   # close_timeout: 60
 
