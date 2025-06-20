@@ -443,3 +443,5 @@ replace (
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel
 )
+
+replace github.com/DataDog/test-infra-definitions => /home/vincent/dd/test-infra-definitions
