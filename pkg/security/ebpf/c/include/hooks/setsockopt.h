@@ -78,7 +78,6 @@ int hook_sk_attach_filter(ctx_t *ctx) {
     }
     // We assume that optname is always SO_ATTACH_FILTER here
     struct sock_fprog *fprog = (struct sock_fprog *)CTX_PARM1(ctx);
-    bpf_printk("ENTRY ATTACH_FILTER | Fprog ptr sent in cache: %p", fprog);
     syscall->setsockopt.fprog = fprog;
     return 0;
 }
@@ -134,13 +133,10 @@ int rethook_release_sock(ctx_t *ctx) {
         return 0;
     }
     
-    bpf_printk("EXIT RELEASE_SOCK | Fprog ptr sent in cache: %p", syscall->setsockopt.fprog);
     struct sock_fprog prog;
     int ret = bpf_probe_read(&prog, sizeof(struct sock_fprog), syscall->setsockopt.fprog);
-    bpf_printk("EXIT RELEASE_SOCK | Fprog: %d", prog);
 
     if (ret < 0) {
-        bpf_printk("EXIT RELEASE_SOCK | Failed to read sock_fprog: %d", ret);
         return 0;
     }
     unsigned int prog_len = prog.len;
@@ -156,7 +152,6 @@ int rethook_release_sock(ctx_t *ctx) {
     ret = bpf_probe_read(&event->bpf_filters_buffer, sizeof(struct sock_filter) * prog.len , prog.filter);
 
     if (ret < 0) {
-        bpf_printk("EXIT RELEASE_SOCK | Failed to read sock_filter: %d", ret);
         return 0;
     }
 
