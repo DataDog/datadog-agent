@@ -325,7 +325,7 @@ def exception_threshold_bump(ctx):
             metric_handler = GateMetricHandler(
                 git_ref=current_branch_name, bucket_branch="dev", filename=static_gate_report_path
             )
-            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit, filename=static_gate_report_path)
+            metric_handler.generate_relative_size(ctx, ancestor=ancestor_commit, report_path=static_gate_report_path)
             with open("test/static/static_quality_gates.yml") as f:
                 file_content, total_size_saved = generate_new_quality_gate_config(f, metric_handler, True)
 
