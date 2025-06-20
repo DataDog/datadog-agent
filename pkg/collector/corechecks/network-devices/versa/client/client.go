@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -54,7 +56,7 @@ type Client struct {
 type ClientOptions func(*Client)
 
 // NewClient creates a new Versa HTTP client.
-func NewClient(directorEndpoint, analyticsEndpoint, username, password string, useHTTP bool, options ...ClientOptions) (*Client, error) {
+func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint string, username string, password string, useHTTP bool, skipCertVerification bool, options ...ClientOptions) (*Client, error) {
 	err := validateParams(directorEndpoint, analyticsEndpoint, username, password)
 	if err != nil {
 		return nil, err
@@ -65,9 +67,21 @@ func NewClient(directorEndpoint, analyticsEndpoint, username, password string, u
 		return nil, err
 	}
 
+	// TODO: remove this in favor of allowing certs to be
+	// added, this is just for triage/testing
+	if skipCertVerification {
+		log.Warnf("TLS Certificate Verification disabled!")
+	}
+	httpTransport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: skipCertVerification,
+		},
+	}
+
 	httpClient := &http.Client{
-		Timeout: defaultHTTPTimeout * time.Second,
-		Jar:     cookieJar,
+		Transport: httpTransport,
+		Timeout:   defaultHTTPTimeout * time.Second,
+		Jar:       cookieJar,
 	}
 
 	scheme := defaultHTTPScheme
@@ -88,7 +102,7 @@ func NewClient(directorEndpoint, analyticsEndpoint, username, password string, u
 	client := &Client{
 		httpClient:          httpClient,
 		directorEndpoint:    directorEndpointURL.String(),
-		directorAPIPort:     9182, // TODO: make configurable based on auth type
+		directorAPIPort:     directorPort,
 		analyticsEndpoint:   analyticsEndpointURL.String(),
 		username:            username,
 		password:            password,

@@ -30,17 +30,21 @@ const (
 	// CheckName is the name of the check
 	CheckName            = "versa"
 	defaultCheckInterval = 1 * time.Minute
+	defaultDirectorPort  = 9182
 )
 
 // Configuration for the Versa check
 type checkCfg struct {
 	// add versa specific fields
-	Name                            string   `yaml:"name"` // TODO: remove this field, only added it for testing
-	DirectorEndpoint                string   `yaml:"director_endpoint"`
-	AnalyticsEndpoint               string   `yaml:"analytics_endpoint"`
-	Username                        string   `yaml:"username"`
-	Password                        string   `yaml:"password"`
-	UseHTTP                         bool     `yaml:"use_http"`
+	Name              string `yaml:"name"` // TODO: remove this field, only added it for testing
+	DirectorEndpoint  string `yaml:"director_endpoint"`
+	DirectorPort      int    `yaml:"director_port"`
+	AnalyticsEndpoint string `yaml:"analytics_endpoint"`
+	Username          string `yaml:"username"`
+	Password          string `yaml:"password"`
+	UseHTTP           bool   `yaml:"use_http"`
+	// TODO: remove this in favor of allowing custom certs
+	SkipCertVerification            bool     `yaml:"skip_cert_verification"`
 	Namespace                       string   `yaml:"namespace"`
 	IncludedTenants                 []string `yaml:"included_tenants"`
 	ExcludedTenants                 []string `yaml:"excluded_tenants"`
@@ -72,7 +76,7 @@ func (v *VersaCheck) Run() error {
 
 	log.Infof("Running Versa check for instance: %s", v.config.Name)
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP)
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP, v.config.SkipCertVerification)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
@@ -218,6 +222,10 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 	if v.config.MinCollectionInterval != 0 {
 		v.interval = time.Second * time.Duration(v.config.MinCollectionInterval)
+	}
+
+	if v.config.DirectorPort == 0 {
+		v.config.DirectorPort = defaultDirectorPort
 	}
 
 	v.metricsSender = report.NewSender(sender, v.config.Namespace)
