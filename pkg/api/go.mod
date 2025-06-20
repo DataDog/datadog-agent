@@ -9,7 +9,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/datadog-agent/pkg/version v0.64.1
-	github.com/gofrs/flock v0.12.1
 	github.com/stretchr/testify v1.10.0
 )
 
@@ -39,6 +38,7 @@ require (
 	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-7 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect

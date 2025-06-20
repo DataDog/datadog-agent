@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -164,6 +166,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 				}),
 				core.Bundle(),
 				logscompressionfx.Module(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 		Hidden: true,
@@ -180,8 +183,8 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return eventCmd
 }
 
-func eventRun(log log.Component, eventArgs *eventCliParams, compression compression.Component) error {
-	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background())
+func eventRun(log log.Component, eventArgs *eventCliParams, compression compression.Component, ipc ipc.Component) error {
+	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background(), ipc)
 	if err != nil {
 		return log.Errorf("Error while getting hostname, exiting: %v", err)
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -67,6 +68,7 @@ type RuleEngine struct {
 	AutoSuppression  autosuppression.AutoSuppression
 	pid              uint32
 	wg               sync.WaitGroup
+	ipc              ipc.Component
 }
 
 // APIServer defines the API server
@@ -77,7 +79,7 @@ type APIServer interface {
 }
 
 // NewRuleEngine returns a new rule engine
-func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
+func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, probe *probe.Probe, rateLimiter *events.RateLimiter, apiServer APIServer, sender events.EventSender, statsdClient statsd.ClientInterface, ipc ipc.Component, rulesetListeners ...rules.RuleSetListener) (*RuleEngine, error) {
 	engine := &RuleEngine{
 		probe:            probe,
 		config:           config,
@@ -91,6 +93,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		statsdClient:     statsdClient,
 		rulesetListeners: rulesetListeners,
 		pid:              utils.Getpid(),
+		ipc:              ipc,
 	}
 
 	engine.AutoSuppression.Init(autosuppression.Opts{
@@ -139,7 +142,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		COREEnabled: e.probe.Config.Probe.EnableCORE,
 		Origin:      e.probe.Origin(),
 	}
-	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg)
+	ruleFilterModel, err := filtermodel.NewRuleFilterModel(rfmCfg, e.ipc)
 	if err != nil {
 		return fmt.Errorf("failed to create rule filter: %w", err)
 	}
@@ -448,7 +451,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies, e.rcStateCallback)
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies, e.rcStateCallback, e.ipc)
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {

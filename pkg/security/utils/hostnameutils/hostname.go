@@ -10,6 +10,7 @@ import (
 	"context"
 	"sync"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -27,7 +28,7 @@ var (
 
 // GetHostname attempts to acquire a hostname by connecting to the core
 // agent's gRPC endpoints.
-func GetHostname() (string, error) {
+func GetHostname(ipcComp ipc.Component) (string, error) {
 	hostnameLock.RLock()
 	if cachedHostname != "" {
 		hostnameLock.RUnlock()
@@ -35,7 +36,7 @@ func GetHostname() (string, error) {
 	}
 	hostnameLock.RUnlock()
 
-	hostname, err := getHostnameFromAgent(context.Background())
+	hostname, err := getHostnameFromAgent(context.Background(), ipcComp)
 
 	if hostname != "" {
 		hostnameLock.Lock()
@@ -48,8 +49,8 @@ func GetHostname() (string, error) {
 
 // GetHostnameWithContextAndFallback attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context, or falls back to local resolution
-func GetHostnameWithContextAndFallback(ctx context.Context) (string, error) {
-	hostnameDetected, err := getHostnameFromAgent(ctx)
+func GetHostnameWithContextAndFallback(ctx context.Context, ipcComp ipc.Component) (string, error) {
+	hostnameDetected, err := getHostnameFromAgent(ctx, ipcComp)
 	if err != nil {
 		log.Warnf("Could not resolve hostname from core-agent: %v", err)
 		hostnameDetected, err = hostname.Get(ctx)

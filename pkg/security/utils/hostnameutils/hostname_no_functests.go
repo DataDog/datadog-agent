@@ -12,17 +12,18 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/avast/retry-go/v4"
+
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/avast/retry-go/v4"
 )
 
 // getHostnameFromAgent attempts to acquire a hostname by connecting to the
 // core agent's gRPC endpoints extending the given context.
-func getHostnameFromAgent(ctx context.Context) (string, error) {
+func getHostnameFromAgent(ctx context.Context, ipcComp ipc.Component) (string, error) {
 	var hostname string
 	err := retry.Do(func() error {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
@@ -33,7 +34,7 @@ func getHostnameFromAgent(ctx context.Context) (string, error) {
 			return err
 		}
 
-		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), util.GetTLSClientConfig())
+		client, err := grpc.GetDDAgentClient(ctx, ipcAddress, pkgconfigsetup.GetIPCPort(), ipcComp.GetTLSClientConfig())
 		if err != nil {
 			return err
 		}
