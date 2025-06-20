@@ -1062,9 +1062,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to insert exec event: %s (pid %d, offset %d, len %d)", err, event.PIDContext.Pid, offset, len(data))
 			return
 		}
-
-		event.Exec.FileEvent.PathnameStr = p.fieldHandlers.ResolveFilePath(event, &event.Exec.FileEvent)
-		event.Exec.FileEvent.BasenameStr = p.fieldHandlers.ResolveFileBasename(event, &event.Exec.FileEvent)
 	}
 
 	if !p.setProcessContext(eventType, event, newEntryCb) {
