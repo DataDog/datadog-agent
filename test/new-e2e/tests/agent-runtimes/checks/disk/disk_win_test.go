@@ -22,9 +22,9 @@ func TestWindowsDiskSuite(t *testing.T) {
 	t.Parallel()
 	suite := &windowsDiskCheckSuite{
 		diskCheckSuite{
-			descriptor:            e2eos.WindowsDefault,
-			metricCompareFraction: 0.02,
-			metricCompareDecimals: 1,
+			Descriptor:            e2eos.WindowsDefault,
+			MetricCompareFraction: 0.02,
+			MetricCompareDecimals: 1,
 		},
 	}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
