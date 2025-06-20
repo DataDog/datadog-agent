@@ -67,7 +67,6 @@ func (t *Tailer) DidRotateViaFingerprint() (bool, error) {
 	if t.fingerprint == 0 {
 		return false, nil
 	}
-
 	// If fingerprints are different, it means the file was rotated.
 	// This is also true if the new fingerprint is 0, which means the file was truncated.
 	return newFingerprint != t.fingerprint, nil

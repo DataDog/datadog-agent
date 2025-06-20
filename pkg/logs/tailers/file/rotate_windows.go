@@ -45,3 +45,9 @@ func (t *Tailer) DidRotate() (bool, error) {
 
 	return false, nil
 }
+
+// DidRotateViaFingerprint returns true if the file has been log-rotated.
+// Not implemented on Windows.
+func (t *Tailer) DidRotateViaFingerprint() (bool, error) {
+	return false, fmt.Errorf("DidRotateViaFingerprint is not implemented on Windows")
+}

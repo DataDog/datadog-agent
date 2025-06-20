@@ -611,7 +611,6 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 		expectedText[i] = 'A'
 	}
 
-	fmt.Println(len(expectedText))
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum(expectedText, table)
 
@@ -781,7 +780,6 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip1() {
 
 	// Expected: skip first 34 bytes, then fingerprint next 50 bytes
 	expectedText := "this is the actual data we want to fingerprint for"
-	fmt.Println("This is how long the expectedText is ", len(expectedText))
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte(expectedText), table)
 
@@ -1011,16 +1009,6 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip5() {
 	// Compute fingerprint (now returns uint64 directly)
 	fingerprint := tailer.ComputeFingerPrint()
 
-	fmt.Printf("\n=== Line-Based Fingerprint Test ===\n")
-	fmt.Printf("File content written:\n")
-	for i, line := range lines {
-		if i == 0 {
-			fmt.Printf("  [SKIPPED] %q\n", line)
-		} else {
-			fmt.Printf("  [USED]    %q\n", line)
-		}
-	}
-
 	expectedText := "line 1: important data\n" + "line 2: more important data\n"
 	table := crc64.MakeTable(crc64.ISO)
 	expectedFingerprint := crc64.Checksum([]byte(expectedText), table)
@@ -1060,8 +1048,6 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip3() {
 }
 
 func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() {
-	fmt.Printf("\n=== Edge Cases Tests ===\n")
-
 	// Test 1: Empty file
 	config := FingerprintConfig{
 		maxLines:    5,
@@ -1076,7 +1062,6 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 	fingerprint := tailer.ComputeFingerPrint()
-	fmt.Printf("Empty file fingerprint: 0x%x (should be 0)\n", fingerprint)
 	suite.Equal(uint64(0), fingerprint, "Empty file should return 0")
 	osFile.Close()
 
@@ -1094,7 +1079,6 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 	tailer = suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 	fingerprint = tailer.ComputeFingerPrint()
-	fmt.Printf("Insufficient data fingerprint: 0x%x (should be 0)\n", fingerprint)
 	suite.Equal(uint64(0), fingerprint, "Insufficient data should return 0")
 }
 
@@ -1118,7 +1102,6 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
 		bytesToSkip: 0,
 	}
 
-	fmt.Println(longLine)
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 	fingerprint := tailer.ComputeFingerPrint()
@@ -1170,8 +1153,6 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	data := "line1\nline2\nline3\n"
 
-	fmt.Printf("\n=== Mode Selection Tests ===\n")
-
 	// Test line mode selection
 	_, err := suite.testFile.WriteString(data)
 	suite.Nil(err)
@@ -1191,7 +1172,6 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 	fingerprint1 := tailer.ComputeFingerPrint()
-	fmt.Printf("Line mode fingerprint (linesToSkip=1): 0x%x\n", fingerprint1)
 	osFile.Close()
 
 	// Reset file for next test
@@ -1221,7 +1201,6 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 	tailer = suite.createTailerWithConfig(config)
 	tailer.osFile = osFile
 	fingerprint2 := tailer.ComputeFingerPrint()
-	fmt.Printf("Byte mode fingerprint (bytesToSkip=5): 0x%x\n", fingerprint2)
 	textToHash2 := "\nline2\nlin"
 	table = crc64.MakeTable(crc64.ISO)
 	expectedHash2 := crc64.Checksum([]byte(textToHash2), table)
@@ -1265,4 +1244,73 @@ func (suite *FingerprintTestSuite) TestInvalidConfig_BothSkipValuesSet() {
 	receivedChecksum := tailer.ComputeFingerPrint()
 
 	suite.Equal(expectedChecksum, receivedChecksum)
+}
+
+func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
+	// 1. Start with a file with content and create a tailer.
+	suite.T().Log("Writing initial content and creating tailer")
+	_, err := suite.testFile.WriteString("line 1\nline 2\nline 3\n")
+	suite.Nil(err)
+	tailer := suite.createTailerWithConfig(defaultFingerprintConfig())
+	suite.NotZero(tailer.fingerprint)
+
+	// 2. Immediately check for rotation. It should be false as the file is unchanged.
+	suite.T().Log("Checking for rotation on unchanged file")
+	rotated, err := tailer.DidRotateViaFingerprint()
+	suite.Nil(err)
+	suite.False(rotated, "Should not detect rotation on an unchanged file")
+
+	// 3. Truncate the file, which simulates a rotation. This should be detected.
+	suite.T().Log("Truncating file to simulate rotation")
+	suite.Nil(suite.testFile.Truncate(0))
+	_, err = suite.testFile.Seek(0, 0)
+	suite.Nil(err)
+	rotated, err = tailer.DidRotateViaFingerprint()
+	suite.Nil(err)
+	suite.True(rotated, "Should detect rotation after truncation")
+
+	// 4. Simulate a full file replacement (e.g. logrotate with 'create' directive).
+	suite.T().Log("Simulating file replacement with different content")
+	_, err = suite.testFile.WriteString("a completely new file\n")
+	suite.Nil(err)
+
+	// We 're-arm' the tailer, as if the launcher had picked up the new file.
+	// This tailer now considers the current content ("a completely new file") as its baseline.
+	tailer = suite.createTailerWithConfig(defaultFingerprintConfig())
+	originalFingerprint := tailer.fingerprint
+	suite.NotZero(originalFingerprint)
+
+	// Check for rotation immediately after re-arming. Since the file hasn't changed
+	// since the tailer was created, it should report no rotation. Its internal fingerprint
+	// matches the file's current fingerprint.
+	rotated, err = tailer.DidRotateViaFingerprint()
+	suite.Nil(err)
+	suite.False(rotated, "Should not detect rotation immediately after creating a new tailer on a file")
+
+	// Now, modify the file again. This change *should* be detected as a rotation.
+	suite.T().Log("Simulating another rotation on the new file")
+	suite.Nil(suite.testFile.Truncate(0))
+	_, err = suite.testFile.Seek(0, 0)
+	suite.Nil(err)
+	_, err = suite.testFile.WriteString("even more different content\n")
+	suite.Nil(err)
+
+	rotated, err = tailer.DidRotateViaFingerprint()
+	suite.Nil(err)
+	suite.True(rotated, "Should detect rotation after file content changes")
+
+	// 5. Test case with an empty file.
+	// The initial fingerprint will be 0.
+	suite.T().Log("Testing rotation detection with an initially empty file")
+	suite.Nil(suite.testFile.Truncate(0))
+	_, err = suite.testFile.Seek(0, 0)
+	suite.Nil(err)
+	tailer = suite.createTailerWithConfig(defaultFingerprintConfig())
+	suite.Zero(tailer.fingerprint, "Fingerprint of an empty file should be 0")
+
+	// `DidRotateViaFingerprint` is designed to return `false` if the original
+	// fingerprint was 0, to avoid false positives.
+	rotated, err = tailer.DidRotateViaFingerprint()
+	suite.Nil(err)
+	suite.False(rotated, "Should not detect rotation if the initial fingerprint was zero")
 }

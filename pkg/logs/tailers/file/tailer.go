@@ -44,10 +44,10 @@ type FingerprintConfig struct {
 // defaultFingerprintConfig returns the default configuration for the fingerprinting algorithm (also used for testing)
 func defaultFingerprintConfig() FingerprintConfig {
 	return FingerprintConfig{
-		maxLines:    500,
+		maxLines:    1,
 		maxBytes:    2048,
 		bytesToSkip: 0,
-		linesToSkip: 1,
+		linesToSkip: 0,
 	}
 }
 
@@ -441,11 +441,9 @@ func (t *Tailer) ComputeFingerPrint() uint64 {
 }
 
 func (t *Tailer) computeFingerPrintByBytes(fpFile *os.File) uint64 {
-	fmt.Printf("We are in the byte-based fingerprinting mode\n")
 	// Skip the configured number of bytes
 	if t.fingerprintConfig.bytesToSkip > 0 {
-		bytesSkipped, err := io.CopyN(io.Discard, fpFile, int64(t.fingerprintConfig.bytesToSkip))
-		fmt.Printf("Requested to skip: %d bytes, actually skipped: %d bytes\n", t.fingerprintConfig.bytesToSkip, bytesSkipped)
+		_, err := io.CopyN(io.Discard, fpFile, int64(t.fingerprintConfig.bytesToSkip))
 
 		if err != nil && err != io.EOF {
 			log.Warnf("Failed to skip %d bytes while computing fingerprint for %q: %v", t.fingerprintConfig.bytesToSkip, t.file.Path, err)
@@ -459,7 +457,6 @@ func (t *Tailer) computeFingerPrintByBytes(fpFile *os.File) uint64 {
 	// Read up to maxBytes for hashing
 	buffer := make([]byte, t.fingerprintConfig.maxBytes)
 	bytesRead, err := io.ReadFull(limitedReader, buffer)
-	fmt.Printf("Bytes read: %d\n", bytesRead)
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		log.Warnf("Failed to read bytes for fingerprint %q: %v", t.file.Path, err)
 		return 0
@@ -473,9 +470,6 @@ func (t *Tailer) computeFingerPrintByBytes(fpFile *os.File) uint64 {
 		log.Debugf("No bytes available for fingerprinting file %q", t.file.Path)
 		return 0
 	}
-
-	fmt.Println("This is how long the buffer is ", len(buffer))
-	fmt.Printf("Buffer content: %q\n", string(buffer))
 
 	// Compute fingerprint
 	table := crc64.MakeTable(crc64.ISO)
@@ -529,7 +523,7 @@ func (t *Tailer) computeFingerPrintByLines(fpFile *os.File) uint64 {
 	}
 
 	// Check if we have enough lines to create a meaningful fingerprint
-	if linesRead == 0 || linesRead < t.fingerprintConfig.maxLines && bytesRead < t.fingerprintConfig.maxBytes {
+	if linesRead == 0 || (linesRead < t.fingerprintConfig.maxLines && bytesRead < t.fingerprintConfig.maxBytes) {
 		log.Debugf("No lines available for fingerprinting file %q", t.file.Path)
 		return 0
 	}
