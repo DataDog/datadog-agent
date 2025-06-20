@@ -67,6 +67,7 @@ func HTMLFmap() pkghtmltemplate.FuncMap {
 			"lastErrorMessage":    lastErrorMessageHTML,
 			"pythonLoaderError":   pythonLoaderErrorHTML,
 			"status":              statusHTML,
+			"contains":            strings.Contains,
 		}
 	})
 	return htmlFuncMap

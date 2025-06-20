@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winsoftware
+package softwareinventory
 
 import (
 	"bytes"
@@ -102,13 +102,13 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 						psInventory[name] = []SoftwareEntry{{
 							DisplayName: name,
 							Version:     version,
-							Properties:  map[string]string{"ProductCode": productCode},
+							ProductCode: productCode,
 						}}
 					} else {
 						psInventory[name] = append(psInventory[name], SoftwareEntry{
 							DisplayName: name,
 							Version:     version,
-							Properties:  map[string]string{"ProductCode": productCode},
+							ProductCode: productCode,
 						})
 					}
 				}
@@ -158,7 +158,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					for _, psEntry := range psVersions {
 						missingFromOurs = append(missingFromOurs,
 							fmt.Sprintf("%s (ProductCode: %s, Version: %s)",
-								name, psEntry.Properties[msiProductCode], psEntry.Version))
+								name, psEntry.ProductCode, psEntry.Version))
 					}
 					continue
 				}
@@ -175,7 +175,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					if !found {
 						missingFromOurs = append(missingFromOurs,
 							fmt.Sprintf("%s (ProductCode: %s, Version: %s)",
-								name, psEntry.Properties[msiProductCode], psEntry.Version))
+								name, psEntry.ProductCode, psEntry.Version))
 					}
 				}
 			}
@@ -188,7 +188,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					for _, entry := range ourVersions {
 						extraInOurs = append(extraInOurs,
 							fmt.Sprintf("%s (ProductCode: %s, Version: %s, Source: %s)",
-								name, entry.Properties[msiProductCode], entry.Version, entry.Source))
+								name, entry.ProductCode, entry.Version, entry.Source))
 					}
 					continue
 				}
@@ -206,7 +206,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					if !found {
 						extraInOurs = append(extraInOurs,
 							fmt.Sprintf("%s (ProductCode: %s, Version: %s, Source: %s)",
-								name, entry.Properties[msiProductCode], entry.Version, entry.Source))
+								name, entry.ProductCode, entry.Version, entry.Source))
 					}
 				}
 			}
