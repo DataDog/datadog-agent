@@ -249,6 +249,10 @@ type ProcessSerializer struct {
 	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
 	// Credentials associated with the process
 	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
+	// CapsAttempted lists the capabilities that this process tried to use
+	CapsAttempted []string `json:"caps_attempted,omitempty"`
+	// CapsUsed lists the capabilities that this process effectively made use of
+	CapsUsed []string `json:"caps_used,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
@@ -869,6 +873,8 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			IsKworker:     ps.IsKworker,
 			IsExecExec:    ps.IsExecExec,
 			Source:        model.ProcessSourceToString(ps.Source),
+			CapsAttempted: model.KernelCapability(ps.CapsAttempted).StringArray(),
+			CapsUsed:      model.KernelCapability(ps.CapsUsed).StringArray(),
 		}
 
 		if ps.HasInterpreter() {

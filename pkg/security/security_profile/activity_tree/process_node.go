@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -45,9 +47,10 @@ type ProcessNode struct {
 	IMDSEvents     map[model.IMDSEvent]*IMDSNode
 	NetworkDevices map[model.NetworkDeviceContext]*NetworkDeviceNode
 
-	Sockets  []*SocketNode
-	Syscalls []*SyscallNode
-	Children []*ProcessNode
+	Sockets      []*SocketNode
+	Syscalls     []*SyscallNode
+	Capabilities []*CapabilityNode
+	Children     []*ProcessNode
 }
 
 // NewProcessNode returns a new ProcessNode instance
@@ -398,6 +401,37 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 	return newNode
 }
 
+// InsertCapabilitiesUsageEvent inserts a capabilities usage event in a process node
+func (pn *ProcessNode) InsertCapabilitiesUsageEvent(evt *model.Event, imageTag string, stats *Stats, dryRun bool) bool {
+	hasNewCapabilitiesUsage := false
+nextCapability:
+	for capability := uint64(0); capability <= unix.CAP_LAST_CAP; capability++ {
+		if evt.CapabilitiesUsage.Attempted&(1<<capability) == 0 {
+			continue
+		}
+
+		capable := evt.CapabilitiesUsage.Used&(1<<capability) != 0
+
+		for _, existingCapabilityNode := range pn.Capabilities {
+			if existingCapabilityNode.Capability == capability && existingCapabilityNode.Capable == capable {
+				existingCapabilityNode.AppendImageTag(imageTag, evt.ResolveEventTime())
+				continue nextCapability
+			}
+		}
+
+		hasNewCapabilitiesUsage = true
+		if dryRun {
+			break
+		}
+
+		capabilityNode := NewCapabilityNode(capability, capable, evt.ResolveEventTime(), imageTag, Runtime)
+		pn.Capabilities = append(pn.Capabilities, capabilityNode)
+		stats.CapabilityNodes++
+	}
+
+	return hasNewCapabilitiesUsage
+}
+
 func (pn *ProcessNode) applyImageTagOnLineageIfNeeded(imageTag string) {
 	if pn.HasImageTag(imageTag) {
 		return
@@ -434,6 +468,9 @@ func (pn *ProcessNode) TagAllNodes(imageTag string, timestamp time.Time) {
 	}
 	for _, device := range pn.NetworkDevices {
 		device.appendImageTag(imageTag, timestamp)
+	}
+	for _, capabilityNode := range pn.Capabilities {
+		capabilityNode.AppendImageTag(imageTag, timestamp)
 	}
 	for _, child := range pn.Children {
 		child.TagAllNodes(imageTag, timestamp)
@@ -495,6 +532,14 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 		}
 	}
 	pn.Syscalls = newSyscalls
+
+	var newCapabilities []*CapabilityNode
+	for _, capabilityNode := range pn.Capabilities {
+		if shouldRemove := capabilityNode.EvictImageTag(imageTag); !shouldRemove {
+			newCapabilities = append(newCapabilities, capabilityNode)
+		}
+	}
+	pn.Capabilities = newCapabilities
 
 	newChildren := []*ProcessNode{}
 	for _, child := range pn.Children {

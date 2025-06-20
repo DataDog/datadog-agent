@@ -1259,6 +1259,20 @@
           "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
         },
+        "caps_attempted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttempted lists the capabilities that this process tried to use"
+        },
+        "caps_used": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsed lists the capabilities that this process effectively made use of"
+        },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",
           "description": "Context of the user session for this event"
@@ -1401,6 +1415,20 @@
         "credentials": {
           "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
+        },
+        "caps_attempted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttempted lists the capabilities that this process tried to use"
+        },
+        "caps_used": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",
