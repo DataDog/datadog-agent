@@ -165,8 +165,8 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, connect
 }
 
 const (
-	AF_INET  = 2  //revive:disable-line:var-naming
-	AF_INET6 = 23 //revive:disable-line:var-naming
+	AF_INET  = 2  //revive:disable-line
+	AF_INET6 = 23 //revive:disable-line
 )
 
 // TCPSTATS DWORD mappings
