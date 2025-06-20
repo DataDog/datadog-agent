@@ -25,10 +25,11 @@ const largeGroupThreshold = 5
 // Note the usage of this API is entirely optional; I'm only adding this here
 // to keep compatibility with some common patterns I've seen in the codebase.
 type MetricGroup struct {
-	mux        sync.Mutex
-	namespace  string
-	commonTags sets.Set[string]
-	metrics    []metric
+	mux         sync.Mutex
+	namespace   string
+	commonTags  sets.Set[string]
+	metrics     []metric
+	metricCache map[string]metric // cache to avoid duplicate metric creation
 
 	// used for the purposes of building the Summary() string
 	deltas deltaCalculator
@@ -38,27 +39,39 @@ type MetricGroup struct {
 // NewMetricGroup returns a new `MetricGroup`
 func NewMetricGroup(namespace string, commonTags ...string) *MetricGroup {
 	return &MetricGroup{
-		namespace:  namespace,
-		commonTags: sets.New(commonTags...),
-		then:       time.Now(),
+		namespace:   namespace,
+		commonTags:  sets.New(commonTags...),
+		metricCache: make(map[string]metric),
+		then:        time.Now(),
 	}
 }
 
 // NewCounter returns a new `Counter` using the provided namespace and common
 // tags and associates it with the current metric group
 func (mg *MetricGroup) NewCounter(name string, tags ...string) *Counter {
+	mg.mux.Lock()
+	defer mg.mux.Unlock()
+
+	// Create a cache key based on name and tags
+	fullName := name
 	if mg.namespace != "" {
-		name = fmt.Sprintf("%s.%s", mg.namespace, name)
+		fullName = fmt.Sprintf("%s.%s", mg.namespace, name)
 	}
 
-	m := NewCounter(
-		name,
-		append(sets.List(mg.commonTags), tags...)...,
-	)
+	allTags := append(sets.List(mg.commonTags), tags...)
+	cacheKey := fmt.Sprintf("counter:%s:%v", fullName, allTags)
 
-	mg.mux.Lock()
+	// Check if metric already exists in cache
+	if cachedMetric, exists := mg.metricCache[cacheKey]; exists {
+		return cachedMetric.(*Counter)
+	}
+
+	// Create new metric
+	m := NewCounter(fullName, allTags...)
+
+	// Cache the metric and add to metrics list
+	mg.metricCache[cacheKey] = metric(m)
 	mg.metrics = append(mg.metrics, metric(m))
-	mg.mux.Unlock()
 
 	return m
 }
@@ -66,18 +79,29 @@ func (mg *MetricGroup) NewCounter(name string, tags ...string) *Counter {
 // NewGauge returns a new `Gauge` using the provided namespace and common
 // tags and associates it with the current metric group
 func (mg *MetricGroup) NewGauge(name string, tags ...string) *Gauge {
+	mg.mux.Lock()
+	defer mg.mux.Unlock()
+
+	// Create a cache key based on name and tags
+	fullName := name
 	if mg.namespace != "" {
-		name = fmt.Sprintf("%s.%s", mg.namespace, name)
+		fullName = fmt.Sprintf("%s.%s", mg.namespace, name)
 	}
 
-	m := NewGauge(
-		name,
-		append(sets.List(mg.commonTags), tags...)...,
-	)
+	allTags := append(sets.List(mg.commonTags), tags...)
+	cacheKey := fmt.Sprintf("gauge:%s:%v", fullName, allTags)
 
-	mg.mux.Lock()
+	// Check if metric already exists in cache
+	if cachedMetric, exists := mg.metricCache[cacheKey]; exists {
+		return cachedMetric.(*Gauge)
+	}
+
+	// Create new metric
+	m := NewGauge(fullName, allTags...)
+
+	// Cache the metric and add to metrics list
+	mg.metricCache[cacheKey] = metric(m)
 	mg.metrics = append(mg.metrics, metric(m))
-	mg.mux.Unlock()
 
 	return m
 }
