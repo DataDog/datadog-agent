@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 )
 
 type operatorDiscoveryTestSuite struct {
@@ -72,10 +73,12 @@ func (s *operatorDiscoveryTestSuite) TestDiscoveryOperator() {
 	require.NotEmpty(t, agentPods.Items, "No agent pods found")
 	agentPod := agentPods.Items[0]
 
+	podName := "python-http-server-" + strings.ToLower(common.RandString(8))
+
 	// Create Python server pod
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "python-http-server",
+			Name: podName,
 			Labels: map[string]string{
 				"app": "python-server",
 			},
@@ -101,9 +104,17 @@ func (s *operatorDiscoveryTestSuite) TestDiscoveryOperator() {
 	_, err = client.CoreV1().Pods("default").Create(context.Background(), pod, metav1.CreateOptions{})
 	require.NoError(t, err)
 
+	// Cleanup pod after test
+	defer func() {
+		err := client.CoreV1().Pods("default").Delete(context.Background(), podName, metav1.DeleteOptions{})
+		if err != nil {
+			t.Logf("Failed to cleanup pod %s: %v", podName, err)
+		}
+	}()
+
 	// Wait for pod to be ready
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		podStatus, err := client.CoreV1().Pods("default").Get(context.Background(), "python-http-server", metav1.GetOptions{})
+		podStatus, err := client.CoreV1().Pods("default").Get(context.Background(), podName, metav1.GetOptions{})
 		if !assert.NoError(c, err) {
 			return
 		}
