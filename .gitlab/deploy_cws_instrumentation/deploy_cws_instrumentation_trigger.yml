@@ -1,6 +1,7 @@
 ---
 include:
   - .gitlab/common/container_publish_job_templates.yml
+  - .gitlab/deploy_containers/conditions.yml
 
 stages:
   - deploy_cws_instrumentation
@@ -36,12 +37,12 @@ stages:
 # will push the `7.xx.y-rc.z` tags
 deploy_containers-cws-instrumentation-rc-versioned:
   extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_manual_auto_on_rc]
+  rules: !reference [.manual_on_deploy_auto_on_rc]
 
 # will update the `rc` tag
 deploy_containers-cws-instrumentation-rc-mutable:
   extends: .deploy_mutable_cws-instrumentation_tags_base
-  rules: !reference [.on_deploy_rc]
+  rules: !reference [.on_rc]
   needs:
     - job: deploy_containers-cws-instrumentation-rc-versioned
       artifacts: false
@@ -51,12 +52,12 @@ deploy_containers-cws-instrumentation-rc-mutable:
 # will push the `7.xx.y` tags
 deploy_containers-cws-instrumentation-final-versioned:
   extends: .deploy_containers-cws-instrumentation-base
-  rules: !reference [.on_deploy_manual_final]
+  rules: !reference [.on_final]
 
 # will update the `latest` tag
 deploy_containers-cws-instrumentation-latest:
   extends: .deploy_mutable_cws-instrumentation_tags_base
-  rules: !reference [.on_deploy_manual_final]
+  rules: !reference [.on_final]
   needs:
     - job: deploy_containers-cws-instrumentation-final-versioned
       artifacts: false
