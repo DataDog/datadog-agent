@@ -181,8 +181,8 @@ func (s *Launcher) scan() {
 		if isTailed {
 			var didRotate bool
 			var err error
-			fingerprintEnabled := pkgconfigsetup.Datadog().GetBool("logs_config.enable_experimental_fingerprint")
-			if fingerprintEnabled {
+			fingerprintStrategy := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
+			if fingerprintStrategy == "checksum" {
 				didRotate, err = tailer.DidRotateViaFingerprint()
 			} else {
 				didRotate, err = tailer.DidRotate()

@@ -18,7 +18,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
@@ -280,22 +279,12 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 			return
 		}
 	}
-	fingerprintEnabled := pkgconfigsetup.Datadog().GetBool("logs_config.enable_experimental_fingerprint")
-	if fingerprintEnabled {
-		a.registry[identifier] = &RegistryEntry{
-			LastUpdated:        time.Now().UTC(),
-			Offset:             offset,
-			TailingMode:        tailingMode,
-			IngestionTimestamp: ingestionTimestamp,
-			Fingerprint:        fingerprint,
-		}
-	} else {
-		a.registry[identifier] = &RegistryEntry{
-			LastUpdated:        time.Now().UTC(),
-			Offset:             offset,
-			TailingMode:        tailingMode,
-			IngestionTimestamp: ingestionTimestamp,
-		}
+	a.registry[identifier] = &RegistryEntry{
+		LastUpdated:        time.Now().UTC(),
+		Offset:             offset,
+		TailingMode:        tailingMode,
+		IngestionTimestamp: ingestionTimestamp,
+		Fingerprint:        fingerprint,
 	}
 }
 
@@ -332,12 +321,8 @@ func (a *registryAuditor) flushRegistry() error {
 
 // marshalRegistry marshals a regsistry
 func (a *registryAuditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
-	version := registryAPIVersion
-	if pkgconfigsetup.Datadog().GetBool("logs_config.enable_experimental_fingerprint") {
-		version = registryAPIVersionFingerprint
-	}
 	r := JSONRegistry{
-		Version:  version,
+		Version:  registryAPIVersion,
 		Registry: registry,
 	}
 	return json.Marshal(r)

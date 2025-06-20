@@ -77,8 +77,8 @@ func (suite *AuditorTestSuite) TestAuditorUpdatesRegistry() {
 }
 
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
-	pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", false, model.SourceAgentRuntime)
-	defer pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", nil, model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", "default", model.SourceAgentRuntime)
+	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", nil, model.SourceAgentRuntime)
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
 		LastUpdated: time.Date(2006, time.January, 12, 1, 1, 1, 1, time.UTC),
@@ -96,8 +96,8 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistry() {
 }
 
 func (suite *AuditorTestSuite) TestAuditorUpdatesRegistryWithFingerprint() {
-	pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", true, model.SourceAgentRuntime)
-	defer pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", nil, model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", "checksum", model.SourceAgentRuntime)
+	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", nil, model.SourceAgentRuntime)
 
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.Equal(0, len(suite.a.registry))
@@ -113,8 +113,8 @@ func (suite *AuditorTestSuite) TestAuditorUpdatesRegistryWithFingerprint() {
 }
 
 func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistryWithFingerprint() {
-	pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", true, model.SourceAgentRuntime)
-	defer pkgconfigsetup.Datadog().Set("logs_config.enable_experimental_fingerprint", nil, model.SourceAgentRuntime)
+	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", "checksum", model.SourceAgentRuntime)
+	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", nil, model.SourceAgentRuntime)
 	identifier := "file:/var/log/test.log"
 	fingerprint := uint64(12345)
 

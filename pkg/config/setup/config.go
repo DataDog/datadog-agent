@@ -1541,8 +1541,16 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.socks5_proxy_address", "")
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
-	// enable experimental fingerprinting
-	config.BindEnvAndSetDefault("logs_config.enable_experimental_fingerprint", false)
+	// determines fingerprinting strategy to detect rotation and truncation
+	config.BindEnvAndSetDefault("logs_config.fingerprint_strategy", "default")
+	// determines maxLines before we create a fingerprint (can also be interpreted as minimum needed to fingerprint)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_max_lines", 1)
+	// determines maxBytes before we create a fingerprint (can also be interpreted as minimum needed to fingerprint)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_max_bytes", 2048)
+	// determines lines to skip before we create fingerprint
+	config.BindEnvAndSetDefault("logs_config.fingerprint_max_bytes", 0)
+	//determine bytes to skip before we create a fingerprint
+	config.BindEnvAndSetDefault("logs_config.fingerprint_max_bytes", 0)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 

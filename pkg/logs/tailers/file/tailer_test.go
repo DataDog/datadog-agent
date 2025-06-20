@@ -504,7 +504,7 @@ func (suite *FingerprintTestSuite) TestFingerprintOffsetCorrection() {
 	suite.Require().Nil(err)
 
 	// 2. Create a tailer and set it up
-	tailer := suite.createTailerWithConfig(defaultFingerprintConfig())
+	tailer := suite.createTailerWithConfig(returnFingerprintConfig())
 	initialOffset := int64(len("line1\nline2\n"))
 	err = tailer.setup(initialOffset, io.SeekStart)
 	suite.Require().Nil(err)
@@ -1251,7 +1251,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.T().Log("Writing initial content and creating tailer")
 	_, err := suite.testFile.WriteString("line 1\nline 2\nline 3\n")
 	suite.Nil(err)
-	tailer := suite.createTailerWithConfig(defaultFingerprintConfig())
+	tailer := suite.createTailerWithConfig(returnFingerprintConfig())
 	suite.NotZero(tailer.fingerprint)
 
 	// 2. Immediately check for rotation. It should be false as the file is unchanged.
@@ -1276,7 +1276,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 
 	// We 're-arm' the tailer, as if the launcher had picked up the new file.
 	// This tailer now considers the current content ("a completely new file") as its baseline.
-	tailer = suite.createTailerWithConfig(defaultFingerprintConfig())
+	tailer = suite.createTailerWithConfig(returnFingerprintConfig())
 	originalFingerprint := tailer.fingerprint
 	suite.NotZero(originalFingerprint)
 
@@ -1305,7 +1305,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(suite.testFile.Truncate(0))
 	_, err = suite.testFile.Seek(0, 0)
 	suite.Nil(err)
-	tailer = suite.createTailerWithConfig(defaultFingerprintConfig())
+	tailer = suite.createTailerWithConfig(returnFingerprintConfig())
 	suite.Zero(tailer.fingerprint, "Fingerprint of an empty file should be 0")
 
 	// `DidRotateViaFingerprint` is designed to return `false` if the original

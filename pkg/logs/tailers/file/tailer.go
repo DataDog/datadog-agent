@@ -41,13 +41,20 @@ type FingerprintConfig struct {
 	linesToSkip int
 }
 
-// defaultFingerprintConfig returns the default configuration for the fingerprinting algorithm (also used for testing)
-func defaultFingerprintConfig() FingerprintConfig {
+// returns the configuration for the fingerprinting algorithm set by user (also used for testing)
+func returnFingerprintConfig() FingerprintConfig {
+	if pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy") != "checksum" {
+		return FingerprintConfig{}
+	}
+	maxLines := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_max_lines")
+	maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_max_bytes")
+	bytesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_bytes_to_skip")
+	linesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_lines_to_skip")
 	return FingerprintConfig{
-		maxLines:    1,
-		maxBytes:    2048,
-		bytesToSkip: 0,
-		linesToSkip: 0,
+		maxLines:    maxLines,
+		maxBytes:    maxBytes,
+		bytesToSkip: bytesToSkip,
+		linesToSkip: linesToSkip,
 	}
 }
 
@@ -140,8 +147,9 @@ type Tailer struct {
 	movingSum       *util.MovingSum
 	PipelineMonitor metrics.PipelineMonitor
 
-	fingerprintConfig FingerprintConfig
-	fingerprint       uint64
+	fingerprintConfig     FingerprintConfig
+	fingerprint           uint64
+	fingerprintingEnabled bool
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -188,8 +196,11 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
-	fingerprintConfig := defaultFingerprintConfig()
-
+	fingerprintConfig := returnFingerprintConfig()
+	fingerprintingEnabled := false
+	if pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy") == "checksum" {
+		fingerprintingEnabled = true
+	}
 	t := &Tailer{
 		file:                   opts.File,
 		outputChan:             opts.OutputChan,
@@ -212,12 +223,15 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		PipelineMonitor:        opts.PipelineMonitor,
 		fingerprintConfig:      fingerprintConfig,
 		fingerprint:            0,
+		fingerprintingEnabled:  fingerprintingEnabled,
 	}
 
 	if fileRotated {
 		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
 	}
-	t.fingerprint = t.ComputeFingerPrint()
+	if t.fingerprintingEnabled {
+		t.fingerprint = t.ComputeFingerPrint()
+	}
 	return t
 }
 
@@ -330,6 +344,14 @@ func (t *Tailer) readForever() {
 		if err != nil {
 			return
 		}
+
+		if n > 0 && t.fingerprintingEnabled && t.fingerprint == 0 {
+			t.fingerprint = t.ComputeFingerPrint()
+			if t.fingerprint != 0 {
+				log.Infof("Successfully computed fingerprint for file %q on retry", t.file.Path)
+			}
+		}
+
 		t.recordBytes(int64(n))
 		t.movingSum.Add(int64(n))
 		select {
