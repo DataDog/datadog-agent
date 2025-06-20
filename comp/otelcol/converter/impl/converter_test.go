@@ -352,6 +352,7 @@ func TestConvert(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			r := Requires{}
+			r.Conf = config.NewMock(t)
 			if tc.agentConfig != "" {
 				f, err := os.ReadFile(uriFromFile(tc.agentConfig)[0])
 				require.NoError(t, err)
@@ -384,7 +385,11 @@ func TestConvert(t *testing.T) {
 			continue
 		}
 		t.Run(tc.name, func(t *testing.T) {
-			converter := newConverter(confmap.ConverterSettings{Logger: nopLogger})
+			mockConfig := config.NewMock(t)
+			converter := &ddConverter{
+				coreConfig: mockConfig,
+				logger:     nopLogger,
+			}
 
 			resolver, err := newResolver(uriFromFile(tc.provided))
 			assert.NoError(t, err)

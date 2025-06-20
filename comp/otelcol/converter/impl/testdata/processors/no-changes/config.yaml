@@ -5,6 +5,7 @@ exporters:
     datadog:
       api:
         key: abcde12345
+        site: "datadoghq.com"
 
 extensions:
   pprof/user-defined:

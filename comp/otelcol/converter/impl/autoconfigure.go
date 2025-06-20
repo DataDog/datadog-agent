@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/otelcolfeatures"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -27,14 +26,7 @@ type component struct {
 
 // Applies selected feature changes
 func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
-	var enabledFeatures []string
-
-	// If not specified, assume all features are enabled
-	if c.coreConfig != nil {
-		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
-	} else {
-		enabledFeatures = otelcolfeatures.DefaultConverterFeatures
-	}
+	var enabledFeatures []string = c.coreConfig.GetStringSlice("otelcollector.converter.features")
 
 	// No features selected
 	if len(enabledFeatures) == 0 {
