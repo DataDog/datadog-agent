@@ -976,7 +976,7 @@ def resolve_gitlab_ci_configuration(
 
     agent = get_gitlab_repo()
     res = agent.ci_lint.create({"content": yaml.safe_dump(input_config), "dry_run": True, "include_jobs": True})
-    print(res)
+
     if not res.valid:
         errors = '; '.join(res.errors)
         raise RuntimeError(f"{color_message('Invalid configuration', Color.RED)}: {errors}")
