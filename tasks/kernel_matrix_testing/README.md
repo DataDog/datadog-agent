@@ -322,13 +322,16 @@ dda inv -e kmt.init --images=ubuntu_22.04,debian_10
 # Initialize and download all available VM images for your architecture
 dda inv -e kmt.init --all-images
 
+# Skip the interactive SSH key setup, intended for local-only setups
+dda inv -e kmt.init --skip-ssh-setup
+
 # If you only intend to manage remote VMs
 dda inv -e kmt.init --remote-setup-only
 ```
 
 The `--images` parameter is required unless `--remote-setup-only` or `--all-images` is specified, or you explicitly confirm the interactive prompt. Use `kmt.ls` to see available images.
 
-This command will also guide you through the [default SSH key configuration](#kmtconfig-ssh-key).
+This command will also guide you through the [default SSH key configuration](#kmtconfig-ssh-key). You can use the `--skip-ssh-setup` flag to bypass this interactive wizard. If you skip it, you will need to provide an SSH key manually using the `--ssh-key` flag for commands that interact with remote VMs.
 
 ### `kmt.update-resources`
 
