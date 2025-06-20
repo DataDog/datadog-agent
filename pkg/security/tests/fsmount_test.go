@@ -11,9 +11,6 @@ package tests
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/stretchr/testify/assert"
-	"os"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -32,18 +29,6 @@ func fsconfigStr(fd int, cmd uint, key string, value string, aux int) (err error
 
 	err = fsconfig(fd, cmd, &keyBytes[0], &valueBytes[0], aux)
 	return err
-}
-
-func mountPointFromFd(fd int) uint32 {
-	data, _ := os.ReadFile("/proc/" + strconv.Itoa(os.Getpid()) + "/fdinfo/" + strconv.Itoa(int(fd)))
-
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "mnt_id:") {
-			mountId, _ := strconv.Atoi(strings.Split(line, "\t")[1])
-			return uint32(mountId)
-		}
-	}
-	return 0
 }
 
 func TestFsmount(t *testing.T) {
