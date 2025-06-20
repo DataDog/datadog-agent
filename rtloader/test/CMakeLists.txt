@@ -26,7 +26,7 @@ if (WIN32)
 elseif(APPLE)
     set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl -rpath ${PROJECT_BINARY_DIR}/../../dev/lib)
 else()
-	set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl)
+    set (CGO_LDFLAGS -L${PROJECT_BINARY_DIR}/rtloader -ldatadog-agent-rtloader -ldl)
 endif()
 
 set (CGO_LDFLAGS \"-L${PROJECT_BINARY_DIR}/three/ ${CGO_LDFLAGS}\")
