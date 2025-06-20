@@ -143,7 +143,7 @@ func (bfh *BaseFieldHandlers) ResolveService(ev *model.Event, e *model.BaseEvent
 }
 
 // ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
-func (fh *BaseFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
+func (bfh *BaseFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
 	h := sha256.New()
 	h.Write(e.RawFilter)
 	bs := h.Sum(nil)
@@ -152,7 +152,7 @@ func (fh *BaseFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *mode
 }
 
 // ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
-func (fh *BaseFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
+func (bfh *BaseFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
 	raw := []bpf.RawInstruction{}
 	filterSize := 8
 	filterLen := int(e.FilterLen)
