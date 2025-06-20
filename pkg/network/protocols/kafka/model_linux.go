@@ -92,7 +92,7 @@ RawKernelTelemetry{
 		"in range [91, 255]": %d,
 	}
 	"produce no required acks": %d,
-	"classified fetch api version hits": %s,
+	"classified consume api version hits": %s,
 	"classified produce api version hits": %s
 }`, t.Topic_name_size_buckets[0], t.Topic_name_size_buckets[1], t.Topic_name_size_buckets[2], t.Topic_name_size_buckets[3],
 		t.Topic_name_size_buckets[4], t.Topic_name_size_buckets[5], t.Topic_name_size_buckets[6], t.Topic_name_size_buckets[7],
