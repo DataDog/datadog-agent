@@ -204,7 +204,6 @@ package :zip do
   else
     # noinspection RubyLiteralArrayInspection
     extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
   end
