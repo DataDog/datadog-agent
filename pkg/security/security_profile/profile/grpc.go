@@ -58,14 +58,15 @@ func (p *Profile) ToSecurityActivityDumpMessage(timeout time.Duration, storageRe
 	}
 	if p.ActivityTree != nil {
 		msg.Stats = &api.ActivityTreeStatsMessage{
-			ProcessNodesCount: p.ActivityTree.Stats.ProcessNodes,
-			FileNodesCount:    p.ActivityTree.Stats.FileNodes,
-			DNSNodesCount:     p.ActivityTree.Stats.DNSNodes,
-			SocketNodesCount:  p.ActivityTree.Stats.SocketNodes,
-			IMDSNodesCount:    p.ActivityTree.Stats.IMDSNodes,
-			SyscallNodesCount: p.ActivityTree.Stats.SyscallNodes,
-			FlowNodesCount:    p.ActivityTree.Stats.FlowNodes,
-			ApproximateSize:   p.ActivityTree.Stats.ApproximateSize(),
+			ProcessNodesCount:    p.ActivityTree.Stats.ProcessNodes,
+			FileNodesCount:       p.ActivityTree.Stats.FileNodes,
+			DNSNodesCount:        p.ActivityTree.Stats.DNSNodes,
+			SocketNodesCount:     p.ActivityTree.Stats.SocketNodes,
+			IMDSNodesCount:       p.ActivityTree.Stats.IMDSNodes,
+			SyscallNodesCount:    p.ActivityTree.Stats.SyscallNodes,
+			FlowNodesCount:       p.ActivityTree.Stats.FlowNodes,
+			CapabilityNodesCount: p.ActivityTree.Stats.CapabilityNodes,
+			ApproximateSize:      p.ActivityTree.Stats.ApproximateSize(),
 		}
 	}
 	return msg

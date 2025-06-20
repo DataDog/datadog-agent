@@ -26,5 +26,15 @@ func GetPerfEventProbes() []*manager.Probe {
 			PerfEventConfig:   unix.PERF_COUNT_SW_CPU_CLOCK,
 			PerfEventCPUCount: 1,
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "capabilities_usage_ticker",
+			},
+			SampleFrequency:   1,
+			PerfEventType:     unix.PERF_TYPE_SOFTWARE,
+			PerfEventConfig:   unix.PERF_COUNT_SW_CPU_CLOCK,
+			PerfEventCPUCount: 1,
+		},
 	}
 }
