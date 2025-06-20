@@ -4409,6 +4409,13 @@ api_key:
 #
 # otlp_config:
 
+  ## @param enabled - boolean - optional - default: false
+  ## @env DD_OTLP_CONFIG_ENABLED - boolean - optional - default: false
+  ## Set to true to enable the OTLP ingest (or set any field in the the otlp_config.receiver.* section).
+  #
+  # enabled: true
+
+
   ## @param receiver - custom object - optional
   ## The receiver configuration. It follows the OpenTelemetry Collector's OTLP Receiver Configuration.
   ## This template lists the most commonly used settings; see the OpenTelemetry Collector documentation
