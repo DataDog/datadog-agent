@@ -99,8 +99,8 @@ func TestEbpfConntrackerEnsureMapType(t *testing.T) {
 
 	checkMap := func(t *testing.T, cfg *config.Config) {
 		conntracker, err := NewEBPFConntracker(cfg, nil)
-		t.Cleanup(conntracker.Close)
 		require.NoError(t, err, "error creating ebpf conntracker")
+		t.Cleanup(conntracker.Close)
 		m, _, err := conntracker.(*ebpfConntracker).m.GetMap(probes.ConntrackMap)
 		require.NoError(t, err, "error getting conntrack map")
 		require.NotNil(t, m, "conntrack map is nil")
