@@ -30,43 +30,39 @@ const (
 	// from the pod owner name.
 	serviceNameSourceOwnerName = "owner"
 
+	// the next two sources are used to denote whether the service name
+	// came from labels or annotations (when mapping pod meta as tags).
 	serviceNameSourceLabelsAsTags      = "labels_as_tags"
 	serviceNameSourceAnnotationsAsTags = "annotations_as_tags"
 )
 
 type serviceNameMutator struct {
 	noop   bool
-	EnvVar corev1.EnvVar     `json:"env"`
-	Source serviceNameSource `json:"source"`
+	EnvVar corev1.EnvVar
+	Source serviceNameSource
 }
 
 func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
-	if s.noop {
-		return nil
-	}
-
-	for _, e := range c.Env {
-		if e.Name == kubernetes.ServiceTagEnvVar {
-			return nil
-		}
-	}
-
-	var envs []corev1.EnvVar
-	envs = append(envs, s.EnvVar)
-
+	var appendSource bool
+	var source corev1.EnvVar
 	if s.Source != "" {
-		value := string(s.Source)
-		if s.EnvVar.Value != "" {
-			value = fmt.Sprintf("%s=%s", s.Source, s.EnvVar.Value)
-		}
-		envs = append(envs, corev1.EnvVar{
+		appendSource = true
+		source := corev1.EnvVar{
 			Name:  "DD_SERVICE_K8S_ENV_SOURCE",
-			Value: value,
-		})
+			Value: string(s.Source),
+		}
+		if s.EnvVar.Value != "" {
+			source.Value = fmt.Sprintf("%s=%s", s.Source, s.EnvVar.Value)
+		}
 	}
 
-	c.Env = append(envs, c.Env...)
-	return nil
+	mutator := &ustEnvVarMutator{
+		noop:         s.noop,
+		EnvVar:       s.EnvVar,
+		AppendSource: appendSource,
+		Source:       source,
+	}
+	return mutator.mutateContainer(c)
 }
 
 func serviceNameMutatorForMetaAsTags(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator {

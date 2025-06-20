@@ -81,11 +81,45 @@ func envVarSourceFromFieldRef(kind podMetaKind, path string) *corev1.EnvVarSourc
 	}
 }
 
-func doesMappedTagMatchValue(m map[string]string, k, v string) bool {
-	if m != nil {
-		if tag, matched := m[k]; matched {
-			return tag == v
+func ustEnvVarMutatorForPodMeta(pod *corev1.Pod, mappingSource podMetaAsTags, tag, envVarName string) *ustEnvVarMutator {
+	env, found := envVarForPodMetaMapping(pod, podMetaKindLabels, mappingSource, tag, envVarName)
+	if found {
+		return &ustEnvVarMutator{EnvVar: env}
+	}
+
+	if env, found := envVarForPodMetaMapping(pod, podMetaKindAnnotations, mappingSource, tag, envVarName); found {
+		return &ustEnvVarMutator{EnvVar: env}
+	}
+
+	return &ustEnvVarMutator{ noop: true, }
+}
+
+type ustEnvVarMutator struct {
+	noop   bool
+	EnvVar corev1.EnvVar
+
+	AppendSource bool
+	Source       corev1.EnvVar
+}
+
+func (m *ustEnvVarMutator) mutateContainer(c *corev1.Container) error {
+	if m.noop {
+		return nil
+	}
+
+	for _, e := range c.Env {
+		if e.Name == m.EnvVar.Name {
+			return nil
 		}
 	}
-	return false
+
+	var envs []corev1.EnvVar
+	envs = append(envs, m.EnvVar)
+
+	if m.AppendSource {
+		envs = append(envs, m.Source)
+	}
+
+	c.Env = append(envs, c.Env...)
+	return nil
 }

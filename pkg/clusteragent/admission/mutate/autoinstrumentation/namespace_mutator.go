@@ -18,9 +18,11 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -151,13 +153,13 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injectionType  = config.source.injectionType()
 		autoDetected   = config.source.isFromLanguageDetection()
 
-		serviceNameMutator = m.serviceNameMutator(pod)
+		ustEnvVarMutator   = m.ustEnvVarMutator(pod)
 
 		// initContainerMutators are resource and security constraints
 		// to all the init containers the init containers that we create.
 		initContainerMutators = append(
 			m.newInitContainerMutators(requirements),
-			serviceNameMutator,
+			ustEnvVarMutator,
 		)
 		injectorOptions = libRequirementOptions{
 			containerFilter:       m.config.containerFilter,
@@ -167,7 +169,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injector          = m.newInjector(pod, startTime, injectorOptions)
 		containerMutators = containerMutators{
 			config.languageDetection.containerMutator(m.config.version),
-			serviceNameMutator,
+			ustEnvVarMutator,
 		}
 	)
 
@@ -244,6 +246,25 @@ func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
 	}
 
 	return newServiceNameMutator(pod, m.config.podMetaAsTags)
+}
+
+// ustEnvVarMutator will attempt to find a ust env var to inject into the pods containers if SSI is enabled.
+//
+// This is used to inject the version and env tags into the pods containers.
+//
+// The service tag/name is handled separately in the serviceNameMutator for legacy reasons.
+func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
+	var mutators containerMutators
+
+	if mutator := ustEnvVarMutatorForPodMeta(pod, m.config.podMetaAsTags, tags.Version, kubernetes.VersionTagEnvVar); mutator != nil {
+		mutators = append(mutators, mutator)
+	}
+
+	if mutator := ustEnvVarMutatorForPodMeta(pod, m.config.podMetaAsTags, tags.Env, kubernetes.EnvTagEnvVar); mutator != nil {
+		mutators = append(mutators, mutator)
+	}
+
+	return append(mutators, m.serviceNameMutator(pod))
 }
 
 // newInitContainerMutators constructs container mutators for behavior
