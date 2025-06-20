@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed TCP retransmit counts by excluding TCP keep-alive packets. Also fixed potential IRQL corruption and memory corruption related to IPv6 filters.

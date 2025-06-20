@@ -26,10 +26,6 @@ For any prometheus receiver collecting collector health metrics, and sending the
 
 If `api_key` is unset, set to an empty string or set to a secret, the converter will fetch the api key from the agent configuration. It will also fetch the the site from the agent config if unset in collector.
 
-### Datadog Connector
-
-The converter will automatically set `datadogconnector` config `trace.span_name_as_resource_name` to true in any datadog connectors in your configuration.
-
 ## Opting out of converter
 
 It is possible to opt out of the converter by setting env var `DD_OTELCOLLECTOR_CONVERTER_ENABLED` or agent config `otelcollector.converter.enabled` to `false` (`true` by default). Please note that by doing so, you are removing functionality including flare collection from otel-agent, health metrics from collector, or infra level tagging on your telemetry data. If you want to opt out of some components, you can disable all and add the components that you require manually:

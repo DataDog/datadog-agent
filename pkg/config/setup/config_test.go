@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -306,6 +307,30 @@ func TestProxy(t *testing.T) {
 			proxyForCloudMetadata: true,
 		},
 		{
+			name: "from DD env vars comma or space usage",
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a,b c") // space and comma-separated list
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
+			name: "from DD env vars mixed comma space usage",
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
+				t.Setenv("DD_PROXY_HTTP", "http_url")
+				t.Setenv("DD_PROXY_HTTPS", "https_url")
+				t.Setenv("DD_PROXY_NO_PROXY", "a ,b, c") // space and comma-separated list
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.Equal(t, expectedProxy, config.GetProxies())
+			},
+			proxyForCloudMetadata: true,
+		},
+		{
 			name: "from DD env vars precedence over UNIX env vars",
 			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_PROXY_HTTP", "dd_http_url")
@@ -485,6 +510,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "")
 			},
 		},
@@ -502,6 +528,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 1)
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "us-west-2")
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
 			},
 		},
 		{
@@ -509,12 +536,14 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_TAGS", "foo:bar other:tag")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DBM_TAG", "usedbm")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar", "other:tag"})
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
 			},
 		},
 		{
@@ -536,12 +565,14 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.discovery_interval", 10)
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.query_timeout", 4)
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.dbm_tag", "usedbm")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 10)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 4)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar"})
+				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
 			},
 		},
 	}
@@ -1243,6 +1274,38 @@ use_proxy_for_cloud_metadata: true
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
 }
 
+// configRetrieveFromPath gets a setting from the config, handling URLs correctly
+// viper would do this by looking for "known" keys and reconstructing the url piece by piece
+// This method should only be needed by tests
+// In nodetreemodel, settings like additional_endpoints are leaf values
+// We should be able to simplify this implementation once ntm is in use everywhere
+func configRetrieveFromPath(cfg pkgconfigmodel.Config, settingPath string) (interface{}, error) {
+	parts := strings.Split(settingPath, ".")
+
+	if ncfg, ok := cfg.(nodetreemodel.NodeTreeConfig); ok {
+		for i := range parts {
+			if i == 0 {
+				continue
+			}
+			partial := strings.Join(parts[0:i], ".")
+			node, err := ncfg.GetNode(partial)
+			if err != nil {
+				return nil, err
+			}
+			if leaf, match := node.(nodetreemodel.LeafNode); match {
+				// if we find a leaf, can't get a child of it
+				leafValue := leaf.Get()
+				if leafMap, isMap := leafValue.(map[string]interface{}); isMap {
+					remain := strings.Join(parts[i:], ".")
+					return leafMap[remain], nil
+				}
+			}
+		}
+	}
+
+	return cfg.Get(settingPath), nil
+}
+
 func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 
 	config := newTestConf(t)
@@ -1265,15 +1328,18 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	assert.NoError(t, err)
 
 	var expected interface{} = `different`
-	res := config.Get("secret_backend_command")
+	res, err := configRetrieveFromPath(config, "secret_backend_command")
+	assert.NoError(t, err)
 	require.Equal(t, expected, res)
 
 	expected = []interface{}([]interface{}{"first", "changed"})
-	res = config.Get("additional_endpoints.https://url1.com")
+	res, err = configRetrieveFromPath(config, "additional_endpoints.https://url1.com")
+	assert.NoError(t, err)
 	require.Equal(t, expected, res)
 
 	expected = []interface{}([]interface{}{"modified"})
-	res = config.Get("process_config.additional_endpoints.https://url2.eu")
+	res, err = configRetrieveFromPath(config, "process_config.additional_endpoints.https://url2.eu")
+	assert.NoError(t, err)
 	require.Equal(t, expected, res)
 }
 
@@ -1543,4 +1609,17 @@ some_other_key: "********"
 app_key: '***********************************acccc'
 yet_another_key: "********"`
 	assert.YAMLEq(t, expected, scrubbed)
+}
+
+func TestLoadProxyFromEnv(t *testing.T) {
+	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.SetKnown("proxy.http")
+	cfg.SetKnown("proxy.https")
+	cfg.SetKnown("proxy.no_proxy")
+	t.Setenv("DD_PROXY_HTTP", "http://www.example.com/")
+	cfg.BuildSchema()
+
+	LoadProxyFromEnv(cfg)
+	assert.Equal(t, "http://www.example.com/", cfg.Get("proxy.http"))
+	assert.Equal(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("proxy.http"))
 }

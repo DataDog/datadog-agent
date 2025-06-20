@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
@@ -185,8 +186,10 @@ func TestBuildEndpoints(t *testing.T) {
 		configComponent.MockModule(),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 	))
+	deps.Config.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceDefault)
 
-	endpoints, err := buildEndpoints(deps.Config, deps.Log)
+	endpoints, err := buildEndpoints(deps.Config, deps.Log, config.OTelCollectorIntakeOrigin)
 	assert.Nil(t, err)
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+	assert.Equal(t, "agent-http-intake.logs.datadoghq.com.", endpoints.Main.Host)
+	assert.Equal(t, config.OTelCollectorIntakeOrigin, endpoints.Main.Origin)
 }

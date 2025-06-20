@@ -21,7 +21,7 @@ import (
 )
 
 func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t)
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), config.New())
 
@@ -86,7 +86,7 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 }
 
 func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t)
 	cfg := config.New()
 	cfg.MaxStreamInactivity = 1 * time.Second // Set inactivity threshold to 1 second

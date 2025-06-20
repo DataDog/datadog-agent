@@ -272,7 +272,7 @@ func run(
 	if len(cliParams.args) != 0 {
 		cliParams.checkName = cliParams.args[0]
 	} else {
-		cliParams.cmd.Help() //nolint:errcheck
+		_ = cliParams.cmd.Help()
 		return nil
 	}
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
@@ -283,7 +283,7 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry, nil)
+	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry, nil, nil)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -672,12 +672,12 @@ func singleCheckRun(cliParams *cliParams) bool {
 
 func createHiddenStringFlag(cmd *cobra.Command, p *string, name string, value string, usage string) {
 	cmd.Flags().StringVar(p, name, value, usage)
-	cmd.Flags().MarkHidden(name) //nolint:errcheck
+	_ = cmd.Flags().MarkHidden(name)
 }
 
 func createHiddenBooleanFlag(cmd *cobra.Command, p *bool, name string, value bool, usage string) {
 	cmd.Flags().BoolVar(p, name, value, usage)
-	cmd.Flags().MarkHidden(name) //nolint:errcheck
+	_ = cmd.Flags().MarkHidden(name)
 }
 
 func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]interface{}) error {

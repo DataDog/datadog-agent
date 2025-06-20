@@ -13,3 +13,9 @@ end
 def windows_signing_enabled?()
   return ENV['SIGN_WINDOWS_DD_WCS']
 end
+
+# Determines whether we're under "repackaging" mode for the Agent, which means that we'll try to
+# use an existing package and just build the datadog-agent definition without any dependencies
+def do_repackage?
+  return !ENV.fetch('OMNIBUS_REPACKAGE_SOURCE_URL', '').empty?
+end

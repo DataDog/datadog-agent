@@ -217,7 +217,6 @@ func TestSubscribe(t *testing.T) {
 
 			notif1, _ := le.Subscribe()
 			notif2, _ := le.Subscribe()
-			clusterChecksChan := le.UpdateLeaderInClusterChecks
 			require.Len(t, le.subscribers, 2)
 
 			err := tc.getTokenFunc(client)
@@ -232,7 +231,7 @@ func TestSubscribe(t *testing.T) {
 			err = tc.getTokenFunc(client)
 			require.NoError(t, err)
 
-			counter1, counter2, counter3 := 0, 0, 0
+			counter1, counter2 := 0, 0
 			for {
 				select {
 				case <-notif1:
@@ -247,12 +246,6 @@ func TestSubscribe(t *testing.T) {
 					counter2++
 					require.Truef(t, le.IsLeader(), "Expected to be leader")
 					if counter2 > 1 {
-						require.Fail(t, "Received too many notifications")
-						break
-					}
-				case <-clusterChecksChan:
-					counter3++
-					if counter3 > 1 {
 						require.Fail(t, "Received too many notifications")
 						break
 					}
@@ -270,7 +263,7 @@ func TestSubscribe(t *testing.T) {
 			// simulate leadership lease loss by cancelling leader election context
 			cancel()
 
-			counter1, counter2, counter3 = 0, 0, 0
+			counter1, counter2 = 0, 0
 			for {
 				select {
 				case <-notif1:
@@ -285,13 +278,6 @@ func TestSubscribe(t *testing.T) {
 					require.Falsef(t, le.IsLeader(), "Expected to be a follower")
 					counter2++
 					if counter2 > 1 {
-						require.Fail(t, "Received too many notifications")
-						return
-					}
-
-				case <-clusterChecksChan:
-					counter3++
-					if counter3 > 1 {
 						require.Fail(t, "Received too many notifications")
 						return
 					}
@@ -498,6 +484,9 @@ func (g *dummyGauge) Sub(_ float64, _ ...string) {}
 
 // Delete does nothing
 func (g *dummyGauge) Delete(_ ...string) {}
+
+// DeletePartialMatch does nothing
+func (g *dummyGauge) DeletePartialMatch(_ map[string]string) {}
 
 // WithValues does nothing
 func (g *dummyGauge) WithValues(_ ...string) telemetryComponent.SimpleGauge { return nil }

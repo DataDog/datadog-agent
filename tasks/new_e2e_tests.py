@@ -61,6 +61,7 @@ class TestState:
         "skip": "Only run tests not matching the regular expression",
         "agent_image": 'Full image path for the agent image (e.g. "repository:tag") to run the e2e tests with',
         "cluster_agent_image": 'Full image path for the cluster agent image (e.g. "repository:tag") to run the e2e tests with',
+        "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
     },
 )
 def run(
@@ -93,7 +94,7 @@ def run(
     logs_folder="e2e_logs",
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
-    rerun_fails=None,
+    stack_name_suffix="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -125,7 +126,7 @@ def run(
         parsed_params[parts[0]] = parts[1]
 
     if local_package:
-        parsed_params["ddagent:localPackage"] = local_package
+        parsed_params["ddagent:localPackage"] = Path(local_package).absolute().as_posix()
 
     if agent_image:
         parsed_params["ddagent:fullImagePath"] = agent_image
@@ -135,6 +136,9 @@ def run(
 
     if parsed_params:
         env_vars["E2E_STACK_PARAMS"] = json.dumps(parsed_params)
+
+    if stack_name_suffix:
+        env_vars["E2E_STACK_NAME_SUFFIX"] = stack_name_suffix
 
     gotestsum_format = "standard-verbose" if verbose else "pkgname"
 
@@ -157,7 +161,7 @@ def run(
             # Using custom go command piped with scrubber sed instructions https://github.com/gotestyourself/gotestsum#custom-go-test-command
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
-    cmd += f'{{junit_file_flag}} {{json_flag}} {{rerun_fails}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {scrubber_raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osversion}} {{platform}} {{major_version}} {{arch}} {{flavor}} {{cws_supported_osversion}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
 
     # Strings can come with extra double-quotes which can break the command, remove them
     clean_run = []
@@ -188,7 +192,6 @@ def run(
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else "",
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else "",
         "keep_stacks": '-keep-stacks' if keep_stacks else "",
-        "rerun_fails": f"--rerun-fails={rerun_fails}" if rerun_fails else "",
         "extra_flags": extra_flags,
     }
 

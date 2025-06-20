@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -25,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	containerMetadata "github.com/DataDog/datadog-agent/pkg/util/containers/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -169,14 +169,14 @@ func GetOSVersion() string {
 
 // GetPayload builds a metadata payload every time is called.
 // Some data is collected only once, some is cached, some is collected at every call.
-func GetPayload(ctx context.Context, conf model.Reader) *Payload {
+func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component) *Payload {
 	hostnameData, err := hostname.GetWithProvider(ctx)
 	if err != nil {
 		log.Errorf("Error grabbing hostname for status: %v", err)
-		hostnameData = hostname.Data{Hostname: "unknown", Provider: "unknown"}
+		hostnameData = hostnameinterface.Data{Hostname: "unknown", Provider: "unknown"}
 	}
 
-	meta := getMeta(ctx, conf)
+	meta := getMeta(ctx, conf, hostname)
 	meta.Hostname = hostnameData.Hostname
 
 	p := &Payload{
@@ -201,10 +201,10 @@ func GetPayload(ctx context.Context, conf model.Reader) *Payload {
 
 // GetFromCache returns the payload from the cache if it exists, otherwise it creates it.
 // The metadata reporting should always grab it fresh. Any other uses, e.g. status, should use this
-func GetFromCache(ctx context.Context, conf model.Reader) *Payload {
+func GetFromCache(ctx context.Context, conf model.Reader, hostname hostnameinterface.Component) *Payload {
 	data, found := cache.Cache.Get(hostCacheKey)
 	if !found {
-		return GetPayload(ctx, conf)
+		return GetPayload(ctx, conf, hostname)
 	}
 	return data.(*Payload)
 }

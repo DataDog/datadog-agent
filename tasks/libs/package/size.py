@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 from datetime import datetime
+from pathlib import Path
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
@@ -32,7 +33,6 @@ SCANNED_BINARIES = {
     },
     "heroku-agent": {
         "agent": "opt/datadog-agent/bin/agent/agent",
-        "process-agent": "opt/datadog-agent/embedded/bin/process-agent",
         "trace-agent": "opt/datadog-agent/embedded/bin/trace-agent",
     },
 }
@@ -115,14 +115,12 @@ def file_size(path):
     return os.path.getsize(path)
 
 
-def directory_size(ctx, path):
-    # HACK: For uncompressed size, fall back to native Unix utilities - computing a directory size with Python
-    # NOTE: We use the -b (--bytes, equivalent to --apparent-size --block-size 1) option to make the computation
-    # consistent. Otherwise, each file's size is counted as the number of blocks it uses, which means a file's size
-    # depends on how it is written to disk.
-    # See https://unix.stackexchange.com/questions/173947/du-s-apparent-size-vs-du-s
-    # TODO: To make this work on other OSes, the complete directory walk would need to be implemented
-    return int(ctx.run(f"du --apparent-size -sB1 {path}", hide=True).stdout.split()[0])
+def directory_size(path):
+    """Compute the size of a directory as the sum of all the files inside (recursively)"""
+    return sum(
+        sum((dirpath / basename).lstat().st_size for basename in filenames)
+        for dirpath, _, filenames in Path(path).walk()
+    )
 
 
 def compute_package_size_metrics(
@@ -150,7 +148,7 @@ def compute_package_size_metrics(
         extract_package(ctx=ctx, package_os=package_os, package_path=package_path, extract_dir=extract_dir)
 
         package_compressed_size = file_size(path=package_path)
-        package_uncompressed_size = directory_size(ctx, path=extract_dir)
+        package_uncompressed_size = directory_size(path=extract_dir)
 
         timestamp = int(datetime.utcnow().timestamp())
         common_tags = [

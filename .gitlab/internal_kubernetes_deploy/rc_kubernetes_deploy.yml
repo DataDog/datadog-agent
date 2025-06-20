@@ -10,16 +10,20 @@ rc_kubernetes_deploy:
     - if: $RC_BUILD == "true"
       when: manual
   needs:
-    - job: docker_trigger_internal
+    - job: publish_internal_container_image-jmx
       artifacts: false
-    - job: docker_trigger_cluster_agent_internal
+    - job: publish_internal_container_image-fips
       artifacts: false
-    - job: docker_trigger_internal-full
+    - job: publish_internal_container_image-ot_standalone
+      artifacts: false
+    - job: publish_internal_dca_container_image
+      artifacts: false
+    - job: publish_internal_container_image-full
       artifacts: false
     - job: k8s-e2e-main # Currently only require container Argo workflow
       artifacts: false
       optional: true
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"

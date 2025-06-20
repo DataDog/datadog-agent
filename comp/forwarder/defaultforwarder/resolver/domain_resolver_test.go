@@ -12,6 +12,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSingleDomainResolverDedupedKey(t *testing.T) {
@@ -21,7 +22,8 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 		utils.NewAPIKeys("multi_region_failover.api_key", "key2"),
 	}
 
-	resolver := NewSingleDomainResolver("example.com", apiKeys)
+	resolver, err := NewSingleDomainResolver("example.com", apiKeys)
+	require.NoError(t, err)
 
 	assert.Equal(t, resolver.dedupedAPIKeys,
 		[]string{"key1", "key2"})
@@ -33,7 +35,8 @@ func TestSingleDomainUpdateAPIKeys(t *testing.T) {
 		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3"),
 	}
 
-	resolver := NewSingleDomainResolver("example.com", apiKeys)
+	resolver, err := NewSingleDomainResolver("example.com", apiKeys)
+	require.NoError(t, err)
 
 	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", "key4", "key2", "key3")})
 
@@ -45,7 +48,8 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 		utils.NewAPIKeys("api_key", "key1"),
 		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3"),
 	}
-	resolver := NewSingleDomainResolver("example.com", apiKeys)
+	resolver, err := NewSingleDomainResolver("example.com", apiKeys)
+	require.NoError(t, err)
 
 	// The duplicate key between the main endpoint and additional_endpoints is removed
 	assert.Equal(t, []string{"key1", "key2", "key3"}, resolver.GetAPIKeys())
@@ -76,7 +80,8 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 		utils.NewAPIKeys("api_key", "key1"),
 		utils.NewAPIKeys("additional_endpoints", "key1", "key2", "key3"),
 	}
-	resolver := NewMultiDomainResolver("example.com", apiKeys)
+	resolver, err := NewMultiDomainResolver("example.com", apiKeys)
+	require.NoError(t, err)
 
 	// The duplicate key between the main endpoint and additional_endpoints is removed
 	assert.Equal(t, []string{"key1", "key2", "key3"}, resolver.GetAPIKeys())
@@ -100,4 +105,15 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	assert.Equal(t, []string{"key1", "key4", "key3"}, resolver.GetAPIKeys())
+}
+
+func TestScrubKeys(t *testing.T) {
+	keys := []string{
+		"abcdefghijklmnopqrstuvwxyzkey001",
+		"abcdefghijklmnopqrstuvwxyzkey002",
+		"shortkey",
+	}
+	keys = scrubKeys(keys)
+
+	assert.Equal(t, []string{"***************************ey001", "***************************ey002", "********"}, keys)
 }

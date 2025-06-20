@@ -108,7 +108,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30 file} of *nodetreemodel.leafNodeImpl`)
+	assert.ErrorContains(t, err, `at [jobs]: []T required, but input is not an array: &{30`)
 
 	confYaml = `
 user:
@@ -128,7 +128,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher] file} of *nodetreemodel.leafNodeImpl`)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{[plumber teacher]`)
 
 	confYaml = `
 user:
@@ -136,7 +136,7 @@ user:
 `
 	mockConfig = newConfigFromYaml(t, confYaml)
 	err = unmarshalKeyReflection(mockConfig, "user", &person)
-	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30 file} of *nodetreemodel.leafNodeImpl`)
+	assert.ErrorContains(t, err, `at [tags]: cannot assign to a map from input: &{30`)
 
 }
 
@@ -297,6 +297,81 @@ endpoints:
 			}
 		})
 	}
+}
+
+func TestUnmarshalAllMapString(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test")
+
+	type testString struct {
+		A string
+		B string
+	}
+	checkString := func() {
+		obj := testString{}
+		err := unmarshalKeyReflection(mockConfig, "test", &obj)
+		require.NoError(t, err)
+		assert.Equal(t, testString{A: "a", B: "b"}, obj)
+	}
+	mockConfig.Set("test", map[string]string{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[interface{}]string{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+
+	mockConfig.Set("test", map[string]interface{}{"a": "a", "b": "b"}, model.SourceAgentRuntime)
+	checkString()
+}
+
+func TestUnmarshalAllMapInt(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test")
+
+	type testInt struct {
+		A int
+		B int
+	}
+	checkInt := func() {
+		objInt := testInt{}
+		err := unmarshalKeyReflection(mockConfig, "test", &objInt)
+		require.NoError(t, err)
+		assert.Equal(t, testInt{A: 1, B: 2}, objInt)
+	}
+	mockConfig.Set("test", map[string]int{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+
+	mockConfig.Set("test", map[interface{}]int{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": 1, "b": 2}, model.SourceAgentRuntime)
+	checkInt()
+}
+
+func TestUnmarshalAllMapBool(t *testing.T) {
+	mockConfig := newEmptyMockConf(t)
+	mockConfig.SetKnown("test")
+
+	type testBool struct {
+		A bool
+		B bool
+	}
+	checkBool := func() {
+		objBool := testBool{}
+		err := unmarshalKeyReflection(mockConfig, "test", &objBool)
+		require.NoError(t, err)
+		assert.Equal(t, testBool{A: true, B: true}, objBool)
+	}
+	mockConfig.Set("test", map[string]bool{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+
+	mockConfig.Set("test", map[interface{}]bool{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
+
+	mockConfig.Set("test", map[interface{}]interface{}{"a": true, "b": true}, model.SourceAgentRuntime)
+	checkBool()
 }
 
 type featureConfig struct {
@@ -1481,4 +1556,34 @@ func TestMapGetChildNotFound(t *testing.T) {
 	inner, ok := n.(nodetreemodel.InnerNode)
 	assert.True(t, ok)
 	assert.Equal(t, inner.ChildrenKeys(), []string{"a", "b"})
+}
+
+func TestUnmarshalKeyWithPointerToBool(t *testing.T) {
+	confYaml := `
+feature_flags:
+  enabled: true
+  disabled: false
+  missing: false
+`
+
+	type FeatureFlags struct {
+		Enabled  *bool `yaml:"enabled"`
+		Disabled *bool `yaml:"disabled"`
+		Missing  *bool `yaml:"missing"`
+	}
+
+	mockConfig := newConfigFromYaml(t, confYaml)
+	mockConfig.SetKnown("feature_flags")
+
+	flags := FeatureFlags{}
+
+	err := UnmarshalKey(mockConfig, "feature_flags", &flags)
+	assert.NoError(t, err)
+
+	assert.NotNil(t, flags.Enabled)
+	assert.NotNil(t, flags.Disabled)
+	assert.NotNil(t, flags.Missing)
+	assert.Equal(t, true, *flags.Enabled)
+	assert.Equal(t, false, *flags.Disabled)
+	assert.Equal(t, false, *flags.Missing)
 }

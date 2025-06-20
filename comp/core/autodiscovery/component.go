@@ -23,21 +23,14 @@ import (
 type Component interface {
 	AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
 	LoadAndRun(ctx context.Context)
-	ForceRanOnceFlag()
-	HasRunOnce() bool
 	GetAllConfigs() []integration.Config
 	AddListeners(listenerConfigs []pkgconfigsetup.Listeners)
 	AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool)
 	RemoveScheduler(name string)
-	GetUnresolvedTemplates() map[string][]integration.Config
 	GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID
 	GetAutodiscoveryErrors() map[string]map[string]providers.ErrorMsgSet
 	GetProviderCatalog() map[string]providers.ConfigProviderFactory
 	GetTelemetryStore() *telemetry.Store
-	// TODO (component): deprecate start/stop methods
-	Start()
-	Stop()
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse
-	IsStarted() bool
 }

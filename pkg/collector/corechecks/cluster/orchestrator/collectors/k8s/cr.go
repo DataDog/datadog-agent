@@ -101,7 +101,7 @@ func (c *CRCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Coll
 func (c *CRCollector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -109,7 +109,7 @@ func (c *CRCollector) Process(rcfg *collectors.CollectorRunConfig, list interfac
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

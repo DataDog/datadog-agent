@@ -23,13 +23,13 @@ func (s *languageDetectionSuite) installPython() {
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
 	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "local_process_collector")
+	s.checkDetectedLanguage("python3", "python", "process_language_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr))))
 	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "local_process_collector")
+	s.checkDetectedLanguage("python3", "python", "process_language_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {

@@ -19,7 +19,7 @@ jobs:
     environment:
       name: main
     steps:
-      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
+      - uses: actions/create-github-app-token@df432ceedc7162793a195dd1713ff69aefc7379e # v2.0.6
         id: app-token
         with:
           app-id: ${{ vars.DD_GITHUB_TOKEN_GENERATOR_APP_ID }}
@@ -65,5 +65,5 @@ jobs:
 
             ### Describe how you validated your changes
             CI is considered enough to validate changes.
-          reviewers: DataDog/agent-runtimes
+          team-reviewers: agent-runtimes
           labels: team/agent-runtimes,qa/done,changelog/no-changelog,ask-review

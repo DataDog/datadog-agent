@@ -79,7 +79,7 @@ func (tp *parser) parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, e
 // MatchTCP parses a TCP packet from a header and packet bytes and compares the information
 // contained in the packet to what's expected and returns the source IP of the incoming packet
 // if it's successful or a MismatchError if the packet can be read but doesn't match
-func (tp *parser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, error) {
+func (tp *parser) MatchTCP(header *ipv4.Header, packet []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, _ uint16) (net.IP, error) {
 	if header.Protocol != 6 { // TCP
 		return net.IP{}, errors.New("expected a TCP packet")
 	}
@@ -103,10 +103,15 @@ func (t *tcpResponse) Match(localIP net.IP, localPort uint16, remoteIP net.IP, r
 	sourcePort := t.SrcPort
 	destPort := t.DstPort
 
+	// the destination can return a RST instead of a RSTACK.
+	// in that case, usually the ackNum is 0 and there's nothing we can do to check it.
+	// it still will check the IP/ports match.
+	ackMatches := (seqNum == t.AckNum-1) || (t.RST && !t.ACK)
+
 	return remoteIP.Equal(t.SrcIP) &&
 		remotePort == sourcePort &&
 		localIP.Equal(t.DstIP) &&
 		localPort == destPort &&
-		seqNum == t.AckNum-1 &&
+		ackMatches &&
 		flagsCheck
 }

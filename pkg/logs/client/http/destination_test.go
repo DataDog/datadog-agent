@@ -573,7 +573,7 @@ func TestDestinationSourceTagBasedOnTelemetryName(t *testing.T) {
 	// Create telemetry mock
 	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
-	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source"}, "")
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
 
 	// Create a new server
 	server := NewTestServer(200, cfg)
@@ -610,7 +610,7 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	// Create telemetry mock
 	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	metrics.TlmBytesSent = telemetryMock.NewCounter("logs", "bytes_sent", []string{"source"}, "")
-	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source"}, "")
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
 
 	// Create a new server
 	server := NewTestServer(200, cfg)
@@ -637,4 +637,58 @@ func TestDestinationSourceTagEPForwarder(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1)
 	assert.Equal(t, "epforwarder", metric[0].Tags()["source"])
+}
+
+// TestDestinationCompression tests what the compression kind is set when compression is used
+func TestDestinationCompression(t *testing.T) {
+	cfg := configmock.New(t)
+
+	// Create telemetry mock
+	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	metrics.TlmEncodedBytesSent = telemetryMock.NewCounter("logs", "encoded_bytes_sent", []string{"source", "compression_kind"}, "")
+
+	// Create a new server with compression enabled
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	// Enable compression and set zstdcompression kind
+	server.Destination.endpoint.UseCompression = true
+	server.Destination.endpoint.CompressionKind = "zstd"
+
+	// Test case 1: Telemetry uses zstd compression
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "1", "reliable", "0")
+	payload := &message.Payload{
+		Encoded:       []byte("payload"),
+		UnencodedSize: 7, // len("payload")
+	}
+
+	err := server.Destination.unconditionalSend(payload)
+	assert.Nil(t, err)
+	assert.Equal(t, "dbm_1_reliable_0", server.Destination.destMeta.TelemetryName())
+
+	// Verify the compression tag is set correctly
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 1)
+	assert.Equal(t, "zstd", metric[0].Tags()["compression_kind"])
+
+	// Test case 2: Telemetry uses gzip compression
+	// Enable compression and set gzip compression kind
+	server.Destination.endpoint.CompressionKind = "gzip"
+
+	server.Destination.destMeta = client.NewDestinationMetadata("dbm", "2", "reliable", "0")
+	payload2 := &message.Payload{
+		Encoded:       []byte("payload"),
+		UnencodedSize: 7,
+	}
+
+	err = server.Destination.unconditionalSend(payload2)
+	assert.Nil(t, err)
+	assert.Equal(t, "dbm_2_reliable_0", server.Destination.destMeta.TelemetryName())
+
+	// Verify the compression tag is set correctly
+	metric, err = telemetryMock.(telemetry.Mock).GetCountMetric("logs", "encoded_bytes_sent")
+	assert.NoError(t, err)
+	assert.Len(t, metric, 2)
+	assert.Equal(t, "gzip", metric[0].Tags()["compression_kind"])
 }

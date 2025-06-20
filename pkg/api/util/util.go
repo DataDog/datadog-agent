@@ -191,6 +191,7 @@ func GetDCAAuthToken() string {
 }
 
 // Validate validates an http request
+// TODO IPC: Deprecate this function
 func Validate(w http.ResponseWriter, r *http.Request) error {
 	var err error
 	auth := r.Header.Get("Authorization")
@@ -333,6 +334,8 @@ func setTLSConfigs(ipccert, ipckey []byte) error {
 		Certificates: []tls.Certificate{tlsCert},
 		// The server parses the client certificate but does not make any verification, this is useful for telemetry
 		ClientAuth: tls.RequestClientCert,
+		// The server will accept any client certificate signed by the IPC CA
+		ClientCAs: certPool,
 	}
 
 	return nil

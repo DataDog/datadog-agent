@@ -111,7 +111,7 @@ func MemoryTracker(ptr unsafe.Pointer, sz C.size_t, op C.rtloader_mem_ops_t) {
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// TrackedCString returns a C string that will be tracked by the memory tracker
 func TrackedCString(str string) *C.char {
 	cstr := C.CString(str)
 

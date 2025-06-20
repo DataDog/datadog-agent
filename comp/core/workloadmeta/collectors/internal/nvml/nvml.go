@@ -37,112 +37,46 @@ type collector struct {
 	store   workloadmeta.Component
 }
 
-// getMigProfileName() returns the canonical name of the MIG device
-func getMigProfileName(attr nvml.DeviceAttributes) (string, error) {
-	g := attr.GpuInstanceSliceCount
-	gb := (attr.MemorySizeMB + 1024 - 1) / 1024
-	r := fmt.Sprintf("%dg.%dgb", g, gb)
-	return r, nil
-}
-
-func (c *collector) getMigDeviceInfo(device ddnvml.SafeDevice) (string, string, error) {
-	uuid, err := device.GetUUID()
-	if err != nil {
-		return "", "", err
-	}
-	name, err := device.GetName()
-	if err != nil {
-		return "", "", err
-	}
-	return uuid, name, nil
-}
-
-func (c *collector) getDeviceInfoMig(migDevice ddnvml.SafeDevice) (*workloadmeta.MigDevice, error) {
-	uuid, name, err := c.getMigDeviceInfo(migDevice)
-	if err != nil {
-		return nil, err
-	}
-
-	gpuInstanceID, err := migDevice.GetGpuInstanceId()
-	if err != nil {
-		return nil, err
-	}
-	attr, err := migDevice.GetAttributes()
-	if err != nil {
-		return nil, err
-	}
-	canonoicalName, _ := getMigProfileName(attr)
-	return &workloadmeta.MigDevice{
-		GPUInstanceID:         gpuInstanceID,
-		UUID:                  uuid,
-		Name:                  name,
-		GPUInstanceSliceCount: attr.GpuInstanceSliceCount,
-		MemorySizeMB:          attr.MemorySizeMB,
-		ResourceName:          canonoicalName,
-	}, nil
-}
-
-func (c *collector) getGPUDeviceInfo(device *ddnvml.Device) (*workloadmeta.GPU, error) {
+func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
+	// build the GPU device info using the pre-computed values
+	// from the device cache
+	devInfo := device.GetDeviceInfo()
 	gpuDeviceInfo := workloadmeta.GPU{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindGPU,
-			ID:   device.UUID,
+			ID:   devInfo.UUID,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: device.Name,
+			Name: devInfo.Name,
 		},
-		Vendor:     nvidiaVendor,
-		Device:     device.Name,
-		Index:      device.Index,
-		MigEnabled: false,
-		MigDevices: nil,
+		Vendor: nvidiaVendor,
+		Device: devInfo.Name,
+		Index:  devInfo.Index,
+		ComputeCapability: workloadmeta.GPUComputeCapability{
+			Major: int(devInfo.SMVersion / 10),
+			Minor: int(devInfo.SMVersion % 10),
+		},
+		TotalCores:  devInfo.CoreCount,
+		TotalMemory: devInfo.Memory,
 	}
 
-	c.fillAttributes(&gpuDeviceInfo, device)
-	c.fillMIGData(&gpuDeviceInfo, device)
+	switch device.(type) {
+	case *ddnvml.PhysicalDevice:
+		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
+	case *ddnvml.MIGDevice:
+		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
+	default:
+		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeUnknown
+	}
+
+	c.fillNVMLAttributes(&gpuDeviceInfo, device)
 	c.fillProcesses(&gpuDeviceInfo, device)
 
 	return &gpuDeviceInfo, nil
 }
 
-func (c *collector) fillMIGData(gpuDeviceInfo *workloadmeta.GPU, device *ddnvml.Device) {
-	migEnabled, _, err := device.GetMigMode()
-	if err != nil || migEnabled != nvml.DEVICE_MIG_ENABLE {
-		return
-	}
-	// If any MIG detection fails, we will return mig disabled in config
-	migDeviceCount, err := device.GetMaxMigDeviceCount()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-		}
-		return
-	}
-
-	migDevs := make([]*workloadmeta.MigDevice, 0, migDeviceCount)
-	for j := 0; j < migDeviceCount; j++ {
-		migDevice, err := device.GetMigDeviceHandleByIndex(j)
-		if err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("%v for %d", err, j)
-			}
-			continue
-		}
-		migDeviceInfo, err := c.getDeviceInfoMig(migDevice)
-		if err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("failed to get device info for MIG device %d: %v", j, err)
-			}
-		} else {
-			migDevs = append(migDevs, migDeviceInfo)
-		}
-	}
-
-	gpuDeviceInfo.MigEnabled = true
-	gpuDeviceInfo.MigDevices = migDevs
-}
-
-func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device *ddnvml.Device) {
+// fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
+func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	arch, err := device.GetArchitecture()
 	if err != nil {
 		if logLimiter.ShouldLog() {
@@ -151,19 +85,6 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device *ddnv
 	} else {
 		gpuDeviceInfo.Architecture = gpuArchToString(arch)
 	}
-
-	major, minor, err := device.GetCudaComputeCapability()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-		}
-	} else {
-		gpuDeviceInfo.ComputeCapability.Major = major
-		gpuDeviceInfo.ComputeCapability.Minor = minor
-	}
-
-	gpuDeviceInfo.TotalCores = device.CoreCount
-	gpuDeviceInfo.TotalMemory = device.Memory
 
 	memBusWidth, err := device.GetMemoryBusWidth()
 	if err != nil {
@@ -193,7 +114,7 @@ func (c *collector) fillAttributes(gpuDeviceInfo *workloadmeta.GPU, device *ddnv
 	}
 }
 
-func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device *ddnvml.Device) {
+func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
 	procs, err := device.GetComputeRunningProcesses()
 	if err != nil {
 		if logLimiter.ShouldLog() {
@@ -256,12 +177,7 @@ func (c *collector) Pull(_ context.Context) error {
 	}
 
 	var events []workloadmeta.CollectorEvent
-	for i := 0; i < deviceCache.Count(); i++ {
-		dev, err := deviceCache.GetByIndex(i)
-		if err != nil {
-			return err
-		}
-
+	for _, dev := range deviceCache.All() {
 		gpu, err := c.getGPUDeviceInfo(dev)
 		gpu.DriverVersion = driverVersion
 		if err != nil {

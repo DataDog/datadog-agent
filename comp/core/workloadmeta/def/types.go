@@ -92,9 +92,10 @@ const (
 	// SourceHost represents entities detected by the host such as host tags.
 	SourceHost Source = "host"
 
-	// SourceLocalProcessCollector reprents processes entities detected
-	// by the LocalProcessCollector.
-	SourceLocalProcessCollector Source = "local_process_collector"
+	// SourceProcessLanguageCollector represents processes entities detected
+	// by the ProcessLanguageCollector.
+	SourceProcessLanguageCollector Source = "process_language_collector"
+	SourceProcessCollector         Source = "process_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -559,9 +560,9 @@ type Container struct {
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
 
-	// AllocatedResources is the list of resources allocated to this pod. Requires the
+	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
-	AllocatedResources []ContainerAllocatedResource
+	ResolvedAllocatedResources []ContainerAllocatedResource
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -616,7 +617,7 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
 	_, _ = fmt.Fprintln(&sb, "----------- Allocated Resources -----------")
-	for _, r := range c.AllocatedResources {
+	for _, r := range c.ResolvedAllocatedResources {
 		_, _ = fmt.Fprintln(&sb, r.String())
 	}
 
@@ -982,7 +983,7 @@ type ECSTask struct {
 	ContainerInstanceTags   MapTags
 	ClusterName             string
 	ContainerInstanceARN    string
-	AWSAccountID            int
+	AWSAccountID            string
 	Region                  string
 	AvailabilityZone        string
 	Family                  string
@@ -1199,10 +1200,21 @@ var _ Entity = &ContainerImageMetadata{}
 type Process struct {
 	EntityID // EntityID.ID is the PID
 
+	Pid          int32
 	NsPid        int32
+	Ppid         int32
+	Name         string
+	Cwd          string
+	Exe          string
+	Comm         string
+	Cmdline      []string
+	Uids         []int32
+	Gids         []int32
 	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
+	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
+	Owner *EntityID // Owner is a reference to a container in WLM
 }
 
 var _ Entity = &Process{}
@@ -1237,7 +1249,11 @@ func (p Process) String(_ bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
-	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	if p.Language != nil {
+		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	}
+
+	// TODO: add new fields once the new wlm process collector can be enabled
 
 	return sb.String()
 }
@@ -1372,6 +1388,18 @@ const (
 	GPUCOUNT
 )
 
+// GPUDeviceType is an enum to identify the type of the GPU device.
+type GPUDeviceType int
+
+const (
+	// GPUDeviceTypePhysical represents a physical GPU device.
+	GPUDeviceTypePhysical GPUDeviceType = iota
+	// GPUDeviceTypeMIG represents a MIG device.
+	GPUDeviceTypeMIG
+	// GPUDeviceTypeUnknown represents an unknown device type.
+	GPUDeviceTypeUnknown
+)
+
 // GPU represents a GPU resource.
 type GPU struct {
 	EntityID
@@ -1386,10 +1414,10 @@ type GPU struct {
 	// specific.
 	Device string
 
-	//DriverVersion is the version of the driver used for the gpu device
+	// DriverVersion is the version of the driver used for the gpu device
 	DriverVersion string
 
-	//ActivePIDs is the list of process IDs that are using the GPU.
+	// ActivePIDs is the list of process IDs that are using the GPU.
 	ActivePIDs []int
 
 	// Index is the index of the GPU in the host system. This is useful as sometimes
@@ -1408,7 +1436,7 @@ type GPU struct {
 	// this is a number that represents number of SMs * number of cores per SM (depends on the model)
 	TotalCores int
 
-	//TotalMemory is the total available memory for the device in bytes
+	// TotalMemory is the total available memory for the device in bytes
 	TotalMemory uint64
 
 	// MaxClockRates contains the maximum clock rates for SM and Memory
@@ -1417,29 +1445,8 @@ type GPU struct {
 	// MemoryBusWidth is the width of the memory bus in bits.
 	MemoryBusWidth uint32
 
-	// MigEnabled is true if the GPU supports MIG (Multi-Instance GPU) and it is enabled.
-	MigEnabled bool
-	// MigDevices is a list of MIG devices that are part of the GPU.
-	MigDevices []*MigDevice
-}
-
-// MigDevice contains information about a MIG device, including the GPU instance ID, device info, attributes, and profile. Nvidia MIG allows a single physical GPU to be partitioned into multiple isolated GPU instances so that multiple workloads can run on the same GPU.
-type MigDevice struct {
-	// GPUInstanceID is the ID of the GPU instance. This is a unique identifier inside the parent GPU device.
-	GPUInstanceID int
-	// UUID is the device id retrieved from nvml in the format "MIG-XXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXX"
-	UUID string
-	Name string
-	// GPUInstanceSliceCount and MemorySizeInGb are retrieved from the profile
-	// mig 1g.10gb profile will have GPUInstanceSliceCount = 1 and MemorySizeMB = 10000
-	GPUInstanceSliceCount uint32
-	MemorySizeMB          uint64
-	// ResourceName is the resource of the profile used, e.g. "1g.10gb", "2g.20gb", etc.
-	ResourceName string
-}
-
-func (m *MigDevice) String() string {
-	return fmt.Sprintf("GPU Instance ID: %d, UUID: %s, Resource: %s", m.GPUInstanceID, m.UUID, m.ResourceName)
+	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
+	DeviceType GPUDeviceType
 }
 
 var _ Entity = &GPU{}
@@ -1492,12 +1499,10 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Memory Bus Width:", g.MemoryBusWidth)
 	_, _ = fmt.Fprintln(&sb, "Max SM Clock Rate:", g.MaxClockRates[GPUSM])
 	_, _ = fmt.Fprintln(&sb, "Max Memory Clock Rate:", g.MaxClockRates[GPUMemory])
-	if g.MigEnabled {
-		_, _ = fmt.Fprintln(&sb, "----------- MIG Device -----------")
-		_, _ = fmt.Fprintln(&sb, "MIG Enabled: true")
-		for _, migDevice := range g.MigDevices {
-			_, _ = fmt.Fprintln(&sb, migDevice.String())
-		}
+
+	// Do not show "physical" device type as it's the default and redundant information
+	if g.DeviceType == GPUDeviceTypeMIG {
+		_, _ = fmt.Fprintln(&sb, "Device Type: MIG")
 	}
 
 	return sb.String()

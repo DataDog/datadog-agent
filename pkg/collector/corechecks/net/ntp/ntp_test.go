@@ -41,12 +41,10 @@ hosts: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org,
 	offset = 10
 )
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 func testNTPQueryError(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return nil, fmt.Errorf("test error from NTP")
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 func testNTPQueryInvalid(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,
@@ -54,7 +52,6 @@ func testNTPQueryInvalid(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	}, nil
 }
 
-//nolint:revive // TODO(PLINT) Fix revive linter
 func testNTPQuery(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
 	return &ntp.Response{
 		ClockOffset: time.Duration(offset) * time.Second,

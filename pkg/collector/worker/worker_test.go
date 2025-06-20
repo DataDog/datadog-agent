@@ -18,6 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -739,6 +740,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			requires := haagentimpl.Requires{
 				Logger:      logComponent,
 				AgentConfig: agentConfigComponent,
+				Hostname:    hostnameimpl.NewHostnameService(),
 			}
 			haagentcomp, _ := haagentimpl.NewComponent(requires)
 			haagentcomp.Comp.SetLeader(tt.setLeaderValue)

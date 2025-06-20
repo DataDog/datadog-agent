@@ -24,9 +24,9 @@ var mprotectCapabilities = rules.FieldCapabilities{
 	},
 }
 
-func mprotectKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.Field, error) {
+func mprotectKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error) {
 	var (
-		kfilters     []activeKFilter
+		kfilters     []kFilter
 		fieldHandled []eval.Field
 	)
 
@@ -48,5 +48,5 @@ func mprotectKFiltersGetter(approvers rules.Approvers) (ActiveKFilters, []eval.F
 			fieldHandled = append(fieldHandled, field)
 		}
 	}
-	return newActiveKFilters(kfilters...), fieldHandled, nil
+	return newKFilters(kfilters...), fieldHandled, nil
 }

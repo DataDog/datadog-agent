@@ -32,10 +32,12 @@ BPF_ARRAY_MAP(splice_entry_flags_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, struct u32_flags_filter_t, 1)
 BPF_ARRAY_MAP(bpf_cmd_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(sysctl_action_approvers, struct u32_flags_filter_t, 1)
+BPF_ARRAY_MAP(connect_addr_family_approvers, struct u64_flags_filter_t, 1)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
 BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
 BPF_ARRAY_MAP(global_rate_limiters, struct rate_limiter_ctx, 1)
+BPF_ARRAY_MAP(filtered_dns_rcodes, u16, 1)
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 5)
@@ -105,7 +107,7 @@ BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_fb, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_stats_bb, struct dr_erpc_stats_t, 6)
 BPF_PERCPU_ARRAY_MAP(is_discarded_by_inode_gen, struct is_discarded_by_inode_t, 1)
 BPF_PERCPU_ARRAY_MAP(dns_event, struct dns_event_t, 1)
-BPF_PERCPU_ARRAY_MAP(dns_response_event, struct dns_response_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(dns_response_event, union dns_responses_t, 1)
 BPF_PERCPU_ARRAY_MAP(imds_event, struct imds_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(packets, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, struct selinux_write_buffer_t, 1)
@@ -116,6 +118,7 @@ BPF_PERCPU_ARRAY_MAP(network_flow_monitor_event_gen, struct network_flow_monitor
 BPF_PERCPU_ARRAY_MAP(active_flows_gen, struct active_flows_t, 1)
 BPF_PERCPU_ARRAY_MAP(raw_packet_enabled, u32, 1)
 BPF_PERCPU_ARRAY_MAP(sysctl_event_gen, struct sysctl_event_t, 1)
+BPF_PERCPU_ARRAY_MAP(on_demand_event_gen, struct on_demand_event_t, 1)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
@@ -127,5 +130,12 @@ BPF_PROG_ARRAY(sys_exit_progs, 64)
 BPF_PROG_ARRAY(raw_packet_classifier_router, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
+
+BPF_PERF_EVENT_ARRAY_MAP(events, u32)
+BPF_PERCPU_ARRAY_MAP(events_stats, struct perf_map_stats_t, EVENT_MAX)
+
+#if USE_RING_BUFFER == 1
+BPF_ARRAY_MAP(events_ringbuf_stats, u64, 1)
+#endif
 
 #endif

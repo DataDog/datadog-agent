@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package stats contains the stats for a check
 package stats
 
 import (
@@ -132,7 +132,7 @@ type Stats struct {
 	HASupported              bool
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+//nolint:revive
 type StatsCheck interface {
 	// String provides a printable version of the check name
 	String() string

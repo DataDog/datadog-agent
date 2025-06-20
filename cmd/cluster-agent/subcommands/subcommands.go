@@ -10,6 +10,7 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
+	cmdautoscalerlist "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/autoscalerlist"
 	cmdcheck "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/check"
 	cmdclusterchecks "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/clusterchecks"
 	cmdcompliance "github.com/DataDog/datadog-agent/cmd/cluster-agent/subcommands/compliance"
@@ -46,6 +47,7 @@ func ClusterAgentSubcommands() []command.SubcommandFactory {
 		cmdsecrethelper.Commands,
 		cmdtelemetry.Commands,
 		cmdstatus.Commands,
+		cmdautoscalerlist.Commands,
 		cmdworkloadlist.Commands,
 		cmdtaggerlist.Commands,
 	}

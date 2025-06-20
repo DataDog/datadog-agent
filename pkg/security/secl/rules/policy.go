@@ -50,9 +50,9 @@ type PolicyRule struct {
 	Actions    []*Action
 	Accepted   bool
 	Error      error
-	Policy     *Policy
-	ModifiedBy []*PolicyRule
-	UsedBy     []*Policy
+	Policy     PolicyInfo
+	ModifiedBy []PolicyInfo
+	UsedBy     []PolicyInfo
 }
 
 func (r *PolicyRule) isAccepted() bool {
@@ -112,7 +112,7 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 }
 
 // MergeWith merges rule r2 into r
-func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
+func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
 	switch r2.Def.Combine {
 	case OverridePolicy:
 		if !r2.Def.Disabled {
@@ -120,7 +120,7 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 		}
 	default:
 		if r.Def.Disabled == r2.Def.Disabled {
-			return nil
+			return
 		}
 	}
 
@@ -134,9 +134,7 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) error {
 		}
 	}
 
-	r.ModifiedBy = append(r.ModifiedBy, r2)
-
-	return nil
+	r.ModifiedBy = append(r.ModifiedBy, r2.Policy)
 }
 
 // PolicyType represents the type of a policy
@@ -153,18 +151,35 @@ const (
 	SelftestPolicy PolicyType = "selftest"
 )
 
+// PolicyInfo contains information about a policy that aren't part of the policy definition
+type PolicyInfo struct {
+	// Name is the name of the policy
+	Name string
+	// Source is the source of the policy
+	Source string
+	// Type is the type of the policy
+	Type PolicyType
+	// Version is the version of the policy, this field is copied from the policy definition
+	Version string
+	// IsInternal is true if the policy is internal
+	IsInternal bool
+}
+
+// Equals compares two PolicyInfo objects and returns true if they are equal
+func (pi *PolicyInfo) Equals(other *PolicyInfo) bool {
+	return reflect.DeepEqual(pi, other)
+}
+
 // Policy represents a policy which is composed of a list of rules, macros and on-demand hook points
 type Policy struct {
-	Def        *PolicyDef
-	Name       string
-	Source     string
-	Type       PolicyType
-	IsInternal bool
+	// Def is the policy definition
+	Def *PolicyDef
+	// Info contains the policy information such as its name, source and type
+	Info PolicyInfo
 	// multiple macros can have the same ID but different filters (e.g. agent version)
 	macros map[MacroID][]*PolicyMacro
 	// multiple rules can have the same ID but different filters (e.g. agent version)
-	rules              map[RuleID][]*PolicyRule
-	onDemandHookPoints []OnDemandHookPoint
+	rules map[RuleID][]*PolicyRule
 }
 
 // GetAcceptedMacros returns the list of accepted macros that are part of the policy
@@ -248,7 +263,7 @@ RULES:
 		rule := &PolicyRule{
 			Def:      ruleDef,
 			Accepted: true,
-			Policy:   p,
+			Policy:   p.Info, // copy the policy information as it can be modified on a per-rule basis when merging rules from different policies
 		}
 		p.rules[ruleDef.ID] = append(p.rules[ruleDef.ID], rule)
 		for _, filter := range ruleFilters {
@@ -286,18 +301,18 @@ RULES:
 		}
 	}
 
-	p.onDemandHookPoints = p.Def.OnDemandHookPoints
-
 	return errs.ErrorOrNil()
 }
 
 // LoadPolicyFromDefinition load a policy from a definition
-func LoadPolicyFromDefinition(name string, source string, policyType PolicyType, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
+func LoadPolicyFromDefinition(info *PolicyInfo, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
+	if def != nil && def.Version != "" {
+		info.Version = def.Version
+	}
+
 	p := &Policy{
 		Def:    def,
-		Name:   name,
-		Source: source,
-		Type:   policyType,
+		Info:   *info,
 		macros: make(map[MacroID][]*PolicyMacro, len(def.Macros)),
 		rules:  make(map[RuleID][]*PolicyRule, len(def.Rules)),
 	}
@@ -306,12 +321,12 @@ func LoadPolicyFromDefinition(name string, source string, policyType PolicyType,
 }
 
 // LoadPolicy load a policy
-func LoadPolicy(name string, source string, policyType PolicyType, reader io.Reader, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
+func LoadPolicy(info *PolicyInfo, reader io.Reader, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	def := PolicyDef{}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&def); err != nil {
-		return nil, &ErrPolicyLoad{Name: name, Err: err}
+		return nil, &ErrPolicyLoad{Name: info.Name, Source: info.Source, Err: err}
 	}
 
-	return LoadPolicyFromDefinition(name, source, policyType, &def, macroFilters, ruleFilters)
+	return LoadPolicyFromDefinition(info, &def, macroFilters, ruleFilters)
 }

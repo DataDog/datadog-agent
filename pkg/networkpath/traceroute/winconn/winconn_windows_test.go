@@ -36,9 +36,9 @@ func Test_listenPackets(t *testing.T) {
 	innerSrcIP := net.ParseIP("88.88.88.88")
 	innerDstIP := net.ParseIP("77.77.77.77")
 	mockICMPPacket := testutils.CreateMockICMPWithTCPPacket(
-		testutils.CreateMockIPv4Layer(srcIP, dstIP, layers.IPProtocolICMPv4),
+		testutils.CreateMockIPv4Layer(1234, srcIP, dstIP, layers.IPProtocolICMPv4),
 		testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded),
-		testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolTCP),
+		testutils.CreateMockIPv4Layer(4321, innerSrcIP, innerDstIP, layers.IPProtocolTCP),
 		testutils.CreateMockTCPLayer(12345, 443, 28394, 12737, true, true, true),
 		false,
 	)
@@ -76,7 +76,7 @@ func Test_listenPackets(t *testing.T) {
 			description: "successful call returns IP and timestamp",
 			timeout:     500 * time.Millisecond,
 			matcherFuncs: map[int]common.MatcherFunc{
-				windows.IPPROTO_ICMP: func(_ *ipv4.Header, _ []byte, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) (net.IP, error) {
+				windows.IPPROTO_ICMP: func(_ *ipv4.Header, _ []byte, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32, _ uint16) (net.IP, error) {
 					return srcIP, nil
 				},
 			},
@@ -96,10 +96,11 @@ func Test_listenPackets(t *testing.T) {
 	inputIP := net.ParseIP("127.0.0.1")
 	inputPort := uint16(161)
 	seqNum := uint32(1)
+	packetID := uint16(4321)
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {
 			recvFrom = test.recvFrom
-			actualIP, finished, err := socket.ListenPackets(test.timeout, inputIP, inputPort, inputIP, inputPort, seqNum, test.matcherFuncs)
+			actualIP, finished, err := socket.ListenPackets(test.timeout, inputIP, inputPort, inputIP, inputPort, seqNum, packetID, test.matcherFuncs)
 			if test.expectedErrMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.expectedErrMsg), fmt.Sprintf("expected %q, got %q", test.expectedErrMsg, err.Error()))
@@ -165,7 +166,7 @@ func Test_handlePackets(t *testing.T) {
 				return len(tcpBytes), nil, nil
 			},
 			matcherFuncs: map[int]common.MatcherFunc{
-				windows.IPPROTO_TCP: func(_ *ipv4.Header, _ []byte, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) (net.IP, error) {
+				windows.IPPROTO_TCP: func(_ *ipv4.Header, _ []byte, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32, _ uint16) (net.IP, error) {
 					return net.IP{}, errors.New("failed parsing packet")
 				},
 			},
@@ -191,7 +192,7 @@ func Test_handlePackets(t *testing.T) {
 				return len(tcpBytes), nil, nil
 			},
 			matcherFuncs: map[int]common.MatcherFunc{
-				windows.IPPROTO_TCP: func(_ *ipv4.Header, _ []byte, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32) (net.IP, error) {
+				windows.IPPROTO_TCP: func(_ *ipv4.Header, _ []byte, _ net.IP, _ uint16, _ net.IP, _ uint16, _ uint32, _ uint16) (net.IP, error) {
 					return srcIP, nil
 				},
 			},
@@ -205,7 +206,7 @@ func Test_handlePackets(t *testing.T) {
 			defer cancel()
 			recvFrom = test.recvFrom
 			w := &RawConn{}
-			actualIP, _, err := w.handlePackets(ctx, net.IP{}, uint16(0), net.IP{}, uint16(0), uint32(0), test.matcherFuncs)
+			actualIP, _, err := w.handlePackets(ctx, net.IP{}, uint16(0), net.IP{}, uint16(0), uint32(0), uint16(0), test.matcherFuncs)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.errMsg), fmt.Sprintf("expected %q, got %q", test.errMsg, err.Error()))

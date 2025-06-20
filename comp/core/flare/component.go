@@ -27,6 +27,9 @@ type Component interface {
 	//
 	// If providerTimeout is 0 or negative, the timeout from the configuration will be used.
 	Create(pdata types.ProfileData, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
+	// CreateWithArgs creates a new flare locally and returns the path to the flare file.
+	// This function is used to create a flare with specific arguments.
+	CreateWithArgs(flareArgs types.FlareArgs, providerTimeout time.Duration, ipcError error, diagnoseResult []byte) (string, error)
 	// Send sends a flare archive to Datadog.
 	Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error)
 }

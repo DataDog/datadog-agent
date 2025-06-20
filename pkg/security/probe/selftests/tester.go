@@ -63,14 +63,13 @@ func (t *SelfTester) RunSelfTest(ctx context.Context, timeout time.Duration) err
 		return err
 	}
 
-	// allow 5 seconds for the self test event to be generated
-	ctx, cancelFnc := context.WithTimeout(ctx, 5*time.Second)
-	defer cancelFnc()
-
 	for _, selfTest := range t.selfTests {
+		// allow 10 seconds for the self test event to be generated
+		ctx, cancelFnc := context.WithTimeout(ctx, 10*time.Second)
 		if err := selfTest.GenerateEvent(ctx); err != nil {
 			log.Errorf("self test failed (%s): %v", selfTest.GetRuleDefinition().ID, err)
 		}
+		cancelFnc()
 	}
 
 	return nil
@@ -102,7 +101,7 @@ func CreateTargetDir() (string, error) {
 }
 
 // WaitForResult wait for self test results
-func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID, events map[eval.RuleID]*serializers.EventSerializer)) {
+func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID)) {
 	for timeout := range t.selfTestRunning {
 		timer := time.After(timeout)
 
@@ -153,7 +152,7 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 		t.success, t.fails, t.lastTimestamp = success, fails, time.Now()
 		t.Unlock()
 
-		cb(success, fails, events)
+		cb(success, fails)
 
 		t.endSelfTests()
 	}
@@ -190,11 +189,17 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 		policyDef.Rules[i] = selfTest.GetRuleDefinition()
 	}
 
-	policy, err := rules.LoadPolicyFromDefinition(policyName, policySource, rules.SelftestPolicy, policyDef, nil, nil)
+	pInfo := &rules.PolicyInfo{
+		Name:       policyName,
+		Source:     policySource,
+		Type:       rules.SelftestPolicy,
+		IsInternal: true,
+	}
+
+	policy, err := rules.LoadPolicyFromDefinition(pInfo, policyDef, nil, nil)
 	if err != nil {
 		return nil, multierror.Append(nil, err)
 	}
-	policy.IsInternal = true
 
 	return []*rules.Policy{policy}, nil
 }

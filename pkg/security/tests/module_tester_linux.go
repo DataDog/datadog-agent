@@ -216,6 +216,8 @@ runtime_security_config:
         enabled: {{.EnforcementDisarmerExecutableEnabled}}
         max_allowed: {{.EnforcementDisarmerExecutableMaxAllowed}}
         period: {{.EnforcementDisarmerExecutablePeriod}}
+  file_metadata_resolver:
+    enabled: true
 `
 
 const (
@@ -584,10 +586,6 @@ func (tm *testModule) validateExecEvent(tb *testing.T, kind wrapperType, validat
 }
 
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
-	return newTestModuleWithOnDemandProbes(t, nil, macroDefs, ruleDefs, fopts...)
-}
-
-func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDemandHookPoint, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
 	var opts tmOpts
 	for _, opt := range fopts {
 		opt(&opts)
@@ -646,7 +644,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(commonCfgDir, onDemandHooks, macroDefs, ruleDefs); err != nil {
+	if err := setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
@@ -741,6 +739,7 @@ func newTestModuleWithOnDemandProbes(t testing.TB, onDemandHooks []rules.OnDeman
 			SyscallsMonitorEnabled:   true,
 			TTYFallbackEnabled:       true,
 			EBPFLessEnabled:          ebpfLessEnabled,
+			DNSPort:                  opts.staticOpts.dnsPort,
 		},
 	}
 
@@ -1351,7 +1350,7 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, s
 	_, _ = cmd.CombinedOutput()
 
 	// dns
-	cmd = dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
+	cmd = dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
 	_, _ = cmd.CombinedOutput()
 
 	// bind

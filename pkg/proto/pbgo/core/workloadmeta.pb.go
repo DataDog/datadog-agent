@@ -898,22 +898,22 @@ func (x *ContainerAllocatedResource) GetID() string {
 }
 
 type Container struct {
-	state              protoimpl.MessageState        `protogen:"open.v1"`
-	EntityId           *WorkloadmetaEntityId         `protobuf:"bytes,1,opt,name=entityId,proto3" json:"entityId,omitempty"`
-	EntityMeta         *EntityMeta                   `protobuf:"bytes,2,opt,name=entityMeta,proto3" json:"entityMeta,omitempty"`
-	EnvVars            map[string]string             `protobuf:"bytes,3,rep,name=envVars,proto3" json:"envVars,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Hostname           string                        `protobuf:"bytes,4,opt,name=hostname,proto3" json:"hostname,omitempty"`
-	Image              *ContainerImage               `protobuf:"bytes,5,opt,name=image,proto3" json:"image,omitempty"`
-	NetworkIps         map[string]string             `protobuf:"bytes,6,rep,name=networkIps,proto3" json:"networkIps,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Pid                int32                         `protobuf:"varint,7,opt,name=pid,proto3" json:"pid,omitempty"`
-	Ports              []*ContainerPort              `protobuf:"bytes,8,rep,name=ports,proto3" json:"ports,omitempty"`
-	Runtime            Runtime                       `protobuf:"varint,9,opt,name=runtime,proto3,enum=datadog.workloadmeta.Runtime" json:"runtime,omitempty"`
-	State              *ContainerState               `protobuf:"bytes,10,opt,name=state,proto3" json:"state,omitempty"`
-	CollectorTags      []string                      `protobuf:"bytes,11,rep,name=collectorTags,proto3" json:"collectorTags,omitempty"`
-	CgroupPath         string                        `protobuf:"bytes,12,opt,name=cgroupPath,proto3" json:"cgroupPath,omitempty"`
-	AllocatedResources []*ContainerAllocatedResource `protobuf:"bytes,13,rep,name=allocatedResources,proto3" json:"allocatedResources,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                      protoimpl.MessageState        `protogen:"open.v1"`
+	EntityId                   *WorkloadmetaEntityId         `protobuf:"bytes,1,opt,name=entityId,proto3" json:"entityId,omitempty"`
+	EntityMeta                 *EntityMeta                   `protobuf:"bytes,2,opt,name=entityMeta,proto3" json:"entityMeta,omitempty"`
+	EnvVars                    map[string]string             `protobuf:"bytes,3,rep,name=envVars,proto3" json:"envVars,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Hostname                   string                        `protobuf:"bytes,4,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	Image                      *ContainerImage               `protobuf:"bytes,5,opt,name=image,proto3" json:"image,omitempty"`
+	NetworkIps                 map[string]string             `protobuf:"bytes,6,rep,name=networkIps,proto3" json:"networkIps,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Pid                        int32                         `protobuf:"varint,7,opt,name=pid,proto3" json:"pid,omitempty"`
+	Ports                      []*ContainerPort              `protobuf:"bytes,8,rep,name=ports,proto3" json:"ports,omitempty"`
+	Runtime                    Runtime                       `protobuf:"varint,9,opt,name=runtime,proto3,enum=datadog.workloadmeta.Runtime" json:"runtime,omitempty"`
+	State                      *ContainerState               `protobuf:"bytes,10,opt,name=state,proto3" json:"state,omitempty"`
+	CollectorTags              []string                      `protobuf:"bytes,11,rep,name=collectorTags,proto3" json:"collectorTags,omitempty"`
+	CgroupPath                 string                        `protobuf:"bytes,12,opt,name=cgroupPath,proto3" json:"cgroupPath,omitempty"`
+	ResolvedAllocatedResources []*ContainerAllocatedResource `protobuf:"bytes,13,rep,name=resolvedAllocatedResources,proto3" json:"resolvedAllocatedResources,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *Container) Reset() {
@@ -1030,9 +1030,9 @@ func (x *Container) GetCgroupPath() string {
 	return ""
 }
 
-func (x *Container) GetAllocatedResources() []*ContainerAllocatedResource {
+func (x *Container) GetResolvedAllocatedResources() []*ContainerAllocatedResource {
 	if x != nil {
-		return x.AllocatedResources
+		return x.ResolvedAllocatedResources
 	}
 	return nil
 }
@@ -1318,7 +1318,7 @@ type ECSTask struct {
 	Version               string                   `protobuf:"bytes,9,opt,name=version,proto3" json:"version,omitempty"`
 	LaunchType            ECSLaunchType            `protobuf:"varint,10,opt,name=launchType,proto3,enum=datadog.workloadmeta.ECSLaunchType" json:"launchType,omitempty"`
 	Containers            []*OrchestratorContainer `protobuf:"bytes,11,rep,name=containers,proto3" json:"containers,omitempty"`
-	AwsAccountID          int64                    `protobuf:"varint,12,opt,name=awsAccountID,proto3" json:"awsAccountID,omitempty"`
+	AwsAccountID          string                   `protobuf:"bytes,12,opt,name=awsAccountID,proto3" json:"awsAccountID,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -1430,11 +1430,11 @@ func (x *ECSTask) GetContainers() []*OrchestratorContainer {
 	return nil
 }
 
-func (x *ECSTask) GetAwsAccountID() int64 {
+func (x *ECSTask) GetAwsAccountID() string {
 	if x != nil {
 		return x.AwsAccountID
 	}
-	return 0
+	return ""
 }
 
 type WorkloadmetaEvent struct {
@@ -1599,7 +1599,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\bexitCode\x18\a \x01(\x03R\bexitCode\"@\n" +
 	"\x1aContainerAllocatedResource\x12\x12\n" +
 	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x0e\n" +
-	"\x02ID\x18\x02 \x01(\tR\x02ID\"\xeb\x06\n" +
+	"\x02ID\x18\x02 \x01(\tR\x02ID\"\xfb\x06\n" +
 	"\tContainer\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -1619,8 +1619,8 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\rcollectorTags\x18\v \x03(\tR\rcollectorTags\x12\x1e\n" +
 	"\n" +
 	"cgroupPath\x18\f \x01(\tR\n" +
-	"cgroupPath\x12`\n" +
-	"\x12allocatedResources\x18\r \x03(\v20.datadog.workloadmeta.ContainerAllocatedResourceR\x12allocatedResources\x1a:\n" +
+	"cgroupPath\x12p\n" +
+	"\x1aresolvedAllocatedResources\x18\r \x03(\v20.datadog.workloadmeta.ContainerAllocatedResourceR\x1aresolvedAllocatedResources\x1a:\n" +
 	"\fEnvVarsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
@@ -1677,7 +1677,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\n" +
 	"containers\x18\v \x03(\v2+.datadog.workloadmeta.OrchestratorContainerR\n" +
 	"containers\x12\"\n" +
-	"\fawsAccountID\x18\f \x01(\x03R\fawsAccountID\x1a7\n" +
+	"\fawsAccountID\x18\f \x01(\tR\fawsAccountID\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1aH\n" +
@@ -1794,7 +1794,7 @@ var file_datadog_workloadmeta_workloadmeta_proto_depIdxs = []int32{
 	12, // 14: datadog.workloadmeta.Container.ports:type_name -> datadog.workloadmeta.ContainerPort
 	3,  // 15: datadog.workloadmeta.Container.runtime:type_name -> datadog.workloadmeta.Runtime
 	13, // 16: datadog.workloadmeta.Container.state:type_name -> datadog.workloadmeta.ContainerState
-	14, // 17: datadog.workloadmeta.Container.allocatedResources:type_name -> datadog.workloadmeta.ContainerAllocatedResource
+	14, // 17: datadog.workloadmeta.Container.resolvedAllocatedResources:type_name -> datadog.workloadmeta.ContainerAllocatedResource
 	11, // 18: datadog.workloadmeta.OrchestratorContainer.image:type_name -> datadog.workloadmeta.ContainerImage
 	9,  // 19: datadog.workloadmeta.KubernetesPod.entityId:type_name -> datadog.workloadmeta.WorkloadmetaEntityId
 	10, // 20: datadog.workloadmeta.KubernetesPod.entityMeta:type_name -> datadog.workloadmeta.EntityMeta

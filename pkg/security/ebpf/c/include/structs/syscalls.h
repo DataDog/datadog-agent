@@ -37,6 +37,7 @@ struct syscall_cache_t {
     u32 ctx_id;
     struct dentry_resolver_input_t resolver;
     s64 retval;
+    enum TAIL_CALL_PROG_TYPE prog_type;
 
     union {
         struct {
@@ -72,6 +73,15 @@ struct syscall_cache_t {
             struct dentry *target_dentry;
             struct file_t target_file;
         } rename;
+
+        struct {
+            int resource;
+            u64 rlim_cur;
+            u64 rlim_max;
+            u32 pid;
+            struct process_context_t target_process;
+            struct container_context_t target_container;
+        } setrlimit;
 
         struct {
             struct dentry *dentry;
@@ -120,6 +130,7 @@ struct syscall_cache_t {
             struct dentry *dentry;
             struct file_t file;
             const char *name;
+            u64 pid_tgid;
         } xattr;
 
         struct {
@@ -130,7 +141,6 @@ struct syscall_cache_t {
             struct args_envs_parsing_context_t args_envs_ctx;
             struct span_context_t span_context;
             struct linux_binprm_t linux_binprm;
-            u8 is_parsed;
         } exec;
 
         struct {
@@ -211,6 +221,7 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
             u16 protocol;
+            u64 pid_tgid;
         } bind;
 
          struct {
@@ -218,6 +229,7 @@ struct syscall_cache_t {
             u16 family;
             u16 port;
             u16 protocol;
+            u64 pid_tgid;
         } connect;
 
          struct {
@@ -243,6 +255,11 @@ struct syscall_cache_t {
         struct {
             u32 action;
         } sysctl;
+
+        struct {
+            int level;
+            int optname;
+        } setsockopt;
     };
 };
 

@@ -53,7 +53,7 @@ var (
 	// ErrNoMatchingRule is returned when no rule matches the shared library path.
 	ErrNoMatchingRule = errors.New("no matching rule")
 	// regex that defines internal DataDog processes
-	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
+	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace|otel)-agent|system-probe|agent)")
 )
 
 // AttachTarget defines the target to which we should attach the probes, libraries or executables
@@ -226,6 +226,11 @@ type AttacherConfig struct {
 	// events from happening. However, if it takes too long it can delay the next sync. In any case, synchronizations are
 	// usually performed every 30 seconds by default (ScanProcessesInterval), so it shouldn't be a problem.
 	OnSyncCallback func(map[uint32]struct{})
+
+	// MaxPeriodicScansPerProcess defines the maximum number of periodic scans we will perform for a given PID
+	// when EnablePeriodicScanNewProcesses is true. Useful to avoid re-scanning processes that have already
+	// been scanned, specially when shared libraries are being traced as scanning the maps file can be expensive.
+	MaxPeriodicScansPerProcess int
 }
 
 // SetDefaults configures the AttacherConfig with default values for those fields for which the compiler
@@ -241,6 +246,13 @@ func (ac *AttacherConfig) SetDefaults() {
 
 	if ac.EbpfConfig == nil {
 		ac.EbpfConfig = ebpf.NewConfig()
+	}
+
+	if ac.MaxPeriodicScansPerProcess == 0 {
+		// 2 seems a reasonable default, as we will give time (1 minute with the default interval)
+		// to the process to start and for any environmental errors to stop affecting the process
+		// and allow it to load the shared libraries we might be interested in.
+		ac.MaxPeriodicScansPerProcess = 2
 	}
 }
 
@@ -360,6 +372,13 @@ type UprobeAttacher struct {
 
 	// processMonitor is the process monitor that we use to subscribe to process start and exit events
 	processMonitor ProcessMonitor
+
+	// scansPerPid is a map of PIDs to the number of times we have scanned them, to avoid re-scanning them
+	// too many times when EnablePeriodicScanNewProcesses is true
+	scansPerPid map[uint32]int
+
+	// attachLimiter is used to limit the number of times we log warnings about attachment errors
+	attachLimiter *log.Limit
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
@@ -391,6 +410,8 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		done:                   make(chan struct{}),
 		inspector:              inspector,
 		processMonitor:         processMonitor,
+		scansPerPid:            make(map[uint32]int),
+		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
 	}
 
 	utils.AddAttacher(moduleName, name, ua)
@@ -527,28 +548,50 @@ func (ua *UprobeAttacher) Sync(trackCreations, trackDeletions bool) error {
 	}
 
 	alivePIDs := make(map[uint32]struct{})
-	_ = kernel.WithAllProcs(ua.config.ProcRoot, func(pid int) error {
-		if pid == thisPID { // don't scan ourselves
+	_ = kernel.WithAllProcs(ua.config.ProcRoot, func(p int) error {
+		if p == thisPID { // don't scan ourselves
 			return nil
 		}
 
-		alivePIDs[uint32(pid)] = struct{}{}
+		pid := uint32(p)
+
+		alivePIDs[pid] = struct{}{}
 
 		if trackDeletions {
-			if _, ok := deletionCandidates[uint32(pid)]; ok {
+			if _, ok := deletionCandidates[pid]; ok {
 				// We have previously hooked into this process and it remains active,
 				// so we remove it from the deletionCandidates list, and move on to the next PID
-				delete(deletionCandidates, uint32(pid))
+				delete(deletionCandidates, pid)
 				return nil
 			}
 		}
 
-		if trackCreations {
+		if trackCreations && ua.scansPerPid[pid] < ua.config.MaxPeriodicScansPerProcess {
 			// This is a new PID so we attempt to attach SSL probes to it
-			_ = ua.AttachPID(uint32(pid))
+			ua.scansPerPid[pid]++
+			err := ua.AttachPID(pid)
+			if err == nil {
+				if ua.config.EnableDetailedLogging {
+					log.Debugf("uprobe attacher %s attached to process %d via periodic scan", ua.name, pid)
+				}
+
+				// Set the number of scans to the maximum so we don't try to scan it again
+				ua.scansPerPid[pid] = ua.config.MaxPeriodicScansPerProcess
+			} else {
+				if ua.shouldLogRegistryError(err) {
+					log.Warnf("could not attach to process %d: %v", pid, err)
+				}
+			}
 		}
 		return nil
 	})
+
+	// Clean up the scansPerPid map, removing all PIDs that are no longer alive
+	for pid := range ua.scansPerPid {
+		if _, ok := alivePIDs[pid]; !ok {
+			delete(ua.scansPerPid, pid)
+		}
+	}
 
 	if trackDeletions {
 		// At this point all entries from deletionCandidates are no longer alive, so
@@ -582,7 +625,10 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 	}
 
 	var unknownErr *utils.UnknownAttachmentError
-	return errors.As(err, &unknownErr)
+	if errors.As(err, &unknownErr) {
+		return ua.attachLimiter.ShouldLog()
+	}
+	return false
 }
 
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error
@@ -784,9 +830,9 @@ func parseSymbolFromEBPFProbeName(probeName string) (symbol string, isManualRetu
 // callback.
 func (ua *UprobeAttacher) attachToBinary(fpath utils.FilePath, matchingRules []*AttachRule, procInfo *ProcInfo) error {
 	if ua.config.ExcludeTargets&ExcludeBuildkit != 0 && isBuildKit(procInfo) {
-		return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
+		return fmt.Errorf("%w: process %d is buildkitd, skipping", utils.ErrEnvironment, fpath.PID)
 	} else if ua.config.ExcludeTargets&ExcludeContainerdTmp != 0 && isContainerdTmpMount(fpath.HostPath) {
-		return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
+		return fmt.Errorf("%w: path %s from process %d is tempmount of containerd, skipping", utils.ErrEnvironment, fpath.HostPath, fpath.PID)
 	}
 
 	symbolsToRequest, err := ua.computeSymbolsToRequest(matchingRules)

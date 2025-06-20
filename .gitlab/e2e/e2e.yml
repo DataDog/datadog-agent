@@ -73,7 +73,7 @@
     E2E_RESULT_JSON: $CI_PROJECT_DIR/e2e_test_output.json
     E2E_USE_AWS_PROFILE: "true"
   script:
-    - dda inv -- -e new-e2e-tests.run --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS --rerun-fails=2 -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - dda inv -- -e new-e2e-tests.run --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
   artifacts:
@@ -169,15 +169,13 @@ new-e2e-containers-eks-init:
   allow_failure: true
 
 new-e2e-containers-eks:
-  extends: .new_e2e_template
+  extends: .new_e2e_template_needs_container_deploy
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
   needs:
-    - !reference [.needs_new_e2e_template]
+    - !reference [.new_e2e_template_needs_container_deploy, needs]
     - new-e2e-containers-eks-init
-    - qa_agent
-    - qa_dca
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
@@ -193,7 +191,8 @@ new-e2e-remote-config:
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -291,6 +290,19 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
 
+new-e2e-windows-certificate:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_certificate_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  variables:
+    TARGETS: ./tests/windows/windows-certificate
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run "TestRemoteCertificates$"
+
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
@@ -298,7 +310,7 @@ new-e2e-language-detection:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-packages:
@@ -429,7 +441,8 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
@@ -437,6 +450,7 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestKindSuite
       - EXTRA_PARAMS: --run TestAgentWindowsSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   allow_failure: true
 
 new-e2e-discovery:
@@ -466,7 +480,7 @@ new-e2e-process:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/process
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator:
@@ -493,7 +507,8 @@ new-e2e-apm:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
@@ -564,14 +579,6 @@ new-e2e-installer-windows:
     # Note 2: new_e2e_template does not define AGENT_MAJOR_VERSION, so define it as 7 below.
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
-    # TODO: temp override of version until we have a stable version
-    # - export STABLE_AGENT_VERSION_PACKAGE=$(curl --retry 10 --retry-all-errors -sS https://hub.docker.com/v2/namespaces/datadog/repositories/agent-package/tags | jq -r '.results[] | .name' | sort | tail -n 2 | head -n 1)
-    - export STABLE_AGENT_VERSION_PACKAGE="7.66.0-devel.git.488.1ddea94.pipeline.62296915-1"
-    # NOTE: pkg/version.GetNumberAndPre doesn't work on url-safe versions, it looks for the `+` character
-    - export STABLE_AGENT_VERSION=7.66.0-devel
-    - export STABLE_AGENT_MSI_URL=https://s3.amazonaws.com/dd-agent-mstesting/builds/dev/ddagent-cli-7.66.0-devel.git.488.1ddea94.pipeline.62296915.msi
-    - export STABLE_AGENT_OCI_REGISTRY=install.datad0g.com
-    - export STABLE_AGENT_OCI_VERSION=7.66.0-devel.git.488.1ddea94.pipeline.62296915-1
     - !reference [.new_e2e_template, before_script]
   variables:
     TARGETS: ./tests/installer/windows
@@ -583,6 +590,8 @@ new-e2e-installer-windows:
       # agent-package
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageWithAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeAgentPackageAfterRollback$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentForNonExistingPackageFails$"
@@ -590,12 +599,22 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestStopWithoutExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDies$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenTimeout$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestExperimentMSIRollbackMaintainsCustomUserAndAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRevertsExperimentWhenServiceDiesMaintainsCustomUserAndAltDir$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
+      - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
+      # agent config experiment
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       # install-script
@@ -677,7 +696,8 @@ new-e2e-ha-agent:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
 
 new-e2e-ha-agent-failover:
@@ -847,11 +867,13 @@ new-e2e-gpu:
     - agent_deb-x64-a7                  # agent 7 debian package
   parallel:
     matrix:
-      - EXTRA_PARAMS: "--run TestGPUHostSuite"
-      - EXTRA_PARAMS: "--run TestGPUK8sSuite"
+      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu2204'
+      - EXTRA_PARAMS: '--run TestGPUK8sSuiteUbuntu2204'
+      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver510'
+      - EXTRA_PARAMS: '--run TestGPUHostSuiteUbuntu1804Driver430' # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
 
 generate-flakes-finder-pipeline:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]
@@ -901,7 +923,7 @@ trigger-flakes-finder:
   allow_failure: true
 
 generate-fips-e2e-pipeline:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   stage: e2e
   rules:
     - !reference [.except_disable_e2e_tests]

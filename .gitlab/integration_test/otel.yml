@@ -4,7 +4,7 @@
 
 integration_tests_otel:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   script:
@@ -19,7 +19,7 @@ integration_tests_otel:
 
 docker_image_build_otel:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   needs: ["go_deps","integration_tests_otel"]
   tags: ["docker-in-docker:amd64"]
   before_script:
@@ -45,7 +45,7 @@ docker_image_build_otel:
 
 datadog_otel_components_ocb_build:
   stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   needs: ["go_deps"]
   artifacts:

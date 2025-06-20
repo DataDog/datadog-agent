@@ -84,7 +84,7 @@ func (c *CronJobV1Beta1Collector) Run(rcfg *collectors.CollectorRunConfig) (*col
 func (c *CronJobV1Beta1Collector) Process(rcfg *collectors.CollectorRunConfig, list interface{}) (*collectors.CollectorRunResult, error) {
 	ctx := collectors.NewK8sProcessorContext(rcfg, c.metadata)
 
-	processResult, processed := c.processor.Process(ctx, list)
+	processResult, listed, processed := c.processor.Process(ctx, list)
 
 	if processed == -1 {
 		return nil, collectors.ErrProcessingPanic
@@ -92,7 +92,7 @@ func (c *CronJobV1Beta1Collector) Process(rcfg *collectors.CollectorRunConfig, l
 
 	result := &collectors.CollectorRunResult{
 		Result:             processResult,
-		ResourcesListed:    len(c.processor.Handlers().ResourceList(ctx, list)),
+		ResourcesListed:    listed,
 		ResourcesProcessed: processed,
 	}
 

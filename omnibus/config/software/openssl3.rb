@@ -20,7 +20,7 @@ license "Apache-2.0"
 license_file "LICENSE.txt"
 skip_transitive_dependency_licensing true
 
-dependency "zlib"
+dependency "zlib" unless windows?
 dependency "cacerts"
 
 default_version "3.4.1"
@@ -69,8 +69,6 @@ build do
   end
 
   configure_args << [
-    "--with-zlib-lib=#{install_dir}/embedded/lib",
-    "--with-zlib-include=#{install_dir}/embedded/include",
     "--libdir=lib",
     "no-idea",
     "no-mdc2",
@@ -81,21 +79,32 @@ build do
   ]
 
   if windows?
-    configure_args << "zlib-dynamic"
+    configure_args << [
+      "--prefix=#{python_3_embedded}",
+      "no-zlib",
+      "no-uplink",
+    ]
     if ENV["AGENT_FLAVOR"] == "fips"
       configure_args << '--openssldir="C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"'
       # Provide a context name for our configuration through the registry
       configure_args << "-DOSSL_WINCTX=datadog-fips-agent"
     end
   else
-    configure_args << "zlib"
+    configure_args << [
+      "--prefix=#{install_dir}/embedded",
+      "--with-zlib-lib=#{install_dir}/embedded/lib",
+      "--with-zlib-include=#{install_dir}/embedded/include",
+      "zlib",
+    ]
   end
 
   # Out of abundance of caution, we put the feature flags first and then
   # the crazy platform specific compiler flags at the end.
   configure_args << env["CFLAGS"] << env["LDFLAGS"]
 
-  configure(*configure_args, bin: configure_cmd, env: env, no_build_triplet: true)
+  # We don't use the regular configure wrapper function here since openssl's configure
+  # is not the usual autoconf configure but something handmade written in perl
+  command "#{configure_cmd} #{configure_args.join(' ')}", env: env
 
   command "make depend", env: env
   command "make -j #{workers}", env: env
@@ -107,6 +116,5 @@ build do
     delete "#{install_dir}/embedded/lib/libcrypto.a"
     delete "#{install_dir}/embedded/lib/libssl.a"
   else
-    copy "ms/applink.c", "#{install_dir}/embedded3/include/openssl"
   end
 end

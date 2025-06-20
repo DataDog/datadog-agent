@@ -8,7 +8,6 @@
 package listeners
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -451,12 +450,12 @@ func (s *KubeEndpointService) GetServiceID() string {
 }
 
 // GetADIdentifiers returns the service AD identifiers
-func (s *KubeEndpointService) GetADIdentifiers(context.Context) ([]string, error) {
-	return []string{s.entity}, nil
+func (s *KubeEndpointService) GetADIdentifiers() []string {
+	return []string{s.entity}
 }
 
 // GetHosts returns the pod hosts
-func (s *KubeEndpointService) GetHosts(context.Context) (map[string]string, error) {
+func (s *KubeEndpointService) GetHosts() (map[string]string, error) {
 	if s.hosts == nil {
 		return map[string]string{}, nil
 	}
@@ -464,12 +463,12 @@ func (s *KubeEndpointService) GetHosts(context.Context) (map[string]string, erro
 }
 
 // GetPid is not supported
-func (s *KubeEndpointService) GetPid(context.Context) (int, error) {
+func (s *KubeEndpointService) GetPid() (int, error) {
 	return -1, ErrNotSupported
 }
 
 // GetPorts returns the endpoint's ports
-func (s *KubeEndpointService) GetPorts(context.Context) ([]ContainerPort, error) {
+func (s *KubeEndpointService) GetPorts() ([]ContainerPort, error) {
 	if s.ports == nil {
 		return []ContainerPort{}, nil
 	}
@@ -490,12 +489,12 @@ func (s *KubeEndpointService) GetTagsWithCardinality(_ string) ([]string, error)
 }
 
 // GetHostname returns nil and an error because port is not supported in Kubelet
-func (s *KubeEndpointService) GetHostname(context.Context) (string, error) {
+func (s *KubeEndpointService) GetHostname() (string, error) {
 	return "", ErrNotSupported
 }
 
 // IsReady returns if the service is ready
-func (s *KubeEndpointService) IsReady(context.Context) bool {
+func (s *KubeEndpointService) IsReady() bool {
 	return true
 }
 
@@ -513,9 +512,7 @@ func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
 }
 
 // GetExtraConfig isn't supported
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (s *KubeEndpointService) GetExtraConfig(key string) (string, error) {
+func (s *KubeEndpointService) GetExtraConfig(_ string) (string, error) {
 	return "", ErrNotSupported
 }
 

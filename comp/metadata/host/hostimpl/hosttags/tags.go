@@ -59,6 +59,10 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 		providers["ec2"] = &providerDef{10, ec2tags.GetTags}
 	}
 
+	if conf.GetBool("collect_ec2_instance_info") {
+		providers["ec2_instance_info"] = &providerDef{3, ec2tags.GetInstanceInfo}
+	}
+
 	if env.IsFeaturePresent(env.Kubernetes) {
 		providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
 	}

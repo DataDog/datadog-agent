@@ -8,10 +8,10 @@
 #include "maps.h"
 #include "expressions.h"
 
-SEC("uprobe/{{.GetBPFFuncName}}")
-int {{.GetBPFFuncName}}(struct pt_regs *ctx)
+SEC("uprobe/{{GetBPFFuncName .}}")
+int {{GetBPFFuncName .}}(struct pt_regs *ctx)
 {
-    log_debug("{{.GetBPFFuncName}} probe in {{.ServiceName}} has triggered");
+    log_debug("{{GetBPFFuncName .}} probe in {{.ServiceName}} has triggered");
 
     // reserve space on ringbuffer
     event_t *event;
@@ -25,7 +25,7 @@ int {{.GetBPFFuncName}}(struct pt_regs *ctx)
     __u32 key = 0;
     zero_string = bpf_map_lookup_elem(&zeroval, &key);
     if (!zero_string) {
-        log_debug("couldn't lookup zero value in zeroval array map, dropping event for {{.GetBPFFuncName}}");
+        log_debug("couldn't lookup zero value in zeroval array map, dropping event for {{GetBPFFuncName .}}");
         bpf_ringbuf_discard(event, 0);
         return 0;
     }

@@ -50,7 +50,7 @@ func (s *probeTestSuite) getProbe() *Probe {
 	// Enable fatbin parsing in tests so we can validate it runs
 	cfg.EnableFatbinParsing = true
 
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	deps := ProbeDependencies{
 		ProcessMonitor: consumerstestutil.NewTestProcessConsumer(t),
 		WorkloadMeta:   testutil.GetWorkloadMetaMock(t),

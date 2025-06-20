@@ -1,7 +1,8 @@
 *                                    @DataDog/agent-devx
 
 # CI / DevX
-test_gitlab*                         @DataDog/agent-devx
+test_and_lint_gitlab_configuration   @DataDog/agent-devx
+test_gitlab_compare_to               @DataDog/agent-devx
 invoke_unit_tests                    @DataDog/agent-devx
 skip-ci-check                        @DataDog/agent-devx
 slack_teams_channels_check           @DataDog/agent-devx
@@ -103,8 +104,8 @@ qa_dca*                                @DataDog/agent-devx
 qa_dogstatsd*                          @DataDog/agent-devx
 
 # Internal image deploy
-docker_trigger_internal*                     @Datadog/agent-delivery
-docker_trigger_cluster_agent_internal*       @Datadog/agent-delivery
+publish_internal_container_image*            @Datadog/agent-delivery
+publish_internal_dca_container_image*        @Datadog/agent-delivery
 
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @Datadog/agent-delivery
@@ -120,8 +121,9 @@ windows_bootstrapper_deploy            @DataDog/windows-agent
 qa_*_oci                               @DataDog/agent-delivery
 qa_installer_script*                   @DataDog/agent-delivery
 
-# Deploy containers
+# Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery
+deploy_mutable_image_tags*             @Datadog/agent-delivery 
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
@@ -133,22 +135,22 @@ generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent
-integration_tests_otel        @DataDog/opentelemetry
-docker_image_build_otel       @DataDog/opentelemetry
-datadog_otel_components_ocb_build  @DataDog/opentelemetry
+integration_tests_otel        @DataDog/opentelemetry-agent
+docker_image_build_otel       @DataDog/opentelemetry-agent
+datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 agent_integration_tests       @DataDog/container-integrations
 docker_integration_tests      @DataDog/container-integrations
 trace_agent_integration_tests @DataDog/agent-apm
 
 # Functional test
 serverless_cold_start_performance-deb_x64      @DataDog/serverless
+serverless_cold_start_performance-deb_x64_dind @DataDog/agent-devx
 static_quality_gates                           @DataDog/agent-delivery
 manual_gate_threshold_update                   @DataDog/agent-delivery
 oracle*                                        @DataDog/database-monitoring
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations
-k8s-e2e-otlp-*                    @DataDog/opentelemetry
 k8s-e2e-cspm-*                    @DataDog/agent-security
 
 # New E2E

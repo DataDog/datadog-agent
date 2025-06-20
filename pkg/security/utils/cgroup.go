@@ -44,8 +44,7 @@ type ControlGroup struct {
 
 // GetContainerContext returns both the container ID and its flags
 func (cg ControlGroup) GetContainerContext() (containerutils.ContainerID, containerutils.CGroupFlags) {
-	id, flags := containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
-	return containerutils.ContainerID(id), containerutils.CGroupFlags(flags)
+	return containerutils.FindContainerID(containerutils.CGroupID(cg.Path))
 }
 
 func parseCgroupLine(line string) (string, string, string, error) {
@@ -289,7 +288,15 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 	data, err := os.ReadFile(filepath.Join(sysFScGroupPath, "cgroup.procs"))
 	if err != nil {
-		return false, err
+		// the cgroup is in threaded mode, and in that case, reading cgroup.procs returns ENOTSUP.
+		// see https://github.com/opencontainers/runc/issues/3821
+		if errors.Is(err, unix.ENOTSUP) {
+			if data, err = os.ReadFile(filepath.Join(sysFScGroupPath, "cgroup.threads")); err != nil {
+				return false, err
+			}
+		} else {
+			return false, err
+		}
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {

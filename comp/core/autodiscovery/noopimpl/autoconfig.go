@@ -37,12 +37,6 @@ func (n *noopAutoConfig) AddConfigProvider(providers.ConfigProvider, bool, time.
 
 func (n *noopAutoConfig) LoadAndRun(context.Context) {}
 
-func (n *noopAutoConfig) ForceRanOnceFlag() {}
-
-func (n *noopAutoConfig) HasRunOnce() bool {
-	return false
-}
-
 func (n *noopAutoConfig) GetAllConfigs() []integration.Config {
 	return []integration.Config{}
 }
@@ -52,10 +46,6 @@ func (n *noopAutoConfig) AddListeners([]pkgconfigsetup.Listeners) {}
 func (n *noopAutoConfig) AddScheduler(string, scheduler.Scheduler, bool) {}
 
 func (n *noopAutoConfig) RemoveScheduler(string) {}
-
-func (n *noopAutoConfig) GetUnresolvedTemplates() map[string][]integration.Config {
-	return map[string][]integration.Config{}
-}
 
 func (n *noopAutoConfig) GetIDOfCheckWithEncryptedSecrets(checkid.ID) checkid.ID {
 	return ""
@@ -73,16 +63,8 @@ func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {
 	return nil
 }
 
-func (n *noopAutoConfig) Start() {}
-
-func (n *noopAutoConfig) Stop() {}
-
 func (n *noopAutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}
-}
-
-func (n *noopAutoConfig) IsStarted() bool {
-	return false
 }
 
 func newAutoConfig() autodiscovery.Component {

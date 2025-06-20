@@ -13,8 +13,8 @@ var headerTemplateText = `
 param_type = {{.Kind}};
 bpf_probe_read_kernel(&event->output[context.output_offset], sizeof(param_type), &param_type);
 param_size = {{.TotalSize}};
-bpf_probe_read_kernel(&event->output[context.output_offset+1], sizeof(param_size), &param_size);
-context.output_offset += 3;
+bpf_probe_read_kernel(&event->output[context.output_offset+sizeof(param_type)], sizeof(param_size), &param_size);
+context.output_offset += sizeof(param_type) + sizeof(param_size);
 `
 var sliceRegisterHeaderTemplateText = `
 // Name={{.Parameter.Name}} ID={{.Parameter.ID}} TotalSize={{.Parameter.TotalSize}} Kind={{.Parameter.Kind}}
@@ -22,7 +22,7 @@ var sliceRegisterHeaderTemplateText = `
 param_type = {{.Parameter.Kind}};
 bpf_probe_read_kernel(&event->output[context.output_offset], sizeof(param_type), &param_type);
 
-context.output_offset += 1;
+context.output_offset += sizeof(param_type);
 
 __u16 indexSlice{{.Parameter.ID}};
 slice_length = param_size;
@@ -44,7 +44,7 @@ var sliceStackHeaderTemplateText = `
 param_type = {{.Parameter.Kind}};
 bpf_probe_read_kernel(&event->output[context.output_offset], sizeof(param_type), &param_type);
 
-context.output_offset += 1;
+context.output_offset += sizeof(param_type);
 
 {{.SliceTypeHeaderText}}
 `
@@ -54,5 +54,5 @@ var stringHeaderTemplateText = `
 // Write the string kind to output buffer
 param_type = {{.Kind}};
 bpf_probe_read_kernel(&event->output[context.output_offset], sizeof(param_type), &param_type);
-context.output_offset += 1;
+context.output_offset += sizeof(param_type);
 `

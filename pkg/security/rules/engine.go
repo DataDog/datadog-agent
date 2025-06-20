@@ -8,7 +8,6 @@ package rules
 
 import (
 	"context"
-	json "encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -356,13 +355,18 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-	report, err := e.probe.ApplyRuleSet(rs)
+	filterReport, err := e.probe.ApplyRuleSet(rs)
 	if err != nil {
 		return err
 	}
+	seclog.Debugf("Filter Report: %s", filterReport)
+
+	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
+	rulesetLoadedEvent := monitor.NewRuleSetLoadedEvent(e.probe.GetAgentContainerContext(), rs, policies, filterReport)
+
+	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
 
 	e.currentRuleSet.Store(rs)
-	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
 
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
@@ -371,20 +375,16 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	// reset the probe process killer state once the new ruleset is loaded
 	e.probe.OnNewRuleSetLoaded(rs)
 
-	content, _ := json.Marshal(report)
-	seclog.Debugf("Policy report: %s", content)
-
 	// set the rate limiters on sending events to the backend
 	e.rateLimiter.Apply(rs, events.AllCustomRuleIDs())
 
 	// update the stats of auto-suppression rules
 	e.AutoSuppression.Apply(rs)
 
-	policies := monitor.NewPoliciesState(rs, loadErrs, e.config.PolicyMonitorReportInternalPolicies)
 	e.notifyAPIServer(ruleIDs, policies)
 
 	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(e.probe.GetAgentContainerContext(), e.eventSender, e.statsdClient, policies)
+		monitor.ReportRuleSetLoaded(rulesetLoadedEvent, e.eventSender, e.statsdClient)
 		e.policyMonitor.SetPolicies(policies)
 	}
 
@@ -490,7 +490,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
 	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
-		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Def.Version))
+		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
 	if e.AutoSuppression.Suppresses(rule, ev) {
@@ -643,15 +643,30 @@ func (e *RuleEngine) StopEventCollector() []rules.CollectedEvent {
 
 func logLoadingErrors(msg string, m *multierror.Error) {
 	for _, err := range m.Errors {
-		if rErr, ok := err.(*rules.ErrRuleLoad); ok {
-			if !errors.Is(rErr.Err, rules.ErrEventTypeNotEnabled) && !errors.Is(rErr.Err, rules.ErrRuleAgentFilter) {
-				seclog.Errorf(msg, rErr.Error())
+		// Handle policy load errors
+		if policyErr, ok := err.(*rules.ErrPolicyLoad); ok {
+			// Empty policies are expected in some cases
+			if errors.Is(policyErr.Err, rules.ErrPolicyIsEmpty) {
+				seclog.Warnf(msg, policyErr.Error())
 			} else {
-				seclog.Warnf(msg, rErr.Error())
+				seclog.Errorf(msg, policyErr.Error())
 			}
-		} else {
-			seclog.Errorf(msg, err.Error())
+			continue
 		}
+
+		// Handle rule load errors
+		if ruleErr, ok := err.(*rules.ErrRuleLoad); ok {
+			// Some rule errors are accepted and should only generate warnings
+			if errors.Is(ruleErr.Err, rules.ErrEventTypeNotEnabled) || errors.Is(ruleErr.Err, rules.ErrRuleAgentFilter) {
+				seclog.Warnf(msg, ruleErr.Error())
+			} else {
+				seclog.Errorf(msg, ruleErr.Error())
+			}
+			continue
+		}
+
+		// Handle all other errors
+		seclog.Errorf(msg, err.Error())
 	}
 }
 
@@ -660,14 +675,16 @@ func getPoliciesVersions(rs *rules.RuleSet, includeInternalPolicies bool) []stri
 
 	cache := make(map[string]bool)
 	for _, rule := range rs.GetRules() {
-		if rule.Policy.IsInternal && !includeInternalPolicies {
-			continue
-		}
-		version := rule.Policy.Def.Version
-		if _, exists := cache[version]; !exists {
-			cache[version] = true
+		for _, pInfo := range rule.UsedBy {
+			if rule.Policy.IsInternal && !includeInternalPolicies {
+				continue
+			}
 
-			versions = append(versions, version)
+			version := pInfo.Version
+			if _, exists := cache[version]; !exists {
+				cache[version] = true
+				versions = append(versions, version)
+			}
 		}
 	}
 

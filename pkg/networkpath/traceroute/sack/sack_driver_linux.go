@@ -8,79 +8,69 @@
 package sack
 
 import (
-	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
-	"net"
 	"net/netip"
 	"os"
 	"time"
 
 	"github.com/google/gopacket/layers"
-	"golang.org/x/net/ipv4"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/filter"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type handle struct {
-	conn   *ipv4.RawConn
-	parser *common.FrameParser
-	buffer []byte
-}
-
 type sackDriver struct {
-	tcpHandle  *handle
-	icmpHandle *handle
-	sendTimes  []time.Time
-	localAddr  netip.Addr
-	localPort  uint16
-	params     Params
-	state      *sackTCPState
+	sink packets.Sink
+
+	source packets.Source
+	buffer []byte
+	parser *packets.FrameParser
+
+	sendTimes []time.Time
+	localAddr netip.Addr
+	localPort uint16
+	params    Params
+	state     *sackTCPState
 }
 
-func newHandle(conn *ipv4.RawConn) *handle {
-	return &handle{
-		conn:   conn,
-		parser: common.NewFrameParser(),
-		buffer: make([]byte, 1024),
+func newSackDriver(params Params, localAddr netip.Addr) (*sackDriver, error) {
+	sink, err := packets.NewSinkUnix(params.Target.Addr())
+	if err != nil {
+		return nil, fmt.Errorf("newSackDriver failed to make SinkUnix: %w", err)
 	}
-}
 
-func newSackDriver(ctx context.Context, params Params, localAddr netip.Addr) (*sackDriver, error) {
-	tcpConn, err := filter.MakeRawConn(ctx, &net.ListenConfig{}, "ip:tcp", localAddr)
+	source, err := packets.NewAFPacketSource()
 	if err != nil {
-		return nil, fmt.Errorf("newSackDriver failed to make TCP raw conn: %w", err)
-	}
-	icmpConn, err := filter.MakeRawConn(ctx, &net.ListenConfig{}, "ip:icmp", localAddr)
-	if err != nil {
-		tcpConn.Close()
-		return nil, fmt.Errorf("newSackDriver failed to make ICMP raw conn: %w", err)
+		sink.Close()
+		return nil, fmt.Errorf("newSackDriver failed to make AFPacketSource: %w", err)
 	}
 
 	retval := &sackDriver{
-		tcpHandle:  newHandle(tcpConn),
-		icmpHandle: newHandle(icmpConn),
-		sendTimes:  make([]time.Time, params.ParallelParams.MaxTTL+1),
-		localAddr:  localAddr,
-		localPort:  0, // to be set by ReadHandshake()
-		params:     params,
+		sink:      sink,
+		source:    source,
+		buffer:    make([]byte, 1024),
+		parser:    packets.NewFrameParser(),
+		sendTimes: make([]time.Time, params.ParallelParams.MaxTTL+1),
+		localAddr: localAddr,
+		localPort: 0, // to be set by ReadHandshake()
+		params:    params,
 	}
 	return retval, nil
 }
 
 func (s *sackDriver) Close() {
-	s.tcpHandle.conn.Close()
-	s.icmpHandle.conn.Close()
+	s.source.Close()
+	s.sink.Close()
 }
 
 func (s *sackDriver) GetDriverInfo() common.TracerouteDriverInfo {
 	return common.TracerouteDriverInfo{
-		UsesReceiveICMPProbe: true,
+		SupportsParallel: true,
 	}
 }
 
@@ -104,47 +94,40 @@ func (s *sackDriver) SendProbe(ttl uint8) error {
 		state:  *s.state,
 	}
 	// TODO ipv6
-	header, packet, err := gen.generateV4(ttl)
+	packet, err := gen.generateV4(ttl)
 	if err != nil {
 		return fmt.Errorf("sackDriver failed to generate packet: %w", err)
 	}
 
 	log.TraceFunc(func() string {
-		return fmt.Sprintf("sending packet: %+v %s\n", header, hex.EncodeToString(packet))
+		return fmt.Sprintf("sending packet: %s\n", hex.EncodeToString(packet))
 	})
-	err = s.tcpHandle.conn.WriteTo(header, packet, nil)
+	err = s.sink.WriteTo(packet, s.params.Target)
 	if err != nil {
-		println("error writing packet", err)
 		return fmt.Errorf("sackDriver failed to WriteToIP: %w", err)
 	}
 	return nil
 }
 func (s *sackDriver) ReceiveProbe(timeout time.Duration) (*common.ProbeResponse, error) {
-	return s.receiveProbe(s.tcpHandle, timeout)
-}
-func (s *sackDriver) ReceiveICMPProbe(timeout time.Duration) (*common.ProbeResponse, error) {
-	return s.receiveProbe(s.icmpHandle, timeout)
-}
-func (s *sackDriver) receiveProbe(handle *handle, timeout time.Duration) (*common.ProbeResponse, error) {
 	if !s.IsHandshakeFinished() {
 		return nil, fmt.Errorf("sackDriver hasn't finished ReadHandshake()")
 	}
 
-	err := handle.conn.SetReadDeadline(time.Now().Add(timeout))
+	err := s.source.SetReadDeadline(time.Now().Add(timeout))
 	if err != nil {
 		return nil, fmt.Errorf("sackDriver failed to SetReadDeadline: %w", err)
 	}
-	err = s.readAndParse(handle)
+	err = packets.ReadAndParse(s.source, s.buffer, s.parser)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.handleProbeLayers(handle.parser)
+	return s.handleProbeLayers(s.parser)
 }
 
-func (s *sackDriver) ExpectedIPPair() common.IPPair {
+func (s *sackDriver) ExpectedIPPair() packets.IPPair {
 	// from the target to us
-	return common.IPPair{
+	return packets.IPPair{
 		SrcAddr: s.params.Target.Addr(),
 		DstAddr: s.localAddr,
 	}
@@ -191,7 +174,9 @@ func (s *sackDriver) getRTTFromRelSeq(relSeq uint32) (time.Duration, error) {
 	return time.Since(s.sendTimes[relSeq]), nil
 }
 
-func (s *sackDriver) handleProbeLayers(parser *common.FrameParser) (*common.ProbeResponse, error) {
+var errPacketDidNotMatchTraceroute = &common.ReceiveProbeNoPktError{Err: fmt.Errorf("packet did not match the traceroute")}
+
+func (s *sackDriver) handleProbeLayers(parser *packets.FrameParser) (*common.ProbeResponse, error) {
 	ipPair, err := parser.GetIPPair()
 	if err != nil {
 		return nil, fmt.Errorf("sackDriver failed to get IP pair: %w", err)
@@ -200,21 +185,26 @@ func (s *sackDriver) handleProbeLayers(parser *common.FrameParser) (*common.Prob
 	switch parser.GetTransportLayer() {
 	case layers.LayerTypeTCP:
 		if ipPair != s.ExpectedIPPair() {
-			return nil, common.ErrReceiveProbeNoPkt
+			return nil, errPacketDidNotMatchTraceroute
 		}
 		// make sure the ports match
 		if s.params.Target.Port() != uint16(parser.TCP.SrcPort) ||
 			s.localPort != uint16(parser.TCP.DstPort) {
-			return nil, common.ErrReceiveProbeNoPkt
+			return nil, errPacketDidNotMatchTraceroute
 		}
 		// we only care about selective ACKs
 		if parser.TCP.SYN || parser.TCP.FIN || parser.TCP.RST {
-			return nil, common.ErrReceiveProbeNoPkt
+			return nil, errPacketDidNotMatchTraceroute
 		}
 		// get the first sequence number that was dupe ACKed
 		relSeq, err := getMinSack(s.state.localInitSeq, parser.TCP.Options)
 		if err != nil {
-			return nil, &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to get min SACK: %w", err)}
+			// note: this is a NotSupportedError, not a BadPacketError because we want to fail the whole
+			// traceroute if for some reason the endpoint returned SACK-permitted but isn't giving us SACK.
+			// I've seen akamai CDN do this when serving static files for example.com.
+			return nil, &NotSupportedError{
+				Err: fmt.Errorf("endpoint returned SACK-permitted but found no SACK options: %w", err),
+			}
 		}
 		rtt, err := s.getRTTFromRelSeq(relSeq)
 		if err != nil {
@@ -228,28 +218,30 @@ func (s *sackDriver) handleProbeLayers(parser *common.FrameParser) (*common.Prob
 			IsDest: true,
 		}, nil
 	case layers.LayerTypeICMPv4:
+		if !parser.IsTTLExceeded() {
+			return nil, errPacketDidNotMatchTraceroute
+		}
+
 		icmpInfo, err := parser.GetICMPInfo()
 		if err != nil {
 			return nil, &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to get ICMP info: %w", err)}
 		}
-		if icmpInfo.ICMPType != common.TTLExceeded4 {
-			return nil, common.ErrReceiveProbeNoPkt
-		}
-		tcpInfo, err := common.ParseTCPFirstBytes(icmpInfo.Payload)
+
+		tcpInfo, err := packets.ParseTCPFirstBytes(icmpInfo.Payload)
 		if err != nil {
 			return nil, &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to parse TCP info: %w", err)}
 		}
 		icmpDst := netip.AddrPortFrom(icmpInfo.ICMPPair.DstAddr, tcpInfo.DstPort)
 		if icmpDst != s.params.Target {
 			log.Tracef("icmp dst mismatch. expected: %s actual: %s", s.params.Target, icmpDst)
-			return nil, common.ErrReceiveProbeNoPkt
+			return nil, errPacketDidNotMatchTraceroute
 		}
 		if !s.params.LoosenICMPSrc {
 			icmpSrc := netip.AddrPortFrom(icmpInfo.IPPair.SrcAddr, tcpInfo.SrcPort)
 			expectedSrc := netip.AddrPortFrom(s.localAddr, s.localPort)
 			if icmpSrc != expectedSrc {
 				log.Tracef("icmp src mismatch. expected: %s actual: %s", expectedSrc, icmpSrc)
-				return nil, common.ErrReceiveProbeNoPkt
+				return nil, errPacketDidNotMatchTraceroute
 			}
 		}
 
@@ -265,7 +257,7 @@ func (s *sackDriver) handleProbeLayers(parser *common.FrameParser) (*common.Prob
 			IsDest: false,
 		}, nil
 	default:
-		return nil, common.ErrReceiveProbeNoPkt
+		return nil, errPacketDidNotMatchTraceroute
 	}
 }
 
@@ -285,18 +277,19 @@ func (s *sackDriver) FakeHandshake() {
 // it also checks that the target supports SACK.
 func (s *sackDriver) ReadHandshake(localPort uint16) error {
 	s.localPort = localPort
-	// we should have already connected by now so it should be over quickly
-	err := s.tcpHandle.conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	err := s.source.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 	if err != nil {
 		return fmt.Errorf("sackDriver failed to SetReadDeadline: %w", err)
 	}
 	for !s.IsHandshakeFinished() {
-		err = s.readAndParse(s.tcpHandle)
+		// we should have already connected by now so it should be over quickly
+		err = packets.ReadAndParse(s.source, s.buffer, s.parser)
 
-		if common.CheckParallelRetryable("ReadHandshake", err) {
-			continue
-		} else if errors.Is(err, os.ErrDeadlineExceeded) {
+		if errors.Is(err, os.ErrDeadlineExceeded) {
 			return fmt.Errorf("sackDriver readHandshake timed out")
+			// deadline exceeded is normally retryable, so this comes second in order
+		} else if common.CheckProbeRetryable("ReadHandshake", err) {
+			continue
 		} else if err != nil {
 			return fmt.Errorf("sackDriver failed to readAndParse: %w", err)
 		}
@@ -310,7 +303,7 @@ func (s *sackDriver) ReadHandshake(localPort uint16) error {
 }
 
 func (s *sackDriver) handleHandshake() error {
-	parser := s.tcpHandle.parser
+	parser := s.parser
 	ipPair, err := parser.GetIPPair()
 	if err != nil {
 		return fmt.Errorf("sackDriver failed to get IP pair: %w", err)
@@ -362,32 +355,8 @@ func (s *sackDriver) handleHandshake() error {
 	}
 
 	// set the localInitSeq and localInitAck based off the response
-	state.localInitSeq = parser.TCP.Ack - 1
+	state.localInitSeq = parser.TCP.Ack // this is NOT Ack - 1 because we need to leave a gap in the data
 	state.localInitAck = parser.TCP.Seq + 1
 	s.state = &state
-	return nil
-}
-
-func (s *sackDriver) readAndParse(handle *handle) error {
-	n, err := handle.conn.Read(handle.buffer)
-	if errors.Is(err, os.ErrDeadlineExceeded) {
-		return common.ErrReceiveProbeNoPkt
-	}
-	if err != nil {
-		return fmt.Errorf("sackDriver failed to ReadFromIP: %w", err)
-	}
-	if n == 0 {
-		return common.ErrReceiveProbeNoPkt
-	}
-
-	// TODO ipv6
-	err = handle.parser.ParseIPv4(handle.buffer[:n])
-	if err != nil {
-		log.DebugFunc(func() string {
-			return fmt.Sprintf("error parsing packet of length %d: %s, %s", n, err, hex.EncodeToString(handle.buffer[:n]))
-		})
-		return &common.BadPacketError{Err: fmt.Errorf("sackDriver failed to parse packet of length %d: %w", n, err)}
-	}
-
 	return nil
 }

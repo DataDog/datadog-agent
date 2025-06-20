@@ -25,15 +25,22 @@ def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: st
     if requests is None:
         raise Exit("requests module is not installed, please install it to continue")
 
-    sum_url = os.path.join(url_base, branch, image + ".sum")
+    sum_filename = f"{image}.xz.sum"
+    sum_url = os.path.join(url_base, branch, sum_filename)
     r = requests.get(sum_url)
+    if not r.ok:
+        debug(f"[debug] {branch}/{image} sum file not found at {sum_url} (status: {r.status_code})")
+        # If we can't get the remote sum, we can't compare, so we assume an update is needed.
+        return True
+
     new_sum = r.text.rstrip().split(' ')[0]
     debug(f"[debug] {branch}/{image} new_sum: {new_sum}")
 
-    if not os.path.exists(os.path.join(rootfs_dir, f"{image}.sum")):
+    local_sum_path = os.path.join(rootfs_dir, sum_filename)
+    if not os.path.exists(local_sum_path):
         return True
 
-    with open(os.path.join(rootfs_dir, f"{image}.sum")) as f:
+    with open(local_sum_path) as f:
         original_sum = f.read().rstrip().split(' ')[0]
         debug(f"[debug] {image} original_sum: {original_sum}")
     if new_sum != original_sum:
@@ -114,8 +121,8 @@ def download_rootfs(
     for f in present_files:
         if requires_update(url_base, rootfs_dir, f, branch_mapping.get(f, "master")):
             debug(f"[debug] updating {f} from S3.")
-            ctx.run(f"rm -f {f}")
-            ctx.run(f"rm -f {f}.sum")
+            ctx.run(f"rm -f {os.path.join(rootfs_dir, f)}")
+            ctx.run(f"rm -f {os.path.join(rootfs_dir, f'{f}.xz.sum')}")
             to_download.append(f)
 
     if len(to_download) == 0:

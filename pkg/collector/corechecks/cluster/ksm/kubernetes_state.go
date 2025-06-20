@@ -78,7 +78,7 @@ var collectorNameReplacement = map[string]string{
 	"customresourcedefinitions": "apiextensions.k8s.io/v1, Resource=customresourcedefinitions",
 	// verticalpodautoscalers were removed from the built-in KSM metrics in KSM 2.9, and the changes made to
 	// the KSM builder in KSM 2.9 result in the detected custom resource store name being different.
-	"verticalpodautoscalers": "autoscaling.k8s.io/v1beta2, Resource=verticalpodautoscalers",
+	"verticalpodautoscalers": "autoscaling.k8s.io/v1, Resource=verticalpodautoscalers",
 }
 
 var matchAllCap = regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -696,7 +696,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 				continue
 			}
 			metricPrefix := ksmMetricPrefix
-			if strings.HasPrefix(metricFamily.Name, "kube_customresource_") {
+			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found && strings.HasPrefix(ddname, "customresource.") {
 				metricPrefix = metricPrefix[:len(metricPrefix)-1] + "_"
 			}
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {

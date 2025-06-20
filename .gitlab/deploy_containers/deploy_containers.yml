@@ -10,8 +10,7 @@ deploy_containers-a7:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     BUCKET_BRANCH: $BUCKET_BRANCH
   trigger:
-    include: .gitlab/deploy_containers/deploy_containers_a7.yml
-
+    include: .gitlab/deploy_containers/deploy_containers_trigger.yml
 
 deploy_containers-a7-on-failure:
   stage: deploy_containers
@@ -22,4 +21,4 @@ deploy_containers-a7-on-failure:
     BUCKET_BRANCH: $BUCKET_BRANCH
     FORCE_MANUAL: "true"
   trigger:
-    include: .gitlab/deploy_containers/deploy_containers_a7.yml
+    include: .gitlab/deploy_containers/deploy_containers_trigger.yml

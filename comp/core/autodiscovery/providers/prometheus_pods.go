@@ -64,9 +64,7 @@ func (p *PrometheusPodsConfigProvider) Collect(ctx context.Context) ([]integrati
 }
 
 // IsUpToDate always return false to poll new data from kubelet
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (p *PrometheusPodsConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (p *PrometheusPodsConfigProvider) IsUpToDate(_ context.Context) (bool, error) {
 	return false, nil
 }
 

@@ -53,7 +53,11 @@ func newOrchestratorForwarder(log log.Component, config config.Component, tagger
 			log.Errorf("Error loading the orchestrator config: %s", err)
 		}
 		keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
+		resolver, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+		if err != nil {
+			log.Errorf("Error creating domain resolver: %s", err)
+		}
+		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver)
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
 		forwarder := defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts)

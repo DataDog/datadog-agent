@@ -9,12 +9,13 @@ package customresources
 
 // This file has most of its logic copied from the KSM cronjob metric family
 // generators available at
-// https://github.com/kubernetes/kube-state-metrics/blob/release-2.4/internal/store/cronjob.go
+// https://github.com/kubernetes/kube-state-metrics/blob/release-2.15/internal/store/cronjob.go
 // It exists here to provide backwards compatibility with k8s <1.19, as KSM 2.4
 // uses API v1 instead of v1beta1: https://github.com/kubernetes/kube-state-metrics/pull/1491
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -34,7 +35,7 @@ import (
 )
 
 var (
-	descCronJobAnnotationsName     = "kube_cronjob_annotations"
+	descCronJobAnnotationsName     = "kube_cronjob_annotations" //nolint:gosec
 	descCronJobAnnotationsHelp     = "Kubernetes annotations converted to Prometheus labels."
 	descCronJobLabelsName          = "kube_cronjob_labels"
 	descCronJobLabelsHelp          = "Kubernetes labels converted to Prometheus labels."
@@ -107,11 +108,15 @@ func (f *cronjobv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGener
 			basemetrics.STABLE,
 			"",
 			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
+				timeZone := "local"
+				if j.Spec.TimeZone != nil {
+					timeZone = *j.Spec.TimeZone
+				}
 				return &metric.Family{
 					Metrics: []*metric.Metric{
 						{
-							LabelKeys:   []string{"schedule", "concurrency_policy"},
-							LabelValues: []string{j.Spec.Schedule, string(j.Spec.ConcurrencyPolicy)},
+							LabelKeys:   []string{"schedule", "concurrency_policy", "timezone"},
+							LabelValues: []string{j.Spec.Schedule, string(j.Spec.ConcurrencyPolicy), timeZone},
 							Value:       1,
 						},
 					},
@@ -180,6 +185,28 @@ func (f *cronjobv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGener
 			}),
 		),
 		*generator.NewFamilyGeneratorWithStability(
+			"kube_cronjob_status_last_successful_time",
+			"LastSuccessfulTime keeps information of when was the last time the job was completed successfully.",
+			metric.Gauge,
+			basemetrics.ALPHA,
+			"",
+			wrapCronJobFunc(func(j *batchv1beta1.CronJob) *metric.Family {
+				ms := []*metric.Metric{}
+
+				if j.Status.LastSuccessfulTime != nil {
+					ms = append(ms, &metric.Metric{
+						LabelKeys:   []string{},
+						LabelValues: []string{},
+						Value:       float64(j.Status.LastSuccessfulTime.Unix()),
+					})
+				}
+
+				return &metric.Family{
+					Metrics: ms,
+				}
+			}),
+		),
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_cronjob_spec_suspend",
 			"Suspend flag tells the controller to suspend subsequent executions.",
 			metric.Gauge,
@@ -234,7 +261,7 @@ func (f *cronjobv1beta1Factory) MetricFamilyGenerators() []generator.FamilyGener
 				ms := []*metric.Metric{}
 
 				// If the cron job is suspended, don't track the next scheduled time
-				nextScheduledTime, err := getNextScheduledTime(j.Spec.Schedule, j.Status.LastScheduleTime, j.CreationTimestamp)
+				nextScheduledTime, err := getNextScheduledTime(j.Spec.Schedule, j.Status.LastScheduleTime, j.CreationTimestamp, j.Spec.TimeZone)
 				if err != nil {
 					panic(err)
 				} else if !*j.Spec.Suspend {
@@ -347,10 +374,14 @@ func (f *cronjobv1beta1Factory) ListWatch(customResourceClient interface{}, ns s
 	}
 }
 
-func getNextScheduledTime(schedule string, lastScheduleTime *metav1.Time, createdTime metav1.Time) (time.Time, error) {
+func getNextScheduledTime(schedule string, lastScheduleTime *metav1.Time, createdTime metav1.Time, timeZone *string) (time.Time, error) {
+	if timeZone != nil {
+		schedule = fmt.Sprintf("CRON_TZ=%s %s", *timeZone, schedule)
+	}
+
 	sched, err := cron.ParseStandard(schedule)
 	if err != nil {
-		return time.Time{}, errors.Wrapf(err, "Failed to parse cron job schedule '%s'", schedule)
+		return time.Time{}, fmt.Errorf("Failed to parse cron job schedule '%s': %w", schedule, err)
 	}
 	if !lastScheduleTime.IsZero() {
 		return sched.Next(lastScheduleTime.Time), nil

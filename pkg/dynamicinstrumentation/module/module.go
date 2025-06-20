@@ -8,9 +8,11 @@
 package module
 
 import (
+	"context"
 	"net/http"
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,12 +22,14 @@ import (
 
 // Module is the dynamic instrumentation system probe module
 type Module struct {
-	godi *di.GoDI
+	godi       *di.GoDI
+	cancelFunc context.CancelFunc
 }
 
 // NewModule creates a new dynamic instrumentation system probe module
-func NewModule(_ *Config) (*Module, error) {
-	godi, err := di.RunDynamicInstrumentation(&di.DIOptions{
+func NewModule(_ *Config, consumer *consumers.ProcessConsumer) (*Module, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	godi, err := di.RunDynamicInstrumentation(ctx, consumer, &di.DIOptions{
 		RateLimitPerProbePerSecond: 1.0,
 		OfflineOptions: di.OfflineOptions{
 			Offline:          coreconfig.SystemProbe().GetBool("dynamic_instrumentation.offline_mode"),
@@ -37,16 +41,20 @@ func NewModule(_ *Config) (*Module, error) {
 	if err != nil {
 		// FIXME: Logging the error instead of returning it is a temporary fix to avoid
 		// having the system-probe get caught in a restart loop when either the environment lacks
-		// the bpf feature requirements or the system-probe is not run with needeed permissions.
+		// the bpf feature requirements or the system-probe is run without the needed permissions.
 		// The DI module can be mistakenly turned on as it shares the same environment variable
 		// as all DI runtimes, leading to problematic behavior.
 		//
 		// This means that legitimate errors will be logged, but not cause the module to restart
 		// as it should.
 		log.Errorf("Failed to start dynamic instrumentation: %v", err)
+		cancel()
 		return &Module{}, nil
 	}
-	return &Module{godi}, nil
+	return &Module{
+		godi:       godi,
+		cancelFunc: cancel,
+	}, nil
 }
 
 // Close disables the dynamic instrumentation system probe module
@@ -56,6 +64,7 @@ func (m *Module) Close() {
 		return
 	}
 	log.Info("Closing dynamic instrumentation module")
+	m.cancelFunc()
 	m.godi.Close()
 }
 

@@ -20,11 +20,6 @@ static __always_inline char to_upper(char c)
 	return c;
 }
 
-struct bpf_iter__ksym {
-	struct bpf_iter_meta *meta;
-	struct kallsym_iter *ksym;
-};
-
 /* Dump symbols with max size; the latter is calculated by caching symbol N value
  * and when iterating on symbol N+1, we can print max size of symbol N via
  * address of N+1 - address of N.

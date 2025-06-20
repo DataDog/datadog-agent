@@ -9,7 +9,6 @@
 
 //go:build windows
 
-//nolint:revive // TODO(WINA) Fix revive linter
 package cpu
 
 import (
@@ -26,11 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
+// CheckName is the name of the check
 const CheckName = "cpu"
 
 // For testing purposes
 var cpuInfoFunc = cpu.CollectInfo
 
+// PdhQueryInterface queries Microsoft PHD API
 type PdhQueryInterface interface {
 	AddCounter(counter pdhutil.PdhCounter)
 	CollectQueryData() error

@@ -72,11 +72,11 @@ class GithubAPI:
             "https://api.github.com/graphql",
             headers=headers,
             json={"query": query},
+            timeout=10,
         )
         if res.status_code == 200:
             return res.json()
-        else:
-            raise RuntimeError(f"Failed to query Github: {res.text}")
+        raise RuntimeError(f"Failed to query Github: {res.text}")
 
     def get_branch(self, branch_name):
         """
@@ -337,7 +337,7 @@ class GithubAPI:
             "Accept": "application/vnd.github.v3+json",
         }
         # Retrying this request if needed is handled by the caller
-        with requests.get(url, headers=headers, stream=True) as r:
+        with requests.get(url, headers=headers, stream=True, timeout=10) as r:
             r.raise_for_status()
             zip_target_path = os.path.join(destination_dir, f"{destination_file}.zip")
             with open(zip_target_path, "wb") as f:
@@ -508,11 +508,12 @@ class GithubAPI:
         # The update ref API endpoint is not available in PyGithub, so we need to use the raw API
         data = {"sha": commit.sha, "force": False}
         headers = {"Authorization": "Bearer " + self._auth.token, "Content-Type": "application/json"}
-        res = requests.patch(url=f"{self._repository.url}/git/refs/heads/{branch_name}", json=data, headers=headers)
+        res = requests.patch(
+            url=f"{self._repository.url}/git/refs/heads/{branch_name}", json=data, headers=headers, timeout=10
+        )
         if res.status_code == 200:
             return res.json()
-        else:
-            raise Exit(f"Failed to update the reference {branch_name} with commit {commit.sha}: {res.text}")
+        raise Exit(f"Failed to update the reference {branch_name} with commit {commit.sha}: {res.text}")
 
     def _chose_auth(self, public_repo):
         """
@@ -694,7 +695,7 @@ def get_github_teams(users):
 def query_teams(login):
     query = get_user_query(login)
     headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"}
-    response = requests.post("https://api.github.com/graphql", headers=headers, data=query)
+    response = requests.post("https://api.github.com/graphql", headers=headers, data=query, timeout=10)
     data = response.json()
     teams = []
     try:

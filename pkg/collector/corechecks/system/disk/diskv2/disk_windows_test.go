@@ -10,17 +10,22 @@ package diskv2_test
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func setupPlatformMocks() {
@@ -29,18 +34,26 @@ func setupPlatformMocks() {
 	}
 }
 
-func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {
-	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
+func createWindowsCheck(t *testing.T) check.Check {
+	cfg := configmock.New(t)
+	cfg.Set("disk_check.use_core_loader", true, configmodel.SourceAgentRuntime)
+
+	diskCheckOpt := diskv2.Factory()
+	diskCheckFunc, _ := diskCheckOpt.Get()
+	diskCheck := diskCheckFunc()
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskv2.WithDiskIOCounters(diskCheck, func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
+		return map[string]gopsutil_disk.IOCountersStat{
+			"\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\": {
+				Name:       "sda1",
+				ReadCount:  100,
+				WriteCount: 200,
+				ReadBytes:  1048576,
+				WriteBytes: 2097152,
+				ReadTime:   300,
+				WriteTime:  450,
+			},
+		}, nil
+	}), func(_ string) (*gopsutil_disk.UsageStat, error) {
 		return &gopsutil_disk.UsageStat{
 			Path:              "D:\\",
 			Fstype:            "NTFS",
@@ -53,8 +66,21 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreRe
 			InodesFree:        500000,
 			InodesUsedPercent: 50.0,
 		}, nil
-	}
-	diskCheck := createCheck()
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     `\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`,
+				Mountpoint: "D:\\",
+				Fstype:     "NTFS",
+				Opts:       []string{"rw", "relatime"},
+			}}, nil
+	})
+	return diskCheck
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {
+	setupDefaultMocks()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -69,43 +95,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllUsageMetricsAreRe
 
 func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLowercaseDevicesAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskv2.DiskIOCounters = func(...string) (map[string]gopsutil_disk.IOCountersStat, error) {
-		return map[string]gopsutil_disk.IOCountersStat{
-			"\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\": {
-				Name:       "sda1",
-				ReadCount:  100,
-				WriteCount: 200,
-				ReadBytes:  1048576,
-				WriteBytes: 2097152,
-				ReadTime:   300,
-				WriteTime:  450,
-			},
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("lowercase_device_tag: true"))
@@ -125,30 +115,7 @@ func TestGivenADiskCheckWithLowercaseDeviceTagConfigured_WhenCheckRuns_ThenLower
 
 func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAllUsageMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("include_all_devices: true"))
@@ -164,30 +131,7 @@ func TestGivenADiskCheckWithIncludeAllDevicesTrueConfigured_WhenCheckRuns_ThenAl
 
 func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenOnlyPhysicalDevicesUsageMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("include_all_devices: false"))
@@ -203,7 +147,8 @@ func TestGivenADiskCheckWithIncludeAllDevicesFalseConfigured_WhenCheckRuns_ThenO
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturnsEmptyDevice_ThenNoUsageMetricsAreReportedForThatPartition(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck := createWindowsCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "",
@@ -217,22 +162,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturn
 				Fstype:     "NTFS",
 				Opts:       []string{"rw", "relatime"},
 			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	})
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -250,30 +180,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndPartitionsSystemReturn
 
 func TestGivenADiskCheckWithDeviceIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseDevicesAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -292,30 +199,7 @@ device_include:
 
 func TestGivenADiskCheckWithDeviceWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseDevicesAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -334,7 +218,8 @@ device_whitelist:
 
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithIso9660FileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck := createWindowsCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "cdrom",
@@ -344,26 +229,11 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 			},
 			{
 				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
+				Mountpoint: "E:\\",
 				Fstype:     "NTFS",
 				Opts:       []string{"rw", "relatime"},
 			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	})
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -381,7 +251,8 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 
 func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithTracefsFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck := createWindowsCheck(t)
+	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "trace",
@@ -391,26 +262,11 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 			},
 			{
 				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
+				Mountpoint: "E:\\",
 				Fstype:     "NTFS",
 				Opts:       []string{"rw", "relatime"},
 			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	})
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -428,7 +284,7 @@ func TestGivenADiskCheckWithFileSystemGlobalExcludeNotConfigured_WhenCheckRuns_T
 
 func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetricsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 
@@ -436,14 +292,10 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRuns_ThenAllIOCountersMetrics
 	err := diskCheck.Run()
 
 	assert.Nil(t, err)
-	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(300), "", []string{"device:/dev/sda1", "device_name:/dev/sda1"})
-	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(450), "", []string{"device:/dev/sda1", "device_name:/dev/sda1"})
-	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(30), "", []string{"device:/dev/sda1", "device_name:/dev/sda1"})
-	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{"device:/dev/sda1", "device_name:/dev/sda1"})
-	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(500), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
-	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(150), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
-	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(50), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
-	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(15), "", []string{"device:/dev/sda2", "device_name:/dev/sda2"})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.read_time", float64(300), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "MonotonicCount", "system.disk.write_time", float64(450), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Rate", "system.disk.read_time_pct", float64(30), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+	m.AssertMetric(t, "Rate", "system.disk.write_time_pct", float64(45), "", []string{`device:\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
 }
 
 func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckIsConfigured_ThenMountsAreCreated(t *testing.T) {
@@ -453,7 +305,7 @@ func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckIsConfigured_ThenMou
 		netAddConnectionCalls = append(netAddConnectionCalls, []string{localName, remoteName, password, username})
 		return nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -495,7 +347,7 @@ func TestGivenADiskCheckWithCreateMountsConfiguredWithoutHost_WhenCheckIsConfigu
 		netAddConnectionCalls = append(netAddConnectionCalls, []string{localName, remoteName, password, username})
 		return nil
 	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -523,7 +375,7 @@ func TestGivenADiskCheckWithCreateMountsConfigured_WhenCheckRunsAndIOCountersSys
 	diskv2.NetAddConnection = func(_localName, _remoteName, _password, _username string) error {
 		return errors.New("error calling NetAddConnection")
 	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -548,30 +400,7 @@ create_mounts:
 
 func TestGivenADiskCheckWithDeviceTagReConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithTheseTags(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     `\\?\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\`,
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -590,30 +419,7 @@ device_tag_re:
 
 func TestGivenADiskCheckWithFileSystemGlobalExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -632,30 +438,7 @@ file_system_global_exclude:
 
 func TestGivenADiskCheckWithFileSystemGlobalBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -674,30 +457,7 @@ file_system_global_blacklist:
 
 func TestGivenADiskCheckWithExcludedFileSystemsConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -716,30 +476,7 @@ excluded_filesystems:
 
 func TestGivenADiskCheckWithFileSystemExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -758,30 +495,7 @@ file_system_exclude:
 
 func TestGivenADiskCheckWithFileSystemBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseFileSystems(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -800,30 +514,7 @@ file_system_blacklist:
 
 func TestGivenADiskCheckWithFileSystemIncludeConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseFileSystemsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -842,30 +533,7 @@ file_system_include:
 
 func TestGivenADiskCheckWithFileSystemWhiteListConfigured_WhenCheckRuns_ThenOnlyUsageMetricsForPartitionsWithThoseFileSystemsAreReported(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -884,30 +552,7 @@ file_system_whitelist:
 
 func TestGivenADiskCheckWithMountPointGlobalExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -926,30 +571,7 @@ mount_point_global_exclude:
 
 func TestGivenADiskCheckWithMountPointGlobalBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	initConfig := integration.Data([]byte(`
@@ -968,30 +590,7 @@ mount_point_global_blacklist:
 
 func TestGivenADiskCheckWithMountPointExcludeConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1010,30 +609,7 @@ mount_point_exclude:
 
 func TestGivenADiskCheckWithMountPointBlackListConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`
@@ -1052,30 +628,7 @@ mount_point_blacklist:
 
 func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckRuns_ThenUsageMetricsAreNotReportedForPartitionsWithThoseMountPoints(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`excluded_mountpoint_re: D:\\`))
@@ -1091,30 +644,7 @@ func TestGivenADiskCheckWithExcludedMountPointReConfigured_WhenCheckRuns_ThenUsa
 
 func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAreReportedWithMountPointTags(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte("use_mount: true"))
@@ -1130,30 +660,7 @@ func TestGivenADiskCheckWithUseMountConfigured_WhenCheckRuns_ThenUsageMetricsAre
 
 func TestGivenADiskCheckWithServiceCheckRwTrueConfigured_WhenCheckRuns_ThenReadWriteServiceCheckReported(t *testing.T) {
 	setupDefaultMocks()
-	diskv2.DiskPartitions = func(_ bool) ([]gopsutil_disk.PartitionStat, error) {
-		return []gopsutil_disk.PartitionStat{
-			{
-				Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
-				Mountpoint: "D:\\",
-				Fstype:     "NTFS",
-				Opts:       []string{"rw", "relatime"},
-			}}, nil
-	}
-	diskv2.DiskUsage = func(_ string) (*gopsutil_disk.UsageStat, error) {
-		return &gopsutil_disk.UsageStat{
-			Path:              "D:\\",
-			Fstype:            "NTFS",
-			Total:             100000000000, // 100 GB
-			Free:              30000000000,  // 30 GB
-			Used:              70000000000,  // 70 GB
-			UsedPercent:       70.0,
-			InodesTotal:       1000000,
-			InodesUsed:        500000,
-			InodesFree:        500000,
-			InodesUsedPercent: 50.0,
-		}, nil
-	}
-	diskCheck := createCheck()
+	diskCheck := createWindowsCheck(t)
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
 	config := integration.Data([]byte(`

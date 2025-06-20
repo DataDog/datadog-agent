@@ -146,8 +146,11 @@ type SetDefinition struct {
 	Expression   string                 `yaml:"expression" json:"expression,omitempty"`
 	Append       bool                   `yaml:"append" json:"append,omitempty"`
 	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
+	ScopeField   string                 `yaml:"scope_field" json:"scope_field,omitempty"`
 	Size         int                    `yaml:"size" json:"size,omitempty"`
 	TTL          *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
+	Private      bool                   `yaml:"private" json:"private,omitempty"`
+	Inherited    bool                   `yaml:"inherited" json:"inherited,omitempty"`
 }
 
 // KillDefinition describes the 'kill' section of a rule action
@@ -177,23 +180,22 @@ type LogDefinition struct {
 
 // OnDemandHookPoint represents a hook point definition
 type OnDemandHookPoint struct {
-	Name      string         `yaml:"name" json:"name"`
-	IsSyscall bool           `yaml:"syscall" json:"syscall,omitempty"`
-	Args      []HookPointArg `yaml:"args" json:"args,omitempty"`
+	Name      string
+	IsSyscall bool
+	Args      []HookPointArg
 }
 
 // HookPointArg represents the definition of a hook point argument
 type HookPointArg struct {
-	N    int    `yaml:"n" json:"n" jsonschema:"description=Zero-based argument index"`
-	Kind string `yaml:"kind" json:"kind" jsonschema:"enum=uint,enum=null-terminated-string"`
+	N    int
+	Kind string
 }
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version            string              `yaml:"version,omitempty" json:"version"`
-	Macros             []*MacroDefinition  `yaml:"macros,omitempty" json:"macros,omitempty"`
-	Rules              []*RuleDefinition   `yaml:"rules" json:"rules"`
-	OnDemandHookPoints []OnDemandHookPoint `yaml:"hooks,omitempty" json:"hooks,omitempty"`
+	Version string             `yaml:"version,omitempty" json:"version"`
+	Macros  []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
+	Rules   []*RuleDefinition  `yaml:"rules" json:"rules"`
 }
 
 // HumanReadableDuration represents a duration that can unmarshalled from YAML from a human readable format (like `10m`)

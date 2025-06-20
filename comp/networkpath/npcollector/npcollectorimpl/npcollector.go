@@ -343,12 +343,13 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	cfg := config.Config{
-		DestHostname: ptest.Pathtest.Hostname,
-		DestPort:     ptest.Pathtest.Port,
-		MaxTTL:       uint8(s.collectorConfigs.maxTTL),
-		Timeout:      s.collectorConfigs.timeout,
-		Protocol:     ptest.Pathtest.Protocol,
-		TCPMethod:    s.collectorConfigs.tcpMethod,
+		DestHostname:              ptest.Pathtest.Hostname,
+		DestPort:                  ptest.Pathtest.Port,
+		MaxTTL:                    uint8(s.collectorConfigs.maxTTL),
+		Timeout:                   s.collectorConfigs.timeout,
+		Protocol:                  ptest.Pathtest.Protocol,
+		TCPMethod:                 s.collectorConfigs.tcpMethod,
+		TCPSynParisTracerouteMode: s.collectorConfigs.tcpSynParisTracerouteMode,
 	}
 
 	path, err := s.runTraceroute(cfg, s.telemetrycomp)

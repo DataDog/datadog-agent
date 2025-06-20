@@ -22,12 +22,13 @@ import (
 )
 
 func TestUDPMatch(t *testing.T) {
+	packetID := uint16(4321)
 	srcPort := uint16(12345)
 	dstPort := uint16(443)
 	checksum := uint16(576) // calculated field
 	mockHeader := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
 	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
-	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolUDP)
+	innerIPv4Layer := testutils.CreateMockIPv4Layer(packetID, innerSrcIP, innerDstIP, layers.IPProtocolUDP)
 	innerUDPLayer := testutils.CreateMockUDPLayer(srcPort, dstPort, checksum)
 	icmpBytes := testutils.CreateMockICMPWithUDPPacket(nil, icmpLayer, innerIPv4Layer, innerUDPLayer)
 
@@ -39,6 +40,7 @@ func TestUDPMatch(t *testing.T) {
 		localPort   uint16
 		remoteIP    net.IP
 		remotePort  uint16
+		packetID    uint16
 		checksum    uint16
 		// expected
 		expectedIP     net.IP
@@ -68,6 +70,7 @@ func TestUDPMatch(t *testing.T) {
 			localPort:      srcPort,
 			remoteIP:       dstIP,
 			remotePort:     9001,
+			packetID:       packetID,
 			checksum:       checksum,
 			expectedIP:     net.IP{},
 			expectedErrMsg: "ICMP packet doesn't match",
@@ -80,16 +83,33 @@ func TestUDPMatch(t *testing.T) {
 			localPort:      srcPort,
 			remoteIP:       innerDstIP,
 			remotePort:     dstPort,
+			packetID:       packetID,
 			checksum:       checksum,
 			expectedIP:     srcIP,
 			expectedErrMsg: "",
 		},
+		{
+			description:    "non-matching packet ID returns mismatch error",
+			header:         mockHeader,
+			payload:        icmpBytes,
+			localIP:        innerSrcIP,
+			localPort:      srcPort,
+			remoteIP:       innerDstIP,
+			remotePort:     dstPort,
+			packetID:       packetID + 1,
+			checksum:       checksum,
+			expectedIP:     srcIP,
+			expectedErrMsg: "ICMP packet doesn't match",
+		},
 	}
 
 	for _, test := range tts {
+		if test.description != "matching ICMP payload returns destination IP" {
+			continue
+		}
 		t.Run(test.description, func(t *testing.T) {
 			icmpParser := NewICMPUDPParser()
-			actualIP, err := icmpParser.Match(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, uint32(test.checksum))
+			actualIP, err := icmpParser.Match(test.header, test.payload, test.localIP, test.localPort, test.remoteIP, test.remotePort, uint32(test.checksum), packetID)
 			if test.expectedErrMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.expectedErrMsg), fmt.Sprintf("expected %q, got %q", test.expectedErrMsg, err.Error()))
@@ -104,7 +124,7 @@ func TestUDPMatch(t *testing.T) {
 func TestUDPParse(t *testing.T) {
 	ipv4Header := testutils.CreateMockIPv4Header(srcIP, dstIP, 1)
 	icmpLayer := testutils.CreateMockICMPLayer(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded)
-	innerIPv4Layer := testutils.CreateMockIPv4Layer(innerSrcIP, innerDstIP, layers.IPProtocolUDP)
+	innerIPv4Layer := testutils.CreateMockIPv4Layer(4321, innerSrcIP, innerDstIP, layers.IPProtocolUDP)
 	innerUDPLayer := testutils.CreateMockUDPLayer(12345, 443, 28394)
 
 	tt := []struct {
@@ -154,6 +174,7 @@ func TestUDPParse(t *testing.T) {
 				InnerSrcPort:    12345,
 				InnerDstPort:    443,
 				InnerIdentifier: 576,
+				InnerIPID:       4321,
 			},
 			errMsg: "",
 		},

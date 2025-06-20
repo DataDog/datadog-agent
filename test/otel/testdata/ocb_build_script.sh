@@ -65,21 +65,10 @@ dd_mods=$(find . -type f -name "go.mod" -exec dirname {} \; | sort | sed 's/.//'
 	for mod in $dd_mods; do
 		echo "- github.com/DataDog/datadog-agent$mod => $current_dir$mod"
 	done
-
-
-
-# TODO(songy23): remove this once v0.125.0 is brought to Agent
-echo "- github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter => github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.124.2-0.20250423140742-52a072f0719b" >> /tmp/otel-ci/builder-config.yaml
-echo "- github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector => github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.124.2-0.20250423140742-52a072f0719b" >> /tmp/otel-ci/builder-config.yaml
-# https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/39586
-echo "- go.opentelemetry.io/collector/extension/extensionmiddleware/extensionmiddlewaretest v0.0.0-00010101000000-000000000000 => go.opentelemetry.io/collector/extension/extensionmiddleware/extensionmiddlewaretest v0.0.0-20250422165940-c47951a8bf71" >> /tmp/otel-ci/builder-config.yaml
-echo "- go.opentelemetry.io/collector/config/configmiddleware v0.0.0-00010101000000-000000000000 => go.opentelemetry.io/collector/config/configmiddleware v0.0.0-20250422165940-c47951a8bf71" >> /tmp/otel-ci/builder-config.yaml
-echo "- go.opentelemetry.io/collector/extension/extensionmiddleware v1.30.0 => go.opentelemetry.io/collector/extension/extensionmiddleware v0.0.0-20250422165940-c47951a8bf71" >> /tmp/otel-ci/builder-config.yaml
-
 } >>"$WORK_DIR/builder-config.yaml"
 
 # Install and configure OCB
-OCB_VERSION="0.124.0"
+OCB_VERSION="0.128.0"
 CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" \
 	go.opentelemetry.io/collector/cmd/builder@v${OCB_VERSION}
 mv -v "$(go env GOPATH)/bin/builder" "$WORK_DIR/ocb"

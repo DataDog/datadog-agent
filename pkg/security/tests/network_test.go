@@ -71,7 +71,7 @@ func TestNetworkCIDR(t *testing.T) {
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "dns", event.GetType(), "wrong event type")
-			assert.Equal(t, "google.com", event.DNS.Name, "wrong domain name")
+			assert.Equal(t, "google.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
 		})

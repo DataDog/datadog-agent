@@ -9,6 +9,6 @@ apm_config:
             app: "billing-service"
         namespaceSelector:
           matchNames:
-          - "billing-service"
+            - "billing-service"
         ddTraceVersions:
-          python: "v2"
+          python: "v3"

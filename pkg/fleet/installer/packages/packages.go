@@ -34,6 +34,10 @@ type hooks struct {
 	postStopExperiment    packageHook
 	prePromoteExperiment  packageHook
 	postPromoteExperiment packageHook
+
+	postStartConfigExperiment   packageHook
+	preStopConfigExperiment     packageHook
+	postPromoteConfigExperiment packageHook
 }
 
 // Hooks is the interface for the hooks.
@@ -48,6 +52,10 @@ type Hooks interface {
 	PostStopExperiment(ctx context.Context, pkg string) error
 	PrePromoteExperiment(ctx context.Context, pkg string) error
 	PostPromoteExperiment(ctx context.Context, pkg string) error
+
+	PostStartConfigExperiment(ctx context.Context, pkg string) error
+	PreStopConfigExperiment(ctx context.Context, pkg string) error
+	PostPromoteConfigExperiment(ctx context.Context, pkg string) error
 }
 
 // NewHooks creates a new Hooks instance that will execute hooks via the CLI.
@@ -106,6 +114,21 @@ func (h *hooksCLI) PrePromoteExperiment(ctx context.Context, pkg string) error {
 // PostPromoteExperiment calls the post-promote-experiment hook for the package.
 func (h *hooksCLI) PostPromoteExperiment(ctx context.Context, pkg string) error {
 	return h.callHook(ctx, true, pkg, "postPromoteExperiment", PackageTypeOCI, false, nil)
+}
+
+// PostStartConfigExperiment calls the post-start-config-experiment hook for the package.
+func (h *hooksCLI) PostStartConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "postStartConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PreStopConfigExperiment calls the pre-stop-config-experiment hook for the package.
+func (h *hooksCLI) PreStopConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "preStopConfigExperiment", PackageTypeOCI, false, nil)
+}
+
+// PostPromoteConfigExperiment calls the post-promote-config-experiment hook for the package.
+func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil)
 }
 
 // PackageType is the type of package.
@@ -237,6 +260,39 @@ func getHook(pkg string, name string) packageHook {
 		return h.prePromoteExperiment
 	case "postPromoteExperiment":
 		return h.postPromoteExperiment
+	case "postStartConfigExperiment":
+		return h.postStartConfigExperiment
+	case "preStopConfigExperiment":
+		return h.preStopConfigExperiment
+	case "postPromoteConfigExperiment":
+		return h.postPromoteConfigExperiment
 	}
 	return nil
+}
+
+// PackageCommandHandler is a function that handles the execution of a package-specific command.
+//
+// Implement this function and add it to the packagesCommands map to enable package-specific commands
+// for a given package. Package commands are currently intended to be used internally by package hooks
+// and not exposed to the user.
+// For example, the Agent Windows package hooks must start some background worker processes.
+//
+// The content of the command string is entirely defined by the individual package. Do NOT include
+// private information in the command string, use environment variables instead.
+type PackageCommandHandler func(ctx context.Context, command string) error
+
+// RunPackageCommand runs a package-specific command
+func RunPackageCommand(ctx context.Context, packageName string, command string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("package.%s", packageName))
+	span.SetTag("command", command)
+	defer func() { span.Finish(err) }()
+
+	// Get the command handler for this package
+	handler, ok := packageCommands[packageName]
+	if !ok {
+		return fmt.Errorf("no command handler found for package: %s", packageName)
+	}
+
+	// Call the package-specific command handler
+	return handler(ctx, command)
 }

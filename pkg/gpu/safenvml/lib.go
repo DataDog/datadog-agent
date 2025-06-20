@@ -22,6 +22,56 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
+// getCriticalAPIs returns the list of critical NVML APIs
+// required for basic functionality
+func getCriticalAPIs() []string {
+	return []string{
+		toNativeName("GetCount"),
+		toNativeName("GetCudaComputeCapability"),
+		toNativeName("GetHandleByIndex"),
+		toNativeName("GetIndex"),
+		toNativeName("GetMemoryInfo"),
+		toNativeName("GetName"),
+		toNativeName("GetNumGpuCores"),
+		toNativeName("GetUUID"),
+	}
+}
+
+// getNonCriticalAPIs returns the list of non-critical NVML APIs
+// that are nice to have but not essential
+func getNonCriticalAPIs() []string {
+	return []string{
+		"nvmlShutdown",
+		"nvmlSystemGetDriverVersion",
+		toNativeName("GetArchitecture"),
+		toNativeName("GetAttributes"),
+		toNativeName("GetClockInfo"),
+		toNativeName("GetComputeRunningProcesses"),
+		toNativeName("GetCurrentClocksThrottleReasons"),
+		toNativeName("GetDecoderUtilization"),
+		toNativeName("GetEncoderUtilization"),
+		toNativeName("GetFanSpeed"),
+		toNativeName("GetFieldValues"),
+		toNativeName("GetGpuInstanceId"),
+		toNativeName("GetMaxClockInfo"),
+		toNativeName("GetMaxMigDeviceCount"),
+		toNativeName("GetMemoryBusWidth"),
+		toNativeName("GetMigDeviceHandleByIndex"),
+		toNativeName("GetMigMode"),
+		toNativeName("GetNvLinkState"),
+		toNativeName("GetPcieThroughput"),
+		toNativeName("GetPerformanceState"),
+		toNativeName("GetPowerManagementLimit"),
+		toNativeName("GetPowerUsage"),
+		toNativeName("GetRemappedRows"),
+		toNativeName("GetSamples"),
+		toNativeName("GetTemperature"),
+		toNativeName("GetTotalEnergyConsumption"),
+		toNativeName("GetUtilizationRates"),
+		toNativeName("IsMigDeviceHandle"),
+	}
+}
+
 // symbolLookup is an internal interface for checking symbol availability
 type symbolLookup interface {
 	lookup(string) error
@@ -96,7 +146,7 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 	if err := NewNvmlAPIErrorOrNil("DeviceGetHandleByIndex", ret); err != nil {
 		return nil, err
 	}
-	return NewDevice(dev)
+	return NewPhysicalDevice(dev)
 }
 
 // populateCapabilities verifies nvml API symbols exist in the native library (libnvidia-ml.so).
@@ -105,48 +155,10 @@ func (s *safeNvml) populateCapabilities() error {
 	s.capabilities = make(map[string]struct{})
 
 	// Critical API from libnvidia-ml.so that are required for basic functionality
-	criticalAPI := []string{
-		toNativeName("GetCount"),
-		toNativeName("GetCudaComputeCapability"),
-		toNativeName("GetHandleByIndex"),
-		toNativeName("GetIndex"),
-		toNativeName("GetMemoryInfo"),
-		toNativeName("GetName"),
-		toNativeName("GetNumGpuCores"),
-		toNativeName("GetUUID"),
-	}
+	criticalAPI := getCriticalAPIs()
 
 	// All other capabilities that are nice to have but not critical
-	// These are methods from SafeNvml and SafeDevice interfaces that are not in criticalAPI
-	allOtherAPI := []string{
-		"nvmlShutdown",
-		"nvmlSystemGetDriverVersion",
-		toNativeName("GetArchitecture"),
-		toNativeName("GetAttributes"),
-		toNativeName("GetClockInfo"),
-		toNativeName("GetComputeRunningProcesses"),
-		toNativeName("GetCurrentClocksThrottleReasons"),
-		toNativeName("GetDecoderUtilization"),
-		toNativeName("GetEncoderUtilization"),
-		toNativeName("GetFanSpeed"),
-		toNativeName("GetFieldValues"),
-		toNativeName("GetGpuInstanceId"),
-		toNativeName("GetMaxClockInfo"),
-		toNativeName("GetMaxMigDeviceCount"),
-		toNativeName("GetMemoryBusWidth"),
-		toNativeName("GetMigDeviceHandleByIndex"),
-		toNativeName("GetMigMode"),
-		toNativeName("GetNvLinkState"),
-		toNativeName("GetPcieThroughput"),
-		toNativeName("GetPerformanceState"),
-		toNativeName("GetPowerManagementLimit"),
-		toNativeName("GetPowerUsage"),
-		toNativeName("GetRemappedRows"),
-		toNativeName("GetSamples"),
-		toNativeName("GetTemperature"),
-		toNativeName("GetTotalEnergyConsumption"),
-		toNativeName("GetUtilizationRates"),
-	}
+	allOtherAPI := getNonCriticalAPIs()
 
 	// Check each critical API symbol and fail if any are missing
 	for _, api := range criticalAPI {

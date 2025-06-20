@@ -84,6 +84,8 @@ var (
 	MetricRepeatedDNSResponsesFilteredOnKernel = newRuntimeMetric(".dns_response_collector.repeated_dns_responses_filtered_on_kernel")
 	// MetricDNSSameIDDifferentSize DNS responses that had the same ID but a different size
 	MetricDNSSameIDDifferentSize = newRuntimeMetric(".dns_response_collector.dns_same_id_different_size")
+	// MetricDiscardedDNSPackets DNS responses that were discarded because of not matching a rule
+	MetricDiscardedDNSPackets = newRuntimeMetric(".dns_response_collector.dns_discarded_packets")
 
 	// filtering metrics
 
@@ -340,6 +342,15 @@ var (
 	// MetricHashResolverHashCacheLen is the name of the metric used to report the count of hashes in cache
 	// Tags: -
 	MetricHashResolverHashCacheLen = newRuntimeMetric(".hash_resolver.cache_len")
+
+	// File resolver metrics
+
+	// MetricFileResolverCacheHit is the name of the metric used to report file resolver cache hits
+	// Tags: -
+	MetricFileResolverCacheHit = newRuntimeMetric(".file_resolver.cache_hit")
+	// MetricFileResolverCacheMiss is the name of the metric used to report file resolver cache misses
+	// Tags: -
+	MetricFileResolverCacheMiss = newRuntimeMetric(".file_resolver.cache_miss")
 
 	// Namespace resolver metrics
 
