@@ -64,9 +64,7 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	}
 
 	// add datadog agent sourced config
-	if slices.Contains(enabledFeatures, "core") {
-		addCoreAgentConfig(conf, c.coreConfig)
-	}
+	addCoreAgentConfig(conf, c.coreConfig)
 }
 
 func componentName(fullName string) string {
