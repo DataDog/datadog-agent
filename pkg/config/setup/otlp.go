@@ -22,8 +22,26 @@ const (
 	OTLPDebug                 = OTLPSection + "." + "debug"
 )
 
+var OTLPReceiverConfigs = []string{
+	"otlp_config.receiver.protocols.grpc.endpoint",
+	"otlp_config.receiver.protocols.grpc.transport",
+	"otlp_config.receiver.protocols.grpc.max_recv_msg_size_mib",
+	"otlp_config.receiver.protocols.grpc.max_concurrent_streams",
+	"otlp_config.receiver.protocols.grpc.read_buffer_size",
+	"otlp_config.receiver.protocols.grpc.write_buffer_size",
+	"otlp_config.receiver.protocols.grpc.include_metadata",
+	"otlp_config.receiver.protocols.grpc.keepalive.enforcement_policy.min_time",
+	"otlp_config.receiver.protocols.http.endpoint",
+	"otlp_config.receiver.protocols.http.max_request_body_size",
+	"otlp_config.receiver.protocols.http.include_metadata",
+	"otlp_config.receiver.protocols.http.cors.allowed_headers",
+	"otlp_config.receiver.protocols.http.cors.allowed_origins",
+}
+
 // OTLP related configuration.
 func OTLP(config pkgconfigmodel.Setup) {
+	config.BindEnvAndSetDefault("otlp_config.enabled", false)
+
 	config.BindEnv("otlp_config.grpc_port") // TODO OTLP team: add default value
 	config.BindEnv("otlp_config.http_port") // TODO OTLP team: add default value
 
@@ -43,9 +61,7 @@ func OTLP(config pkgconfigmodel.Setup) {
 		"DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE")
 	config.BindEnvAndSetDefault("otlp_config.traces.internal_port", 5003)
 
-	// TODO(OTAGENT-378): Fix OTLP ingestion configs so that they can have default values
-	// For now do NOT add default values for any config under otlp_config.receiver, that will force the OTLP ingestion pipelines to always start
-
+	// Note: When adding an otlp_config.receiver.* config, add it to OTLPReceiverConfigs slice as well.
 	// gRPC settings
 	config.BindEnv("otlp_config.receiver.protocols.grpc.endpoint")
 	config.BindEnv("otlp_config.receiver.protocols.grpc.transport")
