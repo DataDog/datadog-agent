@@ -34,7 +34,7 @@ const snapshotDir = "testdata/snapshot"
 var cases = []string{"simple"}
 
 func TestSnapshotTesting(t *testing.T) {
-	cfgs := testprogs.GetCommonConfigs(t)
+	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, caseName := range cases {
 		t.Run(caseName, func(t *testing.T) {
 			for _, cfg := range cfgs {
@@ -51,8 +51,8 @@ func runTest(
 	cfg testprogs.Config,
 	caseName string,
 ) {
-	binPath := testprogs.GetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.GetProbeCfgs(t, caseName)
+	binPath := testprogs.MustGetBinary(t, caseName, cfg)
+	probesCfgs := testprogs.MustGetProbeCfgs(t, caseName)
 	elfFile, err := safeelf.Open(binPath)
 	require.NoError(t, err)
 	obj, err := object.NewElfObject(elfFile)

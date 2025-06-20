@@ -9,11 +9,14 @@ package testprogs
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 )
@@ -23,32 +26,47 @@ type probeYaml struct {
 	Probes []map[string]any `yaml:"probes"`
 }
 
+// MustGetProbeCfgs calls GetProbeCfgs and checks for an error.
+func MustGetProbeCfgs(t *testing.T, name string) []config.Probe {
+	probes, err := GetProbeCfgs(name)
+	require.NoError(t, err)
+	return probes
+}
+
 // GetProbeCfgs returns the probe configurations for binary of a given name.
-func GetProbeCfgs(t *testing.T, name string) []config.Probe {
+func GetProbeCfgs(name string) ([]config.Probe, error) {
+	probes, err := getProbeCfgs(name)
+	if err != nil {
+		return nil, fmt.Errorf("testprogs: %w", err)
+	}
+	return probes, nil
+}
+
+func getProbeCfgs(name string) ([]config.Probe, error) {
 	state, err := getState()
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return nil, err
 	}
 	yamlData, err := os.ReadFile(path.Join(state.probesCfgsDir, name+".yaml"))
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return nil, err
 	}
 	var probeYaml probeYaml
 	err = yaml.Unmarshal(yamlData, &probeYaml)
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		return nil, err
 	}
 	var probesCfgs []config.Probe
 	for _, probe := range probeYaml.Probes {
 		probeBytes, err := json.Marshal(probe)
 		if err != nil {
-			t.Fatalf("testprogs: %v", err)
+			return nil, err
 		}
 		probeCfg, err := config.UnmarshalProbe(probeBytes)
 		if err != nil {
-			t.Fatalf("testprogs: %v", err)
+			return nil, err
 		}
 		probesCfgs = append(probesCfgs, probeCfg)
 	}
-	return probesCfgs
+	return probesCfgs, nil
 }

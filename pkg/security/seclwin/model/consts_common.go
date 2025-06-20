@@ -611,6 +611,7 @@ func initConstants() {
 	initSysCtlActionConstants()
 	initSetSockOptLevelConstants()
 	initSetSockOptOptNameConstants()
+	initRlimitConstants()
 	initABIConstants()
 	initArchitectureConstants()
 	initCompressionTypeConstants()

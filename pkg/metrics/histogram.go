@@ -11,7 +11,6 @@ import (
 	"strconv"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -79,15 +78,11 @@ func NewHistogram(interval int64, config pkgconfigmodel.Config) *Histogram {
 	if defaultAggregates == nil {
 		defaultAggregates = config.GetStringSlice("histogram_aggregates")
 	}
+
 	if defaultPercentiles == nil {
-		c := []string{}
-		err := structure.UnmarshalKey(config, "histogram_percentiles", &c)
-		if err != nil {
-			log.Errorf("Could not Unmarshal histogram configuration: %s", err)
-		} else {
-			defaultPercentiles = ParsePercentiles(c)
-			sort.Ints(defaultPercentiles)
-		}
+		c := config.GetStringSlice("histogram_percentiles")
+		defaultPercentiles = ParsePercentiles(c)
+		sort.Ints(defaultPercentiles)
 	}
 
 	return &Histogram{

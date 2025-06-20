@@ -136,7 +136,7 @@ func RunSackTraceroute(ctx context.Context, p Params) (*common.Results, error) {
 		return nil, fmt.Errorf("sack traceroute failed: %w", err)
 	}
 
-	hops, err := common.ToHops(p.ParallelParams, sackResult.Hops)
+	hops, err := common.ToHops(p.ParallelParams.TracerouteParams, sackResult.Hops)
 	if err != nil {
 		return nil, fmt.Errorf("sack traceroute ToHops failed: %w", err)
 	}

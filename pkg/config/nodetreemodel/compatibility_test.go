@@ -287,6 +287,22 @@ customKey2: unused
 		assert.NotContains(t, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())), "customkey2")
 		assert.NotContains(t, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())), "customkey2")
 	})
+
+	t.Run("SetWithoutSource won't create known key", func(t *testing.T) {
+		dataYaml := `
+port: 8080
+`
+		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+			cfg.SetKnown("port")
+		})
+		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+
+		wantKeys := []string{"port"}
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(viperConf.GetKnownKeysLowercased())))
+		assert.ElementsMatch(t, wantKeys, slices.Collect(maps.Keys(ntmConf.GetKnownKeysLowercased())))
+	})
+
 }
 
 func TestCompareAllKeysLowercased(t *testing.T) {
@@ -352,4 +368,56 @@ customKey2: unused
 		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
 		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
 	})
+
+	t.Run("SetWithoutSource will create unknown key", func(t *testing.T) {
+		dataYaml := `
+port: 8080
+`
+		viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+			cfg.SetKnown("port")
+		})
+		viperConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+		ntmConf.SetWithoutSource("unknown_key.unknown_subkey", "true")
+
+		wantKeys := []string{"port", "unknown_key.unknown_subkey"}
+		assert.ElementsMatch(t, wantKeys, viperConf.AllKeysLowercased())
+		assert.ElementsMatch(t, wantKeys, ntmConf.AllKeysLowercased())
+	})
+}
+
+func TestCompareIsConfigured(t *testing.T) {
+	dataYaml := `
+apm_config:
+  telemetry:
+    dd_url: https://example.com/
+`
+	t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL", "https://example.com/endpoint/")
+
+	viperConf, ntmConf := constructBothConfigs(dataYaml, true, func(cfg model.Setup) {
+		cfg.SetKnown("apm_config.telemetry.dd_url")
+		cfg.SetKnown("database_monitoring.samples.dd_url")
+		cfg.SetKnown("runtime_security_config.endpoints.dd_url")
+		cfg.SetDefault("apm_config.telemetry.dd_url", "")
+		cfg.SetDefault("database_monitoring.samples.dd_url", "")
+		cfg.BindEnvAndSetDefault("runtime_security_config.endpoints.dd_url", "", "DD_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")
+	})
+
+	assert.True(t, viperConf.IsConfigured("apm_config.telemetry"))
+	assert.True(t, ntmConf.IsConfigured("apm_config.telemetry"))
+
+	assert.True(t, viperConf.IsConfigured("apm_config.telemetry.dd_url"))
+	assert.True(t, ntmConf.IsConfigured("apm_config.telemetry.dd_url"))
+
+	assert.False(t, viperConf.IsConfigured("database_monitoring.samples"))
+	assert.False(t, ntmConf.IsConfigured("database_monitoring.samples"))
+
+	assert.False(t, viperConf.IsConfigured("database_monitoring.samples.dd_url"))
+	assert.False(t, ntmConf.IsConfigured("database_monitoring.samples.dd_url"))
+
+	assert.True(t, viperConf.IsConfigured("runtime_security_config.endpoints"))
+	assert.True(t, ntmConf.IsConfigured("runtime_security_config.endpoints"))
+
+	assert.True(t, viperConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
+	assert.True(t, ntmConf.IsConfigured("runtime_security_config.endpoints.dd_url"))
+
 }

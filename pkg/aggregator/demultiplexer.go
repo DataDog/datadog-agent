@@ -116,7 +116,7 @@ func createIterableMetrics(
 				log.Debugf("Flushing Sketches: %v", sketch)
 			}
 			if isServerless {
-				log.DebugfServerless("Sending sketches payload : %s", sketch.String())
+				log.Debugf("Sending sketches payload : %s", sketch.String())
 			}
 			if hostTags != nil {
 				sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTagProvider.GetHostTags())

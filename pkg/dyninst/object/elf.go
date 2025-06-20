@@ -20,6 +20,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
+// FindTextSectionHeader finds the text section header in an elf file.
+func FindTextSectionHeader(f *safeelf.File) (*safeelf.SectionHeader, error) {
+	for _, s := range f.Sections {
+		if s.Name == ".text" {
+			return &s.SectionHeader, nil
+		}
+	}
+	return nil, fmt.Errorf("text section not found")
+}
+
 // ElfFile is a struct that contains the data for an ELF file.
 //
 // This object is safe for concurrent use.
@@ -34,16 +44,6 @@ type ElfFile struct {
 	// Maps the compile unit entry offset to the version of the DWARF spec
 	// that was used to parse it.
 	unitVersions map[dwarf.Offset]uint8
-}
-
-// TextSectionHeader implements File.
-func (e *ElfFile) TextSectionHeader() (*safeelf.SectionHeader, error) {
-	for _, s := range e.Sections {
-		if s.Name == ".text" {
-			return &s.SectionHeader, nil
-		}
-	}
-	return nil, fmt.Errorf("text section not found")
 }
 
 // Architecture implements File.

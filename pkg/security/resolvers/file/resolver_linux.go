@@ -7,7 +7,6 @@
 package file
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"syscall"
@@ -87,7 +86,7 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 		event.FieldHandlers.ResolveFilePath(event, file)
 	}
 	if file.PathResolutionError != nil {
-		return nil, errors.New("path resolution error")
+		return nil, fmt.Errorf("path resolution error: %w", file.PathResolutionError)
 	}
 
 	// fileless

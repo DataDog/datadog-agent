@@ -163,13 +163,13 @@ func TestApproverAUIDRange(t *testing.T) {
 			}
 		}
 
-		key := makeEntryKey(auidRangeApproversTable, model.FileOpenEventType)
+		key := makeKFilterKey(auidRangeApproversTable, model.FileOpenEventType)
 		entry := kfilters[key]
 		if entry == nil {
 			t.Fatalf("expected kfilter not found: %+v => %+v", key, kfilters)
 		}
 
-		value := entry.(*hashEntry).value.(*ebpf.UInt32RangeMapItem)
+		value := entry.(*hashKFilter).value.(*ebpf.UInt32RangeMapItem)
 		if value.Min != min || value.Max != max {
 			t.Fatalf("expected kfilter not found: %+v => %+v", kfilters, value)
 		}

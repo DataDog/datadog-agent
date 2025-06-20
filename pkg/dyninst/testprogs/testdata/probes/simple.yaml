@@ -36,3 +36,9 @@ probes:
   type: LOG_PROBE
   where:
     method_name: main.bigMapArg
+- id: j
+  type: LOG_PROBE
+  where:
+    method_name: main.PointerChainArg
+  capture:
+    max_reference_depth: 3

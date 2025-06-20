@@ -49,6 +49,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:example_workspace",
 				"workspace:example_workspace",
+				"dd.internal.resource:databricks_cluster:cluster123",
 			},
 		},
 		{
@@ -62,6 +63,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:job-123-run-456",
 				"jobid:123",
 				"runid:456",
+				"dd.internal.resource:databricks_job:123",
 			},
 		},
 		{
@@ -94,6 +96,7 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:\"example_workspace\"",
 				"workspace:example_workspace",
+				"dd.internal.resource:databricks_cluster:cluster123",
 			},
 		},
 		{
@@ -119,6 +122,37 @@ func TestSetupCommonHostTags(t *testing.T) {
 				"cluster_name:example_job_name",
 				"databricks_workspace:Example Workspace",
 				"workspace:example_workspace",
+				"dd.internal.resource:databricks_cluster:cluster123",
+			},
+		},
+		{
+			name: "internal resource tags with cluster ID from env",
+			env: map[string]string{
+				"DB_CLUSTER_ID":   "cluster-67890",
+				"DB_CLUSTER_NAME": "job-999-run-888",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_name:job-999-run-888",
+				"databricks_cluster_id:cluster-67890",
+				"cluster_id:cluster-67890",
+				"cluster_name:job-999-run-888",
+				"jobid:999",
+				"runid:888",
+				"dd.internal.resource:databricks_job:999",
+				"dd.internal.resource:databricks_cluster:cluster-67890",
+			},
+		},
+		{
+			name: "only cluster ID env var",
+			env: map[string]string{
+				"DB_CLUSTER_ID": "cluster-only-12345",
+			},
+			wantTags: []string{
+				"data_workload_monitoring_trial:true",
+				"databricks_cluster_id:cluster-only-12345",
+				"cluster_id:cluster-only-12345",
+				"dd.internal.resource:databricks_cluster:cluster-only-12345",
 			},
 		},
 	}
@@ -512,6 +546,79 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 			for _, tag := range tt.wantTags {
 				assert.Contains(t, s.Config.DatadogYAML.Tags, tag)
 			}
+		})
+	}
+}
+
+func TestSetupGPUIntegration(t *testing.T) {
+	tests := []struct {
+		name                   string
+		env                    map[string]string
+		expectedCollectGPUTags bool
+		expectedEnableNVML     bool
+		expectedSystemProbeGPU bool
+	}{
+		{
+			name: "GPU monitoring enabled",
+			env: map[string]string{
+				"DD_GPU_MONITORING_ENABLED": "true",
+			},
+			expectedCollectGPUTags: true,
+			expectedEnableNVML:     true,
+			expectedSystemProbeGPU: true,
+		},
+		{
+			name: "GPU monitoring enabled with empty string value",
+			env: map[string]string{
+				"DD_GPU_MONITORING_ENABLED": "",
+			},
+			expectedCollectGPUTags: false,
+			expectedEnableNVML:     false,
+			expectedSystemProbeGPU: false,
+		},
+		{
+			name:                   "GPU monitoring not set",
+			env:                    map[string]string{},
+			expectedCollectGPUTags: false,
+			expectedEnableNVML:     false,
+			expectedSystemProbeGPU: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			for k, v := range tt.env {
+				require.NoError(t, os.Setenv(k, v))
+			}
+
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			output := &common.Output{}
+			s := &common.Setup{
+				Span: span,
+				Out:  output,
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
+				},
+			}
+
+			if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+				setupGPUIntegration(s)
+			}
+
+			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
+			assert.Equal(t, tt.expectedEnableNVML, s.Config.DatadogYAML.EnableNVMLDetection)
+
+			// Check system-probe configuration
+			if tt.expectedSystemProbeGPU {
+				assert.NotNil(t, s.Config.SystemProbeYAML)
+				assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
+			} else {
+				if s.Config.SystemProbeYAML != nil {
+					assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
+				}
+			}
+
 		})
 	}
 }

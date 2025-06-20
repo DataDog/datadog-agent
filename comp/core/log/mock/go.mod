@@ -17,7 +17,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
+	golang.org/x/time v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"gopkg.in/yaml.v3"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -371,13 +372,29 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	c.IPCTLSServerConfig = &tls.Config{}
 	c.AuthToken = ""
 
-	var buf []byte
-	buf, err := json.Marshal(&c)
+	// Scrub sensitive data from the config using structure-aware scrubbing:
+	//
+	// 1. Marshal config struct directly to YAML
+	// 2. Apply ScrubYaml to safely remove sensitive data without breaking structure
+	// 3. Unmarshal back to struct to preserve Go semantics
+	// 4. Marshal struct to JSON for final output
+	yamlData, err := yaml.Marshal(&c)
 	if err != nil {
 		return err
 	}
 
-	scrubbed, err := scrubber.ScrubBytes(buf)
+	scrubbedYaml, err := scrubber.ScrubYaml(yamlData)
+	if err != nil {
+		return err
+	}
+
+	var scrubbedConfig config.AgentConfig
+	err = yaml.Unmarshal(scrubbedYaml, &scrubbedConfig)
+	if err != nil {
+		return err
+	}
+
+	scrubbed, err := json.Marshal(&scrubbedConfig)
 	if err != nil {
 		return err
 	}

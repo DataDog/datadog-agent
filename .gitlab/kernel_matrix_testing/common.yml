@@ -165,7 +165,7 @@
       # Each VM gets 12GB of memory. We have set 8GB as base for the system, and upto 4GB can be used
       # by a ram backed filesystem holding the system-probe test packages
     - dda inv -- -e kmt.gen-config --ci --arch=$ARCH --output-file=$VMCONFIG_FILE --vmconfig-template=$TEST_COMPONENT --memory=12288
-    - dda inv -- -e system-probe.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
+    - dda inv -- -e kmt.start-microvms --provision-instance --provision-microvms --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-${TEST_COMPONENT}-${ARCH}-${CI_PIPELINE_ID} --run-agent
     - jq "." $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
@@ -347,6 +347,6 @@ notify_ebpf_complexity_changes:
     - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN read_api) || exit $?; export GITLAB_TOKEN
+    - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
   script:
     - dda inv -- -e ebpf.generate-complexity-summary-for-pr --gitlab-config-file artifacts/after.gitlab-ci.yml

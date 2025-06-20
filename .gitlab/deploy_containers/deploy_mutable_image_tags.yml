@@ -8,7 +8,7 @@
   before_script:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${SUFFIX}
-    - if [[ -z "$IMG_NEW_TAGS" ]]; then IMG_NEW_TAGS=${TAG_BASE}${SUFFIX}; fi
+    - if [[ -z "$IMG_NEW_TAGS" ]]; then export IMG_NEW_TAGS=${TAG_BASE}${SUFFIX}; fi
 
 .deploy_mutable_image_tags_7-rc:
   extends: .deploy_mutable_image_tags_base

@@ -22,10 +22,18 @@ type Function struct {
 	Ops []Op
 }
 
+// Throttler corresponds to a throttler instance with specified limits.
+type Throttler struct {
+	PeriodNs uint64
+	Budget   int64
+}
+
 // Program represents stack machine program.
 type Program struct {
-	Functions []Function
-	Types     []ir.Type
+	ID         uint32
+	Functions  []Function
+	Types      []ir.Type
+	Throttlers []Throttler
 }
 
 type generator struct {
@@ -60,14 +68,25 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	if err != nil {
 		return Program{}, err
 	}
+	throttlers := make([]Throttler, 0, len(program.Probes))
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
 			for _, injectionPC := range event.InjectionPCs {
-				err := g.addEventHandler(injectionPC, event.Type)
+				err := g.addEventHandler(
+					injectionPC,
+					len(throttlers),
+					probe.PointerChasingLimit,
+					event.Type,
+				)
 				if err != nil {
 					return Program{}, err
 				}
 			}
+			// We throttle each event individually, across all its injection points.
+			throttlers = append(throttlers, Throttler{
+				PeriodNs: uint64(probe.ThrottlePeriodMs) * 1000 * 1000,
+				Budget:   probe.ThrottleBudget,
+			})
 		}
 	}
 	for len(g.typeQueue) > 0 {
@@ -82,18 +101,27 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		types = append(types, t)
 	}
 	return Program{
-		Functions: g.functions,
-		Types:     types,
+		ID:         uint32(program.ID),
+		Functions:  g.functions,
+		Types:      types,
+		Throttlers: throttlers,
 	}, nil
 }
 
 // Generates a function called when a probe (represented by the root type)
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
-func (g *generator) addEventHandler(injectionPC uint64, rootType *ir.EventRootType) error {
+func (g *generator) addEventHandler(
+	injectionPC uint64,
+	throttlerIdx int,
+	pointerChasingLimit uint32,
+	rootType *ir.EventRootType,
+) error {
 	id := ProcessEvent{
-		EventRootType: rootType,
-		InjectionPC:   injectionPC,
+		InjectionPC:         injectionPC,
+		ThrottlerIdx:        throttlerIdx,
+		PointerChasingLimit: pointerChasingLimit,
+		EventRootType:       rootType,
 	}
 	ops := make([]Op, 0, 2+len(rootType.Expressions))
 	ops = append(ops, PrepareEventRootOp{

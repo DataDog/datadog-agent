@@ -21,12 +21,9 @@ typedef struct event_header {
   // The ID of the program that produced this event.
   uint32_t prog_id;
 
-  // The ID of the event within a probe of the program that produced this event.
-  uint32_t event_id;
-
   // The number of bytes for a stack trace that follows this header.
   uint16_t stack_byte_len;
-  char __padding[2];
+  char __padding[6];
  
   // Hash of the stack trace that follows this header.
   uint64_t stack_hash;

@@ -16,19 +16,19 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
-	object "github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func TestIRGenAllProbes(t *testing.T) {
-	programs := testprogs.GetPrograms(t)
-	cfgs := testprogs.GetCommonConfigs(t)
+	programs := testprogs.MustGetPrograms(t)
+	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, pkg := range programs {
 		t.Run(pkg, func(t *testing.T) {
 			for _, cfg := range cfgs {
 				t.Run(cfg.String(), func(t *testing.T) {
-					bin := testprogs.GetBinary(t, pkg, cfg)
+					bin := testprogs.MustGetBinary(t, pkg, cfg)
 					testAllProbes(t, bin)
 				})
 			}

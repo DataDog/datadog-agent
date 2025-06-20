@@ -19,6 +19,10 @@ import (
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
 
+// RingbufMapName is the name of the ringbuffer map that is used to collect
+// probe output.
+const RingbufMapName = "out_ringbuf"
+
 //go:generate $GOPATH/bin/include_headers pkg/dyninst/ebpf/event.c pkg/ebpf/bytecode/build/runtime/dyninst_event.c pkg/ebpf/c
 //go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/dyninst_event.c pkg/ebpf/bytecode/runtime/dyninst_event.go runtime
 
