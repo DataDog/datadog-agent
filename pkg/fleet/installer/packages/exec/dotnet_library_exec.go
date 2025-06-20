@@ -80,6 +80,20 @@ func (d *DotnetLibraryExec) RemoveIISInstrumentation(ctx context.Context) (exitC
 	return cmd.Run()
 }
 
+// EnableGlobalInstrumentation enables global instrumentation with the .NET library, including for apps running in IIS.
+func (d *DotnetLibraryExec) EnableGlobalInstrumentation(ctx context.Context, homePath string) (exitCode int, err error) {
+	cmd := d.newDotnetLibraryExecCmd(ctx, "enable-global-instrumentation", "--home-path", homePath)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// RemoveGlobalInstrumentation removes global instrumentation with the .NET library, including for IIS.
+func (d *DotnetLibraryExec) RemoveGlobalInstrumentation(ctx context.Context) (exitCode int, err error) {
+	cmd := d.newDotnetLibraryExecCmd(ctx, "remove-global-instrumentation")
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
 func (d *dotnetLibraryExecCmd) Run() (int, error) {
 	var mergedBuffer bytes.Buffer
 	errWriter := io.MultiWriter(&mergedBuffer, os.Stderr)
