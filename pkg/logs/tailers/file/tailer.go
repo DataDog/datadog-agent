@@ -386,7 +386,9 @@ func (t *Tailer) forwardMessages() {
 		origin.Fingerprint = t.fingerprint
 		output.Origin = origin
 		// add tailer tags
-		output.Origin.SetTags(t.buildTailerTags())
+		tags := t.buildTailerTags()
+		tags = append(tags, output.ParsingExtra.Tags...)
+		output.Origin.SetTags(tags)
 		// Ignore empty lines once the registry offset is updated
 		if len(output.GetContent()) == 0 {
 			continue
