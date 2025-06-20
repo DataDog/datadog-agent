@@ -640,6 +640,11 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 	}
 }
 
+// IsWithinCI returns true if the test suite is running in a CI environment.
+func (bs *BaseSuite[Env]) IsWithinCI() bool {
+	return os.Getenv("CI_JOB_ID") != ""
+}
+
 // TearDownSuite run after all the tests in the suite have been run.
 // This function is called by [testify Suite].
 //
@@ -649,10 +654,50 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 func (bs *BaseSuite[Env]) TearDownSuite() {
 	bs.endTime = time.Now()
 
+	if bs.params.devMode {
+		return
+	}
+
+	if bs.initOnly {
+		bs.T().Logf("INIT_ONLY is set, skipping deletion")
+		return
+	}
+
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
 		bs.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
 			"The environment of %v was kept.", bs.firstFailTest, bs.firstFailTest, bs.firstFailTest))
 		return
+	}
+
+	ctx, cancel := bs.providerContext(deleteTimeout)
+	defer cancel()
+
+	for id, provisioner := range bs.originalProvisioners {
+		// Run provisioner Diagnose before tearing down the stack
+		if diagnosableProvisioner, ok := provisioner.(provisioners.Diagnosable); ok {
+			stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+			if err != nil {
+				bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+			} else {
+				diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
+				if diagnoseErr != nil {
+					bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+				} else if diagnoseResult != "" {
+					bs.T().Logf("Diagnose result: %s", diagnoseResult)
+				}
+			}
+		}
+
+		if bs.IsWithinCI() {
+			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
+			// We need to rename the stack to mark it as stale
+			// TODO
+			bs.T().Logf("Not destroying stack %s in CI, it will be cleaned up by the stackcleaner-worker service", bs.params.stackName)
+		} else {
+			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
+				bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
+			}
+		}
 	}
 }
 
