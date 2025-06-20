@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 package discovery
 
 import (
@@ -46,7 +51,6 @@ spec:
             - name: DD_DISCOVERY_ENABLED
               value: "true"
 `}
-	
 
 	e2e.Run(t, &operatorDiscoveryTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
 		awskubernetes.WithOperator(),
@@ -67,7 +71,7 @@ func (s *operatorDiscoveryTestSuite) TestDiscoveryOperator() {
 	require.NoError(t, err)
 	require.NotEmpty(t, agentPods.Items, "No agent pods found")
 	agentPod := agentPods.Items[0]
-	
+
 	// Create Python server pod
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -103,7 +107,7 @@ func (s *operatorDiscoveryTestSuite) TestDiscoveryOperator() {
 		if !assert.NoError(c, err) {
 			return
 		}
-		
+
 		if podStatus.Status.Phase == corev1.PodRunning {
 			for _, condition := range podStatus.Status.Conditions {
 				if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
@@ -112,15 +116,15 @@ func (s *operatorDiscoveryTestSuite) TestDiscoveryOperator() {
 				}
 			}
 		}
-		
+
 		assert.Fail(c, "Python HTTP server pod is not ready yet")
 	}, 2*time.Minute, 10*time.Second)
 
 	// Check services via unix socket
 	servicesOutput, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
-		"datadog", 
-		agentPod.Name, 
-		"system-probe", 
+		"datadog",
+		agentPod.Name,
+		"system-probe",
 		[]string{"curl", "-s", "--unix-socket", "/var/run/sysprobe/sysprobe.sock", "http://unix/discovery/debug"},
 	)
 	if err != nil {
@@ -138,12 +142,12 @@ func (s *operatorDiscoveryTestSuite) TestDiscoveryOperator() {
 		if !assert.NoError(c, err) {
 			return
 		}
-		
+
 		t.Logf("Found %d service discovery payloads", len(payloads))
 		for _, p := range payloads {
 			t.Logf("Service discovery: RequestType=%s, ServiceName=%s", p.RequestType, p.Payload.ServiceName)
 		}
-		
+
 		found := false
 		for _, p := range payloads {
 			if p.RequestType == "start-service" && p.Payload.ServiceName == "http.server" {
@@ -152,7 +156,7 @@ func (s *operatorDiscoveryTestSuite) TestDiscoveryOperator() {
 				break
 			}
 		}
-		
+
 		assert.True(c, found, "Did not find service discovery for Python HTTP server")
 	}, 3*time.Minute, 10*time.Second)
 }
