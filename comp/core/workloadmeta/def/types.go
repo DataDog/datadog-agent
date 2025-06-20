@@ -1229,9 +1229,6 @@ type Service struct {
 
 	// Type is the service type (e.g., "web_service")
 	Type string
-
-	// LastHeartbeat is the timestamp of the last heartbeat update (Unix seconds)
-	LastHeartbeat int64
 }
 
 // Process is an Entity that represents a process
@@ -1279,11 +1276,9 @@ func (p *Process) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
 	}
 
-	// If the source has service data that's newer, remove the one from destination so merge() takes latest service data from the source
+	// If the source has service data, remove the one from destination so merge() takes service data from the source
 	if otherProcess.Service != nil {
-		if p.Service == nil || otherProcess.Service.LastHeartbeat >= p.Service.LastHeartbeat {
-			p.Service = nil
-		}
+		p.Service = nil
 	}
 
 	return merge(p, otherProcess)
@@ -1311,7 +1306,6 @@ func (p Process) String(_ bool) string {
 		_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
 		_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
 		_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
-		_, _ = fmt.Fprintln(&sb, "Service Last Heartbeat:", p.Service.LastHeartbeat)
 	}
 	// TODO: add new fields once the new wlm process collector can be enabled
 

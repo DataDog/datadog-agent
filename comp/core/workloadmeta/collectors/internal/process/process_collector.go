@@ -70,6 +70,7 @@ type collector struct {
 	startupTimeout time.Duration
 	serviceRetries map[int32]uint
 	ignoredPids    core.PidSet
+	pidHeartbeats  map[int32]time.Time
 }
 
 // EventType represents the type of collector event
@@ -106,6 +107,7 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
 		serviceRetries: make(map[int32]uint),
 		ignoredPids:    make(core.PidSet),
+		pidHeartbeats:  make(map[int32]time.Time),
 	}
 }
 
@@ -261,19 +263,10 @@ func (c *collector) filterPidsToRequest(alivePids core.PidSet) ([]int32, map[int
 			continue
 		}
 
-		// Check if we have service data for this process
-		entity, err := c.store.GetProcess(pid)
-		if err != nil || entity == nil || entity.Service == nil {
-			// No service data found, need to request it
-			pidsToRequest = append(pidsToRequest, pid)
-			pidsToService[pid] = nil
-			continue
-		}
-
-		// Check if service data is stale (last heartbeat > 15 minutes ago)
-		lastHeartbeat := time.Unix(entity.Service.LastHeartbeat, 0)
-		if now.Sub(lastHeartbeat) > core.HeartbeatTime {
-			// Service data is stale, need to refresh it
+		// Check if service data is stale or never collected
+		lastHeartbeat, exists := c.pidHeartbeats[pid]
+		if !exists || now.Sub(lastHeartbeat) > core.HeartbeatTime {
+			// Service data is stale or never collected, need to refresh it
 			pidsToRequest = append(pidsToRequest, pid)
 			pidsToService[pid] = nil
 		}
@@ -338,8 +331,8 @@ func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService m
 			continue
 		}
 
-		// Update the last heartbeat to current time
-		service.LastHeartbeat = now.Unix()
+		// Update the heartbeat cache for this PID
+		c.pidHeartbeats[int32(service.PID)] = now
 
 		entity := &workloadmeta.Process{
 			EntityID: workloadmeta.EntityID{
@@ -367,7 +360,6 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 		Ports:                    modelService.Ports,
 		APMInstrumentation:       modelService.APMInstrumentation,
 		Type:                     modelService.Type,
-		LastHeartbeat:            modelService.LastHeartbeat,
 	}
 }
 
@@ -509,6 +501,7 @@ func (c *collector) collectServices(ctx context.Context, collectionTicker *clock
 
 			cleanPidMaps(alivePids, c.ignoredPids)
 			cleanPidMaps(alivePids, c.serviceRetries)
+			cleanPidMaps(alivePids, c.pidHeartbeats)
 		case <-ctx.Done():
 			log.Infof("The %s service collector has stopped", collectorID)
 			return

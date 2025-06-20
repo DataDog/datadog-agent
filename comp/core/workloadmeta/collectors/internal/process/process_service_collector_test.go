@@ -37,9 +37,7 @@ const (
 	pidIgnoredService = 555
 )
 
-var (
-	baseTime = time.Date(2025, 1, 12, 1, 0, 0, 0, time.UTC) // 12th of January 2025, 1am UTC
-)
+var baseTime = time.Date(2025, 1, 12, 1, 0, 0, 0, time.UTC) // 12th of January 2025, 1am UTC
 
 // startTestServer creates a system-probe test server that returns the specified response or error
 func startTestServer(t *testing.T, response *model.ServicesEndpointResponse, shouldError bool) (string, *httptest.Server) {
@@ -102,11 +100,10 @@ func makeModelService(pid int32, name string) model.Service {
 		Type:               "database",
 		CommandLine:        []string{"python", "-m", "myservice"},
 		StartTimeMilli:     uint64(baseTime.Add(-1 * time.Minute).UnixMilli()),
-		LastHeartbeat:      baseTime.Unix(),
 	}
 }
 
-func makeProcessEntityService(pid int32, name string, lastHeartbeat time.Time) *workloadmeta.Process {
+func makeProcessEntityService(pid int32, name string) *workloadmeta.Process {
 	return &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
@@ -129,7 +126,6 @@ func makeProcessEntityService(pid int32, name string, lastHeartbeat time.Time) *
 			Ports:              []uint16{3000, 4000},
 			APMInstrumentation: "manual",
 			Type:               "database",
-			LastHeartbeat:      lastHeartbeat.Unix(),
 		},
 	}
 }
@@ -156,7 +152,6 @@ func assertStoredServices(t *testing.T, store workloadmetamock.Mock, expected []
 			assert.Equal(collectT, expectedProcess.Service.Ports, entity.Service.Ports)
 			assert.Equal(collectT, expectedProcess.Service.APMInstrumentation, entity.Service.APMInstrumentation)
 			assert.Equal(collectT, expectedProcess.Service.Type, entity.Service.Type)
-			assert.Equal(collectT, expectedProcess.Service.LastHeartbeat, entity.Service.LastHeartbeat)
 		}, 2*time.Second, 100*time.Millisecond)
 	}
 }
@@ -196,28 +191,35 @@ func assertProcessesExist(t *testing.T, store workloadmetamock.Mock, pids []int3
 func TestFilterPidsToRequest(t *testing.T) {
 	c := setUpCollectorTest(t, nil, nil, nil)
 
-	// Set the store for this specific test
-	c.collector.store = c.mockStore
+	// Set up test time using baseTime
+	c.mockClock.Set(baseTime)
 
 	// Create a set of alive PIDs
 	alivePids := make(core.PidSet)
-	alivePids.Add(pidNewService)
-	alivePids.Add(pidFreshService)
-	alivePids.Add(pidStaleService)
+	alivePids.Add(pidNewService)     // No cache entry (should be requested)
+	alivePids.Add(pidFreshService)   // Fresh cache entry (should NOT be requested)
+	alivePids.Add(pidStaleService)   // Stale cache entry (should be requested)
+	alivePids.Add(pidIgnoredService) // Ignored PID (should NOT be requested)
+
+	// Set up pidHeartbeats cache
+	c.collector.pidHeartbeats[pidFreshService] = baseTime.Add(-5 * time.Minute)  // Fresh (5 minutes ago)
+	c.collector.pidHeartbeats[pidStaleService] = baseTime.Add(-20 * time.Minute) // Stale (20 minutes ago)
+	// pidNewService has no cache entry (new service)
 
 	// Add ignored PID (simulating a PID that exceeded max retry attempts)
-	c.collector.ignoredPids.Add(pidFreshService)
+	c.collector.ignoredPids.Add(pidIgnoredService)
 
 	pids, pidsToService := c.collector.filterPidsToRequest(alivePids)
 
-	// Only non-ignored PIDs should be returned for querying
+	// Should request: pidNewService (new) and pidStaleService (stale)
+	// Should NOT request: pidFreshService (fresh) or pidIgnoredService (ignored)
 	require.Len(t, pids, 2)
 	require.Contains(t, pids, int32(pidNewService))
 	require.Contains(t, pids, int32(pidStaleService))
-	require.NotContains(t, pids, int32(pidFreshService))
+	require.NotContains(t, pids, int32(pidFreshService))   // Fresh, should not be requested
+	require.NotContains(t, pids, int32(pidIgnoredService)) // Ignored, should not be requested
 
 	// The pidsToService map should have entries for all requested PIDs
-	// initially set to nil (will be populated later with service data)
 	require.Len(t, pidsToService, 2)
 	require.Contains(t, pidsToService, int32(pidNewService))
 	require.Contains(t, pidsToService, int32(pidStaleService))
@@ -238,6 +240,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 		ignoredPids       []int32
 		existingProcesses []*workloadmeta.Process
 		expectStored      []*workloadmeta.Process
+		pidHeartbeats     map[int32]time.Time
 	}{
 		{
 			name:      "new service discovered and stored",
@@ -245,7 +248,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{makeModelService(pidNewService, "new-service")},
 			},
-			expectStored: []*workloadmeta.Process{makeProcessEntityService(pidNewService, "new-service", baseTime.Add(collectionInterval))},
+			expectStored: []*workloadmeta.Process{makeProcessEntityService(pidNewService, "new-service")},
 		},
 		{
 			name:        "http error handled gracefully",
@@ -266,18 +269,21 @@ func TestServiceStoreLifetime(t *testing.T) {
 			name:      "fresh service not updated, stale service updated",
 			alivePids: []int32{pidFreshService, pidStaleService},
 			existingProcesses: []*workloadmeta.Process{
-				makeProcessEntityService(pidFreshService, "fresh-existing", baseTime.Add(-5*time.Minute)),  // Recent
-				makeProcessEntityService(pidStaleService, "stale-existing", baseTime.Add(-20*time.Minute)), // Stale (> 15min)
+				makeProcessEntityService(pidFreshService, "fresh-existing"), // Recent
+				makeProcessEntityService(pidStaleService, "stale-existing"), // Stale (> 15min)
 			},
 			httpResponse: &model.ServicesEndpointResponse{
 				Services: []model.Service{
-					makeModelService(pidFreshService, "fresh-service"), // This should not update the existing one
-					makeModelService(pidStaleService, "stale-service"), // This should update the existing one
+					makeModelService(pidStaleService, "stale-service"), // Only stale service should be requested
 				},
 			},
 			expectStored: []*workloadmeta.Process{
-				makeProcessEntityService(pidFreshService, "fresh-existing", baseTime.Add(-5*time.Minute)),    // Fresh service unchanged
-				makeProcessEntityService(pidStaleService, "stale-service", baseTime.Add(collectionInterval)), // Stale service updated
+				makeProcessEntityService(pidFreshService, "fresh-existing"), // Fresh service unchanged
+				makeProcessEntityService(pidStaleService, "stale-service"),  // Stale service updated
+			},
+			pidHeartbeats: map[int32]time.Time{
+				pidFreshService: baseTime.Add(-5 * time.Minute),  // Fresh (5 minutes ago)
+				pidStaleService: baseTime.Add(-20 * time.Minute), // Stale (20 minutes ago)
 			},
 		},
 	}
@@ -306,6 +312,11 @@ func TestServiceStoreLifetime(t *testing.T) {
 
 			// Set mock clock to baseTime to control LastHeartbeat in tests
 			c.mockClock.Set(baseTime)
+
+			// Pre-populate pidHeartbeats cache if specified in test case
+			if tc.pidHeartbeats != nil {
+				c.collector.pidHeartbeats = tc.pidHeartbeats
+			}
 
 			// TODO: we should use Start() instead of these lines below when configuration is sorted as Start() is currently
 			// by default disabled
