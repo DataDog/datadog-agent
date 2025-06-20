@@ -66,8 +66,8 @@ func (s *testDotnetLibraryInstallSuite) TestReinstall() {
 
 func (s *testDotnetLibraryInstallSuite) TestUpdate() {
 	const (
-		initialVersion = "3.13.0-pipeline.58926677.beta.sha-af5a1fab-1"
-		upgradeVersion = "3.13.0-pipeline.58951229.beta.sha-af5a1fab-1"
+		initialVersion = "3.19.0-pipeline.67299728.beta.sha-c05ddfb1-1"
+		upgradeVersion = "3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"
 	)
 	flake.Mark(s.T())
 
@@ -134,8 +134,8 @@ func (s *testDotnetLibraryInstallSuite) TestRemovePackageFailsIfInUse() {
 func (s *testDotnetLibraryInstallSuite) TestUpgradeAndDowngradePackage() {
 	flake.Mark(s.T())
 	const (
-		initialVersion = "3.13.0-pipeline.58926677.beta.sha-af5a1fab-1"
-		upgradeVersion = "3.13.0-pipeline.58951229.beta.sha-af5a1fab-1"
+		initialVersion = "3.19.0-pipeline.67299728.beta.sha-c05ddfb1-1"
+		upgradeVersion = "3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"
 	)
 	// Install initial version
 	s.installDotnetAPMLibraryWithVersion(initialVersion)
@@ -181,7 +181,7 @@ func (s *testDotnetLibraryInstallSuite) TestRemoveCorruptedPackageFails() {
 func (s *testDotnetLibraryInstallSuite) installDotnetAPMLibrary() {
 	// TODO remove override once image is published in prod
 	output, err := s.Installer().InstallPackage("datadog-apm-library-dotnet",
-		installer.WithVersion("3.13.0-pipeline.58951229.beta.sha-af5a1fab-1"),
+		installer.WithVersion("3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"),
 		installer.WithRegistry("install.datad0g.com.internal.dda-testing.com"),
 	)
 	s.Require().NoErrorf(err, "failed to install the dotnet library package: %s", output)

@@ -141,14 +141,12 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that a new ruleset was loaded
-func ReportRuleSetLoaded(acc *events.AgentContainerContext, sender events.EventSender, statsdClient statsd.ClientInterface, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) {
-	rule, event := newRuleSetLoadedEvent(acc, rs, policies, filterReport)
-
+func ReportRuleSetLoaded(bundle RulesetLoadedEventBundle, sender events.EventSender, statsdClient statsd.ClientInterface) {
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
 	}
 
-	sender.SendEvent(rule, event, nil, "")
+	sender.SendEvent(bundle.Rule, bundle.Event, nil, "")
 }
 
 // PolicyMetadata contains the basic information about a policy
@@ -423,8 +421,14 @@ func NewPoliciesState(rs *rules.RuleSet, err *multierror.Error, includeInternalP
 	return policies
 }
 
-// newRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func newRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) (*rules.Rule, *events.CustomEvent) {
+// RulesetLoadedEventBundle is used to report a ruleset loaded event
+type RulesetLoadedEventBundle struct {
+	Rule  *rules.Rule
+	Event *events.CustomEvent
+}
+
+// NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
+func NewRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet, policies []*PolicyState, filterReport *kfilters.FilterReport) RulesetLoadedEventBundle {
 	evt := RulesetLoadedEvent{
 		Policies:       policies,
 		Filters:        filterReport,
@@ -432,8 +436,10 @@ func newRuleSetLoadedEvent(acc *events.AgentContainerContext, rs *rules.RuleSet,
 	}
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
-		events.NewCustomEvent(model.CustomEventType, evt)
+	return RulesetLoadedEventBundle{
+		Rule:  events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
+		Event: events.NewCustomEvent(model.CustomEventType, evt),
+	}
 }
 
 // newHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
@@ -499,8 +505,7 @@ func extractMonitoredFilesAndFolders(rs *rules.RuleSet) []string {
 
 // isPositivelyUsed checks if a field value is used positively
 func isPositivelyUsed(rule *rules.Rule, field eval.Field, value eval.FieldValue, rs *rules.RuleSet) bool {
-
-	fakeEvent := rs.NewEvent()
+	fakeEvent := rs.NewFakeEvent()
 	ctx := eval.NewContext(fakeEvent)
 
 	// Test with the actual value
