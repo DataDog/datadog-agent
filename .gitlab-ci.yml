@@ -876,8 +876,13 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
+        - cmd/process-agent/**/*
+        - comp/process/**/*
+        - pkg/process/**/*
+        - comp/core/workloadmeta/collectors/internal/process/**/*
+        - comp/core/workloadmeta/collectors/internal/processlanguage/**/*
+        - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
       compare_to: $COMPARE_TO_BRANCH
 
 .on_npm_or_e2e_changes:
