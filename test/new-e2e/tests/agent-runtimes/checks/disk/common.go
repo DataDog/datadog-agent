@@ -14,16 +14,16 @@ import (
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/checks/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
+	checkUtils "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/checks/common"
 )
 
 type diskCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	common.CheckSuite
+	checkUtils.CheckSuite
 }
 
 func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
@@ -63,7 +63,7 @@ instances:
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,
 				gocmp.Comparer(func(a, b check.Metric) bool {
-					if !common.EqualMetrics(a, b) {
+					if !checkUtils.EqualMetrics(a, b) {
 						return false
 					}
 					aValue := a.Points[0][1]
@@ -72,9 +72,9 @@ instances:
 					if a.Metric == "system.disk.total" {
 						return aValue == bValue
 					}
-					return common.CompareValuesWithRelativeMargin(aValue, bValue, p, v.MetricCompareFraction)
+					return checkUtils.CompareValuesWithRelativeMargin(aValue, bValue, p, v.MetricCompareFraction)
 				}),
-				gocmpopts.SortSlices(common.MetricPayloadCompare), // sort metrics
+				gocmpopts.SortSlices(checkUtils.MetricPayloadCompare), // sort metrics
 			)
 			require.Empty(v.T(), diff)
 		})
@@ -87,14 +87,14 @@ func (v *diskCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 		checkConfig += "\n    loader: core"
 	}
 
-	ctx := common.CheckContext{
+	ctx := checkUtils.CheckContext{
 		checkName:    "disk",
 		agentConfig:  agentConfig,
 		checkConfig:  checkConfig,
 		isNewVersion: useNewVersion,
 	}
 
-	metrics := common.RunCheck(v, ctx)
+	metrics := checkUtils.RunCheck(v, ctx)
 
 	return metrics
 }
