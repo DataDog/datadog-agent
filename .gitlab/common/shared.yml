@@ -77,10 +77,4 @@
 
 
 .docker_pull_winbuildimage_instrumented:
-  # We should be able to remove that download when the datadog-ci is available in the windows image
-  - Invoke-WebRequest -Uri "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_win-x64" -OutFile "datadog-ci.exe"
-  - $tmpfile = [System.IO.Path]::GetTempFileName()
-  - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$API_KEY_ORG2" -tempFile "$tmpfile")
-  - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
-  - $Env:DATADOG_API_KEY=$(cat "$tmpfile")
-  - ./datadog-ci.exe trace -- docker pull ${WINBUILDIMAGE}
+  - datadog-ci.exe trace -- docker pull ${WINBUILDIMAGE}
