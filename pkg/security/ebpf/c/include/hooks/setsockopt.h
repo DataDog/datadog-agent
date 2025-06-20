@@ -139,7 +139,7 @@ int rethook_release_sock(ctx_t *ctx) {
     if (ret < 0) {
         return 0;
     }
-    unsigned int prog_len = prog.len;
+    unsigned short prog_len = prog.len;
     syscall->setsockopt.filter_len = prog_len;
     int key = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event, &key);
