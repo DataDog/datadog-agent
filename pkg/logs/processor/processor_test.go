@@ -91,19 +91,19 @@ func TestExclusion(t *testing.T) {
 
 var inclusionTests = []processorTestCase{
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{}),
 		input:         []byte("hello"),
 		output:        []byte("hello"),
 		shouldProcess: false,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{}),
 		input:         []byte("world"),
 		output:        []byte("world"),
 		shouldProcess: true,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{}),
 		input:         []byte("a brand new world"),
 		output:        []byte("a brand new world"),
 		shouldProcess: true,
@@ -152,25 +152,25 @@ var inclusionRule *config.ProcessingRule = newProcessingRule("include_at_match",
 
 var exclusionInclusionTests = []processorTestCase{
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bob@datadoghq.com"),
 		output:        []byte("bob@datadoghq.com"),
 		shouldProcess: false,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bill@datadoghq.com"),
 		output:        []byte("bill@datadoghq.com"),
 		shouldProcess: true,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bob@amail.com"),
 		output:        []byte("bob@amail.com"),
 		shouldProcess: false,
 	},
 	{
-		source:        sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}},
+		source:        *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{inclusionRule}}),
 		input:         []byte("bill@amail.com"),
 		output:        []byte("bill@amail.com"),
 		shouldProcess: false,
@@ -480,7 +480,7 @@ func newProcessingRule(ruleType, replacePlaceholder, pattern string) *config.Pro
 }
 
 func newSource(ruleType, replacePlaceholder, pattern string) sources.LogSource {
-	return sources.LogSource{Config: &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newProcessingRule(ruleType, replacePlaceholder, pattern)}}}
+	return *sources.NewLogSource("", &config.LogsConfig{ProcessingRules: []*config.ProcessingRule{newProcessingRule(ruleType, replacePlaceholder, pattern)}})
 }
 
 func newMessage(content []byte, source *sources.LogSource, status string) *message.Message {
