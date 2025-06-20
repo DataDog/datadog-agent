@@ -167,17 +167,17 @@ class GateMetricHandler:
             )
         return None
 
-    def generate_relative_size(self, ctx, filename="static_gate_report.json", ancestor=None):
+    def generate_relative_size(self, ctx, filename="static_gate_report.json", report_path="static_gate_report.json", ancestor=None):
         if ancestor:
             # Fetch the ancestor's static quality gates report json file
             out = ctx.run(
-                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{ancestor}/{filename} {filename}",
+                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/{ancestor}/{filename} {report_path}",
                 hide=True,
                 warn=True,
             )
             if out.exited == 0:
                 # Load the report inside of a GateMetricHandler specific to the ancestor
-                ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, filename)
+                ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, report_path)
                 for gate in self.metrics:
                     ancestor_gate = ancestor_metric_handler.metrics.get(gate)
                     if not ancestor_gate:
@@ -190,7 +190,7 @@ class GateMetricHandler:
             else:
                 print(
                     color_message(
-                        f"[WARN] Unable to fetch quality gates {filename} from {ancestor} !\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
+                        f"[WARN] Unable to fetch quality gates {report_path} from {ancestor} !\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
                         "orange",
                     )
                 )
