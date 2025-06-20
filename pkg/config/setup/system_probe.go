@@ -394,6 +394,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "span_tracking.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "span_tracking.cache_size"), 4096)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_usage_monitoring.enabled"), false)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_usage_monitoring.period"), "5s")
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 	cfg.BindEnvAndSetDefault(join(evNS, "env_vars_resolution.enabled"), true)

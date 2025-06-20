@@ -121,6 +121,8 @@ const (
 	FileFsmountEventType
 	// FileOpenTreeEventType Open Tree event
 	FileOpenTreeEventType
+	// CapabilitiesUsageEventType is used to track capabilities usage
+	CapabilitiesUsageEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -287,6 +289,8 @@ func (t EventType) String() string {
 		return "dns_response"
 	case SetSockOptEventType:
 		return "setsockopt"
+	case CapabilitiesUsageEventType:
+		return "capabilities_usage"
 	default:
 		return "unknown"
 	}

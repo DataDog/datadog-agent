@@ -37,6 +37,7 @@ struct dentry_resolver_input_t {
     struct {
         u32 cgroup_write_pid;
         u32 cgroup_flags;
+        u64 new_pid_cookie;
     } cgroup_write_ctx;
     int callback;
     int ret;
