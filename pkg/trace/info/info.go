@@ -372,9 +372,7 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	c.IPCTLSServerConfig = &tls.Config{}
 	c.AuthToken = ""
 
-	// Scrub sensitive data from the config using structure-aware scrubbing.
-	// We use Config → YAML → scrub → struct → JSON conversion to leverage
-	// YAML's structure-aware scrubbing while maintaining JSON output:
+	// Scrub sensitive data from the config using structure-aware scrubbing:
 	//
 	// 1. Marshal config struct directly to YAML
 	// 2. Apply ScrubYaml to safely remove sensitive data without breaking structure
