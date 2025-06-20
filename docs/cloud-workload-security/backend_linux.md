@@ -1726,6 +1726,18 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "SetSockOptEvent": {
             "properties": {
+                "socket_type": {
+                    "type": "integer",
+                    "description": "Socket file descriptor"
+                },
+                "socket_protocol": {
+                    "type": "integer",
+                    "description": "Socket protocol"
+                },
+                "socket_family": {
+                    "type": "integer",
+                    "description": "Socket family"
+                },
                 "level": {
                     "type": "integer",
                     "description": "Level at which the option is defined"
@@ -1733,13 +1745,29 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "optname": {
                     "type": "integer",
                     "description": "Name of the option being set"
+                },
+                "filter_len": {
+                    "type": "integer",
+                    "description": "Length of the filter"
+                },
+                "filter": {
+                    "type": "string",
+                    "description": "Filter instructions"
+                },
+                "filter_hash": {
+                    "type": "string",
+                    "description": "Filter hash"
                 }
             },
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "socket_type",
+                "socket_protocol",
+                "socket_family",
                 "level",
-                "optname"
+                "optname",
+                "filter_len"
             ],
             "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
         },
@@ -4725,6 +4753,18 @@ Workload Protection events for Linux systems have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
+        "socket_type": {
+            "type": "integer",
+            "description": "Socket file descriptor"
+        },
+        "socket_protocol": {
+            "type": "integer",
+            "description": "Socket protocol"
+        },
+        "socket_family": {
+            "type": "integer",
+            "description": "Socket family"
+        },
         "level": {
             "type": "integer",
             "description": "Level at which the option is defined"
@@ -4732,13 +4772,29 @@ Workload Protection events for Linux systems have the following JSON schema:
         "optname": {
             "type": "integer",
             "description": "Name of the option being set"
+        },
+        "filter_len": {
+            "type": "integer",
+            "description": "Length of the filter"
+        },
+        "filter": {
+            "type": "string",
+            "description": "Filter instructions"
+        },
+        "filter_hash": {
+            "type": "string",
+            "description": "Filter hash"
         }
     },
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "socket_type",
+        "socket_protocol",
+        "socket_family",
         "level",
-        "optname"
+        "optname",
+        "filter_len"
     ],
     "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
 }
@@ -4747,8 +4803,14 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
+| `socket_type` | Socket file descriptor |
+| `socket_protocol` | Socket protocol |
+| `socket_family` | Socket family |
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
+| `filter_len` | Length of the filter |
+| `filter` | Filter instructions |
+| `filter_hash` | Filter hash |
 
 
 ## `SignalEvent`

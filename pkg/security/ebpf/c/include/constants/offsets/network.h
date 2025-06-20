@@ -20,6 +20,18 @@ __attribute__((always_inline)) u16 get_skc_num_from_sock_common(struct sock_comm
     bpf_probe_read(&skc_num, sizeof(skc_num), (void *)sk + sock_common_skc_num_offset);
     return htons(skc_num);
 }
+__attribute__((always_inline)) u16 get_protocol_from_sock(struct sock *sk) {
+    u64 sock_sk_protocol_offset;
+    LOAD_CONSTANT("sock_sk_protocol_offset", sock_sk_protocol_offset);
+    if (sock_sk_protocol_offset == 0) {
+        LOAD_CONSTANT("sock_sk_txhash_offset", sock_sk_protocol_offset);
+        sock_sk_protocol_offset += 9; // sk_protocol is 5 bytes after sk_txhash in a bitfield
+    }
+    u16 protocol;
+    bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);
+    return protocol;
+
+}
 
 __attribute__((always_inline)) struct sock* get_sock_from_socket(struct socket *socket) {
     u64 socket_sock_offset;
