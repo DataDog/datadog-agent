@@ -356,7 +356,7 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(i
 				in.Delim('[')
 				if out.MatchingSubExprs == nil {
 					if !in.IsDelim(']') {
-						out.MatchingSubExprs = make([]MatchingSubExpr, 0, 2)
+						out.MatchingSubExprs = make([]MatchingSubExpr, 0, 1)
 					} else {
 						out.MatchingSubExprs = []MatchingSubExpr{}
 					}
@@ -1513,6 +1513,8 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 			out.Length = int(in.Int())
 		case "value":
 			out.Value = string(in.String())
+		case "field":
+			out.Field = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1541,6 +1543,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers10(
 		const prefix string = ",\"value\":"
 		out.RawString(prefix)
 		out.String(string(in.Value))
+	}
+	if in.Field != "" {
+		const prefix string = ",\"field\":"
+		out.RawString(prefix)
+		out.String(string(in.Field))
 	}
 	out.RawByte('}')
 }

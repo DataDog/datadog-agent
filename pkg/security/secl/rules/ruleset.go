@@ -294,7 +294,7 @@ func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, pRules []*Policy
 func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 	var report DiscardersReport
 
-	event := rs.newFakeEvent()
+	event := rs.NewFakeEvent()
 	ctx := eval.NewContext(event)
 
 	errFieldNotFound := &eval.ErrFieldNotFound{}
@@ -690,11 +690,11 @@ func (rs *RuleSet) GetBucket(eventType eval.EventType) *RuleBucket {
 }
 
 // GetApprovers returns all approvers
-func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, map[eval.EventType]*Rule, []*Rule, error) {
+func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) (map[eval.EventType]Approvers, *ApproverStats, []*Rule, error) {
 	var (
 		approvers        = make(map[eval.EventType]Approvers)
-		acceptModeRules  = make(map[eval.EventType]*Rule)
 		noDiscarderRules []*Rule
+		stats            = NewApproverStats()
 	)
 
 	for _, eventType := range rs.GetEventTypes() {
@@ -703,28 +703,29 @@ func (rs *RuleSet) GetApprovers(fieldCaps map[eval.EventType]FieldCapabilities) 
 			continue
 		}
 
-		evtApprovers, rule, evtNoDiscarderRules, err := rs.GetEventTypeApprovers(eventType, caps)
+		evtApprovers, evtStats, evtNoDiscarderRules, err := rs.GetEventTypeApprovers(eventType, caps)
+		stats.Merge(evtStats)
+
 		if err != nil || len(evtApprovers) == 0 {
-			// report the first rule avoiding to generate an approver
-			acceptModeRules[eventType] = rule
 			continue
 		}
+
 		approvers[eventType] = evtApprovers
 		noDiscarderRules = append(noDiscarderRules, evtNoDiscarderRules...)
 	}
 
-	return approvers, acceptModeRules, noDiscarderRules, nil
+	return approvers, stats, noDiscarderRules, nil
 }
 
 // GetEventTypeApprovers returns approvers for the given event type and the fields
-func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *Rule, []*Rule, error) {
+func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps FieldCapabilities) (Approvers, *ApproverStats, []*Rule, error) {
 	bucket, exists := rs.eventRuleBuckets[eventType]
 	if !exists {
 		return nil, nil, nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
 	// all the rules needs to be of the same type
-	return getApprovers(bucket.rules, rs.newFakeEvent(), fieldCaps)
+	return getApprovers(bucket.rules, rs.NewFakeEvent(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
@@ -1046,6 +1047,11 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 	rs.policies = policies
 
 	for _, policy := range policies {
+		if len(policy.macros) == 0 && len(policy.rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
+			errs = multierror.Append(errs, &ErrPolicyLoad{Name: policy.Info.Name, Version: policy.Info.Version, Source: policy.Info.Source, Err: ErrPolicyIsEmpty})
+			continue
+		}
+
 		for _, macro := range policy.GetAcceptedMacros() {
 			if existingMacro := macroIndex[macro.Def.ID]; existingMacro != nil {
 				if err := existingMacro.MergeWith(macro); err != nil {
@@ -1060,9 +1066,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) *mu
 		for _, rule := range policy.GetAcceptedRules() {
 			if existingRule := rulesIndex[rule.Def.ID]; existingRule != nil {
 				existingRule.UsedBy = append(existingRule.UsedBy, rule.Policy)
-				if err := existingRule.MergeWith(rule); err != nil {
-					errs = multierror.Append(errs, err)
-				}
+				existingRule.MergeWith(rule)
 			} else {
 				rule.UsedBy = append(rule.UsedBy, rule.Policy)
 				rulesIndex[rule.Def.ID] = rule
@@ -1096,8 +1100,8 @@ func (rs *RuleSet) SetFakeEventCtor(fakeEventCtor func() eval.Event) {
 	rs.fakeEventCtor = fakeEventCtor
 }
 
-// newFakeEvent returns a new event using the embedded constructor for fake events
-func (rs *RuleSet) newFakeEvent() eval.Event {
+// NewFakeEvent returns a new event using the embedded constructor for fake events
+func (rs *RuleSet) NewFakeEvent() eval.Event {
 	if rs.fakeEventCtor != nil {
 		return rs.fakeEventCtor()
 	}
