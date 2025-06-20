@@ -7,4 +7,4 @@
 package otelcolfeatures
 
 // DefaultConverterFeatures defines the default features enabled for the otel collector converter
-var DefaultConverterFeatures = []string{"infraattributes", "prometheus", "core", "pprof", "zpages", "health_check", "ddflare"}
+var DefaultConverterFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"}
