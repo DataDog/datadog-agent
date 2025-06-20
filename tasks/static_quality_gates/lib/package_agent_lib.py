@@ -7,7 +7,7 @@ from invoke import Exit
 from tasks.debugging.dump import download_job_artifacts
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
-from tasks.libs.common.diff import diff as _diff
+from tasks.libs.common.diff import diff as folder_content_diff
 from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.package.size import directory_size, extract_package, file_size
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, find_package_path, read_byte_input
@@ -117,7 +117,7 @@ def debug_package_size(ctx, package_os, package_path, ancestor_package_path):
     )
 
     # Compare both packages content
-    _diff(current_pipeline_extract_dir.name, ancestor_pipeline_extract_dir.name)
+    folder_content_diff(current_pipeline_extract_dir.name, ancestor_pipeline_extract_dir.name)
 
     # Cleanup temporary directories
     current_pipeline_extract_dir.cleanup()

@@ -5,7 +5,7 @@ from invoke import Exit
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
-from tasks.libs.common.diff import diff as _diff
+from tasks.libs.common.diff import diff as folder_content_diff
 from tasks.libs.common.git import get_common_ancestor
 from tasks.static_quality_gates.lib.gates_lib import argument_extractor, read_byte_input
 
@@ -131,7 +131,7 @@ def get_ancestor_pipeline_id(ancestor_sha):
     return pipeline_list[0].get_id()
 
 
-def get_images_content_diff(ctx, url_1, url_2):
+def show_images_content_diff(ctx, url_1, url_2):
     ctx.run("mkdir image1 image2 image1/out/ image2/out/")
     # Pull images locally to get on disk size
     ctx.run(f"crane pull {url_1} image1/output.tar")
@@ -140,20 +140,19 @@ def get_images_content_diff(ctx, url_1, url_2):
     for src_folder in ["image1", "image2"]:
         ctx.run(f"cd {src_folder} && tar -xf output.tar")
         image_content = ctx.run(
-            "tar -tvf " + f"{src_folder}/output.tar" + " | awk -F' ' '{print $3; print $6}'", hide=True
+            "tar -tvf " + f"{src_folder}/output.tar" + " | awk -F' ' '{print $6}'", hide=True
         ).stdout.splitlines()
         image_tar_gz = []
-        for k, _ in enumerate(image_content):
-            if k % 2 == 0:
-                if "tar.gz" in image_content[k + 1]:
-                    image_tar_gz.append(image_content[k + 1])
+        for content in image_content:
+            if "tar.gz" in content:
+                image_tar_gz.append(content)
         if image_tar_gz:
             for image in image_tar_gz:
                 ctx.run(f"cd {src_folder} && tar -xf {image} -C ./out", hide=True)
         else:
             print(color_message("[WARN] No tar.gz file found inside of the image", "orange"), file=sys.stderr)
     # Compare both image content
-    _diff("image1/out", "image2/out")
+    folder_content_diff("image1/out", "image2/out")
 
 
 def generic_debug_docker_agent_quality_gate(arch, jmx=False, flavor="agent", image_suffix="", **kwargs):
@@ -184,4 +183,4 @@ def generic_debug_docker_agent_quality_gate(arch, jmx=False, flavor="agent", ima
     url_1 = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_id}-{commit_sha}{image_suffixes}-{arch}"
     url_2 = f"registry.ddbuild.io/ci/datadog-agent/{flavor}:v{pipeline_2_id}-{ancestor_sha[:8]}{image_suffixes}-{arch}"
     print(f"Comparing the following images:\n\t-image1 : {url_1}\n\t-image2 : {url_2}")
-    get_images_content_diff(ctx, url_1, url_2)
+    show_images_content_diff(ctx, url_1, url_2)
