@@ -681,6 +681,12 @@ Package updater is the updater component.
 
 Package datadogclient provides a client to query the datadog API
 
+### [comp/diagnoseinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/diagnoseinventory)
+
+*Datadog Team*: fleet-automation
+
+Package diagnoseinventory is responsible for running diagnoses that will be sent to the backend via the inventory agent.
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-agent

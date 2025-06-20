@@ -94,6 +94,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	diagnoseinventoryfx "github.com/DataDog/datadog-agent/comp/diagnoseinventory/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -510,6 +511,7 @@ func getSharedFxOption() fx.Option {
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
 		ssistatusfx.Module(),
+		diagnoseinventoryfx.Module(),
 	)
 }
 
