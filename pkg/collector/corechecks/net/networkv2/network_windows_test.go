@@ -33,19 +33,19 @@ type fakeNetworkStats struct {
 	connectionStatsTCP4Error error
 	connectionStatsTCP6      []net.ConnectionStat
 	connectionStatsTCP6Error error
-	tcp4Stats                *mibTcpStats
+	tcp4Stats                *mibTCPStats
 	tcp4StatsError           error
-	tcp6Stats                *mibTcpStats
+	tcp6Stats                *mibTCPStats
 	tcp6StatsError           error
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
-func (n *fakeNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
+func (n *fakeNetworkStats) IOCounters(_ bool) ([]net.IOCountersStat, error) {
 	return n.counterStats, n.counterStatsError
 }
 
 // ProtoCounters returns the inner values of counterStats and counterStatsError
-func (n *fakeNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
+func (n *fakeNetworkStats) ProtoCounters(_ []string) ([]net.ProtoCountersStat, error) {
 	return n.protoCountersStats, n.protoCountersStatsError
 }
 
@@ -64,8 +64,8 @@ func (n *fakeNetworkStats) Connections(kind string) ([]net.ConnectionStat, error
 	return nil, nil
 }
 
-// TcpStats returns the mocked values for the GetTcpStatisticsEx syscall
-func (n *fakeNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
+// TCPStats returns the mocked values for the GetTcpStatisticsEx syscall
+func (n *fakeNetworkStats) TCPStats(kind string) (*mibTCPStats, error) {
 	switch kind {
 	case "tcp4":
 		return n.tcp4Stats, n.tcp4StatsError
@@ -255,7 +255,7 @@ func TestNetworkCheck(t *testing.T) {
 				Status: "CLOSING",
 			},
 		},
-		tcp4Stats: &mibTcpStats{
+		tcp4Stats: &mibTCPStats{
 			DwRtoAlgorithm: uint32(1), // not used
 			DwRtoMin:       uint32(2), // not used
 			DwRtoMax:       uint32(3), // not used
@@ -272,7 +272,7 @@ func TestNetworkCheck(t *testing.T) {
 			DwOutRsts:      uint32(14),
 			DwNumConns:     uint32(15),
 		},
-		tcp6Stats: &mibTcpStats{
+		tcp6Stats: &mibTCPStats{
 			DwRtoAlgorithm: uint32(16), // not used
 			DwRtoMin:       uint32(17), // not used
 			DwRtoMax:       uint32(18), // not used
@@ -440,7 +440,7 @@ func TestExcludedInterfaces(t *testing.T) {
 				Errout:      25,
 			},
 		},
-		tcp4Stats: &mibTcpStats{
+		tcp4Stats: &mibTCPStats{
 			DwRtoAlgorithm: uint32(1), // not used
 			DwRtoMin:       uint32(2), // not used
 			DwRtoMax:       uint32(3), // not used
@@ -457,7 +457,7 @@ func TestExcludedInterfaces(t *testing.T) {
 			DwOutRsts:      uint32(14),
 			DwNumConns:     uint32(15),
 		},
-		tcp6Stats: &mibTcpStats{
+		tcp6Stats: &mibTCPStats{
 			DwRtoAlgorithm: uint32(16), // not used
 			DwRtoMin:       uint32(17), // not used
 			DwRtoMax:       uint32(18), // not used
@@ -552,7 +552,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 				Errout:      33,
 			},
 		},
-		tcp4Stats: &mibTcpStats{
+		tcp4Stats: &mibTCPStats{
 			DwRtoAlgorithm: uint32(1), // not used
 			DwRtoMin:       uint32(2), // not used
 			DwRtoMax:       uint32(3), // not used
@@ -569,7 +569,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 			DwOutRsts:      uint32(14),
 			DwNumConns:     uint32(15),
 		},
-		tcp6Stats: &mibTcpStats{
+		tcp6Stats: &mibTCPStats{
 			DwRtoAlgorithm: uint32(16), // not used
 			DwRtoMin:       uint32(17), // not used
 			DwRtoMax:       uint32(18), // not used
