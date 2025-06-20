@@ -10,6 +10,7 @@ package object
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"unsafe"
 
@@ -79,79 +80,85 @@ type TextSect struct {
 }
 
 // ParseModuleData parses module data from a Go object file
-func ParseModuleData(elfFile *safeelf.File) (*ModuleData, error) {
-	return parseModuleData(elfFile)
+func ParseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
+	return parseModuleData(mef)
 }
 
 // GoDebugSections represents the go debug sections.
 type GoDebugSections struct {
-	PcLnTab []byte
-	GoFunc  []byte
+	PcLnTab *MMappedData
+	GoFunc  *MMappedData
+}
+
+// Close closes the go debug sections
+func (m *GoDebugSections) Close() error {
+	return errors.Join(m.PcLnTab.Close(), m.GoFunc.Close())
 }
 
 // GoDebugSections returns the go debug sections
-func (m *ModuleData) GoDebugSections(elfFile *safeelf.File) (*GoDebugSections, error) {
-	pclntabSection := elfFile.Section(".gopclntab")
+func (m *ModuleData) GoDebugSections(mef *MMappingElfFile) (*GoDebugSections, error) {
+	pclntabSection := mef.Elf.Section(".gopclntab")
 	if pclntabSection == nil {
 		return nil, fmt.Errorf("no pclntab section")
 	}
 
-	pclntabData, err := pclntabSection.Data()
+	pclntab, err := mef.MMap(pclntabSection, 0, pclntabSection.Size)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read pclntab: %w", err)
+		return nil, fmt.Errorf("failed to load pclntab: %w", err)
 	}
 
-	var gofuncData []byte
+	var gofunc *MMappedData
 	if m.GoFunc != 0 && m.GcData != 0 {
-		// Find section containing gofunc data
-		rodataSection := elfFile.Section(".rodata")
-		if rodataSection != nil {
-			if data, err := rodataSection.Data(); err == nil {
-				gofuncOffset := int(m.GoFunc - rodataSection.Addr)
-				gofuncLen := int(m.GcData - m.GoFunc)
-				if gofuncOffset >= 0 && gofuncOffset+gofuncLen <= len(data) {
-					gofuncData = data[gofuncOffset : gofuncOffset+gofuncLen]
-				}
-			}
+		rodataSection := mef.Elf.Section(".rodata")
+		if rodataSection.Addr > m.GoFunc || m.GcData > rodataSection.Addr+rodataSection.Size {
+			return nil, fmt.Errorf("gofunc outside rodata section")
+		}
+		offset := m.GoFunc - rodataSection.Addr
+		size := m.GcData - m.GoFunc
+		gofunc, err = mef.MMap(rodataSection, offset, size)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load gofunc: %w", err)
 		}
 	}
 
 	return &GoDebugSections{
-		PcLnTab: pclntabData,
-		GoFunc:  gofuncData,
+		PcLnTab: pclntab,
+		GoFunc:  gofunc,
 	}, nil
 }
 
-func parseModuleData(elfFile *safeelf.File) (*ModuleData, error) {
-	pclntabSection := elfFile.Section(".gopclntab")
+func parseModuleData(mef *MMappingElfFile) (*ModuleData, error) {
+	pclntabSection := mef.Elf.Section(".gopclntab")
 	if pclntabSection == nil {
 		return nil, fmt.Errorf("no pclntab section")
 	}
 
-	noptrdataSection := elfFile.Section(".noptrdata")
+	noptrdataSection := mef.Elf.Section(".noptrdata")
 	if noptrdataSection == nil {
 		return nil, fmt.Errorf("no noptrdata section")
 	}
 
-	rodataSection := elfFile.Section(".rodata")
+	rodataSection := mef.Elf.Section(".rodata")
 	if rodataSection == nil {
 		return nil, fmt.Errorf("no rodata section")
 	}
 
-	textSection := elfFile.Section(".text")
+	textSection := mef.Elf.Section(".text")
 	if textSection == nil {
 		return nil, fmt.Errorf("no text section")
 	}
 
-	noptrdataData, err := noptrdataSection.Data()
+	noptrdataData, err := mef.MMap(noptrdataSection, 0, noptrdataSection.Size)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read noptrdata: %w", err)
+		return nil, fmt.Errorf("failed to load noptrdata: %w", err)
 	}
+	defer noptrdataData.Close()
 
-	rodataData, err := rodataSection.Data()
+	rodataData, err := mef.MMap(rodataSection, 0, rodataSection.Size)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read rodata: %w", err)
+		return nil, fmt.Errorf("failed to load rodata: %w", err)
 	}
+	defer rodataData.Close()
 
 	textRange := [2]uint64{textSection.Addr, textSection.Addr + textSection.Size}
 	rodataRange := [2]uint64{rodataSection.Addr, rodataSection.Addr + rodataSection.Size}
@@ -160,10 +167,10 @@ func parseModuleData(elfFile *safeelf.File) (*ModuleData, error) {
 	addrBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(addrBytes, pclntabSection.Addr)
 
-	offsets := findAll(noptrdataData, addrBytes)
+	offsets := findAll(noptrdataData.Data, addrBytes)
 	for _, offset := range offsets {
 		// Try to parse moduledata at this offset
-		moduleData, err := tryParseModuleDataAt(noptrdataData, rodataData, offset,
+		moduleData, err := tryParseModuleDataAt(noptrdataData.Data, rodataData.Data, offset,
 			textRange, rodataRange, noptrdataSection, rodataSection, textSection)
 		if err == nil {
 			return moduleData, nil

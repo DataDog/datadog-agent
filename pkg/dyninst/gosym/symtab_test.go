@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 var rewriteFromEnv = func() bool {
@@ -56,26 +55,28 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probesCfgs := testprogs.MustGetProbeCfgs(t, caseName)
-	elfFile, err := safeelf.Open(binPath)
+	mef, err := object.NewMMappingElfFile(binPath)
 	require.NoError(t, err)
-	obj, err := object.NewElfObject(elfFile)
+	defer func() { require.NoError(t, mef.Close()) }()
+	obj, err := object.NewElfObject(mef.Elf)
 	require.NoError(t, err)
-	defer func() { require.NoError(t, elfFile.Close()) }()
+	defer func() { require.NoError(t, obj.Close()) }()
 	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
 
-	moduledata, err := object.ParseModuleData(elfFile)
+	moduledata, err := object.ParseModuleData(mef)
 	require.NoError(t, err)
 
-	goVersion, err := object.ParseGoVersion(elfFile)
+	goVersion, err := object.ParseGoVersion(mef)
 	require.NoError(t, err)
 
-	goDebugSections, err := moduledata.GoDebugSections(elfFile)
+	goDebugSections, err := moduledata.GoDebugSections(mef)
 	require.NoError(t, err)
+	defer func() { require.NoError(t, goDebugSections.Close()) }()
 
 	symtab, err := ParseGoSymbolTable(
-		goDebugSections.PcLnTab,
-		goDebugSections.GoFunc,
+		goDebugSections.PcLnTab.Data,
+		goDebugSections.GoFunc.Data,
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,

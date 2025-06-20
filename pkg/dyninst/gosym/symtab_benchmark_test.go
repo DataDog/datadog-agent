@@ -11,46 +11,56 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
 func BenchmarkParseGoSymbolTable(b *testing.B) {
-	elfFile, err := safeelf.Open("/home/piob/src/github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/binaries/arch=amd64,toolchain=go1.24.3/simple")
+	binPath, err := testprogs.GetBinary("simple", testprogs.Config{
+		GOARCH:      "arm64",
+		GOTOOLCHAIN: "go1.24.3",
+	})
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer elfFile.Close()
+	mef, err := object.NewMMappingElfFile(binPath)
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer mef.Close()
 
 	b.Run("ParseModuleData", func(b *testing.B) {
 		for b.Loop() {
-			_, err := object.ParseModuleData(elfFile)
+			_, err := object.ParseModuleData(mef)
 			if err != nil {
 				b.Fatal(err)
 			}
 		}
 	})
 
-	moduledata, err := object.ParseModuleData(elfFile)
+	moduledata, err := object.ParseModuleData(mef)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	goVersion, err := object.ParseGoVersion(elfFile)
+	goVersion, err := object.ParseGoVersion(mef)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	goDebugSections, err := moduledata.GoDebugSections(elfFile)
+	goDebugSections, err := moduledata.GoDebugSections(mef)
 	if err != nil {
 		b.Fatal(err)
 	}
+	defer func() { require.NoError(b, goDebugSections.Close()) }()
 
 	b.Run("ParseGoSymbolTable", func(b *testing.B) {
 		for b.Loop() {
 			_, err := ParseGoSymbolTable(
-				goDebugSections.PcLnTab,
-				goDebugSections.GoFunc,
+				goDebugSections.PcLnTab.Data,
+				goDebugSections.GoFunc.Data,
 				moduledata.Text,
 				moduledata.EText,
 				moduledata.MinPC,
@@ -64,8 +74,8 @@ func BenchmarkParseGoSymbolTable(b *testing.B) {
 	})
 
 	symtab, err := ParseGoSymbolTable(
-		goDebugSections.PcLnTab,
-		goDebugSections.GoFunc,
+		goDebugSections.PcLnTab.Data,
+		goDebugSections.GoFunc.Data,
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,
