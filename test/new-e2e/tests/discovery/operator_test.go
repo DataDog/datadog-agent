@@ -45,12 +45,12 @@ spec:
       containers:
         agent:
           env:
-            - name: DD_DISCOVERY_ENABLED
-              value: "true"
+            - name: DD_LOG_LEVEL
+              value: "debug"
         system-probe:
           env:
-            - name: DD_DISCOVERY_ENABLED
-              value: "true"
+            - name: DD_LOG_LEVEL
+              value: "debug"
 `}
 
 	e2e.Run(t, &operatorDiscoveryTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
