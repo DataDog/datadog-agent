@@ -69,67 +69,16 @@ func (s *serviceNameMutator) mutateContainer(c *corev1.Container) error {
 	return nil
 }
 
-func doesMappedTagMatchValue(m map[string]string, k, v string) bool {
-	if m != nil {
-		if tag, matched := m[k]; matched {
-			return tag == v
-		}
-	}
-	return false
-}
-
 func serviceNameMutatorForMetaAsTags(pod *corev1.Pod, t podMetaAsTags) *serviceNameMutator {
-	// valueFromFieldRef is a helper function to create an EnvVarSource
-	// for a given kind and path, e.g. "metadata.annotations['app.kubernetes.io/name']"
-	valueFromFieldRef := func(kind, path string) *corev1.EnvVarSource {
-		return &corev1.EnvVarSource{
-			FieldRef: &corev1.ObjectFieldSelector{
-				FieldPath: fmt.Sprintf("metadata.%s['%s']", kind, path),
-			},
-		}
-	}
-
-	// find is a helper function to find a service name mutator for a
-	// given pod meta, match, and source.  Matching labels with labels,
-	// and annotations, etc
-	find := func(
-		podMeta map[string]string,
-		match map[string]string,
-		source serviceNameSource,
-	) *serviceNameMutator {
-		for k, v := range podMeta {
-			if !doesMappedTagMatchValue(match, k, tags.Service) {
-				continue
-			}
-
-			env := corev1.EnvVar{Name: kubernetes.ServiceTagEnvVar}
-			switch source {
-			case serviceNameSourceAnnotationsAsTags:
-				env.ValueFrom = valueFromFieldRef("annotations", k)
-			case serviceNameSourceLabelsAsTags:
-				env.ValueFrom = valueFromFieldRef("labels", k)
-			default:
-				log.Errorf("BUG: unexpected service name source %s", source)
-				env.Value = v
-			}
-
-			return &serviceNameMutator{EnvVar: env, Source: source}
-		}
-
-		return nil
-	}
-
-	// we check both labels and annotations for service name as tags.
 	for _, check := range []struct {
-		podMeta map[string]string
-		match   map[string]string
-		source  serviceNameSource
+		kind   podMetaKind
+		source serviceNameSource
 	}{
-		{pod.Labels, t.Labels, serviceNameSourceLabelsAsTags},
-		{pod.Annotations, t.Annotations, serviceNameSourceAnnotationsAsTags},
+		{podMetaKindLabels, serviceNameSourceLabelsAsTags},
+		{podMetaKindAnnotations, serviceNameSourceAnnotationsAsTags},
 	} {
-		if mutator := find(check.podMeta, check.match, check.source); mutator != nil {
-			return mutator
+		if env, found := envVarForPodMetaMapping(pod, check.kind, t, tags.Service, kubernetes.ServiceTagEnvVar); found {
+			return &serviceNameMutator{EnvVar: env, Source: check.source}
 		}
 	}
 
