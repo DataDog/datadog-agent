@@ -77,6 +77,8 @@ var intConfigs = map[string]struct{}{
 func IsEnabled(cfg config.Reader) bool {
 	if cfg.Get("otlp_config.enabled") == true {
 		return true
+	} else if cfg.IsConfigured("otlp_config.enabled") {
+		return false
 	}
 	for _, val := range coreconfig.OTLPReceiverConfigs {
 		if cfg.IsConfigured(val) {
