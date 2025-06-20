@@ -16,11 +16,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/checks/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 )
 
 type diskCheckSuite struct {
+	e2e.BaseSuite[environments.Host]
 	common.CheckSuite
 }
 
@@ -28,7 +30,7 @@ func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(v.Descriptor)),
 		),
 	))
 
@@ -50,7 +52,7 @@ instances:
 			``,
 		},
 	}
-	p := math.Pow10(v.metricCompareDecimals)
+	p := math.Pow10(v.MetricCompareDecimals)
 	for _, testCase := range testCases {
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
@@ -70,7 +72,7 @@ instances:
 					if a.Metric == "system.disk.total" {
 						return aValue == bValue
 					}
-					return common.CompareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
+					return common.CompareValuesWithRelativeMargin(aValue, bValue, p, v.MetricCompareFraction)
 				}),
 				gocmpopts.SortSlices(common.MetricPayloadCompare), // sort metrics
 			)

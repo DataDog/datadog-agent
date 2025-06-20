@@ -21,13 +21,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 type CheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	descriptor            e2eos.Descriptor
-	metricCompareFraction float64
-	metricCompareDecimals int
+	Descriptor            e2eos.Descriptor
+	MetricCompareFraction float64
+	MetricCompareDecimals int
 }
 
 type CheckContext struct {
