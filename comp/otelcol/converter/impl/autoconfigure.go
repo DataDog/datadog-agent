@@ -28,11 +28,6 @@ type component struct {
 func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	var enabledFeatures []string = c.coreConfig.GetStringSlice("otelcollector.converter.features")
 
-	// No features selected
-	if len(enabledFeatures) == 0 {
-		return
-	}
-
 	// extensions (pprof, zpages, health_check, ddflare)
 	for _, extension := range extensions {
 		if !slices.Contains(enabledFeatures, extension.Name) {
