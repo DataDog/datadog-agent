@@ -442,7 +442,7 @@ HOOK_SYSCALL_ENTRY3(fsmount, int, fs_fd, unsigned int, flags, unsigned int, attr
 
 
 HOOK_SYSCALL_EXIT(fsmount) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_FSMOUNT);
+    struct syscall_cache_t *syscall = pop_syscall(EVENT_FSMOUNT);
     if (!syscall) {
         // should never happen
         return 0;
@@ -461,7 +461,6 @@ HOOK_SYSCALL_EXIT(fsmount) {
     struct proc_cache_t *entry = fill_process_context(&event.process);
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
-    pop_syscall(EVENT_FSMOUNT);
 
     if(event.syscall.retval >= 0) {
         struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->fsmount.newmnt));

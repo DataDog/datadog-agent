@@ -495,17 +495,6 @@ type MountEventSerializer struct {
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 }
 
-// FsmountEventSerializer serializes an fsmount event to JSON
-// easyjson:json
-type FsmountEventSerializer struct {
-	// File descriptor passed to the syscall
-	Fd int32 `json:"fd"`
-	// Flags passed to the syscall
-	Flags uint32 `json:"flags"`
-	// Mount attributes passed to the syscall
-	MountAttrs uint32 `json:"mount_attrs"`
-}
-
 // SecurityProfileContextSerializer serializes the security profile context in an event
 // easyjson:json
 type SecurityProfileContextSerializer struct {
