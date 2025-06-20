@@ -5,10 +5,11 @@ trigger_distribution:
   rules: !reference [.on_deploy_success]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-    BUCKET_BRANCH: $BUCKET_BRANCH
   trigger:
     include:
       - local: .gitlab/trigger_distribution/include.yml
+    forward:
+      pipeline_variables: true
 
 trigger_distribution_on_failure:
   stage: trigger_distribution
@@ -16,7 +17,8 @@ trigger_distribution_on_failure:
   rules: !reference [.on_deploy_manual]
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
-    BUCKET_BRANCH: $BUCKET_BRANCH
   trigger:
     include:
       - local: .gitlab/trigger_distribution/include.yml
+    forward:
+      pipeline_variables: true
