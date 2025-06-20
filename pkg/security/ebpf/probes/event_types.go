@@ -131,6 +131,16 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				hookFunc("hook_audit_set_loginuid"),
 				hookFunc("rethook_audit_set_loginuid"),
 				hookFunc("hook_security_inode_follow_link"),
+				hookFunc("hook_security_capable"),
+				hookFunc("rethook_security_capable"),
+				hookFunc("hook_override_creds"),
+				hookFunc("hook_revert_creds"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					UID:          SecurityAgentUID,
+					EBPFFuncName: "capabilities_usage_ticker",
+				}},
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_cgroup_procs_write"),

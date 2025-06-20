@@ -1270,6 +1270,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "$ref": "#/$defs/ProcessCredentials",
                     "description": "Credentials associated with the process"
                 },
+                "caps_attempted": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttempted lists the capabilities that this process tried to use"
+                },
+                "caps_used": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsed lists the capabilities that this process effectively made use of"
+                },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
                     "description": "Context of the user session for this event"
@@ -1412,6 +1426,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "credentials": {
                     "$ref": "#/$defs/ProcessCredentials",
                     "description": "Credentials associated with the process"
+                },
+                "caps_attempted": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttempted lists the capabilities that this process tried to use"
+                },
+                "caps_used": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsed lists the capabilities that this process effectively made use of"
                 },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
@@ -4108,6 +4136,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
         },
+        "caps_attempted": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttempted lists the capabilities that this process tried to use"
+        },
+        "caps_used": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsed lists the capabilities that this process effectively made use of"
+        },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
             "description": "Context of the user session for this event"
@@ -4209,6 +4251,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `exec_time` | Exec time of the process |
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
+| `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
+| `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
@@ -4299,6 +4343,20 @@ Workload Protection events for Linux systems have the following JSON schema:
         "credentials": {
             "$ref": "#/$defs/ProcessCredentials",
             "description": "Credentials associated with the process"
+        },
+        "caps_attempted": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttempted lists the capabilities that this process tried to use"
+        },
+        "caps_used": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
@@ -4420,6 +4478,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `exec_time` | Exec time of the process |
 | `exit_time` | Exit time of the process |
 | `credentials` | Credentials associated with the process |
+| `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
+| `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |

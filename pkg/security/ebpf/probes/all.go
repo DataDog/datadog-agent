@@ -176,6 +176,7 @@ func AllMaps() []*manager.Map {
 func AllBPFForEachMapElemProgramFunctions() []string {
 	return []string{
 		"network_stats_worker",
+		"capabilities_usage_ticker",
 	}
 }
 
@@ -275,6 +276,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"span_tls": {
 			MaxEntries: uint32(opts.SpanTrackMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"capabilities_usage": {
+			MaxEntries: procPidCacheMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}

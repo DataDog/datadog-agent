@@ -7,6 +7,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/network/stats.h"
 #include "constants/fentry_macro.h"
+#include "helpers/caps.h"
 
 int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
     // use the fist 56 bits of ktime to simulate a somewhat monotonic id
@@ -295,6 +296,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
+            flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
         } else if (is_current_kworker_dying()) {
             pop_syscall(EVENT_ANY);
             return 0;
