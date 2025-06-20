@@ -334,6 +334,8 @@ func setTLSConfigs(ipccert, ipckey []byte) error {
 		Certificates: []tls.Certificate{tlsCert},
 		// The server parses the client certificate but does not make any verification, this is useful for telemetry
 		ClientAuth: tls.RequestClientCert,
+		// The server will accept any client certificate signed by the IPC CA
+		ClientCAs: certPool,
 	}
 
 	return nil

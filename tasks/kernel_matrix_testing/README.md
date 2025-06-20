@@ -10,6 +10,7 @@
     *   [Stacks](#stacks)
     *   [VMsets File](#vmsets-file)
     *   [Local vs. Remote VMs](#local-vs-remote-vms)
+*   [Updating and Adding Resources](#updating-and-adding-resources)
 *   [Command Reference](#command-reference)
     *   [kmt.init](#kmtinit)
     *   [kmt.update-resources](#kmtupdate-resources)
@@ -59,6 +60,8 @@ This guide shows a minimal workflow to get a single local VM running.
 **1. Initialize KMT** (only needs to be done once)
 
 This will download required resources and install system dependencies.
+
+> **Note:** `kmt.init` resets your KMT environment. If you have an existing setup, use `kmt.update-resources` to download additional images.
 
 ```bash
 # Initialize with a specific VM image
@@ -133,6 +136,8 @@ This guide shows a minimal workflow to get a single remote VM running in AWS.
 **1. Initialize KMT & Configure SSH Key** (only needs to be done once)
 
 To create EC2 instances for remote VMs, KMT needs an SSH key to provision them. The `kmt.init` command will guide you through an interactive wizard to set up a default SSH key, so you don't have to provide it for every command. For a detailed explanation of the supported methods, see the [`kmt.config-ssh-key`](#kmtconfig-ssh-key) command documentation.
+
+> **Note:** `kmt.init` resets your KMT environment. If you have an existing setup, consider using `kmt.config-ssh-key` to configure an SSH key without re-initializing.
 
 ```bash
 # Using --remote-setup-only is sufficient if you don't plan to use local VMs
@@ -213,6 +218,8 @@ This guide shows how to run a mixed stack with both local and remote VMs.
 
 To run both local and remote VMs, you need to download VM images and configure an SSH key. The `kmt.init` command with an `--images` flag will handle both.
 
+> **Note:** `kmt.init` resets your KMT environment. If you have an existing setup, use `kmt.update-resources` to download additional images and `kmt.config-ssh-key` to configure SSH keys.
+
 ```bash
 # This will download the Ubuntu 22.04 image and start the SSH key setup wizard
 dda inv -e kmt.init --images=ubuntu_22.04
@@ -278,13 +285,38 @@ KMT can manage two types of VMs:
 -   **Local VMs**: These run directly on your machine using `libvirt` and `qemu`. They will have the same architecture as your host machine.
 -   **Remote VMs**: These are EC2 instances launched in AWS. KMT can manage both x86_64 and arm64 remote VMs. Launching remote VMs requires configuring an SSH key.
 
+## Updating and Adding Resources
+
+A common task is to download new VM images or update existing ones. It is important to choose the right command to avoid unintended consequences.
+
+*   **`kmt.init`**: This command is for the initial setup of the KMT environment. As noted previously, running it again will reset the entire KMT state, including configurations and previously downloaded resources. You should only use this for a first-time install or if you want to start from a completely clean slate.
+
+*   **`kmt.update-resources`**: This is the correct command to use when you want to download additional VM images or update existing ones to their latest versions. Unlike `kmt.init`, it does not reset your entire KMT configuration.
+
+The `update-resources` command is efficient and avoids re-downloading data unnecessarily. It works by:
+1.  Checking for the presence of local VM images.
+2.  Comparing the checksums of local images against the remote ones.
+3.  Downloading only the images that are missing or have been updated.
+
+> **Warning:** To ensure a consistent state, `kmt.update-resources` will first destroy all currently running stacks before starting the download process. Make sure you have saved any work and are ready to tear down your active VMs.
+
+Example:
+```bash
+# Download a new debian image without resetting everything
+dda inv -e kmt.update-resources --images=debian_11
+```
+
 ## Command Reference
 
 This section provides a detailed reference for all `kmt` tasks.
 
 ### `kmt.init`
 
-Initializes the KMT environment. It downloads VM images and tools, and installs system dependencies. This command only needs to be run once.
+Initializes the KMT environment. It downloads VM images and tools, and installs system dependencies.
+
+> Running `kmt.init` will overwrite previous configuration and downloaded resources. Use `kmt.update-resources` instead to fetch additional images.
+
+This command resets the entire KMT state, including the SSH configuration and any prior downloaded images.
 
 ```bash
 # Initialize with specific VM images
@@ -303,17 +335,17 @@ This command will also guide you through the [default SSH key configuration](#km
 
 ### `kmt.update-resources`
 
-Updates the resources for launching VMs, such as VM images and tools.
+Downloads new or updates existing VM images. For a detailed explanation of when and how to use this command, see the [Updating and Adding Resources](#updating-and-adding-resources) section.
+
+> **Warning:** This command will first destroy all running stacks before downloading the images.
 
 ```bash
-# Update all resources
+# Update all available images
 dda inv -e kmt.update-resources
 
 # Update only specific images
 dda inv -e kmt.update-resources --images=ubuntu_22.04,debian_11
 ```
-
-This command will first destroy all running stacks before downloading the images.
 
 ### `kmt.ls`
 
