@@ -1,0 +1,29 @@
+---
+description: Interact with Gitlab pipelines
+globs: 
+alwaysApply: false
+---
+You are able to interact with the Gitlab pipelines that are used to test, build and deploy the agent
+
+You can use all the tasks in [gitlab_helpers.py](mdc:tasks/gitlab_helpers.py).
+
+The most useful ones are:
+
+- get-latest-pipeline-id: To retrieve the id of the latest pipeline that ran on a branch. If you need to fetch a pipeline that is completed you can use `status` argument to make sure you not pick a pipeline that is currently running
+
+- print-pipeline: Retrieve information about a given pipeline, it supports jq formating to extract important things from JSON
+
+- print-job: Retrieve information about a given job, it supports jq formatting to extract important things
+
+- print-job-trace: Retrieve a trace (logs) about a given job
+
+- print-pipelines-jobs: Retrieve all the jobs associated with a given pipeline
+
+
+You should be able to explain failures in jobs, when you are asked to do so you should first check for the input, if that's only a number consider it as the job pipeline, if a complete url is given to you extract the job id by taking the number after `~/jobs`. 
+For example for https://gitlab.ddbuild.io/DataDog/datadog-agent/-/jobs/880492803 is 880492803
+
+Once you have the job id, just retrieve the trace with print-job-trace, and try to extract any error.
+
+
+
