@@ -81,6 +81,11 @@ func (o *Origin) tagsToStringArray(processingTags []string) []string {
 		tags = append(tags, "sourcecategory"+":"+sourceCategory)
 	}
 
+	runtime := o.LogSource.Config.Runtime
+	if runtime != "" {
+		tags = append(tags, "runtime"+":"+runtime)
+	}
+
 	tags = append(tags, o.LogSource.Config.Tags...)
 	tags = append(tags, processingTags...)
 
