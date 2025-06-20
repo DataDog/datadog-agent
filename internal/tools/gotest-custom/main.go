@@ -58,7 +58,7 @@ func main() {
 			binaryPath := path.Join(cwd, binary)
 
 			// Build the base command
-			args := []string{"tool", "test2json", "-p", pkgNames[idx], "-t", binaryPath, "-test.v=test2json"}
+			args := []string{"tool", "test2json", "-p", fmt.Sprintf("github.com/DataDog/datadog-agent/test/new-e2e/%s", pkgNames[idx]), "-t", binaryPath, "-test.v=test2json"}
 
 			parsedGoTestArgs, err := shlex.Split(strings.Join(gotestArgs, " "))
 			if err != nil {
