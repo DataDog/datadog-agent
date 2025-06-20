@@ -43,7 +43,7 @@ func (client *Client) newRequest(method, uri string, body io.Reader, useSessionA
 		TLSHandshakeStart: func() {
 			log.Trace("TLS Handshake Started")
 		},
-		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
+		TLSHandshakeDone: func(_ tls.ConnectionState, err error) {
 			log.Tracef("TLS Handshake Done: %+v", err)
 		},
 	}
