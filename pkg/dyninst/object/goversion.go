@@ -30,9 +30,9 @@ type GoVersion struct {
 }
 
 // ParseGoVersion extracts the Go version from an object file
-func ParseGoVersion(elfFile *safeelf.File) (*GoVersion, error) {
+func ParseGoVersion(mef *MMappingElfFile) (*GoVersion, error) {
 	// Find the runtime.buildVersion symbol
-	symbols, err := elfFile.Symbols()
+	symbols, err := mef.Elf.Symbols()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get symbols: %w", err)
 	}
@@ -51,7 +51,7 @@ func ParseGoVersion(elfFile *safeelf.File) (*GoVersion, error) {
 
 	// Find the section containing the symbol
 	var section *safeelf.Section
-	for _, s := range elfFile.Sections {
+	for _, s := range mef.Elf.Sections {
 		if s.Addr <= buildVersionSym.Value && buildVersionSym.Value < s.Addr+s.Size {
 			section = s
 			break
@@ -63,7 +63,7 @@ func ParseGoVersion(elfFile *safeelf.File) (*GoVersion, error) {
 	}
 
 	// Read the string
-	versionStr, err := readString(elfFile, section, buildVersionSym.Value, buildVersionSym.Size)
+	versionStr, err := readString(mef, section, buildVersionSym.Value, buildVersionSym.Size)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read version: %w", err)
 	}
@@ -71,14 +71,15 @@ func ParseGoVersion(elfFile *safeelf.File) (*GoVersion, error) {
 	return parseGoVersion(versionStr), nil
 }
 
-func readString(elfFile *safeelf.File, section *safeelf.Section, address, size uint64) (string, error) {
-	data, err := section.Data()
+func readString(mef *MMappingElfFile, section *safeelf.Section, address, size uint64) (string, error) {
+	ms, err := mef.MMap(section, 0, section.Size)
 	if err != nil {
-		return "", fmt.Errorf("failed to read section data: %w", err)
+		return "", fmt.Errorf("failed to load section data: %w", err)
 	}
+	defer ms.Close()
 
 	offset := address - section.Addr
-	if offset+size > uint64(len(data)) {
+	if offset+size > uint64(len(ms.Data)) {
 		return "", fmt.Errorf("string data out of bounds")
 	}
 
@@ -86,25 +87,25 @@ func readString(elfFile *safeelf.File, section *safeelf.Section, address, size u
 	var dataAddr, dataSize uint64
 	if size == 8 {
 		// 32-bit pointers
-		if offset+8 > uint64(len(data)) {
+		if offset+8 > uint64(len(ms.Data)) {
 			return "", fmt.Errorf("not enough data for 32-bit string header")
 		}
-		dataAddr = uint64(binary.LittleEndian.Uint32(data[offset:]))
-		dataSize = uint64(binary.LittleEndian.Uint32(data[offset+4:]))
+		dataAddr = uint64(binary.LittleEndian.Uint32(ms.Data[offset:]))
+		dataSize = uint64(binary.LittleEndian.Uint32(ms.Data[offset+4:]))
 	} else if size == 16 {
 		// 64-bit pointers
-		if offset+16 > uint64(len(data)) {
+		if offset+16 > uint64(len(ms.Data)) {
 			return "", fmt.Errorf("not enough data for 64-bit string header")
 		}
-		dataAddr = binary.LittleEndian.Uint64(data[offset:])
-		dataSize = binary.LittleEndian.Uint64(data[offset+8:])
+		dataAddr = binary.LittleEndian.Uint64(ms.Data[offset:])
+		dataSize = binary.LittleEndian.Uint64(ms.Data[offset+8:])
 	} else {
 		return "", fmt.Errorf("invalid string header size: %d", size)
 	}
 
 	// Find the section containing the actual string data
 	var dataSection *safeelf.Section
-	for _, s := range elfFile.Sections {
+	for _, s := range mef.Elf.Sections {
 		if s.Addr <= dataAddr && dataAddr < s.Addr+s.Size {
 			dataSection = s
 			break
@@ -115,17 +116,18 @@ func readString(elfFile *safeelf.File, section *safeelf.Section, address, size u
 		return "", fmt.Errorf("failed to find data section")
 	}
 
-	dataBytes, err := dataSection.Data()
+	mds, err := mef.MMap(dataSection, 0, dataSection.Size)
 	if err != nil {
-		return "", fmt.Errorf("failed to read data section: %w", err)
+		return "", fmt.Errorf("failed to load data section: %w", err)
 	}
+	defer mds.Close()
 
 	dataOffset := dataAddr - dataSection.Addr
-	if dataOffset+dataSize > uint64(len(dataBytes)) {
+	if dataOffset+dataSize > uint64(len(mds.Data)) {
 		return "", fmt.Errorf("string data out of bounds in data section")
 	}
 
-	return string(dataBytes[dataOffset : dataOffset+dataSize]), nil
+	return string(mds.Data[dataOffset : dataOffset+dataSize]), nil
 }
 
 var goVersionRegex = regexp.MustCompile(`^go(\d+)\.(\d+)(\.(\d+)|rc(\d+))`)

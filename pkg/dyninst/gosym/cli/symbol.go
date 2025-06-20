@@ -16,30 +16,30 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func run(binary string, pc uint64) error {
-	elfFile, err := safeelf.Open(binary)
+	mef, err := object.NewMMappingElfFile(binary)
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, elfFile.Close()) }()
-	moduledata, err := object.ParseModuleData(elfFile)
+	defer func() { err = errors.Join(err, mef.Close()) }()
+	moduledata, err := object.ParseModuleData(mef)
 	if err != nil {
 		return err
 	}
-	goDebugSections, err := moduledata.GoDebugSections(elfFile)
+	goDebugSections, err := moduledata.GoDebugSections(mef)
 	if err != nil {
 		return err
 	}
-	goVersion, err := object.ParseGoVersion(elfFile)
+	defer func() { err = errors.Join(err, goDebugSections.Close()) }()
+	goVersion, err := object.ParseGoVersion(mef)
 	if err != nil {
 		return err
 	}
 	symtab, err := gosym.ParseGoSymbolTable(
-		goDebugSections.PcLnTab,
-		goDebugSections.GoFunc,
+		goDebugSections.PcLnTab.Data,
+		goDebugSections.GoFunc.Data,
 		moduledata.Text,
 		moduledata.EText,
 		moduledata.MinPC,
