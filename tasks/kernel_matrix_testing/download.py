@@ -123,8 +123,8 @@ def download_rootfs(
     for f in present_files:
         if requires_update(url_base, rootfs_dir, f, branch_mapping.get(f, "master")):
             debug(f"[debug] updating {f} from S3.")
-            ctx.run(f"rm -f {f}")
-            ctx.run(f"rm -f {get_sum_file(f)}")
+            ctx.run(f"rm -f {os.path.join(rootfs_dir, f)}")
+            ctx.run(f"rm -f {os.path.join(rootfs_dir, get_sum_file(f))}")
             to_download.append(f)
 
     if len(to_download) == 0:
