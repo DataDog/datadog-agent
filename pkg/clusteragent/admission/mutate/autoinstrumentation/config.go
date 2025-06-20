@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -147,19 +146,6 @@ func NewWebhookConfig(datadogConfig config.Component) *WebhookConfig {
 		IsEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
 		Endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
 	}
-}
-
-func getPodMetaAsTags(datadogConfig config.Component) podMetaAsTags {
-	tags := configUtils.GetMetadataAsTags(datadogConfig)
-	return podMetaAsTags{
-		Labels:      tags.GetPodLabelsAsTags(),
-		Annotations: tags.GetPodAnnotationsAsTags(),
-	}
-}
-
-type podMetaAsTags struct {
-	Labels      map[string]string
-	Annotations map[string]string
 }
 
 // LanguageDetectionConfig is a struct to store the configuration for the language detection. It can be populated using
