@@ -31,6 +31,11 @@ def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: st
 
     sum_url = os.path.join(url_base, branch, get_sum_file(image))
     r = requests.get(sum_url)
+    if not r.ok:
+        debug(f"[debug] {branch}/{image} sum file not found at {sum_url} (status: {r.status_code})")
+        # If we can't get the remote sum, we can't compare, so we assume an update is needed.
+        return True
+
     new_sum = r.text.rstrip().split(' ')[0]
     debug(f"[debug] {branch}/{image} new_sum: {new_sum}")
 
