@@ -10,16 +10,18 @@ package activitytree
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
-	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 	"html"
 	"io"
 	"slices"
 	"sort"
 	"strconv"
+	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 )
 
 // ProcessNodeParent is an interface used to identify the parent of a process node
@@ -38,6 +40,7 @@ type ProcessNode struct {
 	GenerationType NodeGenerationType
 	ImageTags      []string
 	MatchedRules   []*model.MatchedRule
+	LastSeen       time.Time
 
 	Files          map[string]*FileNode
 	DNSNames       map[string]*DNSNode
@@ -65,6 +68,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		DNSNames:       make(map[string]*DNSNode),
 		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode),
+		LastSeen:       time.Now(),
 	}
 }
 
@@ -522,4 +526,8 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 	}
 	pn.Children = newChildren
 	return false
+}
+
+func (pn *ProcessNode) UpdateLastSeen() {
+	pn.LastSeen = time.Now()
 }
