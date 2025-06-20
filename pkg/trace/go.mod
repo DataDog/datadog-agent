@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace
 
-go 1.24.0
-
-toolchain go1.24.3
+go 1.23.0
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -46,7 +44,7 @@ require (
 	google.golang.org/grpc v1.72.2
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/ini.v1 v1.67.0
-	k8s.io/apimachinery v0.33.0
+	k8s.io/apimachinery v0.32.3
 )
 
 require (

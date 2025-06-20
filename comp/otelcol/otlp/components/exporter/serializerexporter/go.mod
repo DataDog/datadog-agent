@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 
-go 1.24.0
-
-toolchain go1.24.3
+go 1.23.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/metrics v0.59.0-rc.6

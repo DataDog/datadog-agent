@@ -203,19 +203,19 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.33.0
-	k8s.io/apiextensions-apiserver v0.33.0
-	k8s.io/apimachinery v0.33.0
-	k8s.io/apiserver v0.33.0 // indirect
+	k8s.io/api v0.32.3
+	k8s.io/apiextensions-apiserver v0.32.1
+	k8s.io/apimachinery v0.32.3
+	k8s.io/apiserver v0.32.1 // indirect
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
-	k8s.io/client-go v0.33.0
+	k8s.io/client-go v0.32.3
 	k8s.io/cri-api v0.31.2
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.31.2
-	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
+	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
 	k8s.io/kubelet v0.31.2
-	k8s.io/metrics v0.33.0
+	k8s.io/metrics v0.31.2
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/custom-metrics-apiserver v1.30.1-0.20241105195130-84dc8cfe2555
 )
@@ -231,7 +231,7 @@ require (
 	code.cloudfoundry.org/rep v0.0.0-20200325195957-1404b978e31e // indirect
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	github.com/AlekSi/pointer v1.2.0 // indirect
-	github.com/BurntSushi/toml v1.5.0 // indirect
+	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
 	github.com/DataDog/aptly v1.5.3 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
@@ -414,12 +414,12 @@ require (
 	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	k8s.io/component-base v0.33.0
+	k8s.io/component-base v0.32.1
 	mellium.im/sasl v0.3.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.0 // indirect
 	sigs.k8s.io/controller-runtime v0.20.4 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -665,7 +665,7 @@ require (
 	github.com/fatih/structtag v1.2.0
 	github.com/glaslos/ssdeep v0.4.0
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
-	github.com/godror/godror v0.40.4
+	github.com/godror/godror v0.37.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/jmoiron/sqlx v1.4.0
@@ -689,9 +689,8 @@ require (
 	go.opentelemetry.io/collector/service v0.128.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
-	helm.sh/helm/v3 v3.18.2
-	k8s.io/cli-runtime v0.33.0
-	k8s.io/kubectl v0.33.0
+	k8s.io/cli-runtime v0.31.2
+	k8s.io/kubectl v0.31.2
 )
 
 require (
@@ -714,36 +713,10 @@ require (
 )
 
 require (
-	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/MakeNowJust/heredoc v1.0.0 // indirect
-	github.com/Masterminds/squirrel v1.5.4 // indirect
-	github.com/chai2010/gettext-go v1.0.2 // indirect
-	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
-	github.com/go-errors/errors v1.4.2 // indirect
-	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
-	github.com/google/btree v1.1.3 // indirect
-	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/gosuri/uitable v0.0.4 // indirect
-	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
-	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
-	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
-	github.com/lib/pq v1.10.9 // indirect
-	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
-	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
-	github.com/moby/term v0.5.2 // indirect
-	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.128.0 // indirect
-	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
-	github.com/rubenv/sql-migrate v1.8.0 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/xlab/treeprint v1.2.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v0.128.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.128.0 // indirect
-	oras.land/oras-go/v2 v2.5.0 // indirect
-	sigs.k8s.io/kustomize/api v0.19.0 // indirect
-	sigs.k8s.io/kustomize/kyaml v0.19.0 // indirect
-	sigs.k8s.io/randfill v1.0.0 // indirect
 )
 
 require (
@@ -835,7 +808,7 @@ require (
 	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.11.0 // indirect
-	github.com/godror/knownpb v0.1.1 // indirect
+	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
@@ -846,7 +819,7 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
-	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
+	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/hashicorp/cronexpr v1.1.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
