@@ -66,6 +66,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
+	filterfx "github.com/DataDog/datadog-agent/comp/core/filter/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
@@ -510,6 +511,7 @@ func getSharedFxOption() fx.Option {
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
 		ssistatusfx.Module(),
+		filterfx.Module(),
 	)
 }
 
