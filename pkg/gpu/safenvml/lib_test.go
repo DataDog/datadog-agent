@@ -81,11 +81,8 @@ func TestPopulateCapabilities(t *testing.T) {
 			)
 			WithPartialMockNVML(t, mockNvml, availableSymbols)
 
-			// Set the library instance directly to bypass initialization
-			safenvml.lib = mockNvml
-
 			// Call populateCapabilities
-			err := safenvml.populateCapabilities()
+			err := safenvml.populateCapabilities(mockNvml)
 
 			if tc.expectInitErr {
 				require.Error(t, err)
