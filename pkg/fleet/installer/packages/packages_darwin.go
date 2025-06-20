@@ -13,7 +13,9 @@ import (
 
 var (
 	// packagesHooks is a map of package names to their hooks
-	packagesHooks = map[string]hooks{}
+	packagesHooks = map[string]hooks{
+		"datadog-apm-inject": apmInjectPackage,
+	}
 
 	// AsyncPreRemoveHooks is called before a package is removed from the disk.
 	// It can block the removal of the package files until a condition is met without blocking
