@@ -143,8 +143,8 @@ int rethook_release_sock(ctx_t *ctx) {
     syscall->setsockopt.filter_len = prog_len;
     int key = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event, &key);
-    if (event && prog.len <= MAX_BPF_FILTER_LEN){
-        bpf_probe_read(&event->bpf_filters_buffer, sizeof(struct sock_filter) * prog.len , prog.filter);  
+    if (event && 1 < prog_len && prog_len <= MAX_BPF_FILTER_LEN) { 
+        bpf_probe_read(&event->bpf_filters_buffer, (sizeof(struct sock_filter) * prog_len) &MAX_BPF_FILTER_LEN , prog.filter);  
     }
     return 0;
 }
