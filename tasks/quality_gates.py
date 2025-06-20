@@ -58,10 +58,10 @@ def get_debug_job_url():
             job for job in current_pipeline.jobs.list(iterator=True) if job.name == "debug_static_quality_gates"
         )
     except StopIteration:
-        print("Job debug_static_quality_gates wasn't found in the current pipeline !")
+        print("Job debug_static_quality_gates wasn't found in the current pipeline!")
         return ""
     except Exception as e:
-        print(f"Failed to fetch debug_static_quality_gates url !\n{traceback.format_exc()}\n{str(e)}")
+        print(f"Failed to fetch debug_static_quality_gates url!\n{traceback.format_exc()}\n{str(e)}")
         return ""
 
     return f"{debug_job._attrs['web_url']}"
