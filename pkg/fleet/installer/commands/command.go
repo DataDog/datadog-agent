@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -173,6 +174,7 @@ func RootCommands() []*cobra.Command {
 		isPrermSupportedCommand(),
 		prermCommand(),
 		hooksCommand(),
+		packageCommand(),
 	}
 }
 
@@ -516,5 +518,29 @@ func getStateCommand() *cobra.Command {
 			return nil
 		},
 	}
+	return cmd
+}
+
+// packageCommand runs a package-specific command
+func packageCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Hidden:  true,
+		GroupID: "installer",
+		Use:     "package-command <package> <command>",
+		Short:   "Run a package-specific command",
+		Args:    cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i := newCmd("package_command")
+			defer i.stop(err)
+
+			packageName := args[0]
+			command := args[1]
+			i.span.SetTag("params.package", packageName)
+			i.span.SetTag("params.command", command)
+
+			return packages.RunPackageCommand(i.ctx, packageName, command)
+		},
+	}
+
 	return cmd
 }

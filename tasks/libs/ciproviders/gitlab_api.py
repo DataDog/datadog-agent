@@ -26,6 +26,7 @@ from invoke.exceptions import Exit
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function
+from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
 
 BASE_URL = "https://gitlab.ddbuild.io"
@@ -779,20 +780,18 @@ def test_gitlab_configuration(entry_point: str, config_object: dict, context=Non
     )
     config_dump = yaml.safe_dump(config_object)
     res = agent.ci_lint.create({"content": config_dump, "dry_run": True, "include_jobs": True})
-    status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
-
-    print(f"{color_message(entry_point, Color.BOLD)} config is {status}")
     if len(res.warnings) > 0:
-        print(
-            f'{color_message("warning", Color.ORANGE)}: {color_message(entry_point, Color.BOLD)}: {res.warnings})',
-            file=sys.stderr,
+        raise SingleGitlabLintFailure(
+            entry_point=entry_point,
+            _level=FailureLevel.WARNING,
+            _details=f"Gitlab CI configuration has warnings: {res.warnings}",
         )
     if not res.valid:
-        print(
-            f'{color_message("error", Color.RED)}: {color_message(entry_point, Color.BOLD)}: {res.errors})',
-            file=sys.stderr,
+        raise SingleGitlabLintFailure(
+            entry_point=entry_point,
+            _level=FailureLevel.ERROR,
+            _details=f"Gitlab CI configuration is invalid: {res.errors}",
         )
-        raise Exit(code=1)
 
 
 def post_process_gitlab_ci_configuration(
@@ -867,6 +866,7 @@ def get_all_gitlab_ci_configurations(
     Returns:
         A dictionary of [entry point] -> configuration
     """
+    print(f'[{color_message("INFO", Color.BLUE)}] Fetching Gitlab CI configurations...')
 
     # configurations[input_file] -> parsed config
     configurations: dict[str, dict] = {}
@@ -1226,7 +1226,7 @@ def gitlab_configuration_is_modified(ctx):
     return False
 
 
-def compute_gitlab_ci_config_diff(ctx, before: str, after: str):
+def compute_gitlab_ci_config_diff(ctx, before: str | None = None, after: str | None = None):
     """Computes the full configs and the diff between two git references.
 
     The "after reference" is compared to the Lowest Common Ancestor (LCA) commit of "before reference" and "after reference".

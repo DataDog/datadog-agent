@@ -472,6 +472,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 		PerformInitialScan:             true,
 		EnablePeriodicScanNewProcesses: true,
 		SharedLibsLibset:               sharedlibraries.LibsetCrypto,
+		EnableDetailedLogging:          false,
 	}
 
 	o := &sslProgram{

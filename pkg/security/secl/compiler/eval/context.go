@@ -40,6 +40,7 @@ type MatchingValuePos struct {
 	Offset int
 	Length int
 	Value  interface{}
+	Field  string
 }
 
 // Context describes the context used during a rule evaluation
@@ -54,6 +55,9 @@ type Context struct {
 
 	// iterator register cache. used to cache entry within a single rule evaluation
 	RegisterCache map[RegisterID]*RegisterCacheEntry
+
+	// Action context, used to cache data within the evaluation of a single action
+	scopeFieldEvaluator Evaluator
 
 	// rule register
 	Registers map[RegisterID]int
@@ -96,6 +100,24 @@ func (c *Context) Reset() {
 
 	// per eval
 	c.PerEvalReset()
+
+	// per action
+	c.PerActionReset()
+}
+
+// SetScopeFieldEvaluator sets the scope field evaluator during the evaluation of an action
+func (c *Context) SetScopeFieldEvaluator(evaluator Evaluator) {
+	c.scopeFieldEvaluator = evaluator
+}
+
+// GetScopeFieldEvaluator returns the current scope field evaluator in context
+func (c *Context) GetScopeFieldEvaluator() Evaluator {
+	return c.scopeFieldEvaluator
+}
+
+// PerActionReset the context
+func (c *Context) PerActionReset() {
+	c.scopeFieldEvaluator = nil
 }
 
 // PerEvalReset the context
@@ -142,6 +164,7 @@ func (m MatchingValuePos) IsZero() bool {
 func (m *MatchingValue) getPosWithinRuleExpr(expr string, offset int) MatchingValuePos {
 	pos := MatchingValuePos{
 		Value: m.Value,
+		Field: m.Field,
 	}
 
 	// take the more accurate offset to start with

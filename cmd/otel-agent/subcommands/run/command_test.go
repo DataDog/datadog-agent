@@ -11,6 +11,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -35,4 +37,13 @@ func TestFxRun_NoDatadogExporter(t *testing.T) {
 		}
 		return runOTelAgentCommand(ctx, params)
 	})
+}
+
+func TestFxRun_Disabled(t *testing.T) {
+	t.Setenv("DD_OTELCOLLECTOR_ENABLED", "false")
+	ctx := context.Background()
+	params := &subcommands.GlobalParams{
+		ConfPaths: []string{"test_config.yaml"},
+	}
+	assert.NoError(t, runOTelAgentCommand(ctx, params))
 }

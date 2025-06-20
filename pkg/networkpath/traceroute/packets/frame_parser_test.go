@@ -93,7 +93,7 @@ func TestFrameParserICMP4(t *testing.T) {
 		Protocol: layers.IPProtocolICMPv4,
 	}
 	icmp4 := &layers.ICMPv4{
-		TypeCode: TTLExceeded4,
+		TypeCode: layers.CreateICMPv4TypeCode(layers.ICMPv4TypeTimeExceeded, layers.ICMPv4CodeTTLExceeded),
 	}
 	payload := gopacket.Payload(tcpBytes)
 
