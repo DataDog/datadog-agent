@@ -52,11 +52,12 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	Hostname     string                `json:"hostname"`
-	Timestamp    int64                 `json:"timestamp"`
-	Metadata     map[string][]metadata `json:"check_metadata"`
-	LogsMetadata map[string][]metadata `json:"logs_metadata"`
-	UUID         string                `json:"uuid"`
+	Hostname          string                `json:"hostname"`
+	Timestamp         int64                 `json:"timestamp"`
+	Metadata          map[string][]metadata `json:"check_metadata"`
+	LogsMetadata      map[string][]metadata `json:"logs_metadata"`
+	JMXChecksMetadata map[string][]metadata `json:"jmx_checks_metadata,omitempty"`
+	UUID              string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -264,12 +265,15 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarsha
 		}
 	}
 
+	jmxMetadata := ic.getJMXChecksMetadata()
+
 	return &Payload{
-		Hostname:     ic.hostname,
-		Timestamp:    time.Now().UnixNano(),
-		Metadata:     payloadData,
-		LogsMetadata: logsMetadata,
-		UUID:         uuid.GetUUID(),
+		Hostname:          ic.hostname,
+		Timestamp:         time.Now().UnixNano(),
+		Metadata:          payloadData,
+		LogsMetadata:      logsMetadata,
+		JMXChecksMetadata: jmxMetadata,
+		UUID:              uuid.GetUUID(),
 	}
 }
 
