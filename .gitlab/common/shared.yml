@@ -77,4 +77,4 @@
 
 
 .docker_pull_winbuildimage_instrumented:
-  - datadog-ci.exe trace -- docker pull ${WINBUILDIMAGE}
+  - C:\datadog-ci.exe trace -- docker pull ${WINBUILDIMAGE}
