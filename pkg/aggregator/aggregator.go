@@ -168,6 +168,10 @@ var (
 	tlmChecksContextsBytesByMtype = telemetry.NewGauge("aggregator", "checks_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the check aggregator, by metric type")
 
+	agentRunning = telemetry.NewCounter("runtime", "running",
+		[]string{}, "Indicates if the agent is running",
+	)
+
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
 	recurrentSeriesLock sync.Mutex
@@ -614,6 +618,7 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
 	})
+	agentRunning.Inc()
 
 	if agg.haAgent.Enabled() {
 		haAgentTags := slices.Concat(agg.tags(false),

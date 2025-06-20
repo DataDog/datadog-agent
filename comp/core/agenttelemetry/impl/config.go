@@ -299,9 +299,11 @@ var defaultProfiles = `
       period: 900
   - name: runtime
     metric:
+      exclude:
+        zero_metric: true
       metrics:
-        - name: agent.started
-        - name: agent.running
+        - name: runtime.started
+        - name: runtime.running
 `
 
 func compileMetricsExclude(p *Profile) error {
