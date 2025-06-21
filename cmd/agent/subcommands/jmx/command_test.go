@@ -19,6 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -140,11 +143,21 @@ func TestListNotMatchingCommand(t *testing.T) {
 
 func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 	// Because run uses fx.Invoke, we need to provide a valid config file
-	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	configPath := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
+	configComponent.NewMockFromYAMLFile(t, configPath)
+	// JMX command should work when an Agent has been run at least one time, so we need to
+	// This is done by building the IPC component
+	// ensure we have exisiting IPC auth artifacts.
+	// with the `ipcfx.ModuleReadWrite()` module.
+	fxutil.Test[ipc.Component](t,
+		ipcfx.ModuleReadWrite(),
+		core.MockBundle(),
+	)
+
 	return &command.GlobalParams{
-		ConfFilePath: config,
+		ConfFilePath: configPath,
 	}
 }
