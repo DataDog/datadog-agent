@@ -166,6 +166,18 @@ func (p *Processor) processContainer(sender sender.Sender, tags []string, contai
 		p.sendMetric(sender.Rate, "container.memory.partial_stall", containerStats.Memory.PartialStallTime, tags)
 		p.sendMetric(sender.MonotonicCount, "container.memory.page_faults", containerStats.Memory.Pgfault, tags)
 		p.sendMetric(sender.MonotonicCount, "container.memory.major_page_faults", containerStats.Memory.Pgmajfault, tags)
+		p.sendMetric(sender.Gauge, "container.memory.active_anon", containerStats.Memory.ActiveAnon, tags)
+		p.sendMetric(sender.Gauge, "container.memory.inactive_anon", containerStats.Memory.InactiveAnon, tags)
+		p.sendMetric(sender.Gauge, "container.memory.active_file", containerStats.Memory.ActiveFile, tags)
+		p.sendMetric(sender.Gauge, "container.memory.inactive_file", containerStats.Memory.InactiveFile, tags)
+		p.sendMetric(sender.Gauge, "container.memory.unevictable", containerStats.Memory.Unevictable, tags)
+		p.sendMetric(sender.Gauge, "container.memory.shmem", containerStats.Memory.Shmem, tags)
+		p.sendMetric(sender.Gauge, "container.memory.file_mapped", containerStats.Memory.FileMapped, tags)
+		p.sendMetric(sender.Gauge, "container.memory.file_dirty", containerStats.Memory.FileDirty, tags)
+		p.sendMetric(sender.Gauge, "container.memory.file_writeback", containerStats.Memory.FileWriteback, tags)
+		p.sendMetric(sender.Gauge, "container.memory.page_tables", containerStats.Memory.PageTables, tags)
+		p.sendMetric(sender.MonotonicCount, "container.memory.refault_anon", containerStats.Memory.RefaultAnon, tags)
+		p.sendMetric(sender.MonotonicCount, "container.memory.refault_file", containerStats.Memory.RefaultFile, tags)
 	}
 
 	if containerStats.IO != nil {
