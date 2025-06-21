@@ -332,6 +332,7 @@ func (m *Manager) Start(ctx context.Context) {
 	var adTagsTickerChan <-chan time.Time
 	var adLoadControlTickerChan <-chan time.Time
 	var silentWorkloadsTickerChan <-chan time.Time
+	var periodicSecurityProfileTickerChan <-chan time.Time
 
 	if m.config.RuntimeSecurity.ActivityDumpEnabled {
 		adCleanupTicker := time.NewTicker(m.config.RuntimeSecurity.ActivityDumpCleanupPeriod)
@@ -349,6 +350,15 @@ func (m *Manager) Start(ctx context.Context) {
 		adCleanupTickerChan = make(chan time.Time)
 		adTagsTickerChan = make(chan time.Time)
 		adLoadControlTickerChan = make(chan time.Time)
+	}
+
+	// Add periodic security profile ticker
+	if m.config.RuntimeSecurity.SecurityProfileEnabled && m.config.RuntimeSecurity.ActivityDumpInterval > 0 {
+		periodicSecurityProfileTicker := time.NewTicker(m.config.RuntimeSecurity.ActivityDumpInterval)
+		defer periodicSecurityProfileTicker.Stop()
+		periodicSecurityProfileTickerChan = periodicSecurityProfileTicker.C
+	} else {
+		periodicSecurityProfileTickerChan = make(chan time.Time)
 	}
 
 	if m.config.RuntimeSecurity.ActivityDumpEnabled && m.config.RuntimeSecurity.SecurityProfileEnabled {
@@ -379,6 +389,8 @@ func (m *Manager) Start(ctx context.Context) {
 			m.resolveTagsAll()
 		case <-adLoadControlTickerChan:
 			m.triggerLoadController()
+		case <-periodicSecurityProfileTickerChan:
+			m.triggerPeriodicSecurityProfile()
 		case ad := <-m.snapshotQueue:
 			if err := m.snapshot(ad); err != nil {
 				seclog.Errorf("couldn't snapshot [%s]: %v", ad.Profile.Metadata.ContainerID, err)
@@ -592,4 +604,26 @@ func perFormatStorageRequests(requests []config.StorageRequest) map[config.Stora
 		perFormatRequests[request.Format] = append(perFormatRequests[request.Format], request)
 	}
 	return perFormatRequests
+}
+
+// triggerPeriodicSecurityProfile triggers a periodic security profile dump for monitoring purposes
+func (m *Manager) triggerPeriodicSecurityProfile() {
+	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+		return
+	}
+
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	// Send each security profile as an activity dump
+	for selector, p := range m.profiles {
+		// Only send if the profile has content
+		if !p.IsEmpty() {
+			if err := m.persist(p, m.configuredStorageRequests); err != nil {
+				seclog.Errorf("failed to send periodic security profile dump for %s: %v", selector.String(), err)
+				continue
+			}
+			seclog.Debugf("periodic security profile dump sent successfully for %s", selector.String())
+		}
+	}
 }
