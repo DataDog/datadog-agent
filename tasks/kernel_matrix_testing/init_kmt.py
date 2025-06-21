@@ -38,8 +38,9 @@ def init_kernel_matrix_testing_system(
         if resp.lower().strip() != "y":
             raise Exit("Aborted by user")
 
+    # trigger install of dependencies
     if is_installed("dda"):
-        ctx.run("dda inv --feat legacy-kernel-matrix-testing")
+        ctx.run("dda inv --feat legacy-kernel-matrix-testing -- --help")
     else:
         reqs_file = Path(__file__).parent / "requirements.txt"
         ctx.run(f"pip3 install -r {reqs_file.absolute()}")
@@ -58,6 +59,12 @@ def init_kernel_matrix_testing_system(
 
     repo_root = Path(__file__).parent.parent.parent
     test_infra_dir = repo_root.parent / "test-infra-definitions"
+
+    # incase the directory structure is not expected, try with the following layout.
+    test_infra_alt = Path("~/go/src/github.com/DataDog/test-infra-definitions")
+
+    if not test_infra_dir.is_dir() and test_infra_alt.is_dir():
+        test_infra_dir = test_infra_alt
 
     if not test_infra_dir.is_dir():
         resp = ask(

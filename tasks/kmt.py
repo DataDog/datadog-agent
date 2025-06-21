@@ -397,9 +397,12 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
 
-    info("[+] Kernel matrix testing system initialized successfully")
     if not skip_ssh_setup:
         config_ssh_key(ctx)
+
+    info(
+        "[+] Kernel matrix testing system initialized successfully. Refer to https://github.com/DataDog/datadog-agent/blob/main/tasks/kernel_matrix_testing/README.md for next steps."
+    )
 
 
 @task
