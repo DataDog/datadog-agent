@@ -45,24 +45,34 @@ const (
 	certStoreOpenFlags = windows.CERT_SYSTEM_STORE_LOCAL_MACHINE | windows.CERT_STORE_READONLY_FLAG | windows.CERT_STORE_OPEN_EXISTING_FLAG
 	certEncoding       = windows.X509_ASN_ENCODING | windows.PKCS_7_ASN_ENCODING
 	cryptENotFound     = windows.Errno(windows.CRYPT_E_NOT_FOUND)
+	eInvalidArg        = windows.Errno(windows.E_INVALIDARG)
+	certX500NameStr    = 3
 )
 
 // Config is the configuration options for this check
 // it is exported so that the yaml parser can read it.
 type Config struct {
-	CertificateStore string   `yaml:"certificate_store" json:"certificate_store" required:"true" nullable:"false"`
-	CertSubjects     []string `yaml:"certificate_subjects" json:"certificate_subjects" nullable:"false"`
-	Server           string   `yaml:"server" json:"server" nullable:"false"`
-	Username         string   `yaml:"username" json:"username" nullable:"false"`
-	Password         string   `yaml:"password" json:"password" nullable:"false"`
-	DaysCritical     int      `yaml:"days_critical" json:"days_critical" minimum:"0"`
-	DaysWarning      int      `yaml:"days_warning" json:"days_warning" minimum:"0"`
+	CertificateStore    string   `yaml:"certificate_store" json:"certificate_store" required:"true" nullable:"false"`
+	CertSubjects        []string `yaml:"certificate_subjects" json:"certificate_subjects" nullable:"false"`
+	Server              string   `yaml:"server" json:"server" nullable:"false"`
+	Username            string   `yaml:"username" json:"username" nullable:"false"`
+	Password            string   `yaml:"password" json:"password" nullable:"false"`
+	DaysCritical        int      `yaml:"days_critical" json:"days_critical" minimum:"0"`
+	DaysWarning         int      `yaml:"days_warning" json:"days_warning" minimum:"0"`
+	EnableCRLMonitoring bool     `yaml:"enable_crl_monitoring" json:"enable_crl_monitoring" default:"false"`
+	CrlDaysCritical     int      `yaml:"crl_days_critical" json:"crl_days_critical" minimum:"0"`
+	CrlDaysWarning      int      `yaml:"crl_days_warning" json:"crl_days_warning" minimum:"0"`
 }
 
 // WinCertChk is the object representing the check
 type WinCertChk struct {
 	core.CheckBase
 	config Config
+}
+
+type crlInfoCopy struct {
+	Issuer     string
+	NextUpdate time.Time
 }
 
 // Factory creates a new check factory
@@ -124,8 +134,10 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 	}
 
 	config := Config{
-		DaysCritical: defaultDaysCritical,
-		DaysWarning:  defaultDaysWarning,
+		DaysCritical:    defaultDaysCritical,
+		DaysWarning:     defaultDaysWarning,
+		CrlDaysCritical: defaultDaysCritical,
+		CrlDaysWarning:  defaultDaysWarning,
 	}
 
 	if err := yaml.Unmarshal(data, &config); err != nil {
@@ -141,6 +153,14 @@ func (w *WinCertChk) Configure(senderManager sender.SenderManager, integrationCo
 		log.Warnf("Days warning (%d) is equal to days critical (%d). Warning service checks will not be emitted.", w.config.DaysWarning, w.config.DaysCritical)
 	}
 
+	if w.config.CrlDaysWarning < w.config.CrlDaysCritical {
+		log.Warnf("CRL days warning (%d) is less than CRL days critical (%d). Warning service checks will not be emitted.", w.config.CrlDaysWarning, w.config.CrlDaysCritical)
+	}
+
+	if w.config.CrlDaysWarning == w.config.CrlDaysCritical {
+		log.Warnf("CRL days warning (%d) is equal to CRL days critical (%d). Warning service checks will not be emitted.", w.config.CrlDaysWarning, w.config.CrlDaysCritical)
+	}
+
 	log.Infof("Windows Certificate Check configured with Certificate Store: '%s' and Certificate Subjects: '%v'", w.config.CertificateStore, strings.Join(w.config.CertSubjects, ", "))
 	return nil
 }
@@ -154,15 +174,16 @@ func (w *WinCertChk) Run() error {
 	defer sender.Commit()
 
 	var certificates []*x509.Certificate
+	var crlInfo []crlInfoCopy
 	var serverTag string
 	if w.config.Server != "" {
-		certificates, err = getRemoteCertificates(w.config.CertificateStore, w.config.CertSubjects, w.config.Server, w.config.Username, w.config.Password)
+		certificates, crlInfo, err = getRemoteCertificates(w.config.CertificateStore, w.config.CertSubjects, w.config.Server, w.config.Username, w.config.Password, w.config.EnableCRLMonitoring)
 		if err != nil {
 			return err
 		}
 		serverTag = "server:" + w.config.Server
 	} else {
-		certificates, err = getCertificates(w.config.CertificateStore, w.config.CertSubjects)
+		certificates, crlInfo, err = getCertificates(w.config.CertificateStore, w.config.CertSubjects, w.config.EnableCRLMonitoring)
 		if err != nil {
 			return err
 		}
@@ -174,6 +195,9 @@ func (w *WinCertChk) Run() error {
 	}
 	if len(certificates) == 0 {
 		log.Warnf("No certificates found in store: %s for subject filters: '%s'", w.config.CertificateStore, strings.Join(w.config.CertSubjects, ", "))
+	}
+	if len(crlInfo) == 0 && w.config.EnableCRLMonitoring {
+		log.Warnf("No CRLs found in store: %s", w.config.CertificateStore)
 	}
 
 	for _, cert := range certificates {
@@ -216,11 +240,55 @@ func (w *WinCertChk) Run() error {
 		}
 	}
 
+	for _, crl := range crlInfo {
+		crlIssuer := crl.Issuer
+		log.Debugf("Found CRL Issued by: %s", crlIssuer)
+
+		crlDaysRemaining := getCrlExpiration(crl.NextUpdate)
+		crlExpirationDate := crl.NextUpdate.Format(time.RFC3339)
+
+		// Adding CRL Issuer and Certificate Store as tags
+		crlTags := getCrlIssuerTags(crlIssuer)
+		crlTags = append(crlTags, "certificate_store:"+w.config.CertificateStore)
+		crlTags = append(crlTags, serverTag)
+		sender.Gauge("windows_certificate.crl_days_remaining", crlDaysRemaining, "", crlTags)
+
+		if crlDaysRemaining <= 0 {
+			sender.ServiceCheck("windows_certificate.crl_expiration",
+				servicecheck.ServiceCheckCritical,
+				"",
+				crlTags,
+				fmt.Sprintf("CRL has expired. CRL expiration date is %s", crlExpirationDate))
+		} else if crlDaysRemaining < float64(w.config.CrlDaysCritical) {
+			sender.ServiceCheck("windows_certificate.crl_expiration",
+				servicecheck.ServiceCheckCritical,
+				"",
+				crlTags,
+				fmt.Sprintf("CRL will expire in only %.2f days. CRL expiration date is %s", crlDaysRemaining, crlExpirationDate))
+		} else if crlDaysRemaining < float64(w.config.CrlDaysWarning) {
+			sender.ServiceCheck("windows_certificate.crl_expiration",
+				servicecheck.ServiceCheckWarning,
+				"",
+				crlTags,
+				fmt.Sprintf("CRL will expire in %.2f days. CRL expiration date is %s", crlDaysRemaining, crlExpirationDate))
+		} else {
+			sender.ServiceCheck(
+				"windows_certificate.crl_expiration",
+				servicecheck.ServiceCheckOK,
+				"",
+				crlTags,
+				"",
+			)
+		}
+
+	}
+
 	return nil
 }
 
-func getCertificates(store string, certFilters []string) ([]*x509.Certificate, error) {
+func getCertificates(store string, certFilters []string, collectCRL bool) ([]*x509.Certificate, []crlInfoCopy, error) {
 	var certificates []*x509.Certificate
+	var crlInfo []crlInfoCopy
 	storeName := windows.StringToUTF16Ptr(store)
 
 	log.Debugf("Opening certificate store: %s", store)
@@ -230,7 +298,7 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 		uintptr(unsafe.Pointer(storeName)))
 	if err != nil {
 		log.Errorf("Error opening certificate store %s: %v", store, err)
-		return nil, err
+		return nil, nil, err
 	}
 	// Close the store when the function returns
 	defer closeCertificateStore(storeHandle, store)
@@ -244,14 +312,23 @@ func getCertificates(store string, certFilters []string) ([]*x509.Certificate, e
 	}
 	if err != nil {
 		log.Errorf("Error getting certificates: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
+	log.Debugf("Found %d certificates in store %s", len(certificates), store)
 
-	log.Debugf("Found %d certificates in store", len(certificates))
-	return certificates, nil
+	if collectCRL {
+		crlInfo, err = getCrlInfo(storeHandle)
+		if err != nil {
+			log.Errorf("Error getting CRLs: %v", err)
+			return nil, nil, err
+		}
+	}
+	log.Debugf("Found %d CRLs in store %s", len(crlInfo), store)
+
+	return certificates, crlInfo, nil
 }
 
-func getRemoteCertificates(store string, certFilters []string, server string, username string, password string) ([]*x509.Certificate, error) {
+func getRemoteCertificates(store string, certFilters []string, server string, username string, password string, collectCRL bool) ([]*x509.Certificate, []crlInfoCopy, error) {
 
 	// Create network path to the remote server's IPC$ share
 	// see https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regconnectregistryw
@@ -263,7 +340,7 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	err := netAddConnection(remoteServer, "", password, username)
 	if err != nil {
 		log.Errorf("Error adding connection: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
 	log.Debugf("Connection to %s is successful", server)
 	defer func() {
@@ -279,7 +356,7 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	remoteRegKey, err = registry.OpenRemoteKey(server, registry.LOCAL_MACHINE)
 	if err != nil {
 		log.Errorf("Error opening remote registry key for server %s: %v For more information see, https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regconnectregistryw#remarks", server, err)
-		return nil, err
+		return nil, nil, err
 	}
 	log.Debugf("Remote registry opened successfully")
 	defer remoteRegKey.Close()
@@ -288,7 +365,7 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	certStoreKey, err = registry.OpenKey(remoteRegKey, registryPath, registry.READ)
 	if err != nil {
 		log.Errorf("Error opening %s registry key for server %s: %v For more information see, https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regopenkeyexw", registryPath, server, err)
-		return nil, err
+		return nil, nil, err
 	}
 	log.Debugf("%s registry key opened successfully", registryPath)
 	defer certStoreKey.Close()
@@ -300,7 +377,7 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 		uintptr(certStoreKey))
 	if err != nil {
 		log.Errorf("Error opening certificate store %s: %v", store, err)
-		return nil, err
+		return nil, nil, err
 	}
 	log.Debugf("Certificate store opened successfully")
 	defer closeCertificateStore(storeHandle, store)
@@ -315,11 +392,20 @@ func getRemoteCertificates(store string, certFilters []string, server string, us
 	}
 	if err != nil {
 		log.Errorf("Error getting certificates: %v", err)
-		return nil, err
+		return nil, nil, err
 	}
+	log.Debugf("Found %d certificates in store %s", len(certificates), store)
 
-	log.Debugf("Found %d certificates in store", len(certificates))
-	return certificates, nil
+	var crlInfo []crlInfoCopy
+	if collectCRL {
+		crlInfo, err = getCrlInfo(storeHandle)
+		if err != nil {
+			log.Errorf("Error getting CRLs: %v", err)
+			return nil, nil, err
+		}
+	}
+	log.Debugf("Found %d CRLs in store %s", len(crlInfo), store)
+	return certificates, crlInfo, nil
 }
 
 func openCertificateStore(storeProvider uintptr, flags uint32, para uintptr) (windows.Handle, error) {
@@ -437,6 +523,44 @@ func parseCertificate(encodedCert []byte) (*x509.Certificate, error) {
 	return cert, nil
 }
 
+func getCrlInfo(storeHandle windows.Handle) ([]crlInfoCopy, error) {
+	var err error
+	var crlContext *winutil.CRLContext
+	var crlInfo []crlInfoCopy
+	defer func() {
+		err = winutil.CertFreeCRLContext(crlContext)
+		if err != nil {
+			log.Errorf("Error freeing CRL context: %v", err)
+		}
+	}()
+
+	for {
+		crlContext, err = winutil.CertEnumCRLsInStore(storeHandle, crlContext)
+		if err == cryptENotFound {
+			fmt.Printf("No matching CRLs found: %v\n", err)
+			break
+		} else if err != nil {
+			fmt.Printf("Error enumerating CRL: %v\n", err)
+			return nil, err
+		}
+
+		if crlContext.PCrlInfo == nil {
+			log.Errorf("CRL info pointer is nil")
+			continue
+		}
+
+		pCrlInfo := (*winutil.CRLInfo)(unsafe.Pointer(crlContext.PCrlInfo))
+		crl := crlInfoCopy{
+			Issuer:     convertCertNameBlobToString(&pCrlInfo.Issuer),
+			NextUpdate: time.Unix(0, pCrlInfo.NextUpdate.Nanoseconds()),
+		}
+
+		crlInfo = append(crlInfo, crl)
+	}
+
+	return crlInfo, nil
+}
+
 func freeContext(certContext *windows.CertContext) {
 	if certContext != nil {
 		log.Debugf("Freeing certificate context")
@@ -452,6 +576,11 @@ func getCertExpiration(cert *x509.Certificate) float64 {
 	return float64(daysRemaining)
 }
 
+func getCrlExpiration(nextUpdate time.Time) float64 {
+	daysRemaining := time.Until(nextUpdate).Hours() / 24
+	return float64(daysRemaining)
+}
+
 func getSubjectTags(cert *x509.Certificate) []string {
 	subjectTags := []string{}
 	subjectAttributes := cert.Subject.Names
@@ -462,6 +591,92 @@ func getSubjectTags(cert *x509.Certificate) []string {
 
 	log.Debugf("Subject tags: %v", subjectTags)
 	return subjectTags
+}
+
+func getCrlIssuerTags(issuer string) []string {
+	issuerTags := []string{}
+
+	if issuer == "" {
+		return issuerTags
+	}
+
+	issuerAttributes := splitByComma(issuer)
+	for _, part := range issuerAttributes {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// Split by "=" to get key and value
+		keyValue := strings.SplitN(part, "=", 2)
+		if len(keyValue) == 2 {
+			key := strings.TrimSpace(keyValue[0])
+			value := strings.TrimSpace(keyValue[1])
+
+			// Remove quotes if present
+			if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
+				value = strings.Trim(value, "\"")
+			}
+
+			// Format as requested: "crl_issuer_<key>:<value>"
+			component := fmt.Sprintf("crl_issuer_%s:%s", key, value)
+			issuerTags = append(issuerTags, component)
+		}
+	}
+
+	return issuerTags
+}
+
+// splitByComma splits a string by commas, handling quoted parts correctly
+// For example L=Internet, O="VeriSign, Inc.", OU=VeriSign Commercial Software Publishers CA
+// will be split into [L=Internet, O=VeriSign, Inc., OU=VeriSign Commercial Software Publishers CA]
+func splitByComma(s string) []string {
+	var parts []string
+	var current strings.Builder
+	inQuotes := false
+
+	for _, char := range s {
+		switch char {
+		case '"':
+			inQuotes = !inQuotes
+			current.WriteRune(char)
+		case ',':
+			if inQuotes {
+				current.WriteRune(char)
+			} else {
+				parts = append(parts, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteRune(char)
+		}
+	}
+
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+
+	return parts
+}
+
+func convertCertNameBlobToString(nameBlob *windows.CertNameBlob) string {
+	if nameBlob == nil || nameBlob.Size == 0 {
+		return "<empty>"
+	}
+
+	var strBuffer []uint16
+	_, bufferSize, err := winutil.CertNameToStrW(windows.X509_ASN_ENCODING, nameBlob, certX500NameStr, nil, 0)
+
+	if err != nil {
+		return fmt.Sprintf("Error getting buffer size: %v", err)
+	}
+
+	strBuffer = make([]uint16, bufferSize)
+	certNameStr, _, err := winutil.CertNameToStrW(windows.X509_ASN_ENCODING, nameBlob, certX500NameStr, strBuffer, bufferSize)
+	if err != nil {
+		return fmt.Sprintf("Error converting name to string: %v", err)
+	}
+	return certNameStr
 }
 
 // Returns the human-readable name for a given OID string
