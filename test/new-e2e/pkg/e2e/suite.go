@@ -640,6 +640,11 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 	}
 }
 
+// IsWithinCI returns true if the test suite is running in a CI environment.
+func (bs *BaseSuite[Env]) IsWithinCI() bool {
+	return os.Getenv("CI_JOB_ID") != ""
+}
+
 // TearDownSuite run after all the tests in the suite have been run.
 // This function is called by [testify Suite].
 //
@@ -683,8 +688,15 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 
-		if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
-			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
+		if bs.IsWithinCI() {
+			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
+			// We need to rename the stack to mark it as stale
+			// TODO
+			bs.T().Logf("Not destroying stack %s in CI, it will be cleaned up by the stackcleaner-worker service", bs.params.stackName)
+		} else {
+			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
+				bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
+			}
 		}
 	}
 }
