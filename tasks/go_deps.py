@@ -206,7 +206,7 @@ def show(ctx: Context, build: str, flavor: str = AgentFlavor.base.name, os: str 
 def graph(
     ctx: Context,
     build: str,
-    flavor: str = AgentFlavor.base.name,
+    flavor: str | None = None,
     os: str | None = None,
     arch: str | None = None,
     entrypoint: str | None = None,
@@ -251,13 +251,18 @@ def graph(
     stdarg = "-std" if std else ""
     clusterarg = "-cluster" if cluster else ""
 
+    binaries_entry = BINARIES[build]
+
     if entrypoint is None:
-        entrypoint = BINARIES[build]["entrypoint"]
+        entrypoint = binaries_entry["entrypoint"]
         entrypoint = f"github.com/DataDog/datadog-agent/{entrypoint}:all"
 
-    build_tags = get_default_build_tags(
-        build=build, flavor=AgentFlavor[flavor], platform=key_for_value(GOOS_MAPPING, os)
-    )
+    build = binaries_entry.get("build", build)
+
+    if flavor is None:
+        flavor = binaries_entry.get("flavor", AgentFlavor.base)
+
+    build_tags = get_default_build_tags(build=build, flavor=flavor, platform=key_for_value(GOOS_MAPPING, os))
     for tag in build_tags:
         entrypoint = f"{tag}=1({entrypoint})"
 
