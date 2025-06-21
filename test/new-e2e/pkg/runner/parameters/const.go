@@ -75,6 +75,8 @@ const (
 	MajorVersion StoreKey = "major_version"
 	// FIPS config flag parameter name
 	FIPS StoreKey = "fips"
+	// RemainingRetries number of retries left for the test, used to determine if teardown should be skipped
+	RemainingRetries StoreKey = "remaining_retries"
 )
 
 const (
