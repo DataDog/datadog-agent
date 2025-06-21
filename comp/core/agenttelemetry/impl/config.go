@@ -297,6 +297,13 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
+  - name: runtime
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: runtime.started
+        - name: runtime.running
 `
 
 func compileMetricsExclude(p *Profile) error {
