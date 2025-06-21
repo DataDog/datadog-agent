@@ -59,6 +59,23 @@ instances:
     #
     # days_critical: 7
 
+    ## @param enable_crl_monitoring - boolean - optional - default: false
+    ## Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in `certificate_store`.
+    #
+    # enable_crl_monitoring: false
+
+    ## @param crl_days_warning - integer - optional - default: 14
+    ## Number of days before CRL expiration from which the service check
+    ## `windows_certificate.crl_expiration` begins emitting WARNING.
+    #
+    # crl_days_warning: 14
+
+    ## @param crl_days_critical - integer - optional - default: 7
+    ## Number of days before crl expiration from which the service check
+    ## `windows_certificate.crl_expiration` begins emitting CRITICAL.
+    #
+    # crl_days_critical: 7
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##
