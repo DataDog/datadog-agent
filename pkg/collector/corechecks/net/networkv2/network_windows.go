@@ -5,7 +5,7 @@
 
 //go:build windows
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 import (
@@ -84,7 +84,7 @@ type networkStats interface {
 	IOCounters(pernic bool) ([]net.IOCountersStat, error)
 	ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error)
 	Connections(kind string) ([]net.ConnectionStat, error)
-	TcpStats(kind string) (*mibTcpStats, error)
+	TCPStats(kind string) (*mibTCPStats, error)
 }
 
 type defaultNetworkStats struct{}
@@ -101,8 +101,8 @@ func (n defaultNetworkStats) Connections(kind string) ([]net.ConnectionStat, err
 	return net.Connections(kind)
 }
 
-func (n defaultNetworkStats) TcpStats(kind string) (*mibTcpStats, error) {
-	return getTcpStats(kind)
+func (n defaultNetworkStats) TCPStats(kind string) (*mibTCPStats, error) {
+	return getTCPStats(kind)
 }
 
 // Run executes the check
@@ -136,7 +136,7 @@ func (c *NetworkCheck) Run() error {
 	}
 
 	// _tcp_stats
-	c.submitTcpStats(sender)
+	c.submitTCPStats(sender)
 
 	sender.Commit()
 	return nil
@@ -165,13 +165,13 @@ func submitConnectionsMetrics(sender sender.Sender, protocolName string, connect
 }
 
 const (
-	AF_INET  = 2
-	AF_INET6 = 23
+	AF_INET  = 2  //revive:disable-line
+	AF_INET6 = 23 //revive:disable-line
 )
 
 // TCPSTATS DWORD mappings
 // https://learn.microsoft.com/en-us/windows/win32/api/tcpmib/ns-tcpmib-mib_tcpstats_lh
-type mibTcpStats struct {
+type mibTCPStats struct {
 	DwRtoAlgorithm uint32
 	DwRtoMin       uint32
 	DwRtoMax       uint32
@@ -191,11 +191,11 @@ type mibTcpStats struct {
 
 var (
 	iphlpapi               = windows.NewLazySystemDLL("iphlpapi.dll")
-	procGetTcpStatisticsEx = iphlpapi.NewProc("GetTcpStatisticsEx")
+	procGetTCPStatisticsEx = iphlpapi.NewProc("GetTcpStatisticsEx")
 )
 
 // gopsutil does not call GetTcpStatisticsEx so we need to do so manually for these stats
-func getTcpStats(protocolName string) (*mibTcpStats, error) {
+func getTCPStats(protocolName string) (*mibTCPStats, error) {
 	var inet uint
 	switch protocolName {
 	case "tcp4":
@@ -203,9 +203,9 @@ func getTcpStats(protocolName string) (*mibTcpStats, error) {
 	case "tcp6":
 		inet = AF_INET6
 	}
-	tcpStats := &mibTcpStats{}
+	tcpStats := &mibTCPStats{}
 	// the syscall will always populate the struct on success
-	r0, _, _ := procGetTcpStatisticsEx.Call(uintptr(unsafe.Pointer(tcpStats)), uintptr(inet))
+	r0, _, _ := procGetTCPStatisticsEx.Call(uintptr(unsafe.Pointer(tcpStats)), uintptr(inet))
 	if r0 != 0 {
 		err := syscall.Errno(r0)
 		return nil, err
@@ -214,7 +214,7 @@ func getTcpStats(protocolName string) (*mibTcpStats, error) {
 }
 
 // Collect metrics from Microsoft's TCPSTATS
-func (c *NetworkCheck) submitTcpStats(sender sender.Sender) {
+func (c *NetworkCheck) submitTCPStats(sender sender.Sender) {
 	tcpStatsMapping := map[string]string{
 		"DwActiveOpens":  ".active_opens",
 		"DwPassiveOpens": ".passive_opens",
@@ -229,19 +229,19 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) {
 		"DwNumConns":     ".connections", // Gauge
 	}
 
-	tcp4Stats, err := c.net.TcpStats("tcp4")
+	tcp4Stats, err := c.net.TCPStats("tcp4")
 	if err != nil {
 		log.Errorf("OSError getting TCP4 stats from GetTcpStatisticsEx: %s", err)
 	}
 
-	tcp6Stats, err := c.net.TcpStats("tcp6")
+	tcp6Stats, err := c.net.TCPStats("tcp6")
 	if err != nil {
 		log.Errorf("OSError getting TCP6 stats from GetTcpStatisticsEx: %s", err)
 	}
 
 	// Create tcp metrics that are a sum of tcp4 and tcp6 metrics
 	if tcp4Stats != nil && tcp6Stats != nil {
-		tcpAllStats := &mibTcpStats{
+		tcpAllStats := &mibTCPStats{
 			DwRtoAlgorithm: tcp4Stats.DwRtoAlgorithm + tcp6Stats.DwRtoAlgorithm,
 			DwRtoMin:       tcp4Stats.DwRtoMin + tcp6Stats.DwRtoMin,
 			DwRtoMax:       tcp4Stats.DwRtoMax + tcp6Stats.DwRtoMax,
@@ -264,7 +264,7 @@ func (c *NetworkCheck) submitTcpStats(sender sender.Sender) {
 	c.submitMetricsFromStruct(sender, "system.net.tcp6", tcp6Stats, tcpStatsMapping)
 }
 
-func (c *NetworkCheck) submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTcpStats, tcpStatsMapping map[string]string) {
+func (c *NetworkCheck) submitMetricsFromStruct(sender sender.Sender, metricPrefix string, tcpStats *mibTCPStats, tcpStatsMapping map[string]string) {
 	if tcpStats == nil {
 		return
 	}

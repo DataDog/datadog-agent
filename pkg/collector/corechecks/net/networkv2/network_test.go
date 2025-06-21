@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 import (
@@ -46,16 +47,12 @@ type fakeNetworkStats struct {
 }
 
 // IOCounters returns the inner values of counterStats and counterStatsError
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (n *fakeNetworkStats) IOCounters(pernic bool) ([]net.IOCountersStat, error) {
+func (n *fakeNetworkStats) IOCounters(_ bool) ([]net.IOCountersStat, error) {
 	return n.counterStats, n.counterStatsError
 }
 
 // ProtoCounters returns the inner values of counterStats and counterStatsError
-//
-//nolint:revive // TODO(PLINT) Fix revive linter
-func (n *fakeNetworkStats) ProtoCounters(protocols []string) ([]net.ProtoCountersStat, error) {
+func (n *fakeNetworkStats) ProtoCounters(_ []string) ([]net.ProtoCountersStat, error) {
 	return n.protoCountersStats, n.protoCountersStatsError
 }
 
