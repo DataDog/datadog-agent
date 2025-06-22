@@ -8,27 +8,27 @@
 package network
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 )
 
 const (
 	// ConnTagGnuTLS is the tag for GnuTLS connections
-	ConnTagGnuTLS = http.GnuTLS
+	ConnTagGnuTLS = tls.GnuTLS
 	// ConnTagOpenSSL is the tag for OpenSSL connections
-	ConnTagOpenSSL = http.OpenSSL
+	ConnTagOpenSSL = tls.OpenSSL
 	// ConnTagGo is the tag for GO TLS connections
-	ConnTagGo = http.Go
+	ConnTagGo = tls.Go
 	// ConnTagTLS is the tag for TLS connections in general
-	ConnTagTLS = http.TLS
+	ConnTagTLS = tls.TLS
 	// ConnTagIstio is the tag for Istio TLS connections
-	ConnTagIstio = http.Istio
+	ConnTagIstio = tls.Istio
 	// ConnTagNodeJS is the tag for NodeJS TLS connections
-	ConnTagNodeJS = http.NodeJS
+	ConnTagNodeJS = tls.NodeJS
 )
 
 // GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
 func GetStaticTags(staticTags uint64) (tags []string) {
-	for tag, str := range http.StaticTags {
+	for tag, str := range tls.StaticTags {
 		if (staticTags & tag) > 0 {
 			tags = append(tags, str)
 		}
