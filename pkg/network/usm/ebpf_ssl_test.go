@@ -210,10 +210,10 @@ func cleanDeadPidsInSslMaps(t *testing.T, manager *manager.Manager) {
 	}
 }
 
-// TestNativeTLSMapsCleanup verifies that the eBPF cleanup mechanism
+// TestSSLMapsCleanup verifies that the eBPF cleanup mechanism
 // correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
 // when the TCP connection associated with a TLS session is closed.
-func TestNativeTLSMapsCleanup(t *testing.T) {
+func TestSSLMapsCleanup(t *testing.T) {
 	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
 		t.Skip("TLS not supported for this setup")
 	}
@@ -338,13 +338,13 @@ func countMapEntries(t *testing.T, m *ebpf.Map) int {
 	iter := m.Iterate()
 
 	switch mapName {
-	case "ssl_sock_by_ctx":
+	case sslSockByCtxMap:
 		var key uintptr
 		var value http.SslSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			count++
 		}
-	case "ssl_ctx_by_tuple":
+	case sslCtxByTupleMap:
 		var key http.ConnTuple
 		var value uintptr
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {

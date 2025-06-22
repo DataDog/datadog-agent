@@ -331,7 +331,6 @@ static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
 }
 
 static __always_inline void opessl_cleanup_maps(conn_tuple_t *tup) {
-    // We perform the cleanup of the SSL maps here.
     void **ssl_ctx_ptr = bpf_map_lookup_elem(&ssl_ctx_by_tuple, tup);
     if (ssl_ctx_ptr) {
         void *ssl_ctx = *ssl_ctx_ptr;
