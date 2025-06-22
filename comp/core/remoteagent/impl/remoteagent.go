@@ -154,9 +154,10 @@ func (r *remoteAgent) start(ctx context.Context) {
 			resp, err := r.client.RegisterRemoteAgent(registrationContext, registerReq)
 			if err != nil {
 				// TODO
+				fmt.Println(err)
+			} else {
+				ticker.Reset(time.Duration(resp.RecommendedRefreshIntervalSecs))
 			}
-			ticker.Reset(time.Duration(resp.RecommendedRefreshIntervalSecs))
-			return
 		}
 	}
 }
