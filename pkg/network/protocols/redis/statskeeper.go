@@ -18,12 +18,14 @@ type StatsKeeper struct {
 	stats      map[Key]*RequestStats
 	statsMutex sync.RWMutex
 	maxEntries int
+	telem      *telemetry
 }
 
 // NewStatsKeeper creates a new Redis StatsKeeper
 func NewStatsKeeper(c *config.Config) *StatsKeeper {
 	statsKeeper := &StatsKeeper{
 		maxEntries: c.MaxRedisStatsBuffered,
+		telem:      newTelemetry(),
 	}
 
 	statsKeeper.resetNoLock()
@@ -33,12 +35,17 @@ func NewStatsKeeper(c *config.Config) *StatsKeeper {
 // Process processes the redis transaction
 func (s *StatsKeeper) Process(event *EventWrapper) {
 	if event.CommandType() >= maxCommand {
+		s.telem.invalidCommand.Add(1)
 		return
 	}
 
 	s.statsMutex.Lock()
 	defer s.statsMutex.Unlock()
 
+	if event.RequestLatency() <= 0 {
+		s.telem.invalidLatency.Add(1)
+		return
+	}
 	key := Key{
 		Command:       event.CommandType(),
 		KeyName:       event.KeyName(),
@@ -49,6 +56,7 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 	requestStats, ok := s.stats[key]
 	if !ok {
 		if len(s.stats) >= s.maxEntries {
+			s.telem.dropped.Add(1)
 			return
 		}
 		requestStats = NewRequestStats()
