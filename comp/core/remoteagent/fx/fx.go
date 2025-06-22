@@ -22,5 +22,14 @@ func Module(params remoteagent.Params) fxutil.Module {
 		),
 		fx.Supply(params),
 		fxutil.ProvideOptional[remoteagent.Component](),
+
+		// remoteagent is a component with no public method, therefore nobody depends on it and FX only instantiates
+		// components when they're needed. Adding a dummy function that takes our Component as a parameter force
+		// the instantiation of remoteagent. This means that simply using 'remoteagent.Module(params)' will run our
+		// component (which is the expected behavior).
+		//
+		// This prevent silent corner case where including 'remoteagent' in the main function would not actually
+		// instantiate it. This also remove the need for every main using remoteagent to add the line bellow.
+		fx.Invoke(func(_ remoteagent.Component) {}),
 	)
 }
