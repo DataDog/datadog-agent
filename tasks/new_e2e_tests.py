@@ -368,10 +368,16 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    tries = 0
     washer = TestWasher(test_output_json_file=result_json)
-    while tries < max_retries + 1:
-        tries += 1
+    to_teardown: set[tuple[str, str]] = set()
+    for attempt in range(max_retries + 1):
+        remaining_tries = max_retries - attempt
+        if remaining_tries > 0:
+            # If any tries are left, avoid destroying infra on failure
+            env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
+        else:
+            env_vars.pop("E2E_SKIP_DELETE_ON_FAILURE", None)
+
         test_res = test_flavor(
             ctx,
             flavor=AgentFlavor.base,
@@ -387,16 +393,29 @@ def run(
 
         failed_tests = washer.get_failing_tests()
 
-        # Retry any failed tests that are not known to be flaky
-        known_flaky_failures = washer.get_flaky_failures()
-        to_retry = {
-            (package, test_name)
-            for package, tests in failed_tests.items()
-            for test_name in tests
-            if package not in known_flaky_failures or test_name not in known_flaky_failures[package]
-        }
+        # TODO: Extract only leaf jobs from the tests to retry, to avoid retrying parent jobs, that then would retry all their children including ones that did not fail
+        failed_tests = {(package, test_name) for package, tests in failed_tests.items() for test_name in tests}
 
-        if to_retry:
+        # Note: `get_flaky_failures` can return some unexpected things due to its logic for detecting failing tests by looking at its eventual children.
+        # By using an `intersection` we ensure that we only get tests that have actually failed.
+        known_flaky_failures = failed_tests.intersection(
+            {(package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests}
+        )
+
+        # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
+        to_teardown.update(known_flaky_failures)
+        # Retry any failed tests that are not known to be flaky
+        to_retry = failed_tests - known_flaky_failures
+
+        if known_flaky_failures and remaining_tries > 0:
+            print(
+                color_message(
+                    f"{len(known_flaky_failures)} tests failed but are known flaky. They will not be retried !",
+                    "yellow",
+                )
+            )
+
+        if to_retry and remaining_tries > 0:
             print(
                 color_message(
                     f"Retrying {len(to_retry)} failed tests:\n- {'\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))}",
@@ -412,6 +431,34 @@ def run(
             args["run"] = '-test.run ' + _create_test_selection_regex([test for _, test in to_retry])
         else:
             break
+
+    # Make sure that any non-successful test suites that were not retried (i.e., fully-known-flaky-failing suites) are torn down
+    # Do this by calling the tests with the E2E_TEARDOWN_ONLY env var set, which will only run the teardown logic
+    if to_teardown:
+        print(
+            color_message(
+                f"Tearing down {len(to_teardown)} leftover test infras",
+                "yellow",
+            )
+        )
+        affected_packages = {
+            os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
+        }
+        e2e_module.test_targets = list(affected_packages)
+        args["run"] = '-test.run ' + _create_test_selection_regex([test for _, test in to_teardown])
+        env_vars["E2E_TEARDOWN_ONLY"] = "true"
+        test_flavor(
+            ctx,
+            flavor=AgentFlavor.base,
+            build_tags=tags,
+            modules=[e2e_module],
+            args=args,
+            cmd=cmd,
+            env=env_vars,
+            junit_tar=junit_tar,
+            result_json=result_json,
+            test_profiler=None,
+        )
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
