@@ -22,6 +22,8 @@ const (
 	OTLPDebug                 = OTLPSection + "." + "debug"
 )
 
+// OTLPReceiverConfigs contains the list of OTLP configs that enable the
+// OTLP ingest when set.
 var OTLPReceiverConfigs = []string{
 	"otlp_config.receiver.protocols.grpc.endpoint",
 	"otlp_config.receiver.protocols.grpc.transport",
