@@ -312,6 +312,13 @@ def run(
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
     if use_prebuilt_binaries:
+        if not os.path.exists("test-binaries.tar.gz") or not os.path.exists("manifest.json"):
+            print(
+                "WARNING: required artifacts test-binaries.tar.gz and manifest.json not found, disabling use_prebuilt_binaries"
+            )
+            use_prebuilt_binaries = False
+
+    if use_prebuilt_binaries:
         ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
         env_vars["GOTEST_COMMAND"] = "./gotest-custom"

@@ -113,7 +113,7 @@ go_e2e_test_binaries:
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
     - tar czf test-binaries.tar.gz test-binaries
   artifacts:
-    expire_in: 1 day
+    expire_in: 1 week
     paths:
       - test-binaries.tar.gz
       - manifest.json
