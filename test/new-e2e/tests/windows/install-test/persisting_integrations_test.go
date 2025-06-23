@@ -22,6 +22,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	thirdPartyIntegration = "datadog-ping==1.0.2"
+	pipPackage            = "grpcio"
+)
+
 // TestPersistingIntegrations tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
 func TestPersistingIntegrations(t *testing.T) {
 	s := &testPersistingIntegrationsSuite{}
@@ -55,11 +60,11 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	s.Require().NoError(err, "should get product version")
 
 	// install third party integration
-	err = s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
+	err = s.installThirdPartyIntegration(vm, thirdPartyIntegration)
 	s.Require().NoError(err, "should install third party integration")
 
 	// install pip package
-	err = s.installPipPackage(vm, "grpcio")
+	err = s.installPipPackage(vm, pipPackage)
 	s.Require().NoError(err, "should install pip package")
 
 	// upgrade to test agent
@@ -92,10 +97,10 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+	s.checkIntegrationInstall(vm, thirdPartyIntegration)
 
 	// check that the pip package is still installed
-	s.checkPipPackageInstalled(vm, "grpcio")
+	s.checkPipPackageInstalled(vm, pipPackage)
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
@@ -137,11 +142,11 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 	s.Require().NoError(err, "should get product version")
 
 	// install third party integration
-	err = s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
+	err = s.installThirdPartyIntegration(vm, thirdPartyIntegration)
 	s.Require().NoError(err, "should install third party integration")
 
 	// install pip package
-	err = s.installPipPackage(vm, "grpcio")
+	err = s.installPipPackage(vm, pipPackage)
 	s.Require().NoError(err, "should install pip package")
 
 	// upgrade to test agent
@@ -176,10 +181,10 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is not installed
-	s.checkIntegrationNotInstalled(vm, "datadog-ping==1.0.2")
+	s.checkIntegrationNotInstalled(vm, thirdPartyIntegration)
 
 	// check that the pip package is not installed
-	s.checkPipPackageNotInstalled(vm, "grpcio")
+	s.checkPipPackageNotInstalled(vm, pipPackage)
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
@@ -358,7 +363,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	}
 
 	// install third party integration
-	err := s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
+	err := s.installThirdPartyIntegration(vm, thirdPartyIntegration)
 	s.Require().NoError(err, "should install third party integration")
 
 	// add package to .post_python_installed_packages.txt to check for(this will be still there on rollback)
@@ -409,7 +414,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	s.Require().NoError(err, "should write file")
 
 	// check to see if datadog-ping==1.0.2 is still installed
-	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+	s.checkIntegrationInstall(vm, thirdPartyIntegration)
 
 	// upgrade again without failure
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
@@ -424,7 +429,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		s.T().FailNow()
 	}
 
-	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+	s.checkIntegrationInstall(vm, thirdPartyIntegration)
 
 	s.uninstallAgent()
 
@@ -465,11 +470,11 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	s.Require().NoError(err, "should get product version")
 
 	// install third party integration
-	err = s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
+	err = s.installThirdPartyIntegration(vm, thirdPartyIntegration)
 	s.Require().NoError(err, "should install third party integration")
 
 	// install pip package
-	err = s.installPipPackage(vm, "grpcio")
+	err = s.installPipPackage(vm, pipPackage)
 	s.Require().NoError(err, "should install pip package")
 
 	// uninstall agent
@@ -507,10 +512,10 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+	s.checkIntegrationInstall(vm, thirdPartyIntegration)
 
 	// check that the pip package is still installed
-	s.checkPipPackageInstalled(vm, "grpcio")
+	s.checkPipPackageInstalled(vm, pipPackage)
 
 	s.uninstallAgentAndRunUninstallTests(t)
 }
