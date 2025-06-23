@@ -275,8 +275,6 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	numToConvert := min(w.minConvertPayloads, len(payloads))
 	idxPayloads := make([]*idx.TracerPayload, numToConvert)
 
-	// converted trace ids
-	convertedTraceIds := make([]string, numToConvert)
 	for i := 0; i < numToConvert; i++ {
 		idxPayloads[i] = convertToIdx(payloads[i])
 	}
@@ -284,7 +282,7 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 
 	// Write converted payloads to local file for testing if we have conversions and minConvertPayloads > 0
 	if w.minConvertPayloads > 0 && numToConvert > 0 {
-		w.writePayloadsToFile(idxPayloads, payloads)
+		w.writePayloadsToFile(idxPayloads)
 	}
 
 	log.Debugf("Serializing %d tracer payloads.", len(payloads))
