@@ -180,6 +180,11 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 		require.NoError(t, err)
 		require.Equal(t, uint32(len(event)), header.Data_byte_len)
 		t.Logf("message header: %#v", *header)
+		if header.Stack_byte_len > 0 {
+			stackPCs, err := event.StackPCs()
+			require.NoError(t, err)
+			t.Logf("stack: %x", stackPCs)
+		}
 
 		var i int
 		for di, err := range event.DataItems() {
