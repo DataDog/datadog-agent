@@ -70,21 +70,6 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		return err
 	}
 
-	eventHeader, err := event.Header()
-	if err != nil {
-		return err
-	}
-
-	err = enc.WriteToken(jsontext.String("program_id"))
-	if err != nil {
-		return err
-	}
-
-	err = enc.WriteToken(jsontext.Uint(uint64(eventHeader.Prog_id)))
-	if err != nil {
-		return err
-	}
-
 	header, err := event.Header()
 	if err != nil {
 		return err

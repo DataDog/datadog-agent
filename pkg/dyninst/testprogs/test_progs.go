@@ -63,60 +63,64 @@ func MustGetBinary(t *testing.T, name string, cfg Config) string {
 // use in tests. In scenarios where the source code is available, other
 // configurations may still be available via GetBinary.
 func GetCommonConfigs() ([]Config, error) {
-	state, err := getState()
+	State, err := GetState()
 	if err != nil {
 		return nil, fmt.Errorf("testprogs: %w", err)
 	}
-	return state.commonConfigs, nil
+	return State.CommonConfigs, nil
 }
 
 // GetPrograms returns a list of programs that are available for testing.
 func GetPrograms() ([]string, error) {
-	state, err := getState()
+	State, err := GetState()
 	if err != nil {
 		return nil, fmt.Errorf("testprogs: %w", err)
 	}
-	return state.programs, nil
+	return State.Programs, nil
 }
 
 // GetBinary returns the path to the binary for the given name and
 // configuration.  If the binary is not found, it will be compiled if the source
 // code is available.
 func GetBinary(name string, cfg Config) (string, error) {
-	state, err := getState()
+	State, err := GetState()
 	if err != nil {
 		return "", fmt.Errorf("testprogs: %w", err)
 	}
-	bin, err := getBinary(state, name, cfg)
+	bin, err := getBinary(State, name, cfg)
 	if err != nil {
 		return "", fmt.Errorf("testprogs: %w", err)
 	}
 	return bin, nil
 }
 
-type state struct {
+// State is the state of the testprogs package.
+type State struct {
 	// A list of common configurations that are available for testing.
-	commonConfigs []Config
+	CommonConfigs []Config
 	// A list of programs that are available for testing.
-	programs []string
+	Programs []string
 	// The directory where the binaries are stored.
-	binariesDir string
+	BinariesDir string
 	// The directory where the source code is stored, may be empty if the
 	// source code is not available.
-	progsSrcDir string
+	ProgsSrcDir string
 	// Whether the source code is available.
-	haveSources bool
+	HaveSources bool
 	// The directory where the probe configs are stored.
-	probesCfgsDir string
+	ProbesCfgsDir string
+	// ExpectedOutputDir is the directory where the expected output files are stored.
+	ExpectedOutputDir string
 }
 
 var (
-	globalState     state
+	globalState     State
 	globalStateErr  error
 	globalStateOnce sync.Once
 )
 
-func getState() (*state, error) {
+// GetState returns the global state of the testprogs package.
+func GetState() (*State, error) {
 	globalStateOnce.Do(func() {
 		var haveSources bool
 		var progsSrcDir string
@@ -139,7 +143,7 @@ func getState() (*state, error) {
 func initStateFromBinaries(
 	haveSources bool,
 	progsSrcDir string,
-) (state, error) {
+) (State, error) {
 	pkgPath := strings.TrimPrefix(
 		reflect.TypeOf(Config{}).PkgPath(),
 		"github.com/DataDog/datadog-agent/",
@@ -152,15 +156,19 @@ func initStateFromBinaries(
 		}
 		binariesDir = path.Join("..", binariesDir)
 	}
-	return state{}, fmt.Errorf("binaries directory not found; %s", helpMsg)
+	return State{}, fmt.Errorf("binaries directory not found; %s", helpMsg)
 found:
 	binariesDir, err := filepath.Abs(binariesDir)
 	if err != nil {
-		return state{}, fmt.Errorf("failed to get absolute path for binaries directory: %w", err)
+		return State{}, fmt.Errorf("failed to get absolute path for binaries directory: %w", err)
 	}
 	probesCfgsDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/probes"))
 	if err != nil {
-		return state{}, fmt.Errorf("failed to get absolute path for probes directory: %w", err)
+		return State{}, fmt.Errorf("failed to get absolute path for probes directory: %w", err)
+	}
+	expectedOutputDir, err := filepath.Abs(path.Join(binariesDir, "../testdata/output"))
+	if err != nil {
+		return State{}, fmt.Errorf("failed to get absolute path for expected output directory: %w", err)
 	}
 	// Now we want to iterate over the binaries directory and read the
 	// packages names of the directories as well as parsing out the
@@ -169,7 +177,7 @@ found:
 	configs := map[Config]struct{}{}
 	files, err := os.ReadDir(binariesDir)
 	if err != nil {
-		return state{}, fmt.Errorf("failed to read binaries directory: %w", err)
+		return State{}, fmt.Errorf("failed to read binaries directory: %w", err)
 	}
 	for _, file := range files {
 		if !file.IsDir() {
@@ -177,11 +185,11 @@ found:
 		}
 		cfg, err := parseConfig(file.Name())
 		if err != nil {
-			return state{}, fmt.Errorf("failed to parse config from directory name: %w", err)
+			return State{}, fmt.Errorf("failed to parse config from directory name: %w", err)
 		}
 		files, err := os.ReadDir(path.Join(binariesDir, file.Name()))
 		if err != nil {
-			return state{}, fmt.Errorf("failed to read program directory: %w", err)
+			return State{}, fmt.Errorf("failed to read program directory: %w", err)
 		}
 		for _, file := range files {
 			name := file.Name()
@@ -190,7 +198,7 @@ found:
 			}
 			info, err := file.Info()
 			if err != nil {
-				return state{}, fmt.Errorf("failed to get file info: %w", err)
+				return State{}, fmt.Errorf("failed to get file info: %w", err)
 			}
 			if !info.Mode().IsRegular() {
 				continue
@@ -218,19 +226,20 @@ found:
 		)
 	})
 
-	return state{
-		commonConfigs: commonConfigs,
-		programs:      programs,
-		binariesDir:   binariesDir,
-		progsSrcDir:   progsSrcDir,
-		haveSources:   haveSources,
-		probesCfgsDir: probesCfgsDir,
+	return State{
+		CommonConfigs:     commonConfigs,
+		Programs:          programs,
+		BinariesDir:       binariesDir,
+		ProgsSrcDir:       progsSrcDir,
+		HaveSources:       haveSources,
+		ProbesCfgsDir:     probesCfgsDir,
+		ExpectedOutputDir: expectedOutputDir,
 	}, nil
 }
 
 // GetBinary returns the path to the binary for the given name and metadata.
 func getBinary(
-	state *state,
+	State *State,
 	name string,
 	cfg Config,
 ) (string, error) {
@@ -238,8 +247,8 @@ func getBinary(
 		return "", fmt.Errorf("invalid metadata: %w", err)
 	}
 
-	binariesDir := state.binariesDir
-	progsSrcDir := state.progsSrcDir
+	binariesDir := State.BinariesDir
+	progsSrcDir := State.ProgsSrcDir
 	binaryDir := path.Join(binariesDir, cfg.String())
 	binaryPath := path.Join(binaryDir, name)
 	progDir := path.Join(progsSrcDir, name)
@@ -259,7 +268,7 @@ func getBinary(
 		)
 	}
 
-	if state.haveSources {
+	if State.HaveSources {
 		upToDate, err := checkIfUpToDate(progDir, binInfo)
 		if err != nil {
 			return "", fmt.Errorf(

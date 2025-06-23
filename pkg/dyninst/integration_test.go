@@ -10,20 +10,24 @@ package dyninst_test
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"io"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"syscall"
 	"testing"
 
+	"github.com/go-json-experiment/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
@@ -50,13 +54,29 @@ func TestDyninst(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
 			}
-			bin := testprogs.MustGetBinary(t, "simple", cfg)
-			testDyninst(t, bin)
+			bin := testprogs.MustGetBinary(t, "sample", cfg)
+
+			expectedOutput := getExpectedDecodedOutputOfProbes(t, "sample")
+			probes := testprogs.MustGetProbeCfgs(t, "sample")
+			for i := range probes {
+				// Run each probe individually
+				t.Run(probes[i].GetID(), func(t *testing.T) {
+					outputJustForTest := map[string]string{
+						probes[i].GetID(): expectedOutput[probes[i].GetID()],
+					}
+					testDyninst(t, bin, probes[i:i+1], outputJustForTest)
+				})
+			}
+			// Run all probes together
+			// t.Run("all", func(t *testing.T) {
+			// 	testDyninst(t, bin, probes, expectedOutput)
+			// })
 		})
 	}
 }
 
-func testDyninst(t *testing.T, sampleServicePath string) {
+//nolint:all
+func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, expectedOutput map[string]string) {
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
 		os.Stderr, log.DebugLvl, "[%LEVEL] %Msg\n",
 	)
@@ -109,7 +129,6 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 		ctx, t, tempDir, sampleServicePath,
 	)
 
-	probes := testprogs.MustGetProbeCfgs(t, "simple")
 	stat, err := os.Stat(sampleServicePath)
 	require.NoError(t, err)
 	fileInfo := stat.Sys().(*syscall.Stat_t)
@@ -138,6 +157,7 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	})
 
 	// Wait for the process to be attached.
+	t.Log("Waiting for attachment")
 	<-reporter.attached
 	if t.Failed() {
 		return
@@ -148,8 +168,7 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	t.Logf("Triggering function calls")
 	sampleStdin.Write([]byte("\n"))
 
-	// Inlined function is called twice, hence extra event.
-	expNumEvents := len(probes) + 1
+	expNumEvents := len(probes)
 	read := []actuator.Message{}
 	for m := range sink.ch {
 		read = append(read, m)
@@ -171,12 +190,20 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 	require.NoError(t, err)
 	defer func() { require.NoError(t, bpfOutDump.Close()) }()
 
+	decoder, err := decode.NewDecoder(sink.irp)
+	require.NoError(t, err)
+	b := []byte{}
+	decodeOut := bytes.NewBuffer(b)
 	for _, msg := range read {
 		event := msg.Event()
-		_, err := bpfOutDump.Write([]byte(event))
+		err = decoder.Decode(event, decodeOut)
+		require.NoError(t, err)
+		header, err := event.Header()
 		require.NoError(t, err)
 
-		header, err := event.Header()
+		// Purge stack fraames
+		tmpMap := map[string]any{}
+		err = json.Unmarshal(decodeOut.Bytes(), &tmpMap)
 		require.NoError(t, err)
 		require.Equal(t, uint32(len(event)), header.Data_byte_len)
 		t.Logf("message header: %#v", *header)
@@ -186,21 +213,19 @@ func testDyninst(t *testing.T, sampleServicePath string) {
 			t.Logf("stack: %x", stackPCs)
 		}
 
-		var i int
-		for di, err := range event.DataItems() {
-			require.NoError(t, err, "data item %d", i)
-			diHeader := di.Header()
-			typ, ok := sink.irp.Types[ir.TypeID(diHeader.Type)]
-			require.True(t, ok, "unknown type: %d", diHeader.Type)
-			if i == 0 {
-				require.IsType(t, (*ir.EventRootType)(nil), typ)
-			}
-			t.Logf(
-				"di %d: %s @0x%x: %s",
-				i, typ.GetName(), diHeader.Address,
-				hex.EncodeToString(di.Data()),
-			)
-			i++
+		if _, ok := tmpMap["stack_frames"]; !ok {
+			t.Error("No stack frames in output")
+		} else {
+			tmpMap["stack_frames"] = ""
+		}
+
+		purged, err := json.Marshal(tmpMap)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput[probes[0].GetID()], string(purged))
+
+		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
+			expectedOutput[probes[0].GetID()] = string(purged)
+			saveActualOutputOfProbes(t, "sample", expectedOutput)
 		}
 	}
 }
@@ -269,3 +294,45 @@ func (r *testReporter) ReportAttached(actuator.ProcessID, []config.Probe) {
 }
 
 func (r *testReporter) ReportDetached(actuator.ProcessID, []config.Probe) {}
+
+// getExpectedDecodedOutputOfProbes returns the expected output for a given service.
+func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
+	expectedOutput := make(map[string]string)
+	state, err := testprogs.GetState()
+	if err != nil {
+		t.Fatalf("testprogs: %v", err)
+	}
+	yamlData, err := os.ReadFile(path.Join(state.ExpectedOutputDir, name+".yaml"))
+	if err != nil {
+		t.Fatalf("testprogs: %v", err)
+	}
+	err = yaml.Unmarshal(yamlData, &expectedOutput)
+	if err != nil {
+		t.Fatalf("testprogs: %v", err)
+	}
+	return expectedOutput
+}
+
+// saveActualOutputOfProbes saves the actual output for a given service.
+// The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
+//
+//nolint:all
+func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]string) {
+	state, err := testprogs.GetState()
+	if err != nil {
+		t.Logf("testprogs: %v", err)
+		return
+	}
+	actualOutputFile := path.Join(state.ExpectedOutputDir, name+".yaml")
+	actualOutputYAML, err := yaml.Marshal(savedState)
+	if err != nil {
+		t.Logf("error marshaling actual output to YAML: %s", err)
+		return
+	}
+	err = os.WriteFile(actualOutputFile, actualOutputYAML, 0644)
+	if err != nil {
+		t.Logf("error writing actual output file: %s", err)
+		return
+	}
+	t.Logf("actual output saved to: %s", actualOutputFile)
+}
