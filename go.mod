@@ -1008,13 +1008,6 @@ replace (
 // Fixes CVE-2023-1732, imported by nikos
 replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
 
-// Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
-// https://github.com/open-telemetry/opentelemetry-collector/issues/8127
-exclude (
-	github.com/knadh/koanf/maps v0.1.1
-	github.com/knadh/koanf/providers/confmap v0.1.0
-)
-
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
 replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.0.0
