@@ -7184,7 +7184,7 @@
       "properties": [
         {
           "name": "setsockopt.filter_hash",
-          "definition": "Hash of the socket filter",
+          "definition": "Hash of the socket filter using sha256",
           "property_doc_link": "setsockopt-filter_hash-doc"
         },
         {
@@ -12908,7 +12908,7 @@
       "name": "setsockopt.filter_hash",
       "link": "setsockopt-filter_hash-doc",
       "type": "string",
-      "definition": "Hash of the socket filter",
+      "definition": "Hash of the socket filter using sha256",
       "prefixes": [
         "setsockopt"
       ],
