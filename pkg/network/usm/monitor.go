@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -247,4 +248,19 @@ func (m *Monitor) startTelemetryReporter() {
 			}
 		}
 	}()
+}
+
+// DebugHTTPPath adds a PID to the HTTP debugger with the given path.
+func (m *Monitor) DebugHTTPPath(pid uint32, path [24]byte, size uint8) error {
+	if m == nil {
+		return fmt.Errorf("monitor is nil")
+	}
+
+	for _, protocol := range m.ebpfProgram.enabledProtocols {
+		if protocol.Instance.Name() == "HTTP" {
+			http.AddPIDToDebugger(pid, path, size)
+			return nil
+		}
+	}
+	return fmt.Errorf("no HTTP protocol found in the monitor")
 }

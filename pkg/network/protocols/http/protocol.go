@@ -35,6 +35,7 @@ type protocol struct {
 	statkeeper     *StatKeeper
 	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	eventsConsumer *events.Consumer[EbpfEvent]
+	debuggerMap    *ebpf.Map
 }
 
 const (
@@ -63,6 +64,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "http_batches",
+		},
+		{
+			Name: "https_debug_pid",
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -146,6 +150,10 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	p.statkeeper = NewStatkeeper(p.cfg, p.telemetry, NewIncompleteBuffer(p.cfg, p.telemetry))
 	p.eventsConsumer.Start()
 
+	p.debuggerMap, _, err = mgr.GetMap("https_debug_pid")
+	if err != nil {
+		return fmt.Errorf("error getting https_debug_pid map: %w", err)
+	}
 	return
 }
 
@@ -228,4 +236,37 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 // IsBuildModeSupported returns always true, as http module is supported by all modes.
 func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+func AddPIDToDebugger(pid uint32, path [24]byte, size uint8) {
+	if Spec == nil || Spec.Instance == nil {
+		log.Warnf("http protocol spec is nil, cannot add PID to debugger")
+		return
+	}
+
+	httpProtocol, ok := Spec.Instance.(*protocol)
+	if !ok {
+		log.Warnf("http protocol spec is not of type *protocol, cannot add PID to debugger")
+		return
+	}
+
+	if httpProtocol.debuggerMap == nil {
+		log.Warnf("http debugger map is nil, cannot add PID to debugger")
+		return
+	}
+
+	if size > 24 {
+		log.Warnf("provided path length %d exceeds maximum of 24 bytes, cannot add PID %d to debugger", size, pid)
+		return
+	}
+	value := &Debugger{
+		Size: size,
+	}
+	for i := uint8(0); i < size; i++ {
+		value.Pattern[i] = int8(path[i])
+	}
+
+	if err := httpProtocol.debuggerMap.Update(unsafe.Pointer(&pid), unsafe.Pointer(value), ebpf.UpdateAny); err != nil {
+		log.Errorf("failed to add PID %d to http debugger map: %v", pid, err)
+	}
 }
