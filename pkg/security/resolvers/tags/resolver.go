@@ -8,6 +8,7 @@ package tags
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -59,24 +60,24 @@ func (t *DefaultResolver) ResolveWithErr(id interface{}) ([]string, error) {
 // resolveWorkloadTags resolves tags for a workload ID, handling both container and cgroup workloads
 func (t *DefaultResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
 	if id == nil {
-		return nil, nil
+		return nil, fmt.Errorf("nil workload id")
 	}
 
 	switch v := id.(type) {
 	case containerutils.ContainerID:
 		if len(v) == 0 {
-			return nil, nil
+			return nil, fmt.Errorf("empty container id")
 		}
 		// Resolve as a container ID
 		return GetTagsOfContainer(t.tagger, v)
 	case containerutils.CGroupID:
 		if len(v) == 0 {
-			return nil, nil
+			return nil, fmt.Errorf("empty cgroup id")
 		}
 		// CGroup resolution is only supported on Linux
-		return nil, nil
+		return nil, fmt.Errorf("cgroup resolution not supported on this platform")
 	default:
-		return nil, nil
+		return nil, fmt.Errorf("unknown workload id type: %T", id)
 	}
 }
 
