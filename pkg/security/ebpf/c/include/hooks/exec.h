@@ -689,7 +689,11 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
                     .mount_id = syscall->exec.file.path_key.mount_id,
                     .path_id = syscall->exec.file.path_key.path_id,
                 },
-                .flags = syscall->exec.file.flags },
+                .flags = syscall->exec.file.flags,
+                .metadata = {
+                    .nlink = syscall->exec.file.metadata.nlink
+                },
+            },
             .exec_timestamp = now,
         },
         .container = {},

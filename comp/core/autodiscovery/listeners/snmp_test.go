@@ -260,6 +260,20 @@ func TestExtraConfig(t *testing.T) {
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "false", info)
 
+	info, err = svc.GetExtraConfig("collect_vpn")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", info)
+
+	svc.config.CollectVPN = true
+	info, err = svc.GetExtraConfig("collect_vpn")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "true", info)
+
+	svc.config.CollectVPN = false
+	info, err = svc.GetExtraConfig("collect_vpn")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "false", info)
+
 	info, err = svc.GetExtraConfig("min_collection_interval")
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "0", info)

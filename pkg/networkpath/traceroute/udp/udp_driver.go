@@ -98,14 +98,14 @@ func (u *udpDriver) GetDriverInfo() common.TracerouteDriverInfo {
 
 // SendProbe sends a traceroute packet with a specific TTL
 func (u *udpDriver) SendProbe(ttl uint8) error {
-	ipHdr, buffer, checksum, _, err := u.config.createRawUDPBuffer(u.config.srcIP, u.config.srcPort, u.config.Target, u.config.TargetPort, int(ttl))
+	id, buffer, checksum, err := u.config.createRawUDPBuffer(u.config.srcIP, u.config.srcPort, u.config.Target, u.config.TargetPort, int(ttl))
 	if err != nil {
 		return fmt.Errorf("udpDriver SendProbe failed to createRawUDPBuffer: %w", err)
 	}
 
-	probeID := probeID{packetID: uint16(ipHdr.ID), checksum: checksum}
+	probeID := probeID{packetID: id, checksum: checksum}
 	data := probeData{sendTime: time.Now(), ttl: ttl}
-	log.Tracef("sending probe with ttl=%d, packetID=%d, checksum=%d", ttl, ipHdr.ID, checksum)
+	log.Tracef("sending probe with ttl=%d, packetID=%d, checksum=%d", ttl, id, checksum)
 	ok := u.storeProbe(probeID, data)
 	if !ok {
 		return fmt.Errorf("udpDriver Sendprobe tried to sent the same probe ID twice for ttl=%d", ttl)
@@ -124,7 +124,6 @@ func (u *udpDriver) ReceiveProbe(timeout time.Duration) (*common.ProbeResponse, 
 	if err != nil {
 		return nil, fmt.Errorf("tcpDriver failed to SetReadDeadline: %w", err)
 	}
-
 	err = packets.ReadAndParse(u.source, u.buffer, u.parser)
 	if err != nil {
 		return nil, err
@@ -142,7 +141,7 @@ func (u *udpDriver) handleProbeLayers() (*common.ProbeResponse, error) {
 	var probe probeData
 
 	switch u.parser.GetTransportLayer() {
-	case layers.LayerTypeICMPv4:
+	case layers.LayerTypeICMPv4, layers.LayerTypeICMPv6:
 		if !u.parser.IsTTLExceeded() && !u.parser.IsDestinationUnreachable() {
 			return nil, common.ErrPacketDidNotMatchTraceroute
 		}
@@ -173,7 +172,11 @@ func (u *udpDriver) handleProbeLayers() (*common.ProbeResponse, error) {
 			return nil, common.ErrPacketDidNotMatchTraceroute
 		}
 
-		probeID := probeID{packetID: icmpInfo.WrappedPacketID, checksum: udpInfo.Checksum}
+		id := icmpInfo.WrappedPacketID
+		if icmpDst.Addr().Is6() {
+			id = udpInfo.ID
+		}
+		probeID := probeID{packetID: id, checksum: udpInfo.Checksum}
 		probe, _ = u.findMatchingProbe(probeID)
 		if probe == (probeData{}) {
 			log.Warnf("couldn't find probe matching packetID=%d and checksum=%d", probeID.packetID, probeID.checksum)
