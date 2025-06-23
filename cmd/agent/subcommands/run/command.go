@@ -74,6 +74,7 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
@@ -280,6 +281,7 @@ func run(log log.Component,
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 	hostname hostnameinterface.Component,
+	ipc ipc.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -346,6 +348,7 @@ func run(log log.Component,
 		settings,
 		agenttelemetryComponent,
 		hostname,
+		ipc,
 	); err != nil {
 		return err
 	}
@@ -543,6 +546,7 @@ func startAgent(
 	settings settings.Component,
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
+	ipc ipc.Component,
 ) error {
 	var err error
 
@@ -624,7 +628,7 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Init JMX runner and inject dogstatsd component
-	jmxfetch.InitRunner(server, jmxLogger)
+	jmxfetch.InitRunner(server, jmxLogger, ipc)
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
