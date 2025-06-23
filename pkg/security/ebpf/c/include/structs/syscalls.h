@@ -268,10 +268,10 @@ struct syscall_cache_t {
             short socket_type;
             u16 socket_protocol;
             u16 socket_family;
+            unsigned short filter_len;
             int level;
             int optname;
             struct sock_fprog *fprog;
-            unsigned short filter_len;
         } setsockopt;
     };
 };
