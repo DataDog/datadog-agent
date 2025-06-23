@@ -1005,9 +1005,6 @@ replace (
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 )
 
-// Fixes CVE-2023-1732, imported by nikos
-replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
-
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
 replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.0.0
