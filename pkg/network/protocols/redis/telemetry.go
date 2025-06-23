@@ -20,7 +20,7 @@ type telemetry struct {
 
 	commandDistribution map[CommandType]*libtelemetry.Counter
 	invalidCommand      *libtelemetry.Counter
-	dropped             *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
+	dropped             *libtelemetry.Counter
 	invalidLatency      *libtelemetry.Counter
 }
 
@@ -44,7 +44,7 @@ func newTelemetry() *telemetry {
 	return &telem
 }
 
-// Log logs the postgres stats summary
+// Log logs the redis stats summary
 func (t *telemetry) Log() {
 	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("redis stats summary: %s", t.metricGroup.Summary())
