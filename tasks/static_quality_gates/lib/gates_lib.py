@@ -168,7 +168,9 @@ class GateMetricHandler:
             )
         return None
 
-    def generate_relative_size(self, ctx, filename="static_gate_report.json", report_path="static_gate_report.json", ancestor=None):
+    def generate_relative_size(
+        self, ctx, filename="static_gate_report.json", report_path="static_gate_report.json", ancestor=None
+    ):
         if ancestor:
             # Fetch the ancestor's static quality gates report json file
             out = ctx.run(
