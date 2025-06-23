@@ -50,7 +50,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	//
 	for idx, binary := range binaries {
 		go func(idx int, binary string) {
 			defer wg.Done()
