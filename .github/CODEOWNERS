@@ -85,6 +85,7 @@
 /.gitlab/pkg_metrics/*                               @DataDog/agent-devx
 /.gitlab/post_rc_build/*                             @DataDog/agent-devx
 /.gitlab/setup/*                                     @DataDog/agent-devx
+/.gitlab/trigger_distribution/*                      @DataDog/agent-delivery
 /.gitlab/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
 
 /.gitlab/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
