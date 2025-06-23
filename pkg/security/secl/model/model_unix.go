@@ -1031,5 +1031,5 @@ type SetSockOptEvent struct {
 	FilterLen          uint16 `field:"filter_len"`                                                      // SECLDoc[filter_len] Definition:`Length of the filter`
 	RawFilter          []byte `field:"-"`                                                               // Internal field, not exposed to users
 	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"` // SECLDoc[filter_instructions] Definition:`Filter instructions`
-	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                // SECLDoc[filter_hash] Definition:`Hash of the socket filter`
+	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                // SECLDoc[filter_hash] Definition:`Hash of the socket filter using sha256`
 }
