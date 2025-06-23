@@ -10,8 +10,8 @@ package actuator
 import (
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 )
 
 type configuration struct {
@@ -94,10 +94,10 @@ func WithReporter(reporter Reporter) Option {
 type Reporter interface {
 
 	// ReportAttached is called when a program is attached to a process.
-	ReportAttached(ProcessID, []config.Probe)
+	ReportAttached(ProcessID, []irgen.ProbeDefinition)
 
 	// ReportDetached is called when a program is detached from a process.
-	ReportDetached(ProcessID, []config.Probe)
+	ReportDetached(ProcessID, []irgen.ProbeDefinition)
 
 	// ReportCompilationFailed is called when a program fails to compile.
 	ReportCompilationFailed(ir.ProgramID, error)
@@ -111,11 +111,11 @@ type Reporter interface {
 
 type noopReporter struct{}
 
-func (noopReporter) ReportAttached(ProcessID, []config.Probe)             {}
-func (noopReporter) ReportDetached(ProcessID, []config.Probe)             {}
 func (noopReporter) ReportCompilationFailed(ir.ProgramID, error)          {}
 func (noopReporter) ReportLoadingFailed(ir.ProgramID, error)              {}
 func (noopReporter) ReportAttachingFailed(ir.ProgramID, ProcessID, error) {}
+func (noopReporter) ReportAttached(ProcessID, []irgen.ProbeDefinition)    {}
+func (noopReporter) ReportDetached(ProcessID, []irgen.ProbeDefinition)    {}
 
 // WithRingBufSize sets the size of the ring buffer for the Actuator.
 func WithRingBufSize(size int) Option {

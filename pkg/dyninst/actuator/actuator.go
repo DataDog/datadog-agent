@@ -17,7 +17,6 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -201,7 +200,7 @@ var _ effectHandler = (*effects)(nil)
 func (a *effects) compileProgram(
 	programID ir.ProgramID,
 	executable Executable,
-	probes []config.Probe,
+	probes []irgen.ProbeDefinition,
 ) {
 	a.wg.Add(1)
 	go func() {
@@ -230,7 +229,7 @@ func (a *effects) compileProgram(
 func compileProgram(
 	programID ir.ProgramID,
 	exe Executable,
-	probes []config.Probe,
+	probes []irgen.ProbeDefinition,
 	cwf CodegenWriterFactory,
 ) (*CompiledProgram, error) {
 
@@ -330,6 +329,7 @@ func loadProgram(
 
 	return &loadedProgram{
 		id:           compiled.IR.ID,
+		probes:       compiled.Probes,
 		collection:   bpfCollection,
 		program:      bpfProg,
 		attachpoints: compiled.CompiledBPF.Attachpoints,

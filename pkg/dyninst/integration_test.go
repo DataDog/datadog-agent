@@ -26,10 +26,10 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/decode"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -62,12 +62,15 @@ func TestDyninst(t *testing.T) {
 		for _, cfg := range cfgs {
 			t.Run(svc+"-"+cfg.String(), func(t *testing.T) {
 				if cfg.GOARCH != runtime.GOARCH {
-					t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
+					t.Skipf(
+						"cross-execution is not supported, running on %s",
+						runtime.GOARCH,
+					)
 				}
 				bin := testprogs.MustGetBinary(t, svc, cfg)
 
 				expectedOutput := getExpectedDecodedOutputOfProbes(t, svc)
-				probes := testprogs.MustGetProbeCfgs(t, svc)
+				probes := testprogs.MustGetProbeDefinitions(t, svc)
 				for i := range probes {
 					// Run each probe individually
 					t.Run(probes[i].GetID(), func(t *testing.T) {
@@ -79,7 +82,13 @@ func TestDyninst(t *testing.T) {
 	}
 }
 
-func testDyninst(t *testing.T, service string, sampleServicePath string, probes []config.Probe, expOut map[string]expectedOutput) {
+func testDyninst(
+	t *testing.T,
+	service string,
+	sampleServicePath string,
+	probes []irgen.ProbeDefinition,
+	expOut map[string]expectedOutput,
+) {
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
 		os.Stderr, log.DebugLvl, "[%LEVEL] %Msg\n",
 	)
@@ -301,14 +310,14 @@ func makeTestReporter(t *testing.T) *testReporter {
 	}
 }
 
-func (r *testReporter) ReportAttached(actuator.ProcessID, []config.Probe) {
+func (r *testReporter) ReportAttached(actuator.ProcessID, []irgen.ProbeDefinition) {
 	select {
 	case r.attached <- struct{}{}:
 	default:
 	}
 }
 
-func (r *testReporter) ReportDetached(actuator.ProcessID, []config.Probe) {}
+func (r *testReporter) ReportDetached(actuator.ProcessID, []irgen.ProbeDefinition) {}
 
 type expectedOutput struct {
 	OutputJSON     string `yaml:"OutputJSON"`

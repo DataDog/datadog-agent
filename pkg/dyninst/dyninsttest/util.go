@@ -51,7 +51,7 @@ func GenerateIr(t *testing.T, tempDir string, binPath string, cfgName string) (o
 	require.NoError(t, err)
 	defer func() { require.NoError(t, binary.Close()) }()
 
-	probes := testprogs.MustGetProbeCfgs(t, cfgName)
+	probes := testprogs.MustGetProbeDefinitions(t, cfgName)
 
 	obj, err = object.NewElfObject(binary)
 	require.NoError(t, err)
@@ -138,7 +138,6 @@ func AttachBPFProbes(
 	for _, attachpoint := range attachpoints {
 		// Despite the name, Uprobe expects an offset in the object file, and not the virtual address.
 		addr := attachpoint.PC - textSection.Addr + textSection.Offset
-		t.Logf("attaching @0x%x cookie=%d", addr, attachpoint.Cookie)
 		attached, err := sampleLink.Uprobe(
 			"",
 			bpfProg,

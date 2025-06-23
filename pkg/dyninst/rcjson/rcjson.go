@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package config
+package rcjson
 
 import (
 	"encoding/json"

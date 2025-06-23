@@ -54,13 +54,13 @@ func runTest(
 	caseName string,
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.MustGetProbeCfgs(t, caseName)
+	probeDefs := testprogs.MustGetProbeDefinitions(t, caseName)
 	elfFile, err := safeelf.Open(binPath)
 	require.NoError(t, err)
 	obj, err := object.NewElfObject(elfFile)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, elfFile.Close()) }()
-	ir, err := irgen.GenerateIR(1, obj, probesCfgs)
+	ir, err := irgen.GenerateIR(1, obj, probeDefs)
 	require.NoError(t, err)
 
 	program, err := sm.GenerateProgram(ir)

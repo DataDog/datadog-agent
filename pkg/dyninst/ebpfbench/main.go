@@ -51,7 +51,7 @@ func runBenchmark() error {
 	}
 	defer func() { binary.Close() }()
 
-	probes, err := testprogs.GetProbeCfgs("busyloop")
+	probes, err := testprogs.GetProbeDefinitions("busyloop")
 	if err != nil {
 		return err
 	}
