@@ -202,7 +202,7 @@ func testDyninst(
 	require.NoError(t, err)
 	defer func() { require.NoError(t, bpfOutDump.Close()) }()
 
-	decoder, err := decode.NewDecoder(sink.irp)
+	decoder, err := decode.NewDecoder(sink.irp, newTestProcessInfoResolver(service))
 	require.NoError(t, err)
 	b := []byte{}
 	decodeOut := bytes.NewBuffer(b)

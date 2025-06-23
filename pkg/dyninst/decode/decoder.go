@@ -15,8 +15,10 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/go-json-experiment/json/jsontext"
+	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -30,19 +32,28 @@ type probeEvent struct {
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
-	program     *ir.Program
-	stackHashes map[uint64][]uint64
-	probeEvents map[ir.TypeID]probeEvent
+	program          *ir.Program
+	stackHashes      map[uint64][]uint64
+	probeEvents      map[ir.TypeID]probeEvent
+	procInfoResolver ProcessInfoResolver
+}
+
+type ProcessInfoResolver interface {
+	Resolve() (serviceName string)
 }
 
 var errorUnimplemented = errors.New("errorUnimplemented type")
 
 // NewDecoder creates a new Decoder for the given program.
-func NewDecoder(program *ir.Program) (*Decoder, error) {
+func NewDecoder(
+	program *ir.Program,
+	processInfoResolver ProcessInfoResolver,
+) (*Decoder, error) {
 	decoder := &Decoder{
-		program:     program,
-		stackHashes: make(map[uint64][]uint64),
-		probeEvents: make(map[ir.TypeID]probeEvent),
+		program:          program,
+		stackHashes:      make(map[uint64][]uint64),
+		probeEvents:      make(map[ir.TypeID]probeEvent),
+		procInfoResolver: processInfoResolver,
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -62,10 +73,135 @@ type typeAndAddr struct {
 	addr   uint64
 }
 
+// encodeJSONPrologue encodes the top of the JSON object
+// used in every event.
+// It encodes 3 BeginObject tokens which need to be closed.
+//
+// Example:
+//
+//	{
+//	  "service": "go-di-sample-service",
+//	  "ddsource": "dd_debugger",
+//	  "ddtags": "",
+//	  "logger": {
+//	    "name": "",
+//	    "method": ""
+//	  },
+//	  "debugger": {
+//	    "snapshot": {
+//	      "id": "242b6daa-506a-11f0-9835-001c421ddea2",
+//	      "timestamp": 1750707725206,
+//	      "language": "go",
+func (d *Decoder) encodeJSONPrologue(enc *jsontext.Encoder) error {
+	err := enc.WriteToken(jsontext.BeginObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("service"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String(d.procInfoResolver.Resolve()))
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.String("ddsource"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("dd_debugger"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("ddtags"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String(""))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("logger"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.BeginObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("name"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String(""))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("method"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String(""))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.EndObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("debugger"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.BeginObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("snapshot"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.BeginObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("id"))
+	if err != nil {
+		return err
+	}
+	uuid, err := uuid.NewUUID()
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String(uuid.String()))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("timestamp"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.Int(time.Now().UnixMilli()))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("language"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("go"))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Decode decodes the given event into the given writer.
 func (d *Decoder) Decode(event output.Event, out io.Writer) error {
+
 	enc := jsontext.NewEncoder(out)
-	err := enc.WriteToken(jsontext.BeginObject)
+	err := d.encodeJSONPrologue(enc)
 	if err != nil {
 		return err
 	}
@@ -87,7 +223,7 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		d.stackHashes[header.Stack_hash] = frames
 	}
 
-	err = enc.WriteToken(jsontext.String("stack_frames"))
+	err = enc.WriteToken(jsontext.String("stack"))
 	if err != nil {
 		return err
 	}
@@ -106,14 +242,6 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		return err
 	}
 
-	err = enc.WriteToken(jsontext.String("captures"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.BeginObject)
-	if err != nil {
-		return err
-	}
 	addressReferenceCount := map[typeAndAddr]output.DataItem{}
 
 	var (
@@ -151,11 +279,67 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 	if !ok {
 		return errors.New("no probe event found for root type")
 	}
-	err = enc.WriteToken(jsontext.String("probe_id"))
+	err = enc.WriteToken(jsontext.String("probe"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.BeginObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("id"))
 	if err != nil {
 		return err
 	}
 	err = enc.WriteToken(jsontext.String(p.probe.ID))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("location"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.BeginObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("method"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String(p.probe.Subprogram.Name))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.EndObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.EndObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("captures"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.BeginObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("entry"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.BeginObject)
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String("arguments"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.BeginObject)
 	if err != nil {
 		return err
 	}
@@ -176,13 +360,50 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		if err != nil {
 			return err
 		}
+		err = enc.WriteToken(jsontext.BeginObject)
+		if err != nil {
+			return err
+		}
+		err = enc.WriteToken(jsontext.String("type"))
+		if err != nil {
+			return err
+		}
+		err = enc.WriteToken(jsontext.String(parameterType.GetName()))
+		if err != nil {
+			return err
+		}
+		err = enc.WriteToken(jsontext.String("value"))
+		if err != nil {
+			return err
+		}
 		err = d.encodeValue(enc, addressReferenceCount, currentlyEncoding, parameterType, parameterData)
 		if err != nil {
 			return fmt.Errorf("error parsing data for field %s: %w", rootType.Name, err)
 		}
+
+		err = enc.WriteToken(jsontext.EndObject)
+		if err != nil {
+			return err
+		}
 	}
 
+	err = enc.WriteToken(jsontext.EndObject) // entry
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.EndObject) // arguments
+	if err != nil {
+		return err
+	}
 	err = enc.WriteToken(jsontext.EndObject) // captures
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.EndObject) // snapshot
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.EndObject) // debugger
 	if err != nil {
 		return err
 	}
