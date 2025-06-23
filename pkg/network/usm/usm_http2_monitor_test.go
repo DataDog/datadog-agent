@@ -35,12 +35,12 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
@@ -1624,7 +1624,7 @@ func validateStats(t *testing.T, usmMonitor *Monitor, res, expectedEndpoints map
 			if statusCode == 0 {
 				statusCode = 200
 			}
-			hasTag := stat.Data[statusCode].StaticTags == network.ConnTagGo
+			hasTag := stat.Data[statusCode].StaticTags == ebpftls.ConnTagGo
 			if hasTag != isTLS {
 				continue
 			}

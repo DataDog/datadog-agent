@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/wI2L/jsondiff"
 	admiv1 "k8s.io/api/admission/v1"
@@ -317,6 +318,8 @@ type CWSInstrumentation struct {
 	directoryForRemoteCopy string
 	// clusterAgentServiceAccount holds the service account name of the cluster agent
 	clusterAgentServiceAccount string
+	// timeout defines the timeout for the mutation attempts
+	timeout time.Duration
 
 	webhookForPods     *WebhookForPods
 	webhookForCommands *WebhookForCommands
@@ -326,7 +329,8 @@ type CWSInstrumentation struct {
 // NewCWSInstrumentation parses the webhook config and returns a new instance of CWSInstrumentation
 func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Component) (*CWSInstrumentation, error) {
 	ci := CWSInstrumentation{
-		wmeta: wmeta,
+		wmeta:   wmeta,
+		timeout: time.Duration(pkgconfigsetup.Datadog().GetInt32("admission_controller.cws_instrumentation.timeout")) * time.Second,
 	}
 	var err error
 
@@ -637,13 +641,13 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 	}
 
 	cp := k8scp.NewCopy(apiclient)
-	if err = cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, container); err != nil {
+	if err = cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, container, ci.timeout); err != nil {
 		return err
 	}
 
 	// check cws-instrumentation was properly copied by running "cws-instrumentation health"
 	health := k8sexec.NewHealthCommand(apiclient)
-	return health.Run(cwsInstrumentationRemotePath, pod, container)
+	return health.Run(cwsInstrumentationRemotePath, pod, container, ci.timeout)
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.Request) *admiv1.AdmissionResponse {
