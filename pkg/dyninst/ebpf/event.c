@@ -69,6 +69,7 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
       .data_byte_len = sizeof(event_header_t),
       .stack_byte_len = 0, // set this if we collect stacks
       .ktime_ns = start_ns,
+      .prog_id = prog_id,
   };
 
   __maybe_unused int process_steps = 0;

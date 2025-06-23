@@ -549,3 +549,76 @@ func TestFetchDatabricksCustomTagsWithMock(t *testing.T) {
 		})
 	}
 }
+
+func TestSetupGPUIntegration(t *testing.T) {
+	tests := []struct {
+		name                   string
+		env                    map[string]string
+		expectedCollectGPUTags bool
+		expectedEnableNVML     bool
+		expectedSystemProbeGPU bool
+	}{
+		{
+			name: "GPU monitoring enabled",
+			env: map[string]string{
+				"DD_GPU_MONITORING_ENABLED": "true",
+			},
+			expectedCollectGPUTags: true,
+			expectedEnableNVML:     true,
+			expectedSystemProbeGPU: true,
+		},
+		{
+			name: "GPU monitoring enabled with empty string value",
+			env: map[string]string{
+				"DD_GPU_MONITORING_ENABLED": "",
+			},
+			expectedCollectGPUTags: false,
+			expectedEnableNVML:     false,
+			expectedSystemProbeGPU: false,
+		},
+		{
+			name:                   "GPU monitoring not set",
+			env:                    map[string]string{},
+			expectedCollectGPUTags: false,
+			expectedEnableNVML:     false,
+			expectedSystemProbeGPU: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			for k, v := range tt.env {
+				require.NoError(t, os.Setenv(k, v))
+			}
+
+			span, _ := telemetry.StartSpanFromContext(context.Background(), "test")
+			output := &common.Output{}
+			s := &common.Setup{
+				Span: span,
+				Out:  output,
+				Config: config.Config{
+					DatadogYAML: config.DatadogConfig{},
+				},
+			}
+
+			if os.Getenv("DD_GPU_MONITORING_ENABLED") == "true" {
+				setupGPUIntegration(s)
+			}
+
+			assert.Equal(t, tt.expectedCollectGPUTags, s.Config.DatadogYAML.CollectGPUTags)
+			assert.Equal(t, tt.expectedEnableNVML, s.Config.DatadogYAML.EnableNVMLDetection)
+
+			// Check system-probe configuration
+			if tt.expectedSystemProbeGPU {
+				assert.NotNil(t, s.Config.SystemProbeYAML)
+				assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
+			} else {
+				if s.Config.SystemProbeYAML != nil {
+					assert.Equal(t, tt.expectedSystemProbeGPU, s.Config.SystemProbeYAML.GPUMonitoringConfig.Enabled)
+				}
+			}
+
+		})
+	}
+}
