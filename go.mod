@@ -1005,9 +1005,6 @@ replace (
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 )
 
-// Fixes CVE-2023-1732, imported by nikos
-replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
-
 // Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
 // https://github.com/open-telemetry/opentelemetry-collector/issues/8127
 exclude (
