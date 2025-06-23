@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    Fixes python integrations not being persisted after Agent uninstall.
+    Fixes Python integrations not being persisted after Agent uninstall.
     Enables persisting integration during fleet updates.
 
