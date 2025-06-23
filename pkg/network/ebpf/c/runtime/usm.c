@@ -95,7 +95,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write) {
         return 0;
     }
 
-    bpf_map_update_elem(&go_tls_write_args, &call_key, &call_data, BPF_ANY);
+    bpf_map_update_with_telemetry(go_tls_write_args, &call_key, &call_data, BPF_ANY);
     return 0;
 }
 
@@ -205,7 +205,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read) {
         return 0;
     }
 
-    bpf_map_update_elem(&go_tls_read_args, &call_key, &call_data, BPF_ANY);
+    bpf_map_update_with_telemetry(go_tls_read_args, &call_key, &call_data, BPF_ANY);
     return 0;
 }
 

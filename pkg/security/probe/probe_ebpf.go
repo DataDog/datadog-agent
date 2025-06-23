@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -118,6 +120,7 @@ type EBPFProbe struct {
 
 	// internals
 	event          *model.Event
+	dnsLayer       *layers.DNS
 	monitors       *EBPFMonitors
 	profileManager *securityprofile.Manager
 	fieldHandlers  *EBPFFieldHandlers
@@ -127,6 +130,7 @@ type EBPFProbe struct {
 	ctx       context.Context
 	cancelFnc context.CancelFunc
 	wg        sync.WaitGroup
+	ipc       ipc.Component
 
 	// TC Classifier & raw packets
 	newTCNetDevices           chan model.NetDevice
@@ -143,7 +147,7 @@ type EBPFProbe struct {
 	erpcRequest              *erpc.Request
 	inodeDiscarders          *inodeDiscarders
 	discarderPushedCallbacks []DiscarderPushedCallback
-	kfilters                 map[eval.EventType]kfilters.ActiveKFilters
+	kfilters                 map[eval.EventType]kfilters.KFilters
 
 	// Approvers / discarders section
 	discarderPushedCallbacksLock sync.RWMutex
@@ -224,50 +228,73 @@ func (p *EBPFProbe) GetUseFentry() bool {
 	return p.useFentry
 }
 
+var fentrySupportCache struct {
+	sync.Mutex
+	previousErr error
+	kv          *kernel.Version
+}
+
+func isFentrySupported(kernelVersion *kernel.Version) error {
+	fentrySupportCache.Lock()
+	defer fentrySupportCache.Unlock()
+
+	if fentrySupportCache.kv == kernelVersion {
+		return fentrySupportCache.previousErr
+	}
+
+	err := isFentrySupportedImpl(kernelVersion)
+	fentrySupportCache.kv = kernelVersion
+	fentrySupportCache.previousErr = err
+	return err
+}
+
+func isFentrySupportedImpl(kernelVersion *kernel.Version) error {
+	if kernelVersion.Code < kernel.Kernel6_1 {
+		return errors.New("fentry enabled but not fully supported on this kernel version (< 6.1)")
+	}
+
+	if !kernelVersion.HaveFentrySupport() {
+		return errors.New("fentry enabled but not supported")
+	}
+
+	tailCallsBroken, err := constantfetch.AreFentryTailCallsBroken()
+	if err != nil {
+		return fmt.Errorf("fentry enabled but failed to verify tail call support: %w", err)
+	}
+
+	if tailCallsBroken {
+		return errors.New("fentry disabled on kernels >= 6.11 (or with breaking tail calls patch backported)")
+	}
+
+	if !kernelVersion.HaveFentrySupportWithStructArgs() {
+		return errors.New("fentry enabled but not supported with struct args")
+	}
+
+	if !kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
+		return errors.New("fentry enabled but not supported with duplicated weak symbols")
+	}
+
+	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
+	if err != nil {
+		return errors.New("fentry enabled but failed to verify kernel symbols")
+	}
+
+	if hasPotentialFentryDeadlock {
+		return errors.New("fentry enabled but lock responsible for deadlock was found in kernel symbols")
+	}
+
+	return nil
+}
+
 func (p *EBPFProbe) selectFentryMode() {
 	if !p.config.Probe.EventStreamUseFentry {
 		p.useFentry = false
 		return
 	}
 
-	if p.kernelVersion.Code < kernel.Kernel6_1 {
+	if err := isFentrySupported(p.kernelVersion); err != nil {
 		p.useFentry = false
-		seclog.Warnf("fentry enabled but not fully supported on this kernel version (< 6.1), falling back to kprobe mode")
-		return
-	}
-
-	if !p.kernelVersion.HaveFentrySupport() {
-		p.useFentry = false
-		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
-		return
-	} else if p.kernelVersion.Code != 0 && p.kernelVersion.Code >= kernel.Kernel6_11 {
-		p.useFentry = false
-		seclog.Errorf("fentry disabled on kernels >= 6.11, falling back to kprobe mode")
-		return
-	}
-
-	if !p.kernelVersion.HaveFentrySupportWithStructArgs() {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but not supported with struct args, falling back to kprobe mode")
-		return
-	}
-
-	if !p.kernelVersion.HaveFentryNoDuplicatedWeakSymbols() {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but not supported with duplicated weak symbols, falling back to kprobe mode")
-		return
-	}
-
-	hasPotentialFentryDeadlock, err := ddebpf.HasTasksRCUExitLockSymbol()
-	if err != nil {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but failed to verify kernel symbols, falling back to kprobe mode")
-		return
-	}
-
-	if hasPotentialFentryDeadlock {
-		p.useFentry = false
-		seclog.Warnf("fentry enabled but lock responsible for deadlock was found in kernel symbols, falling back to kprobe mode")
+		seclog.Warnf("disabling fentry and falling back to kprobe mode: %v", err)
 		return
 	}
 
@@ -470,7 +497,7 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler)
+	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.ipc)
 	if err != nil {
 		return err
 	}
@@ -615,7 +642,7 @@ func (p *EBPFProbe) Start() error {
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
-	if p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
+	if p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
 		// start sysctl snapshot loop
 		go p.startSysCtlSnapshotLoop()
 	}
@@ -655,6 +682,21 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 	}
 
 	p.Walk(entryToEvent)
+
+	// order events so that they're dispatched in creation time order
+	sort.Slice(events, func(i, j int) bool {
+		eventA := events[i]
+		eventB := events[j]
+
+		tsA := eventA.ProcessContext.ExecTime
+		tsB := eventB.ProcessContext.ExecTime
+		if tsA.IsZero() || tsB.IsZero() || tsA.Equal(tsB) {
+			return eventA.PIDContext.Pid < eventB.PIDContext.Pid
+		}
+
+		return tsA.Before(tsB)
+	})
+
 	for _, event := range events {
 		p.DispatchEvent(event, notifyConsumers)
 		event.ProcessCacheEntry.Release()
@@ -974,13 +1016,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	case model.ShortDNSResponseEventType:
 		if p.config.Probe.DNSResolutionEnabled {
-			var dnsLayer = new(layers.DNS)
-			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
+			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Errorf("failed to decode DNS response: %s", err)
 				return
 			}
 
-			p.addToDNSResolver(dnsLayer)
+			p.addToDNSResolver(p.dnsLayer)
 		}
 		return
 	}
@@ -1325,24 +1366,25 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 			offset += read
 
-			var dnsLayer = new(layers.DNS)
-			if err := dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
+			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err != nil {
 				seclog.Warnf("failed to decode DNS response: %s", err)
 				return
 			}
-			p.addToDNSResolver(dnsLayer)
+			p.addToDNSResolver(p.dnsLayer)
 			event.Type = uint32(model.DNSEventType) // remap to regular DNS event type
 			event.DNS = model.DNSEvent{
-				ID: dnsLayer.ID,
-				Question: model.DNSQuestion{
-					Name:  string(dnsLayer.Questions[0].Name),
-					Class: uint16(dnsLayer.Questions[0].Class),
-					Type:  uint16(dnsLayer.Questions[0].Type),
-					Size:  uint16(len(data[offset:])),
-				},
+				ID: p.dnsLayer.ID,
 				Response: &model.DNSResponse{
-					ResponseCode: uint8(dnsLayer.ResponseCode),
+					ResponseCode: uint8(p.dnsLayer.ResponseCode),
 				},
+			}
+			if len(p.dnsLayer.Questions) != 0 {
+				event.DNS.Question = model.DNSQuestion{
+					Name:  string(p.dnsLayer.Questions[0].Name),
+					Class: uint16(p.dnsLayer.Questions[0].Class),
+					Type:  uint16(p.dnsLayer.Questions[0].Type),
+					Size:  uint16(len(data[offset:])),
+				}
 			}
 		}
 
@@ -1376,12 +1418,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode accept event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		if p.config.Probe.DNSResolutionEnabled {
-			ip, ok := netip.AddrFromSlice(event.Accept.Addr.IPNet.IP)
-			if ok {
-				event.Accept.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
-			}
-		}
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1391,12 +1427,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if _, err = event.Connect.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode connect event: %s (offset %d, len %d)", err, offset, len(data))
 			return
-		}
-		if p.config.Probe.DNSResolutionEnabled {
-			ip, ok := netip.AddrFromSlice(event.Connect.Addr.IPNet.IP)
-			if ok {
-				event.Connect.Hostnames = p.Resolvers.DNSResolver.HostListFromIP(ip)
-			}
 		}
 	case model.SyscallsEventType:
 		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
@@ -1424,6 +1454,26 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode sysctl event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
+	case model.SetSockOptEventType:
+		if _, err = event.SetSockOpt.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+	case model.SetrlimitEventType:
+		if _, err = event.Setrlimit.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode setrlimit event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		// resolve target process context
+		var pce *model.ProcessCacheEntry
+		if event.Setrlimit.TargetPid > 0 {
+			pce = p.Resolvers.ProcessResolver.Resolve(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, 0, false, newEntryCb)
+		}
+		if pce == nil {
+			pce = model.NewPlaceholderProcessCacheEntry(event.Setrlimit.TargetPid, event.Setrlimit.TargetPid, false)
+		}
+		event.Setrlimit.Target = &pce.ProcessContext
+
 	}
 
 	// resolve the container context
@@ -2254,6 +2304,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "raw_packet_limiter_rate",
 			Value: uint64(p.config.Probe.NetworkRawPacketLimiterRate),
 		},
+		manager.ConstantEditor{
+			Name:  "raw_packet_filter",
+			Value: utils.BoolTouint64(p.config.Probe.NetworkRawPacketFilter != "none"),
+		},
 	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
@@ -2361,7 +2415,7 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	}
 
 	if !p.config.RuntimeSecurity.SysCtlEnabled {
-		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetSysCtlProbeFunctionName())
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
 	return nil
 }
@@ -2402,7 +2456,7 @@ func (p *EBPFProbe) initManagerOptions() error {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -2423,7 +2477,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		opts:                 opts,
 		statsdClient:         opts.StatsdClient,
 		discarderRateLimiter: rate.NewLimiter(rate.Every(time.Second/5), 100),
-		kfilters:             make(map[eval.EventType]kfilters.ActiveKFilters),
+		kfilters:             make(map[eval.EventType]kfilters.KFilters),
 		Erpc:                 nerpc,
 		erpcRequest:          erpc.NewERPCRequest(0),
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
@@ -2432,6 +2486,8 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		newTCNetDevices:      make(chan model.NetDevice, 16),
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		playSnapShotState:    atomic.NewBool(false),
+		dnsLayer:             new(layers.DNS),
+		ipc:                  ipc,
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -2504,7 +2560,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
-	hostname, err := hostnameutils.GetHostname()
+	hostname, err := hostnameutils.GetHostname(ipc)
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}

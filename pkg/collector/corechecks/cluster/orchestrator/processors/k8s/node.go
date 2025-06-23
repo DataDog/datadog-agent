@@ -127,3 +127,11 @@ func (h *NodeHandlers) ScrubBeforeExtraction(ctx processors.ProcessorContext, re
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *NodeHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, resource interface{}) {
 }
+
+// GetNodeName is a handler called to retrieve the node name from the resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
+func (h *NodeHandlers) GetNodeName(ctx processors.ProcessorContext, resource interface{}) string {
+	r := resource.(*corev1.Node)
+	return r.Name
+}

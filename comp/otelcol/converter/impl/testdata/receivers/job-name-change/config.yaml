@@ -6,6 +6,7 @@ receivers:
         - job_name: "otelcol"
           scrape_interval: 60s
           metric_name_validation_scheme: legacy
+          metric_name_escaping_scheme: underscores
           static_configs:
             - targets: ["0.0.0.0:8888"]
 

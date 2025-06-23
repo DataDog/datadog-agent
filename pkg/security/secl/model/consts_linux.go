@@ -845,6 +845,269 @@ var (
 		"SYSCTL_READ":  SysCtlReadAction,
 		"SYSCTL_WRITE": SysCtlWriteAction,
 	}
+
+	// RlimitConstants are the supported resource limit types for setrlimit
+	// generate_constants:Resource limit types,Resource limit types are the supported resource types for setrlimit syscall.
+	RlimitConstants = map[string]int{
+		"RLIMIT_CPU":        unix.RLIMIT_CPU,
+		"RLIMIT_FSIZE":      unix.RLIMIT_FSIZE,
+		"RLIMIT_DATA":       unix.RLIMIT_DATA,
+		"RLIMIT_STACK":      unix.RLIMIT_STACK,
+		"RLIMIT_CORE":       unix.RLIMIT_CORE,
+		"RLIMIT_RSS":        unix.RLIMIT_RSS,
+		"RLIMIT_NPROC":      unix.RLIMIT_NPROC,
+		"RLIMIT_NOFILE":     unix.RLIMIT_NOFILE,
+		"RLIMIT_MEMLOCK":    unix.RLIMIT_MEMLOCK,
+		"RLIMIT_AS":         unix.RLIMIT_AS,
+		"RLIMIT_LOCKS":      unix.RLIMIT_LOCKS,
+		"RLIMIT_SIGPENDING": unix.RLIMIT_SIGPENDING,
+		"RLIMIT_MSGQUEUE":   unix.RLIMIT_MSGQUEUE,
+		"RLIMIT_NICE":       unix.RLIMIT_NICE,
+		"RLIMIT_RTPRIO":     unix.RLIMIT_RTPRIO,
+		"RLIMIT_RTTIME":     unix.RLIMIT_RTTIME,
+	}
+
+	// SetSockoptLevelConstants is the list of available levels for setsockopt events
+	// generate_constants:SetSockopt Levels,SetSockopt Levels are the supported levels for the setsockopt event.
+	SetSockoptLevelConstants = map[string]int{
+		"IPPROTO_IP":     syscall.IPPROTO_IP,
+		"SOL_SOCKET":     syscall.SOL_SOCKET,
+		"IPPROTO_TCP":    syscall.IPPROTO_TCP,
+		"IPPROTO_UDP":    syscall.IPPROTO_UDP,
+		"IPPROTO_IPV6":   syscall.IPPROTO_IPV6,
+		"IPPROTO_ICMPV6": syscall.IPPROTO_ICMPV6,
+	}
+
+	// SetSockOptOptNameConstants is the list of available options for setsockopt events
+	// generate_constants:SetSockopt Options,SetSockopt Options are the supported options for the setsockopt event.
+	SetSockOptOptNameConstants = map[string]int{
+		// All the values were added according to the Linux kernel headers:
+		// https://elixir.bootlin.com/linux/v5.15.86/source/include/uapi/linux/in.h
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/socket.h
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/tcp.h
+		// https://elixir.bootlin.com/linux/v6.15/source/include/uapi/linux/in6.h
+
+		// IPPROTO_IP options
+		"IP_TOS":                    syscall.IP_TOS,
+		"IP_TTL":                    syscall.IP_TTL,
+		"IP_HDRINCL":                syscall.IP_HDRINCL,
+		"IP_OPTIONS":                syscall.IP_OPTIONS,
+		"IP_ROUTER_ALERT":           syscall.IP_ROUTER_ALERT,
+		"IP_RECVOPTS":               syscall.IP_RECVOPTS,
+		"IP_RETOPTS":                syscall.IP_RETOPTS,
+		"IP_PKTINFO":                syscall.IP_PKTINFO,
+		"IP_PKTOPTIONS":             unix.IP_PKTOPTIONS,
+		"IP_MTU_DISCOVER":           syscall.IP_MTU_DISCOVER,
+		"IP_RECVERR":                syscall.IP_RECVERR,
+		"IP_RECVTTL":                syscall.IP_RECVTTL,
+		"IP_RECVTOS":                syscall.IP_RECVTOS,
+		"IP_MTU":                    unix.IP_MTU,
+		"IP_FREEBIND":               syscall.IP_FREEBIND,
+		"IP_IPSEC_POLICY":           unix.IP_IPSEC_POLICY,
+		"IP_XFRM_POLICY":            unix.IP_XFRM_POLICY,
+		"IP_PASSSEC":                syscall.IP_PASSSEC,
+		"IP_TRANSPARENT":            syscall.IP_TRANSPARENT,
+		"IP_ORIGDSTADDR":            syscall.IP_ORIGDSTADDR,
+		"IP_MINTTL":                 syscall.IP_MINTTL,
+		"IP_NODEFRAG":               unix.IP_NODEFRAG,
+		"IP_CHECKSUM":               unix.IP_CHECKSUM,
+		"IP_BIND_ADDRESS_NO_PORT":   unix.IP_BIND_ADDRESS_NO_PORT,
+		"IP_RECVFRAGSIZE":           unix.IP_RECVFRAGSIZE,
+		"IP_RECVERR_RFC4884":        unix.IP_RECVERR_RFC4884,
+		"IP_MULTICAST_IF":           unix.IP_MULTICAST_IF,
+		"IP_MULTICAST_TTL":          syscall.IP_MULTICAST_TTL,
+		"IP_MULTICAST_LOOP":         syscall.IP_MULTICAST_LOOP,
+		"IP_ADD_MEMBERSHIP":         unix.IP_ADD_MEMBERSHIP,
+		"IP_DROP_MEMBERSHIP":        unix.IP_DROP_MEMBERSHIP,
+		"IP_UNBLOCK_SOURCE":         unix.IP_UNBLOCK_SOURCE,
+		"IP_BLOCK_SOURCE":           unix.IP_BLOCK_SOURCE,
+		"IP_ADD_SOURCE_MEMBERSHIP":  unix.IP_ADD_SOURCE_MEMBERSHIP,
+		"IP_DROP_SOURCE_MEMBERSHIP": unix.IP_DROP_SOURCE_MEMBERSHIP,
+		"IP_MSFILTER":               unix.IP_MSFILTER,
+		"MCAST_JOIN_GROUP":          unix.MCAST_JOIN_GROUP,
+		"MCAST_BLOCK_SOURCE":        unix.MCAST_BLOCK_SOURCE,
+		"MCAST_UNBLOCK_SOURCE":      unix.MCAST_UNBLOCK_SOURCE,
+		"MCAST_LEAVE_GROUP":         unix.MCAST_LEAVE_GROUP,
+		"MCAST_JOIN_SOURCE_GROUP":   unix.MCAST_JOIN_SOURCE_GROUP,
+		"MCAST_LEAVE_SOURCE_GROUP":  unix.MCAST_LEAVE_SOURCE_GROUP,
+		"MCAST_MSFILTER":            unix.MCAST_MSFILTER,
+		"IP_MULTICAST_ALL":          unix.IP_MULTICAST_ALL,
+		"IP_UNICAST_IF":             unix.IP_UNICAST_IF,
+		// SOL_SOCKET options
+		"SO_DEBUG":                         syscall.SO_DEBUG,
+		"SO_REUSEADDR":                     syscall.SO_REUSEADDR,
+		"SO_TYPE":                          syscall.SO_TYPE,
+		"SO_ERROR":                         syscall.SO_ERROR,
+		"SO_DONTROUTE":                     syscall.SO_DONTROUTE,
+		"SO_BROADCAST":                     syscall.SO_BROADCAST,
+		"SO_SNDBUF":                        syscall.SO_SNDBUF,
+		"SO_RCVBUF":                        syscall.SO_RCVBUF,
+		"SO_KEEPALIVE":                     syscall.SO_KEEPALIVE,
+		"SO_OOBINLINE":                     syscall.SO_OOBINLINE,
+		"SO_NO_CHECK":                      syscall.SO_NO_CHECK,
+		"SO_PRIORITY":                      syscall.SO_PRIORITY,
+		"SO_LINGER":                        syscall.SO_LINGER,
+		"SO_BSDCOMPAT":                     syscall.SO_BSDCOMPAT,
+		"SO_REUSEPORT":                     unix.SO_REUSEPORT,
+		"SO_PASSCRED":                      syscall.SO_PASSCRED,
+		"SO_PEERCRED":                      syscall.SO_PEERCRED,
+		"SO_RCVLOWAT":                      syscall.SO_RCVLOWAT,
+		"SO_SNDLOWAT":                      syscall.SO_SNDLOWAT,
+		"SO_RCVTIMEO_OLD":                  unix.SO_RCVTIMEO_OLD,
+		"SO_SNDTIMEO_OLD":                  unix.SO_SNDTIMEO_OLD,
+		"SO_SECURITY_AUTHENTICATION":       syscall.SO_SECURITY_AUTHENTICATION,
+		"SO_SECURITY_ENCRYPTION_TRANSPORT": syscall.SO_SECURITY_ENCRYPTION_TRANSPORT,
+		"SO_SECURITY_ENCRYPTION_NETWORK":   syscall.SO_SECURITY_ENCRYPTION_NETWORK,
+		"SO_BINDTODEVICE":                  syscall.SO_BINDTODEVICE,
+		"SO_ATTACH_FILTER":                 syscall.SO_ATTACH_FILTER,
+		"SO_DETACH_FILTER":                 syscall.SO_DETACH_FILTER,
+		"SO_PEERNAME":                      syscall.SO_PEERNAME,
+		"SO_TIMESTAMP_OLD":                 unix.SO_TIMESTAMP_OLD,
+		"SO_ACCEPTCONN":                    syscall.SO_ACCEPTCONN,
+		"SO_PEERSEC":                       syscall.SO_PEERSEC,
+		"SO_SNDBUFFORCE":                   syscall.SO_SNDBUFFORCE,
+		"SO_RCVBUFFORCE":                   syscall.SO_RCVBUFFORCE,
+		"SO_PASSSEC":                       syscall.SO_PASSSEC,
+		"SO_TIMESTAMPNS_OLD":               unix.SO_TIMESTAMPNS_OLD,
+		"SO_MARK":                          syscall.SO_MARK,
+		"SO_TIMESTAMPING_OLD":              unix.SO_TIMESTAMPING_OLD,
+		"SO_PROTOCOL":                      syscall.SO_PROTOCOL,
+		"SO_DOMAIN":                        syscall.SO_DOMAIN,
+		"SO_RXQ_OVFL":                      syscall.SO_RXQ_OVFL,
+		"SO_WIFI_STATUS":                   unix.SO_WIFI_STATUS,
+		"SO_PEEK_OFF":                      unix.SO_PEEK_OFF,
+		"SO_NOFCS":                         unix.SO_NOFCS,
+		"SO_LOCK_FILTER":                   unix.SO_LOCK_FILTER,
+		"SO_SELECT_ERR_QUEUE":              unix.SO_SELECT_ERR_QUEUE,
+		"SO_BUSY_POLL":                     unix.SO_BUSY_POLL,
+		"SO_MAX_PACING_RATE":               unix.SO_MAX_PACING_RATE,
+		"SO_BPF_EXTENSIONS":                unix.SO_BPF_EXTENSIONS,
+		"SO_INCOMING_CPU":                  unix.SO_INCOMING_CPU,
+		"SO_ATTACH_BPF":                    unix.SO_ATTACH_BPF,
+		"SO_ATTACH_REUSEPORT_CBPF":         unix.SO_ATTACH_REUSEPORT_CBPF,
+		"SO_ATTACH_REUSEPORT_EBPF":         unix.SO_ATTACH_REUSEPORT_EBPF,
+		"SO_CNX_ADVICE":                    unix.SO_CNX_ADVICE,
+		"SCM_TIMESTAMPING_OPT_STATS":       unix.SCM_TIMESTAMPING_OPT_STATS,
+		"SO_MEMINFO":                       unix.SO_MEMINFO,
+		"SO_INCOMING_NAPI_ID":              unix.SO_INCOMING_NAPI_ID,
+		"SO_COOKIE":                        unix.SO_COOKIE,
+		"SCM_TIMESTAMPING_PKTINFO":         unix.SCM_TIMESTAMPING_PKTINFO,
+		"SO_PEERGROUPS":                    unix.SO_PEERGROUPS,
+		"SO_ZEROCOPY":                      unix.SO_ZEROCOPY,
+		"SO_TXTIME":                        unix.SO_TXTIME,
+		"SO_BINDTOIFINDEX":                 unix.SO_BINDTOIFINDEX,
+		"SO_TIMESTAMP_NEW":                 unix.SO_TIMESTAMP_NEW,
+		"SO_TIMESTAMPNS_NEW":               unix.SO_TIMESTAMPNS_NEW,
+		"SO_TIMESTAMPING_NEW":              unix.SO_TIMESTAMPING_NEW,
+		"SO_RCVTIMEO_NEW":                  unix.SO_RCVTIMEO_NEW,
+		"SO_SNDTIMEO_NEW":                  unix.SO_SNDTIMEO_NEW,
+		"SO_DETACH_REUSEPORT_BPF":          unix.SO_DETACH_REUSEPORT_BPF,
+		"SO_PREFER_BUSY_POLL":              unix.SO_PREFER_BUSY_POLL,
+		"SO_BUSY_POLL_BUDGET":              unix.SO_BUSY_POLL_BUDGET,
+		"SO_NETNS_COOKIE":                  unix.SO_NETNS_COOKIE,
+		"SO_BUF_LOCK":                      unix.SO_BUF_LOCK,
+		"SO_RESERVE_MEM":                   unix.SO_RESERVE_MEM,
+		"SO_TXREHASH":                      unix.SO_TXREHASH,
+		"SO_RCVMARK":                       unix.SO_RCVMARK,
+		"SO_PASSPIDFD":                     unix.SO_PASSPIDFD,
+		"SO_PEERPIDFD":                     unix.SO_PEERPIDFD,
+		"SO_DEVMEM_LINEAR":                 unix.SO_DEVMEM_LINEAR,
+		"SO_DEVMEM_DMABUF":                 unix.SO_DEVMEM_DMABUF,
+		"SO_DEVMEM_DONTNEED":               unix.SO_DEVMEM_DONTNEED,
+		"SCM_TS_OPT_ID":                    unix.SCM_TS_OPT_ID,
+		"SO_RCVPRIORITY":                   82,
+		// IPPROTO_TCP options
+		"TCP_NODELAY":              syscall.TCP_NODELAY,
+		"TCP_MAXSEG":               syscall.TCP_MAXSEG,
+		"TCP_CORK":                 syscall.TCP_CORK,
+		"TCP_KEEPIDLE":             syscall.TCP_KEEPIDLE,
+		"TCP_KEEPINTVL":            syscall.TCP_KEEPINTVL,
+		"TCP_KEEPCNT":              syscall.TCP_KEEPCNT,
+		"TCP_SYNCNT":               syscall.TCP_SYNCNT,
+		"TCP_LINGER2":              syscall.TCP_LINGER2,
+		"TCP_DEFER_ACCEPT":         syscall.TCP_DEFER_ACCEPT,
+		"TCP_WINDOW_CLAMP":         syscall.TCP_WINDOW_CLAMP,
+		"TCP_INFO":                 syscall.TCP_INFO,
+		"TCP_QUICKACK":             syscall.TCP_QUICKACK,
+		"TCP_CONGESTION":           syscall.TCP_CONGESTION,
+		"TCP_MD5SIG":               syscall.TCP_MD5SIG,
+		"TCP_THIN_LINEAR_TIMEOUTS": unix.TCP_THIN_LINEAR_TIMEOUTS,
+		"TCP_THIN_DUPACK":          unix.TCP_THIN_DUPACK,
+		"TCP_USER_TIMEOUT":         unix.TCP_USER_TIMEOUT,
+		"TCP_REPAIR":               unix.TCP_REPAIR,
+		"TCP_REPAIR_QUEUE":         unix.TCP_REPAIR_QUEUE,
+		"TCP_QUEUE_SEQ":            unix.TCP_QUEUE_SEQ,
+		"TCP_REPAIR_OPTIONS":       unix.TCP_REPAIR_OPTIONS,
+		"TCP_FASTOPEN":             unix.TCP_FASTOPEN,
+		"TCP_TIMESTAMP":            unix.TCP_TIMESTAMP,
+		"TCP_NOTSENT_LOWAT":        unix.TCP_NOTSENT_LOWAT,
+		"TCP_CC_INFO":              unix.TCP_CC_INFO,
+		"TCP_SAVE_SYN":             unix.TCP_SAVE_SYN,
+		"TCP_SAVED_SYN":            unix.TCP_SAVED_SYN,
+		"TCP_REPAIR_WINDOW":        unix.TCP_REPAIR_WINDOW,
+		"TCP_FASTOPEN_CONNECT":     unix.TCP_FASTOPEN_CONNECT,
+		"TCP_ULP":                  unix.TCP_ULP,
+		"TCP_MD5SIG_EXT":           unix.TCP_MD5SIG_EXT,
+		"TCP_FASTOPEN_KEY":         unix.TCP_FASTOPEN_KEY,
+		"TCP_FASTOPEN_NO_COOKIE":   unix.TCP_FASTOPEN_NO_COOKIE,
+		"TCP_ZEROCOPY_RECEIVE":     unix.TCP_ZEROCOPY_RECEIVE,
+		"TCP_INQ":                  unix.TCP_INQ,
+		"TCP_TX_DELAY":             unix.TCP_TX_DELAY,
+		// IPPROTO_IPV6 options
+		"IPV6_ADDRFORM":             syscall.IPV6_ADDRFORM,
+		"IPV6_2292PKTINFO":          syscall.IPV6_2292PKTINFO,
+		"IPV6_2292HOPOPTS":          syscall.IPV6_2292HOPOPTS,
+		"IPV6_2292DSTOPTS":          syscall.IPV6_2292DSTOPTS,
+		"IPV6_2292RTHDR":            syscall.IPV6_2292RTHDR,
+		"IPV6_2292PKTOPTIONS":       syscall.IPV6_2292PKTOPTIONS,
+		"IPV6_2292HOPLIMIT":         syscall.IPV6_2292HOPLIMIT,
+		"IPV6_FLOWINFO":             11,
+		"IPV6_UNICAST_HOPS":         syscall.IPV6_UNICAST_HOPS,
+		"IPV6_MULTICAST_IF":         syscall.IPV6_MULTICAST_IF,
+		"IPV6_MULTICAST_HOPS":       syscall.IPV6_MULTICAST_HOPS,
+		"IPV6_MULTICAST_LOOP":       syscall.IPV6_MULTICAST_LOOP,
+		"IPV6_ADD_MEMBERSHIP":       syscall.IPV6_ADD_MEMBERSHIP,
+		"IPV6_DROP_MEMBERSHIP":      syscall.IPV6_DROP_MEMBERSHIP,
+		"IPV6_ROUTER_ALERT":         syscall.IPV6_ROUTER_ALERT,
+		"IPV6_MTU_DISCOVER":         syscall.IPV6_MTU_DISCOVER,
+		"IPV6_MTU":                  syscall.IPV6_MTU,
+		"IPV6_RECVERR":              syscall.IPV6_RECVERR,
+		"IPV6_V6ONLY":               syscall.IPV6_V6ONLY,
+		"IPV6_JOIN_ANYCAST":         syscall.IPV6_JOIN_ANYCAST,
+		"IPV6_LEAVE_ANYCAST":        syscall.IPV6_LEAVE_ANYCAST,
+		"IPV6_MULTICAST_ALL":        unix.IPV6_MULTICAST_ALL,
+		"IPV6_ROUTER_ALERT_ISOLATE": unix.IPV6_ROUTER_ALERT_ISOLATE,
+		"IPV6_RECVERR_RFC4884":      unix.IPV6_RECVERR_RFC4884,
+		"IPV6_FLOWLABEL_MGR":        32,
+		"IPV6_FLOWINFO_SEND":        33,
+		"IPV6_IPSEC_POLICY":         syscall.IPV6_IPSEC_POLICY,
+		"IPV6_XFRM_POLICY":          syscall.IPV6_XFRM_POLICY,
+		"IPV6_HDRINCL":              unix.IPV6_HDRINCL,
+		"IPV6_RECVPKTINFO":          syscall.IPV6_RECVPKTINFO,
+		"IPV6_PKTINFO":              syscall.IPV6_PKTINFO,
+		"IPV6_RECVHOPLIMIT":         syscall.IPV6_RECVHOPLIMIT,
+		"IPV6_HOPLIMIT":             syscall.IPV6_HOPLIMIT,
+		"IPV6_RECVHOPOPTS":          syscall.IPV6_RECVHOPOPTS,
+		"IPV6_HOPOPTS":              syscall.IPV6_HOPOPTS,
+		"IPV6_RTHDRDSTOPTS":         syscall.IPV6_RTHDRDSTOPTS,
+		"IPV6_RECVRTHDR":            syscall.IPV6_RECVRTHDR,
+		"IPV6_RTHDR":                syscall.IPV6_RTHDR,
+		"IPV6_RECVDSTOPTS":          syscall.IPV6_RECVDSTOPTS,
+		"IPV6_DSTOPTS":              syscall.IPV6_DSTOPTS,
+		"IPV6_RECVPATHMTU":          unix.IPV6_RECVPATHMTU,
+		"IPV6_PATHMTU":              unix.IPV6_PATHMTU,
+		"IPV6_DONTFRAG":             unix.IPV6_DONTFRAG,
+		"IPV6_RECVTCLASS":           syscall.IPV6_RECVTCLASS,
+		"IPV6_TCLASS":               syscall.IPV6_TCLASS,
+		"IPV6_AUTOFLOWLABEL":        unix.IPV6_AUTOFLOWLABEL,
+		"IPV6_ADDR_PREFERENCES":     unix.IPV6_ADDR_PREFERENCES,
+		"IPV6_MINHOPCOUNT":          unix.IPV6_MINHOPCOUNT,
+		"IPV6_ORIGDSTADDR":          unix.IPV6_ORIGDSTADDR,
+		"IPV6_TRANSPARENT":          unix.IPV6_TRANSPARENT,
+		"IPV6_UNICAST_IF":           unix.IPV6_UNICAST_IF,
+		"IPV6_RECVFRAGSIZE":         unix.IPV6_RECVFRAGSIZE,
+		"IPV6_FREEBIND":             unix.IPV6_FREEBIND,
+	}
 )
 
 func initVMConstants() {
@@ -993,6 +1256,16 @@ func initSysCtlActionConstants() {
 		sysctlActionStrings[uint32(v)] = k
 	}
 }
+func initSetSockOptLevelConstants() {
+	for k, v := range SetSockoptLevelConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+	}
+}
+func initSetSockOptOptNameConstants() {
+	for k, v := range SetSockOptOptNameConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+	}
+}
 
 func initBPFMapNamesConstants() {
 	seclConstants["CWS_MAP_NAMES"] = &eval.StringArrayEvaluator{Values: bpfMapNames}
@@ -1000,6 +1273,13 @@ func initBPFMapNamesConstants() {
 
 func initAUIDConstants() {
 	seclConstants["AUDIT_AUID_UNSET"] = &eval.IntEvaluator{Value: sharedconsts.AuditUIDUnset}
+}
+
+func initRlimitConstants() {
+	for k, v := range RlimitConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		rlimitStrings[v] = k
+	}
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -1884,6 +2164,7 @@ var (
 	signalStrings             = map[int]string{}
 	pipeBufFlagStrings        = map[int]string{}
 	sysctlActionStrings       = map[uint32]string{}
+	rlimitStrings             = map[int]string{}
 )
 
 // SysCtlAction is used to define the action of a sysctl event

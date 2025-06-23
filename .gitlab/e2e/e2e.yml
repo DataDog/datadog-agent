@@ -191,7 +191,8 @@ new-e2e-remote-config:
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
 
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -289,6 +290,19 @@ new-e2e-windows-service-test:
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledTraceAgent
       - EXTRA_PARAMS: --run TestServiceBehaviorWhenDisabledInstaller
 
+new-e2e-windows-certificate:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_windows_certificate_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_windows_testing-a7
+  variables:
+    TARGETS: ./tests/windows/windows-certificate
+    TEAM: windows-agent
+    EXTRA_PARAMS: --run "TestRemoteCertificates$"
+
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
   rules:
@@ -296,7 +310,7 @@ new-e2e-language-detection:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-packages:
@@ -427,7 +441,8 @@ new-e2e-cws:
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
@@ -435,6 +450,7 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestKindSuite
       - EXTRA_PARAMS: --run TestAgentWindowsSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
+  # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   allow_failure: true
 
 new-e2e-discovery:
@@ -464,7 +480,7 @@ new-e2e-process:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/process
-    TEAM: processes
+    TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-orchestrator:
@@ -491,7 +507,8 @@ new-e2e-apm:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
@@ -592,6 +609,12 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDCWithGMSA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackage$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesFromGA$/TestUpgradeAgentPackageAfterRollback$"
+      # agent config experiment
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeSuccessful$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeFailure$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigUpgradeNewAgents$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       # install-script
@@ -673,7 +696,8 @@ new-e2e-ha-agent:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
 
 new-e2e-ha-agent-failover:

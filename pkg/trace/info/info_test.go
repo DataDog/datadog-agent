@@ -7,6 +7,8 @@ package info
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"expvar"
 	"fmt"
@@ -126,7 +128,7 @@ func testServerError(t *testing.T) *httptest.Server {
 
 // run this at the beginning of each test, this is because we *really*
 // need to have InitInfo be called before doing anything
-func testInit(t *testing.T) *config.AgentConfig {
+func testInit(t *testing.T, serverConfig *tls.Config) *config.AgentConfig {
 	assert := assert.New(t)
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "key1"
@@ -138,7 +140,27 @@ func testInit(t *testing.T) *config.AgentConfig {
 	conf.EVPProxy.AdditionalEndpoints = clearAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = clearAddEp
 	conf.DebuggerProxy.APIKey = "debugger_proxy_key"
-	assert.NotNil(conf)
+
+	// throw some complex scrubbing patterns
+	conf.ConfigPath = "/config/with/aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb/inside/path"
+	conf.DefaultEnv = "env-aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb-suffix"
+	conf.DDAgentBin = "/usr/bin/agent-aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb"
+	conf.GlobalTags = map[string]string{
+		"simple_api_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb",
+		"url_with_key":   "https://api.example.com/token/aaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb/endpoint",
+	}
+
+	// creating in-memory auth artifacts
+	conf.AuthToken = "fake-auth-token"
+	// If a serverConfig is provided, we need to add the server's certificate to the client config
+	if serverConfig != nil {
+		assert.NotNil(serverConfig.Certificates[0].Leaf)
+		certPool := x509.NewCertPool()
+		certPool.AddCert(serverConfig.Certificates[0].Leaf)
+		conf.IPCTLSClientConfig = &tls.Config{
+			RootCAs: certPool,
+		}
+	}
 
 	err := InitInfo(conf)
 	assert.NoError(err)
@@ -148,12 +170,12 @@ func testInit(t *testing.T) *config.AgentConfig {
 
 func TestInfo(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServer(t, "./testdata/okay.json")
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -180,12 +202,12 @@ func TestInfo(t *testing.T) {
 
 func TestProbabilisticSampler(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServer(t, "./testdata/psp.json")
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -212,7 +234,7 @@ func TestProbabilisticSampler(t *testing.T) {
 
 func TestHideAPIKeys(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 
 	js := expvar.Get("config").String()
 	assert.NotEqual("", js)
@@ -225,12 +247,12 @@ func TestHideAPIKeys(t *testing.T) {
 
 func TestWarning(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServerWarning(t)
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -258,11 +280,11 @@ func TestWarning(t *testing.T) {
 
 func TestNotRunning(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServer(t, "./testdata/okay.json")
 	assert.NotNil(server)
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -298,12 +320,12 @@ func TestNotRunning(t *testing.T) {
 
 func TestError(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
-	assert.NotNil(conf)
-
 	server := testServerError(t)
 	assert.NotNil(server)
 	defer server.Close()
+
+	conf := testInit(t, server.TLS)
+	assert.NotNil(conf)
 
 	url, err := url.Parse(server.URL)
 	assert.NotNil(url)
@@ -338,7 +360,7 @@ func TestError(t *testing.T) {
 
 func TestInfoReceiverStats(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
 	stats := NewReceiverStats()
@@ -406,7 +428,7 @@ func TestInfoReceiverStats(t *testing.T) {
 
 func TestInfoConfig(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
 	js := expvar.Get("config").String() // this is what expvar will call
@@ -430,13 +452,52 @@ func TestInfoConfig(t *testing.T) {
 	conf.DebuggerProxy.APIKey = ""
 	assert.Equal("", confCopy.DebuggerDiagnosticsProxy.APIKey, "Debugger Diagnostics Proxy API Key should *NEVER* be exported")
 	conf.DebuggerDiagnosticsProxy.APIKey = ""
+	// IPC Auth data should not be exposed
+	conf.AuthToken = ""
+	conf.IPCTLSClientConfig = nil
+	conf.IPCTLSServerConfig = nil
 
 	// Any key-like data should scrubbed
 	conf.EVPProxy.AdditionalEndpoints = scrubbedAddEp
 	conf.ProfilingProxy.AdditionalEndpoints = scrubbedAddEp
 
+	conf.DefaultEnv = "env-\"***************************abbbb\"-suffix"
+	conf.ConfigPath = "/config/with/***************************abbbb/inside/path"
+	conf.DDAgentBin = "/usr/bin/agent-\"***************************abbbb\""
+	conf.GlobalTags = map[string]string{
+		"simple_api_key": "***************************abbbb",
+		"url_with_key":   "https://api.example.com/token/***************************abbbb/endpoint",
+	}
+
 	conf.ContainerTags = nil
 	conf.ContainerIDFromOriginInfo = nil
+
+	// After YAML round-trip, nil slices and maps become empty collections
+	// Update expected config to match YAML behavior
+	conf.ExtraAggregators = []string{}
+	conf.PeerTags = []string{}
+	conf.ReplaceTags = []*config.ReplaceRule{}
+	conf.RequireTags = []*config.Tag{}
+	conf.RejectTags = []*config.Tag{}
+	conf.RequireTagsRegex = []*config.TagRegex{}
+	conf.RejectTagsRegex = []*config.TagRegex{}
+
+	// Initialize empty maps/slices in nested structs
+	conf.OpenLineageProxy.AdditionalEndpoints = map[string][]string{}
+	conf.OTLPReceiver.SpanNameRemappings = map[string]string{}
+
+	// Obfuscation config empty slices
+	conf.Obfuscation.ES.KeepValues = []string{}
+	conf.Obfuscation.ES.ObfuscateSQLValues = []string{}
+	conf.Obfuscation.OpenSearch.KeepValues = []string{}
+	conf.Obfuscation.OpenSearch.ObfuscateSQLValues = []string{}
+	conf.Obfuscation.Mongo.KeepValues = []string{}
+	conf.Obfuscation.Mongo.ObfuscateSQLValues = []string{}
+	conf.Obfuscation.SQLExecPlan.KeepValues = []string{}
+	conf.Obfuscation.SQLExecPlan.ObfuscateSQLValues = []string{}
+	conf.Obfuscation.SQLExecPlanNormalize.KeepValues = []string{}
+	conf.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues = []string{}
+	conf.Obfuscation.CreditCards.KeepValues = []string{}
 
 	assert.Equal(*conf, confCopy) // ensure all fields have been exported then parsed correctly
 }
@@ -579,7 +640,7 @@ func TestPublishWatchdogInfo(t *testing.T) {
 
 func TestScrubCreds(t *testing.T) {
 	assert := assert.New(t)
-	conf := testInit(t)
+	conf := testInit(t, nil)
 	assert.NotNil(conf)
 
 	confExpvar := expvar.Get("config").String()

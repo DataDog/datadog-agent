@@ -1505,3 +1505,38 @@ func (e *SysCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	return cursor, nil
 }
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+	data = data[read:]
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Level = binary.NativeEndian.Uint32(data[0:4])
+	e.OptName = binary.NativeEndian.Uint32(data[4:8])
+	return 8 + read, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 24 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Resource = int(binary.NativeEndian.Uint32(data[read : read+4]))
+	e.TargetPid = binary.NativeEndian.Uint32(data[read+4 : read+8])
+	e.RlimCur = binary.NativeEndian.Uint64(data[read+8 : read+16])
+	e.RlimMax = binary.NativeEndian.Uint64(data[read+16 : read+24])
+
+	return read + 24, nil
+}

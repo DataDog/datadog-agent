@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"go.uber.org/atomic"
+	"gopkg.in/yaml.v3"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -256,7 +257,7 @@ func getProgramBanner(version string) (string, string) {
 // If not, it displays a pretty-printed message anyway (for support)
 func Info(w io.Writer, conf *config.AgentConfig) error {
 	url := fmt.Sprintf("https://127.0.0.1:%d/debug/vars", conf.DebugServerPort)
-	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	tr := &http.Transport{TLSClientConfig: conf.IPCTLSClientConfig}
 	client := http.Client{Timeout: 3 * time.Second, Transport: tr}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -366,13 +367,34 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 		c.Endpoints[i] = &config.Endpoint{Host: e.Host, NoProxy: e.NoProxy}
 	}
 
-	var buf []byte
-	buf, err := json.Marshal(&c)
+	// Remove the TLS configs and AuthToken to avoid exposing sensitive data
+	c.IPCTLSClientConfig = &tls.Config{}
+	c.IPCTLSServerConfig = &tls.Config{}
+	c.AuthToken = ""
+
+	// Scrub sensitive data from the config using structure-aware scrubbing:
+	//
+	// 1. Marshal config struct directly to YAML
+	// 2. Apply ScrubYaml to safely remove sensitive data without breaking structure
+	// 3. Unmarshal back to struct to preserve Go semantics
+	// 4. Marshal struct to JSON for final output
+	yamlData, err := yaml.Marshal(&c)
 	if err != nil {
 		return err
 	}
 
-	scrubbed, err := scrubber.ScrubBytes(buf)
+	scrubbedYaml, err := scrubber.ScrubYaml(yamlData)
+	if err != nil {
+		return err
+	}
+
+	var scrubbedConfig config.AgentConfig
+	err = yaml.Unmarshal(scrubbedYaml, &scrubbedConfig)
+	if err != nil {
+		return err
+	}
+
+	scrubbed, err := json.Marshal(&scrubbedConfig)
 	if err != nil {
 		return err
 	}

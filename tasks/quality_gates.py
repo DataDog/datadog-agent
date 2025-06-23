@@ -216,11 +216,11 @@ def generate_new_quality_gate_config(file_descriptor, metric_handler, exception_
         on_wire_new_limit, wire_saved_amount = get_gate_new_limit_threshold(
             gate, "current_on_wire_size", "max_on_wire_size", metric_handler, exception_bump
         )
-        config_content[gate]["max_on_wire_size"] = byte_to_string(on_wire_new_limit)
+        config_content[gate]["max_on_wire_size"] = byte_to_string(on_wire_new_limit, unit_power=2)
         on_disk_new_limit, disk_saved_amount = get_gate_new_limit_threshold(
             gate, "current_on_disk_size", "max_on_disk_size", metric_handler, exception_bump
         )
-        config_content[gate]["max_on_disk_size"] = byte_to_string(on_disk_new_limit)
+        config_content[gate]["max_on_disk_size"] = byte_to_string(on_disk_new_limit, unit_power=2)
         total_saved_amount += wire_saved_amount + disk_saved_amount
     return config_content, total_saved_amount
 
@@ -236,7 +236,12 @@ def update_quality_gates_threshold(ctx, metric_handler, github):
     # Create new branch
     branch_name = f"static_quality_gates/threshold_update_{os.environ['CI_COMMIT_SHORT_SHA']}"
     current_branch = github.repo.get_branch(os.environ["CI_COMMIT_BRANCH"])
-    github.repo.create_git_ref(ref=f'refs/heads/{branch_name}', sha=current_branch.commit.sha)
+    ctx.run(f"git checkout -b {branch_name}")
+    ctx.run(
+        f"git remote set-url origin https://x-access-token:{github._auth.token}@github.com/DataDog/datadog-agent.git",
+        hide=True,
+    )
+    ctx.run(f"git push --set-upstream origin {branch_name}")
 
     # Push changes
     commit_message = "feat(gate): update static quality gates thresholds"
@@ -299,7 +304,7 @@ def exception_threshold_bump(ctx):
     :param ctx:
     :return:
     """
-    current_branch_name = get_current_branch()
+    current_branch_name = get_current_branch(ctx)
     ancestor_commit = get_common_ancestor(ctx, "HEAD")
     repo = get_gitlab_repo()
     with tempfile.TemporaryDirectory() as extract_dir, ctx.cd(extract_dir):

@@ -994,7 +994,7 @@ func (p *EBPFResolver) resolveFromProcfs(pid uint32, inode uint64, maxDepth int,
 		p.resolveFromProcfs(ppid, 0, maxDepth-1, newEntryCb)
 	}
 
-	return p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, inode, model.ProcessCacheEntryFromProcFS, newEntryCb)
+	return p.newEntryFromProcfs(proc, filledProc, inode, model.ProcessCacheEntryFromProcFS, newEntryCb)
 }
 
 // SetProcessArgs set arguments to cache entry
@@ -1289,7 +1289,9 @@ func (p *EBPFResolver) SyncCache(proc *process.Process) {
 		return
 	}
 
-	p.newEntryFromProcfsAndSyncKernelMaps(proc, filledProc, 0, model.ProcessCacheEntryFromSnapshot, nil)
+	if entry := p.newEntryFromProcfs(proc, filledProc, 0, model.ProcessCacheEntryFromSnapshot, nil); entry != nil {
+		p.syncKernelMaps(entry)
+	}
 }
 
 func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
@@ -1323,8 +1325,8 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	}
 }
 
-// newEntryFromProcfsAndSyncKernelMaps snapshots /proc for the provided pid and sync the kernel maps
-func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process, filledProc *utils.FilledProcess, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
+// newEntryFromProcfs creates a new process cache entry by snapshotting /proc for the provided pid
+func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *utils.FilledProcess, inode uint64, source uint64, newEntryCb func(*model.ProcessCacheEntry, error)) *model.ProcessCacheEntry {
 	pid := uint32(proc.Pid)
 
 	entry := p.NewProcessCacheEntry(model.PIDContext{Pid: pid, Tid: pid})
@@ -1364,8 +1366,6 @@ func (p *EBPFResolver) newEntryFromProcfsAndSyncKernelMaps(proc *process.Process
 	}
 
 	p.insertEntry(entry, source)
-
-	p.syncKernelMaps(entry)
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 
@@ -1528,13 +1528,16 @@ func (p *EBPFResolver) UpdateProcessCGroupContext(pid uint32, cgroupContext *mod
 		return false
 	}
 
+	// Assume that the container runtime from the kernel side may be incorrect or missing
+	// In that case fallback to the userland container runtime.
+	if !cgroupContext.CGroupFlags.IsSystemd() && cgroupContext.CGroupID != "" {
+		pce.Process.ContainerID, cgroupContext.CGroupFlags = containerutils.FindContainerID(cgroupContext.CGroupID)
+		pce.ContainerID = pce.Process.ContainerID
+	}
+
 	pce.Process.CGroup = *cgroupContext
 	pce.CGroup = *cgroupContext
-	if cgroupContext.CGroupFlags.IsContainer() {
-		containerID, _ := containerutils.FindContainerID(cgroupContext.CGroupID)
-		pce.ContainerID = containerID
-		pce.Process.ContainerID = containerID
-	}
+
 	return true
 }
 

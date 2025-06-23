@@ -395,9 +395,9 @@ type AgentConfig struct {
 	// them for another retry.
 	MaxSenderRetries int
 	// HTTP client used in writer connections. If nil, default client values will be used.
-	HTTPClientFunc func() *http.Client `json:"-"`
+	HTTPClientFunc func() *http.Client `json:"-" yaml:"-"`
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
-	HTTPTransportFunc func() *http.Transport `json:"-"`
+	HTTPTransportFunc func() *http.Transport `json:"-" yaml:"-"`
 
 	// internal telemetry
 	StatsdEnabled  bool
@@ -482,20 +482,22 @@ type AgentConfig struct {
 
 	// Proxy specifies a function to return a proxy for a given Request.
 	// See (net/http.Transport).Proxy for more details.
-	Proxy func(*http.Request) (*url.URL, error) `json:"-"`
+	Proxy func(*http.Request) (*url.URL, error) `json:"-" yaml:"-"`
 
 	// MaxCatalogEntries specifies the maximum number of services to be added to the priority sampler's
 	// catalog. If not set (0) it will default to 5000.
 	MaxCatalogEntries int
 
 	// RemoteConfigClient retrieves sampling updates from the remote config backend
-	RemoteConfigClient RemoteClient `json:"-"`
+	RemoteConfigClient RemoteClient `json:"-" yaml:"-"`
+	// MRFRemoteConfigClient retrieves MRF updates from the remote config DC.
+	MRFRemoteConfigClient RemoteClient `json:"-" yaml:"-"`
 
 	// ContainerTags ...
-	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	ContainerTags func(cid string) ([]string, error) `json:"-" yaml:"-"`
 
 	// ContainerIDFromOriginInfo ...
-	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
+	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-" yaml:"-"`
 
 	// ContainerProcRoot is the root dir for `proc` info
 	ContainerProcRoot string
@@ -513,13 +515,17 @@ type AgentConfig struct {
 	// key-value pairs, starting with a comma
 	AzureContainerAppTags string
 
-	// GetAgentAuthToken retrieves an auth token to communicate with other agent processes
-	// Function will be nil if in an environment without an auth token
-	GetAgentAuthToken func() string `json:"-"`
+	// AuthToken is the auth token for the agent
+	AuthToken string `json:"-"`
 
-	// IsMRFEnabled determines whether Multi-Region Failover is enabled. It is based on the core config's
-	// `multi_region_failover.enabled` and `multi_region_failover.failover_apm` settings.
-	IsMRFEnabled func() bool `json:"-"`
+	// IPC TLS client config
+	IPCTLSClientConfig *tls.Config `json:"-" yaml:"-"`
+
+	// IPC TLS server config
+	IPCTLSServerConfig *tls.Config `json:"-" yaml:"-"`
+
+	MRFFailoverAPMDefault bool
+	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -710,6 +716,14 @@ func (c *AgentConfig) AllFeatures() []string {
 		feats = append(feats, feat)
 	}
 	return feats
+}
+
+// MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
+func (c *AgentConfig) MRFFailoverAPM() bool {
+	if c.MRFFailoverAPMRC != nil {
+		return *c.MRFFailoverAPMRC
+	}
+	return c.MRFFailoverAPMDefault
 }
 
 // ConfiguredPeerTags returns the set of peer tags that should be used

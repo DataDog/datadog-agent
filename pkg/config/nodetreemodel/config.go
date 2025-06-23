@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -241,6 +242,14 @@ func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 		panic("You cannot set a struct as a value")
 	}
 	c.Set(key, value, model.SourceUnknown)
+	keySet := make(map[string]struct{}, len(c.allSettings))
+	for _, k := range c.allSettings {
+		keySet[k] = struct{}{}
+	}
+	keySet[key] = struct{}{}
+	allKeys := slices.Collect(maps.Keys(keySet))
+	slices.Sort(allKeys)
+	c.allSettings = allKeys
 }
 
 // SetDefault assigns the value to the given key using source Default
@@ -435,32 +444,45 @@ func (c *ntmConfig) mergeAllLayers() error {
 
 	c.root = root
 	// recompile allSettings now that we have the full config
-	c.allSettings = c.computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings("")
 	return nil
 }
 
-func (c *ntmConfig) computeAllSettings(node InnerNode, path string) []string {
+func (c *ntmConfig) computeAllSettings(path string) []string {
 	c.maybeRebuild()
 
-	knownKeys := []string{}
+	keySet := make(map[string]struct{})
+
+	// 1. Collect all known keys from schema
+	c.collectKeysFromNode(c.schema, path, keySet, true)
+
+	// 2. Collect all keys from merged tree (only ones with values)
+	c.collectKeysFromNode(c.root, "", keySet, false)
+
+	// 3. Collect all unknown keys, even if they have no value set
+	c.collectKeysFromNode(c.unknown, "", keySet, true)
+
+	allKeys := slices.Collect(maps.Keys(keySet))
+	slices.Sort(allKeys)
+	return allKeys
+}
+
+func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllKeys bool) {
 	for _, name := range node.ChildrenKeys() {
 		newPath := joinKey(path, name)
 
 		child, _ := node.GetChild(name)
+
 		if leaf, ok := child.(LeafNode); ok {
-			if leaf.Source() != model.SourceSchema {
-				knownKeys = append(knownKeys, newPath)
-			} else if c.leafAtPathFromNode(newPath, c.root) != missingLeaf {
-				knownKeys = append(knownKeys, newPath)
+			// Include all keys if requested
+			// For other nodes, only include if they have actual values
+			if includeAllKeys || leaf != missingLeaf {
+				keySet[newPath] = struct{}{}
 			}
 		} else if inner, ok := child.(InnerNode); ok {
-			knownKeys = append(knownKeys, c.computeAllSettings(inner, newPath)...)
-		} else {
-			log.Errorf("unknown node type in the tree: %T", child)
+			c.collectKeysFromNode(inner, newPath, keySet, includeAllKeys)
 		}
 	}
-	slices.Sort(knownKeys)
-	return knownKeys
 }
 
 // BuildSchema is called when Setup is complete, and the config is ready to be used
@@ -476,7 +498,7 @@ func (c *ntmConfig) buildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
-	c.allSettings = c.computeAllSettings(c.schema, "")
+	c.allSettings = c.computeAllSettings("")
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -587,6 +609,7 @@ func hasNoneDefaultsLeaf(node InnerNode) bool {
 			if leaf.Source().IsGreaterThan(model.SourceDefault) {
 				return true
 			}
+			continue
 		}
 		if hasNoneDefaultsLeaf(child.(InnerNode)) {
 			return true
@@ -623,7 +646,7 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	return hasNoneDefaultsLeaf(curr.(InnerNode))
 }
 
-// AllKeysLowercased returns all keys lower-cased from the default tree, but not keys that are merely marked as known
+// AllKeysLowercased returns all keys lower-cased from the default tree, including keys that are merely marked as known
 func (c *ntmConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()

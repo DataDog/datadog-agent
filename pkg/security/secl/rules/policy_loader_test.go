@@ -438,7 +438,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							var errs *multierror.Error
 
-							errs = multierror.Append(errs, &ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`yaml: unmarshal error`)})
+							errs = multierror.Append(errs, &ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)})
 							return nil, errs
 						},
 					},
@@ -498,7 +498,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 			},
 			wantErr: func(t assert.TestingT, err *multierror.Error, _ ...interface{}) bool {
 				return assert.Equal(t, err, &multierror.Error{Errors: []error{
-					&ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`yaml: unmarshal error`)},
+					&ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)},
 				}}, "Expected no errors but got %+v", err)
 			},
 		},
@@ -534,7 +534,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 						dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
 							var errs *multierror.Error
 
-							errs = multierror.Append(errs, &ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`EOF`)})
+							errs = multierror.Append(errs, &ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)})
 							return nil, errs
 						},
 					},
@@ -592,7 +592,7 @@ func TestPolicyLoader_LoadPolicies(t *testing.T) {
 			wantErr: func(t assert.TestingT, err *multierror.Error, _ ...interface{}) bool {
 				return assert.Equal(t, err, &multierror.Error{
 					Errors: []error{
-						&ErrPolicyLoad{Name: "myRC.policy", Err: fmt.Errorf(`EOF`)},
+						&ErrPolicyLoad{Name: "myRC.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)},
 					}})
 			},
 		},

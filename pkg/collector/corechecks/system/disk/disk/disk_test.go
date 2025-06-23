@@ -11,10 +11,15 @@ import (
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 var (
@@ -93,6 +98,8 @@ func TestDiskCheck(t *testing.T) {
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
+	cfg := configmock.New(t)
+	cfg.Set("disk_check.use_core_loader", true, configmodel.SourceAgentRuntime)
 	diskCheck := new(Check)
 	mock := mocksender.NewMockSender(diskCheck.ID())
 	diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
@@ -135,7 +142,38 @@ func TestDiskCheck(t *testing.T) {
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }
 
+func TestDiskCheckWithoutCoreLoader(t *testing.T) {
+	flavor.SetTestFlavor(t, flavor.DefaultAgent)
+
+	cfg := configmock.New(t)
+	cfg.Set("disk_check.use_core_loader", false, configmodel.SourceAgentRuntime)
+
+	diskCheck := new(Check)
+	mock := mocksender.NewMockSender(diskCheck.ID())
+	err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	require.ErrorIs(t, err, check.ErrSkipCheckInstance)
+}
+
+func TestDiskCheckNonDefaultFlavor(t *testing.T) {
+	for _, fl := range []string{flavor.IotAgent, flavor.ClusterAgent} {
+		t.Run(fl, func(t *testing.T) {
+			flavor.SetTestFlavor(t, fl)
+
+			cfg := configmock.New(t)
+			cfg.Set("disk_check.use_core_loader", false, configmodel.SourceAgentRuntime)
+
+			diskCheck := new(Check)
+			mock := mocksender.NewMockSender(diskCheck.ID())
+			err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestDiskCheckExcludedDiskFilsystem(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("disk_check.use_core_loader", true, configmodel.SourceAgentRuntime)
+
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
@@ -166,6 +204,9 @@ func TestDiskCheckExcludedDiskFilsystem(t *testing.T) {
 }
 
 func TestDiskCheckExcludedRe(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("disk_check.use_core_loader", true, configmodel.SourceAgentRuntime)
+
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
@@ -197,6 +238,9 @@ func TestDiskCheckExcludedRe(t *testing.T) {
 }
 
 func TestDiskCheckTags(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("disk_check.use_core_loader", true, configmodel.SourceAgentRuntime)
+
 	diskPartitions = diskSampler
 	diskUsage = diskUsageSampler
 	ioCounters = diskIoSampler
