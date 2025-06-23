@@ -9,8 +9,12 @@
 package tests
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
+	"os"
+	"os/exec"
 	"testing"
 	"time"
 	"unsafe"
@@ -34,7 +38,14 @@ func fsconfigStr(fd int, cmd uint, key string, value string, aux int) (err error
 func TestFsmount(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	test, err := newTestModule(t, nil, nil)
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule",
+			Expression: `open.file.name == "test-open" && open.flags & O_CREAT != 0`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,4 +80,40 @@ func TestFsmount(t *testing.T) {
 			return true
 		}, 3*time.Second, model.FileFsmountEventType)
 	})
+
+	t.Run("fsmount-resolve-open-file", func(t *testing.T) {
+		var fsfd int
+
+		test.WaitSignal(t, func() error {
+			fsfd, err := unix.Fsopen("tmpfs", 0)
+			if err != nil {
+				t.Skip("This kernel doesn't have the new mount api")
+				return nil
+			}
+			defer unix.Close(fsfd)
+
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
+			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
+
+			mountfd, err := unix.Fsmount(fsfd, unix.FSMOUNT_CLOEXEC, 0)
+
+			file := fmt.Sprintf("/proc/%d/fd/%d/test-open", os.Getpid(), mountfd)
+			cmd := exec.Command("touch", file)
+			err = cmd.Run()
+
+			if err != nil {
+				return err
+			}
+			defer unix.Close(mountfd)
+
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			assert.NotEqual(t, event.Fsmount.MountID, 0, "Mount id is zero")
+			assert.NotEqual(t, event.Fsmount.Flags, unix.FSOPEN_CLOEXEC, "Mount flags")
+			assert.NotEqual(t, event.Fsmount.Fd, fsfd, "Wrong file descriptor")
+			assert.NotEqual(t, event.Fsmount.MountAttrs, unix.FSMOUNT_CLOEXEC, "Wrong mount attributes")
+		})
+	})
+
 }
