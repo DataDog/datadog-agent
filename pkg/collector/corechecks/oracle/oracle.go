@@ -408,9 +408,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if c.config.Server != "" {
 		tags = append(tags, fmt.Sprintf("server:%s", c.config.Server))
 	}
-	if c.config.ServiceName != "" {
-		tags = append(tags, fmt.Sprintf("service:%s", c.config.ServiceName))
-	}
 
 	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 
