@@ -143,7 +143,10 @@ func (a *ActionDefinition) Name() ActionName {
 	}
 }
 
+<<<<<<< HEAD
 // Check returns an error if the action is invalid
+=======
+>>>>>>> 52ca0556f88 ([CWS] rework a bit the actions check)
 func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
 	var (
 		candidateActions = []ActionDefinitionInterface{
@@ -204,7 +207,11 @@ type SetDefinition struct {
 }
 
 // Check returns an error if the set action is invalid
+<<<<<<< HEAD
 func (s *SetDefinition) Check(_ PolicyLoaderOpts) error {
+=======
+func (s *SetDefinition) Check(opts PolicyLoaderOpts) error {
+>>>>>>> 52ca0556f88 ([CWS] rework a bit the actions check)
 	if s.Name == "" {
 		return errors.New("variable name is empty")
 	}
@@ -271,7 +278,11 @@ type CoreDumpDefinition struct {
 }
 
 // Check returns an error if the core dump action is invalid
+<<<<<<< HEAD
 func (c *CoreDumpDefinition) Check(_ PolicyLoaderOpts) error {
+=======
+func (c *CoreDumpDefinition) Check(opts PolicyLoaderOpts) error {
+>>>>>>> 52ca0556f88 ([CWS] rework a bit the actions check)
 	return nil
 }
 
@@ -279,7 +290,11 @@ func (c *CoreDumpDefinition) Check(_ PolicyLoaderOpts) error {
 type HashDefinition struct{}
 
 // Check returns an error if the hash action is invalid
+<<<<<<< HEAD
 func (h *HashDefinition) Check(_ PolicyLoaderOpts) error {
+=======
+func (h *HashDefinition) Check(opts PolicyLoaderOpts) error {
+>>>>>>> 52ca0556f88 ([CWS] rework a bit the actions check)
 	return nil
 }
 
