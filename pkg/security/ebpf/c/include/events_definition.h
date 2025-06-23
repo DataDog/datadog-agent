@@ -555,7 +555,7 @@ struct setsockopt_event_t {
     unsigned short filter_len;
     int level;
     int optname;
-    char bpf_filters_buffer[MAX_BPF_FILTER_LEN * sizeof (struct sock_filter)];
+    char bpf_filters_buffer[MAX_BPF_FILTER_SIZE];
 };
 
 #endif
