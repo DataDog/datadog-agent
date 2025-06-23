@@ -37,13 +37,10 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 
 	// extensions (pprof, zpages, health_check, ddflare)
 	for _, extension := range extensions {
-		if !slices.Contains(enabledFeatures, extension.Name) {
+		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
 
-		if extensionIsInServicePipeline(conf, extension) {
-			continue
-		}
 		addComponentToConfig(conf, extension)
 		addExtensionToPipeline(conf, extension)
 	}
