@@ -35,7 +35,7 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
         bpf_map_delete_elem(&pid_fd_by_tuple, &t);
     }
     
-    opessl_cleanup_maps(&t);
+    openssl_cleanup_maps(&t);
     
     // The cleanup of the map happens either during TCP termination or during the TLS shutdown event.
     // TCP termination is managed by the socket filter, thus it cannot clean TLS entries,

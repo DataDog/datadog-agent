@@ -16,7 +16,5 @@ BPF_HASH_MAP(sockfd_lookup_args, __u64, __u32, 10000)
 // Size 0 indicates we set override it in the user mode
 BPF_HASH_MAP(tuple_by_pid_fd, pid_fd_t, conn_tuple_t, 0)
 BPF_HASH_MAP(pid_fd_by_tuple, conn_tuple_t, pid_fd_t, 0)
-BPF_HASH_MAP(ssl_ctx_by_tuple, conn_tuple_t, void *, 0)
-BPF_HASH_MAP(ssl_sock_by_ctx, void *, ssl_sock_t, 0)
 
 #endif
