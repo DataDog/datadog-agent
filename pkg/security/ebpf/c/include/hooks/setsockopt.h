@@ -53,7 +53,7 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     fill_container_context(entry, &event->container);
     fill_span_context(&event->span);
 
-    if (syscall->setsockopt.filter_len > MAX_BPF_FILTER_LEN){
+    if (syscall->setsockopt.filter_len > MAX_BPF_FILTER_SIZE / sizeof(struct sock_filter)) {
         return 0;
     }
     send_event_with_size_ptr(ctx, EVENT_SETSOCKOPT, event, (offsetof(struct setsockopt_event_t, bpf_filters_buffer) + sizeof(struct sock_filter) * syscall->setsockopt.filter_len) );
@@ -140,11 +140,12 @@ int rethook_release_sock(ctx_t *ctx) {
         return 0;
     }
     unsigned short prog_len = prog.len;
+    int prog_size = sizeof(struct sock_filter) * prog_len;
     syscall->setsockopt.filter_len = prog_len;
     int key = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event, &key);
-    if (event && 1 < prog_len && prog_len < MAX_BPF_FILTER_LEN / sizeof(struct sock_filter)) { 
-        bpf_probe_read(&event->bpf_filters_buffer, (sizeof(struct sock_filter) * prog_len) & MAX_BPF_FILTER_LEN , prog.filter);  
+    if (event && 1 < prog_size && prog_size < MAX_BPF_FILTER_SIZE ) { 
+        bpf_probe_read(&event->bpf_filters_buffer, prog_size & MAX_BPF_FILTER_SIZE , prog.filter);  
     }
     return 0;
 }
