@@ -26,7 +26,6 @@ exporters:
     datadog:
       api:
         key: abcde12345
-        site: "datadoghq.com"
 
 extensions:
   pprof/user-defined:
@@ -34,7 +33,7 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
-
+    
 processors:
   infraattributes/user-defined:
 

@@ -5,7 +5,6 @@ exporters:
     datadog:
       api:
         key: abcde12345
-        site: "datadoghq.com"
 
 processors:
     k8sattributes:
@@ -18,7 +17,7 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
-
+    
 service:
     telemetry:
       metrics:
