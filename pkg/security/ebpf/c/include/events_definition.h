@@ -552,9 +552,9 @@ struct setsockopt_event_t {
     short socket_type;
     u16 socket_protocol; // socket protocol
     u16 socket_family;
+    unsigned short filter_len;
     int level;
     int optname;
-    unsigned short filter_len;
     char bpf_filters_buffer[MAX_BPF_FILTER_LEN * sizeof (struct sock_filter)];
 };
 
