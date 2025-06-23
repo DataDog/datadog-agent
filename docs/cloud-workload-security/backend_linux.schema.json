@@ -1757,8 +1757,7 @@
         "socket_protocol",
         "socket_family",
         "level",
-        "optname",
-        "filter_len"
+        "optname"
       ],
       "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
     },
