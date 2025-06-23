@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/config/otelcolfeatures"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -33,7 +32,7 @@ func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	if c.coreConfig != nil {
 		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
 	} else {
-		enabledFeatures = otelcolfeatures.DefaultConverterFeatures
+		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"}
 	}
 
 	// extensions (pprof, zpages, health_check, ddflare)
