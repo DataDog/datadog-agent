@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fixes an issue in ``Install-Datadog.ps1`` that could malform ``datadog.yaml``
+    and cause the Agent to fail to start.
+    When ``datadog.yaml`` does not end with a new line the ``remote_updates``
+    option was incorrectly appended to the last line in the file instead of
+    to a new line.
