@@ -563,7 +563,7 @@ type SetSockOptEventSerializer struct {
 	// Name of the option being set
 	OptName uint32 `json:"optname"`
 	// Length of the filter
-	FilterLen uint16 `json:"filter_len, omitempty"`
+	FilterLen uint16 `json:"filter_len,omitempty"`
 	// Filter instructions
 	FilterInstructions string `json:"filter,omitempty"`
 	//Filter hash
