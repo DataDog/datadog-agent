@@ -97,6 +97,9 @@ func TestFsmount(t *testing.T) {
 			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
 
 			mountfd, err := unix.Fsmount(fsfd, unix.FSMOUNT_CLOEXEC, 0)
+			if err != nil {
+				return err
+			}
 
 			file := fmt.Sprintf("/proc/%d/fd/%d/test-open", os.Getpid(), mountfd)
 			cmd := exec.Command("touch", file)
