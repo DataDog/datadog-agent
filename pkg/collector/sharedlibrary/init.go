@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -26,7 +28,7 @@ var (
 	rtloader *C.rtloader_t
 )
 
-func init() {
+func initLoader() {
 	// add the shared library loader to the scheduler
 	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
 		loader, err := NewSharedLibraryCheckLoader()
@@ -40,5 +42,11 @@ func init() {
 	//rtloader = C.init_shared_library() // can't implement this now, see api.cpp to understand why
 }
 
-// InitSharedLibrary is a no-op function to ensure the package is initialized
-func InitSharedLibrary() {}
+// initSharedLibrary initializes the shared library loader if enabled
+func InitSharedLibrary() {
+	if pkgconfigsetup.Datadog().GetBool("shared_library_checks") {
+		initLoader()
+	} else {
+		log.Warn("Shared Library checks are disabled.")
+	}
+}
