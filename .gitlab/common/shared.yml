@@ -77,4 +77,8 @@
 
 
 .docker_pull_winbuildimage_instrumented:
+  - $tmpfile = [System.IO.Path]::GetTempFileName()
+  - (& "$CI_PROJECT_DIR\tools\ci\fetch_secret.ps1" -parameterName "$API_KEY_ORG2" -tempFile "$tmpfile")
+  - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
+  - $Env:DATADOG_API_KEY=$(cat "$tmpfile")
   - C:\datadog-ci.exe trace -- docker pull ${WINBUILDIMAGE}
