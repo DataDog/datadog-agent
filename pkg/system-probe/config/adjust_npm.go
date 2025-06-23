@@ -17,11 +17,10 @@ import (
 )
 
 const (
-	maxConnsMessageBatchSize                                = 1000
-	maxOffsetThreshold                                      = 3000
-	defaultMaxProcessesTracked                              = 1024
-	defaultMaxTrackedConnections                            = 65536
-	defaultClosedConnectionsBufferThresholdRatioSystemProbe = 0.75
+	maxConnsMessageBatchSize     = 1000
+	maxOffsetThreshold           = 3000
+	defaultMaxProcessesTracked   = 1024
+	defaultMaxTrackedConnections = 65536
 )
 
 func adjustNetwork(cfg model.Config) {
@@ -82,17 +81,6 @@ func adjustNetwork(cfg model.Config) {
 	limitMaxInt64(cfg, netNS("max_failed_connections_buffered"), math.MaxUint32)
 
 	limitMaxInt(cfg, spNS("offset_guess_threshold"), maxOffsetThreshold)
-
-	ratioPath := spNS("closed_connections_buffer_threshold_ratio")
-	if !cfg.IsConfigured(ratioPath) {
-		cfg.Set(ratioPath, defaultClosedConnectionsBufferThresholdRatioSystemProbe, model.SourceDefault)
-	} else {
-		ratio := cfg.GetFloat64(ratioPath)
-		if ratio <= 0 || ratio > 1.0 {
-			log.Warnf("Invalid value %f for %s, using default %f. Value must be > 0 and <= 1.0.", ratio, ratioPath, defaultClosedConnectionsBufferThresholdRatioSystemProbe)
-			cfg.Set(ratioPath, defaultClosedConnectionsBufferThresholdRatioSystemProbe, model.SourceAgentRuntime)
-		}
-	}
 
 	if !cfg.GetBool(netNS("enable_root_netns")) {
 		cfg.Set(spNS("enable_conntrack_all_namespaces"), false, model.SourceAgentRuntime)

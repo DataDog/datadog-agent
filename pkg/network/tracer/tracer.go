@@ -225,7 +225,6 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		telemetryComponent,
 		cfg.ClientStateExpiry,
 		cfg.MaxClosedConnectionsBuffered,
-		cfg.ClosedConnectionsBufferThresholdRatio,
 		cfg.MaxConnectionsStateBuffered,
 		cfg.MaxDNSStatsBuffered,
 		cfg.MaxHTTPStatsBuffered,
@@ -922,12 +921,7 @@ func setupConnectionProtocolMapCleaner(connectionProtocolMap *ebpf.Map, name str
 }
 
 // IsClosedConnectionsNearCapacity checks if the closed connections buffer is near capacity for a specific client.
-// It returns true if near capacity, false otherwise, and an error if the state is not initialized.
-func (t *Tracer) IsClosedConnectionsNearCapacity(clientID string) (bool, error) {
-	if t.state == nil {
-		log.Error("IsClosedConnectionsNearCapacity called before tracer state is initialized")
-		return false, fmt.Errorf("tracer state not initialized")
-	}
-
-	return t.state.IsClosedConnectionsNearCapacity(clientID), nil
+// It returns true if near capacity, false otherwise.
+func (t *Tracer) IsClosedConnectionsNearCapacity(clientID string) bool {
+	return t.state.IsClosedConnectionsNearCapacity(clientID)
 }

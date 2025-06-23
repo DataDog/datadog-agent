@@ -140,10 +140,6 @@ type Config struct {
 	// get flushed on every client request (default 30s check interval)
 	MaxClosedConnectionsBuffered uint32
 
-	// ClosedConnectionsBufferThresholdRatio defines the ratio (0 to 1.0) of MaxClosedConnectionsBuffered at which the buffer is considered "near capacity".
-	// This is used to trigger more frequent checks if the buffer is filling up.
-	ClosedConnectionsBufferThresholdRatio float64
-
 	// MaxFailedConnectionsBuffered represents the maximum number of failed connections we'll buffer in memory. These connections will be
 	// removed from memory as they are matched to closed connections
 	MaxFailedConnectionsBuffered uint32
@@ -331,16 +327,15 @@ func New() *Config {
 		ExcludedSourceConnections:      cfg.GetStringMapStringSlice(sysconfig.FullKeyPath(spNS, "source_excludes")),
 		ExcludedDestinationConnections: cfg.GetStringMapStringSlice(sysconfig.FullKeyPath(spNS, "dest_excludes")),
 
-		TCPFailedConnectionsEnabled:           cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_tcp_failed_connections")),
-		MaxTrackedConnections:                 uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_tracked_connections"))),
-		MaxClosedConnectionsBuffered:          uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_closed_connections_buffered"))),
-		ClosedConnectionsBufferThresholdRatio: cfg.GetFloat64(sysconfig.FullKeyPath(spNS, "closed_connections_buffer_threshold_ratio")),
-		MaxFailedConnectionsBuffered:          uint32(cfg.GetInt64(sysconfig.FullKeyPath(netNS, "max_failed_connections_buffered"))),
-		ClosedConnectionFlushThreshold:        cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_connection_flush_threshold")),
-		ClosedChannelSize:                     cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_channel_size")),
-		ClosedBufferWakeupCount:               cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_buffer_wakeup_count")),
-		MaxConnectionsStateBuffered:           cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_connection_state_buffered")),
-		ClientStateExpiry:                     2 * time.Minute,
+		TCPFailedConnectionsEnabled:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_tcp_failed_connections")),
+		MaxTrackedConnections:          uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_tracked_connections"))),
+		MaxClosedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(spNS, "max_closed_connections_buffered"))),
+		MaxFailedConnectionsBuffered:   uint32(cfg.GetInt64(sysconfig.FullKeyPath(netNS, "max_failed_connections_buffered"))),
+		ClosedConnectionFlushThreshold: cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_connection_flush_threshold")),
+		ClosedChannelSize:              cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_channel_size")),
+		ClosedBufferWakeupCount:        cfg.GetInt(sysconfig.FullKeyPath(netNS, "closed_buffer_wakeup_count")),
+		MaxConnectionsStateBuffered:    cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_connection_state_buffered")),
+		ClientStateExpiry:              2 * time.Minute,
 
 		DNSInspection:       !cfg.GetBool(sysconfig.FullKeyPath(spNS, "disable_dns_inspection")),
 		CollectDNSStats:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_stats")),

@@ -120,15 +120,20 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.localresolver = resolver.NewLocalResolver(sharedContainerProvider, clock.New(), maxResolverAddrCacheSize, maxResolverPidCacheSize)
 	c.localresolver.Run()
 
-	// Initialize state for the capacity-based run logic
-	c.lastFullRunTime = time.Time{} // Ensure the first run is a full run
-	// Guaranteed run interval is driven by the standard connections check interval
-	c.guaranteedRunInterval = GetInterval(c.config, ConnectionsCheckName)
-	log.Infof(
-		"connections check running: Capacity check interval=%v, Guaranteed full run interval=%v",
-		c.config.GetDuration("process_config.connections_capacity_check_interval"),
-		c.guaranteedRunInterval,
-	)
+	// Initialize state for the capacity-based run logic only when dynamic interval is enabled
+	useDynamicInterval := c.config.GetBool("process_config.connections.enable_dynamic_interval")
+	if useDynamicInterval {
+		c.lastFullRunTime = time.Time{} // Ensure the first run is a full run
+		// Guaranteed run interval is driven by the standard connections check interval
+		c.guaranteedRunInterval = GetInterval(c.config, ConnectionsCheckName)
+		log.Infof(
+			"connections check dynamic interval enabled: Capacity check interval=%v, Guaranteed full run interval=%v",
+			ConnectionsCheckDynamicInterval,
+			c.guaranteedRunInterval,
+		)
+	} else {
+		log.Infof("connections check running with traditional fixed interval: %v", GetInterval(c.config, ConnectionsCheckName))
+	}
 
 	return nil
 }
@@ -171,45 +176,10 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
-	// Determine if we need to run the check using capacity-aware logic
-	timeSinceLastRun := start.Sub(c.lastFullRunTime)
-	// Add a small tolerance (250ms) to account for differences in the check interval and the guaranteed run interval
-	guaranteedIntervalWithTolerance := c.guaranteedRunInterval - (time.Millisecond * 250)
-	isTimeForGuaranteedRun := c.lastFullRunTime.IsZero() || timeSinceLastRun >= guaranteedIntervalWithTolerance
-	isNearCapacity := false
-	if c.sysprobeClient != nil {
-		var capacityErr error
-		isNearCapacity, capacityErr = c.checkCapacity()
-		if capacityErr != nil {
-			log.Warnf("failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
-			isNearCapacity = false
-			if c.statsd != nil {
-				_ = c.statsd.Count("datadog.process.connections.capacity_check_errors", 1, []string{}, 1)
-			}
-		}
-	} else {
-		log.Debug("system probe client not available, skipping capacity check.")
-	}
-
-	// Decide whether to run the full check
-	shouldRunFullCheck := isTimeForGuaranteedRun || isNearCapacity
-
-	if c.statsd != nil {
-		if shouldRunFullCheck {
-			_ = c.statsd.Count("datadog.process.connections.runs", 1, []string{fmt.Sprintf("guaranteed_run:%t", isTimeForGuaranteedRun), fmt.Sprintf("near_capacity:%t", isNearCapacity)}, 1)
-		} else {
-			_ = c.statsd.Count("datadog.process.connections.skipped_runs", 1, []string{}, 1)
-		}
-	}
-
-	if !shouldRunFullCheck {
-		log.Debugf("skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", timeSinceLastRun)
+	// Determine if we should run the check based on configuration and capacity
+	if !c.shouldRunCheck(start) {
 		return StandardRunResult(nil), nil
 	}
-
-	status.UpdateLastCollectTime(start)
-	log.Debugf("running connections check. Reason: TimeForGuaranteedRun=%v (last run %v ago), NearCapacity=%v", isTimeForGuaranteedRun, timeSinceLastRun, isNearCapacity)
-	c.lastFullRunTime = start
 
 	conns, err := c.getConnections()
 	if err != nil {
@@ -242,6 +212,65 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	groupID := nextGroupID()
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
+}
+
+// shouldRunCheck determines whether the connections check should run based on configuration and system capacity.
+// It handles both traditional (always run) and dynamic interval (capacity-aware) modes.
+// Returns true if the check should run, false if it should be skipped.
+func (c *ConnectionsCheck) shouldRunCheck(start time.Time) bool {
+	// Check if dynamic interval is enabled
+	useDynamicInterval := c.config.GetBool("process_config.connections.enable_dynamic_interval")
+
+	if !useDynamicInterval {
+		// Traditional behavior: always run the check
+		status.UpdateLastCollectTime(start)
+		log.Debugf("running connections check (dynamic interval disabled, always run)")
+		return true
+	}
+
+	// Dynamic interval mode: use capacity-aware logic
+	timeSinceLastRun := start.Sub(c.lastFullRunTime)
+	// Add a small tolerance (250ms) to account for differences in the check interval and the guaranteed run interval
+	guaranteedIntervalWithTolerance := c.guaranteedRunInterval - (time.Millisecond * 250)
+	isTimeForGuaranteedRun := c.lastFullRunTime.IsZero() || timeSinceLastRun >= guaranteedIntervalWithTolerance
+
+	isNearCapacity := false
+	if c.sysprobeClient != nil {
+		var capacityErr error
+		isNearCapacity, capacityErr = c.checkCapacity()
+		if capacityErr != nil {
+			log.Warnf("failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
+			isNearCapacity = false
+			if c.statsd != nil {
+				_ = c.statsd.Count("datadog.process.connections.capacity_check_errors", 1, []string{}, 1)
+			}
+		}
+	} else {
+		log.Debug("system probe client not available, skipping capacity check.")
+	}
+
+	// Decide whether to run the full check
+	shouldRunFullCheck := isTimeForGuaranteedRun || isNearCapacity
+
+	if c.statsd != nil {
+		if shouldRunFullCheck {
+			_ = c.statsd.Count("datadog.process.connections.runs", 1, []string{fmt.Sprintf("guaranteed_run:%t", isTimeForGuaranteedRun), fmt.Sprintf("near_capacity:%t", isNearCapacity)}, 1)
+		} else {
+			_ = c.statsd.Count("datadog.process.connections.skipped_runs", 1, []string{}, 1)
+		}
+	}
+
+	if !shouldRunFullCheck {
+		log.Debugf("skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", timeSinceLastRun)
+		return false
+	}
+
+	// We're going to run the check, so update state and log
+	status.UpdateLastCollectTime(start)
+	log.Debugf("running connections check. Reason: TimeForGuaranteedRun=%v (last run %v ago), NearCapacity=%v", isTimeForGuaranteedRun, timeSinceLastRun, isNearCapacity)
+	c.lastFullRunTime = start
+
+	return true
 }
 
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
@@ -611,7 +640,9 @@ func (c *ConnectionsCheck) checkCapacity() (bool, error) {
 		return false, fmt.Errorf("error creating capacity check request %s: %w", url, err)
 	}
 
-	log.Tracef("Checking connections capacity endpoint: %s", url)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("Checking connections capacity endpoint: %s", url)
+	}
 	resp, err := c.sysprobeClient.Do(req)
 	if err != nil {
 		if resp != nil {

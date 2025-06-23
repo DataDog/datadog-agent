@@ -106,12 +106,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 
-		isNearCapacity, err := nt.tracer.IsClosedConnectionsNearCapacity(clientID)
-		if err != nil {
-			log.Errorf("Error checking connection capacity for client %s: %v", clientID, err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		isNearCapacity := nt.tracer.IsClosedConnectionsNearCapacity(clientID)
 
 		if isNearCapacity {
 			log.Debugf("Responding to capacity check request for client %s: Near capacity (200 OK)", clientID)

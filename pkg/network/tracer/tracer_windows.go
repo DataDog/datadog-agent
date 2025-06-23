@@ -87,7 +87,6 @@ func NewTracer(config *config.Config, telemetry telemetry.Component, _ statsd.Cl
 		telemetry,
 		config.ClientStateExpiry,
 		config.MaxClosedConnectionsBuffered,
-		config.ClosedConnectionsBufferThresholdRatio,
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
@@ -332,8 +331,8 @@ func (t *Tracer) GetNetworkID(_ context.Context) (string, error) {
 }
 
 // IsClosedConnectionsNearCapacity is not implemented on this OS for Tracer
-func (t *Tracer) IsClosedConnectionsNearCapacity(_ string) (bool, error) {
-	return false, nil
+func (t *Tracer) IsClosedConnectionsNearCapacity(_ string) bool {
+	return false
 }
 
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {

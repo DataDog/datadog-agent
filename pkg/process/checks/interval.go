@@ -22,8 +22,13 @@ const (
 	ContainerCheckDefaultInterval = 10 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
 	RTContainerCheckDefaultInterval = 2 * time.Second
-	//nolint:revive // TODO(PROC) Fix revive linter
+	// ConnectionsCheckDefaultInterval is the default interval for the connections check.
+	// It is used to set the static interval for the connections check.
 	ConnectionsCheckDefaultInterval = 30 * time.Second
+	// ConnectionsCheckDynamicInterval is the dynamic interval for the connections check.
+	// It is used to set the interval for checking the current capacity of the system-probe memory buffer
+	// and optionally executing the full connections check if it's almost full.
+	ConnectionsCheckDynamicInterval = 10 * time.Second
 	//nolint:revive // TODO(PROC) Fix revive linter
 	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 
@@ -87,6 +92,22 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 				pkgconfigsetup.DefaultProcessEventsMinCheckInterval.String(), pkgconfigsetup.DefaultProcessEventsCheckInterval.String())
 		}
 		return eventsInterval
+
+	case ConnectionsCheckName:
+		if seconds := cfg.GetInt(configConnectionsInterval); seconds != 0 {
+			if seconds < 10 {
+				_ = log.Warnf("Invalid interval for connections check (< %ds) using minimum value of %s", 10, ConnectionsCheckDefaultInterval.String())
+				return ConnectionsCheckDefaultInterval
+			}
+			return time.Duration(seconds) * time.Second
+		}
+
+		useDynamicInterval := cfg.GetBool("process_config.connections.enable_dynamic_interval")
+		if useDynamicInterval {
+			return ConnectionsCheckDynamicInterval
+		}
+
+		return ConnectionsCheckDefaultInterval
 
 	default:
 		defaultInterval := defaultIntervals[checkName]

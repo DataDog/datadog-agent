@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"go4.org/intern"
@@ -41,6 +40,7 @@ var stateTelemetry = struct {
 	postgresStatsDropped   *telemetry.StatCounterWrapper
 	redisStatsDropped      *telemetry.StatCounterWrapper
 	dnsPidCollisions       *telemetry.StatCounterWrapper
+	closedConnCapacityPct  telemetry.Gauge
 	incomingDirectionFixes telemetry.Counter
 	outgoingDirectionFixes telemetry.Counter
 }{
@@ -56,6 +56,7 @@ var stateTelemetry = struct {
 	telemetry.NewStatCounterWrapper(stateModuleName, "postgres_stats_dropped", []string{}, "Counter measuring the number of postgres stats dropped"),
 	telemetry.NewStatCounterWrapper(stateModuleName, "redis_stats_dropped", []string{}, "Counter measuring the number of redis stats dropped"),
 	telemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	telemetry.NewGauge(stateModuleName, "closed_conn_capacity_pct", []string{}, "Gauge measuring the current capacity percentage of closed connections"),
 	telemetry.NewCounter(stateModuleName, "incoming_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes for incoming connections"),
 	telemetry.NewCounter(stateModuleName, "outgoing_direction_fixes", []string{}, "Counter measuring the number of udp/tcp direction fixes for outgoing connections"),
 }
@@ -72,6 +73,10 @@ const (
 	stateModuleName = "network_tracer__state"
 
 	shortLivedConnectionThreshold = 2 * time.Minute
+
+	// ClosedConnectionsCapacityThreshold is the percentage threshold (0-100) at which we consider
+	// the closed connections buffer to be "near capacity"
+	ClosedConnectionsCapacityThreshold = 50.0
 )
 
 // State takes care of handling the logic for:
@@ -234,7 +239,7 @@ type client struct {
 	stats     map[StatCookie]StatCounters
 
 	// Flag for handling closed connection capacity pressure for this client
-	closedConnectionsNearCapacity atomic.Bool
+	closedConnectionsNearCapacity bool
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	usmDelta        USMProtocolsData
@@ -251,7 +256,7 @@ func (c *client) Reset() {
 	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	// Reset the capacity flag when client state is reset
-	c.closedConnectionsNearCapacity.Store(false)
+	c.closedConnectionsNearCapacity = false
 	c.usmDelta.Reset()
 }
 
@@ -276,28 +281,24 @@ type networkState struct {
 	enableConnectionRollup      bool
 	processEventConsumerEnabled bool
 
-	// The ratio of the closed connections buffer to the max closed connections before setting the capacity flag
-	closedConnectionsBufferThresholdRatio float64
-
 	localResolver LocalResolver
 }
 
 // NewState creates a new network state
-func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, closedConnectionsBufferThresholdRatio float64, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
+func NewState(_ telemetryComponent.Component, clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats, maxRedisStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
 	ns := &networkState{
-		clients:                               map[string]*client{},
-		clientExpiry:                          clientExpiry,
-		maxClosedConns:                        maxClosedConns,
-		maxClientStats:                        maxClientStats,
-		maxDNSStats:                           maxDNSStats,
-		maxHTTPStats:                          maxHTTPStats,
-		maxKafkaStats:                         maxKafkaStats,
-		maxPostgresStats:                      maxPostgresStats,
-		maxRedisStats:                         maxRedisStats,
-		enableConnectionRollup:                enableConnectionRollup,
-		processEventConsumerEnabled:           processEventConsumerEnabled,
-		closedConnectionsBufferThresholdRatio: closedConnectionsBufferThresholdRatio,
-		localResolver:                         NewLocalResolver(processEventConsumerEnabled),
+		clients:                     map[string]*client{},
+		clientExpiry:                clientExpiry,
+		maxClosedConns:              maxClosedConns,
+		maxClientStats:              maxClientStats,
+		maxDNSStats:                 maxDNSStats,
+		maxHTTPStats:                maxHTTPStats,
+		maxKafkaStats:               maxKafkaStats,
+		maxPostgresStats:            maxPostgresStats,
+		maxRedisStats:               maxRedisStats,
+		enableConnectionRollup:      enableConnectionRollup,
+		processEventConsumerEnabled: processEventConsumerEnabled,
+		localResolver:               NewLocalResolver(processEventConsumerEnabled),
 	}
 
 	if ns.enableConnectionRollup && !processEventConsumerEnabled {
@@ -564,6 +565,31 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 	return conns, connsByKey
 }
 
+// getClientCapacityPercentage calculates the current capacity percentage (0-100) for a client's closed connections buffer
+func (ns *networkState) getClientCapacityPercentage(client *client) float64 {
+	if ns.maxClosedConns == 0 {
+		return 0.0
+	}
+	return (float64(len(client.closed.conns)) / float64(ns.maxClosedConns)) * 100.0
+}
+
+// updateClientCapacity updates the capacity flag for a client when connections are added
+func (ns *networkState) updateClientCapacity(clientID string, client *client) {
+	if ns.maxClosedConns == 0 {
+		client.closedConnectionsNearCapacity = false
+		return
+	}
+
+	// Calculate current capacity percentage and check threshold
+	capacityPct := ns.getClientCapacityPercentage(client)
+	client.closedConnectionsNearCapacity = capacityPct >= ClosedConnectionsCapacityThreshold
+
+	if client.closedConnectionsNearCapacity {
+		log.Warnf("Closed connections buffer for client %s is nearing capacity (%d/%d, %.2f%%). Setting flag.",
+			clientID, len(client.closed.conns), ns.maxClosedConns, capacityPct)
+	}
+}
+
 // StoreClosedConnection wraps the unexported method while locking state
 func (ns *networkState) StoreClosedConnection(closed *ConnectionStats) {
 	ns.Lock()
@@ -584,12 +610,8 @@ func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
 		}
 		client.closed.insert(c, ns.maxClosedConns)
 
-		// Check if the buffer is near capacity using the configured threshold
-		if float64(len(client.closed.conns)) >= float64(ns.maxClosedConns)*ns.closedConnectionsBufferThresholdRatio {
-			if !client.closedConnectionsNearCapacity.Load() {
-				log.Warnf("Closed connections buffer for client %s is nearing capacity (%d/%d, threshold: %.2f%%). Setting flag.", clientID, len(client.closed.conns), ns.maxClosedConns, ns.closedConnectionsBufferThresholdRatio*100)
-				client.closedConnectionsNearCapacity.Store(true)
-			}
+		if !client.closedConnectionsNearCapacity {
+			ns.updateClientCapacity(clientID, client)
 		}
 	}
 }
@@ -854,7 +876,6 @@ func (ns *networkState) DumpState(clientID string) map[string]interface{} {
 				"total_tcp_closed":      uint64(s.TCPClosed),
 			}
 		}
-		data["near_capacity_flag"] = client.closedConnectionsNearCapacity.Load()
 	}
 	return data
 }
@@ -1319,7 +1340,10 @@ func (ns *networkState) IsClosedConnectionsNearCapacity(clientID string) bool {
 	ns.Lock()
 	defer ns.Unlock()
 	if client, ok := ns.clients[clientID]; ok {
-		return client.closedConnectionsNearCapacity.Load()
+		// Compute capacity percentage on-demand for telemetry
+		stateTelemetry.closedConnCapacityPct.Set(ns.getClientCapacityPercentage(client))
+
+		return client.closedConnectionsNearCapacity
 	}
 	log.Warnf("IsClosedConnectionsNearCapacity called for non-existent client ID: %s", clientID)
 	return false

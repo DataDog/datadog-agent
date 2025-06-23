@@ -589,7 +589,7 @@ func TestNoPriorRegistrationActiveConnections(t *testing.T) {
 func TestCleanupClient(t *testing.T) {
 	clientID := "1"
 
-	state := NewState(nil, 100*time.Millisecond, 50000, 1.0, 75000, 75000, 7500, 75000, 75000, 75000, false, false)
+	state := NewState(nil, 100*time.Millisecond, 50000, 75000, 75000, 7500, 75000, 75000, 75000, false, false)
 	clients := state.(*networkState).getClients()
 	assert.Equal(t, 0, len(clients))
 
@@ -2612,61 +2612,52 @@ func createTestConnectionStats(cookie StatCookie) *ConnectionStats {
 func TestNearCapacityFlagSetAndCheck(t *testing.T) {
 	// Use a small size for easier testing
 	const maxClosedConns = 10
-	const closedConnsThresholdRatio = 0.9
+	const closedConnsThresholdRatio = 0.5
 	const capacityThreshold = uint32(float64(maxClosedConns) * closedConnsThresholdRatio)
 
-	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
+	ns := NewState(nil, 1*time.Minute, maxClosedConns, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
 	require.NotNil(t, ns)
 
 	clientID := "test-client-flag-set"
 	ns.RegisterClient(clientID)
 
 	// Add connections below threshold
-	ns.Lock()
-	for i := 0; uint32(i) < capacityThreshold-1; i++ { // Add 8 connections
-		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
+	for i := 0; uint32(i) < capacityThreshold-1; i++ { // Add 4 connections (since threshold is 5 at 0.5 ratio)
+		ns.StoreClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
-	ns.Unlock()
 	assert.False(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be false below threshold")
 
 	// Add connection exactly at threshold
-	ns.Lock()
-	ns.storeClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold - 1))) // Add 9th connection
-	ns.Unlock()
+	ns.StoreClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold - 1))) // Add 5th connection
 	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be true at threshold")
 
 	// Add connection over threshold
-	ns.Lock()
-	ns.storeClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold))) // Add 10th connection
-	ns.Unlock()
+	ns.StoreClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold))) // Add 6th connection
 	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should remain true above threshold")
 
 	// Add another connection (should trigger drop logic, but flag remains)
-	ns.Lock()
-	ns.storeClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold + 1))) // Add 11th connection
-	ns.Unlock()
+	ns.StoreClosedConnection(createTestConnectionStats(StatCookie(capacityThreshold + 1))) // Add 7th connection
 	assert.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should remain true even when buffer is full/dropping")
 }
 
 func TestNearCapacityFlagResetByGetDelta(t *testing.T) {
 	const maxClosedConns = 10
-	const closedConnsThresholdRatio = 0.9
+	const closedConnsThresholdRatio = 0.5
 	const capacityThreshold = uint32(float64(maxClosedConns) * closedConnsThresholdRatio)
 
-	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
+	ns := NewState(nil, 1*time.Minute, maxClosedConns, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
 	require.NotNil(t, ns)
 
 	clientID := "test-client-flag-reset"
 	ns.RegisterClient(clientID)
 
 	// Add connections to trigger the flag
-	ns.Lock()
-	for i := 0; uint32(i) < capacityThreshold; i++ { // Add 9 connections
-		ns.storeClosedConnection(createTestConnectionStats(StatCookie(i)))
+	for i := 0; uint32(i) < capacityThreshold; i++ { // Add 5 connections
+		ns.StoreClosedConnection(createTestConnectionStats(StatCookie(i)))
 	}
-	flagBefore := ns.clients[clientID].closedConnectionsNearCapacity.Load() // Check flag on the client struct
-	ns.Unlock()
-	require.True(t, flagBefore, "Flag should be true before GetDelta")
+
+	// Check the flag after adding connections
+	require.True(t, ns.IsClosedConnectionsNearCapacity(clientID), "Flag should be true before GetDelta")
 
 	// Call GetDelta for the client - this should reset the flag via client.Reset()
 	_ = ns.GetDelta(clientID, uint64(time.Now().UnixNano()), []ConnectionStats{}, nil, nil)
@@ -2678,10 +2669,10 @@ func TestNearCapacityFlagResetByGetDelta(t *testing.T) {
 func TestNearCapacityFlagMultipleClients(t *testing.T) {
 	// Test the behavior with multiple clients and the per-client flag
 	const maxClosedConns = 10
-	const closedConnsThresholdRatio = 0.9
+	const closedConnsThresholdRatio = 0.5
 	const capacityThreshold = uint32(float64(maxClosedConns) * closedConnsThresholdRatio)
 
-	ns := NewState(nil, 1*time.Minute, maxClosedConns, closedConnsThresholdRatio, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
+	ns := NewState(nil, 1*time.Minute, maxClosedConns, 100, 100, 100, 100, 100, 100, false, false).(*networkState)
 	require.NotNil(t, ns)
 
 	client1 := "client-1"
@@ -2701,12 +2692,12 @@ func TestNearCapacityFlagMultipleClients(t *testing.T) {
 		c1.closed.insert(conn, uint32(maxClosedConns)) // Simulate adding to client 1
 		// Check and set client 1's flag explicitly if needed for test clarity
 		if uint32(len(c1.closed.conns)) >= capacityThreshold {
-			c1.closedConnectionsNearCapacity.Store(true)
+			c1.closedConnectionsNearCapacity = true
 		}
 		// Ensure client 2 buffer remains empty by just getting the client reference
 		_ = ns.getClient(client2)
 	}
-	flagSetByClient1 := ns.clients[client1].closedConnectionsNearCapacity.Load() // Check client1's flag
+	flagSetByClient1 := ns.clients[client1].closedConnectionsNearCapacity // Check client1's flag
 	ns.Unlock()
 	require.True(t, flagSetByClient1, "Client 1 flag should be true after client1 reaches threshold")
 	require.False(t, ns.IsClosedConnectionsNearCapacity(client2), "Client 2 flag should be false")
@@ -2728,10 +2719,10 @@ func TestNearCapacityFlagMultipleClients(t *testing.T) {
 		c2.closed.insert(conn, uint32(maxClosedConns)) // Simulate adding to client 2
 		// Check and set client 2's flag
 		if uint32(len(c2.closed.conns)) >= capacityThreshold {
-			c2.closedConnectionsNearCapacity.Store(true)
+			c2.closedConnectionsNearCapacity = true
 		}
 	}
-	flagSetByClient2 := ns.clients[client2].closedConnectionsNearCapacity.Load() // Check client2's flag
+	flagSetByClient2 := ns.clients[client2].closedConnectionsNearCapacity // Check client2's flag
 	ns.Unlock()
 	require.True(t, flagSetByClient2, "Client 2 flag should be true after client2 reaches threshold")
 	assert.True(t, ns.IsClosedConnectionsNearCapacity(client1), "Client 1 flag should still be true")
@@ -2771,7 +2762,7 @@ func latestEpochTime() uint64 {
 }
 
 func newDefaultState() *networkState {
-	return NewState(nil, 1*time.Minute, 10000, 0.9, 65553, 10000, 10000, 10000, 10000, 10000, false, false).(*networkState)
+	return NewState(nil, 1*time.Minute, 10000, 65553, 10000, 10000, 10000, 10000, 10000, false, false).(*networkState)
 }
 
 func getIPProtocol(nt ConnectionType) uint8 {
