@@ -504,7 +504,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/network/protocols/http/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/protocols/tls/tags-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
@@ -522,6 +521,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/network/protocols/redis/types.go": [
                 "pkg/network/ebpf/c/protocols/redis/types.h",
+            ],
+            "pkg/network/protocols/tls/types.go": [
+                "pkg/network/ebpf/c/protocols/tls/tags-types.h",
             ],
             "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
