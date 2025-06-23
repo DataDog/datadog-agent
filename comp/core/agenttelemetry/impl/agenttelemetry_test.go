@@ -465,7 +465,7 @@ func TestRun(t *testing.T) {
 	profile0Len := len(r.(*runnerMock).jobs[0].profiles)
 	profile1Len := len(r.(*runnerMock).jobs[1].profiles)
 	t.Logf("%+v", r.(*runnerMock).jobs)
-	assert.True(t, (profile0Len == 1 && profile1Len == 5) || (profile0Len == 5 && profile1Len == 1))
+	assert.True(t, (profile0Len == 1 && profile1Len == 6) || (profile0Len == 6 && profile1Len == 1))
 }
 
 func TestReportMetricBasic(t *testing.T) {
