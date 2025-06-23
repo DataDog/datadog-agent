@@ -5,6 +5,7 @@
 
 //go:build linux_bpf && linux
 
+// Package debugger provides utilities for testing the HTTP protocol.
 package debugger
 
 import (
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// GetHTTPDebugEndpoint returns a handler for debugging HTTP requests.
 func GetHTTPDebugEndpoint(tracer *tracer.Tracer) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mon := tracer.USMMonitor()

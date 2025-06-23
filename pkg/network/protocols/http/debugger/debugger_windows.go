@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package debugger provides utilities for testing the HTTP protocol.
 package debugger
 
 import (
@@ -10,6 +11,7 @@ import (
 	"net/http"
 )
 
+// GetHTTPDebugEndpoint returns a handler for debugging HTTP requests.
 func GetHTTPDebugEndpoint(tracer *tracer.Tracer) func(http.ResponseWriter, *http.Request) {
 	return nil
 }

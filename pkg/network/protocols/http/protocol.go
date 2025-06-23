@@ -238,6 +238,7 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
 
+// AddPIDToDebugger adds a PID to the HTTP debugger map with the specified path and size.
 func AddPIDToDebugger(pid uint32, path [24]byte, size uint8) {
 	if Spec == nil || Spec.Instance == nil {
 		log.Warnf("http protocol spec is nil, cannot add PID to debugger")
