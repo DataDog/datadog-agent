@@ -38,6 +38,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -129,6 +130,7 @@ type EBPFProbe struct {
 	ctx       context.Context
 	cancelFnc context.CancelFunc
 	wg        sync.WaitGroup
+	ipc       ipc.Component
 
 	// TC Classifier & raw packets
 	newTCNetDevices           chan model.NetDevice
@@ -495,7 +497,7 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler)
+	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.ipc)
 	if err != nil {
 		return err
 	}
@@ -2452,7 +2454,7 @@ func (p *EBPFProbe) initManagerOptions() error {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -2483,6 +2485,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		playSnapShotState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
+		ipc:                  ipc,
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -2555,7 +2558,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
 
-	hostname, err := hostnameutils.GetHostname()
+	hostname, err := hostnameutils.GetHostname(ipc)
 	if err != nil || hostname == "" {
 		hostname = "unknown"
 	}
