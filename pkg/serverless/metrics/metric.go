@@ -44,7 +44,7 @@ type MultipleEndpointConfig interface {
 
 // DogStatsDFactory allows create a new DogStatsD server
 type DogStatsDFactory interface {
-	NewServer(aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error)
+	NewServer(aggregator.Demultiplexer, tagger.Component) (dogstatsdServer.ServerlessDogstatsd, error)
 }
 
 const (
@@ -58,8 +58,8 @@ func (m *MetricConfig) GetMultipleEndpoints() (map[string][]utils.APIKeys, error
 }
 
 // NewServer returns a running DogStatsD server
-func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
-	return dogstatsdServer.NewServerlessServer(demux)
+func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer, tagger tagger.Component) (dogstatsdServer.ServerlessDogstatsd, error) {
+	return dogstatsdServer.NewServerlessServer(demux, tagger)
 }
 
 // Start starts the DogStatsD agent
@@ -84,7 +84,7 @@ func (c *ServerlessMetricAgent) Start(forwarderTimeout time.Duration, multipleEn
 	}
 
 	if demux != nil {
-		statsd, err := dogstatFactory.NewServer(demux)
+		statsd, err := dogstatFactory.NewServer(demux, c.Tagger)
 		if err != nil {
 			log.Errorf("Unable to start the DogStatsD server: %s", err)
 		} else {
