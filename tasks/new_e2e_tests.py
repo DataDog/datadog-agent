@@ -14,6 +14,7 @@ import tempfile
 import threading
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Iterable
 from pathlib import Path
 
 import yaml
@@ -254,7 +255,7 @@ def run(
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
     use_prebuilt_binaries=False,
-    max_retries=3,
+    max_retries=0,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -391,10 +392,9 @@ def run(
             test_profiler=None,
         )
 
-        failed_tests = washer.get_failing_tests()
-
-        # TODO: Extract only leaf jobs from the tests to retry, to avoid retrying parent jobs, that then would retry all their children including ones that did not fail
-        failed_tests = {(package, test_name) for package, tests in failed_tests.items() for test_name in tests}
+        failed_tests = filter_only_leaf_tests(
+            (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
+        )
 
         # Note: `get_flaky_failures` can return some unexpected things due to its logic for detecting failing tests by looking at its eventual children.
         # By using an `intersection` we ensure that we only get tests that have actually failed.
@@ -697,6 +697,40 @@ def _create_test_selection_regex(test_names: list[str]) -> str:
         regex_body = f"(?:{regex_body})"
 
     return f'"^{regex_body}$"'
+
+
+def filter_only_leaf_tests(tests: Iterable[tuple[str, str]]) -> set[tuple[str, str]]:
+    """
+    Given some (package, test_name) tuples, return only the leaf tests.
+    A test is a leaf if it is not a parent of any other test in the list (within the same package).
+    """
+    # Sort tests by descending depth (number of '/' in test name)
+    tests_sorted = sorted(tests, key=lambda t: len(t[1].split('/')))
+    leaf_tests: set[tuple[str, str]] = set()
+    for candidate_test in tests_sorted:
+        # If none of the known leaf tests is a child of the candidate test, then the candidate test is a leaf
+        is_leaf = all(not is_child(candidate_test, known_leaf_test) for known_leaf_test in leaf_tests)
+        if is_leaf:
+            leaf_tests.add(candidate_test)
+    return leaf_tests
+
+
+def is_child(test1: tuple[str, str], test2: tuple[str, str]) -> bool:
+    """
+    Returns True if test1 is a child of test2.
+    Example: is_child(("pkg", "TestAgent/TestFeatureA"), ("pkg", "TestAgent")) == True
+    """
+    if test1[0] != test2[0]:
+        return False
+    splitted_test1 = test1[1].split('/')
+    splitted_test2 = test2[1].split('/')
+    if len(splitted_test2) > len(splitted_test1):
+        return False
+
+    for part1, part2 in zip(splitted_test1, splitted_test2, strict=False):
+        if part1 != part2:
+            return False
+    return True
 
 
 class TooManyLogsError(Exception):
