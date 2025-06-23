@@ -44,6 +44,7 @@ type ProgOpts struct {
 
 	// internals
 	sendEventLabel string
+	shotLabel      string
 	ctxSave        asm.Register
 	tailCallMapFd  int
 }
@@ -71,8 +72,8 @@ func DefaultProgOpts() ProgOpts {
 }
 
 // BPFFilterToInsts compile a bpf filter expression
-func BPFFilterToInsts(index int, filter string, opts ProgOpts) (asm.Instructions, error) {
-	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filter)
+func FilterToInsts(index int, filter Filter, opts ProgOpts) (asm.Instructions, error) {
+	pcapBPF, err := pcap.CompileBPFFilter(layers.LinkTypeEthernet, 256, filter.BPFFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -96,17 +97,22 @@ func BPFFilterToInsts(index int, filter string, opts ProgOpts) (asm.Instructions
 
 	resultLabel := cbpfcOpts.ResultLabel
 
+	jumpLabel := opts.sendEventLabel
+	if filter.Policy == PolicyDrop {
+		jumpLabel = opts.shotLabel
+	}
+
 	// add nop insts, used to test the max insts and artificially generate tail calls
 	for i := 0; i != opts.NopInstLen; i++ {
 		insts = append(insts,
-			asm.JEq.Imm(asm.R9, 0, opts.sendEventLabel).WithSymbol(resultLabel),
+			asm.JEq.Imm(asm.R9, 0, jumpLabel).WithSymbol(resultLabel),
 		)
 		resultLabel = ""
 	}
 
 	// filter result
 	insts = append(insts,
-		asm.JNE.Imm(cbpfcOpts.Result, 0, opts.sendEventLabel).WithSymbol(resultLabel),
+		asm.JNE.Imm(cbpfcOpts.Result, 0, jumpLabel).WithSymbol(resultLabel),
 	)
 
 	return insts, nil
@@ -131,7 +137,7 @@ func filtersToProgs(filters []Filter, opts ProgOpts, headerInsts, senderInsts as
 	}
 
 	for i, filter := range filters {
-		filterInsts, err := BPFFilterToInsts(i, filter.BPFFilter, opts)
+		filterInsts, err := FilterToInsts(i, filter, opts)
 		if err != nil {
 			mErr = multierror.Append(mErr, fmt.Errorf("unable to generate eBPF bytecode for rule `%s`: %s", filter.RuleID, err))
 			continue
