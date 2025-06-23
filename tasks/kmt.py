@@ -1346,9 +1346,9 @@ def get_kmt_or_alien_stack(ctx, stack, vms, alien_vms):
         return stack
 
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), (
-        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
-    )
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
     return stack
 
 
@@ -1432,9 +1432,9 @@ def build(
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), (
-        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
-    )
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
 
     ctx.run("rm -rf ./test/new-e2e/tests/sysprobe-functional/artifacts/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
@@ -2028,9 +2028,9 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
 @task
 def show_last_test_results(ctx: Context, stack: str | None = None):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), (
-        f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
-    )
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'dda inv kmt.create-stack --stack=<name>'"
     assert tabulate is not None, "tabulate module is not installed, please install it to continue"
 
     paths = KMTPaths(stack, Arch.local())
