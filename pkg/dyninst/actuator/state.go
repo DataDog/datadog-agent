@@ -128,69 +128,6 @@ func (pk probeKey) cmp(other probeKey) int {
 	)
 }
 
-// Events
-
-type event interface {
-	event() // marker
-}
-
-type baseEvent struct{}
-
-func (baseEvent) event() {}
-
-type eventProcessesUpdated struct {
-	baseEvent
-	updated []ProcessUpdate
-	removed []ProcessID
-}
-
-type eventProgramCompiled struct {
-	baseEvent
-	programID       ir.ProgramID
-	compiledProgram *CompiledProgram
-}
-
-type eventProgramCompilationFailed struct {
-	baseEvent
-	programID ir.ProgramID
-	err       error
-}
-
-type eventProgramLoaded struct {
-	baseEvent
-	programID     ir.ProgramID
-	loadedProgram *loadedProgram
-}
-
-type eventProgramLoadingFailed struct {
-	baseEvent
-	programID ir.ProgramID
-	err       error
-}
-
-type eventProgramAttached struct {
-	baseEvent
-	program *attachedProgram
-}
-
-type eventProgramAttachingFailed struct {
-	baseEvent
-	programID ir.ProgramID
-	processID ProcessID
-	err       error
-}
-
-// Note that we'll send this even if the detachment fails.
-type eventProgramDetached struct {
-	baseEvent
-	programID ir.ProgramID
-	processID ProcessID
-}
-
-type eventShutdown struct {
-	baseEvent
-}
-
 // effectHandler defines async operations that drive the instrumentation
 // pipeline. Most effects generate completion events; register/unregister are
 // fire-and-forget.

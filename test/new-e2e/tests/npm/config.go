@@ -30,6 +30,3 @@ func systemProbeConfigNPMEnv() []dockeragentparams.Option {
 		dockeragentparams.WithAgentServiceEnvVariable("DD_SYSTEM_PROBE_NETWORK_ENABLED", pulumi.StringPtr("true")),
 	}
 }
-
-//go:embed config/npm-helm-cilium-lb-values.yaml
-var systemProbeConfigWithCiliumLB string
