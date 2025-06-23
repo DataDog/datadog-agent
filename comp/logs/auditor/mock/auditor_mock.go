@@ -82,6 +82,7 @@ func (a *Auditor) run() {
 type Registry struct {
 	offset      string
 	tailingMode string
+	fingerprint uint64
 }
 
 // NewMockRegistry returns a new mock registry.
@@ -107,4 +108,14 @@ func (r *Registry) GetTailingMode(_ string) string {
 // SetTailingMode sets the tailing mode.
 func (r *Registry) SetTailingMode(tailingMode string) {
 	r.tailingMode = tailingMode
+}
+
+// GetFingerprint sets the checksum fingerprint
+func (r *Registry) GetFingerprint(_ string) uint64 {
+	return r.fingerprint
+}
+
+// SetFingerprint sets the checksum fingerprint
+func (r *Registry) SetFingerprint(fingerprint uint64) {
+	r.fingerprint = fingerprint
 }

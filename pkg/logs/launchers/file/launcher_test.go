@@ -149,6 +149,94 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
+// func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
+// 	currentFingerprintStrategy := pkgconfigsetup.Datadog().Get("logs_config.fingerprint_strategy")
+// 	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", "checksum")
+// 	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", currentFingerprintStrategy)
+
+// 	currentMaxBytes := pkgconfigsetup.Datadog().Get("logs_config.fingerprint_max_bytes")
+// 	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_max_bytes", 256)
+// 	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_max_bytes", currentMaxBytes)
+
+// 	s := suite.s
+
+// 	// Write initial content
+// 	_, err := suite.testFile.WriteString("hello world\n")
+// 	suite.Nil(err)
+// 	suite.Nil(suite.testFile.Sync())
+
+// 	// Read message to confirm tailer is working
+// 	msg := <-suite.outputChan
+// 	suite.Equal("hello world", string(msg.GetContent()))
+
+// 	// Get tailer and manually update fingerprint in registry
+// 	tailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+// 	fingerprint := tailer.ComputeFingerPrint()
+// 	s.registry.UpdateFingerprint(tailer.Identifier(), fingerprint)
+
+// 	// Rotate file
+// 	os.Rename(suite.testPath, suite.testRotatedPath)
+// 	f, err := os.Create(suite.testPath)
+// 	suite.Nil(err)
+
+// 	// Write different content
+// 	_, err = f.WriteString("hello again\n")
+// 	suite.Nil(err)
+// 	suite.Nil(f.Sync())
+// 	defer f.Close()
+
+// 	s.scan()
+
+// 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+// 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
+
+// 	msg = <-suite.outputChan
+// 	suite.Equal("hello again", string(msg.GetContent()))
+// }
+
+// func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
+// 	currentFingerprintStrategy := pkgconfigsetup.Datadog().Get("logs_config.fingerprint_strategy")
+// 	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", "checksum")
+// 	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", currentFingerprintStrategy)
+
+// 	currentMaxBytes := pkgconfigsetup.Datadog().Get("logs_config.fingerprint_max_bytes")
+// 	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_max_bytes", 256)
+// 	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_max_bytes", currentMaxBytes)
+
+// 	s := suite.s
+
+// 	// Write initial content
+// 	initialContent := "hello world\n"
+// 	_, err := suite.testFile.WriteString(initialContent)
+// 	suite.Nil(err)
+// 	suite.Nil(suite.testFile.Sync())
+
+// 	// Read message
+// 	msg := <-suite.outputChan
+// 	suite.Equal("hello world", string(msg.GetContent()))
+
+// 	// Get tailer and update registry
+// 	tailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+// 	fingerprint := tailer.ComputeFingerPrint()
+// 	s.registry.SetFingerprint(tailer.Identifier(), fingerprint)
+
+// 	// Rotate file
+// 	os.Rename(suite.testPath, suite.testRotatedPath)
+// 	f, err := os.Create(suite.testPath)
+// 	suite.Nil(err)
+
+// 	// Write same content
+// 	_, err = f.WriteString(initialContent)
+// 	suite.Nil(err)
+// 	suite.Nil(f.Sync())
+// 	defer f.Close()
+
+// 	s.scan()
+
+// 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+// 	suite.True(tailer == newTailer, "A new tailer should not have been created as content is the same")
+// }
+
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	s := suite.s
 	var tailer *filetailer.Tailer

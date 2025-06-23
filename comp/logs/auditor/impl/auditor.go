@@ -175,6 +175,16 @@ func (a *registryAuditor) GetOffset(identifier string) string {
 	return entry.Offset
 }
 
+// GetFingerprint returns the last committed fingerprint for a given identifier,
+// returns 0 if it doesn't existz
+func (a *registryAuditor) GetFingerprint(identifier string) uint64 {
+	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
+	if !exists {
+		return 0
+	}
+	return entry.Fingerprint
+}
+
 // GetTailingMode returns the last committed offset for a given identifier,
 // returns an empty string if it does not exist.
 func (a *registryAuditor) GetTailingMode(identifier string) string {

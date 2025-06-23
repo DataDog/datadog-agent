@@ -151,7 +151,20 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForOffset() {
 	offset = suite.a.GetOffset(othersource.Config.Path)
 	suite.Equal("", offset)
 }
+func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForFingerprint() {
+	suite.a.registry = make(map[string]*RegistryEntry)
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
+		Offset:      "42",
+		Fingerprint: uint64(12345),
+	}
 
+	fingerprint := suite.a.GetFingerprint(suite.source.Config.Path)
+	suite.Equal(uint64(12345), fingerprint)
+
+	othersource := sources.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
+	fingerprint = suite.a.GetFingerprint(othersource.Config.Path)
+	suite.Equal(uint64(0), fingerprint)
+}
 func (suite *AuditorTestSuite) TestAuditorCleansupRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{

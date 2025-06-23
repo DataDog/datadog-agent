@@ -9,4 +9,5 @@ package auditor
 type Registry interface {
 	GetOffset(identifier string) string
 	GetTailingMode(identifier string) string
+	GetFingerprint(identifier string) uint64
 }
