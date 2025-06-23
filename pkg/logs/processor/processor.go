@@ -271,7 +271,7 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 		case config.ExcludeAtMatch:
 			// if this message matches, we ignore it
 			if rule.Regex.Match(content) {
-				msg.RecordProcessingRule(rule.Name)
+				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
 		case config.IncludeAtMatch:
@@ -279,13 +279,13 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			if !rule.Regex.Match(content) {
 				return false
 			}
-			msg.RecordProcessingRule(rule.Name)
+			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.MaskSequences:
 			if isMatchingLiteralPrefix(rule.Regex, content) {
 				originalContent := content
 				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
 				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Name)
+					msg.RecordProcessingRule(rule.Type, rule.Name)
 				}
 			}
 		}
