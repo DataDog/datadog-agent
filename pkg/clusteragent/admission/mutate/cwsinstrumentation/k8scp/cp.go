@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
@@ -52,7 +53,7 @@ func (o *Copy) prepareCommand(destFile string) []string {
 }
 
 // CopyToPod copies the provided local file to the provided container
-func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string) error {
+func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string, timeout time.Duration) error {
 	o.Container = container
 	localFile = path.Clean(localFile)
 	remoteFile = path.Clean(remoteFile)
@@ -87,7 +88,7 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 		Stdin: true,
 	}
 
-	if err := o.Execute(pod, o.prepareCommand(remoteFile), streamOptions); err != nil {
+	if err := o.Execute(pod, o.prepareCommand(remoteFile), streamOptions, timeout); err != nil {
 		return err
 	}
 
