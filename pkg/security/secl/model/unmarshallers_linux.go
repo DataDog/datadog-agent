@@ -1558,12 +1558,11 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.SocketType = binary.NativeEndian.Uint16(data[0:2])
 	e.SocketProtocol = binary.NativeEndian.Uint16(data[2:4])
 	e.SocketFamily = binary.NativeEndian.Uint16(data[4:6])
-	// Padding here
+	e.FilterLen = binary.NativeEndian.Uint16(data[6:8])
 	e.Level = binary.NativeEndian.Uint32(data[8:12])
 	e.OptName = binary.NativeEndian.Uint32(data[12:16])
-	e.FilterLen = binary.NativeEndian.Uint16(data[16:18])
 	// Parse the filter here
-	filterStart := 18
+	filterStart := 16
 	filterLen := int(e.FilterLen)
 	filterSize := 8 // sizeof(sock_filter): 2 bytes Code, 1 byte Jt, 1 byte Jf, 4 bytes K
 	if len(data) < filterStart+filterLen*filterSize {
