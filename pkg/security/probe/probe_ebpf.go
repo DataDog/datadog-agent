@@ -182,6 +182,9 @@ type EBPFProbe struct {
 
 	// Setsockopt and BPF Filter
 	BPFFilterTruncated *atomic.Uint64
+
+	// raw packet filter for actions
+	rawPacketFilterActions []rawpacket.Filter
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -600,9 +603,13 @@ func (p *EBPFProbe) setupRawPacketProgs(rs *rules.RuleSet) error {
 			rawPacketFilters = append(rawPacketFilters, rawpacket.Filter{
 				RuleID:    id,
 				BPFFilter: field.Value.(string),
+				Policy:    rawpacket.PolicyAllow,
 			})
 		}
 	}
+
+	// apply action filters
+	rawPacketFilters = append(rawPacketFilters, p.rawPacketFilterActions...)
 
 	// enable raw packet or not
 	enabled := make([]uint32, p.numCPU)
@@ -2997,6 +3004,17 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.Def.Hash != nil:
 			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
+			}
+		case action.Def.NetworkFilter != nil:
+			var policy rawpacket.Policy
+			policy.Parse(action.Def.NetworkFilter.Policy)
+
+			if policy == rawpacket.PolicyDrop {
+				/*	p.rawPacketFilterActions = append(p.rawPacketFilterActions, rawpacket.Filter{
+					RuleID:    rule.ID,
+					BPFFilter: action.Def.NetworkFilter.BPFFilter,
+					Policy:    policy,
+				})*/
 			}
 		}
 	}

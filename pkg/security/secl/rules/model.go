@@ -120,12 +120,13 @@ type ActionDefinitionInterface interface {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Filter   *string             `yaml:"filter" json:"filter,omitempty"`
-	Set      *SetDefinition      `yaml:"set" json:"set,omitempty" jsonschema:"oneof_required=SetAction"`
-	Kill     *KillDefinition     `yaml:"kill" json:"kill,omitempty" jsonschema:"oneof_required=KillAction"`
-	CoreDump *CoreDumpDefinition `yaml:"coredump" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
-	Hash     *HashDefinition     `yaml:"hash" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
-	Log      *LogDefinition      `yaml:"log" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
+	Filter        *string                  `yaml:"filter" json:"filter,omitempty"`
+	Set           *SetDefinition           `yaml:"set" json:"set,omitempty" jsonschema:"oneof_required=SetAction"`
+	Kill          *KillDefinition          `yaml:"kill" json:"kill,omitempty" jsonschema:"oneof_required=KillAction"`
+	CoreDump      *CoreDumpDefinition      `yaml:"coredump" json:"coredump,omitempty" jsonschema:"oneof_required=CoreDumpAction"`
+	Hash          *HashDefinition          `yaml:"hash" json:"hash,omitempty" jsonschema:"oneof_required=HashAction"`
+	Log           *LogDefinition           `yaml:"log" json:"log,omitempty" jsonschema:"oneof_required=LogAction"`
+	NetworkFilter *NetworkFilterDefinition `yaml:"network_filter" json:"network_filter,omitempty"`
 }
 
 // Name returns the name of the action
@@ -350,6 +351,21 @@ type LogDefinition struct {
 func (l *LogDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	if l.Level == "" {
 		return errors.New("a valid log level must be specified to the the 'log' action")
+	}
+
+	return nil
+}
+
+// NetworkFilterDefinition describes the 'network_filter' section of a rule action
+type NetworkFilterDefinition struct {
+	BPFFilter string `yaml:"filter" json:"filter,omitempty"`
+	Policy    string `yaml:"policy" json:"policy,omitempty"`
+}
+
+// Check returns an error if the network filter action is invalid
+func (n *NetworkFilterDefinition) Check(opts PolicyLoaderOpts) error {
+	if n.BPFFilter == "" {
+		return errors.New("a valid BPF filter must be specified to the 'network_filter' action")
 	}
 
 	return nil
