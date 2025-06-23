@@ -7,6 +7,9 @@
 package file
 
 import (
+	"bufio"
+	"io"
+	"os"
 	"regexp"
 	"slices"
 	"time"
@@ -226,14 +229,44 @@ func (s *Launcher) scan() {
 		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			succeeded := s.startNewTailer(file, config.Beginning)
-			if !succeeded {
-				// the setup failed, let's try to tail this file in the next scan
+			checkSumEnabled := pkgconfigsetup.Datadog().GetString("fingerprint_strategy")
+			if checkSumEnabled == "checksum" {
+				maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_max_bytes")
+				f, err := os.Open(file.Path)
+				if err != nil {
+					log.Warnf("could not open file to check for content %s: %v", file.Path, err)
+					continue
+				}
+				limitedReader := io.LimitReader(f, int64(maxBytes))
+				reader := bufio.NewReader(limitedReader)
+				line, err := reader.ReadString('\n')
+				f.Close()
+				if err != nil && err != io.EOF {
+					log.Warnf("error checking for content in %s: %v", file.Path, err)
+					continue
+				}
+				if len(line) == 0 {
+					log.Debugf("file %s is empty or does not contain a line within the first %d bytes, skipping", file.Path, maxBytes)
+					continue
+				}
+				succeeded := s.startNewTailer(file, config.Beginning)
+				if !succeeded {
+					// the setup failed, let's try to tail this file in the next scan
+					continue
+				}
+				tailersLen++
+				filesTailed[scanKey] = true
+				continue
+			} else {
+				succeeded := s.startNewTailer(file, config.Beginning)
+				if !succeeded {
+					// the setup failed, let's try to tail this file in the next scan
+					continue
+				}
+				tailersLen++
+				filesTailed[scanKey] = true
 				continue
 			}
-			tailersLen++
-			filesTailed[scanKey] = true
-			continue
 		}
 	}
 	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
