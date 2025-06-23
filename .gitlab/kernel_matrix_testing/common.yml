@@ -304,17 +304,11 @@
       echo "dda inv kmt.retry-failed-pipeline --pipeline-id $CI_PIPELINE_ID"
     fi
 
-notify_ebpf_complexity_changes:
+.notify_ebpf_complexity_changes:
   extends: .notify-job
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
   tags: ["arch:amd64"]
   timeout: 15m
-  rules:
-    - !reference [.except_main_release_or_mq]
-    - !reference [.except_no_tests_no_deploy]
-    - !reference [.except_deploy]
-    - !reference [.on_system_probe_or_e2e_changes_or_manual]
-    - !reference [.on_security_agent_changes_or_manual]
   needs:
     # We need to specify the jobs that generate complexity explicitly, else we hit the limit of "needs"
     # Important: the list of platforms should match the one in .define_if_collect_complexity
@@ -349,4 +343,28 @@ notify_ebpf_complexity_changes:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $GITLAB_TOKEN write_api) || exit $?; export GITLAB_TOKEN
   script:
-    - dda inv -- -e ebpf.generate-complexity-summary-for-pr --gitlab-config-file artifacts/after.gitlab-ci.yml
+    - dda inv -- -e ebpf.generate-complexity-summary-for-pr --gitlab-config-file artifacts/after.gitlab-ci.yml $EXTRA_ARGS
+
+notify_ebpf_complexity_changes:
+  extends: .notify_ebpf_complexity_changes
+  rules:
+    - !reference [.except_main_release_or_mq]
+    - !reference [.except_no_tests_no_deploy]
+    - !reference [.except_deploy]
+    - !reference [.on_system_probe_or_e2e_changes_or_manual]
+    - !reference [.on_security_agent_changes_or_manual]
+
+test_ebpf_complexity_changes:
+  extends: .notify_ebpf_complexity_changes
+  rules:
+    # Execute this job whenever there are changes to the KMT python files that are used to generate the complexity data
+    - changes:
+        paths:
+        - "tasks/kmt.py"
+        - "tasks/ebpf.py"
+        - "tasks/kernel_matrix_testing/ci.py"
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: never
+  allow_failure: false
+  variables:
+    EXTRA_ARGS: "--skip-github-comment"
