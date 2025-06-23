@@ -124,8 +124,8 @@ func testInitFromBinariesInSubprocess(t *testing.T) {
 		t.Fatalf("failed to get state: %v", err)
 	}
 	out, err := json.Marshal(configAndPrograms{
-		Configs:  state.CommonConfigs,
-		Programs: state.Programs,
+		Configs:  state.commonConfigs,
+		Programs: state.programs,
 	})
 	if err != nil {
 		t.Fatalf("failed to marshal config and programs: %v", err)
