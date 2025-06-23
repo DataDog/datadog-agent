@@ -19,18 +19,21 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 	checkUtils "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/checks/common"
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 type diskCheckSuite struct {
 	e2e.BaseSuite[environments.Host]
-	checkUtils.CheckSuite
+	descriptor            e2eos.Descriptor
+	metricCompareFraction float64
+	metricCompareDecimals int
 }
 
 func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(v.Descriptor)),
+			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
 	))
 
@@ -52,7 +55,7 @@ instances:
 			``,
 		},
 	}
-	p := math.Pow10(v.MetricCompareDecimals)
+	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
@@ -72,7 +75,7 @@ instances:
 					if a.Metric == "system.disk.total" {
 						return aValue == bValue
 					}
-					return checkUtils.CompareValuesWithRelativeMargin(aValue, bValue, p, v.MetricCompareFraction)
+					return checkUtils.CompareValuesWithRelativeMargin(aValue, bValue, p, v.metricCompareFraction)
 				}),
 				gocmpopts.SortSlices(checkUtils.MetricPayloadCompare), // sort metrics
 			)
@@ -88,13 +91,14 @@ func (v *diskCheckSuite) runDiskCheck(agentConfig string, checkConfig string, us
 	}
 
 	ctx := checkUtils.CheckContext{
-		checkName:    "disk",
-		agentConfig:  agentConfig,
-		checkConfig:  checkConfig,
-		isNewVersion: useNewVersion,
+		CheckName:    "disk",
+		OSDescriptor: v.descriptor,
+		AgentConfig:  agentConfig,
+		CheckConfig:  checkConfig,
+		IsNewVersion: useNewVersion,
 	}
 
-	metrics := checkUtils.RunCheck(v, ctx)
+	metrics := checkUtils.RunCheck(v.T(), v.Env(), ctx)
 
 	return metrics
 }

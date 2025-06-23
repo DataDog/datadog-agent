@@ -22,9 +22,9 @@ func TestLinuxDiskSuite(t *testing.T) {
 	t.Parallel()
 	suite := &linuxDiskCheckSuite{
 		diskCheckSuite{
-			Descriptor:            e2eos.UbuntuDefault,
-			MetricCompareFraction: 0.02,
-			MetricCompareDecimals: 1,
+			descriptor:            e2eos.UbuntuDefault,
+			metricCompareFraction: 0.02,
+			metricCompareDecimals: 1,
 		},
 	}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
