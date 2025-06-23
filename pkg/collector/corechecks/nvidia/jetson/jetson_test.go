@@ -24,6 +24,7 @@ const (
 	xavierNxSample    = "RAM 4412/7772MB (lfb 237x4MB) SWAP 139/3886MB (cached 2MB) CPU [9%@1190,6%@1190,6%@1190,5%@1190,4%@1190,8%@1267] EMC_FREQ 10%@1600 GR3D_FREQ 62%@306 APE 150 MTS fg 0% bg 0% AO@41.5C GPU@43C PMIC@100C AUX@41.5C CPU@43.5C thermal@42.55C VDD_IN 4067/4067 VDD_CPU_GPU_CV 738/738 VDD_SOC 1353/1353"
 	voltageUnitSample = "RAM 6334/15388MB (lfb 1770x4MB) SWAP 491/7694MB (cached 0MB) CPU [6%@729,9%@729,5%@729,16%@729,off,off,off,off] EMC_FREQ 0%@2133 GR3D_FREQ 0%@611 VIC_FREQ 729 APE 174 CV0@45.812C CPU@47.937C SOC2@46.093C SOC0@46.968C CV1@46.406C GPU@45.875C tj@48.875C SOC1@48.875C CV2@45.75C VDD_IN 5299mW/5299mW VDD_CPU_GPU_CV 773mW/773mW VDD_SOC 1424mW/1424mW"
 	r36Sample         = "RAM 29114/30697MB (lfb 3x4MB)    SWAP 4915/15348MB (cached 1MB) CPU [3%@729,4%@729,0%@729,1%@729,0%@2201,100%@2201,1%@2201,0%@2201,100%@2201,0%@2201,0%@2201,0%@2201] EMC_FREQ 1%@2133 GR3D_FREQ 0%@[305,305] NVENC      off  NVDEC    off NVJPG off NVJPG1    off         VIC        off          OFA           off          NVDLA0    off       NVDLA1     off          PVA0_FREQ off         APE           174        cpu@53.062C soc2@48.25C soc0@48.843C  gpu@47.812C tj@53.062C soc1@48.968C    VDD_GPU_SOC 3205mW/3205mW VDD_CPU_CV 4405mW/4405mW VIN_SYS_5V0 4767mW/4767mW"
+	orinSample        = `RAM 2448/62840MB (lfb 2x4MB) SWAP 0/31420MB (cached 0MB) CPU [0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201] GR3D_FREQ 0% cpu@42C soc2@37.843C soc0@39.187C gpu@37.75C tj@42C soc1@37.937C VDD_GPU_SOC 4940mW/4940mW VDD_CPU_CV 988mW/988mW VIN_SYS_5V0 4442mW/4442mW`
 )
 
 func TestNano(t *testing.T) {
@@ -464,5 +465,76 @@ func TestR36(t *testing.T) {
 
 	mock.AssertExpectations(t)
 	mock.AssertNumberOfCalls(t, "Gauge", 50)
+	mock.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestOrin(t *testing.T) {
+	tegraCheck := new(JetsonCheck)
+	mock := mocksender.NewMockSender(tegraCheck.ID())
+	tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+
+	// RAM 2448/62840MB (lfb 2x4MB) SWAP 0/31420MB (cached 0MB)
+	mock.On("Gauge", "nvidia.jetson.mem.used", 2448.0*mb, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.mem.total", 62840.0*mb, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.mem.n_lfb", 2.0, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.mem.lfb", 4.0*mb, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.swap.used", 0.0*mb, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.swap.total", 31420.0*mb, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.swap.cached", 0.0*mb, "", []string(nil)).Return().Once()
+
+	// CPU [0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201]
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:0"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:0"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:1"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:1"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:2"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:2"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:3"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:3"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:4"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:4"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:5"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:5"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:6"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:6"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:7"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:7"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:8"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:8"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:9"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:9"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:10"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:10"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.usage", 0.0, "", []string{"cpu:11"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.freq", 2201.0, "", []string{"cpu:11"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.inactive_count", 0.0, "", []string(nil)).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.cpu.total_count", 12.0, "", []string(nil)).Return().Once()
+
+	// GR3D_FREQ 0%
+	mock.On("Gauge", "nvidia.jetson.gpu.usage", 0.0, "", []string(nil)).Return().Once()
+
+	// cpu@42C soc2@37.843C soc0@39.187C gpu@37.75C tj@42C soc1@37.937C
+	mock.On("Gauge", "nvidia.jetson.temp", 42.0, "", []string{"zone:cpu"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.temp", 37.843, "", []string{"zone:soc2"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.temp", 39.187, "", []string{"zone:soc0"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.temp", 37.75, "", []string{"zone:gpu"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.temp", 42.0, "", []string{"zone:tj"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.temp", 37.937, "", []string{"zone:soc1"}).Return().Once()
+
+	// VDD_GPU_SOC 4940mW/4940mW VDD_CPU_CV 988mW/988mW VIN_SYS_5V0 4442mW/4442mW
+	mock.On("Gauge", "nvidia.jetson.power.instant", 4940.0, "", []string{"probe:VDD_GPU_SOC"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.power.average", 4940.0, "", []string{"probe:VDD_GPU_SOC"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.power.instant", 988.0, "", []string{"probe:VDD_CPU_CV"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.power.average", 988.0, "", []string{"probe:VDD_CPU_CV"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.power.instant", 4442.0, "", []string{"probe:VIN_SYS_5V0"}).Return().Once()
+	mock.On("Gauge", "nvidia.jetson.power.average", 4442.0, "", []string{"probe:VIN_SYS_5V0"}).Return().Once()
+
+	mock.On("Commit").Return().Once()
+
+	err := tegraCheck.processTegraStatsOutput(orinSample)
+	assert.NoError(t, err)
+
+	mock.AssertExpectations(t)
+	mock.AssertNumberOfCalls(t, "Gauge", 46)
 	mock.AssertNumberOfCalls(t, "Commit", 1)
 }

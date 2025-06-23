@@ -121,6 +121,20 @@ type RuleContext struct {
 	MatchingSubExprs eval.MatchingSubExprs `field:"-"`
 }
 
+// FileMetadata represents file metadata
+type FileMetadata struct {
+	Size               int64 `field:"size,handler:ResolveFileMetadataSize,opts:skip_ad,weight:999"`                               // SECLDoc[size] Definition:`[Experimental] Size of the file`
+	Type               int   `field:"type,handler:ResolveFileMetadataType,opts:skip_ad,weight:999"`                               // SECLDoc[type] Definition:`[Experimental] Type of the file` Constants:`FileType`
+	IsExecutable       bool  `field:"is_executable,handler:ResolveFileMetadataIsExecutable,opts:skip_ad,weight:999"`              // SECLDoc[is_executable] Definition:`[Experimental] Tells if the file is executable or not`
+	Architecture       int   `field:"architecture,handler:ResolveFileMetadataArchitecture,opts:skip_ad,weight:999"`               // SECLDoc[architecture] Definition:`[Experimental] Architecture of the file (only for executable files)` Constants:`Architecture`
+	ABI                int   `field:"abi,handler:ResolveFileMetadataABI,opts:skip_ad,weight:999"`                                 // SECLDoc[abi] Definition:`[Experimental] ABI of the file (only for executable files)` Constants:`ABI`
+	IsUPXPacked        bool  `field:"is_upx_packed,handler:ResolveFileMetadataIsUPXPacked,opts:skip_ad,weight:999"`               // SECLDoc[is_upx_packed] Definition:`[Experimental] Tells if the binary has been packed using UPX`
+	Compression        int   `field:"compression,handler:ResolveFileMetadataCompression,opts:skip_ad,weight:999"`                 // SECLDoc[compression] Definition:`[Experimental] Compression type of the file (only for compressed files)` Constants:`CompressionType`
+	IsGarbleObfuscated bool  `field:"is_garble_obfuscated,handler:ResolveFileMetadataIsGarbleObfuscated,opts:skip_ad,weight:999"` // SECLDoc[is_garble_obfuscated] Definition:`[Experimental] Tells if the binary has been obfuscated using garble`
+	Linkage            int   `field:"-"`
+	Resolved           bool  `field:"-"`
+}
+
 // BaseEvent represents an event sent from the kernel
 type BaseEvent struct {
 	ID            string         `field:"-"`
@@ -610,6 +624,7 @@ type AWSSecurityCredentials struct {
 // BaseExtraFieldHandlers handlers not hold by any field
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event, newEntryCb func(*ProcessCacheEntry, error)) (*ProcessCacheEntry, bool)
+	ResolveProcessCacheEntryFromPID(pid uint32) *ProcessCacheEntry
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 }
 

@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
@@ -96,6 +97,10 @@ const (
 	// by the ProcessLanguageCollector.
 	SourceProcessLanguageCollector Source = "process_language_collector"
 	SourceProcessCollector         Source = "process_collector"
+
+	// SourceServiceDiscovery represents service discovery data for processes
+	// detected by the process collector.
+	SourceServiceDiscovery Source = "service_discovery"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -1196,6 +1201,36 @@ func printHistory(out io.Writer, history *v1.History) {
 
 var _ Entity = &ContainerImageMetadata{}
 
+// Service contains service discovery information for a process
+type Service struct {
+	// GeneratedName is the name generated from the process info
+	GeneratedName string
+
+	// GeneratedNameSource indicates the source of the generated name
+	GeneratedNameSource string
+
+	// AdditionalGeneratedNames contains other potential names for the service
+	AdditionalGeneratedNames []string
+
+	// TracerMetadata contains APM tracer metadata
+	TracerMetadata []tracermetadata.TracerMetadata
+
+	// DDService is the value from DD_SERVICE environment variable
+	DDService string
+
+	// DDServiceInjected indicates if DD_SERVICE was injected
+	DDServiceInjected bool
+
+	// Ports is the list of ports the service is listening on
+	Ports []uint16
+
+	// APMInstrumentation indicates the APM instrumentation status
+	APMInstrumentation string
+
+	// Type is the service type (e.g., "web_service")
+	Type string
+}
+
 // Process is an Entity that represents a process
 type Process struct {
 	EntityID // EntityID.ID is the PID
@@ -1213,8 +1248,12 @@ type Process struct {
 	ContainerID  string
 	CreationTime time.Time
 	Language     *languagemodels.Language
+
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
+
+	// Service contains service discovery information for this process
+	Service *Service
 }
 
 var _ Entity = &Process{}
@@ -1237,11 +1276,16 @@ func (p *Process) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ProcessMetadata with different kind %T", e)
 	}
 
+	// If the source has service data, remove the one from destination so merge() takes service data from the source
+	if otherProcess.Service != nil {
+		p.Service = nil
+	}
+
 	return merge(p, otherProcess)
 }
 
 // String implements Entity#String.
-func (p Process) String(_ bool) string {
+func (p Process) String(verbose bool) string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
@@ -1249,7 +1293,22 @@ func (p Process) String(_ bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace PID:", p.NsPid)
 	_, _ = fmt.Fprintln(&sb, "Container ID:", p.ContainerID)
 	_, _ = fmt.Fprintln(&sb, "Creation time:", p.CreationTime)
-	_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	if p.Language != nil {
+		_, _ = fmt.Fprintln(&sb, "Language:", p.Language.Name)
+	}
+	if p.Service != nil {
+		_, _ = fmt.Fprintln(&sb, "Service Generated Name:", p.Service.GeneratedName)
+		if verbose {
+			_, _ = fmt.Fprintln(&sb, "Service Generated Name Source:", p.Service.GeneratedNameSource)
+			_, _ = fmt.Fprintln(&sb, "Service Additional Generated Names:", p.Service.AdditionalGeneratedNames)
+			_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
+			_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
+			_, _ = fmt.Fprintln(&sb, "Service DD Service Injected:", p.Service.DDServiceInjected)
+			_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
+			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
+			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+		}
+	}
 	// TODO: add new fields once the new wlm process collector can be enabled
 
 	return sb.String()

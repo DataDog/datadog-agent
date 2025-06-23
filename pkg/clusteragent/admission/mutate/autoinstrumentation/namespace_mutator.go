@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -156,7 +157,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		// initContainerMutators are resource and security constraints
 		// to all the init containers the init containers that we create.
 		initContainerMutators = append(
-			m.newInitContainerMutators(requirements),
+			m.newInitContainerMutators(requirements, pod.Namespace),
 			serviceNameMutator,
 		)
 		injectorOptions = libRequirementOptions{
@@ -250,11 +251,30 @@ func (m *mutatorCore) serviceNameMutator(pod *corev1.Pod) containerMutator {
 // that is common and passed to the init containers we create.
 //
 // At this point in time it is: resource requirements and security contexts.
-func (m *mutatorCore) newInitContainerMutators(requirements corev1.ResourceRequirements) containerMutators {
-	return containerMutators{
-		containerResourceRequirements{requirements},
-		containerSecurityContext{m.config.initSecurityContext},
+func (m *mutatorCore) newInitContainerMutators(
+	requirements corev1.ResourceRequirements,
+	nsName string,
+) containerMutators {
+	securityContext := m.config.initSecurityContext
+	if securityContext == nil {
+		nsLabels, err := getNamespaceLabels(m.wmeta, nsName)
+		if err != nil {
+			log.Warnf("error getting labels for namespace=%s: %s", nsName, err)
+		} else if val, ok := nsLabels["pod-security.kubernetes.io/enforce"]; ok && val == "restricted" {
+			// https://datadoghq.atlassian.net/browse/INPLAT-492
+			securityContext = defaultRestrictedSecurityContext
+		}
 	}
+
+	mutators := []containerMutator{
+		containerResourceRequirements{requirements},
+	}
+
+	if securityContext != nil {
+		mutators = append(mutators, containerSecurityContext{securityContext})
+	}
+
+	return mutators
 }
 
 // newInjector creates an injector instance for this pod.
@@ -462,4 +482,14 @@ func profilingClientLibraryConfigMutators(datadogConfig config.Component) contai
 	}
 
 	return mutators
+}
+
+func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
+	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
+	ns, err := wmeta.GetKubernetesMetadata(id)
+	if err != nil {
+		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
+	}
+
+	return ns.EntityMeta.Labels, nil
 }

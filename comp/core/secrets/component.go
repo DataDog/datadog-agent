@@ -14,6 +14,8 @@ import (
 
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
+	Type                   string
+	Config                 map[string]interface{}
 	Command                string
 	Arguments              []string
 	Timeout                int

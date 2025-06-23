@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/wI2L/jsondiff"
 	admiv1 "k8s.io/api/admission/v1"
@@ -94,6 +95,7 @@ type WebhookForPods struct {
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
+	timeout         int32
 }
 
 func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
@@ -106,6 +108,7 @@ func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
+		timeout:         pkgconfigsetup.Datadog().GetInt32("admission_controller.cws_instrumentation.timeout"),
 	}
 }
 
@@ -133,6 +136,11 @@ func (w *WebhookForPods) Endpoint() string {
 // be invoked
 func (w *WebhookForPods) Resources() map[string][]string {
 	return w.resources
+}
+
+// Timeout returns the timeout for the webhook
+func (w *WebhookForPods) Timeout() int32 {
+	return w.timeout
 }
 
 // Operations returns the operations on the resources specified for which
@@ -167,6 +175,7 @@ type WebhookForCommands struct {
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
 	admissionFunc   admission.WebhookFunc
+	timeout         int32
 }
 
 func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {
@@ -179,6 +188,7 @@ func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForComma
 		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Connect},
 		matchConditions: []admissionregistrationv1.MatchCondition{},
 		admissionFunc:   admissionFunc,
+		timeout:         pkgconfigsetup.Datadog().GetInt32("admission_controller.cws_instrumentation.timeout"),
 	}
 }
 
@@ -206,6 +216,11 @@ func (w *WebhookForCommands) Endpoint() string {
 // be invoked
 func (w *WebhookForCommands) Resources() map[string][]string {
 	return w.resources
+}
+
+// Timeout returns the timeout for the webhook
+func (w *WebhookForCommands) Timeout() int32 {
+	return w.timeout
 }
 
 // Operations returns the operations on the resources specified for which
@@ -303,6 +318,8 @@ type CWSInstrumentation struct {
 	directoryForRemoteCopy string
 	// clusterAgentServiceAccount holds the service account name of the cluster agent
 	clusterAgentServiceAccount string
+	// timeout defines the timeout for the mutation attempts
+	timeout time.Duration
 
 	webhookForPods     *WebhookForPods
 	webhookForCommands *WebhookForCommands
@@ -312,7 +329,8 @@ type CWSInstrumentation struct {
 // NewCWSInstrumentation parses the webhook config and returns a new instance of CWSInstrumentation
 func NewCWSInstrumentation(wmeta workloadmeta.Component, datadogConfig config.Component) (*CWSInstrumentation, error) {
 	ci := CWSInstrumentation{
-		wmeta: wmeta,
+		wmeta:   wmeta,
+		timeout: time.Duration(pkgconfigsetup.Datadog().GetInt32("admission_controller.cws_instrumentation.timeout")) * time.Second,
 	}
 	var err error
 
@@ -623,13 +641,13 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 	}
 
 	cp := k8scp.NewCopy(apiclient)
-	if err = cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, container); err != nil {
+	if err = cp.CopyToPod(cwsInstrumentationLocalPath, cwsInstrumentationRemotePath, pod, container, ci.timeout); err != nil {
 		return err
 	}
 
 	// check cws-instrumentation was properly copied by running "cws-instrumentation health"
 	health := k8sexec.NewHealthCommand(apiclient)
-	return health.Run(cwsInstrumentationRemotePath, pod, container)
+	return health.Run(cwsInstrumentationRemotePath, pod, container, ci.timeout)
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.Request) *admiv1.AdmissionResponse {
