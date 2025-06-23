@@ -119,7 +119,7 @@ func TestInitFromBinaries(t *testing.T) {
 }
 
 func testInitFromBinariesInSubprocess(t *testing.T) {
-	state, err := GetState()
+	state, err := getState()
 	if err != nil {
 		t.Fatalf("failed to get state: %v", err)
 	}

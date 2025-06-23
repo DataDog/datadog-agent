@@ -63,27 +63,27 @@ func MustGetBinary(t *testing.T, name string, cfg Config) string {
 // use in tests. In scenarios where the source code is available, other
 // configurations may still be available via GetBinary.
 func GetCommonConfigs() ([]Config, error) {
-	State, err := GetState()
+	State, err := getState()
 	if err != nil {
 		return nil, fmt.Errorf("testprogs: %w", err)
 	}
-	return State.CommonConfigs, nil
+	return State.commonConfigs, nil
 }
 
 // GetPrograms returns a list of programs that are available for testing.
 func GetPrograms() ([]string, error) {
-	State, err := GetState()
+	State, err := getState()
 	if err != nil {
 		return nil, fmt.Errorf("testprogs: %w", err)
 	}
-	return State.Programs, nil
+	return State.programs, nil
 }
 
 // GetBinary returns the path to the binary for the given name and
 // configuration.  If the binary is not found, it will be compiled if the source
 // code is available.
 func GetBinary(name string, cfg Config) (string, error) {
-	State, err := GetState()
+	State, err := getState()
 	if err != nil {
 		return "", fmt.Errorf("testprogs: %w", err)
 	}
@@ -97,20 +97,20 @@ func GetBinary(name string, cfg Config) (string, error) {
 // State is the state of the testprogs package.
 type State struct {
 	// A list of common configurations that are available for testing.
-	CommonConfigs []Config
+	commonConfigs []Config
 	// A list of programs that are available for testing.
-	Programs []string
+	programs []string
 	// The directory where the binaries are stored.
-	BinariesDir string
+	binariesDir string
 	// The directory where the source code is stored, may be empty if the
 	// source code is not available.
-	ProgsSrcDir string
+	progsSrcDir string
 	// Whether the source code is available.
-	HaveSources bool
+	haveSources bool
 	// The directory where the probe configs are stored.
-	ProbesCfgsDir string
+	probesCfgsDir string
 	// ExpectedOutputDir is the directory where the expected output files are stored.
-	ExpectedOutputDir string
+	expectedOutputDir string
 }
 
 var (
@@ -119,8 +119,8 @@ var (
 	globalStateOnce sync.Once
 )
 
-// GetState returns the global state of the testprogs package.
-func GetState() (*State, error) {
+// getState returns the global state of the testprogs package.
+func getState() (*State, error) {
 	globalStateOnce.Do(func() {
 		var haveSources bool
 		var progsSrcDir string
@@ -227,17 +227,17 @@ found:
 	})
 
 	return State{
-		CommonConfigs:     commonConfigs,
-		Programs:          programs,
-		BinariesDir:       binariesDir,
-		ProgsSrcDir:       progsSrcDir,
-		HaveSources:       haveSources,
-		ProbesCfgsDir:     probesCfgsDir,
-		ExpectedOutputDir: expectedOutputDir,
+		commonConfigs:     commonConfigs,
+		programs:          programs,
+		binariesDir:       binariesDir,
+		progsSrcDir:       progsSrcDir,
+		haveSources:       haveSources,
+		probesCfgsDir:     probesCfgsDir,
+		expectedOutputDir: expectedOutputDir,
 	}, nil
 }
 
-// GetBinary returns the path to the binary for the given name and metadata.
+// getBinary returns the path to the binary for the given name and metadata.
 func getBinary(
 	State *State,
 	name string,
@@ -247,8 +247,8 @@ func getBinary(
 		return "", fmt.Errorf("invalid metadata: %w", err)
 	}
 
-	binariesDir := State.BinariesDir
-	progsSrcDir := State.ProgsSrcDir
+	binariesDir := State.binariesDir
+	progsSrcDir := State.progsSrcDir
 	binaryDir := path.Join(binariesDir, cfg.String())
 	binaryPath := path.Join(binaryDir, name)
 	progDir := path.Join(progsSrcDir, name)
@@ -268,7 +268,7 @@ func getBinary(
 		)
 	}
 
-	if State.HaveSources {
+	if State.haveSources {
 		upToDate, err := checkIfUpToDate(progDir, binInfo)
 		if err != nil {
 			return "", fmt.Errorf(

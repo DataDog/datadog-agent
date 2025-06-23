@@ -43,11 +43,11 @@ func GetProbeCfgs(name string) ([]config.Probe, error) {
 }
 
 func getProbeCfgs(name string) ([]config.Probe, error) {
-	state, err := GetState()
+	state, err := getState()
 	if err != nil {
 		return nil, err
 	}
-	yamlData, err := os.ReadFile(path.Join(state.ProbesCfgsDir, name+".yaml"))
+	yamlData, err := os.ReadFile(path.Join(state.probesCfgsDir, name+".yaml"))
 	if err != nil {
 		return nil, err
 	}

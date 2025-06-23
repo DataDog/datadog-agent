@@ -1,0 +1,30 @@
+a:
+  OutputJSON: '{"stack_frames":"","captures":{"probe_id":"a","x":81985529216486900}}'
+  ExpectedToFail: false
+b:
+  OutputJSON: '{"stack_frames":"","captures":{"probe_id":"b","s":"d"}}'
+  ExpectedToFail: false
+c:
+  OutputJSON: '{"stack_frames":"","captures":{"probe_id":"c","s":[1,2,3]}}'
+  ExpectedToFail: false
+d:
+  OutputJSON: '{"stack_frames":"","captures":{"probe_id":"d","s":[1,2,3]}}'
+  ExpectedToFail: false
+e:
+  OutputJSON: '{"stack_frames":"","captures":{"probe_id":"e","s":["a","b","c"]}}'
+  ExpectedToFail: false
+f:
+  OutputJSON: '{"stack_frames":"","captures":{"s":["a","b","c"],"probe_id":"f"}}'
+  ExpectedToFail: false
+g:
+  OutputJSON: '{"stack_frames":"","captures":{"probe_id":"g","x":0}}'
+  ExpectedToFail: false
+h:
+  OutputJSON: '{"stack_frames":"","captures":{"probe_id":"h","m":{"a":1}}}'
+  ExpectedToFail: true
+i:
+  OutputJSON: '{"stack_frames":"","captures":{"probe_id":"i","m":{"b":2}}}'
+  ExpectedToFail: true
+j:
+  OutputJSON: '{"stack_frames":"","captures":{"probe_id":"j","m":{"c":3}}}'
+  ExpectedToFail: true

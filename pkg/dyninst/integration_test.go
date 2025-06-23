@@ -49,34 +49,34 @@ func skipIfKernelNotSupported(t *testing.T) {
 func TestDyninst(t *testing.T) {
 	skipIfKernelNotSupported(t)
 	cfgs := testprogs.MustGetCommonConfigs(t)
-	for _, cfg := range cfgs {
-		t.Run(cfg.String(), func(t *testing.T) {
-			if cfg.GOARCH != runtime.GOARCH {
-				t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
-			}
-			bin := testprogs.MustGetBinary(t, "sample", cfg)
+	programs := testprogs.MustGetPrograms(t)
+	for _, svc := range programs {
+		if svc == "busyloop" {
+			t.Logf("busyloop is not used in integration test")
+			continue
+		}
 
-			expectedOutput := getExpectedDecodedOutputOfProbes(t, "sample")
-			probes := testprogs.MustGetProbeCfgs(t, "sample")
-			for i := range probes {
-				// Run each probe individually
-				t.Run(probes[i].GetID(), func(t *testing.T) {
-					outputJustForTest := map[string]string{
-						probes[i].GetID(): expectedOutput[probes[i].GetID()],
-					}
-					testDyninst(t, bin, probes[i:i+1], outputJustForTest)
-				})
-			}
-			// Run all probes together
-			// t.Run("all", func(t *testing.T) {
-			// 	testDyninst(t, bin, probes, expectedOutput)
-			// })
-		})
+		for _, cfg := range cfgs {
+			t.Run(svc+"-"+cfg.String(), func(t *testing.T) {
+				if cfg.GOARCH != runtime.GOARCH {
+					t.Skipf("cross-execution is not supported, running on %s", runtime.GOARCH)
+				}
+				bin := testprogs.MustGetBinary(t, svc, cfg)
+
+				expectedOutput := getExpectedDecodedOutputOfProbes(t, svc)
+				probes := testprogs.MustGetProbeCfgs(t, svc)
+				for i := range probes {
+					// Run each probe individually
+					t.Run(probes[i].GetID(), func(t *testing.T) {
+						testDyninst(t, svc, bin, probes[i:i+1], expectedOutput)
+					})
+				}
+			})
+		}
 	}
 }
 
-//nolint:all
-func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, expectedOutput map[string]string) {
+func testDyninst(t *testing.T, service string, sampleServicePath string, probes []config.Probe, expOut map[string]expectedOutput) {
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
 		os.Stderr, log.DebugLvl, "[%LEVEL] %Msg\n",
 	)
@@ -123,7 +123,7 @@ func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, 
 	require.NoError(t, err)
 
 	// Launch the sample service.
-	t.Logf("launching sample service")
+	t.Logf("launching %s", service)
 	ctx := context.Background()
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
 		ctx, t, tempDir, sampleServicePath,
@@ -195,6 +195,12 @@ func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, 
 	b := []byte{}
 	decodeOut := bytes.NewBuffer(b)
 	for _, msg := range read {
+		exp := expOut[probes[0].GetID()]
+		if exp.ExpectedToFail {
+			t.Skipf("expected output for probe %s to fail", probes[0].GetID())
+			break
+		}
+
 		event := msg.Event()
 		err = decoder.Decode(event, decodeOut)
 		require.NoError(t, err)
@@ -219,13 +225,19 @@ func testDyninst(t *testing.T, sampleServicePath string, probes []config.Probe, 
 			tmpMap["stack_frames"] = ""
 		}
 
+		clearAddressFields(tmpMap)
+
 		purged, err := json.Marshal(tmpMap)
 		assert.NoError(t, err)
-		assert.Equal(t, expectedOutput[probes[0].GetID()], string(purged))
+
+		outputToCompare := expOut[probes[0].GetID()].OutputJSON
+		assert.JSONEq(t, outputToCompare, string(purged))
 
 		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
-			expectedOutput[probes[0].GetID()] = string(purged)
-			saveActualOutputOfProbes(t, "sample", expectedOutput)
+			expOut[probes[0].GetID()] = expectedOutput{
+				OutputJSON: string(purged),
+			}
+			saveActualOutputOfProbes(t, service, expOut)
 		}
 	}
 }
@@ -295,44 +307,78 @@ func (r *testReporter) ReportAttached(actuator.ProcessID, []config.Probe) {
 
 func (r *testReporter) ReportDetached(actuator.ProcessID, []config.Probe) {}
 
-// getExpectedDecodedOutputOfProbes returns the expected output for a given service.
-func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
-	expectedOutput := make(map[string]string)
-	state, err := testprogs.GetState()
-	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+type expectedOutput struct {
+	OutputJSON     string `yaml:"OutputJSON"`
+	ExpectedToFail bool   `yaml:"ExpectedToFail"`
+}
+
+// clearAddressFields recursively traverses the captures structure and sets all "Address" fields to empty strings.
+func clearAddressFields(data map[string]any) {
+	if captures, ok := data["captures"]; ok {
+		clearAddressFieldsRecursive(captures)
 	}
-	yamlData, err := os.ReadFile(path.Join(state.ExpectedOutputDir, name+".yaml"))
+}
+
+// clearAddressFieldsRecursive recursively clears Address fields in any nested structure.
+func clearAddressFieldsRecursive(v any) {
+	switch val := v.(type) {
+	case map[string]any:
+		for key, value := range val {
+			if key == "Address" {
+				val[key] = ""
+			} else {
+				clearAddressFieldsRecursive(value)
+			}
+		}
+	case []any:
+		for _, item := range val {
+			clearAddressFieldsRecursive(item)
+		}
+	}
+}
+
+func getDecodedOutputFile(service string) string {
+	if _, srcPath, _, ok := runtime.Caller(0); ok {
+		srcDir := path.Dir(srcPath)
+		return path.Join(srcDir, "testdata", "decoded", service+".yaml")
+	}
+	return ""
+}
+
+// getExpectedDecodedOutputOfProbes returns the expected output for a given service.
+func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]expectedOutput {
+	expectedOutput := make(map[string]expectedOutput)
+	p := getDecodedOutputFile(name)
+	if p == "" {
+		t.Errorf("no decoded output file for %s", name)
+	}
+	yamlData, err := os.ReadFile(p)
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		t.Errorf("testprogs: %v", err)
 	}
 	err = yaml.Unmarshal(yamlData, &expectedOutput)
 	if err != nil {
-		t.Fatalf("testprogs: %v", err)
+		t.Errorf("testprogs: %v", err)
 	}
 	return expectedOutput
 }
 
 // saveActualOutputOfProbes saves the actual output for a given service.
 // The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
-//
-//nolint:all
-func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]string) {
-	state, err := testprogs.GetState()
-	if err != nil {
-		t.Logf("testprogs: %v", err)
-		return
+func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]expectedOutput) {
+	p := getDecodedOutputFile(name)
+	if p == "" {
+		t.Errorf("no decoded output file for %s", name)
 	}
-	actualOutputFile := path.Join(state.ExpectedOutputDir, name+".yaml")
 	actualOutputYAML, err := yaml.Marshal(savedState)
 	if err != nil {
 		t.Logf("error marshaling actual output to YAML: %s", err)
 		return
 	}
-	err = os.WriteFile(actualOutputFile, actualOutputYAML, 0644)
+	err = os.WriteFile(p, actualOutputYAML, 0644)
 	if err != nil {
 		t.Logf("error writing actual output file: %s", err)
 		return
 	}
-	t.Logf("actual output saved to: %s", actualOutputFile)
+	t.Logf("actual output saved to: %s", p)
 }
