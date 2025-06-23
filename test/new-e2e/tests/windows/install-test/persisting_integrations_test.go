@@ -473,7 +473,9 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	s.Require().NoError(err, "should install pip package")
 
 	// uninstall agent
-	s.uninstallAgent()
+	s.Require().True(
+		s.uninstallAgent(),
+	)
 
 	// upgrade to test agent
 	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
