@@ -10,6 +10,7 @@ package file
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,9 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
-
-	//nolint:revive // TODO(AML) Fix revive linter
-	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
 
 type LauncherTestSuite struct {
@@ -257,6 +255,7 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		assert.Nil(t, err)
 		_, err = file.WriteString("world\n")
 		assert.Nil(t, err)
+		file.Close()
 
 		// test scan from beginning
 		launcher.scan()
@@ -268,11 +267,117 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 	}
 }
 
+func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	// Temporarily set the global config for this test
+	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	fmt.Println(mockConfig.Get("logs_config.fingerprint_strategy"))
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	testDir := t.TempDir()
+
+	// create launcher
+	path := fmt.Sprintf("%s/*.log", testDir)
+	openFilesLimit := 2
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
+	launcher.activeSources = append(launcher.activeSources, source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	defer status.Clear()
+
+	// create empty file
+	_, err := os.Create(fmt.Sprintf("%s/test.log", testDir))
+	assert.Nil(t, err)
+
+	launcher.scan()
+	assert.Equal(t, 0, launcher.tailers.Count())
+}
+
+func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	// Temporarily set the global config for this test
+	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_max_bytes", 2048)
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	testDir := t.TempDir()
+
+	// create launcher
+	path := fmt.Sprintf("%s/*.log", testDir)
+	openFilesLimit := 2
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
+	launcher.activeSources = append(launcher.activeSources, source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	defer status.Clear()
+
+	// create file
+	filePath := fmt.Sprintf("%s/test.log", testDir)
+	file, err := os.Create(filePath)
+	assert.Nil(t, err)
+
+	// add content
+	_, err = file.WriteString("hello\n")
+	assert.Nil(t, err)
+	file.Close()
+
+	// test scan from beginning
+	launcher.scan()
+	assert.Equal(t, 1, launcher.tailers.Count())
+}
+
+func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_max_bytes", 2048)
+	// Temporarily set the global config for this test
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	testDir := t.TempDir()
+
+	// create launcher
+	path := fmt.Sprintf("%s/*.log", testDir)
+	openFilesLimit := 2
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger)
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
+	launcher.activeSources = append(launcher.activeSources, source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	defer status.Clear()
+
+	// create file
+	filePath := fmt.Sprintf("%s/test.log", testDir)
+	file, err := os.Create(filePath)
+	assert.Nil(t, err)
+
+	// add content
+	longLine := strings.Repeat("a", 3000)
+	_, err = file.WriteString(longLine + "\n")
+	assert.Nil(t, err)
+	file.Close()
+
+	// test scan from beginning
+	launcher.scan()
+	assert.Equal(t, 1, launcher.tailers.Count())
+}
+
 func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	testDir := t.TempDir()
 	path := fmt.Sprintf("%s/container.log", testDir)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
 	// create launcher
 	openFilesLimit := 3
 	sleepDuration := 20 * time.Millisecond
@@ -527,7 +632,7 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 		launcher := &Launcher{
 			tailingLimit:           openFilesLimit,
 			fileProvider:           fileprovider.NewFileProvider(openFilesLimit, fileprovider.WildcardUseFileModTime),
-			tailers:                tailers.NewTailerContainer[*tailer.Tailer](),
+			tailers:                tailers.NewTailerContainer[*filetailer.Tailer](),
 			tailerSleepDuration:    sleepDuration,
 			stop:                   make(chan struct{}),
 			validatePodContainerID: false,

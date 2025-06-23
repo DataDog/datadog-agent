@@ -229,7 +229,7 @@ func (s *Launcher) scan() {
 		isTailed := s.tailers.Contains(scanKey)
 		if !isTailed && tailersLen < s.tailingLimit {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			checkSumEnabled := pkgconfigsetup.Datadog().GetString("fingerprint_strategy")
+			checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 			if checkSumEnabled == "checksum" {
 				maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_max_bytes")
 				f, err := os.Open(file.Path)
@@ -269,8 +269,6 @@ func (s *Launcher) scan() {
 			}
 		}
 	}
-	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
-
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := procfilestats.GetProcessFileStats()
 	if err == nil {
