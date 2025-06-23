@@ -197,6 +197,8 @@ const uint64_t stack_machine_code_len = 559;
 const uint32_t stack_machine_code_max_op = 13;
 const uint32_t chase_pointers_entrypoint = 0x1;
 
+const uint32_t prog_id = 1;
+
 const probe_params_t probe_params[] = {
 	{.throttler_idx = 0, .stack_machine_pc = 0x19, .pointer_chasing_limit = 4294967295, .frameless = false},
 	{.throttler_idx = 1, .stack_machine_pc = 0x50, .pointer_chasing_limit = 4294967295, .frameless = false},
