@@ -24,6 +24,7 @@ import (
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
+// CheckContext holds the configuration and data for a check instance run
 type CheckContext struct {
 	CheckName    string
 	OSDescriptor e2eos.Descriptor
@@ -35,6 +36,7 @@ type CheckContext struct {
 // TODO:
 // * format config yaml from struct
 
+// EqualMetrics is a comparison function that compares struct fields between two metrics
 func EqualMetrics(a, b check.Metric) bool {
 	return a.Host == b.Host &&
 		a.Interval == b.Interval &&
@@ -43,6 +45,7 @@ func EqualMetrics(a, b check.Metric) bool {
 		a.Type == b.Type && gocmp.Equal(a.Tags, b.Tags, gocmpopts.SortSlices(cmp.Less[string]))
 }
 
+// CompareValuesWithRelativeMargin is a comparison functions that compares values to be within a relative range of each other
 func CompareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
 	x := math.Round(a*p) / p
 	y := math.Round(b*p) / p
@@ -50,6 +53,7 @@ func CompareValuesWithRelativeMargin(a, b, p, fraction float64) bool {
 	return math.Abs(x-y) <= relMarg
 }
 
+// MetricPayloadCompare is a comparison function that compares metric payloads
 func MetricPayloadCompare(a, b check.Metric) int {
 	return cmp.Or(
 		cmp.Compare(a.Host, b.Host),
@@ -64,6 +68,7 @@ func MetricPayloadCompare(a, b check.Metric) int {
 	)
 }
 
+// RunCheck is the common utility function for running a CheckContext on a host environment and returns the metrics for comparison
 func RunCheck(t *testing.T, env *environments.Host, ctxCheck CheckContext) []check.Metric {
 	t.Helper()
 
