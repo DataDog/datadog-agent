@@ -274,6 +274,9 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	// Convert some of the tracer payloads to IDX format to test intake implementation
 	numToConvert := min(w.minConvertPayloads, len(payloads))
 	idxPayloads := make([]*idx.TracerPayload, numToConvert)
+
+	// converted trace ids
+	convertedTraceIds := make([]string, numToConvert)
 	for i := 0; i < numToConvert; i++ {
 		idxPayloads[i] = convertToIdx(payloads[i])
 	}
@@ -281,7 +284,7 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 
 	// Write converted payloads to local file for testing if we have conversions and minConvertPayloads > 0
 	if w.minConvertPayloads > 0 && numToConvert > 0 {
-		w.writePayloadsToFile(idxPayloads)
+		w.writePayloadsToFile(idxPayloads, payloads)
 	}
 
 	log.Debugf("Serializing %d tracer payloads.", len(payloads))
@@ -295,6 +298,11 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		TracerPayloads:     payloads,
 		IdxTracerPayloads:  idxPayloads,
 	}
+
+	if w.minConvertPayloads > 0 && numToConvert > 0 {
+		w.writeAgentPayloadToFile(p)
+	}
+
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
 	w.serialize(&p)
@@ -347,6 +355,40 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 	sendPayloads(w.senders, p, w.syncMode)
 }
 
+func (w *TraceWriter) writeAgentPayloadToFile(p *pb.AgentPayload) {
+	jsonData, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		log.Errorf("Error marshaling IDX payloads to JSON: %v", err)
+		return
+	}
+
+	// Generate filename with timestamp to avoid conflicts
+	filename := fmt.Sprintf("agent_payload_%d.json", time.Now().Unix())
+
+	// Use configurable path if provided, otherwise use current directory
+	var fullPath string
+	if w.testPayloadPath != "" {
+		fullPath = filepath.Join(w.testPayloadPath, filename)
+	} else {
+		fullPath = filename
+	}
+
+	file, err := os.Create(fullPath)
+	if err != nil {
+		log.Errorf("Error creating payload test file %s: %v", fullPath, err)
+		return
+	}
+	defer file.Close()
+
+	_, err = file.Write(jsonData)
+	if err != nil {
+		log.Errorf("Error writing to payload test file %s: %v", fullPath, err)
+		return
+	}
+
+	log.Infof("Successfully wrote agent payload to %s for testing", fullPath)
+}
+
 // writePayloadsToFile writes the converted IDX payloads to a local JSON file for testing
 func (w *TraceWriter) writePayloadsToFile(idxPayloads []*idx.TracerPayload) {
 	if len(idxPayloads) == 0 {
@@ -373,7 +415,7 @@ func (w *TraceWriter) writePayloadsToFile(idxPayloads []*idx.TracerPayload) {
 	}
 
 	// Generate filename with timestamp to avoid conflicts
-	filename := fmt.Sprintf("trace_payloads_%d.json", time.Now().Unix())
+	filename := fmt.Sprintf("trace_payloads_v1_%d.json", time.Now().Unix())
 
 	// Use configurable path if provided, otherwise use current directory
 	var fullPath string
