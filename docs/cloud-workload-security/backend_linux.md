@@ -1766,8 +1766,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "socket_protocol",
                 "socket_family",
                 "level",
-                "optname",
-                "filter_len"
+                "optname"
             ],
             "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
         },
@@ -4793,8 +4792,7 @@ Workload Protection events for Linux systems have the following JSON schema:
         "socket_protocol",
         "socket_family",
         "level",
-        "optname",
-        "filter_len"
+        "optname"
     ],
     "description": "SetSockOptEventSerializer defines a setsockopt event serializer"
 }

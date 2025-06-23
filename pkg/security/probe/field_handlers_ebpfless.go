@@ -547,13 +547,13 @@ func (fh *EBPFLessFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model
 }
 
 // ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
-func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, _ *model.SetSockOptEvent) string {
 	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
 	return ""
 }
 
 // ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
-func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, _ *model.SetSockOptEvent) string {
 	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
 	return ""
 }

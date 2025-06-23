@@ -1177,7 +1177,7 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		out.RawString(prefix)
 		out.Uint32(uint32(in.OptName))
 	}
-	{
+	if in.FilterLen != 0 {
 		const prefix string = ",\"filter_len\":"
 		out.RawString(prefix)
 		out.Uint16(uint16(in.FilterLen))
