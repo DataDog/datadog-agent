@@ -7,14 +7,18 @@
 package diskv2
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/shirou/gopsutil/v4/common"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
+	"github.com/spf13/afero"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -86,6 +90,8 @@ type diskInstanceConfig struct {
 	DeviceTagRe          map[string]string `yaml:"device_tag_re"`
 	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
 	Timeout              uint16            `yaml:"timeout"`
+	ProcMountInfoPath    string            `yaml:"proc_mountinfo_path"`
+	ResolveRootDevice    bool              `yaml:"resolve_root_device"`
 }
 
 func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
@@ -108,13 +114,23 @@ func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 	return re, err
 }
 
+// StatT type
+type StatT struct {
+	Major uint32
+	Minor uint32
+}
+
+type statFunc func(string) (StatT, error)
+
 // Check represents the Disk check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	clock          clock.Clock
-	diskPartitions func(bool) ([]gopsutil_disk.PartitionStat, error)
-	diskUsage      func(string) (*gopsutil_disk.UsageStat, error)
-	diskIOCounters func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
+	clock                     clock.Clock
+	diskPartitionsWithContext func(context.Context, bool) ([]gopsutil_disk.PartitionStat, error)
+	diskUsage                 func(string) (*gopsutil_disk.UsageStat, error)
+	diskIOCounters            func(...string) (map[string]gopsutil_disk.IOCountersStat, error)
+	fs                        afero.Fs
+	statFn                    statFunc
 
 	initConfig          diskInitConfig
 	instanceConfig      diskInstanceConfig
@@ -279,9 +295,29 @@ func processRegExpSlices(slices [][]string, ignoreCase bool) ([]regexp.Regexp, e
 	return regExpList, nil
 }
 
+func processRegExpSlicesWholeWord(slices [][]string, ignoreCase bool) ([]regexp.Regexp, error) {
+	regExpList := []regexp.Regexp{}
+	for _, slice := range slices {
+		for _, val := range slice {
+			expr := fmt.Sprintf("^%s$", val)
+			if re, err := compileRegExp(expr, ignoreCase); err == nil {
+				regExpList = append(regExpList, *re)
+			} else {
+				return regExpList, err
+			}
+		}
+	}
+	return regExpList, nil
+}
+
 func (c *Check) configureExcludeDevice() error {
 	c.excludedDevices = []regexp.Regexp{}
-	if regExpList, err := processRegExpSlices([][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist, c.instanceConfig.ExcludedDisks}, defaultIgnoreCase()); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.initConfig.DeviceGlobalExclude, c.initConfig.DeviceGlobalBlacklist, c.instanceConfig.DeviceExclude, c.instanceConfig.DeviceBlacklist}, defaultIgnoreCase()); err == nil {
+		c.excludedDevices = append(c.excludedDevices, regExpList...)
+	} else {
+		return err
+	}
+	if regExpList, err := processRegExpSlicesWholeWord([][]string{c.instanceConfig.ExcludedDisks}, true); err == nil {
 		c.excludedDevices = append(c.excludedDevices, regExpList...)
 	} else {
 		return err
@@ -323,7 +359,12 @@ func (c *Check) configureExcludeFileSystem() error {
 			}
 		}
 	}
-	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist, c.instanceConfig.ExcludedFileSystems}, true); err == nil {
+	if regExpList, err := processRegExpSlices([][]string{c.instanceConfig.FileSystemExclude, c.instanceConfig.FileSystemBlacklist}, true); err == nil {
+		c.excludedFilesystems = append(c.excludedFilesystems, regExpList...)
+	} else {
+		return err
+	}
+	if regExpList, err := processRegExpSlicesWholeWord([][]string{c.instanceConfig.ExcludedFileSystems}, true); err == nil {
 		c.excludedFilesystems = append(c.excludedFilesystems, regExpList...)
 	} else {
 		return err
@@ -385,14 +426,30 @@ func (c *Check) configureIncludeMountPoint() error {
 }
 
 func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
-	partitions, err := c.diskPartitions(c.instanceConfig.IncludeAllDevices)
+	ctx := context.Background()
+	if c.instanceConfig.ProcMountInfoPath != "" {
+		ctx = context.WithValue(ctx, common.EnvKey, common.EnvMap{common.HostProcMountinfo: c.instanceConfig.ProcMountInfoPath})
+	}
+	partitions, err := c.diskPartitionsWithContext(ctx, c.instanceConfig.IncludeAllDevices)
 	if err != nil {
 		log.Warnf("Unable to get disk partitions: %s", err)
 		return err
 	}
-	log.Debugf("partitions %s", partitions)
+	rootDevices := make(map[string]string)
+	if runtime.GOOS == "linux" && !c.instanceConfig.ResolveRootDevice {
+		rootDevices, err = c.loadRootDevices()
+		if err != nil {
+			log.Warnf("Error reading raw devices: %s", err)
+			rootDevices = map[string]string{}
+		}
+	}
+	log.Debugf("rootDevices '%s'", rootDevices)
 	for _, partition := range partitions {
-		log.Debugf("Checking partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
+		if rootDev, ok := rootDevices[partition.Device]; ok {
+			log.Debugf("Found [device: %s] in rootDevices as [rawDev: %s]", partition.Device, rootDev)
+			partition.Device = rootDev
+		}
+		log.Debugf("Checking partition: [device: %s] [mountpoint: %s] [fstype: %s] [opts: %s]", partition.Device, partition.Mountpoint, partition.Fstype, partition.Opts)
 		if c.excludePartition(partition) {
 			log.Debugf("Excluding partition: [device: %s] [mountpoint: %s] [fstype: %s]", partition.Device, partition.Mountpoint, partition.Fstype)
 			continue
@@ -646,11 +703,13 @@ func Factory() option.Option[func() check.Check] {
 
 func newCheck() check.Check {
 	return &Check{
-		CheckBase:      core.NewCheckBase(CheckName),
-		clock:          clock.New(),
-		diskPartitions: gopsutil_disk.Partitions,
-		diskUsage:      gopsutil_disk.Usage,
-		diskIOCounters: gopsutil_disk.IOCounters,
+		CheckBase:                 core.NewCheckBase(CheckName),
+		clock:                     clock.New(),
+		diskPartitionsWithContext: gopsutil_disk.PartitionsWithContext,
+		diskUsage:                 gopsutil_disk.Usage,
+		diskIOCounters:            gopsutil_disk.IOCounters,
+		fs:                        afero.NewOsFs(),
+		statFn:                    defaultStatFn,
 		initConfig: diskInitConfig{
 			DeviceGlobalExclude:       []string{},
 			DeviceGlobalBlacklist:     []string{},
@@ -689,6 +748,10 @@ func newCheck() check.Check {
 			DeviceTagRe:          make(map[string]string),
 			LowercaseDeviceTag:   false,
 			Timeout:              5,
+			// Match psutil exactly setting default value (https://github.com/giampaolo/psutil/blob/3d21a43a47ab6f3c4a08d235d2a9a55d4adae9b1/psutil/_pslinux.py#L1277)
+			ProcMountInfoPath: "/proc/self/mounts",
+			// Match psutil reporting '/dev/root' from /proc/self/mounts by default
+			ResolveRootDevice: false,
 		},
 		includedDevices:     []regexp.Regexp{},
 		excludedDevices:     []regexp.Regexp{},

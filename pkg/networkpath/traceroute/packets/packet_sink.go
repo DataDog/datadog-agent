@@ -9,6 +9,8 @@ import (
 	"net/netip"
 )
 
+//go:generate mockgen -source=$GOFILE -package=$GOPACKAGE -destination=packet_sink_mockgen.go
+
 // Sink is an interface which sends IP packets
 type Sink interface {
 	// WriteTo writes the given packet (buffer starts at the IP layer) to addrPort.

@@ -26,6 +26,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("bind"),
 		eval.EventType("bpf"),
 		eval.EventType("capset"),
+		eval.EventType("cgroup_write"),
 		eval.EventType("chdir"),
 		eval.EventType("chmod"),
 		eval.EventType("chown"),
@@ -50,6 +51,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("rmdir"),
 		eval.EventType("selinux"),
 		eval.EventType("setgid"),
+		eval.EventType("setrlimit"),
 		eval.EventType("setsockopt"),
 		eval.EventType("setuid"),
 		eval.EventType("setxattr"),
@@ -400,6 +402,241 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.CgroupWrite.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.CgroupWrite.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.CgroupWrite.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.CgroupWrite.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.CgroupWrite.File.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.CgroupWrite.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.CgroupWrite.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "chdir.file.change_time":
@@ -1890,6 +2127,94 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.abi":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataABI(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.architecture":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataArchitecture(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.compression":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataCompression(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.is_executable":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataIsExecutable(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.is_garble_obfuscated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataIsGarbleObfuscated(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.is_upx_packed":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataIsUPXPacked(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.size":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveFileMetadataSize(ev, &ev.Exec.FileMetadata))
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.metadata.type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileMetadataType(ev, &ev.Exec.FileMetadata)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exec.file.mode":
@@ -16550,6 +16875,4687 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.resource":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Resource
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.rlim_cur":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.RlimCur)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.rlim_max":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.RlimMax)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.args":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessArgs(ev, &element.ProcessContext.Process)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveProcessArgs(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: 500 * eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.args_flags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessArgsFlags(ev, &element.ProcessContext.Process)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.args_options":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessArgsOptions(ev, &element.ProcessContext.Process)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.args_truncated":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &element.ProcessContext.Process)
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) bool {
+					return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &current.ProcessContext.Process)
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.argv":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessArgv(ev, &element.ProcessContext.Process)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveProcessArgv(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: 500 * eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.argv0":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessArgv0(ev, &element.ProcessContext.Process)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveProcessArgv0(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.auid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.Credentials.AUID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.Credentials.AUID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.cap_effective":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.Credentials.CapEffective)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.Credentials.CapEffective)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.cap_permitted":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.Credentials.CapPermitted)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.Credentials.CapPermitted)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.cgroup.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CGroup.CGroupFile.Inode)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CGroup.CGroupFile.Inode)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.cgroup.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CGroup.CGroupFile.MountID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CGroup.CGroupFile.MountID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.cgroup.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveCGroupID(ev, &element.ProcessContext.Process.CGroup)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveCGroupID(ev, &current.ProcessContext.Process.CGroup)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.cgroup.manager":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveCGroupManager(ev, &element.ProcessContext.Process.CGroup)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveCGroupManager(ev, &current.ProcessContext.Process.CGroup)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.cgroup.version":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveCGroupVersion(ev, &element.ProcessContext.Process.CGroup))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveCGroupVersion(ev, &current.ProcessContext.Process.CGroup))
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.comm":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.Comm
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.Comm
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.container.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveProcessContainerID(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.created_at":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &element.ProcessContext.Process))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &current.ProcessContext.Process))
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.egid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.Credentials.EGID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.Credentials.EGID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.egroup":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.Credentials.EGroup
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.Credentials.EGroup
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveProcessEnvp(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.envs":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveProcessEnvs(ev, &current.ProcessContext.Process)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: 100 * eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.envs_truncated":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &element.ProcessContext.Process)
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) bool {
+					return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &current.ProcessContext.Process)
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.euid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.Credentials.EUID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.Credentials.EUID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.euser":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.Credentials.EUser
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.Credentials.EUser
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.change_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileEvent.FileFields.CTime)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileEvent.FileFields.CTime)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.filesystem":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileFilesystem(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileFilesystem(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.gid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileEvent.FileFields.GID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileEvent.FileFields.GID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.group":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileFieldsGroup(ev, &element.ProcessContext.Process.FileEvent.FileFields)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &current.ProcessContext.Process.FileEvent.FileFields)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.FileEvent)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return nil
+					}
+					return ev.FieldHandlers.ResolveHashesFromEvent(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: 999 * eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.in_upper_layer":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &element.ProcessContext.Process.FileEvent.FileFields)
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &current.ProcessContext.Process.FileEvent.FileFields)
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.mode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileEvent.FileFields.Mode)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileEvent.FileFields.Mode)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.modification_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileEvent.FileFields.MTime)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileEvent.FileFields.MTime)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.name":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileBasename(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.name.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := len(ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return len(ev.FieldHandlers.ResolveFileBasename(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.name":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageName(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.source_version":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceVersion(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.version":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageVersion(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageVersion(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.path":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFilePath(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.path.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return len(ev.FieldHandlers.ResolveFilePath(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.rights":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolveRights(ev, &element.ProcessContext.Process.FileEvent.FileFields))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolveRights(ev, &current.ProcessContext.Process.FileEvent.FileFields))
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.uid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileEvent.FileFields.UID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileEvent.FileFields.UID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.user":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileFieldsUser(ev, &element.ProcessContext.Process.FileEvent.FileFields)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileFieldsUser(ev, &current.ProcessContext.Process.FileEvent.FileFields)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.fsgid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.Credentials.FSGID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.Credentials.FSGID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.fsgroup":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.Credentials.FSGroup
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.Credentials.FSGroup
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.fsuid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.Credentials.FSUID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.Credentials.FSUID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.fsuser":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.Credentials.FSUser
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.Credentials.FSUser
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.gid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.Credentials.GID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.Credentials.GID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.group":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.Credentials.Group
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.Credentials.Group
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.change_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.filesystem":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileFilesystem(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileFilesystem(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.gid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.group":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileFieldsGroup(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveHashesFromEvent(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return nil
+					}
+					return ev.FieldHandlers.ResolveHashesFromEvent(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: 999 * eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.in_upper_layer":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []bool{false}
+					}
+					result := ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return false
+					}
+					return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.inode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.mode":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.modification_time":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.mount_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.name":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileBasename(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.name.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := len(ev.FieldHandlers.ResolveFileBasename(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return len(ev.FieldHandlers.ResolveFileBasename(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.name":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageName(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_version":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceVersion(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.version":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageVersion(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageVersion(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.path":
+		return &eval.StringArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFilePath(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.path.length":
+		return &eval.IntArrayEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := len(ev.FieldHandlers.ResolveFilePath(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return len(ev.FieldHandlers.ResolveFilePath(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.rights":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolveRights(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolveRights(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields))
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.uid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.user":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolveFileFieldsUser(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolveFileFieldsUser(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.is_exec":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.IsExec
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					return current.ProcessContext.Process.IsExec
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.is_kworker":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.PIDContext.IsKworker
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					return current.ProcessContext.Process.PIDContext.IsKworker
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.is_thread":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveProcessIsThread(ev, &element.ProcessContext.Process)
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) bool {
+					return ev.FieldHandlers.ResolveProcessIsThread(ev, &current.ProcessContext.Process)
+				})
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.length":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				iterator := &ProcessAncestorsIterator{}
+				return iterator.Len(ctx)
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.pid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.Pid)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.Pid)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.ppid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PPid)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PPid)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.tid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.Tid)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.Tid)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.tty_name":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.TTYName
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.TTYName
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.uid":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.Credentials.UID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.Credentials.UID)
+				})
+				ctx.IntCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.Credentials.User
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.Credentials.User
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveK8SGroups(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.k8s_uid":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveK8SUID(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.k8s_username":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveK8SUsername(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.args_flags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.args_options":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.argv":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.argv0":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.Credentials.CapEffective)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.Credentials.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.CGroup.CGroupFile.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Setrlimit.Target.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.cgroup.manager":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Setrlimit.Target.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.cgroup.version":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Setrlimit.Target.Process.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.comm":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.Comm
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.Setrlimit.Target.Process))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.Credentials.EGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.Credentials.EGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.envs":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.Credentials.EUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Setrlimit.Target.Process.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Setrlimit.Target.Process.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.FileEvent.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Setrlimit.Target.Process.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Setrlimit.Target.Process.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.Setrlimit.Target.Process.FileEvent.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Setrlimit.Target.Process.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.fsgid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.Credentials.FSGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.Credentials.FSGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.Credentials.FSUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.Credentials.FSUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.Credentials.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.is_kworker":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.PIDContext.IsKworker
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.is_thread":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.Setrlimit.Target.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.args":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.args_flags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.args_options":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.argv":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.argv0":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.auid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.Credentials.AUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.cap_effective":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.Credentials.CapEffective)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.cap_permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.Credentials.CapPermitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.cgroup.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.CGroup.CGroupFile.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.cgroup.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.CGroup.CGroupFile.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.cgroup.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveCGroupID(ev, &ev.Setrlimit.Target.Parent.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.cgroup.manager":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveCGroupManager(ev, &ev.Setrlimit.Target.Parent.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.cgroup.version":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolveCGroupVersion(ev, &ev.Setrlimit.Target.Parent.CGroup)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.comm":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.Comm
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.container.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Setrlimit.Target.Parent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.egid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.Credentials.EGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.egroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.Credentials.EGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.envp":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.envs":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: 100 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.euid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.Credentials.EUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.euser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Setrlimit.Target.Parent.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return []string{}
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Setrlimit.Target.Parent.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.FileEvent.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Setrlimit.Target.Parent.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Setrlimit.Target.Parent.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.Setrlimit.Target.Parent.FileEvent.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Setrlimit.Target.Parent.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.fsgid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.Credentials.FSGID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.fsgroup":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.Credentials.FSGroup
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.fsuid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.Credentials.FSUID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.fsuser":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.Credentials.FSUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.Credentials.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.Credentials.Group
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return []string{}
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.is_exec":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				return ev.Setrlimit.Target.Parent.IsExec
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.is_kworker":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				return ev.Setrlimit.Target.Parent.PIDContext.IsKworker
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.is_thread":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Setrlimit.Target.Parent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.PIDContext.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.ppid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.PIDContext.Tid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.tty_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.TTYName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.Credentials.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.Credentials.User
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.pid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.PIDContext.Pid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ppid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.PPid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.tid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.PIDContext.Tid)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.tty_name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.TTYName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.Credentials.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.Credentials.User
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setsockopt.level":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -22501,6 +27507,27 @@ func (ev *Event) GetFields() []eval.Field {
 		"cgroup.id",
 		"cgroup.manager",
 		"cgroup.version",
+		"cgroup_write.file.change_time",
+		"cgroup_write.file.filesystem",
+		"cgroup_write.file.gid",
+		"cgroup_write.file.group",
+		"cgroup_write.file.hashes",
+		"cgroup_write.file.in_upper_layer",
+		"cgroup_write.file.inode",
+		"cgroup_write.file.mode",
+		"cgroup_write.file.modification_time",
+		"cgroup_write.file.mount_id",
+		"cgroup_write.file.name",
+		"cgroup_write.file.name.length",
+		"cgroup_write.file.package.name",
+		"cgroup_write.file.package.source_version",
+		"cgroup_write.file.package.version",
+		"cgroup_write.file.path",
+		"cgroup_write.file.path.length",
+		"cgroup_write.file.rights",
+		"cgroup_write.file.uid",
+		"cgroup_write.file.user",
+		"cgroup_write.pid",
 		"chdir.file.change_time",
 		"chdir.file.filesystem",
 		"chdir.file.gid",
@@ -22633,6 +27660,14 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.file.hashes",
 		"exec.file.in_upper_layer",
 		"exec.file.inode",
+		"exec.file.metadata.abi",
+		"exec.file.metadata.architecture",
+		"exec.file.metadata.compression",
+		"exec.file.metadata.is_executable",
+		"exec.file.metadata.is_garble_obfuscated",
+		"exec.file.metadata.is_upx_packed",
+		"exec.file.metadata.size",
+		"exec.file.metadata.type",
 		"exec.file.mode",
 		"exec.file.modification_time",
 		"exec.file.mount_id",
@@ -23576,6 +28611,257 @@ func (ev *Event) GetFields() []eval.Field {
 		"setgid.fsgroup",
 		"setgid.gid",
 		"setgid.group",
+		"setrlimit.resource",
+		"setrlimit.retval",
+		"setrlimit.rlim_cur",
+		"setrlimit.rlim_max",
+		"setrlimit.target.ancestors.args",
+		"setrlimit.target.ancestors.args_flags",
+		"setrlimit.target.ancestors.args_options",
+		"setrlimit.target.ancestors.args_truncated",
+		"setrlimit.target.ancestors.argv",
+		"setrlimit.target.ancestors.argv0",
+		"setrlimit.target.ancestors.auid",
+		"setrlimit.target.ancestors.cap_effective",
+		"setrlimit.target.ancestors.cap_permitted",
+		"setrlimit.target.ancestors.cgroup.file.inode",
+		"setrlimit.target.ancestors.cgroup.file.mount_id",
+		"setrlimit.target.ancestors.cgroup.id",
+		"setrlimit.target.ancestors.cgroup.manager",
+		"setrlimit.target.ancestors.cgroup.version",
+		"setrlimit.target.ancestors.comm",
+		"setrlimit.target.ancestors.container.id",
+		"setrlimit.target.ancestors.created_at",
+		"setrlimit.target.ancestors.egid",
+		"setrlimit.target.ancestors.egroup",
+		"setrlimit.target.ancestors.envp",
+		"setrlimit.target.ancestors.envs",
+		"setrlimit.target.ancestors.envs_truncated",
+		"setrlimit.target.ancestors.euid",
+		"setrlimit.target.ancestors.euser",
+		"setrlimit.target.ancestors.file.change_time",
+		"setrlimit.target.ancestors.file.filesystem",
+		"setrlimit.target.ancestors.file.gid",
+		"setrlimit.target.ancestors.file.group",
+		"setrlimit.target.ancestors.file.hashes",
+		"setrlimit.target.ancestors.file.in_upper_layer",
+		"setrlimit.target.ancestors.file.inode",
+		"setrlimit.target.ancestors.file.mode",
+		"setrlimit.target.ancestors.file.modification_time",
+		"setrlimit.target.ancestors.file.mount_id",
+		"setrlimit.target.ancestors.file.name",
+		"setrlimit.target.ancestors.file.name.length",
+		"setrlimit.target.ancestors.file.package.name",
+		"setrlimit.target.ancestors.file.package.source_version",
+		"setrlimit.target.ancestors.file.package.version",
+		"setrlimit.target.ancestors.file.path",
+		"setrlimit.target.ancestors.file.path.length",
+		"setrlimit.target.ancestors.file.rights",
+		"setrlimit.target.ancestors.file.uid",
+		"setrlimit.target.ancestors.file.user",
+		"setrlimit.target.ancestors.fsgid",
+		"setrlimit.target.ancestors.fsgroup",
+		"setrlimit.target.ancestors.fsuid",
+		"setrlimit.target.ancestors.fsuser",
+		"setrlimit.target.ancestors.gid",
+		"setrlimit.target.ancestors.group",
+		"setrlimit.target.ancestors.interpreter.file.change_time",
+		"setrlimit.target.ancestors.interpreter.file.filesystem",
+		"setrlimit.target.ancestors.interpreter.file.gid",
+		"setrlimit.target.ancestors.interpreter.file.group",
+		"setrlimit.target.ancestors.interpreter.file.hashes",
+		"setrlimit.target.ancestors.interpreter.file.in_upper_layer",
+		"setrlimit.target.ancestors.interpreter.file.inode",
+		"setrlimit.target.ancestors.interpreter.file.mode",
+		"setrlimit.target.ancestors.interpreter.file.modification_time",
+		"setrlimit.target.ancestors.interpreter.file.mount_id",
+		"setrlimit.target.ancestors.interpreter.file.name",
+		"setrlimit.target.ancestors.interpreter.file.name.length",
+		"setrlimit.target.ancestors.interpreter.file.package.name",
+		"setrlimit.target.ancestors.interpreter.file.package.source_version",
+		"setrlimit.target.ancestors.interpreter.file.package.version",
+		"setrlimit.target.ancestors.interpreter.file.path",
+		"setrlimit.target.ancestors.interpreter.file.path.length",
+		"setrlimit.target.ancestors.interpreter.file.rights",
+		"setrlimit.target.ancestors.interpreter.file.uid",
+		"setrlimit.target.ancestors.interpreter.file.user",
+		"setrlimit.target.ancestors.is_exec",
+		"setrlimit.target.ancestors.is_kworker",
+		"setrlimit.target.ancestors.is_thread",
+		"setrlimit.target.ancestors.length",
+		"setrlimit.target.ancestors.pid",
+		"setrlimit.target.ancestors.ppid",
+		"setrlimit.target.ancestors.tid",
+		"setrlimit.target.ancestors.tty_name",
+		"setrlimit.target.ancestors.uid",
+		"setrlimit.target.ancestors.user",
+		"setrlimit.target.ancestors.user_session.k8s_groups",
+		"setrlimit.target.ancestors.user_session.k8s_uid",
+		"setrlimit.target.ancestors.user_session.k8s_username",
+		"setrlimit.target.args",
+		"setrlimit.target.args_flags",
+		"setrlimit.target.args_options",
+		"setrlimit.target.args_truncated",
+		"setrlimit.target.argv",
+		"setrlimit.target.argv0",
+		"setrlimit.target.auid",
+		"setrlimit.target.cap_effective",
+		"setrlimit.target.cap_permitted",
+		"setrlimit.target.cgroup.file.inode",
+		"setrlimit.target.cgroup.file.mount_id",
+		"setrlimit.target.cgroup.id",
+		"setrlimit.target.cgroup.manager",
+		"setrlimit.target.cgroup.version",
+		"setrlimit.target.comm",
+		"setrlimit.target.container.id",
+		"setrlimit.target.created_at",
+		"setrlimit.target.egid",
+		"setrlimit.target.egroup",
+		"setrlimit.target.envp",
+		"setrlimit.target.envs",
+		"setrlimit.target.envs_truncated",
+		"setrlimit.target.euid",
+		"setrlimit.target.euser",
+		"setrlimit.target.file.change_time",
+		"setrlimit.target.file.filesystem",
+		"setrlimit.target.file.gid",
+		"setrlimit.target.file.group",
+		"setrlimit.target.file.hashes",
+		"setrlimit.target.file.in_upper_layer",
+		"setrlimit.target.file.inode",
+		"setrlimit.target.file.mode",
+		"setrlimit.target.file.modification_time",
+		"setrlimit.target.file.mount_id",
+		"setrlimit.target.file.name",
+		"setrlimit.target.file.name.length",
+		"setrlimit.target.file.package.name",
+		"setrlimit.target.file.package.source_version",
+		"setrlimit.target.file.package.version",
+		"setrlimit.target.file.path",
+		"setrlimit.target.file.path.length",
+		"setrlimit.target.file.rights",
+		"setrlimit.target.file.uid",
+		"setrlimit.target.file.user",
+		"setrlimit.target.fsgid",
+		"setrlimit.target.fsgroup",
+		"setrlimit.target.fsuid",
+		"setrlimit.target.fsuser",
+		"setrlimit.target.gid",
+		"setrlimit.target.group",
+		"setrlimit.target.interpreter.file.change_time",
+		"setrlimit.target.interpreter.file.filesystem",
+		"setrlimit.target.interpreter.file.gid",
+		"setrlimit.target.interpreter.file.group",
+		"setrlimit.target.interpreter.file.hashes",
+		"setrlimit.target.interpreter.file.in_upper_layer",
+		"setrlimit.target.interpreter.file.inode",
+		"setrlimit.target.interpreter.file.mode",
+		"setrlimit.target.interpreter.file.modification_time",
+		"setrlimit.target.interpreter.file.mount_id",
+		"setrlimit.target.interpreter.file.name",
+		"setrlimit.target.interpreter.file.name.length",
+		"setrlimit.target.interpreter.file.package.name",
+		"setrlimit.target.interpreter.file.package.source_version",
+		"setrlimit.target.interpreter.file.package.version",
+		"setrlimit.target.interpreter.file.path",
+		"setrlimit.target.interpreter.file.path.length",
+		"setrlimit.target.interpreter.file.rights",
+		"setrlimit.target.interpreter.file.uid",
+		"setrlimit.target.interpreter.file.user",
+		"setrlimit.target.is_exec",
+		"setrlimit.target.is_kworker",
+		"setrlimit.target.is_thread",
+		"setrlimit.target.parent.args",
+		"setrlimit.target.parent.args_flags",
+		"setrlimit.target.parent.args_options",
+		"setrlimit.target.parent.args_truncated",
+		"setrlimit.target.parent.argv",
+		"setrlimit.target.parent.argv0",
+		"setrlimit.target.parent.auid",
+		"setrlimit.target.parent.cap_effective",
+		"setrlimit.target.parent.cap_permitted",
+		"setrlimit.target.parent.cgroup.file.inode",
+		"setrlimit.target.parent.cgroup.file.mount_id",
+		"setrlimit.target.parent.cgroup.id",
+		"setrlimit.target.parent.cgroup.manager",
+		"setrlimit.target.parent.cgroup.version",
+		"setrlimit.target.parent.comm",
+		"setrlimit.target.parent.container.id",
+		"setrlimit.target.parent.created_at",
+		"setrlimit.target.parent.egid",
+		"setrlimit.target.parent.egroup",
+		"setrlimit.target.parent.envp",
+		"setrlimit.target.parent.envs",
+		"setrlimit.target.parent.envs_truncated",
+		"setrlimit.target.parent.euid",
+		"setrlimit.target.parent.euser",
+		"setrlimit.target.parent.file.change_time",
+		"setrlimit.target.parent.file.filesystem",
+		"setrlimit.target.parent.file.gid",
+		"setrlimit.target.parent.file.group",
+		"setrlimit.target.parent.file.hashes",
+		"setrlimit.target.parent.file.in_upper_layer",
+		"setrlimit.target.parent.file.inode",
+		"setrlimit.target.parent.file.mode",
+		"setrlimit.target.parent.file.modification_time",
+		"setrlimit.target.parent.file.mount_id",
+		"setrlimit.target.parent.file.name",
+		"setrlimit.target.parent.file.name.length",
+		"setrlimit.target.parent.file.package.name",
+		"setrlimit.target.parent.file.package.source_version",
+		"setrlimit.target.parent.file.package.version",
+		"setrlimit.target.parent.file.path",
+		"setrlimit.target.parent.file.path.length",
+		"setrlimit.target.parent.file.rights",
+		"setrlimit.target.parent.file.uid",
+		"setrlimit.target.parent.file.user",
+		"setrlimit.target.parent.fsgid",
+		"setrlimit.target.parent.fsgroup",
+		"setrlimit.target.parent.fsuid",
+		"setrlimit.target.parent.fsuser",
+		"setrlimit.target.parent.gid",
+		"setrlimit.target.parent.group",
+		"setrlimit.target.parent.interpreter.file.change_time",
+		"setrlimit.target.parent.interpreter.file.filesystem",
+		"setrlimit.target.parent.interpreter.file.gid",
+		"setrlimit.target.parent.interpreter.file.group",
+		"setrlimit.target.parent.interpreter.file.hashes",
+		"setrlimit.target.parent.interpreter.file.in_upper_layer",
+		"setrlimit.target.parent.interpreter.file.inode",
+		"setrlimit.target.parent.interpreter.file.mode",
+		"setrlimit.target.parent.interpreter.file.modification_time",
+		"setrlimit.target.parent.interpreter.file.mount_id",
+		"setrlimit.target.parent.interpreter.file.name",
+		"setrlimit.target.parent.interpreter.file.name.length",
+		"setrlimit.target.parent.interpreter.file.package.name",
+		"setrlimit.target.parent.interpreter.file.package.source_version",
+		"setrlimit.target.parent.interpreter.file.package.version",
+		"setrlimit.target.parent.interpreter.file.path",
+		"setrlimit.target.parent.interpreter.file.path.length",
+		"setrlimit.target.parent.interpreter.file.rights",
+		"setrlimit.target.parent.interpreter.file.uid",
+		"setrlimit.target.parent.interpreter.file.user",
+		"setrlimit.target.parent.is_exec",
+		"setrlimit.target.parent.is_kworker",
+		"setrlimit.target.parent.is_thread",
+		"setrlimit.target.parent.pid",
+		"setrlimit.target.parent.ppid",
+		"setrlimit.target.parent.tid",
+		"setrlimit.target.parent.tty_name",
+		"setrlimit.target.parent.uid",
+		"setrlimit.target.parent.user",
+		"setrlimit.target.parent.user_session.k8s_groups",
+		"setrlimit.target.parent.user_session.k8s_uid",
+		"setrlimit.target.parent.user_session.k8s_username",
+		"setrlimit.target.pid",
+		"setrlimit.target.ppid",
+		"setrlimit.target.tid",
+		"setrlimit.target.tty_name",
+		"setrlimit.target.uid",
+		"setrlimit.target.user",
+		"setrlimit.target.user_session.k8s_groups",
+		"setrlimit.target.user_session.k8s_uid",
+		"setrlimit.target.user_session.k8s_username",
 		"setsockopt.level",
 		"setsockopt.optname",
 		"setsockopt.retval",
@@ -24008,6 +29294,48 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", nil
 	case "cgroup.version":
 		return "", reflect.Int, "int", nil
+	case "cgroup_write.file.change_time":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.filesystem":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.gid":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.group":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.hashes":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.in_upper_layer":
+		return "cgroup_write", reflect.Bool, "bool", nil
+	case "cgroup_write.file.inode":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.mode":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.modification_time":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.mount_id":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.name":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.name.length":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.package.name":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.package.source_version":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.package.version":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.path":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.file.path.length":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.rights":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.uid":
+		return "cgroup_write", reflect.Int, "int", nil
+	case "cgroup_write.file.user":
+		return "cgroup_write", reflect.String, "string", nil
+	case "cgroup_write.pid":
+		return "cgroup_write", reflect.Int, "int", nil
 	case "chdir.file.change_time":
 		return "chdir", reflect.Int, "int", nil
 	case "chdir.file.filesystem":
@@ -24271,6 +29599,22 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "exec.file.in_upper_layer":
 		return "exec", reflect.Bool, "bool", nil
 	case "exec.file.inode":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.abi":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.architecture":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.compression":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.is_executable":
+		return "exec", reflect.Bool, "bool", nil
+	case "exec.file.metadata.is_garble_obfuscated":
+		return "exec", reflect.Bool, "bool", nil
+	case "exec.file.metadata.is_upx_packed":
+		return "exec", reflect.Bool, "bool", nil
+	case "exec.file.metadata.size":
+		return "exec", reflect.Int, "int", nil
+	case "exec.file.metadata.type":
 		return "exec", reflect.Int, "int", nil
 	case "exec.file.mode":
 		return "exec", reflect.Int, "int", nil
@@ -26158,6 +31502,508 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setgid", reflect.Int, "int", nil
 	case "setgid.group":
 		return "setgid", reflect.String, "string", nil
+	case "setrlimit.resource":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.retval":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.rlim_cur":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.rlim_max":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.args":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.args_flags":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.args_options":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.args_truncated":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.ancestors.argv":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.argv0":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.auid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.cap_effective":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.cap_permitted":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.cgroup.file.inode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.cgroup.file.mount_id":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.cgroup.id":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.cgroup.manager":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.cgroup.version":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.comm":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.container.id":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.created_at":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.egid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.egroup":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.envp":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.envs":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.envs_truncated":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.ancestors.euid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.euser":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.change_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.filesystem":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.gid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.group":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.hashes":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.in_upper_layer":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.ancestors.file.inode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.mode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.modification_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.mount_id":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.name.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.package.source_version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.package.version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.path":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.file.path.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.rights":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.uid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.file.user":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.fsgid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.fsgroup":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.fsuid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.fsuser":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.gid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.group":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.change_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.filesystem":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.gid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.group":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.hashes":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.in_upper_layer":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.ancestors.interpreter.file.inode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.mode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.modification_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.mount_id":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.name.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.package.version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.path":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.interpreter.file.path.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.rights":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.uid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.interpreter.file.user":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.is_exec":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.ancestors.is_kworker":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.ancestors.is_thread":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.ancestors.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.pid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.ppid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.tid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.tty_name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.uid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ancestors.user":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.user_session.k8s_groups":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.user_session.k8s_uid":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.ancestors.user_session.k8s_username":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.args":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.args_flags":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.args_options":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.args_truncated":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.argv":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.argv0":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.auid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.cap_effective":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.cap_permitted":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.cgroup.file.inode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.cgroup.file.mount_id":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.cgroup.id":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.cgroup.manager":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.cgroup.version":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.comm":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.container.id":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.created_at":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.egid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.egroup":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.envp":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.envs":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.envs_truncated":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.euid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.euser":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.change_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.filesystem":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.gid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.group":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.hashes":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.in_upper_layer":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.file.inode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.mode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.modification_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.mount_id":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.name.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.package.source_version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.package.version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.path":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.file.path.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.rights":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.uid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.file.user":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.fsgid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.fsgroup":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.fsuid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.fsuser":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.gid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.group":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.change_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.filesystem":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.gid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.group":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.hashes":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.in_upper_layer":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.interpreter.file.inode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.mode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.modification_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.mount_id":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.name.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.package.source_version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.package.version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.path":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.interpreter.file.path.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.rights":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.uid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.interpreter.file.user":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.is_exec":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.is_kworker":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.is_thread":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.parent.args":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.args_flags":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.args_options":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.args_truncated":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.parent.argv":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.argv0":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.auid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.cap_effective":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.cap_permitted":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.cgroup.file.inode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.cgroup.file.mount_id":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.cgroup.id":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.cgroup.manager":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.cgroup.version":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.comm":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.container.id":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.created_at":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.egid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.egroup":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.envp":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.envs":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.envs_truncated":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.parent.euid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.euser":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.change_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.filesystem":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.gid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.group":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.hashes":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.in_upper_layer":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.parent.file.inode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.mode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.modification_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.mount_id":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.name.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.package.source_version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.package.version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.path":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.file.path.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.rights":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.uid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.file.user":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.fsgid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.fsgroup":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.fsuid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.fsuser":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.gid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.group":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.change_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.filesystem":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.gid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.group":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.hashes":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.in_upper_layer":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.parent.interpreter.file.inode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.mode":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.modification_time":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.mount_id":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.name.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.package.name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.package.source_version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.package.version":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.path":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.interpreter.file.path.length":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.rights":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.uid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.interpreter.file.user":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.is_exec":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.parent.is_kworker":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.parent.is_thread":
+		return "setrlimit", reflect.Bool, "bool", nil
+	case "setrlimit.target.parent.pid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.ppid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.tid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.tty_name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.uid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.parent.user":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.user_session.k8s_groups":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.user_session.k8s_uid":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.parent.user_session.k8s_username":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.pid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.ppid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.tid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.tty_name":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.uid":
+		return "setrlimit", reflect.Int, "int", nil
+	case "setrlimit.target.user":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.user_session.k8s_groups":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.user_session.k8s_uid":
+		return "setrlimit", reflect.String, "string", nil
+	case "setrlimit.target.user_session.k8s_username":
+		return "setrlimit", reflect.String, "string", nil
 	case "setsockopt.level":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.optname":
@@ -27120,6 +32966,152 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "cgroup.version"}
 		}
 		ev.CGroupContext.CGroupVersion = int(rv)
+		return nil
+	case "cgroup_write.file.change_time":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.change_time"}
+		}
+		ev.CgroupWrite.File.FileFields.CTime = uint64(rv)
+		return nil
+	case "cgroup_write.file.filesystem":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.filesystem"}
+		}
+		ev.CgroupWrite.File.Filesystem = rv
+		return nil
+	case "cgroup_write.file.gid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.gid"}
+		}
+		ev.CgroupWrite.File.FileFields.GID = uint32(rv)
+		return nil
+	case "cgroup_write.file.group":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.group"}
+		}
+		ev.CgroupWrite.File.FileFields.Group = rv
+		return nil
+	case "cgroup_write.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.CgroupWrite.File.Hashes = append(ev.CgroupWrite.File.Hashes, rv)
+		case []string:
+			ev.CgroupWrite.File.Hashes = append(ev.CgroupWrite.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.hashes"}
+		}
+		return nil
+	case "cgroup_write.file.in_upper_layer":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.in_upper_layer"}
+		}
+		ev.CgroupWrite.File.FileFields.InUpperLayer = rv
+		return nil
+	case "cgroup_write.file.inode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.inode"}
+		}
+		ev.CgroupWrite.File.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "cgroup_write.file.mode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "cgroup_write.file.mode"}
+		}
+		ev.CgroupWrite.File.FileFields.Mode = uint16(rv)
+		return nil
+	case "cgroup_write.file.modification_time":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.modification_time"}
+		}
+		ev.CgroupWrite.File.FileFields.MTime = uint64(rv)
+		return nil
+	case "cgroup_write.file.mount_id":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.mount_id"}
+		}
+		ev.CgroupWrite.File.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "cgroup_write.file.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.name"}
+		}
+		ev.CgroupWrite.File.BasenameStr = rv
+		return nil
+	case "cgroup_write.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "cgroup_write.file.name.length"}
+	case "cgroup_write.file.package.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.package.name"}
+		}
+		ev.CgroupWrite.File.PkgName = rv
+		return nil
+	case "cgroup_write.file.package.source_version":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.package.source_version"}
+		}
+		ev.CgroupWrite.File.PkgSrcVersion = rv
+		return nil
+	case "cgroup_write.file.package.version":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.package.version"}
+		}
+		ev.CgroupWrite.File.PkgVersion = rv
+		return nil
+	case "cgroup_write.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.path"}
+		}
+		ev.CgroupWrite.File.PathnameStr = rv
+		return nil
+	case "cgroup_write.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "cgroup_write.file.path.length"}
+	case "cgroup_write.file.rights":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "cgroup_write.file.rights"}
+		}
+		ev.CgroupWrite.File.FileFields.Mode = uint16(rv)
+		return nil
+	case "cgroup_write.file.uid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.uid"}
+		}
+		ev.CgroupWrite.File.FileFields.UID = uint32(rv)
+		return nil
+	case "cgroup_write.file.user":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.file.user"}
+		}
+		ev.CgroupWrite.File.FileFields.User = rv
+		return nil
+	case "cgroup_write.pid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "cgroup_write.pid"}
+		}
+		ev.CgroupWrite.Pid = uint32(rv)
 		return nil
 	case "chdir.file.change_time":
 		rv, ok := value.(int)
@@ -28195,6 +34187,62 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "exec.file.inode"}
 		}
 		ev.Exec.Process.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "exec.file.metadata.abi":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.abi"}
+		}
+		ev.Exec.FileMetadata.ABI = int(rv)
+		return nil
+	case "exec.file.metadata.architecture":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.architecture"}
+		}
+		ev.Exec.FileMetadata.Architecture = int(rv)
+		return nil
+	case "exec.file.metadata.compression":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.compression"}
+		}
+		ev.Exec.FileMetadata.Compression = int(rv)
+		return nil
+	case "exec.file.metadata.is_executable":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.is_executable"}
+		}
+		ev.Exec.FileMetadata.IsExecutable = rv
+		return nil
+	case "exec.file.metadata.is_garble_obfuscated":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.is_garble_obfuscated"}
+		}
+		ev.Exec.FileMetadata.IsGarbleObfuscated = rv
+		return nil
+	case "exec.file.metadata.is_upx_packed":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.is_upx_packed"}
+		}
+		ev.Exec.FileMetadata.IsUPXPacked = rv
+		return nil
+	case "exec.file.metadata.size":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.size"}
+		}
+		ev.Exec.FileMetadata.Size = int64(rv)
+		return nil
+	case "exec.file.metadata.type":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.file.metadata.type"}
+		}
+		ev.Exec.FileMetadata.Type = int(rv)
 		return nil
 	case "exec.file.mode":
 		if ev.Exec.Process == nil {
@@ -38409,6 +44457,3258 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "setgid.group"}
 		}
 		ev.SetGID.Group = rv
+		return nil
+	case "setrlimit.resource":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.resource"}
+		}
+		ev.Setrlimit.Resource = int(rv)
+		return nil
+	case "setrlimit.retval":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.retval"}
+		}
+		ev.Setrlimit.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "setrlimit.rlim_cur":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.rlim_cur"}
+		}
+		ev.Setrlimit.RlimCur = uint64(rv)
+		return nil
+	case "setrlimit.rlim_max":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.rlim_max"}
+		}
+		ev.Setrlimit.RlimMax = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.args":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.args"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Args = rv
+		return nil
+	case "setrlimit.target.ancestors.args_flags":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.args_flags"}
+		}
+		return nil
+	case "setrlimit.target.ancestors.args_options":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.args_options"}
+		}
+		return nil
+	case "setrlimit.target.ancestors.args_truncated":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.args_truncated"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.ArgsTruncated = rv
+		return nil
+	case "setrlimit.target.ancestors.argv":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv, rv)
+		case []string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.argv"}
+		}
+		return nil
+	case "setrlimit.target.ancestors.argv0":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.argv0"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Argv0 = rv
+		return nil
+	case "setrlimit.target.ancestors.auid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.auid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.AUID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.cap_effective":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.cap_effective"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.CapEffective = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.cap_permitted":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.cap_permitted"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.CapPermitted = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.cgroup.file.inode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.cgroup.file.inode"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.cgroup.file.mount_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.cgroup.file.mount_id"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupFile.MountID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.cgroup.id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.cgroup.id"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
+		return nil
+	case "setrlimit.target.ancestors.cgroup.manager":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.cgroup.manager"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupManager = rv
+		return nil
+	case "setrlimit.target.ancestors.cgroup.version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.cgroup.version"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CGroup.CGroupVersion = int(rv)
+		return nil
+	case "setrlimit.target.ancestors.comm":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.comm"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Comm = rv
+		return nil
+	case "setrlimit.target.ancestors.container.id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.container.id"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "setrlimit.target.ancestors.created_at":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.created_at"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CreatedAt = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.egid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.egid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.EGID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.egroup":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.egroup"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.EGroup = rv
+		return nil
+	case "setrlimit.target.ancestors.envp":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Envp = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Envp, rv)
+		case []string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Envp = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Envp, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.envp"}
+		}
+		return nil
+	case "setrlimit.target.ancestors.envs":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Envs = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Envs, rv)
+		case []string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Envs = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Envs, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.envs"}
+		}
+		return nil
+	case "setrlimit.target.ancestors.envs_truncated":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.envs_truncated"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.EnvsTruncated = rv
+		return nil
+	case "setrlimit.target.ancestors.euid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.euid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.EUID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.euser":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.euser"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.EUser = rv
+		return nil
+	case "setrlimit.target.ancestors.file.change_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.change_time"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.file.filesystem":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.filesystem"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.Filesystem = rv
+		return nil
+	case "setrlimit.target.ancestors.file.gid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.gid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.GID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.file.group":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.group"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Group = rv
+		return nil
+	case "setrlimit.target.ancestors.file.hashes":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.Hashes = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.hashes"}
+		}
+		return nil
+	case "setrlimit.target.ancestors.file.in_upper_layer":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.in_upper_layer"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.InUpperLayer = rv
+		return nil
+	case "setrlimit.target.ancestors.file.inode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.inode"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.file.mode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.ancestors.file.mode"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.ancestors.file.modification_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.modification_time"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.MTime = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.file.mount_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.mount_id"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.file.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.name"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.BasenameStr = rv
+		return nil
+	case "setrlimit.target.ancestors.file.name.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.file.name.length"}
+	case "setrlimit.target.ancestors.file.package.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.package.name"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgName = rv
+		return nil
+	case "setrlimit.target.ancestors.file.package.source_version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.package.source_version"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion = rv
+		return nil
+	case "setrlimit.target.ancestors.file.package.version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.package.version"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgVersion = rv
+		return nil
+	case "setrlimit.target.ancestors.file.path":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.path"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PathnameStr = rv
+		return nil
+	case "setrlimit.target.ancestors.file.path.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.file.path.length"}
+	case "setrlimit.target.ancestors.file.rights":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.ancestors.file.rights"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.ancestors.file.uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.uid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.UID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.file.user":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.file.user"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.FileFields.User = rv
+		return nil
+	case "setrlimit.target.ancestors.fsgid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.fsgid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.FSGID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.fsgroup":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.fsgroup"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.FSGroup = rv
+		return nil
+	case "setrlimit.target.ancestors.fsuid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.fsuid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.FSUID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.fsuser":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.fsuser"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.FSUser = rv
+		return nil
+	case "setrlimit.target.ancestors.gid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.gid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.GID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.group":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.group"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.Group = rv
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.change_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.change_time", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.change_time"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.filesystem":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.filesystem", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.filesystem"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.gid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.gid", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.gid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.group":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.group", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.group"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.hashes":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.hashes", value)
+		if err != nil || !cont {
+			return err
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.hashes"}
+		}
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.in_upper_layer":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.in_upper_layer", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.in_upper_layer"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer = rv
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.inode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.inode", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.inode"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.mode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mode", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.ancestors.interpreter.file.mode"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.modification_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.modification_time", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.modification_time"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(rv)
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.mount_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.mount_id", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.mount_id"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.name", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.name"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.name.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.interpreter.file.name.length"}
+	case "setrlimit.target.ancestors.interpreter.file.package.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.name", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.package.name"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName = rv
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_version", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.package.source_version"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.package.version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.version", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.package.version"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.path":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.path", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.path"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.path.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.interpreter.file.path.length"}
+	case "setrlimit.target.ancestors.interpreter.file.rights":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.ancestors.interpreter.file.rights"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.uid", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.uid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.interpreter.file.user":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.user", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.interpreter.file.user"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "setrlimit.target.ancestors.is_exec":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.is_exec"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.IsExec = rv
+		return nil
+	case "setrlimit.target.ancestors.is_kworker":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.is_kworker"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.IsKworker = rv
+		return nil
+	case "setrlimit.target.ancestors.is_thread":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.is_thread"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.IsThread = rv
+		return nil
+	case "setrlimit.target.ancestors.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.length"}
+	case "setrlimit.target.ancestors.pid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.pid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.Pid = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.ppid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.ppid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PPid = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.tid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.tid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.Tid = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.tty_name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.tty_name"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.TTYName = rv
+		return nil
+	case "setrlimit.target.ancestors.uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.uid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.UID = uint32(rv)
+		return nil
+	case "setrlimit.target.ancestors.user":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.user"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.User = rv
+		return nil
+	case "setrlimit.target.ancestors.user_session.k8s_groups":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups = append(ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.user_session.k8s_groups"}
+		}
+		return nil
+	case "setrlimit.target.ancestors.user_session.k8s_uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.user_session.k8s_uid"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SUID = rv
+		return nil
+	case "setrlimit.target.ancestors.user_session.k8s_username":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.user_session.k8s_username"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername = rv
+		return nil
+	case "setrlimit.target.args":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.args"}
+		}
+		ev.Setrlimit.Target.Process.Args = rv
+		return nil
+	case "setrlimit.target.args_flags":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Process.Argv = append(ev.Setrlimit.Target.Process.Argv, rv)
+		case []string:
+			ev.Setrlimit.Target.Process.Argv = append(ev.Setrlimit.Target.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.args_flags"}
+		}
+		return nil
+	case "setrlimit.target.args_options":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Process.Argv = append(ev.Setrlimit.Target.Process.Argv, rv)
+		case []string:
+			ev.Setrlimit.Target.Process.Argv = append(ev.Setrlimit.Target.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.args_options"}
+		}
+		return nil
+	case "setrlimit.target.args_truncated":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.args_truncated"}
+		}
+		ev.Setrlimit.Target.Process.ArgsTruncated = rv
+		return nil
+	case "setrlimit.target.argv":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Process.Argv = append(ev.Setrlimit.Target.Process.Argv, rv)
+		case []string:
+			ev.Setrlimit.Target.Process.Argv = append(ev.Setrlimit.Target.Process.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.argv"}
+		}
+		return nil
+	case "setrlimit.target.argv0":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.argv0"}
+		}
+		ev.Setrlimit.Target.Process.Argv0 = rv
+		return nil
+	case "setrlimit.target.auid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.auid"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.AUID = uint32(rv)
+		return nil
+	case "setrlimit.target.cap_effective":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.cap_effective"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.CapEffective = uint64(rv)
+		return nil
+	case "setrlimit.target.cap_permitted":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.cap_permitted"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.CapPermitted = uint64(rv)
+		return nil
+	case "setrlimit.target.cgroup.file.inode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.cgroup.file.inode"}
+		}
+		ev.Setrlimit.Target.Process.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "setrlimit.target.cgroup.file.mount_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.cgroup.file.mount_id"}
+		}
+		ev.Setrlimit.Target.Process.CGroup.CGroupFile.MountID = uint32(rv)
+		return nil
+	case "setrlimit.target.cgroup.id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.cgroup.id"}
+		}
+		ev.Setrlimit.Target.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
+		return nil
+	case "setrlimit.target.cgroup.manager":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.cgroup.manager"}
+		}
+		ev.Setrlimit.Target.Process.CGroup.CGroupManager = rv
+		return nil
+	case "setrlimit.target.cgroup.version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.cgroup.version"}
+		}
+		ev.Setrlimit.Target.Process.CGroup.CGroupVersion = int(rv)
+		return nil
+	case "setrlimit.target.comm":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.comm"}
+		}
+		ev.Setrlimit.Target.Process.Comm = rv
+		return nil
+	case "setrlimit.target.container.id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.container.id"}
+		}
+		ev.Setrlimit.Target.Process.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "setrlimit.target.created_at":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.created_at"}
+		}
+		ev.Setrlimit.Target.Process.CreatedAt = uint64(rv)
+		return nil
+	case "setrlimit.target.egid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.egid"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.EGID = uint32(rv)
+		return nil
+	case "setrlimit.target.egroup":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.egroup"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.EGroup = rv
+		return nil
+	case "setrlimit.target.envp":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Process.Envp = append(ev.Setrlimit.Target.Process.Envp, rv)
+		case []string:
+			ev.Setrlimit.Target.Process.Envp = append(ev.Setrlimit.Target.Process.Envp, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.envp"}
+		}
+		return nil
+	case "setrlimit.target.envs":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Process.Envs = append(ev.Setrlimit.Target.Process.Envs, rv)
+		case []string:
+			ev.Setrlimit.Target.Process.Envs = append(ev.Setrlimit.Target.Process.Envs, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.envs"}
+		}
+		return nil
+	case "setrlimit.target.envs_truncated":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.envs_truncated"}
+		}
+		ev.Setrlimit.Target.Process.EnvsTruncated = rv
+		return nil
+	case "setrlimit.target.euid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.euid"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.EUID = uint32(rv)
+		return nil
+	case "setrlimit.target.euser":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.euser"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.EUser = rv
+		return nil
+	case "setrlimit.target.file.change_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.change_time"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.CTime = uint64(rv)
+		return nil
+	case "setrlimit.target.file.filesystem":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.filesystem"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.Filesystem = rv
+		return nil
+	case "setrlimit.target.file.gid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.gid"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.GID = uint32(rv)
+		return nil
+	case "setrlimit.target.file.group":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.group"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.Group = rv
+		return nil
+	case "setrlimit.target.file.hashes":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Process.FileEvent.Hashes = append(ev.Setrlimit.Target.Process.FileEvent.Hashes, rv)
+		case []string:
+			ev.Setrlimit.Target.Process.FileEvent.Hashes = append(ev.Setrlimit.Target.Process.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.hashes"}
+		}
+		return nil
+	case "setrlimit.target.file.in_upper_layer":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.in_upper_layer"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.InUpperLayer = rv
+		return nil
+	case "setrlimit.target.file.inode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.inode"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "setrlimit.target.file.mode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.file.mode"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.file.modification_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.modification_time"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.MTime = uint64(rv)
+		return nil
+	case "setrlimit.target.file.mount_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.mount_id"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "setrlimit.target.file.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.name"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.BasenameStr = rv
+		return nil
+	case "setrlimit.target.file.name.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.file.name.length"}
+	case "setrlimit.target.file.package.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.package.name"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.PkgName = rv
+		return nil
+	case "setrlimit.target.file.package.source_version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.package.source_version"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.PkgSrcVersion = rv
+		return nil
+	case "setrlimit.target.file.package.version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.package.version"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.PkgVersion = rv
+		return nil
+	case "setrlimit.target.file.path":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.path"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.PathnameStr = rv
+		return nil
+	case "setrlimit.target.file.path.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.file.path.length"}
+	case "setrlimit.target.file.rights":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.file.rights"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.file.uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.uid"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.UID = uint32(rv)
+		return nil
+	case "setrlimit.target.file.user":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.file.user"}
+		}
+		ev.Setrlimit.Target.Process.FileEvent.FileFields.User = rv
+		return nil
+	case "setrlimit.target.fsgid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.fsgid"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.FSGID = uint32(rv)
+		return nil
+	case "setrlimit.target.fsgroup":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.fsgroup"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.FSGroup = rv
+		return nil
+	case "setrlimit.target.fsuid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.fsuid"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.FSUID = uint32(rv)
+		return nil
+	case "setrlimit.target.fsuser":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.fsuser"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.FSUser = rv
+		return nil
+	case "setrlimit.target.gid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.gid"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.GID = uint32(rv)
+		return nil
+	case "setrlimit.target.group":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.group"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.Group = rv
+		return nil
+	case "setrlimit.target.interpreter.file.change_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.change_time", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.change_time"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.CTime = uint64(rv)
+		return nil
+	case "setrlimit.target.interpreter.file.filesystem":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.filesystem", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.filesystem"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.Filesystem = rv
+		return nil
+	case "setrlimit.target.interpreter.file.gid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.gid", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.gid"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.GID = uint32(rv)
+		return nil
+	case "setrlimit.target.interpreter.file.group":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.group", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.group"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "setrlimit.target.interpreter.file.hashes":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.hashes", value)
+		if err != nil || !cont {
+			return err
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.Hashes = append(ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.hashes"}
+		}
+		return nil
+	case "setrlimit.target.interpreter.file.in_upper_layer":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.in_upper_layer", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.in_upper_layer"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer = rv
+		return nil
+	case "setrlimit.target.interpreter.file.inode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.inode", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.inode"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "setrlimit.target.interpreter.file.mode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.mode", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.interpreter.file.mode"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.interpreter.file.modification_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.modification_time", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.modification_time"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.MTime = uint64(rv)
+		return nil
+	case "setrlimit.target.interpreter.file.mount_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.mount_id", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.mount_id"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "setrlimit.target.interpreter.file.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.name", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.name"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.BasenameStr = rv
+		return nil
+	case "setrlimit.target.interpreter.file.name.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.interpreter.file.name.length"}
+	case "setrlimit.target.interpreter.file.package.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.name", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.package.name"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgName = rv
+		return nil
+	case "setrlimit.target.interpreter.file.package.source_version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.source_version", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.package.source_version"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		return nil
+	case "setrlimit.target.interpreter.file.package.version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.version", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.package.version"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgVersion = rv
+		return nil
+	case "setrlimit.target.interpreter.file.path":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.path", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.path"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PathnameStr = rv
+		return nil
+	case "setrlimit.target.interpreter.file.path.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.interpreter.file.path.length"}
+	case "setrlimit.target.interpreter.file.rights":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.interpreter.file.rights"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.interpreter.file.uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.uid", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.uid"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.UID = uint32(rv)
+		return nil
+	case "setrlimit.target.interpreter.file.user":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.user", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.interpreter.file.user"}
+		}
+		ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "setrlimit.target.is_exec":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.is_exec"}
+		}
+		ev.Setrlimit.Target.Process.IsExec = rv
+		return nil
+	case "setrlimit.target.is_kworker":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.is_kworker"}
+		}
+		ev.Setrlimit.Target.Process.PIDContext.IsKworker = rv
+		return nil
+	case "setrlimit.target.is_thread":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.is_thread"}
+		}
+		ev.Setrlimit.Target.Process.IsThread = rv
+		return nil
+	case "setrlimit.target.parent.args":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.args"}
+		}
+		ev.Setrlimit.Target.Parent.Args = rv
+		return nil
+	case "setrlimit.target.parent.args_flags":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Parent.Argv = append(ev.Setrlimit.Target.Parent.Argv, rv)
+		case []string:
+			ev.Setrlimit.Target.Parent.Argv = append(ev.Setrlimit.Target.Parent.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.args_flags"}
+		}
+		return nil
+	case "setrlimit.target.parent.args_options":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Parent.Argv = append(ev.Setrlimit.Target.Parent.Argv, rv)
+		case []string:
+			ev.Setrlimit.Target.Parent.Argv = append(ev.Setrlimit.Target.Parent.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.args_options"}
+		}
+		return nil
+	case "setrlimit.target.parent.args_truncated":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.args_truncated"}
+		}
+		ev.Setrlimit.Target.Parent.ArgsTruncated = rv
+		return nil
+	case "setrlimit.target.parent.argv":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Parent.Argv = append(ev.Setrlimit.Target.Parent.Argv, rv)
+		case []string:
+			ev.Setrlimit.Target.Parent.Argv = append(ev.Setrlimit.Target.Parent.Argv, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.argv"}
+		}
+		return nil
+	case "setrlimit.target.parent.argv0":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.argv0"}
+		}
+		ev.Setrlimit.Target.Parent.Argv0 = rv
+		return nil
+	case "setrlimit.target.parent.auid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.auid"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.AUID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.cap_effective":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.cap_effective"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.CapEffective = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.cap_permitted":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.cap_permitted"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.CapPermitted = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.cgroup.file.inode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.cgroup.file.inode"}
+		}
+		ev.Setrlimit.Target.Parent.CGroup.CGroupFile.Inode = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.cgroup.file.mount_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.cgroup.file.mount_id"}
+		}
+		ev.Setrlimit.Target.Parent.CGroup.CGroupFile.MountID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.cgroup.id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.cgroup.id"}
+		}
+		ev.Setrlimit.Target.Parent.CGroup.CGroupID = containerutils.CGroupID(rv)
+		return nil
+	case "setrlimit.target.parent.cgroup.manager":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.cgroup.manager"}
+		}
+		ev.Setrlimit.Target.Parent.CGroup.CGroupManager = rv
+		return nil
+	case "setrlimit.target.parent.cgroup.version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.cgroup.version"}
+		}
+		ev.Setrlimit.Target.Parent.CGroup.CGroupVersion = int(rv)
+		return nil
+	case "setrlimit.target.parent.comm":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.comm"}
+		}
+		ev.Setrlimit.Target.Parent.Comm = rv
+		return nil
+	case "setrlimit.target.parent.container.id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.container.id"}
+		}
+		ev.Setrlimit.Target.Parent.ContainerID = containerutils.ContainerID(rv)
+		return nil
+	case "setrlimit.target.parent.created_at":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.created_at"}
+		}
+		ev.Setrlimit.Target.Parent.CreatedAt = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.egid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.egid"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.EGID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.egroup":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.egroup"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.EGroup = rv
+		return nil
+	case "setrlimit.target.parent.envp":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Parent.Envp = append(ev.Setrlimit.Target.Parent.Envp, rv)
+		case []string:
+			ev.Setrlimit.Target.Parent.Envp = append(ev.Setrlimit.Target.Parent.Envp, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.envp"}
+		}
+		return nil
+	case "setrlimit.target.parent.envs":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Parent.Envs = append(ev.Setrlimit.Target.Parent.Envs, rv)
+		case []string:
+			ev.Setrlimit.Target.Parent.Envs = append(ev.Setrlimit.Target.Parent.Envs, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.envs"}
+		}
+		return nil
+	case "setrlimit.target.parent.envs_truncated":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.envs_truncated"}
+		}
+		ev.Setrlimit.Target.Parent.EnvsTruncated = rv
+		return nil
+	case "setrlimit.target.parent.euid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.euid"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.EUID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.euser":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.euser"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.EUser = rv
+		return nil
+	case "setrlimit.target.parent.file.change_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.change_time"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.CTime = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.file.filesystem":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.filesystem"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.Filesystem = rv
+		return nil
+	case "setrlimit.target.parent.file.gid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.gid"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.GID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.file.group":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.group"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.Group = rv
+		return nil
+	case "setrlimit.target.parent.file.hashes":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Parent.FileEvent.Hashes = append(ev.Setrlimit.Target.Parent.FileEvent.Hashes, rv)
+		case []string:
+			ev.Setrlimit.Target.Parent.FileEvent.Hashes = append(ev.Setrlimit.Target.Parent.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.hashes"}
+		}
+		return nil
+	case "setrlimit.target.parent.file.in_upper_layer":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.in_upper_layer"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.InUpperLayer = rv
+		return nil
+	case "setrlimit.target.parent.file.inode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.inode"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.file.mode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.parent.file.mode"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.parent.file.modification_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.modification_time"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.MTime = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.file.mount_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.mount_id"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.file.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.name"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.BasenameStr = rv
+		return nil
+	case "setrlimit.target.parent.file.name.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.parent.file.name.length"}
+	case "setrlimit.target.parent.file.package.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.package.name"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.PkgName = rv
+		return nil
+	case "setrlimit.target.parent.file.package.source_version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.package.source_version"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.PkgSrcVersion = rv
+		return nil
+	case "setrlimit.target.parent.file.package.version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.package.version"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.PkgVersion = rv
+		return nil
+	case "setrlimit.target.parent.file.path":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.path"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.PathnameStr = rv
+		return nil
+	case "setrlimit.target.parent.file.path.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.parent.file.path.length"}
+	case "setrlimit.target.parent.file.rights":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.parent.file.rights"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.parent.file.uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.uid"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.UID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.file.user":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.file.user"}
+		}
+		ev.Setrlimit.Target.Parent.FileEvent.FileFields.User = rv
+		return nil
+	case "setrlimit.target.parent.fsgid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.fsgid"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.FSGID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.fsgroup":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.fsgroup"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.FSGroup = rv
+		return nil
+	case "setrlimit.target.parent.fsuid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.fsuid"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.FSUID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.fsuser":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.fsuser"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.FSUser = rv
+		return nil
+	case "setrlimit.target.parent.gid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.gid"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.GID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.group":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.group"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.Group = rv
+		return nil
+	case "setrlimit.target.parent.interpreter.file.change_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.change_time", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.change_time"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.CTime = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.interpreter.file.filesystem":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.filesystem", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.filesystem"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.Filesystem = rv
+		return nil
+	case "setrlimit.target.parent.interpreter.file.gid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.gid", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.gid"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.GID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.interpreter.file.group":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.group", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.group"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.Group = rv
+		return nil
+	case "setrlimit.target.parent.interpreter.file.hashes":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.hashes", value)
+		if err != nil || !cont {
+			return err
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.Hashes, rv)
+		case []string:
+			ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.Hashes = append(ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.hashes"}
+		}
+		return nil
+	case "setrlimit.target.parent.interpreter.file.in_upper_layer":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.in_upper_layer", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.in_upper_layer"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.InUpperLayer = rv
+		return nil
+	case "setrlimit.target.parent.interpreter.file.inode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.inode", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.inode"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.interpreter.file.mode":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.mode", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.mode"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.parent.interpreter.file.mode"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.parent.interpreter.file.modification_time":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.modification_time", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.modification_time"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.MTime = uint64(rv)
+		return nil
+	case "setrlimit.target.parent.interpreter.file.mount_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.mount_id", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.mount_id"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.interpreter.file.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.name", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.name"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.BasenameStr = rv
+		return nil
+	case "setrlimit.target.parent.interpreter.file.name.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.parent.interpreter.file.name.length"}
+	case "setrlimit.target.parent.interpreter.file.package.name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.name", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.package.name"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgName = rv
+		return nil
+	case "setrlimit.target.parent.interpreter.file.package.source_version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.source_version", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.package.source_version"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgSrcVersion = rv
+		return nil
+	case "setrlimit.target.parent.interpreter.file.package.version":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.version", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.package.version"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgVersion = rv
+		return nil
+	case "setrlimit.target.parent.interpreter.file.path":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.path", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.path"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PathnameStr = rv
+		return nil
+	case "setrlimit.target.parent.interpreter.file.path.length":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.parent.interpreter.file.path.length"}
+	case "setrlimit.target.parent.interpreter.file.rights":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.rights", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.rights"}
+		}
+		if rv < 0 || rv > math.MaxUint16 {
+			return &eval.ErrValueOutOfRange{Field: "setrlimit.target.parent.interpreter.file.rights"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.Mode = uint16(rv)
+		return nil
+	case "setrlimit.target.parent.interpreter.file.uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.uid", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.uid"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.UID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.interpreter.file.user":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.user", value)
+		if err != nil || !cont {
+			return err
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.interpreter.file.user"}
+		}
+		ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.FileFields.User = rv
+		return nil
+	case "setrlimit.target.parent.is_exec":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.is_exec"}
+		}
+		ev.Setrlimit.Target.Parent.IsExec = rv
+		return nil
+	case "setrlimit.target.parent.is_kworker":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.is_kworker"}
+		}
+		ev.Setrlimit.Target.Parent.PIDContext.IsKworker = rv
+		return nil
+	case "setrlimit.target.parent.is_thread":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.is_thread"}
+		}
+		ev.Setrlimit.Target.Parent.IsThread = rv
+		return nil
+	case "setrlimit.target.parent.pid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.pid"}
+		}
+		ev.Setrlimit.Target.Parent.PIDContext.Pid = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.ppid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.ppid"}
+		}
+		ev.Setrlimit.Target.Parent.PPid = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.tid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.tid"}
+		}
+		ev.Setrlimit.Target.Parent.PIDContext.Tid = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.tty_name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.tty_name"}
+		}
+		ev.Setrlimit.Target.Parent.TTYName = rv
+		return nil
+	case "setrlimit.target.parent.uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.uid"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.UID = uint32(rv)
+		return nil
+	case "setrlimit.target.parent.user":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.user"}
+		}
+		ev.Setrlimit.Target.Parent.Credentials.User = rv
+		return nil
+	case "setrlimit.target.parent.user_session.k8s_groups":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Parent.UserSession.K8SGroups = append(ev.Setrlimit.Target.Parent.UserSession.K8SGroups, rv)
+		case []string:
+			ev.Setrlimit.Target.Parent.UserSession.K8SGroups = append(ev.Setrlimit.Target.Parent.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.user_session.k8s_groups"}
+		}
+		return nil
+	case "setrlimit.target.parent.user_session.k8s_uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.user_session.k8s_uid"}
+		}
+		ev.Setrlimit.Target.Parent.UserSession.K8SUID = rv
+		return nil
+	case "setrlimit.target.parent.user_session.k8s_username":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.user_session.k8s_username"}
+		}
+		ev.Setrlimit.Target.Parent.UserSession.K8SUsername = rv
+		return nil
+	case "setrlimit.target.pid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.pid"}
+		}
+		ev.Setrlimit.Target.Process.PIDContext.Pid = uint32(rv)
+		return nil
+	case "setrlimit.target.ppid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ppid"}
+		}
+		ev.Setrlimit.Target.Process.PPid = uint32(rv)
+		return nil
+	case "setrlimit.target.tid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.tid"}
+		}
+		ev.Setrlimit.Target.Process.PIDContext.Tid = uint32(rv)
+		return nil
+	case "setrlimit.target.tty_name":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.tty_name"}
+		}
+		ev.Setrlimit.Target.Process.TTYName = rv
+		return nil
+	case "setrlimit.target.uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.uid"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.UID = uint32(rv)
+		return nil
+	case "setrlimit.target.user":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.user"}
+		}
+		ev.Setrlimit.Target.Process.Credentials.User = rv
+		return nil
+	case "setrlimit.target.user_session.k8s_groups":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Setrlimit.Target.Process.UserSession.K8SGroups = append(ev.Setrlimit.Target.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.Setrlimit.Target.Process.UserSession.K8SGroups = append(ev.Setrlimit.Target.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.user_session.k8s_groups"}
+		}
+		return nil
+	case "setrlimit.target.user_session.k8s_uid":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.user_session.k8s_uid"}
+		}
+		ev.Setrlimit.Target.Process.UserSession.K8SUID = rv
+		return nil
+	case "setrlimit.target.user_session.k8s_username":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.user_session.k8s_username"}
+		}
+		ev.Setrlimit.Target.Process.UserSession.K8SUsername = rv
 		return nil
 	case "setsockopt.level":
 		rv, ok := value.(int)

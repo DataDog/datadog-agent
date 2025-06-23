@@ -25,6 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -54,6 +55,7 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")
 	r.HandleFunc("/autoscaler-list", func(w http.ResponseWriter, r *http.Request) { getAutoscalerList(w, r) }).Methods("GET")
+	r.HandleFunc("/local-autoscaling-check", func(w http.ResponseWriter, r *http.Request) { getLocalAutoscalingWorkloadCheck(w, r) }).Methods("GET")
 	r.HandleFunc("/tagger-list", func(w http.ResponseWriter, r *http.Request) { getTaggerList(w, r, taggerComp) }).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
@@ -228,4 +230,19 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	}
 
 	w.Write(jsonDump)
+}
+
+func getLocalAutoscalingWorkloadCheck(w http.ResponseWriter, r *http.Request) {
+	response := localautoscalingworkload.GetAutoscalingWorkloadCheck(r.Context())
+	if response == nil {
+		log.Debugf("No local autoscaling entities found")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		httputils.SetJSONError(w, log.Errorf("Unable to marshal autoscaling check response: %v", err), 500)
+		return
+	}
+	w.Write(jsonResponse)
 }

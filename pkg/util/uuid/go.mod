@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
-	github.com/shirou/gopsutil/v4 v4.25.4
+	github.com/shirou/gopsutil/v4 v4.25.5
 	golang.org/x/sys v0.33.0
 )
 
@@ -22,7 +22,7 @@ require (
 	github.com/tklauser/numcpus v0.9.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/time v0.11.0 // indirect
+	golang.org/x/time v0.12.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -109,7 +109,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ../../../pkg/linters/components/pkgconfigusage
-	github.com/DataDog/datadog-agent/pkg/logs/auditor => ../../../pkg/logs/auditor
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
