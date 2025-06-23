@@ -186,14 +186,14 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
-	golang.org/x/arch v0.16.0
-	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
-	golang.org/x/net v0.40.0
-	golang.org/x/sync v0.14.0
+	golang.org/x/arch v0.18.0
+	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476
+	golang.org/x/net v0.41.0
+	golang.org/x/sync v0.15.0
 	golang.org/x/sys v0.33.0
-	golang.org/x/text v0.25.0
-	golang.org/x/time v0.11.0
-	golang.org/x/tools v0.33.0
+	golang.org/x/text v0.26.0
+	golang.org/x/time v0.12.0
+	golang.org/x/tools v0.34.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/genproto v0.0.0-20250425173222-7b384671a197 // indirect
 	google.golang.org/grpc v1.72.2
@@ -210,7 +210,6 @@ require (
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
 	k8s.io/client-go v0.32.3
 	k8s.io/cri-api v0.31.2
-	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.31.2
 	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
@@ -405,8 +404,8 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/trace v1.36.0
 	go.opentelemetry.io/proto/otlp v1.6.0 // indirect
-	golang.org/x/crypto v0.38.0 // indirect
-	golang.org/x/mod v0.24.0
+	golang.org/x/crypto v0.39.0 // indirect
+	golang.org/x/mod v0.25.0
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
@@ -993,9 +992,6 @@ replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelg
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
-// Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
-replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
-
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
 // Use custom Trivy fork to reduce binary size
@@ -1005,9 +1001,6 @@ replace (
 	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250328083658-40561b7842af
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 )
-
-// Fixes CVE-2023-1732, imported by nikos
-replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
 
 // Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
 // https://github.com/open-telemetry/opentelemetry-collector/issues/8127

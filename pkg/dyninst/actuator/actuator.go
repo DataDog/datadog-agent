@@ -145,7 +145,7 @@ func (a *Actuator) runDispatcher() (err error) {
 // HandleUpdate processes an update to process instrumentation configuration.
 // This is the single public API for updating the actuator state.
 func (a *Actuator) HandleUpdate(update ProcessesUpdate) {
-	log.Debugf("Sending update: %#v", update)
+	log.Debugf("sending update: %v", update)
 
 	// Make sure we don't send the update event if we're shutting down.
 	select {
@@ -172,7 +172,7 @@ func (a *Actuator) runEventProcessor(eventCh <-chan event, shuttingDownCh chan<-
 			log.Debugf("Received shutdown event")
 			close(shuttingDownCh)
 		}
-		log.Debugf("event: %#v", event)
+		log.Debugf("event: %v", event)
 		err := handleEvent(state, (*effects)(a), event)
 		if err != nil {
 			log.Errorf("Error handling event %T: %v", event, err)

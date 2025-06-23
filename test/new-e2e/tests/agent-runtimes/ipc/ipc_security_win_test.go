@@ -5,8 +5,6 @@
 package ipc
 
 import (
-	"crypto/x509"
-	"encoding/pem"
 	"testing"
 	"time"
 
@@ -70,20 +68,8 @@ func (v *ipcSecurityWindowsSuite) TestServersideIPCCertUsage() {
 	ipcCertContent, err := v.Env().RemoteHost.ReadFile(ipcCertFilePath)
 	require.NoError(v.T(), err)
 
-	// Reading and decoding cert and key from file
-	var block *pem.Block
-
-	block, _ = pem.Decode(ipcCertContent)
-	require.NotNil(v.T(), block)
-	require.Equal(v.T(), block.Type, "CERTIFICATE")
-	cert := pem.EncodeToMemory(block)
-
-	certPool := x509.NewCertPool()
-	ok := certPool.AppendCertsFromPEM(cert)
-	require.True(v.T(), ok)
-
 	// check that the Agent API server use the IPC cert
 	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentUseCert(t, v.Env().RemoteHost, certPool)
+		assertAgentUseCert(t, v.Env().RemoteHost, ipcCertContent)
 	}, 2*configRefreshIntervalSec*time.Second, 1*time.Second)
 }
