@@ -462,8 +462,8 @@ new-e2e-cws:
     - qa_dca
   variables:
     TARGETS: ./tests/cws
-    TEAM: csm-threats-agent
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
@@ -528,7 +528,8 @@ new-e2e-apm:
   variables:
     TARGETS: ./tests/apm
     TEAM: apm-agent
-    # TODO: Re-enable on fips pipeline when this test does not rely on remote-configuration: ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestDockerFakeintakeSuiteUDS
@@ -714,7 +715,8 @@ new-e2e-ha-agent:
   variables:
     TARGETS: ./tests/ha-agent
     TEAM: ndm-core
-    ON_NIGHTLY_FIPS: "true"
+    # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
+    # ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
 
 new-e2e-ha-agent-failover:
