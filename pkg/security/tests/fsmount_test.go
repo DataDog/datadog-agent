@@ -41,7 +41,11 @@ func TestFsmount(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
-			Expression: `open.file.name == "test-open" && open.flags & O_CREAT != 0`,
+			Expression: `open.file.name == "test-open"`,
+		},
+		{
+			ID:         "test_rule_2",
+			Expression: `mkdir.file.name == "test-mkdir"`,
 		},
 	}
 
@@ -73,7 +77,7 @@ func TestFsmount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event) bool {
-			assert.NotEqual(t, event.Fsmount.MountID, 0, "Mount id is zero")
+			assert.NotEqual(t, event.Fsmount.MountID, uint32(0), "Mount id is zero")
 			assert.NotEqual(t, event.Fsmount.Flags, unix.FSOPEN_CLOEXEC, "Mount flags")
 			assert.NotEqual(t, event.Fsmount.Fd, fsfd, "Wrong file descriptor")
 			assert.NotEqual(t, event.Fsmount.MountAttrs, unix.FSMOUNT_CLOEXEC, "Wrong mount attributes")
@@ -82,8 +86,6 @@ func TestFsmount(t *testing.T) {
 	})
 
 	t.Run("fsmount-resolve-open-file", func(t *testing.T) {
-		var fsfd int
-
 		test.WaitSignal(t, func() error {
 			fsfd, err := unix.Fsopen("tmpfs", 0)
 			if err != nil {
@@ -112,10 +114,43 @@ func TestFsmount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
-			assert.NotEqual(t, event.Fsmount.MountID, 0, "Mount id is zero")
-			assert.NotEqual(t, event.Fsmount.Flags, unix.FSOPEN_CLOEXEC, "Mount flags")
-			assert.NotEqual(t, event.Fsmount.Fd, fsfd, "Wrong file descriptor")
-			assert.NotEqual(t, event.Fsmount.MountAttrs, unix.FSMOUNT_CLOEXEC, "Wrong mount attributes")
+			fmt.Printf("%+v\n", event.Fsmount)
+			assert.Equal(t, "/test-open", event.Open.File.PathnameStr, "Wrong pathname")
+		})
+	})
+
+	t.Run("fsmount-resolve-mkdir", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			fsfd, err := unix.Fsopen("tmpfs", 0)
+			if err != nil {
+				t.Skip("This kernel doesn't have the new mount api")
+				return nil
+			}
+			defer unix.Close(fsfd)
+
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
+			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
+
+			mountfd, err := unix.Fsmount(fsfd, unix.FSMOUNT_CLOEXEC, 0)
+			if err != nil {
+				return err
+			}
+
+			file := fmt.Sprintf("/proc/%d/fd/%d/test-mkdir", os.Getpid(), mountfd)
+			cmd := exec.Command("mkdir", file)
+			err = cmd.Run()
+
+			if err != nil {
+				return err
+			}
+			defer unix.Close(mountfd)
+
+			return nil
+		}, func(event *model.Event, _ *rules.Rule) {
+			fmt.Printf("%+v\n", event)
+
+			assert.Equal(t, "/test-mkdir", event.Mkdir.File.PathnameStr, "Wrong path")
 		})
 	})
 
