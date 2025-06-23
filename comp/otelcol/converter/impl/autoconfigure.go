@@ -28,7 +28,7 @@ type component struct {
 func (c *ddConverter) enhanceConfig(conf *confmap.Conf) {
 	var enabledFeatures []string
 
-	// If not specified, assume all features are enabled (ocb tests will not have enabled)
+	// If not specified, assume all features are enabled (ocb tests will not have coreConfig)
 	if c.coreConfig != nil {
 		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
 	} else {
