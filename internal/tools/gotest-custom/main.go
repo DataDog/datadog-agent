@@ -44,7 +44,6 @@ func main() {
 		outputs[idx] = &bytes.Buffer{}
 	}
 	errChannel := make(chan error, len(binaries))
-	// printLock := sync.Mutex{}
 	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Printf("Error getting current working directory: %v\n", err)
