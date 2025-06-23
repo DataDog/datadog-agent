@@ -430,6 +430,89 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 
 }
 
+// TestPersistingIntegrationsDuringUninstall tests upgrading the agent from WINDOWS_AGENT_VERSION to UPGRADE_TEST_VERSION
+// verify that the third party integration and pip package are installed after uninstall and reinstall
+// this is the workload used by fleet to upgrade the agent
+func TestPersistingIntegrationsDuringUninstall(t *testing.T) {
+	s := &testPersistingIntegrationsDuringUninstall{}
+	upgradeAgentPackge, err := windowsAgent.GetUpgradeTestPackageFromEnv()
+	require.NoError(t, err, "should get upgrade test package")
+	s.upgradeAgentPackge = upgradeAgentPackge
+	Run(t, s)
+}
+
+type testPersistingIntegrationsDuringUninstall struct {
+	baseAgentMSISuite
+	upgradeAgentPackge *windowsAgent.Package
+}
+
+func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDuringUninstall() {
+	vm := s.Env().RemoteHost
+
+	// install current version
+	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.AgentPackage),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
+			windowsAgent.WithValidAPIKey(),
+		)
+		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
+	s.Require().NoError(err, "should get product version")
+
+	// install third party integration
+	err = s.installThirdPartyIntegration(vm, "datadog-ping==1.0.2")
+	s.Require().NoError(err, "should install third party integration")
+
+	// install pip package
+	err = s.installPipPackage(vm, "grpcio")
+	s.Require().NoError(err, "should install pip package")
+
+	// uninstall agent
+	s.uninstallAgent()
+
+	// upgrade to test agent
+	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+		_, err := s.InstallAgent(vm,
+			windowsAgent.WithPackage(s.upgradeAgentPackge),
+			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
+			windowsAgent.WithValidAPIKey(),
+		)
+		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
+	}) {
+		s.T().FailNow()
+	}
+
+	// run tests
+	testerOptions := []TesterOption{
+		WithAgentPackage(s.upgradeAgentPackge),
+	}
+	t, err := NewTester(s, vm, testerOptions...)
+	s.Require().NoError(err, "should create tester")
+	if !t.TestInstallExpectations(s.T()) {
+		s.T().FailNow()
+	}
+
+	// Get Display Version
+	productVersionPost, err := windowsAgent.GetDatadogProductVersion(vm)
+	s.Require().NoError(err, "should get product version")
+
+	// check that version is different post upgrade
+	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
+
+	// check that the third party integration is still installed
+	s.checkIntegrationInstall(vm, "datadog-ping==1.0.2")
+
+	// check that the pip package is still installed
+	s.checkPipPackageInstalled(vm, "grpcio")
+
+	s.uninstallAgentAndRunUninstallTests(t)
+}
+
 // install third party integration
 func (s *baseAgentMSISuite) installThirdPartyIntegration(vm *components.RemoteHost, integration string) error {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
