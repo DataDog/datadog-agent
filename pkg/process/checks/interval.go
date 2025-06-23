@@ -25,6 +25,8 @@ const (
 	// ConnectionsCheckDefaultInterval is the default interval for the connections check.
 	// It is used to set the static interval for the connections check.
 	ConnectionsCheckDefaultInterval = 30 * time.Second
+	// ConnectionsCheckMinInterval is the minimum interval for the connections check.
+	ConnectionsCheckMinInterval = 10 * time.Second
 	// ConnectionsCheckDynamicInterval is the dynamic interval for the connections check.
 	// It is used to set the interval for checking the current capacity of the system-probe memory buffer
 	// and optionally executing the full connections check if it's almost full.
@@ -95,9 +97,9 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 
 	case ConnectionsCheckName:
 		if seconds := cfg.GetInt(configConnectionsInterval); seconds != 0 {
-			if seconds < 10 {
-				_ = log.Warnf("Invalid interval for connections check (< %ds) using minimum value of %s", 10, ConnectionsCheckDefaultInterval.String())
-				return ConnectionsCheckDefaultInterval
+			if seconds < int(ConnectionsCheckMinInterval.Seconds()) {
+				_ = log.Warnf("Invalid interval for connections check (< %ds) using minimum value of %d", ConnectionsCheckMinInterval, ConnectionsCheckMinInterval)
+				return ConnectionsCheckMinInterval
 			}
 			return time.Duration(seconds) * time.Second
 		}

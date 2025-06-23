@@ -80,8 +80,9 @@ type ConnectionsCheck struct {
 
 	npCollector npcollector.Component
 
-	sysprobeClient *http.Client
-	statsd         statsd.ClientInterface
+	sysprobeClient     *http.Client
+	statsd             statsd.ClientInterface
+	useDynamicInterval bool
 }
 
 // Init initializes a ConnectionsCheck instance.
@@ -90,6 +91,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
 	c.notInitializedLogLimit = log.NewLogLimit(1, time.Minute*10)
 	c.sysprobeClient = sysprobeclient.Get(syscfg.SystemProbeAddress)
+	c.useDynamicInterval = c.config.GetBool("process_config.connections.enable_dynamic_interval")
 
 	// Register process agent as a system probe's client
 	// This ensures we start recording data from now to the first call to `Run`
@@ -121,8 +123,7 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	c.localresolver.Run()
 
 	// Initialize state for the capacity-based run logic only when dynamic interval is enabled
-	useDynamicInterval := c.config.GetBool("process_config.connections.enable_dynamic_interval")
-	if useDynamicInterval {
+	if c.useDynamicInterval {
 		c.lastFullRunTime = time.Time{} // Ensure the first run is a full run
 		// Guaranteed run interval is driven by the standard connections check interval
 		c.guaranteedRunInterval = GetInterval(c.config, ConnectionsCheckName)
@@ -218,13 +219,10 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 // It handles both traditional (always run) and dynamic interval (capacity-aware) modes.
 // Returns true if the check should run, false if it should be skipped.
 func (c *ConnectionsCheck) shouldRunCheck(start time.Time) bool {
-	// Check if dynamic interval is enabled
-	useDynamicInterval := c.config.GetBool("process_config.connections.enable_dynamic_interval")
-
-	if !useDynamicInterval {
+	if !c.useDynamicInterval {
 		// Traditional behavior: always run the check
 		status.UpdateLastCollectTime(start)
-		log.Debugf("running connections check (dynamic interval disabled, always run)")
+		log.Debugf("running connections check (dynamic interval disabled)")
 		return true
 	}
 
@@ -239,7 +237,7 @@ func (c *ConnectionsCheck) shouldRunCheck(start time.Time) bool {
 		var capacityErr error
 		isNearCapacity, capacityErr = c.checkCapacity()
 		if capacityErr != nil {
-			log.Warnf("failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
+			_ = log.Warnf("failed to check system-probe connection capacity: %v. Proceeding based on time interval.", capacityErr)
 			isNearCapacity = false
 			if c.statsd != nil {
 				_ = c.statsd.Count("datadog.process.connections.capacity_check_errors", 1, []string{}, 1)
