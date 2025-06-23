@@ -1285,7 +1285,7 @@ func (p *Process) Merge(e Entity) error {
 }
 
 // String implements Entity#String.
-func (p Process) String(_ bool) string {
+func (p Process) String(verbose bool) string {
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
@@ -1298,14 +1298,16 @@ func (p Process) String(_ bool) string {
 	}
 	if p.Service != nil {
 		_, _ = fmt.Fprintln(&sb, "Service Generated Name:", p.Service.GeneratedName)
-		_, _ = fmt.Fprintln(&sb, "Service Generated Name Source:", p.Service.GeneratedNameSource)
-		_, _ = fmt.Fprintln(&sb, "Service Additional Generated Names:", p.Service.AdditionalGeneratedNames)
-		_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
-		_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
-		_, _ = fmt.Fprintln(&sb, "Service DD Service Injected:", p.Service.DDServiceInjected)
-		_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
-		_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
-		_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+		if verbose {
+			_, _ = fmt.Fprintln(&sb, "Service Generated Name Source:", p.Service.GeneratedNameSource)
+			_, _ = fmt.Fprintln(&sb, "Service Additional Generated Names:", p.Service.AdditionalGeneratedNames)
+			_, _ = fmt.Fprintln(&sb, "Service Tracer Metadata:", p.Service.TracerMetadata)
+			_, _ = fmt.Fprintln(&sb, "Service DD Service:", p.Service.DDService)
+			_, _ = fmt.Fprintln(&sb, "Service DD Service Injected:", p.Service.DDServiceInjected)
+			_, _ = fmt.Fprintln(&sb, "Service Ports:", p.Service.Ports)
+			_, _ = fmt.Fprintln(&sb, "Service APM Instrumentation:", p.Service.APMInstrumentation)
+			_, _ = fmt.Fprintln(&sb, "Service Type:", p.Service.Type)
+		}
 	}
 	// TODO: add new fields once the new wlm process collector can be enabled
 
