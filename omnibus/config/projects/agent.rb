@@ -204,7 +204,6 @@ package :zip do
   else
     # noinspection RubyLiteralArrayInspection
     extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
   end
@@ -261,6 +260,7 @@ elsif do_package
     dependency "package-artifact"
   end
   dependency "init-scripts-agent"
+  dependency 'datadog-agent-installer-symlinks'
 end
 
 # version manifest is based on the built softwares.
