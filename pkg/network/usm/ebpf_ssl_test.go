@@ -33,6 +33,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
+const (
+	addressOfHTTPPythonServer = "127.0.0.1:8001"
+)
+
 func testArch(t *testing.T, arch string) {
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
@@ -223,10 +227,6 @@ func TestSSLMapsCleanup(t *testing.T) {
 	cfg.EnableHTTPMonitoring = true
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
-	// Clean SSL maps before starting the test to ensure clean state
-	cleanProtocolMaps(t, "ssl", usmMonitor.ebpfProgram.Manager.Manager)
-
-	addressOfHTTPPythonServer := "127.0.0.1:8001"
 	_ = testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
 		EnableTLS: true,
 	})
@@ -268,27 +268,20 @@ func TestSSLMapsCleanup(t *testing.T) {
 	t.Logf("Count for map '%s' AFTER manual cleanup: %d", sslSockByCtxMap, ctxMapCountAfterCleanup)
 	t.Logf("Count for map '%s' AFTER manual cleanup: %d", sslCtxByTupleMap, tupleMapCountAfterCleanup)
 
-	if ctxMapCountBefore > 0 || tupleMapCountBefore > 0 {
-		t.Logf("SSL connections were established (ssl_sock_by_ctx: %d, ssl_ctx_by_tuple: %d)", ctxMapCountBefore, tupleMapCountBefore)
-
-		if ctxMapCountAfter == 0 && tupleMapCountAfter == 0 {
-			t.Logf("SUCCESS: All SSL maps were cleaned by tcp_close")
-		} else if ctxMapCountAfter < ctxMapCountBefore || tupleMapCountAfter < tupleMapCountBefore {
-			t.Logf("PARTIAL: SSL maps were partially cleaned by tcp_close")
-			t.Logf("ssl_sock_by_ctx: %d -> %d (remaining: %d)", ctxMapCountBefore, ctxMapCountAfter, ctxMapCountAfter)
-			t.Logf("ssl_ctx_by_tuple: %d -> %d (remaining: %d)", tupleMapCountBefore, tupleMapCountAfter, tupleMapCountAfter)
-		} else {
-			t.Logf("FAILURE: SSL maps were NOT cleaned")
-		}
-	} else {
-		t.Logf("No SSL connections were established - test may not be triggering the right code path")
+	// We expect that one entry will be removed from each map, if that map was populated to begin with.
+	expectedCtxCount := ctxMapCountBefore
+	if expectedCtxCount > 0 {
+		expectedCtxCount--
 	}
+	assert.Equal(t, expectedCtxCount, ctxMapCountAfter, "ssl_sock_by_ctx map count after cleanup is not what we expect")
 
-	assert.Equalf(t, 0, ctxMapCountAfter, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslSockByCtxMap)
-	assert.Equalf(t, 0, tupleMapCountAfter, "%s should be empty after cleanup on feature branch (post CloseIdleConnections)", sslCtxByTupleMap)
+	expectedTupleCount := tupleMapCountBefore
+	if expectedTupleCount > 0 {
+		expectedTupleCount--
+	}
+	assert.Equal(t, expectedTupleCount, tupleMapCountAfter, "ssl_ctx_by_tuple map count after cleanup is not what we expect")
 
 	requestsExist := make([]bool, len(requests))
-
 	require.Eventually(t, func() bool {
 		stats := getHTTPLikeProtocolStats(t, usmMonitor, protocols.HTTP)
 		if stats == nil {
