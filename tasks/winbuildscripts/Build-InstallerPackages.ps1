@@ -59,6 +59,7 @@ Invoke-BuildScript `
     if ($BuildOutOfSource) {
         # Copy the resulting package to the mnt directory
         mkdir C:\mnt\$env:OMNIBUS_PACKAGE_SUBDIR -Force -ErrorAction Stop | Out-Null
-        Copy-Item -Path ".\$env:OMNIBUS_PACKAGE_SURDIR\*" -Destination "C:\mnt\omnibus\pkg" -Force -ErrorAction Stop
+        Copy-Item -Path ".\$env:OMNIBUS_PACKAGE_SURDIR\*" -Destination "C:\mnt\$env:OMNIBUS_PACKAGE_SUBDIR" -Force -ErrorAction Stop
+
     }
 }
