@@ -364,8 +364,9 @@ test_ebpf_complexity_changes:
         - "tasks/ebpf.py"
         - "tasks/kernel_matrix_testing/ci.py"
         compare_to: $COMPARE_TO_BRANCH
-    - if: $CI_COMMIT_BRANCH == "main"
-      when: never
+      when: always
+    - !reference [.except_main_release_or_mq]
+    - when: never
   allow_failure: false
   variables:
     EXTRA_ARGS: "--skip-github-comment"
