@@ -13,7 +13,50 @@ import (
 	"github.com/stretchr/testify/require"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestServiceNameMutatorForMetaAsTags(t *testing.T) {
+	testData := []struct {
+		name            string
+		pod             *corev1.Pod
+		podMetaAsTags   podMetaAsTags
+		expectedMutator *serviceNameMutator
+	}{
+		{
+			name: "no meta",
+			pod:  &corev1.Pod{},
+		},
+		{
+			name: "match label app=service",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "banana"},
+				},
+			},
+			podMetaAsTags: podMetaAsTags{
+				Labels: map[string]string{"app": "service"},
+			},
+			expectedMutator: &serviceNameMutator{
+				EnvVar: corev1.EnvVar{
+					Name: "DD_SERVICE",
+					ValueFrom: &corev1.EnvVarSource{
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "metadata.labels['app']",
+						},
+					},
+				},
+				Source: serviceNameSourceLabelsAsTags,
+			},
+		},
+	}
+	for _, tt := range testData {
+		t.Run(tt.name, func(t *testing.T) {
+			mutator := serviceNameMutatorForMetaAsTags(tt.pod, tt.podMetaAsTags)
+			require.Equal(t, tt.expectedMutator, mutator)
+		})
+	}
+}
 
 func TestFindServiceNameInPod(t *testing.T) {
 	envVar := func(k, v string) corev1.EnvVar {
