@@ -1246,7 +1246,7 @@ func (suite *FingerprintTestSuite) TestInvalidConfig_BothSkipValuesSet() {
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
-// Not sure how I feel about this test let's check back on this later
+// Tests whether or not rotation was accurately detected
 func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	// 1. Start with a file with content and create a tailer.
 	suite.T().Log("Writing initial content and creating tailer")
@@ -1267,7 +1267,10 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	tailer := suite.createTailerWithConfig(config)
 	tailer.fingerprintingEnabled = true
 	tailer.fingerprint = tailer.ComputeFingerPrint()
-	suite.NotZero(tailer.fingerprint)
+
+	table := crc64.MakeTable(crc64.ISO)
+	expectedChecksum := crc64.Checksum([]byte("line 1\n"), table)
+	suite.Equal(expectedChecksum, tailer.fingerprint)
 
 	// 2. Immediately check for rotation. It should be false as the file is unchanged.
 	suite.T().Log("Checking for rotation on unchanged file")
@@ -1296,8 +1299,9 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	tailer = suite.createTailerWithConfig(config)
 	tailer.fingerprintingEnabled = true
 	tailer.fingerprint = tailer.ComputeFingerPrint()
-	originalFingerprint := tailer.fingerprint
-	suite.NotZero(originalFingerprint)
+
+	expectedChecksum = crc64.Checksum([]byte("a completely new file\n"), table)
+	suite.Equal(expectedChecksum, tailer.fingerprint)
 
 	// Check for rotation immediately after re-arming. Since the file hasn't changed
 	// since the tailer was created, it should report no rotation. Its internal fingerprint
@@ -1305,6 +1309,9 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	rotated, err = tailer.DidRotateViaFingerprint()
 	suite.Nil(err)
 	suite.False(rotated, "Should not detect rotation immediately after creating a new tailer on a file")
+
+	expectedChecksum = crc64.Checksum([]byte("a completely new file\n"), table)
+	suite.Equal(expectedChecksum, tailer.fingerprint)
 
 	// Now, modify the file again. This change *should* be detected as a rotation.
 	suite.T().Log("Simulating another rotation on the new file")
@@ -1318,6 +1325,9 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	rotated, err = tailer.DidRotateViaFingerprint()
 	suite.Nil(err)
 	suite.True(rotated, "Should detect rotation after file content changes")
+	expectedChecksum = crc64.Checksum([]byte("even more different content\n"), table)
+	receivedChecksum := tailer.ComputeFingerPrint()
+	suite.Equal(expectedChecksum, receivedChecksum)
 
 	// 5. Test case with an an empty file.
 	// The initial fingerprint will be 0.
@@ -1336,4 +1346,5 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	rotated, err = tailer.DidRotateViaFingerprint()
 	suite.Nil(err)
 	suite.False(rotated, "Should not detect rotation if the initial fingerprint was zero")
+	suite.Equal(uint64(0), tailer.ComputeFingerPrint())
 }
