@@ -160,7 +160,7 @@ func (fb *builder) Save() (string, error) {
 		fb.Lock()
 		defer fb.Unlock()
 		if len(fb.nonScrubbedFiles) == 0 {
-			return []byte(`{"files": [], "message": "No files were added without scrubbing"}`), nil
+			return []byte(`{"files": [], "message": "All files were scrubbed"}`), nil
 		}
 
 		// Convert map keys to slice for JSON output
