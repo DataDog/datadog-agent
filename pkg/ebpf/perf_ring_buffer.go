@@ -71,6 +71,7 @@ func (c *RingBufferHandler) LostChannel() <-chan uint64 {
 	return c.lostChannel
 }
 
+// GetChannelLengthTelemetry returns the channel length telemetry
 func (c *RingBufferHandler) GetChannelLengthTelemetry() *atomic.Uint64 { return c.chLenTelemetry }
 
 // Stop stops the perf handler and closes both channels

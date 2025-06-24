@@ -76,6 +76,7 @@ func (c *PerfHandler) LostChannel() <-chan uint64 {
 	return c.lostChannel
 }
 
+// GetChannelLengthTelemetry returns the channel length telemetry
 func (c *PerfHandler) GetChannelLengthTelemetry() *atomic.Uint64 { return c.chLenTelemetry }
 
 // Stop stops the perf handler and closes both channels
