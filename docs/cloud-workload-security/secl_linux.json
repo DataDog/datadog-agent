@@ -7198,6 +7198,11 @@
           "property_doc_link": "setsockopt-filter_len-doc"
         },
         {
+          "name": "setsockopt.is_filter_truncated",
+          "definition": "Indicates that the filter is truncated",
+          "property_doc_link": "setsockopt-is_filter_truncated-doc"
+        },
+        {
           "name": "setsockopt.level",
           "definition": "Socket level",
           "property_doc_link": "setsockopt-level-doc"
@@ -12933,6 +12938,18 @@
       "link": "setsockopt-filter_len-doc",
       "type": "int",
       "definition": "Length of the filter",
+      "prefixes": [
+        "setsockopt"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setsockopt.is_filter_truncated",
+      "link": "setsockopt-is_filter_truncated-doc",
+      "type": "bool",
+      "definition": "Indicates that the filter is truncated",
       "prefixes": [
         "setsockopt"
       ],

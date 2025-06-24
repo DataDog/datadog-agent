@@ -925,9 +925,10 @@ func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *mode
 func (fh *EBPFFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
 	raw := []bpf.RawInstruction{}
 	filterSize := 8
-	filterLen := int(e.FilterLen)
+	sizeToRead := int(e.SizeToRead)
+	actualNumberOfFilters := sizeToRead / filterSize
 	rawFilter := e.RawFilter
-	for i := 0; i < filterLen; i++ {
+	for i := 0; i < actualNumberOfFilters; i++ {
 		offset := i * filterSize
 
 		Code := binary.NativeEndian.Uint16(rawFilter[offset : offset+2])
