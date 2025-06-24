@@ -341,6 +341,40 @@ func (suite *ecsSuite) TestNginxFargate() {
 	})
 }
 
+func (suite *ecsSuite) TestNginxFargateReadonly() {
+	// `nginx` check is configured via docker labels
+	// Test it is properly scheduled
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "nginx.net.request_per_s",
+			Tags: []string{"^ecs_launch_type:fargate$"},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^aws_account:[[:digit:]]{12}$`,
+				`^availability_zone:`,
+				`^availability-zone:`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:nginx$`,
+				`^ecs_launch_type:fargate$`,
+				`^image_id:sha256:`,
+				`^image_name:ghcr\.io/datadog/redis$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
+				`^region:us-east-1$`,
+				`^short_image:apps-nginx-server$`,
+				`^task_arn:`,
+				`^task_family:.*-nginx-fg-readonly$`,
+				`^task_name:.*-nginx-fg-readonly$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
+}
+
 func (suite *ecsSuite) TestRedisFargate() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
