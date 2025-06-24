@@ -5,14 +5,14 @@
 
 //go:build !linux
 
-package network
+package tls
 
 // GetStaticTags return the string list of static tags from network.ConnectionStats.Tags
-func GetStaticTags(_ uint64) (tags []string) {
+func GetStaticTags(uint64) (tags []string) {
 	return tags
 }
 
 // IsTLSTag return if the tag is a TLS tag
-func IsTLSTag(_ uint64) bool {
+func IsTLSTag(uint64) bool {
 	return false
 }

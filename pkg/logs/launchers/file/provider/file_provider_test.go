@@ -25,6 +25,10 @@ import (
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
 
+const (
+	fileLimitWarning = "The limit on the maximum number of files in use (%d) has been reached. If you aren't tailing the files you want to be tailing, increase this limit (logs_config.open_files_limit in datadog.yaml), decrease the number of files you are tailing, or alter the logs_config.file_wildcard_selection_mode setting to by_modification_time."
+)
+
 type tempFs struct {
 	tempDir string
 	t       testing.TB
@@ -151,7 +155,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	suite.Equal([]string{"3 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
 		[]string{
-			"The limit on the maximum number of files in use (3) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+			fmt.Sprintf(fileLimitWarning, suite.filesLimit),
 		},
 		status.Get(false).Warnings,
 	)
@@ -215,7 +219,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	suite.Equal([]string{"3 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
 		[]string{
-			"The limit on the maximum number of files in use (3) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+			fmt.Sprintf(fileLimitWarning, suite.filesLimit),
 		},
 		status.Get(false).Warnings,
 	)
@@ -250,7 +254,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
 		[]string{
-			"The limit on the maximum number of files in use (3) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+			fmt.Sprintf(fileLimitWarning, suite.filesLimit),
 		},
 		status.Get(false).Warnings,
 	)
@@ -270,14 +274,14 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
 	suite.Equal(
 		[]string{
-			"The limit on the maximum number of files in use (2) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+			fmt.Sprintf(fileLimitWarning, filesLimit),
 		},
 		status.Get(false).Warnings,
 	)
 	suite.Equal([]string{"0 files tailed out of 2 files matching"}, logSources[1].Messages.GetMessages())
 	suite.Equal(
 		[]string{
-			"The limit on the maximum number of files in use (2) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+			fmt.Sprintf(fileLimitWarning, filesLimit),
 		},
 		status.Get(false).Warnings,
 	)
@@ -292,7 +296,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 	suite.Equal([]string{"1 files tailed out of 1 files matching"}, logSources[1].Messages.GetMessages())
 	suite.Equal(
 		[]string{
-			"The limit on the maximum number of files in use (2) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+			fmt.Sprintf(fileLimitWarning, filesLimit),
 		},
 		status.Get(false).Warnings,
 	)

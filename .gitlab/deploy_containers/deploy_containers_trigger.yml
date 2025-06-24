@@ -1,9 +1,0 @@
-stages:
-  - deploy_containers
-  - deploy_mutable_image_tags
-
-include:
-  - .gitlab/common/container_publish_job_templates.yml
-  - .gitlab/deploy_containers/deploy_containers_a7.yml
-  - .gitlab/deploy_containers/deploy_mutable_image_tags.yml
-  - .gitlab/deploy_containers/deploy_ot_standalone.yml
