@@ -1,44 +1,48 @@
-pc: 0xb51e0
-	main.intArg@pkg/dyninst/testprogs/progs/simple/main.go:40
-pc: 0xb5218
-	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
+pc: 0xb5220
 	main.intArg@pkg/dyninst/testprogs/progs/simple/main.go:41
-pc: 0xb5250
-	main.stringArg@pkg/dyninst/testprogs/progs/simple/main.go:45
-pc: 0xb5290
+pc: 0xb5258
 	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
+	main.intArg@pkg/dyninst/testprogs/progs/simple/main.go:42
+pc: 0xb5290
 	main.stringArg@pkg/dyninst/testprogs/progs/simple/main.go:46
 pc: 0xb52d0
-	main.intSliceArg@pkg/dyninst/testprogs/progs/simple/main.go:50
-pc: 0xb5310
 	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
+	main.stringArg@pkg/dyninst/testprogs/progs/simple/main.go:47
+pc: 0xb5310
 	main.intSliceArg@pkg/dyninst/testprogs/progs/simple/main.go:51
 pc: 0xb5350
-	main.intArrayArg@pkg/dyninst/testprogs/progs/simple/main.go:55
-pc: 0xb5390
 	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
+	main.intSliceArg@pkg/dyninst/testprogs/progs/simple/main.go:52
+pc: 0xb5390
 	main.intArrayArg@pkg/dyninst/testprogs/progs/simple/main.go:56
 pc: 0xb53d0
-	main.stringSliceArg@pkg/dyninst/testprogs/progs/simple/main.go:60
-pc: 0xb5410
 	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
+	main.intArrayArg@pkg/dyninst/testprogs/progs/simple/main.go:57
+pc: 0xb5410
 	main.stringSliceArg@pkg/dyninst/testprogs/progs/simple/main.go:61
 pc: 0xb5450
-	main.stringArrayArg@pkg/dyninst/testprogs/progs/simple/main.go:65
+	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
+	main.stringSliceArg@pkg/dyninst/testprogs/progs/simple/main.go:62
 pc: 0xb5490
-	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
 	main.stringArrayArg@pkg/dyninst/testprogs/progs/simple/main.go:66
-pc: 0xb5590
-	main.mapArg@pkg/dyninst/testprogs/progs/simple/main.go:79
-pc: 0xb55c8
-	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
-	main.mapArg@pkg/dyninst/testprogs/progs/simple/main.go:80
-pc: 0xb5600
-	main.bigMapArg@pkg/dyninst/testprogs/progs/simple/main.go:96
-pc: 0xb5660
-	main.bigMapArg@pkg/dyninst/testprogs/progs/simple/main.go:101
 pc: 0xb54d0
-	main.inlined@pkg/dyninst/testprogs/progs/simple/main.go:69
-pc: 0xb5508
 	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
-	main.inlined@pkg/dyninst/testprogs/progs/simple/main.go:70
+	main.stringArrayArg@pkg/dyninst/testprogs/progs/simple/main.go:67
+pc: 0xb5510
+	main.stringArrayArgFrameless@pkg/dyninst/testprogs/progs/simple/main.go:72
+pc: 0xb5518
+	main.stringArrayArgFrameless@pkg/dyninst/testprogs/progs/simple/main.go:72
+pc: 0xb55e0
+	main.mapArg@pkg/dyninst/testprogs/progs/simple/main.go:84
+pc: 0xb5618
+	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
+	main.mapArg@pkg/dyninst/testprogs/progs/simple/main.go:85
+pc: 0xb5650
+	main.bigMapArg@pkg/dyninst/testprogs/progs/simple/main.go:101
+pc: 0xb56b0
+	main.bigMapArg@pkg/dyninst/testprogs/progs/simple/main.go:106
+pc: 0xb5520
+	main.inlined@pkg/dyninst/testprogs/progs/simple/main.go:74
+pc: 0xb5558
+	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
+	main.inlined@pkg/dyninst/testprogs/progs/simple/main.go:75
