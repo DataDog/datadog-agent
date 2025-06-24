@@ -29,7 +29,7 @@
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - $OMNIBUS_PACKAGE_DIR/
   # Sometimes Chocolatey is flakey
   retry: 2
 

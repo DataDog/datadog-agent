@@ -48,7 +48,7 @@
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - $OMNIBUS_PACKAGE_DIR/
 
 .windows_main_agent_base:
   extends: .windows_msi_base
@@ -122,4 +122,4 @@ windows_zip_agent_binaries_x64-a7:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - $OMNIBUS_PACKAGE_DIR/

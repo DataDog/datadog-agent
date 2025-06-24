@@ -244,6 +244,6 @@ windows-installer-amd64:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - $OMNIBUS_PACKAGE_DIR/
   variables:
     ARCH: "x64"
