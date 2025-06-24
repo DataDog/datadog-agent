@@ -133,7 +133,7 @@ def gen_config(
     stack: str | None = None,
     vms: str = "",
     sets: str = "",
-    init_stack=False,
+    init_stack=True,
     vcpu: str | None = None,
     memory: str | None = None,
     new=False,

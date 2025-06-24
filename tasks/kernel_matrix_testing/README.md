@@ -365,8 +365,8 @@ dda inv -e kmt.gen-config --vms=<list> [--stack=<name>]
 **Common Flags:**
 
 -   `--vms=<list>`: A comma-separated list of VMs to add to the stack. See [Specifying VMs](#specifying-vms) below for the format.
+-   `--init-stack`: Automatically creates the stack if it doesn't exist. Stack name is generated from the current git branch name, if not explicitly provided. This is true by default.
 -   `--stack=<name>`: The target stack. Defaults to a name based on the current git branch.
--   `--init-stack`: Automatically creates the stack if it doesn't exist.
 -   `--new`: Creates a fresh configuration file, removing any existing VMs from the stack's configuration.
 -   `--from-ci-pipeline=<id>`: Configures the stack to replicate failed jobs from a CI pipeline. See [CI Integration](#ci-integration).
 
