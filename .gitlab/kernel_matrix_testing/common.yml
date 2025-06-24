@@ -356,6 +356,7 @@ notify_ebpf_complexity_changes:
 
 test_ebpf_complexity_changes:
   extends: .notify_ebpf_complexity_changes
+  stage: source_test
   rules:
     # Execute this job whenever there are changes to the KMT python files that are used to generate the complexity data
     - changes:
@@ -366,7 +367,6 @@ test_ebpf_complexity_changes:
         compare_to: $COMPARE_TO_BRANCH
       when: always
     - !reference [.except_main_release_or_mq]
-    - when: never
   allow_failure: false
   variables:
     EXTRA_ARGS: "--skip-github-comment"
