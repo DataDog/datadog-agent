@@ -221,6 +221,9 @@ func (p *EBPFProbe) initCgroup2MountPath() {
 	if err != nil {
 		seclog.Warnf("%v", err)
 	}
+	if len(p.cgroup2MountPath) == 0 {
+		seclog.Debugf("cgroup v2 not found on the host")
+	}
 }
 
 // GetUseFentry returns true if fentry is used

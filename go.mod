@@ -1002,13 +1002,6 @@ replace (
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
 )
 
-// Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
-// https://github.com/open-telemetry/opentelemetry-collector/issues/8127
-exclude (
-	github.com/knadh/koanf/maps v0.1.1
-	github.com/knadh/koanf/providers/confmap v0.1.0
-)
-
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
 replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.0.0
