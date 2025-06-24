@@ -185,7 +185,7 @@ new-e2e-unit-tests:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    - go_e2e_deps
+    - !reference [ .needs_new_e2e_template ]
     - go_deps
     - go_tools_deps
   before_script:
