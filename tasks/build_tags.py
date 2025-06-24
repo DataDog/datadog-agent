@@ -200,7 +200,7 @@ SBOMGEN_TAGS = {
 }
 
 # SERVERLESS_TAGS lists the tags necessary to build serverless
-SERVERLESS_TAGS = {"grpcnotrace", "serverless", "otlp"}
+SERVERLESS_TAGS = {"grpcnotrace", "serverless"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = {
