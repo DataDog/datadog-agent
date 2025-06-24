@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
+	httpdebugger "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugger"
 	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	postgresdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/debugging"
@@ -292,6 +293,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug/usm/clear_blocked", usm.GetClearBlockedEndpoint(usmconsts.USMModuleName))
 	httpMux.HandleFunc("/debug/usm/attach-pid", usm.GetAttachPIDEndpoint(usmconsts.USMModuleName))
 	httpMux.HandleFunc("/debug/usm/detach-pid", usm.GetDetachPIDEndpoint(usmconsts.USMModuleName))
+	httpMux.HandleFunc("/debug/usm/http/debug-pid", httpdebugger.GetHTTPDebugEndpoint(nt.tracer))
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.
