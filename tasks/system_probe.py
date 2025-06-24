@@ -504,7 +504,6 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/network/protocols/http/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
-                "pkg/network/ebpf/c/protocols/tls/tags-types.h",
                 "pkg/network/ebpf/c/protocols/http/types.h",
                 "pkg/network/ebpf/c/protocols/classification/defs.h",
             ],
@@ -522,6 +521,9 @@ def ninja_cgo_type_files(nw: NinjaWriter):
             ],
             "pkg/network/protocols/redis/types.go": [
                 "pkg/network/ebpf/c/protocols/redis/types.h",
+            ],
+            "pkg/network/protocols/tls/types.go": [
+                "pkg/network/ebpf/c/protocols/tls/tags-types.h",
             ],
             "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
@@ -1966,60 +1968,6 @@ def _test_docker_image_list():
     images.add("public.ecr.aws/docker/library/alpine:3.20.3")
 
     return images
-
-
-@task
-def start_microvms(
-    ctx,
-    infra_env,
-    instance_type_x86=None,
-    instance_type_arm=None,
-    x86_ami_id=None,
-    arm_ami_id=None,
-    destroy=False,
-    ssh_key_name=None,
-    ssh_key_path=None,
-    dependencies_dir=None,
-    shutdown_period=320,
-    stack_name="kernel-matrix-testing-system",
-    vmconfig=None,
-    local=False,
-    provision_instance=False,
-    provision_microvms=False,
-    run_agent=False,
-    agent_version=None,
-):
-    args = [
-        f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
-        f"--instance-type-arm {instance_type_arm}" if instance_type_arm else "",
-        f"--x86-ami-id {x86_ami_id}" if x86_ami_id else "",
-        f"--arm-ami-id {arm_ami_id}" if arm_ami_id else "",
-        "--destroy" if destroy else "",
-        f"--ssh-key-path {ssh_key_path}" if ssh_key_path else "",
-        f"--ssh-key-name {ssh_key_name}" if ssh_key_name else "",
-        f"--infra-env {infra_env}",
-        f"--shutdown-period {shutdown_period}",
-        f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
-        f"--name {stack_name}",
-        f"--vmconfig {vmconfig}" if vmconfig else "",
-        "--local" if local else "",
-        "--run-agent" if run_agent else "",
-        f"--agent-version {agent_version}" if agent_version else "",
-        "--provision-instance" if provision_instance else "",
-        "--provision-microvms" if provision_microvms else "",
-    ]
-
-    go_args = ' '.join(filter(lambda x: x != "", args))
-
-    # building the binary improves start up time for local usage where we invoke this multiple times.
-    ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
-    print(
-        color_message(
-            "[+] Creating and provisioning microVMs.\n[+] If you want to see the pulumi progress, set configParams.pulumi.verboseProgressStreams: true in ~/.test_infra_config.yaml",
-            "green",
-        )
-    )
-    ctx.run(f"./test/new-e2e/start-microvms {go_args}")
 
 
 @task
