@@ -271,6 +271,7 @@ struct syscall_cache_t {
             unsigned short filter_len;
             int level;
             int optname;
+            u32 truncated;
             struct sock_fprog *fprog;
         } setsockopt;
     };

@@ -1561,17 +1561,19 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.FilterLen = binary.NativeEndian.Uint16(data[6:8])
 	e.Level = binary.NativeEndian.Uint32(data[8:12])
 	e.OptName = binary.NativeEndian.Uint32(data[12:16])
+	e.IsFilterTruncated = binary.NativeEndian.Uint32(data[16:20]) > 0
+	e.SizeToRead = binary.NativeEndian.Uint32(data[20:24])
+	sizeToRead := int(e.SizeToRead)
+
 	// Parse the filter here
-	filterStart := 16
-	filterLen := int(e.FilterLen)
-	filterSize := 8 // sizeof(sock_filter): 2 bytes Code, 1 byte Jt, 1 byte Jf, 4 bytes K
-	if len(data) < filterStart+filterLen*filterSize {
+	filterStart := 24
+
+	if len(data) < filterStart+sizeToRead {
 		return 0, ErrNotEnoughData
 	}
 	// Store the filter
-	e.RawFilter = []byte(data[filterStart : filterStart+filterLen*filterSize])
-
-	return filterStart + filterLen*filterSize + read, nil
+	e.RawFilter = []byte(data[filterStart : filterStart+sizeToRead])
+	return filterStart + sizeToRead + read, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

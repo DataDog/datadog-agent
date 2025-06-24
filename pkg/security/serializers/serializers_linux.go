@@ -564,6 +564,8 @@ type SetSockOptEventSerializer struct {
 	OptName uint32 `json:"optname"`
 	// Length of the filter
 	FilterLen uint16 `json:"filter_len,omitempty"`
+	// Filter truncated
+	IsFilterTruncated bool `json:"is_filter_truncated,omitempty"`
 	// Filter instructions
 	FilterInstructions string `json:"filter,omitempty"`
 	//Filter hash
@@ -1327,6 +1329,7 @@ func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 		SocketFamily:       e.SetSockOpt.SocketFamily,
 		Level:              e.SetSockOpt.Level,
 		OptName:            e.SetSockOpt.OptName,
+		IsFilterTruncated:  e.SetSockOpt.IsFilterTruncated,
 		FilterLen:          e.SetSockOpt.FilterLen,
 		FilterInstructions: e.FieldHandlers.ResolveSetSockOptFilterInstructions(e, &e.SetSockOpt),
 		FilterHash:         e.FieldHandlers.ResolveSetSockOptFilterHash(e, &e.SetSockOpt),

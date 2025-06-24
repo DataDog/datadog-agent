@@ -177,6 +177,9 @@ type EBPFProbe struct {
 	// snapshot
 	ruleSetVersion    uint64
 	playSnapShotState *atomic.Bool
+
+	// Setsockopt and BPF Filter
+	BPFFilterTruncated *atomic.Uint64
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -772,6 +775,11 @@ func (p *EBPFProbe) SendStats() error {
 	p.processKiller.SendStats(p.statsdClient)
 
 	if err := p.profileManager.SendStats(); err != nil {
+		return err
+	}
+
+	value := p.BPFFilterTruncated.Swap(0)
+	if err := p.statsdClient.Count(metrics.MetricBPFFilterTruncated, int64(value), []string{}, 1.0); err != nil {
 		return err
 	}
 
@@ -1478,6 +1486,10 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		if _, err = event.SetSockOpt.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode setsockopt event: %s (offset %d, len %d)", err, offset, len(data))
 			return
+		}
+		seclog.Debugf("setsockopt event truncated")
+		if p.BPFFilterTruncated != nil {
+			p.BPFFilterTruncated.Add(1)
 		}
 	case model.SetrlimitEventType:
 		if _, err = event.Setrlimit.UnmarshalBinary(data[offset:]); err != nil {
@@ -2516,6 +2528,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		playSnapShotState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
 		ipc:                  ipc,
+		BPFFilterTruncated:   atomic.NewUint64(0),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

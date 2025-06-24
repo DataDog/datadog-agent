@@ -49,14 +49,16 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     event->level = syscall->setsockopt.level;
     event->optname = syscall->setsockopt.optname;
     event->filter_len = syscall->setsockopt.filter_len;
+    event->truncated = syscall->setsockopt.truncated;
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_container_context(entry, &event->container);
     fill_span_context(&event->span);
-
+    int size_to_sent = sizeof(struct sock_filter) * syscall->setsockopt.filter_len;
     if (syscall->setsockopt.filter_len > MAX_BPF_FILTER_SIZE / sizeof(struct sock_filter)) {
-        return 0;
+        size_to_sent = MAX_BPF_FILTER_SIZE;
     }
-    send_event_with_size_ptr(ctx, EVENT_SETSOCKOPT, event, (offsetof(struct setsockopt_event_t, bpf_filters_buffer) + sizeof(struct sock_filter) * syscall->setsockopt.filter_len) );
+    event->sent_size = size_to_sent;
+    send_event_with_size_ptr(ctx, EVENT_SETSOCKOPT, event, (offsetof(struct setsockopt_event_t, bpf_filters_buffer) + size_to_sent));
     
 
     return 0;
@@ -144,8 +146,16 @@ int rethook_release_sock(ctx_t *ctx) {
     syscall->setsockopt.filter_len = prog_len;
     int key = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event, &key);
-    if (event && 1 < prog_size && prog_size < MAX_BPF_FILTER_SIZE ) { 
-        bpf_probe_read(&event->bpf_filters_buffer, prog_size & MAX_BPF_FILTER_SIZE , prog.filter);  
+    if (prog_size > MAX_BPF_FILTER_SIZE) {
+        prog_size = MAX_BPF_FILTER_SIZE;
+        syscall->setsockopt.truncated = 1;
+    }
+    else {
+        syscall->setsockopt.truncated = 0;
+    }
+
+    if (event && 1 < prog_size ) { 
+        bpf_probe_read(&event->bpf_filters_buffer, prog_size & MAX_BPF_FILTER_SIZE , prog.filter); 
     }
     return 0;
 }

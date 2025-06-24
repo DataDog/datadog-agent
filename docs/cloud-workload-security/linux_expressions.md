@@ -1723,6 +1723,7 @@ A setsockopt was executed
 | [`setsockopt.filter_hash`](#setsockopt-filter_hash-doc) | Hash of the socket filter using sha256 |
 | [`setsockopt.filter_instructions`](#setsockopt-filter_instructions-doc) | Filter instructions |
 | [`setsockopt.filter_len`](#setsockopt-filter_len-doc) | Length of the filter |
+| [`setsockopt.is_filter_truncated`](#setsockopt-is_filter_truncated-doc) | Indicates that the filter is truncated |
 | [`setsockopt.level`](#setsockopt-level-doc) | Socket level |
 | [`setsockopt.optname`](#setsockopt-optname-doc) | Socket option name |
 | [`setsockopt.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
@@ -3807,6 +3808,13 @@ Definition: Filter instructions
 Type: int
 
 Definition: Length of the filter
+
+
+
+### `setsockopt.is_filter_truncated` {#setsockopt-is_filter_truncated-doc}
+Type: bool
+
+Definition: Indicates that the filter is truncated
 
 
 
