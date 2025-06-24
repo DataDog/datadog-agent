@@ -92,14 +92,30 @@ func WithReporter(reporter Reporter) Option {
 // TODO: This is not sufficient for what we'll need for driving the
 // diagnostics output, but it's a start to drive testing.
 type Reporter interface {
-	ReportAttached(processID ProcessID, probes []config.Probe)
-	ReportDetached(processID ProcessID, probes []config.Probe)
+
+	// ReportAttached is called when a program is attached to a process.
+	ReportAttached(ProcessID, []config.Probe)
+
+	// ReportDetached is called when a program is detached from a process.
+	ReportDetached(ProcessID, []config.Probe)
+
+	// ReportCompilationFailed is called when a program fails to compile.
+	ReportCompilationFailed(ir.ProgramID, error)
+
+	// ReportLoadingFailed is called when a program fails to load.
+	ReportLoadingFailed(ir.ProgramID, error)
+
+	// ReportAttachingFailed is called when a program fails to attach to a process.
+	ReportAttachingFailed(ir.ProgramID, ProcessID, error)
 }
 
 type noopReporter struct{}
 
-func (noopReporter) ReportAttached(ProcessID, []config.Probe) {}
-func (noopReporter) ReportDetached(ProcessID, []config.Probe) {}
+func (noopReporter) ReportAttached(ProcessID, []config.Probe)             {}
+func (noopReporter) ReportDetached(ProcessID, []config.Probe)             {}
+func (noopReporter) ReportCompilationFailed(ir.ProgramID, error)          {}
+func (noopReporter) ReportLoadingFailed(ir.ProgramID, error)              {}
+func (noopReporter) ReportAttachingFailed(ir.ProgramID, ProcessID, error) {}
 
 // WithRingBufSize sets the size of the ring buffer for the Actuator.
 func WithRingBufSize(size int) Option {

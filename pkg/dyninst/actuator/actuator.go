@@ -212,6 +212,7 @@ func (a *effects) compileProgram(
 		)
 		if err != nil {
 			err = fmt.Errorf("failed to compile eBPF program: %w", err)
+			a.reporter.ReportCompilationFailed(programID, err)
 			a.sendEvent(eventProgramCompilationFailed{
 				programID: programID,
 				err:       err,
@@ -281,6 +282,7 @@ func (a *effects) loadProgram(compiled *CompiledProgram) {
 
 		loaded, err := loadProgram(a.ringbufMap, compiled)
 		if err != nil {
+			a.reporter.ReportLoadingFailed(compiled.IR.ID, err)
 			a.sendEvent(eventProgramCompilationFailed{
 				programID: compiled.IR.ID,
 				err:       fmt.Errorf("failed to load collection spec: %w", err),
@@ -346,6 +348,7 @@ func (a *effects) attachToProcess(
 			loaded, executable, processID, a.reporter,
 		)
 		if err != nil {
+			a.reporter.ReportAttachingFailed(loaded.id, processID, err)
 			a.sendEvent(eventProgramAttachingFailed{
 				programID: loaded.id,
 				err:       fmt.Errorf("failed to attach to process: %w", err),

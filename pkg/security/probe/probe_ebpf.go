@@ -221,6 +221,9 @@ func (p *EBPFProbe) initCgroup2MountPath() {
 	if err != nil {
 		seclog.Warnf("%v", err)
 	}
+	if len(p.cgroup2MountPath) == 0 {
+		seclog.Debugf("cgroup v2 not found on the host")
+	}
 }
 
 // GetUseFentry returns true if fentry is used
@@ -1069,6 +1072,17 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 
 	switch eventType {
+
+	case model.FileFsmountEventType:
+		if _, err = event.Fsmount.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		if err := p.handleNewMount(event, event.Fsmount.ToMount()); err != nil {
+			seclog.Debugf("failed to handle new mount from mount event: %s\n", err)
+			return
+		}
 
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
@@ -2004,13 +2018,17 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
-	// Resolve mount point
-	if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
-		return fmt.Errorf("failed to set mount point: %w", err)
-	}
-	// Resolve root
-	if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
-		return fmt.Errorf("failed to set mount root: %w", err)
+	// fsmount mounts a detached mountpoint, therefore there's no mount point and the root is always "/"
+	if m.Origin != model.MountOriginFsmount {
+		// Resolve mount point
+		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
+			return fmt.Errorf("failed to set mount point: %w", err)
+		}
+
+		// Resolve root
+		if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
+			return fmt.Errorf("failed to set mount root: %w", err)
+		}
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
