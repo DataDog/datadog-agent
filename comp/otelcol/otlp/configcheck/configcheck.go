@@ -14,12 +14,12 @@ import (
 	"github.com/mohae/deepcopy"
 	"go.opentelemetry.io/collector/confmap"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // ReadConfigSection from a config.Component object.
-func ReadConfigSection(cfg config.Reader, section string) *confmap.Conf {
+func ReadConfigSection(cfg configmodel.Reader, section string) *confmap.Conf {
 	// Viper doesn't work well when getting subsections, since it
 	// ignores environment variables and nil-but-present sections.
 	// To work around this, we do the following two steps:
@@ -74,16 +74,16 @@ var intConfigs = map[string]struct{}{
 }
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
-func IsEnabled(cfg config.Reader) bool {
+func IsEnabled(cfg configmodel.Reader) bool {
 	return hasSection(cfg, coreconfig.OTLPReceiverSubSectionKey)
 }
 
 // HasLogsSectionEnabled checks if OTLP logs are explicitly enabled in a given config.
-func HasLogsSectionEnabled(cfg config.Reader) bool {
+func HasLogsSectionEnabled(cfg configmodel.Reader) bool {
 	return hasSection(cfg, coreconfig.OTLPLogsEnabled) && cfg.GetBool(coreconfig.OTLPLogsEnabled)
 }
 
-func hasSection(cfg config.Reader, section string) bool {
+func hasSection(cfg configmodel.Reader, section string) bool {
 	// HACK: We want to mark as enabled if the section is present, even if empty, so that we get errors
 	// from unmarshaling/validation done by the Collector code.
 	//
