@@ -32,16 +32,13 @@
 
 /LICENSE*                               # do not notify anyone
 
-# Todo: is this file still needed?
-/Makefile.trace                         @DataDog/agent-delivery
-
 /mkdocs.yml                             @DataDog/agent-devx
 /release.json                           @DataDog/agent-delivery @DataDog/agent-integrations
 /renovate.json                          @DataDog/agent-devx
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /generate_tools.go                      @DataDog/agent-devx
-/service.datadog.yaml                   @DataDog/agent-delivery
+/service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
 
 /modules.yml                            @DataDog/agent-runtimes
@@ -88,6 +85,7 @@
 /.gitlab/pkg_metrics/*                               @DataDog/agent-devx
 /.gitlab/post_rc_build/*                             @DataDog/agent-devx
 /.gitlab/setup/*                                     @DataDog/agent-devx
+/.gitlab/trigger_distribution/*                      @DataDog/agent-delivery
 /.gitlab/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
 
 /.gitlab/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
@@ -273,9 +271,6 @@
 # that should be fine since rarely we make PRs that only change those files alone.
 /go.mod                                 # do not notify anyone
 /go.sum                                 # do not notify anyone
-
-
-/Makefile.trace                         @DataDog/agent-apm
 
 /omnibus/                               @DataDog/agent-build
 /omnibus/package-scripts/agent-rpm/     @DataDog/agent-build @DataDog/fleet

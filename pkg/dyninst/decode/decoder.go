@@ -73,16 +73,6 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		return err
 	}
 
-	err = enc.WriteToken(jsontext.String("event_id"))
-	if err != nil {
-		return err
-	}
-
-	err = enc.WriteToken(jsontext.Uint(uint64(eventHeader.Event_id)))
-	if err != nil {
-		return err
-	}
-
 	err = enc.WriteToken(jsontext.String("program_id"))
 	if err != nil {
 		return err
@@ -94,6 +84,20 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 	}
 
 	frames, err := event.StackPCs()
+	if err != nil {
+		return err
+	}
+
+	header, err := event.Header()
+	if err != nil {
+		return err
+	}
+
+	err = enc.WriteToken(jsontext.String("prog_id"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.Uint(uint64(header.Prog_id)))
 	if err != nil {
 		return err
 	}

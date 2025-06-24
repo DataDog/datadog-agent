@@ -40,7 +40,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.36.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.33.0
-	golang.org/x/time v0.11.0
+	golang.org/x/time v0.12.0
 	google.golang.org/grpc v1.72.2
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/ini.v1 v1.67.0
@@ -91,6 +91,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
+	github.com/prometheus/common v0.65.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.14 // indirect
 	github.com/tklauser/numcpus v0.9.0 // indirect
@@ -108,9 +109,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.36.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
-	golang.org/x/net v0.40.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
+	golang.org/x/net v0.41.0 // indirect
+	golang.org/x/text v0.26.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

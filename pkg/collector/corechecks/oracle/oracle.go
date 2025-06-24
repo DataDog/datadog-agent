@@ -141,6 +141,10 @@ func handleServiceCheck(c *Check, err error) {
 		log.Errorf("%s failed to connect: %s", c.logPrompt, err)
 	}
 	sendServiceCheck(c, "oracle.can_connect", status, message)
+	if status == servicecheck.ServiceCheckCritical {
+		// If we can't connect, we can't query
+		sendServiceCheck(c, serviceCheckName, status, message)
+	}
 	sender.Commit()
 }
 

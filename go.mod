@@ -186,14 +186,14 @@ require (
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
-	golang.org/x/arch v0.16.0
-	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
-	golang.org/x/net v0.40.0
-	golang.org/x/sync v0.14.0
+	golang.org/x/arch v0.18.0
+	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476
+	golang.org/x/net v0.41.0
+	golang.org/x/sync v0.15.0
 	golang.org/x/sys v0.33.0
-	golang.org/x/text v0.25.0
-	golang.org/x/time v0.11.0
-	golang.org/x/tools v0.33.0
+	golang.org/x/text v0.26.0
+	golang.org/x/time v0.12.0
+	golang.org/x/tools v0.34.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
 	google.golang.org/genproto v0.0.0-20250425173222-7b384671a197 // indirect
 	google.golang.org/grpc v1.72.2
@@ -245,19 +245,19 @@ require (
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
-	github.com/aws/aws-sdk-go-v2 v1.36.3
-	github.com/aws/aws-sdk-go-v2/config v1.29.14
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.67
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.30 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.34 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.34 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.36.5
+	github.com/aws/aws-sdk-go-v2/config v1.29.17
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.70
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.32 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.36 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.36 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.224.0
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.15 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.25.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19 // indirect
-	github.com/aws/smithy-go v1.22.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.225.2
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.25.5 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0 // indirect
+	github.com/aws/smithy-go v1.22.4 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
 	github.com/briandowns/spinner v1.23.0 // indirect
@@ -348,7 +348,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/common v0.64.0
+	github.com/prometheus/common v0.65.0
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/cors v1.11.1 // indirect
@@ -404,8 +404,8 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/trace v1.36.0
 	go.opentelemetry.io/proto/otlp v1.6.0 // indirect
-	golang.org/x/crypto v0.38.0 // indirect
-	golang.org/x/mod v0.24.0
+	golang.org/x/crypto v0.39.0 // indirect
+	golang.org/x/mod v0.25.0
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/term v0.32.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
@@ -435,7 +435,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker v0.0.0
-	github.com/DataDog/dd-trace-go/v2 v2.0.0-beta.11
+	github.com/DataDog/dd-trace-go/v2 v2.0.0
 	github.com/NVIDIA/go-nvml v0.12.4-0
 	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
 	github.com/containerd/containerd/api v1.8.0
@@ -699,7 +699,7 @@ require (
 )
 
 require (
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.57.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.58.0 // indirect
 	github.com/gophercloud/gophercloud/v2 v2.7.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/gopsutilenv v0.128.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.128.0 // indirect
@@ -775,7 +775,7 @@ require (
 	github.com/aquasecurity/jfather v0.0.8 // indirect
 	github.com/aquasecurity/trivy-java-db v0.0.0-20240109071736-184bd7481d48 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.42.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.35.4 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bhmj/xpression v0.9.1 // indirect
@@ -992,9 +992,6 @@ replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelg
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
-// Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
-replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
-
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
 // Use custom Trivy fork to reduce binary size
@@ -1003,16 +1000,6 @@ replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060
 	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250328083658-40561b7842af
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
-)
-
-// Fixes CVE-2023-1732, imported by nikos
-replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
-
-// Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
-// https://github.com/open-telemetry/opentelemetry-collector/issues/8127
-exclude (
-	github.com/knadh/koanf/maps v0.1.1
-	github.com/knadh/koanf/providers/confmap v0.1.0
 )
 
 // Prevent dependencies to be bumped by Trivy

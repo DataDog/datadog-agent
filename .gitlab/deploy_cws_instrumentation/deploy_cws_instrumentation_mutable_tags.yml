@@ -1,0 +1,28 @@
+# deploy mutable cws instrumentation tags stage
+# Contains jobs which deploy CWS Instrumentation related mutable image tags to the registries. That means - not uploading the image, but only creating the tags.
+
+.deploy_mutable_cws_instrumentation_tags-base:
+  extends: .docker_publish_job_definition
+  stage: deploy_cws_instrumentation_mutable_tags
+  dependencies: []
+  before_script:
+    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - export IMG_TAG_REFERENCE=${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}
+
+deploy_containers-cws-instrumentation-rc-mutable:
+  extends: .deploy_mutable_cws_instrumentation_tags-base
+  rules: !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-cws-instrumentation-rc-versioned
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: rc
+
+deploy_containers-cws-instrumentation-latest:
+  extends: .deploy_mutable_cws_instrumentation_tags-base
+  rules: !reference [.on_deploy_manual_final]
+  needs:
+    - job: deploy_containers-cws-instrumentation-final-versioned
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: latest
