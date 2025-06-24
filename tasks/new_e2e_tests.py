@@ -13,8 +13,8 @@ import shutil
 import tempfile
 import threading
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import yaml
