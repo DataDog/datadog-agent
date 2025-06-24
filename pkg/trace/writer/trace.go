@@ -298,7 +298,7 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	}
 
 	if w.minConvertPayloads > 0 && numToConvert > 0 {
-		w.writeAgentPayloadToFile(p)
+		w.writeAgentPayloadToFile(&p)
 	}
 
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
