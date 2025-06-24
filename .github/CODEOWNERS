@@ -38,7 +38,7 @@
 /pyproject.toml                         @DataDog/agent-devx
 /repository.datadog.yml                 @DataDog/agent-devx
 /generate_tools.go                      @DataDog/agent-devx
-/service.datadog.yaml                   @DataDog/agent-delivery
+/service.datadog.yaml                   @DataDog/agent-delivery @DataDog/agent-devx
 /static-analysis.datadog.yml            @DataDog/agent-devx
 
 /modules.yml                            @DataDog/agent-runtimes
