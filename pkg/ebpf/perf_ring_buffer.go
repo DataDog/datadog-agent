@@ -9,6 +9,7 @@ package ebpf
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/cilium/ebpf/ringbuf"
 
@@ -31,6 +32,8 @@ type RingBufferHandler struct {
 	lostChannel chan uint64
 	once        sync.Once
 	closed      bool
+
+	chLenTelemetry *atomic.Uint64
 }
 
 // NewRingBufferHandler creates a RingBufferHandler
@@ -43,7 +46,8 @@ func NewRingBufferHandler(dataChannelSize int) *RingBufferHandler {
 		// This channel is not really used in the context of ring buffers but
 		// it's here so `RingBufferHandler` and `PerfHandler` can be used
 		// interchangeably
-		lostChannel: make(chan uint64, 1),
+		lostChannel:    make(chan uint64, 1),
+		chLenTelemetry: &atomic.Uint64{},
 	}
 }
 
@@ -54,6 +58,7 @@ func (c *RingBufferHandler) RecordHandler(record *ringbuf.Record, _ *manager.Rin
 	}
 
 	c.dataChannel <- DataEvent{Data: record.RawSample, rr: record}
+	updateMaxTelemetry(c.chLenTelemetry, uint64(len(c.dataChannel)))
 }
 
 // DataChannel returns the channel with event data
@@ -66,6 +71,8 @@ func (c *RingBufferHandler) LostChannel() <-chan uint64 {
 	return c.lostChannel
 }
 
+func (c *RingBufferHandler) GetChannelLengthTelemetry() *atomic.Uint64 { return c.chLenTelemetry }
+
 // Stop stops the perf handler and closes both channels
 func (c *RingBufferHandler) Stop() {
 	c.once.Do(func() {
@@ -73,4 +80,22 @@ func (c *RingBufferHandler) Stop() {
 		close(c.dataChannel)
 		close(c.lostChannel)
 	})
+}
+
+// implement the CAS algorithm to atomically update a max value
+func updateMaxTelemetry(a *atomic.Uint64, val uint64) {
+	for {
+		oldVal := a.Load()
+		if val <= oldVal {
+			return
+		}
+		// if the value at a is not `oldVal`, then `CompareAndSwap` returns
+		// false indicating that the value of the atomic has changed between
+		// the above check and this invocation.
+		// In this case we retry the above test, to see if the value still needs
+		// to be updated.
+		if a.CompareAndSwap(oldVal, val) {
+			return
+		}
+	}
 }
