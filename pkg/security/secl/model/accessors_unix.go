@@ -21591,6 +21591,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setsockopt.is_filter_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetSockOpt.IsFilterTruncated
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setsockopt.level":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -28933,6 +28944,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setsockopt.filter_hash",
 		"setsockopt.filter_instructions",
 		"setsockopt.filter_len",
+		"setsockopt.is_filter_truncated",
 		"setsockopt.level",
 		"setsockopt.optname",
 		"setsockopt.retval",
@@ -32084,6 +32096,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setsockopt", reflect.String, "string", nil
 	case "setsockopt.filter_len":
 		return "setsockopt", reflect.Int, "int", nil
+	case "setsockopt.is_filter_truncated":
+		return "setsockopt", reflect.Bool, "bool", nil
 	case "setsockopt.level":
 		return "setsockopt", reflect.Int, "int", nil
 	case "setsockopt.optname":
@@ -39384,6 +39398,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueOutOfRange{Field: "setsockopt.filter_len"}
 		}
 		ev.SetSockOpt.FilterLen = uint16(rv)
+		return nil
+	case "setsockopt.is_filter_truncated":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setsockopt.is_filter_truncated"}
+		}
+		ev.SetSockOpt.IsFilterTruncated = rv
 		return nil
 	case "setsockopt.level":
 		return ev.setUint32FieldValue("setsockopt.level", &ev.SetSockOpt.Level, value)

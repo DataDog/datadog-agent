@@ -555,6 +555,8 @@ struct setsockopt_event_t {
     unsigned short filter_len;
     int level;
     int optname;
+    u32 truncated;
+    int sent_size;
     char bpf_filters_buffer[MAX_BPF_FILTER_SIZE];
 };
 

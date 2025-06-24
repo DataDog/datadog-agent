@@ -1750,6 +1750,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "integer",
                     "description": "Length of the filter"
                 },
+                "is_filter_truncated": {
+                    "type": "boolean",
+                    "description": "Filter truncated"
+                },
                 "filter": {
                     "type": "string",
                     "description": "Filter instructions"
@@ -4776,6 +4780,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer",
             "description": "Length of the filter"
         },
+        "is_filter_truncated": {
+            "type": "boolean",
+            "description": "Filter truncated"
+        },
         "filter": {
             "type": "string",
             "description": "Filter instructions"
@@ -4807,6 +4815,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
 | `filter_len` | Length of the filter |
+| `is_filter_truncated` | Filter truncated |
 | `filter` | Filter instructions |
 | `filter_hash` | Filter hash |
 

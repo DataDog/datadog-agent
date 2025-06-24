@@ -1739,6 +1739,10 @@
           "type": "integer",
           "description": "Length of the filter"
         },
+        "is_filter_truncated": {
+          "type": "boolean",
+          "description": "Filter truncated"
+        },
         "filter": {
           "type": "string",
           "description": "Filter instructions"

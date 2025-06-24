@@ -1134,6 +1134,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(i
 			out.OptName = uint32(in.Uint32())
 		case "filter_len":
 			out.FilterLen = uint16(in.Uint16())
+		case "is_filter_truncated":
+			out.IsFilterTruncated = bool(in.Bool())
 		case "filter":
 			out.FilterInstructions = string(in.String())
 		case "filter_hash":
@@ -1181,6 +1183,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		const prefix string = ",\"filter_len\":"
 		out.RawString(prefix)
 		out.Uint16(uint16(in.FilterLen))
+	}
+	if in.IsFilterTruncated {
+		const prefix string = ",\"is_filter_truncated\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.IsFilterTruncated))
 	}
 	if in.FilterInstructions != "" {
 		const prefix string = ",\"filter\":"
