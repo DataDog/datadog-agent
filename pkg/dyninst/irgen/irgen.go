@@ -1053,6 +1053,8 @@ func (v *inlinedSubroutineChildVisitor) push(
 		return nil, nil
 	case dwarf.TagLexDwarfBlock:
 		return v, nil
+	case dwarf.TagTypedef:
+		return v, nil
 	}
 	return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)
 }
