@@ -559,6 +559,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "filesystem",
                 "uid",
                 "gid"
             ],
@@ -698,6 +699,7 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "required": [
+                "filesystem",
                 "uid",
                 "gid"
             ],
@@ -2986,6 +2988,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "filesystem",
         "uid",
         "gid"
     ],
@@ -3164,6 +3167,7 @@ Workload Protection events for Linux systems have the following JSON schema:
     "additionalProperties": false,
     "type": "object",
     "required": [
+        "filesystem",
         "uid",
         "gid"
     ],
