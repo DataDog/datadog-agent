@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package checkdisk contains tests for the disk check
 package checkdisk
 
 import (
@@ -19,6 +20,12 @@ type windowsDiskCheckSuite struct {
 
 func TestWindowsDiskSuite(t *testing.T) {
 	t.Parallel()
-	suite := &windowsDiskCheckSuite{diskCheckSuite{descriptor: e2eos.WindowsDefault, metricCompareFraction: 0.02, metricCompareDecimals: 1}}
+	suite := &windowsDiskCheckSuite{
+		diskCheckSuite{
+			descriptor:            e2eos.WindowsDefault,
+			metricCompareFraction: 0.02,
+			metricCompareDecimals: 1,
+		},
+	}
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
