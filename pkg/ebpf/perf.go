@@ -9,6 +9,7 @@ package ebpf
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/cilium/ebpf/perf"
 
@@ -31,6 +32,8 @@ type PerfHandler struct {
 	lostChannel chan uint64
 	once        sync.Once
 	closed      bool
+
+	chLenTelemetry *atomic.Uint64
 }
 
 // NewPerfHandler creates a PerfHandler
@@ -39,8 +42,9 @@ func NewPerfHandler(dataChannelSize int) *PerfHandler {
 		RecordGetter: func() *perf.Record {
 			return recordPool.Get()
 		},
-		dataChannel: make(chan DataEvent, dataChannelSize),
-		lostChannel: make(chan uint64, 10),
+		dataChannel:    make(chan DataEvent, dataChannelSize),
+		lostChannel:    make(chan uint64, 10),
+		chLenTelemetry: &atomic.Uint64{},
 	}
 }
 
@@ -59,6 +63,7 @@ func (c *PerfHandler) RecordHandler(record *perf.Record, _ *manager.PerfMap, _ *
 	}
 
 	c.dataChannel <- DataEvent{Data: record.RawSample, pr: record}
+	updateMaxTelemetry(c.chLenTelemetry, uint64(len(c.dataChannel)))
 }
 
 // DataChannel returns the channel with event data
@@ -70,6 +75,8 @@ func (c *PerfHandler) DataChannel() <-chan DataEvent {
 func (c *PerfHandler) LostChannel() <-chan uint64 {
 	return c.lostChannel
 }
+
+func (c *PerfHandler) GetChannelLengthTelemetry() *atomic.Uint64 { return c.chLenTelemetry }
 
 // Stop stops the perf handler and closes both channels
 func (c *PerfHandler) Stop() {
