@@ -121,11 +121,11 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (*DBResource, bool) {
 
 	var conf *DBConfig
 	switch resourceType {
-	case postgresqlResourceType:
+	case types.ResourceTypeDbPostgresql:
 		conf, ok = LoadPostgreSQLConfig(ctx, hostroot, proc)
-	case mongoDBResourceType:
+	case types.ResourceTypeDbMongodb:
 		conf, ok = LoadMongoDBConfig(ctx, hostroot, proc)
-	case cassandraResourceType:
+	case types.ResourceTypeDbCassandra:
 		conf, ok = LoadCassandraConfig(ctx, hostroot, proc)
 	default:
 		ok = false
