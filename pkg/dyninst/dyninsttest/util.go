@@ -80,7 +80,7 @@ func CompileAndLoadBPF(
 	require.NoError(t, err)
 	defer func() { require.NoError(t, codeDump.Close()) }()
 
-	compiledBPF, err := compiler.CompileBPFProgram(irp, codeDump)
+	compiledBPF, err := compiler.NewCompiler().Compile(irp, codeDump)
 	require.NoError(t, err)
 
 	bpfObjDump, err := os.Create(filepath.Join(tempDir, "probe.bpf.o"))

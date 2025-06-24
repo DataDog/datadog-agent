@@ -10,6 +10,7 @@ package actuator
 import (
 	"io"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 )
@@ -20,18 +21,31 @@ type configuration struct {
 	reporter         Reporter
 	codegenWriter    CodegenWriterFactory
 	compiledCallback CompiledCallback
+	compiler         Compiler
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB
 
-var defaultSettings = configuration{
-	ringBufSize: defaultRingbufSize,
-	sink:        noopDispatcher{},
-	reporter:    noopReporter{},
-	codegenWriter: func(*ir.Program) io.Writer {
-		return nil
-	},
-	compiledCallback: func(*CompiledProgram) {},
+func noopCodegenWriter(*ir.Program) io.Writer {
+	return nil
+}
+
+func makeConfiguration(opts ...Option) configuration {
+	cfg := configuration{
+		ringBufSize:      defaultRingbufSize,
+		sink:             noopDispatcher{},
+		reporter:         noopReporter{},
+		codegenWriter:    noopCodegenWriter,
+		compiledCallback: func(*CompiledProgram) {},
+		compiler:         nil, // set after options are applied
+	}
+	for _, opt := range opts {
+		opt.apply(&cfg)
+	}
+	if cfg.compiler == nil {
+		cfg.compiler = compiler.NewCompiler()
+	}
+	return cfg
 }
 
 // Option is a function that can be used to configure the Actuator.
@@ -145,5 +159,20 @@ type CompiledCallback func(*CompiledProgram)
 func WithCompiledCallback(f CompiledCallback) Option {
 	return optionFunc(func(s *configuration) {
 		s.compiledCallback = f
+	})
+}
+
+// Compiler is an interface that abstracts the eBPF compiler.
+type Compiler interface {
+	Compile(
+		program *ir.Program,
+		extraCodeSink io.Writer,
+	) (compiler.CompiledBPF, error)
+}
+
+// WithCompiler sets the compiler for the Actuator.
+func WithCompiler(c Compiler) Option {
+	return optionFunc(func(s *configuration) {
+		s.compiler = c
 	})
 }

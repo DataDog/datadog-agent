@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-// Actuator manages dynamic instrumentation for processes.  It coordinates IR
+// Actuator manages dynamic instrumentation for processes. It coordinates IR
 // generation, eBPF compilation, program loading, and attachment.
 type Actuator struct {
 	configuration
@@ -51,16 +51,13 @@ type Actuator struct {
 func NewActuator(
 	options ...Option,
 ) (*Actuator, error) {
-	settings := defaultSettings
-	for _, option := range options {
-		option.apply(&settings)
-	}
+	cfg := makeConfiguration(options...)
 
 	// Pre-create the ringbuffer that will be shared across all BPF programs.
 	ringbufMap, err := ebpf.NewMap(&ebpf.MapSpec{
 		Name:       compiler.RingbufMapName,
 		Type:       ebpf.RingBuf,
-		MaxEntries: uint32(settings.ringBufSize),
+		MaxEntries: uint32(cfg.ringBufSize),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ringbuffer map: %w", err)
@@ -78,7 +75,7 @@ func NewActuator(
 	shutdownCh := make(chan struct{})
 	eventCh := make(chan event)
 	a := &Actuator{
-		configuration: settings,
+		configuration: cfg,
 		events:        eventCh,
 		ringbufMap:    ringbufMap,
 		ringbufReader: ringbufReader,
@@ -207,7 +204,8 @@ func (a *effects) compileProgram(
 		defer a.wg.Done()
 
 		compiled, err := compileProgram(
-			programID, executable, probes, a.configuration.codegenWriter,
+			a.compiler, programID, executable, probes,
+			a.configuration.codegenWriter,
 		)
 		if err != nil {
 			err = fmt.Errorf("failed to compile eBPF program: %w", err)
@@ -227,6 +225,7 @@ func (a *effects) compileProgram(
 }
 
 func compileProgram(
+	compiler Compiler,
 	programID ir.ProgramID,
 	exe Executable,
 	probes []irgen.ProbeDefinition,
@@ -257,9 +256,7 @@ func compileProgram(
 
 	// Compile the IR to eBPF
 	extraCodeSink := cwf(irProgram)
-	compiled, err := compiler.CompileBPFProgram(
-		irProgram, extraCodeSink,
-	)
+	compiled, err := compiler.Compile(irProgram, extraCodeSink)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to compile eBPF program: %w", err,

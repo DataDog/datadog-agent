@@ -70,7 +70,7 @@ func runBenchmark() error {
 
 	// Compile the IR and prepare the BPF program.
 	fmt.Println("compiling BPF")
-	compiledBPF, err := compiler.CompileBPFProgram(irp, nil)
+	compiledBPF, err := compiler.NewCompiler().Compile(irp, nil)
 	if err != nil {
 		return err
 	}
