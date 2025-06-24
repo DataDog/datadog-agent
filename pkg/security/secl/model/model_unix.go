@@ -1026,9 +1026,9 @@ type SetSockOptEvent struct {
 	SocketType         uint16 `field:"socket_type"`                                                     // SECLDoc[socket_type] Definition:`Socket type`
 	SocketProtocol     uint16 `field:"socket_protocol"`                                                 // SECLDoc[socket_protocol] Definition:`Socket protocol`
 	SocketFamily       uint16 `field:"socket_family"`                                                   // SECLDoc[socket_family] Definition:`Socket family`
+	FilterLen          uint16 `field:"filter_len"`                                                      // SECLDoc[filter_len] Definition:`Length of the filter`
 	Level              uint32 `field:"level"`                                                           // SECLDoc[level] Definition:`Socket level`
 	OptName            uint32 `field:"optname"`                                                         // SECLDoc[optname] Definition:`Socket option name`
-	FilterLen          uint16 `field:"filter_len"`                                                      // SECLDoc[filter_len] Definition:`Length of the filter`
 	SizeToRead         uint32 `field:"-"`                                                               // Internal field, not exposed to users
 	IsFilterTruncated  bool   `field:"is_filter_truncated"`                                             // SECLDoc[is_filter_truncated] Definition:`Indicates that the filter is truncated`
 	RawFilter          []byte `field:"-"`                                                               // Internal field, not exposed to users

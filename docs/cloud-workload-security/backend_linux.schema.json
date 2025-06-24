@@ -1729,6 +1729,10 @@
           "type": "integer",
           "description": "Socket family"
         },
+        "filter_len": {
+          "type": "integer",
+          "description": "Length of the filter"
+        },
         "level": {
           "type": "integer",
           "description": "Level at which the option is defined"
@@ -1736,10 +1740,6 @@
         "optname": {
           "type": "integer",
           "description": "Name of the option being set"
-        },
-        "filter_len": {
-          "type": "integer",
-          "description": "Length of the filter"
         },
         "is_filter_truncated": {
           "type": "boolean",
