@@ -118,6 +118,14 @@ struct syscall_cache_t {
         } umount;
 
         struct {
+            struct mount *newmnt;
+            // collected from kernel functions arguments
+            int fd;
+            int flags;
+            unsigned int mount_attrs;
+        } fsmount;
+
+        struct {
             struct file_t src_file;
             struct path *src_path;
             struct dentry *src_dentry;

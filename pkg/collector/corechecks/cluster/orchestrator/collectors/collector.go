@@ -55,6 +55,7 @@ type CollectorMetadata struct {
 	LabelsAsTags                         map[string]string
 	AnnotationsAsTags                    map[string]string
 	SupportsTerminatedResourceCollection bool
+	IsGenericCollector                   bool
 }
 
 // CollectorTags returns static tags to be added to all resources collected by the collector.

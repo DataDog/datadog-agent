@@ -130,7 +130,15 @@ type Event struct {
 	// The datatype of the event.
 	Type *EventRootType
 	// The PC values at which the event should be injected.
-	InjectionPCs []uint64
+	InjectionPoints []InjectionPoint
 	// The condition that must be met for the event to be injected.
 	Condition *Expression
+}
+
+// InjectionPoint is a point at which an event should be injected.
+type InjectionPoint struct {
+	// The PC value at which the event should be injected.
+	PC uint64
+	// Whether the function at that PC is frameless.
+	Frameless bool
 }
