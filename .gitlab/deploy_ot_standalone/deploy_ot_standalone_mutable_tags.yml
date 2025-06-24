@@ -44,4 +44,3 @@ deploy_containers-ot-standalone_internal-latest:
       artifacts: false
   variables:
     IMG_NEW_TAGS: latest
-    
