@@ -149,93 +149,112 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
-// func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
-// 	currentFingerprintStrategy := pkgconfigsetup.Datadog().Get("logs_config.fingerprint_strategy")
-// 	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", "checksum")
-// 	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", currentFingerprintStrategy)
+func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_max_bytes", 256)
 
-// 	currentMaxBytes := pkgconfigsetup.Datadog().Get("logs_config.fingerprint_max_bytes")
-// 	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_max_bytes", 256)
-// 	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_max_bytes", currentMaxBytes)
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger)
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	defer status.Clear()
 
-// 	s := suite.s
+	// Write initial content
+	_, err := suite.testFile.WriteString("hello world\n")
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
 
-// 	// Write initial content
-// 	_, err := suite.testFile.WriteString("hello world\n")
-// 	suite.Nil(err)
-// 	suite.Nil(suite.testFile.Sync())
+	s.scan()
 
-// 	// Read message to confirm tailer is working
-// 	msg := <-suite.outputChan
-// 	suite.Equal("hello world", string(msg.GetContent()))
+	// Read message to confirm tailer is working
+	msg := <-suite.outputChan
+	suite.Equal("hello world", string(msg.GetContent()))
 
-// 	// Get tailer and manually update fingerprint in registry
-// 	tailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
-// 	fingerprint := tailer.ComputeFingerPrint()
-// 	s.registry.UpdateFingerprint(tailer.Identifier(), fingerprint)
+	// Get tailer and manually update fingerprint in registry
+	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.True(found, "tailer should be found")
+	fingerprint := tailer.ComputeFingerPrint()
+	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
-// 	// Rotate file
-// 	os.Rename(suite.testPath, suite.testRotatedPath)
-// 	f, err := os.Create(suite.testPath)
-// 	suite.Nil(err)
+	// Rotate file
+	os.Rename(suite.testPath, suite.testRotatedPath)
+	f, err := os.Create(suite.testPath)
+	suite.Nil(err)
 
-// 	// Write different content
-// 	_, err = f.WriteString("hello again\n")
-// 	suite.Nil(err)
-// 	suite.Nil(f.Sync())
-// 	defer f.Close()
+	// Write different content
+	_, err = f.WriteString("hello again\n")
+	suite.Nil(err)
+	suite.Nil(f.Sync())
+	defer f.Close()
 
-// 	s.scan()
+	s.scan()
 
-// 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
-// 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
+	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
+	newFingerprint := newTailer.ComputeFingerPrint()
+	registryFingerprint := Checksum(s.registry, newTailer.Identifier())
+	suite.NotEqual(registryFingerprint, newFingerprint, "The fingerprint of the new file should be different")
 
-// 	msg = <-suite.outputChan
-// 	suite.Equal("hello again", string(msg.GetContent()))
-// }
+	msg = <-suite.outputChan
+	suite.Equal("hello again", string(msg.GetContent()))
+}
 
-// func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
-// 	currentFingerprintStrategy := pkgconfigsetup.Datadog().Get("logs_config.fingerprint_strategy")
-// 	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", "checksum")
-// 	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_strategy", currentFingerprintStrategy)
+func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_max_bytes", 256)
 
-// 	currentMaxBytes := pkgconfigsetup.Datadog().Get("logs_config.fingerprint_max_bytes")
-// 	pkgconfigsetup.Datadog().Set("logs_config.fingerprint_max_bytes", 256)
-// 	defer pkgconfigsetup.Datadog().Set("logs_config.fingerprint_max_bytes", currentMaxBytes)
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger)
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	defer status.Clear()
 
-// 	s := suite.s
+	// Write initial content
+	initialContent := "hello world\n"
+	_, err := suite.testFile.WriteString(initialContent)
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
 
-// 	// Write initial content
-// 	initialContent := "hello world\n"
-// 	_, err := suite.testFile.WriteString(initialContent)
-// 	suite.Nil(err)
-// 	suite.Nil(suite.testFile.Sync())
+	s.scan()
 
-// 	// Read message
-// 	msg := <-suite.outputChan
-// 	suite.Equal("hello world", string(msg.GetContent()))
+	// Read message
+	msg := <-suite.outputChan
+	suite.Equal("hello world", string(msg.GetContent()))
 
-// 	// Get tailer and update registry
-// 	tailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
-// 	fingerprint := tailer.ComputeFingerPrint()
-// 	s.registry.SetFingerprint(tailer.Identifier(), fingerprint)
+	// Get tailer and update registry
+	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.True(found, "tailer should be found")
+	fingerprint := tailer.ComputeFingerPrint()
+	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
-// 	// Rotate file
-// 	os.Rename(suite.testPath, suite.testRotatedPath)
-// 	f, err := os.Create(suite.testPath)
-// 	suite.Nil(err)
+	// Rotate file
+	os.Rename(suite.testPath, suite.testRotatedPath)
+	f, err := os.Create(suite.testPath)
+	suite.Nil(err)
 
-// 	// Write same content
-// 	_, err = f.WriteString(initialContent)
-// 	suite.Nil(err)
-// 	suite.Nil(f.Sync())
-// 	defer f.Close()
+	// Write same content
+	_, err = f.WriteString(initialContent)
+	suite.Nil(err)
+	suite.Nil(f.Sync())
+	defer f.Close()
 
-// 	s.scan()
+	s.scan()
 
-// 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
-// 	suite.True(tailer == newTailer, "A new tailer should not have been created as content is the same")
-// }
+	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.True(tailer == newTailer, "A new tailer should not have been created as content is the same")
+}
 
 func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	s := suite.s
