@@ -68,8 +68,7 @@ type ConnectionsCheck struct {
 	maxConnsPerMessage     int
 	networkID              string
 	notInitializedLogLimit *log.Limit
-	lastFullRunTime        time.Time
-	guaranteedRunInterval  time.Duration // Use the standard check interval for guaranteed runs
+	lastRunTime            time.Time
 
 	dockerFilter     *parser.DockerProxy
 	serviceExtractor *parser.ServiceExtractor
@@ -124,13 +123,12 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 
 	// Initialize state for the capacity-based run logic only when dynamic interval is enabled
 	if c.useDynamicInterval {
-		c.lastFullRunTime = time.Time{} // Ensure the first run is a full run
+		c.lastRunTime = time.Time{} // Ensure the first run is a full run
 		// Guaranteed run interval is driven by the standard connections check interval (30s)
-		c.guaranteedRunInterval = ConnectionsCheckDefaultInterval
 		log.Infof(
 			"connections check dynamic interval enabled: Capacity check interval=%v, Guaranteed full run interval=%v",
 			ConnectionsCheckDynamicInterval,
-			c.guaranteedRunInterval,
+			ConnectionsCheckDefaultInterval,
 		)
 	} else {
 		log.Infof("connections check running with traditional fixed interval: %v", GetInterval(c.config, ConnectionsCheckName))
@@ -227,10 +225,10 @@ func (c *ConnectionsCheck) shouldRunCheck(start time.Time) bool {
 	}
 
 	// Dynamic interval mode: use capacity-aware logic
-	timeSinceLastRun := start.Sub(c.lastFullRunTime)
+	timeSinceLastRun := start.Sub(c.lastRunTime)
 	// Add a small tolerance (250ms) to account for differences in the check interval and the guaranteed run interval
-	guaranteedIntervalWithTolerance := c.guaranteedRunInterval - (time.Millisecond * 250)
-	isTimeForGuaranteedRun := c.lastFullRunTime.IsZero() || timeSinceLastRun >= guaranteedIntervalWithTolerance
+	guaranteedIntervalWithTolerance := ConnectionsCheckDefaultInterval - (time.Millisecond * 250)
+	isTimeForGuaranteedRun := c.lastRunTime.IsZero() || timeSinceLastRun >= guaranteedIntervalWithTolerance
 
 	isNearCapacity := false
 	if c.sysprobeClient != nil {
@@ -248,17 +246,17 @@ func (c *ConnectionsCheck) shouldRunCheck(start time.Time) bool {
 	}
 
 	// Decide whether to run the full check
-	shouldRunFullCheck := isTimeForGuaranteedRun || isNearCapacity
+	shouldRunCheck := isTimeForGuaranteedRun || isNearCapacity
 
 	if c.statsd != nil {
-		if shouldRunFullCheck {
+		if shouldRunCheck {
 			_ = c.statsd.Count("datadog.process.connections.runs", 1, []string{fmt.Sprintf("guaranteed_run:%t", isTimeForGuaranteedRun), fmt.Sprintf("near_capacity:%t", isNearCapacity)}, 1)
 		} else {
 			_ = c.statsd.Count("datadog.process.connections.skipped_runs", 1, []string{}, 1)
 		}
 	}
 
-	if !shouldRunFullCheck {
+	if !shouldRunCheck {
 		log.Debugf("skipping connections check run (Capacity OK, not time for guaranteed run). Last full run: %v ago", timeSinceLastRun)
 		return false
 	}
@@ -266,7 +264,7 @@ func (c *ConnectionsCheck) shouldRunCheck(start time.Time) bool {
 	// We're going to run the check, so update state and log
 	status.UpdateLastCollectTime(start)
 	log.Debugf("running connections check. Reason: TimeForGuaranteedRun=%v (last run %v ago), NearCapacity=%v", isTimeForGuaranteedRun, timeSinceLastRun, isNearCapacity)
-	c.lastFullRunTime = start
+	c.lastRunTime = start
 
 	return true
 }

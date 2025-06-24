@@ -97,8 +97,9 @@ func GetInterval(cfg pkgconfigmodel.Reader, checkName string) time.Duration {
 
 	case ConnectionsCheckName:
 		if seconds := cfg.GetInt(configConnectionsInterval); seconds != 0 {
-			if seconds < int(ConnectionsCheckMinInterval.Seconds()) {
-				_ = log.Warnf("Invalid interval for connections check (< %ds) using minimum value of %d", ConnectionsCheckMinInterval, ConnectionsCheckMinInterval)
+			intervalMinSeconds := int(ConnectionsCheckMinInterval.Seconds())
+			if seconds < intervalMinSeconds {
+				_ = log.Warnf("Invalid interval for connections check (< %ds) using minimum value of %ds", intervalMinSeconds, intervalMinSeconds)
 				return ConnectionsCheckMinInterval
 			}
 			return time.Duration(seconds) * time.Second

@@ -238,8 +238,6 @@ type client struct {
 	closed    *closedConnections
 	stats     map[StatCookie]StatCounters
 
-	// Flag for handling closed connection capacity pressure for this client
-	closedConnectionsNearCapacity bool
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	usmDelta        USMProtocolsData
@@ -255,8 +253,6 @@ func (c *client) Reset() {
 	c.closed.conns = c.closed.conns[:0]
 	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
-	// Reset the capacity flag when client state is reset
-	c.closedConnectionsNearCapacity = false
 	c.usmDelta.Reset()
 }
 
@@ -565,31 +561,6 @@ func (ns *networkState) mergeByCookie(conns []ConnectionStats) ([]ConnectionStat
 	return conns, connsByKey
 }
 
-// getClientCapacityPercentage calculates the current capacity percentage (0-100) for a client's closed connections buffer
-func (ns *networkState) getClientCapacityPercentage(client *client) float64 {
-	if ns.maxClosedConns == 0 {
-		return 0.0
-	}
-	return (float64(len(client.closed.conns)) / float64(ns.maxClosedConns)) * 100.0
-}
-
-// updateClientCapacity updates the capacity flag for a client when connections are added
-func (ns *networkState) updateClientCapacity(clientID string, client *client) {
-	if ns.maxClosedConns == 0 {
-		client.closedConnectionsNearCapacity = false
-		return
-	}
-
-	// Calculate current capacity percentage and check threshold
-	capacityPct := ns.getClientCapacityPercentage(client)
-	client.closedConnectionsNearCapacity = capacityPct >= ClosedConnectionsCapacityThreshold
-
-	if client.closedConnectionsNearCapacity {
-		log.Warnf("Closed connections buffer for client %s is nearing capacity (%d/%d, %.2f%%). Setting flag.",
-			clientID, len(client.closed.conns), ns.maxClosedConns, capacityPct)
-	}
-}
-
 // StoreClosedConnection wraps the unexported method while locking state
 func (ns *networkState) StoreClosedConnection(closed *ConnectionStats) {
 	ns.Lock()
@@ -600,7 +571,7 @@ func (ns *networkState) StoreClosedConnection(closed *ConnectionStats) {
 
 // storeClosedConnection stores the given connection for every client
 func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
-	for clientID, client := range ns.clients {
+	for _, client := range ns.clients {
 		if i, ok := client.closed.byCookie[c.Cookie]; ok {
 			if ns.mergeConnectionStats(&client.closed.conns[i], c) {
 				stateTelemetry.statsCookieCollisions.Inc()
@@ -609,10 +580,6 @@ func (ns *networkState) storeClosedConnection(c *ConnectionStats) {
 			continue
 		}
 		client.closed.insert(c, ns.maxClosedConns)
-
-		if !client.closedConnectionsNearCapacity {
-			ns.updateClientCapacity(clientID, client)
-		}
 	}
 }
 
@@ -1341,9 +1308,10 @@ func (ns *networkState) IsClosedConnectionsNearCapacity(clientID string) bool {
 	defer ns.Unlock()
 	if client, ok := ns.clients[clientID]; ok {
 		// Compute capacity percentage on-demand for telemetry
-		stateTelemetry.closedConnCapacityPct.Set(ns.getClientCapacityPercentage(client))
+		percentage := (float64(len(client.closed.conns)) / float64(ns.maxClosedConns)) * 100.0
+		stateTelemetry.closedConnCapacityPct.Set(percentage)
 
-		return client.closedConnectionsNearCapacity
+		return percentage > ClosedConnectionsCapacityThreshold
 	}
 	log.Warnf("IsClosedConnectionsNearCapacity called for non-existent client ID: %s", clientID)
 	return false
