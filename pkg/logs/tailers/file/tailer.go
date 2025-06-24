@@ -22,6 +22,7 @@ import (
 	"github.com/benbjohnson/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
@@ -33,28 +34,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// FingerprintConfig is the configuration for the fingerprinting algorithm
-type FingerprintConfig struct {
-	maxLines    int
-	maxBytes    int
-	bytesToSkip int
-	linesToSkip int
-}
-
 // returns the configuration for the fingerprinting algorithm set by user (also used for testing)
-func returnFingerprintConfig() FingerprintConfig {
+func returnFingerprintConfig() *logsconfig.FingerprintConfig {
 	if pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy") != "checksum" {
-		return FingerprintConfig{}
+		return nil
 	}
 	maxLines := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.max_lines")
 	maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.max_bytes")
 	bytesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.bytes_to_skip")
 	linesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.lines_to_skip")
-	return FingerprintConfig{
-		maxLines:    maxLines,
-		maxBytes:    maxBytes,
-		bytesToSkip: bytesToSkip,
-		linesToSkip: linesToSkip,
+	return &logsconfig.FingerprintConfig{
+		MaxLines:    &maxLines,
+		MaxBytes:    &maxBytes,
+		BytesToSkip: &bytesToSkip,
+		LinesToSkip: &linesToSkip,
 	}
 }
 
@@ -147,7 +140,7 @@ type Tailer struct {
 	movingSum       *util.MovingSum
 	PipelineMonitor metrics.PipelineMonitor
 
-	fingerprintConfig     FingerprintConfig
+	fingerprintConfig     *logsconfig.FingerprintConfig
 	fingerprint           uint64
 	fingerprintingEnabled bool
 }
@@ -162,7 +155,7 @@ type TailerOptions struct {
 	Rotated           bool                    // Optional
 	TagAdder          tag.EntityTagAdder      // Required
 	PipelineMonitor   metrics.PipelineMonitor // Required
-	FingerprintConfig FingerprintConfig       //Optional
+	FingerprintConfig *logsconfig.FingerprintConfig
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -246,14 +239,15 @@ func addToTailerInfo(k, m string, tailerInfo *status.InfoRegistry) {
 // messages to a new channel and using an updated file and decoder.
 func (t *Tailer) NewRotatedTailer(file *File, outputChan chan *message.Message, pipelineMonitor metrics.PipelineMonitor, decoder *decoder.Decoder, info *status.InfoRegistry, tagAdder tag.EntityTagAdder) *Tailer {
 	options := &TailerOptions{
-		OutputChan:      outputChan,
-		File:            file,
-		SleepDuration:   t.sleepDuration,
-		Decoder:         decoder,
-		Info:            info,
-		Rotated:         true,
-		TagAdder:        tagAdder,
-		PipelineMonitor: pipelineMonitor,
+		OutputChan:        outputChan,
+		File:              file,
+		SleepDuration:     t.sleepDuration,
+		Decoder:           decoder,
+		Info:              info,
+		Rotated:           true,
+		TagAdder:          tagAdder,
+		PipelineMonitor:   pipelineMonitor,
+		FingerprintConfig: t.fingerprintConfig,
 	}
 
 	return NewTailer(options)
@@ -437,8 +431,13 @@ func (t *Tailer) ComputeFingerPrint() uint64 {
 	}
 	defer fpFile.Close()
 
-	linesSkipSet := t.fingerprintConfig.linesToSkip != 0
-	bytesSkipSet := t.fingerprintConfig.bytesToSkip != 0
+	if t.fingerprintConfig == nil {
+		log.Warnf("fingerprint config is not set for file %q", t.file.Path)
+		return 0
+	}
+
+	linesSkipSet := t.fingerprintConfig.LinesToSkip != nil && *t.fingerprintConfig.LinesToSkip != 0
+	bytesSkipSet := t.fingerprintConfig.BytesToSkip != nil && *t.fingerprintConfig.BytesToSkip != 0
 
 	// Explicitly check for an invalid configuration where both skip modes are specified.
 	if linesSkipSet && bytesSkipSet {
@@ -446,11 +445,16 @@ func (t *Tailer) ComputeFingerPrint() uint64 {
 		return 0
 	}
 
+	maxLines := 0
+	if t.fingerprintConfig.MaxLines != nil {
+		maxLines = *t.fingerprintConfig.MaxLines
+	}
+
 	// Mode selection:
 	// - If bytesToSkip is set, it's byte-mode.
 	// - If maxLines is 0, it implies byte-mode as line-mode is not viable.
 	// - Otherwise, it's line-mode.
-	if bytesSkipSet || t.fingerprintConfig.maxLines == 0 {
+	if bytesSkipSet || maxLines == 0 {
 		return t.computeFingerPrintByBytes(fpFile)
 	}
 
@@ -463,21 +467,30 @@ func (t *Tailer) ComputeFingerPrint() uint64 {
 }
 
 func (t *Tailer) computeFingerPrintByBytes(fpFile *os.File) uint64 {
+	bytesToSkip := 0
+	if t.fingerprintConfig.BytesToSkip != nil {
+		bytesToSkip = *t.fingerprintConfig.BytesToSkip
+	}
 	// Skip the configured number of bytes
-	if t.fingerprintConfig.bytesToSkip > 0 {
-		_, err := io.CopyN(io.Discard, fpFile, int64(t.fingerprintConfig.bytesToSkip))
+	if bytesToSkip > 0 {
+		_, err := io.CopyN(io.Discard, fpFile, int64(bytesToSkip))
 
 		if err != nil && err != io.EOF {
-			log.Warnf("Failed to skip %d bytes while computing fingerprint for %q: %v", t.fingerprintConfig.bytesToSkip, t.file.Path, err)
+			log.Warnf("Failed to skip %d bytes while computing fingerprint for %q: %v", bytesToSkip, t.file.Path, err)
 			return 0
 		}
 	}
 
+	maxBytes := 0
+	if t.fingerprintConfig.MaxBytes != nil {
+		maxBytes = *t.fingerprintConfig.MaxBytes
+	}
+
 	// Create a limited reader for the bytes we want to hash
-	limitedReader := &io.LimitedReader{R: fpFile, N: int64(t.fingerprintConfig.maxBytes)}
+	limitedReader := &io.LimitedReader{R: fpFile, N: int64(maxBytes)}
 
 	// Read up to maxBytes for hashing
-	buffer := make([]byte, t.fingerprintConfig.maxBytes)
+	buffer := make([]byte, maxBytes)
 	bytesRead, err := io.ReadFull(limitedReader, buffer)
 	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
 		log.Warnf("Failed to read bytes for fingerprint %q: %v", t.file.Path, err)
@@ -488,7 +501,7 @@ func (t *Tailer) computeFingerPrintByBytes(fpFile *os.File) uint64 {
 	buffer = buffer[:bytesRead]
 
 	// Check if we have enough bytes to create a meaningful fingerprint
-	if bytesRead == 0 || bytesRead < t.fingerprintConfig.maxBytes {
+	if bytesRead == 0 || bytesRead < maxBytes {
 		log.Debugf("No bytes available for fingerprinting file %q", t.file.Path)
 		return 0
 	}
@@ -505,8 +518,13 @@ func (t *Tailer) computeFingerPrintByBytes(fpFile *os.File) uint64 {
 func (t *Tailer) computeFingerPrintByLines(fpFile *os.File) uint64 {
 	reader := bufio.NewReader(fpFile)
 
+	linesToSkip := 0
+	if t.fingerprintConfig.LinesToSkip != nil {
+		linesToSkip = *t.fingerprintConfig.LinesToSkip
+	}
+
 	// Skip the configured number of lines
-	for i := 0; i < t.fingerprintConfig.linesToSkip; i++ {
+	for i := 0; i < linesToSkip; i++ {
 		if _, err := reader.ReadString('\n'); err != nil {
 			if err != io.EOF {
 				log.Warnf("Failed to skip line while computing fingerprint for %q: %v", t.file.Path, err)
@@ -518,16 +536,22 @@ func (t *Tailer) computeFingerPrintByLines(fpFile *os.File) uint64 {
 	// Read lines for hashing
 	var buffer []byte
 	linesRead := 0
-	maxLines := t.fingerprintConfig.maxLines
-	maxBytes := t.fingerprintConfig.maxBytes
+	maxLines := 0
+	if t.fingerprintConfig.MaxLines != nil {
+		maxLines = *t.fingerprintConfig.MaxLines
+	}
+	maxBytes := 0
+	if t.fingerprintConfig.MaxBytes != nil {
+		maxBytes = *t.fingerprintConfig.MaxBytes
+	}
 	bytesRead := 0
 	for linesRead < maxLines {
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
 			// Cap the line at maxBytes bytes
-			if len(line) > t.fingerprintConfig.maxBytes {
-				line = line[:t.fingerprintConfig.maxBytes]
-				log.Debugf("Truncated line from original length to %d bytes for fingerprinting", t.fingerprintConfig.maxBytes)
+			if len(line) > maxBytes {
+				line = line[:maxBytes]
+				log.Debugf("Truncated line from original length to %d bytes for fingerprinting", maxBytes)
 			} else if len(line)+bytesRead > maxBytes {
 				line = line[:maxBytes-bytesRead] //subtract the minimum number of bytes to make the line fit in maxBytes
 			}
@@ -545,7 +569,7 @@ func (t *Tailer) computeFingerPrintByLines(fpFile *os.File) uint64 {
 	}
 
 	// Check if we have enough lines to create a meaningful fingerprint
-	if linesRead == 0 || (linesRead < t.fingerprintConfig.maxLines && bytesRead < t.fingerprintConfig.maxBytes) {
+	if linesRead == 0 || (linesRead < maxLines && bytesRead < maxBytes) {
 		log.Debugf("No lines available for fingerprinting file %q", t.file.Path)
 		return 0
 	}

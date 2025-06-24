@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -41,6 +42,7 @@ type RegistryEntry struct {
 	TailingMode        string
 	IngestionTimestamp int64
 	Fingerprint        uint64
+	FingerprintConfig  *logsconfig.FingerprintConfig
 }
 
 // JSONRegistry represents the registry that will be written on disk
@@ -218,7 +220,7 @@ func (a *registryAuditor) run() {
 			}
 			// update the registry with the new entry
 			for _, msg := range payload.MessageMetas {
-				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.Fingerprint)
+				a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, msg.Origin.Fingerprint, msg.Origin.LogSource.Config.FingerprintConfig)
 			}
 		case <-cleanUpTicker.C:
 			// remove expired offsets from the registry
@@ -273,7 +275,7 @@ func (a *registryAuditor) cleanupRegistry() {
 }
 
 // updateRegistry updates the registry entry matching identifier with the new offset and timestamp
-func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, fingerprint uint64) {
+func (a *registryAuditor) updateRegistry(identifier string, offset string, tailingMode string, ingestionTimestamp int64, fingerprint uint64, config *logsconfig.FingerprintConfig) {
 	a.registryMutex.Lock()
 	defer a.registryMutex.Unlock()
 	if identifier == "" {
@@ -296,6 +298,7 @@ func (a *registryAuditor) updateRegistry(identifier string, offset string, taili
 		TailingMode:        tailingMode,
 		IngestionTimestamp: ingestionTimestamp,
 		Fingerprint:        fingerprint,
+		FingerprintConfig:  config,
 	}
 }
 
