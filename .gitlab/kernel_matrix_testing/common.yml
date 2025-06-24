@@ -363,7 +363,7 @@ test_ebpf_complexity_changes:
         - "tasks/kmt.py"
         - "tasks/ebpf.py"
         - "tasks/kernel_matrix_testing/ci.py"
-      compare_to: $COMPARE_TO_BRANCH
+        compare_to: $COMPARE_TO_BRANCH
     - if: $CI_COMMIT_BRANCH == "main"
       when: never
   allow_failure: false
