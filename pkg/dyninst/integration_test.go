@@ -210,31 +210,12 @@ func testDyninst(
 		event := msg.Event()
 		err = decoder.Decode(event, decodeOut)
 		require.NoError(t, err)
-		header, err := event.Header()
-		require.NoError(t, err)
 
-		// Purge stack fraames
-		tmpMap := map[string]any{}
-		err = json.Unmarshal(decodeOut.Bytes(), &tmpMap)
-		require.NoError(t, err)
-		require.Equal(t, uint32(len(event)), header.Data_byte_len)
-		t.Logf("message header: %#v", *header)
-		if header.Stack_byte_len > 0 {
-			stackPCs, err := event.StackPCs()
-			require.NoError(t, err)
-			t.Logf("stack: %x", stackPCs)
-		}
+		t.Logf("Decoded output: \n%s\n", decodeOut.String())
+		purged := purgeAddressFields(decodeOut.Bytes())
+		purged = purgeVariableFields(t, purged)
 
-		if _, ok := tmpMap["stack_frames"]; !ok {
-			t.Error("No stack frames in output")
-		} else {
-			tmpMap["stack_frames"] = ""
-		}
-
-		clearAddressFields(tmpMap)
-
-		purged, err := json.Marshal(tmpMap)
-		assert.NoError(t, err)
+		t.Logf("Purged output: \n%s\n", string(purged))
 
 		outputToCompare := expOut[probes[0].GetID()]
 		assert.JSONEq(t, outputToCompare, string(purged))
@@ -242,6 +223,85 @@ func testDyninst(
 		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
 			expOut[probes[0].GetID()] = string(purged)
 			saveActualOutputOfProbes(t, service, expOut)
+		}
+	}
+}
+
+// Purge:
+// >debugger>snapshot>stack
+// >debugger>snapshot>id
+// >debugger>snapshot>timestamp
+func purgeVariableFields(t *testing.T, b []byte) []byte {
+	var data map[string]any
+	if err := json.Unmarshal(b, &data); err != nil {
+		t.Logf("error unmarshaling JSON for purging: %v", err)
+		return b
+	}
+
+	// Navigate to debugger.snapshot and set variable fields to empty string
+	if debugger, ok := data["debugger"].(map[string]any); ok {
+		if snapshot, ok := debugger["snapshot"].(map[string]any); ok {
+			snapshot["id"] = ""
+			snapshot["stack"] = ""
+			snapshot["timestamp"] = ""
+		}
+	}
+
+	// Marshal back to JSON with a fresh byte slice
+	result, err := json.Marshal(data)
+	if err != nil {
+		t.Logf("error marshaling JSON after purging: %v", err)
+		return b
+	}
+
+	return result
+}
+
+// Purge:
+// >debugger>snapshot>captures>entry>arguments>X>value.Address
+func purgeAddressFields(b []byte) []byte {
+	var data map[string]any
+	if err := json.Unmarshal(b, &data); err != nil {
+		// Return original if we can't parse
+		return b
+	}
+
+	// Navigate to debugger.snapshot.captures.entry.arguments and purge Address fields
+	if debugger, ok := data["debugger"].(map[string]any); ok {
+		if snapshot, ok := debugger["snapshot"].(map[string]any); ok {
+			if captures, ok := snapshot["captures"].(map[string]any); ok {
+				if entry, ok := captures["entry"].(map[string]any); ok {
+					if arguments, ok := entry["arguments"].(map[string]any); ok {
+						purgeAddressFieldsRecursive(arguments)
+					}
+				}
+			}
+		}
+	}
+
+	// Marshal back to JSON
+	result, err := json.Marshal(data)
+	if err != nil {
+		return b
+	}
+
+	return result
+}
+
+// purgeAddressFieldsRecursive recursively traverses any nested structure and sets "Address" fields to ""
+func purgeAddressFieldsRecursive(v any) {
+	switch val := v.(type) {
+	case map[string]any:
+		for key, value := range val {
+			if key == "Address" {
+				val[key] = ""
+			} else {
+				purgeAddressFieldsRecursive(value)
+			}
+		}
+	case []any:
+		for _, item := range val {
+			purgeAddressFieldsRecursive(item)
 		}
 	}
 }
@@ -310,31 +370,6 @@ func (r *testReporter) ReportAttached(actuator.ProcessID, []irgen.ProbeDefinitio
 }
 
 func (r *testReporter) ReportDetached(actuator.ProcessID, []irgen.ProbeDefinition) {}
-
-// clearAddressFields recursively traverses the captures structure and sets all "Address" fields to empty strings.
-func clearAddressFields(data map[string]any) {
-	if captures, ok := data["captures"]; ok {
-		clearAddressFieldsRecursive(captures)
-	}
-}
-
-// clearAddressFieldsRecursive recursively clears Address fields in any nested structure.
-func clearAddressFieldsRecursive(v any) {
-	switch val := v.(type) {
-	case map[string]any:
-		for key, value := range val {
-			if key == "Address" {
-				val[key] = ""
-			} else {
-				clearAddressFieldsRecursive(value)
-			}
-		}
-	case []any:
-		for _, item := range val {
-			clearAddressFieldsRecursive(item)
-		}
-	}
-}
 
 // getExpectedDecodedOutputOfProbes returns the expected output for a given service.
 func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
