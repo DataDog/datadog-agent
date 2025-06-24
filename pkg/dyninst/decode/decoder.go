@@ -93,106 +93,41 @@ type typeAndAddr struct {
 //	      "timestamp": 1750707725206,
 //	      "language": "go",
 func (d *Decoder) encodeJSONPrologue(enc *jsontext.Encoder) error {
-	err := enc.WriteToken(jsontext.BeginObject)
+	uu, err := uuid.NewUUID()
 	if err != nil {
 		return err
 	}
-	err = enc.WriteToken(jsontext.String("service"))
-	if err != nil {
-		return err
+	tokens := []jsontext.Token{
+		jsontext.BeginObject,
+		jsontext.String("service"),
+		jsontext.String(d.procInfoResolver.Resolve()),
+		jsontext.String("ddsource"),
+		jsontext.String("dd_debugger"),
+		jsontext.String("ddtags"),
+		jsontext.String(""),
+		jsontext.String("logger"),
+		jsontext.BeginObject,
+		jsontext.String("name"),
+		jsontext.String(""),
+		jsontext.String("method"),
+		jsontext.String(""),
+		jsontext.EndObject,
+		jsontext.String("debugger"),
+		jsontext.BeginObject,
+		jsontext.String("snapshot"),
+		jsontext.BeginObject,
+		jsontext.String("id"),
+		jsontext.String(uu.String()),
+		jsontext.String("timestamp"),
+		jsontext.Int(time.Now().UnixMilli()),
+		jsontext.String("language"),
+		jsontext.String("go"),
 	}
-	err = enc.WriteToken(jsontext.String(d.procInfoResolver.Resolve()))
-	if err != nil {
-		return err
-	}
-
-	err = enc.WriteToken(jsontext.String("ddsource"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("dd_debugger"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("ddtags"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String(""))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("logger"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.BeginObject)
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("name"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String(""))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("method"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String(""))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.EndObject)
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("debugger"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.BeginObject)
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("snapshot"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.BeginObject)
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("id"))
-	if err != nil {
-		return err
-	}
-	uuid, err := uuid.NewUUID()
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String(uuid.String()))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("timestamp"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.Int(time.Now().UnixMilli()))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("language"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String("go"))
-	if err != nil {
-		return err
+	for _, token := range tokens {
+		err := enc.WriteToken(token)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
