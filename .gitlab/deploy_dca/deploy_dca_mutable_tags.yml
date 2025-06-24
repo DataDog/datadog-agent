@@ -49,7 +49,7 @@ deploy_containers-dca_internal-latest:
 # Fips flavor
 .deploy_mutable_dca_tags-fips-base:
   extends: .docker_publish_job_definition
-  stage: deploy_dca
+  stage: deploy_dca_mutable_tags
   dependencies: []
   before_script:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
