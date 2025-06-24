@@ -10,8 +10,11 @@
 package irgen
 
 import (
+	"cmp"
 	"debug/dwarf"
 	"fmt"
+	"iter"
+	"maps"
 	"math"
 	"reflect"
 	"slices"
@@ -133,8 +136,10 @@ func GenerateIR(
 
 func (v *rootVisitor) instantiateAbstractSubprograms() error {
 	// For every inlined instance of an abstract subprogram, we will add
-	// variable locations from that instantiation.
-	for unit, inlinedSubprograms := range v.inlinedSubprograms {
+	// variable locations from that instantiation. Sort the entries so that the
+	// output is deterministic.
+	inlinedSubprogramsByUnit := iterMapSorted(v.inlinedSubprograms, cmpEntry)
+	for unit, inlinedSubprograms := range inlinedSubprogramsByUnit {
 		for _, inlinedSubprogram := range inlinedSubprograms {
 			abstractSubprogram := v.abstractSubprograms[inlinedSubprogram.abstractOrigin]
 			if abstractSubprogram == nil {
@@ -153,9 +158,10 @@ func (v *rootVisitor) instantiateAbstractSubprograms() error {
 					abstractSubprogram.subprogram.InlinePCRanges, inlinedSubprogram.ranges)
 			}
 			for _, inlinedVariable := range inlinedSubprogram.variables {
-				// Inlined subprograms usually have variables with abstract origin pointing at
-				// the abstract subprogram variable. Sometimes, they will have fully defined
-				// variables (observed to be return values in out-of-line instantations).
+				// Inlined subprograms usually have variables with abstract
+				// origin pointing at the abstract subprogram variable.
+				// Sometimes, they will have fully defined variables (observed
+				// to be return values in out-of-line instantations).
 				var variable *ir.Variable
 				abstractOrigin, ok, err := maybeGetAttr[dwarf.Offset](
 					inlinedVariable, dwarf.AttrAbstractOrigin)
@@ -167,7 +173,7 @@ func (v *rootVisitor) instantiateAbstractSubprograms() error {
 					if !ok {
 						return fmt.Errorf(
 							"abstract variable not found for inlined variable %#v",
-							*inlinedVariable)
+							inlinedVariable)
 					}
 					var locations []ir.Location
 					locField := inlinedVariable.AttrField(dwarf.AttrLocation)
@@ -202,7 +208,9 @@ func (v *rootVisitor) instantiateAbstractSubprograms() error {
 			}
 		}
 	}
-	for _, abstractSubprogram := range v.abstractSubprograms {
+
+	abstractSubprograms := iterMapSorted(v.abstractSubprograms, cmp.Compare)
+	for _, abstractSubprogram := range abstractSubprograms {
 		for _, probeCfg := range abstractSubprogram.probesCfgs {
 			probe, err := v.newProbe(probeCfg, abstractSubprogram.unit, abstractSubprogram.subprogram)
 			if err != nil {
@@ -216,13 +224,7 @@ func (v *rootVisitor) instantiateAbstractSubprograms() error {
 }
 
 func completeGoTypes(tc *typeCatalog) error {
-	ids := make([]ir.TypeID, 0, len(tc.typesByID))
-	for id := range tc.typesByID {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	for _, id := range ids {
-		t := tc.typesByID[id]
+	for _, t := range iterMapSorted(tc.typesByID, cmp.Compare) {
 		switch t := t.(type) {
 		case *ir.StructureType:
 			switch t.GoTypeAttributes.GoKind {
@@ -255,6 +257,27 @@ func completeGoTypes(tc *typeCatalog) error {
 		(*t) = tc.typesByID[(*t).GetID()]
 	})
 	return nil
+}
+
+// iterMapSorted is a helper function that iterates over a map and yields
+// the keys and values in sorted order using the provided comparator.
+func iterMapSorted[
+	K comparable, V any, M ~map[K]V,
+](m M, f func(K, K) int) iter.Seq2[K, V] {
+	keys := make([]K, 0, len(m))
+	keys = slices.AppendSeq(keys, maps.Keys(m))
+	slices.SortFunc(keys, f)
+	return func(yield func(K, V) bool) {
+		for _, k := range keys {
+			if !yield(k, m[k]) {
+				return
+			}
+		}
+	}
+}
+
+func cmpEntry(a, b *dwarf.Entry) int {
+	return cmp.Compare(a.Offset, b.Offset)
 }
 
 func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
@@ -1029,6 +1052,8 @@ func (v *inlinedSubroutineChildVisitor) push(
 		v.sp.variables = append(v.sp.variables, entry)
 		return nil, nil
 	case dwarf.TagLexDwarfBlock:
+		return v, nil
+	case dwarf.TagTypedef:
 		return v, nil
 	}
 	return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)

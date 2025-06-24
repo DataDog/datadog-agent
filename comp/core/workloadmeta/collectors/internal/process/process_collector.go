@@ -10,29 +10,45 @@ package process
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
+
+	"github.com/benbjohnson/clock"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	"github.com/benbjohnson/clock"
-	"go.uber.org/fx"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	collectorID       = "process-collector"
-	componentName     = "workloadmeta-process"
-	cacheValidityNoRT = 2 * time.Second
+	collectorID               = "process-collector"
+	componentName             = "workloadmeta-process"
+	cacheValidityNoRT         = 2 * time.Second
+	serviceCollectionInterval = 60 * time.Second // TODO: this should be made configurable in the future
+
+	// Service discovery constants
+	maxPortCheckTries = 10
 )
 
 type collector struct {
@@ -45,11 +61,31 @@ type collector struct {
 	systemProbeConfig      pkgconfigmodel.Reader
 	processEventsCh        chan *Event
 	lastCollectedProcesses map[int32]*procutil.Process
+	mux                    sync.RWMutex
 	containerProvider      proccontainers.ContainerProvider
+
+	// Service discovery fields
+	sysProbeClient *http.Client
+	startTime      time.Time
+	startupTimeout time.Duration
+	serviceRetries map[int32]uint
+	ignoredPids    core.PidSet
+	pidHeartbeats  map[int32]time.Time
 }
+
+// EventType represents the type of collector event
+type EventType int
+
+const (
+	// EventTypeProcess means the event comes from Process Discovery.
+	EventTypeProcess EventType = iota
+	// EventTypeServiceDiscovery means the event comes from Service Discovery.
+	EventTypeServiceDiscovery
+)
 
 // Event is a message type used to communicate with the stream function asynchronously
 type Event struct {
+	Type    EventType
 	Created []*workloadmeta.Process
 	Deleted []*workloadmeta.Process
 }
@@ -64,6 +100,14 @@ func newProcessCollector(id string, catalog workloadmeta.AgentType, clock clock.
 		systemProbeConfig:      systemProbeConfig,
 		processEventsCh:        make(chan *Event),
 		lastCollectedProcesses: make(map[int32]*procutil.Process),
+
+		// Initialize service discovery fields
+		sysProbeClient: sysprobeclient.Get(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		startTime:      clock.Now(),
+		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		serviceRetries: make(map[int32]uint),
+		ignoredPids:    make(core.PidSet),
+		pidHeartbeats:  make(map[int32]time.Time),
 	}
 }
 
@@ -120,7 +164,8 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 			c.containerProvider = containerProvider
 		}
 		c.store = store
-		go c.collect(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
+		go c.collectProcesses(ctx, c.clock.Ticker(c.collectionIntervalConfig()))
+		go c.collectServices(ctx, c.clock.Ticker(serviceCollectionInterval))
 		go c.stream(ctx)
 	} else {
 		return errors.NewDisabled(componentName, "process collection is disabled")
@@ -203,8 +248,182 @@ func (c *collector) detectLanguages(processes []*procutil.Process) []*languagemo
 	return nil
 }
 
-// collect captures all the required process data for the process check
-func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker) {
+// filterPidsToRequest filters PIDs to only request services for new or stale processes.
+// It returns a slice of pids to request (to be used as a request parameters), and
+// a map of pids to *model.Service to be filled up with the response received from
+// system-probe. This map is useful to know for which pids we have not received
+// service info and that needs to be handled by the retry mechanism.
+func (c *collector) filterPidsToRequest(alivePids core.PidSet) ([]int32, map[int32]*model.Service) {
+	now := c.clock.Now()
+	pidsToRequest := make([]int32, 0, len(alivePids))
+	pidsToService := make(map[int32]*model.Service, len(alivePids))
+
+	for pid := range alivePids {
+		if c.ignoredPids.Has(pid) {
+			continue
+		}
+
+		// Check if service data is stale or never collected
+		lastHeartbeat, exists := c.pidHeartbeats[pid]
+		if !exists || now.Sub(lastHeartbeat) > core.HeartbeatTime {
+			// Service data is stale or never collected, need to refresh it
+			pidsToRequest = append(pidsToRequest, pid)
+			pidsToService[pid] = nil
+		}
+	}
+
+	return pidsToRequest, pidsToService
+}
+
+// getDiscoveryServices calls the system-probe /discovery/services endpoint
+func (c *collector) getDiscoveryServices(pids []int32) (*model.ServicesEndpointResponse, error) {
+	var responseData model.ServicesEndpointResponse
+
+	url := getDiscoveryURL("services", pids)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.sysProbeClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("non-ok status code: url %s, status_code: %d, response: `%s`", req.URL, resp.StatusCode, string(body))
+	}
+
+	err = json.Unmarshal(body, &responseData)
+	if err != nil {
+		return nil, err
+	}
+
+	return &responseData, nil
+}
+
+func (c *collector) handleServiceRetries(pid int32) {
+	tries := c.serviceRetries[pid]
+	tries++
+	if tries < maxPortCheckTries {
+		c.serviceRetries[pid] = tries
+	} else {
+		log.Tracef("[pid: %d] ignoring due to max number of retries", pid)
+		c.ignoredPids.Add(pid)
+		delete(c.serviceRetries, pid)
+	}
+}
+
+// getProcessEntitiesFromServices creates Process entities with service discovery data
+func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService map[int32]*model.Service) []*workloadmeta.Process {
+	entities := make([]*workloadmeta.Process, 0, len(pids))
+	now := c.clock.Now()
+
+	for _, pid := range pids {
+		service := pidsToService[pid]
+		if service == nil {
+			c.handleServiceRetries(pid)
+			continue
+		}
+
+		// Update the heartbeat cache for this PID
+		c.pidHeartbeats[int32(service.PID)] = now
+
+		entity := &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(service.PID),
+			},
+			Pid:     int32(service.PID),
+			Service: convertModelServiceToService(service),
+		}
+		entities = append(entities, entity)
+	}
+
+	return entities
+}
+
+// convertModelServiceToService converts model.Service to workloadmeta.Service
+func convertModelServiceToService(modelService *model.Service) *workloadmeta.Service {
+	return &workloadmeta.Service{
+		GeneratedName:            modelService.GeneratedName,
+		GeneratedNameSource:      modelService.GeneratedNameSource,
+		AdditionalGeneratedNames: modelService.AdditionalGeneratedNames,
+		TracerMetadata:           modelService.TracerMetadata,
+		DDService:                modelService.DDService,
+		DDServiceInjected:        modelService.DDServiceInjected,
+		Ports:                    modelService.Ports,
+		APMInstrumentation:       modelService.APMInstrumentation,
+		Type:                     modelService.Type,
+	}
+}
+
+// updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
+func (c *collector) updateServices(alivePids core.PidSet) []*workloadmeta.Process {
+	pidsToRequest, pidsToService := c.filterPidsToRequest(alivePids)
+	if len(pidsToRequest) == 0 {
+		return nil
+	}
+
+	resp, err := c.getDiscoveryServices(pidsToRequest)
+	if err != nil {
+		if time.Since(c.startTime) < c.startupTimeout {
+			log.Warnf("service collector: system-probe not started yet: %v", err)
+		} else {
+			log.Errorf("failed to get services: %s", err)
+		}
+		return nil
+	}
+
+	for i, service := range resp.Services {
+		pidsToService[int32(service.PID)] = &resp.Services[i]
+	}
+
+	return c.getProcessEntitiesFromServices(pidsToRequest, pidsToService)
+}
+
+// cleanPidMaps deletes dead PIDs from the provided maps.
+func cleanPidMaps[T any](alivePids core.PidSet, maps ...map[int32]T) {
+	for _, m := range maps {
+		for pid := range m {
+			if alivePids.Has(pid) {
+				continue
+			}
+
+			delete(m, pid)
+		}
+	}
+}
+
+// getDiscoveryURL builds the URL for the discovery endpoint
+func getDiscoveryURL(endpoint string, pids []int32) string {
+	URL := &url.URL{
+		Scheme: "http",
+		Host:   "sysprobe",
+		Path:   "/discovery/" + endpoint,
+	}
+
+	if len(pids) > 0 {
+		pidsStr := make([]string, len(pids))
+		for i, pid := range pids {
+			pidsStr[i] = strconv.Itoa(int(pid))
+		}
+
+		query := url.Values{}
+		query.Add("pids", strings.Join(pidsStr, ","))
+		URL.RawQuery = query.Encode()
+	}
+
+	return URL.String()
+}
+
+// collectProcesses captures all the required process data for the process check
+func (c *collector) collectProcesses(ctx context.Context, collectionTicker *clock.Ticker) {
 	// TODO: implement the full collection logic for the process collector. Once collection is done, submit events.
 	ctx, cancel := context.WithCancel(ctx)
 	defer collectionTicker.Stop()
@@ -213,7 +432,7 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 		select {
 		case <-collectionTicker.C:
 			// fetch process data and submit events to streaming channel for asynchronous processing
-			procs, err := c.processProbe.ProcessesByPID(time.Now(), false)
+			procs, err := c.processProbe.ProcessesByPID(c.clock.Now(), false)
 			if err != nil {
 				log.Errorf("Error getting processes by pid: %v", err)
 				return
@@ -233,14 +452,58 @@ func (c *collector) collect(ctx context.Context, collectionTicker *clock.Ticker)
 
 			// send these events to the channel
 			c.processEventsCh <- &Event{
+				Type:    EventTypeProcess,
 				Created: wlmCreatedProcs,
 				Deleted: wlmDeletedProcs,
 			}
 
 			// store latest collected processes
+			c.mux.Lock()
 			c.lastCollectedProcesses = procs
+			c.mux.Unlock()
 		case <-ctx.Done():
 			log.Infof("The %s collector has stopped", collectorID)
+			return
+		}
+	}
+}
+
+// collectServices captures service discovery data for alive processes
+func (c *collector) collectServices(ctx context.Context, collectionTicker *clock.Ticker) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer collectionTicker.Stop()
+	defer cancel()
+	for {
+		select {
+		case <-collectionTicker.C:
+			// Get alive PIDs from last collected processes
+			c.mux.RLock()
+			if len(c.lastCollectedProcesses) == 0 {
+				// no processes to check
+				c.mux.RUnlock()
+				continue
+			}
+
+			alivePids := make(core.PidSet, len(c.lastCollectedProcesses))
+			for pid := range c.lastCollectedProcesses {
+				alivePids.Add(pid)
+			}
+			c.mux.RUnlock()
+
+			// update services from service discovery
+			wlmServiceEntities := c.updateServices(alivePids)
+			if len(wlmServiceEntities) > 0 {
+				c.processEventsCh <- &Event{
+					Type:    EventTypeServiceDiscovery,
+					Created: wlmServiceEntities,
+				}
+			}
+
+			cleanPidMaps(alivePids, c.ignoredPids)
+			cleanPidMaps(alivePids, c.serviceRetries)
+			cleanPidMaps(alivePids, c.pidHeartbeats)
+		case <-ctx.Done():
+			log.Infof("The %s service collector has stopped", collectorID)
 			return
 		}
 	}
@@ -256,12 +519,22 @@ func (c *collector) stream(ctx context.Context) {
 		case <-healthCheck.C:
 
 		case processEvent := <-c.processEventsCh:
+			var source workloadmeta.Source
+
+			// Choose source based on event type
+			switch processEvent.Type {
+			case EventTypeProcess:
+				source = workloadmeta.SourceProcessCollector
+			case EventTypeServiceDiscovery:
+				source = workloadmeta.SourceServiceDiscovery
+			}
+
 			events := make([]workloadmeta.CollectorEvent, 0, len(processEvent.Deleted)+len(processEvent.Created))
 			for _, proc := range processEvent.Deleted {
 				events = append(events, workloadmeta.CollectorEvent{
 					Type:   workloadmeta.EventTypeUnset,
 					Entity: proc,
-					Source: workloadmeta.SourceProcessCollector,
+					Source: source,
 				})
 			}
 
@@ -269,7 +542,7 @@ func (c *collector) stream(ctx context.Context) {
 				events = append(events, workloadmeta.CollectorEvent{
 					Type:   workloadmeta.EventTypeSet,
 					Entity: proc,
-					Source: workloadmeta.SourceProcessCollector,
+					Source: source,
 				})
 			}
 

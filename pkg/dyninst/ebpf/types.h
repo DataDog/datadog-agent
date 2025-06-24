@@ -96,6 +96,7 @@ typedef enum type { TYPE_NONE = 0 } type_t;
 const type_info_t type_info[] = {};
 const uint32_t type_ids[] = {};
 const uint32_t num_types = 0;
+const uint32_t prog_id = 0;
 const throttler_params_t throttler_params[] = {};
 #define NUM_THROTTLERS 0
 

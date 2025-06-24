@@ -198,6 +198,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 				log.Debugf("error merging http transactions: %v", err)
 			}
 		}
+		stats.StaticTags |= newRequests.StaticTags
 		stats.Count += newRequests.Count
 	}
 }
