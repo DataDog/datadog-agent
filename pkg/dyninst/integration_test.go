@@ -10,10 +10,10 @@ package dyninst_test
 import (
 	"bytes"
 	"context"
+	"embed"
 	"io"
 	"math"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -35,6 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+//go:embed testdata/decoded/*.yaml
+var testdataFS embed.FS
 
 var MinimumKernelVersion = kernel.VersionCode(5, 17, 0)
 
@@ -337,25 +340,17 @@ func clearAddressFieldsRecursive(v any) {
 	}
 }
 
-func getDecodedOutputFile(service string) string {
-	if _, srcPath, _, ok := runtime.Caller(0); ok {
-		srcDir := path.Dir(srcPath)
-		return path.Join(srcDir, "testdata", "decoded", service+".yaml")
-	}
-	return ""
-}
-
 // getExpectedDecodedOutputOfProbes returns the expected output for a given service.
 func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]expectedOutput {
 	expectedOutput := make(map[string]expectedOutput)
-	p := getDecodedOutputFile(name)
-	if p == "" {
-		t.Errorf("no decoded output file for %s", name)
-	}
-	yamlData, err := os.ReadFile(p)
+	filename := "testdata/decoded/" + name + ".yaml"
+
+	yamlData, err := testdataFS.ReadFile(filename)
 	if err != nil {
 		t.Errorf("testprogs: %v", err)
+		return expectedOutput
 	}
+
 	err = yaml.Unmarshal(yamlData, &expectedOutput)
 	if err != nil {
 		t.Errorf("testprogs: %v", err)
@@ -365,20 +360,25 @@ func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]expe
 
 // saveActualOutputOfProbes saves the actual output for a given service.
 // The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
+// Note: This function now saves to the current working directory since embedded files are read-only.
 func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]expectedOutput) {
-	p := getDecodedOutputFile(name)
-	if p == "" {
-		t.Errorf("no decoded output file for %s", name)
+	// Create testdata/decoded directory if it doesn't exist
+	err := os.MkdirAll("testdata/decoded", 0755)
+	if err != nil {
+		t.Logf("error creating testdata directory: %s", err)
+		return
 	}
+
+	filename := filepath.Join("testdata", "decoded", name+".yaml")
 	actualOutputYAML, err := yaml.Marshal(savedState)
 	if err != nil {
 		t.Logf("error marshaling actual output to YAML: %s", err)
 		return
 	}
-	err = os.WriteFile(p, actualOutputYAML, 0644)
+	err = os.WriteFile(filename, actualOutputYAML, 0644)
 	if err != nil {
 		t.Logf("error writing actual output file: %s", err)
 		return
 	}
-	t.Logf("actual output saved to: %s", p)
+	t.Logf("actual output saved to: %s", filename)
 }
