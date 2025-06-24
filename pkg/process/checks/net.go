@@ -125,8 +125,8 @@ func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bo
 	// Initialize state for the capacity-based run logic only when dynamic interval is enabled
 	if c.useDynamicInterval {
 		c.lastFullRunTime = time.Time{} // Ensure the first run is a full run
-		// Guaranteed run interval is driven by the standard connections check interval
-		c.guaranteedRunInterval = GetInterval(c.config, ConnectionsCheckName)
+		// Guaranteed run interval is driven by the standard connections check interval (30s)
+		c.guaranteedRunInterval = ConnectionsCheckDefaultInterval
 		log.Infof(
 			"connections check dynamic interval enabled: Capacity check interval=%v, Guaranteed full run interval=%v",
 			ConnectionsCheckDynamicInterval,
