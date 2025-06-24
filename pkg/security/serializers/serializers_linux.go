@@ -558,12 +558,12 @@ type SetSockOptEventSerializer struct {
 	SocketProtocol uint16 `json:"socket_protocol"`
 	// Socket family
 	SocketFamily uint16 `json:"socket_family"`
+	// Length of the filter
+	FilterLen uint16 `json:"filter_len,omitempty"`
 	// Level at which the option is defined
 	Level uint32 `json:"level"`
 	// Name of the option being set
 	OptName uint32 `json:"optname"`
-	// Length of the filter
-	FilterLen uint16 `json:"filter_len,omitempty"`
 	// Filter truncated
 	IsFilterTruncated bool `json:"is_filter_truncated,omitempty"`
 	// Filter instructions

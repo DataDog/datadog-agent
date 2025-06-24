@@ -1128,12 +1128,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(i
 			out.SocketProtocol = uint16(in.Uint16())
 		case "socket_family":
 			out.SocketFamily = uint16(in.Uint16())
+		case "filter_len":
+			out.FilterLen = uint16(in.Uint16())
 		case "level":
 			out.Level = uint32(in.Uint32())
 		case "optname":
 			out.OptName = uint32(in.Uint32())
-		case "filter_len":
-			out.FilterLen = uint16(in.Uint16())
 		case "is_filter_truncated":
 			out.IsFilterTruncated = bool(in.Bool())
 		case "filter":
@@ -1169,6 +1169,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		out.RawString(prefix)
 		out.Uint16(uint16(in.SocketFamily))
 	}
+	if in.FilterLen != 0 {
+		const prefix string = ",\"filter_len\":"
+		out.RawString(prefix)
+		out.Uint16(uint16(in.FilterLen))
+	}
 	{
 		const prefix string = ",\"level\":"
 		out.RawString(prefix)
@@ -1178,11 +1183,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		const prefix string = ",\"optname\":"
 		out.RawString(prefix)
 		out.Uint32(uint32(in.OptName))
-	}
-	if in.FilterLen != 0 {
-		const prefix string = ",\"filter_len\":"
-		out.RawString(prefix)
-		out.Uint16(uint16(in.FilterLen))
 	}
 	if in.IsFilterTruncated {
 		const prefix string = ",\"is_filter_truncated\":"
