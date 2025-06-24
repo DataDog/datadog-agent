@@ -392,45 +392,47 @@ def run(
             test_profiler=None,
         )
 
-        failed_tests = filter_only_leaf_tests(
-            (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
-        )
-
-        # Note: `get_flaky_failures` can return some unexpected things due to its logic for detecting failing tests by looking at its eventual children.
-        # By using an `intersection` we ensure that we only get tests that have actually failed.
-        known_flaky_failures = failed_tests.intersection(
-            {(package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests}
-        )
-
-        # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
-        to_teardown.update(known_flaky_failures)
-        # Retry any failed tests that are not known to be flaky
-        to_retry = failed_tests - known_flaky_failures
-
-        if known_flaky_failures and remaining_tries > 0:
-            print(
-                color_message(
-                    f"{len(known_flaky_failures)} tests failed but are known flaky. They will not be retried !",
-                    "yellow",
-                )
+        if remaining_tries > 0:
+            failed_tests = filter_only_leaf_tests(
+                (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
             )
 
-        if to_retry and remaining_tries > 0:
-            print(
-                color_message(
-                    f"Retrying {len(to_retry)} failed tests:\n- {'\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))}",
-                    "yellow",
-                )
+            # Note: `get_flaky_failures` can return some unexpected things due to its logic for detecting failing tests by looking at its eventual children.
+            # By using an `intersection` we ensure that we only get tests that have actually failed.
+            known_flaky_failures = failed_tests.intersection(
+                {(package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests}
             )
 
-            # Retry the failed tests only
-            affected_packages = {
-                os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_retry
-            }
-            e2e_module.test_targets = list(affected_packages)
-            args["run"] = '-test.run ' + _create_test_selection_regex([test for _, test in to_retry])
-        else:
-            break
+            # Retry any failed tests that are not known to be flaky
+            to_retry = failed_tests - known_flaky_failures
+
+            if known_flaky_failures:
+                print(
+                    color_message(
+                        f"{len(known_flaky_failures)} tests failed but are known flaky. They will not be retried !",
+                        "yellow",
+                    )
+                )
+                # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
+                to_teardown.update(known_flaky_failures)
+
+            if to_retry:
+                print(
+                    color_message(
+                        f"Retrying {len(to_retry)} failed tests:\n- {'\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))}",
+                        "yellow",
+                    )
+                )
+
+                # Retry the failed tests only
+                affected_packages = {
+                    os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/")
+                    for package, _ in to_retry
+                }
+                e2e_module.test_targets = list(affected_packages)
+                args["run"] = '-test.run ' + _create_test_selection_regex([test for _, test in to_retry])
+            else:
+                break
 
     # Make sure that any non-successful test suites that were not retried (i.e., fully-known-flaky-failing suites) are torn down
     # Do this by calling the tests with the E2E_TEARDOWN_ONLY env var set, which will only run the teardown logic
