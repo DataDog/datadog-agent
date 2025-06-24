@@ -465,6 +465,7 @@ type OwnerReference struct {
 	APIVersion string
 }
 
+// GetOwnerReference returns the OwnerReference for a given PodAutoscalerInternal object
 func (p *PodAutoscalerInternal) GetOwnerReference() OwnerReference {
 	return OwnerReference{
 		Namespace:  p.namespace,

@@ -11,17 +11,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
 
-type MapIndexer struct {
+type mapIndexer struct {
 	indexMap map[any]map[string]bool
 }
 
-func NewMapIndexer() *MapIndexer {
-	return &MapIndexer{
+func newMapIndexer() *mapIndexer {
+	return &mapIndexer{
 		indexMap: make(map[any]map[string]bool),
 	}
 }
 
-func (m *MapIndexer) GetIDs(key any) []string {
+// GetIDs returns all IDs for a given key
+func (m *mapIndexer) GetIDs(key any) []string {
 	ids := make([]string, 0, len(m.indexMap[key]))
 	for id := range m.indexMap[key] {
 		ids = append(ids, id)
@@ -29,21 +30,18 @@ func (m *MapIndexer) GetIDs(key any) []string {
 	return ids
 }
 
-func (m *MapIndexer) GetIndexKey(obj any) any {
+// GetIndexKey returns the index key for a given object
+func (m *mapIndexer) GetIndexKey(obj any) any {
 	podAutoscaler, ok := obj.(model.PodAutoscalerInternal)
 	if !ok {
 		return nil
 	}
 
-	return model.OwnerReference{
-		Namespace:  podAutoscaler.Namespace(),
-		Name:       podAutoscaler.Spec().TargetRef.Name,
-		Kind:       podAutoscaler.Spec().TargetRef.Kind,
-		APIVersion: podAutoscaler.Spec().TargetRef.APIVersion,
-	}
+	return podAutoscaler.GetOwnerReference()
 }
 
-func (m *MapIndexer) AddToIndex(key any, id string) {
+// AddToIndex adds an ID to the index for a given key
+func (m *mapIndexer) AddToIndex(key any, id string) {
 	if key == nil {
 		return
 	}
@@ -55,7 +53,8 @@ func (m *MapIndexer) AddToIndex(key any, id string) {
 	m.indexMap[key][id] = true
 }
 
-func (m *MapIndexer) RemoveFromIndex(key any, id string) {
+// RemoveFromIndex removes an ID from the index for a given key
+func (m *mapIndexer) RemoveFromIndex(key any, id string) {
 	if key == nil {
 		return
 	}

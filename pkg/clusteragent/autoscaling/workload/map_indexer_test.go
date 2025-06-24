@@ -19,7 +19,7 @@ import (
 )
 
 func TestMapIndexer(t *testing.T) {
-	indexer := NewMapIndexer()
+	indexer := newMapIndexer()
 
 	// Check adding works
 	ownerRef := model.OwnerReference{
@@ -60,7 +60,7 @@ func TestMapIndexer(t *testing.T) {
 }
 
 func TestMapIndexer_GetIndexKey(t *testing.T) {
-	indexer := NewMapIndexer()
+	indexer := newMapIndexer()
 
 	podAutoscaler := model.NewFakePodAutoscalerInternal("test", "test", &model.FakePodAutoscalerInternal{
 		Spec: &datadoghq.DatadogPodAutoscalerSpec{
