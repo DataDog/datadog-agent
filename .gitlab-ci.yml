@@ -108,9 +108,14 @@ variables:
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
   OMNIBUS_BASE_DIR: /omnibus
+  # Some scripts are ran in a different context such as a container and don't have
+  # access to OMNIBUS_PACKAGE_DIR directly. To avoid spreading out many hardcoded
+  # occurrences of "omnibus/pkg" we expose it as a single variable that can be
+  # used to construct the full path expected by the CI
+  OMNIBUS_PACKAGE_SUBDIR: omnibus/pkg
   # Directory in which we put the artifacts after the build
-  # Must be in $CI_PROJECT_DIR
-  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/omnibus/pkg/
+  # Must be in $CI_PROJECT_DIR to be usable as an artifact
+  OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/$OMNIBUS_PACKAGE_SUBDIR
   # Directory in which we put the SUSE artifacts after the SUSE build
   # Must be in $CI_PROJECT_DIR
   # RPM builds and SUSE RPM builds create artifacts with the same name.

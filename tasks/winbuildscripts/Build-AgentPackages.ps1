@@ -74,11 +74,11 @@ Invoke-BuildScript `
     # Show the contents of the output package directories for debugging purposes
     Get-ChildItem -Path C:\omnibus-ruby\pkg\
     Get-ChildItem -Path "C:\opt\datadog-agent\bin\agent\"
-    Get-ChildItem -Path ".\omnibus\pkg\"
+    Get-ChildItem -Path ".\$env:OMNIBUS_PACKAGE_SUBDIR"
 
     if ($BuildOutOfSource) {
         # Copy the resulting package to the mnt directory
-        mkdir C:\mnt\omnibus\pkg -Force -ErrorAction Stop | Out-Null
-        Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg" -Force -ErrorAction Stop
+        mkdir C:\mnt\$env:OMNIBUS_PACKAGE_SUBDIR -Force -ErrorAction Stop | Out-Null
+        Copy-Item -Path ".\$env:OMNIBUS_PACKAGE_SURDIR\*" -Destination "C:\mnt\omnibus\pkg" -Force -ErrorAction Stop
     }
 }

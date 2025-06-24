@@ -2,7 +2,7 @@ Param(
     [Parameter(Mandatory=$true)]
     [string] $package,
     [string] $version,
-    [string] $omnibusOutput = "$(Get-Location)\omnibus\pkg\"
+    [string] $omnibusOutput = "$(Get-Location)\$env:OMNIBUS_PACKAGE_SUBDIR\"
 )
 
 if (-not (Test-Path C:\tools\datadog-package.exe)) {
