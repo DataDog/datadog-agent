@@ -683,10 +683,10 @@ func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
 		if err != nil {
 			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 		}
+	}
 
-		if err := deleteDeadPidsInSSLCtxMap(o.ebpfManager, alivePIDs); err != nil {
-			log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
-		}
+	if err := deleteDeadPidsInSSLCtxMap(o.ebpfManager, alivePIDs); err != nil {
+		log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
 	}
 }
 
@@ -720,13 +720,18 @@ func deleteDeadPidsInMap(manager *manager.Manager, mapName string, alivePIDs map
 func deleteDeadPidsInSSLCtxMap(manager *manager.Manager, alivePIDs map[uint32]struct{}) error {
 	sslCtxByPIDTGIDMapObj, _, err := manager.GetMap(sslCtxByPIDTGIDMap)
 	if err != nil {
-		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", sslCtxByPIDTGIDMap, err)
+		return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslCtxByPIDTGIDMap, err)
 	}
 
 	sslSockByCtxMapObj, _, err := manager.GetMap(sslSockByCtxMap)
 	if err != nil {
-		return fmt.Errorf("dead process cleaner failed to get map: %q error: %w", sslSockByCtxMap, err)
+		return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslSockByCtxMap, err)
 	}
+
+	//sslCtxByTupleMapObj, _, err := manager.GetMap(sslCtxByTupleMap)
+	//if err != nil {
+	//	return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslCtxByTupleMap, err)
+	//}
 
 	var keysToDelete []uint64
 	var key uint64

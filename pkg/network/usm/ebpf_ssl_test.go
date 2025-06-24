@@ -261,13 +261,6 @@ func TestSSLMapsCleanup(t *testing.T) {
 	t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d", sslSockByCtxMap, ctxMapCountAfter)
 	t.Logf("Count for map '%s' AFTER CloseIdleConnections(): %d", sslCtxByTupleMap, tupleMapCountAfter)
 
-	cleanProtocolMaps(t, "ssl", usmMonitor.ebpfProgram.Manager.Manager)
-
-	ctxMapCountAfterCleanup := countMapEntries(t, sslSockMap)
-	tupleMapCountAfterCleanup := countMapEntries(t, sslTupleMap)
-	t.Logf("Count for map '%s' AFTER manual cleanup: %d", sslSockByCtxMap, ctxMapCountAfterCleanup)
-	t.Logf("Count for map '%s' AFTER manual cleanup: %d", sslCtxByTupleMap, tupleMapCountAfterCleanup)
-
 	// We expect that one entry will be removed from each map, if that map was populated to begin with.
 	expectedCtxCount := ctxMapCountBefore
 	if expectedCtxCount > 0 {
