@@ -49,7 +49,7 @@ func createCELProgram(rules string, key filter.ResourceType) (cel.Program, error
 	if issues != nil && issues.Err() != nil {
 		return nil, issues.Err()
 	}
-	prg, err := env.Program(ast)
+	prg, err := env.Program(ast, cel.EvalOptions(cel.OptOptimize))
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,16 @@ var containerFieldMapping = map[string]string{
 	"kube_namespace": fmt.Sprintf("%s.%s.namespace.matches", filter.ContainerType, filter.PodType),
 }
 
-// convertOldToNewFilter converts the legacy regex ad filter format to the google cel format.
+// getValidKeys returns a slice of valid keys for legacy container filters.
+func getValidKeys() []string {
+	keys := make([]string, 0, len(containerFieldMapping))
+	for key := range containerFieldMapping {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+// convertOldToNewFilter converts the legacy regex ad filter format to cel-go format.
 //
 // Old Format: []string{"image:nginx.*", "name:xyz-.*"},
 // New Format: "container.name.matches('xyz-.*') || container.image.matches('nginx.*')"
@@ -77,12 +86,11 @@ func convertOldToNewFilter(old []string) (string, error) {
 		}
 
 		// Split the filter into key and value using the first colon
-		parts := strings.SplitN(filter, ":", 2)
-		if len(parts) != 2 {
+		key, value, ok := strings.Cut(filter, ":")
+		if !ok {
 			return "", fmt.Errorf("invalid filter format: %s", filter)
 		}
 
-		key, value := parts[0], parts[1]
 		celsafeValue := celEscape(value)
 
 		// Legacy support for image filtering
@@ -93,7 +101,7 @@ func convertOldToNewFilter(old []string) (string, error) {
 		if newField, ok := containerFieldMapping[key]; ok {
 			newFilters = append(newFilters, fmt.Sprintf("%s('%s')", newField, celsafeValue))
 		} else {
-			return "", fmt.Errorf("unsupported filter key: %s", key)
+			return "", fmt.Errorf("unsupported filter key '%s' must be in %v", key, getValidKeys())
 		}
 	}
 	return strings.Join(newFilters, " || "), nil

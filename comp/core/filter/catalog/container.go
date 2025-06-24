@@ -11,62 +11,62 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 	"github.com/DataDog/datadog-agent/comp/core/filter/program"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
-// ContainerMetricsProgram creates a program for filtering container metrics
-func ContainerMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
-	includeList := config.GetStringSlice("container_include_metrics")
-	excludeList := config.GetStringSlice("container_exclude_metrics")
-
+// LegacyContainerMetricsProgram creates a program for filtering container metrics
+func LegacyContainerMetricsProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
-		Name:    "ContainerMetricsProgram",
-		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
+		Name:    "LegacyContainerMetricsProgram",
+		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_metrics"), filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_metrics"), filter.ContainerType, logger),
 	}
 }
 
-// ContainerLogsProgram creates a program for filtering container logs
-func ContainerLogsProgram(config config.Component, logger log.Component) program.CELProgram {
-	includeList := config.GetStringSlice("container_include_logs")
-	excludeList := config.GetStringSlice("container_exclude_logs")
-
+// LegacyContainerLogsProgram creates a program for filtering container logs
+func LegacyContainerLogsProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
-		Name:    "ContainerLogsProgram",
-		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
+		Name:    "LegacyContainerLogsProgram",
+		Include: createProgramFromOldFilters(config.GetStringSlice("container_include_logs"), filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude_logs"), filter.ContainerType, logger),
 	}
 }
 
-// ContainerACLegacyExcludeProgram creates a program for excluding containers via legacy `AC` filters
-func ContainerACLegacyExcludeProgram(config config.Component, logger log.Component) program.CELProgram {
-	excludeList := config.GetStringSlice("ac_exclude")
-
+// LegacyContainerACExcludeProgram creates a program for excluding containers via legacy `AC` filters
+func LegacyContainerACExcludeProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
-		Name:    "ContainerACLegacyExcludeProgram",
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
+		Name:    "LegacyContainerACExcludeProgram",
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("ac_exclude"), filter.ContainerType, logger),
 	}
 }
 
-// ContainerACLegacyIncludeProgram creates a program for including containers via legacy `AC` filters
-func ContainerACLegacyIncludeProgram(config config.Component, logger log.Component) program.CELProgram {
-	includeList := config.GetStringSlice("ac_include")
-
+// LegacyContainerACIncludeProgram creates a program for including containers via legacy `AC` filters
+func LegacyContainerACIncludeProgram(config config.Component, logger log.Component) program.CELProgram {
 	return program.CELProgram{
-		Name:    "ContainerACLegacyIncludeProgram",
-		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
+		Name:    "LegacyContainerACIncludeProgram",
+		Include: createProgramFromOldFilters(config.GetStringSlice("ac_include"), filter.ContainerType, logger),
 	}
 }
 
-// ContainerGlobalProgram creates a program for filtering container globally
-func ContainerGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
-	includeList := config.GetStringSlice("container_include")
-	excludeList := config.GetStringSlice("container_exclude")
+// LegacyContainerGlobalProgram creates a program for filtering container globally
+func LegacyContainerGlobalProgram(config config.Component, logger log.Component) program.CELProgram {
+	return program.CELProgram{
+		Name:    "LegacyContainerGlobalProgram",
+		Include: createProgramFromOldFilters(config.GetStringSlice("container_include"), filter.ContainerType, logger),
+		Exclude: createProgramFromOldFilters(config.GetStringSlice("container_exclude"), filter.ContainerType, logger),
+	}
+}
+
+// LegacyContainerSBOMProgram creates a program for filtering container SBOMs
+func LegacyContainerSBOMProgram(config config.Component, logger log.Component) program.CELProgram {
+	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
+	if config.GetBool("sbom.container_image.exclude_pause_container") {
+		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
+	}
 
 	return program.CELProgram{
-		Name:    "ContainerGlobalProgram",
-		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
+		Name:    "LegacyContainerSBOMProgram",
+		Include: createProgramFromOldFilters(config.GetStringSlice("sbom.container_image.container_include"), filter.ContainerType, logger),
 		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
 	}
 }
@@ -88,30 +88,13 @@ func ContainerADAnnotationsProgram(_ config.Component, logger log.Component) pro
 
 // ContainerPausedProgram creates a program for filtering paused containers
 func ContainerPausedProgram(config config.Component, logger log.Component) program.CELProgram {
-	var includeList, excludeList []string
+	var excludeList []string
 	if config.GetBool("exclude_pause_container") {
 		excludeList = containers.GetPauseContainerExcludeList()
 	}
 
 	return program.CELProgram{
 		Name:    "ContainerPausedProgram",
-		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
-		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
-	}
-}
-
-// ContainerSBOMProgram creates a program for filtering container SBOMs
-func ContainerSBOMProgram(config config.Component, logger log.Component) program.CELProgram {
-	includeList := config.GetStringSlice("sbom.container_image.container_include")
-	excludeList := config.GetStringSlice("sbom.container_image.container_exclude")
-
-	if config.GetBool("sbom.container_image.exclude_pause_container") {
-		excludeList = append(excludeList, containers.GetPauseContainerExcludeList()...)
-	}
-
-	return program.CELProgram{
-		Name:    "ContainerSBOMProgram",
-		Include: createProgramFromOldFilters(includeList, filter.ContainerType, logger),
 		Exclude: createProgramFromOldFilters(excludeList, filter.ContainerType, logger),
 	}
 }
