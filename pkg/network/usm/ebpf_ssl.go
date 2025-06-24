@@ -67,6 +67,8 @@ const (
 	// UsmTLSAttacherName holds the name used for the uprobe attacher of tls programs. Used for tests.
 	UsmTLSAttacherName = "usm_tls"
 
+	sslSockByCtxMap     = "ssl_sock_by_ctx"
+	sslCtxByTupleMap    = "ssl_ctx_by_tuple"
 	sslCtxByPIDTGIDMap  = "ssl_ctx_by_pid_tgid"
 	sslReadArgsMap      = "ssl_read_args"
 	sslReadExArgsMap    = "ssl_read_ex_args"
@@ -242,6 +244,12 @@ var gnuTLSProbes = []manager.ProbesSelector{
 }
 
 var sharedLibrariesMaps = []*manager.Map{
+	{
+		Name: sslSockByCtxMap,
+	},
+	{
+		Name: sslCtxByTupleMap,
+	},
 	{
 		Name: sslReadArgsMap,
 	},
@@ -500,6 +508,14 @@ func (o *sslProgram) Name() string {
 }
 
 func sharedLibrariesConfigureOptions(options *manager.Options, cfg *config.Config) {
+	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
+		MaxEntries: cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	options.MapSpecEditors[sslCtxByTupleMap] = manager.MapSpecEditor{
+		MaxEntries: cfg.MaxTrackedConnections,
+		EditorFlag: manager.EditMaxEntries,
+	}
 	options.MapSpecEditors[sslCtxByPIDTGIDMap] = manager.MapSpecEditor{
 		MaxEntries: cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -533,6 +549,23 @@ func (o *sslProgram) Stop() {
 // DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
 func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
+	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
+		iter := currentMap.Iterate()
+		var key uintptr // C.void *
+		var value http.SslSock
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
+
+	case sslCtxByTupleMap: // maps/ssl_ctx_by_tuple (BPF_MAP_TYPE_HASH), key C.conn_tuple_t, value C.void *
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.conn_tuple_t', value: 'uintptr // C.void *'\n")
+		iter := currentMap.Iterate()
+		var key http.ConnTuple
+		var value uintptr
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			spew.Fdump(w, key, value)
+		}
 
 	case sslReadArgsMap: // maps/ssl_read_args (BPF_MAP_TYPE_HASH), key C.__u64, value C.ssl_read_args_t
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.__u64', value: 'C.ssl_read_args_t'\n")
