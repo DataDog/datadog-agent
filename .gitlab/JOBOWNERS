@@ -123,7 +123,7 @@ qa_installer_script*                   @DataDog/agent-delivery
 
 # Deploy containers and tags
 deploy_containers*                     @Datadog/agent-delivery
-deploy_mutable_image_tags*             @Datadog/agent-delivery 
+deploy_mutable_image_tags*             @Datadog/agent-delivery
 
 # Deploy CWS instrumentation
 deploy_containers-cws-instrumentation* @DataDog/agent-security
@@ -132,6 +132,9 @@ deploy_containers-cws-instrumentation* @DataDog/agent-security
 trigger_manual_prod_release*            @DataDog/agent-delivery
 trigger_auto_staging_release*           @DataDog/agent-delivery
 generate_windows_gitlab_runner_bump_pr* @DataDog/agent-delivery
+
+# Trigger distribution
+trigger_distribution*         @DataDog/agent-delivery
 
 # Integration test
 integration_tests_windows*    @DataDog/windows-agent

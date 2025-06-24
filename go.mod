@@ -992,9 +992,6 @@ replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelg
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
-// Fixing a CVE on a transitive dep of k8s/etcd, should be cleaned-up once k8s.io/apiserver dep is removed (but double-check with `go mod why` that no other dep pulls it)
-replace github.com/dgrijalva/jwt-go => github.com/golang-jwt/jwt v3.2.1+incompatible
-
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
 // Use custom Trivy fork to reduce binary size
@@ -1003,16 +1000,6 @@ replace (
 	// Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060
 	github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20250328083658-40561b7842af
 	github.com/saracen/walker => github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950
-)
-
-// Fixes CVE-2023-1732, imported by nikos
-replace github.com/cloudflare/circl => github.com/cloudflare/circl v1.3.7
-
-// Exclude specific versions of knadh/koanf to fix building with a `go.work`, following
-// https://github.com/open-telemetry/opentelemetry-collector/issues/8127
-exclude (
-	github.com/knadh/koanf/maps v0.1.1
-	github.com/knadh/koanf/providers/confmap v0.1.0
 )
 
 // Prevent dependencies to be bumped by Trivy
