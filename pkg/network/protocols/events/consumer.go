@@ -11,8 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
+	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -51,6 +53,8 @@ type Consumer[V any] struct {
 	kernelDropsCount                                   *telemetry.Counter
 	lengthExceededEventCount, negativeLengthEventCount *telemetry.Counter
 	invalidBatchCount                                  *telemetry.Counter
+
+	chLenTelemetry *atomic.Uint64
 }
 
 // NewConsumer instantiates a new event Consumer
@@ -107,6 +111,16 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	// `kernel_dropped_events`.
 	failedFlushesCount := metricGroup.NewCounter("failed_flushes")
 
+	ringBuffer, success := ebpf.GetRingBuffer("http_batch_evens")
+
+	chLenTelemetry := &atomic.Uint64{}
+
+	if success {
+		ebpfTelemetry.ReportRingBufferChannelLenTelemetry(ringBuffer, func() int {
+			return int(chLenTelemetry.Swap(0))
+		})
+	}
+
 	return &Consumer[V]{
 		proto:       proto,
 		callback:    callback,
@@ -123,6 +137,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 		negativeLengthEventCount: negativeLengthEventCount,
 		lengthExceededEventCount: lengthExceededEventCount,
 		invalidBatchCount:        invalidBatchCount,
+		chLenTelemetry:           chLenTelemetry,
 	}, nil
 }
 
@@ -139,6 +154,8 @@ func (c *Consumer[V]) Start() {
 				if !ok {
 					return
 				}
+
+				updateMaxTelemetry(c.chLenTelemetry, uint64(len(dataChannel)))
 
 				b, err := batchFromEventData(dataEvent.Data)
 
@@ -266,4 +283,22 @@ func batchFromEventData(data []byte) (*Batch, error) {
 func pointerToElement[V any](b *Batch, elementIdx int) *V {
 	offset := elementIdx * int(b.Event_size)
 	return (*V)(unsafe.Pointer(uintptr(unsafe.Pointer(&b.Data[0])) + uintptr(offset)))
+}
+
+// implement the CAS algorithm to atomically update a max value
+func updateMaxTelemetry(a *atomic.Uint64, val uint64) {
+	for {
+		oldVal := a.Load()
+		if val <= oldVal {
+			return
+		}
+		// if the value at a is not `oldVal`, then `CompareAndSwap` returns
+		// false indicating that the value of the atomic has changed between
+		// the above check and this invocation.
+		// In this case we retry the above test, to see if the value still needs
+		// to be updated.
+		if a.CompareAndSwap(oldVal, val) {
+			return
+		}
+	}
 }
