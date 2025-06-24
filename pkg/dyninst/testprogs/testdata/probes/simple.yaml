@@ -1,42 +1,46 @@
 binary: simple
 probes:
-- id: a
+- id: intArg
   type: LOG_PROBE
   where:
     method_name: main.intArg
-- id: b
+- id: stringArg
   type: LOG_PROBE
   where:
     method_name: main.stringArg
-- id: c
+- id: intSliceArg
   type: LOG_PROBE
   where:
     method_name: main.intSliceArg
-- id: d
+- id: intArrayArg
   type: LOG_PROBE
   where:
     method_name: main.intArrayArg
-- id: e
+- id: stringSliceArg
   type: LOG_PROBE
   where:
     method_name: main.stringSliceArg
-- id: f
+- id: stringArrayArg
   type: LOG_PROBE
   where:
     method_name: main.stringArrayArg
-- id: g
+- id: intArrayArgFrameless
+  type: LOG_PROBE
+  where:
+    method_name: main.stringArrayArgFrameless
+- id: inlined
   type: LOG_PROBE
   where:
     method_name: main.inlined
-- id: h
+- id: mapArg
   type: LOG_PROBE
   where:
     method_name: main.mapArg
-- id: i
+- id: bigMapArg
   type: LOG_PROBE
   where:
     method_name: main.bigMapArg
-- id: j
+- id: PointerChainArg
   type: LOG_PROBE
   where:
     method_name: main.PointerChainArg
