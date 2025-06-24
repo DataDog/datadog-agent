@@ -114,6 +114,8 @@ windows_zip_agent_binaries_x64-a7:
       -e BUNDLE_MIRROR__RUBYGEMS__ORG=${BUNDLE_MIRROR__RUBYGEMS__ORG}
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
       -e API_KEY_ORG2=${API_KEY_ORG2}
+      -e OMNIBUS_PACKAGE_DIR="${OMNIBUS_PACKAGE_DIR}"
+      -e OMNIBUS_PACKAGE_SUBDIR="${OMNIBUS_PACKAGE_SUBDIR}"
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-OmnibusTarget.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
