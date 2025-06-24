@@ -22,6 +22,8 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
+	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -107,6 +109,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		remoteagentfx.Module(remoteagent.Params{}),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
 	)
