@@ -115,10 +115,9 @@ def get_flaky_failures_and_marked_flaky_tests_from_test_output(result_json):
     flaky_failures = defaultdict(set)
     flaky_tests = defaultdict(set)
 
-    if os.path.exists(result_json):
-        tw = TestWasher(test_output_json_file=result_json)
-        flaky_failures.update(tw.get_flaky_failures())
-        flaky_tests.update(tw.get_flaky_marked_tests())
+    tw = TestWasher(test_output_json_file=result_json)
+    flaky_failures.update(tw.get_flaky_failures())
+    flaky_tests.update(tw.get_flaky_marked_tests())
 
     return flaky_failures, flaky_tests
 
