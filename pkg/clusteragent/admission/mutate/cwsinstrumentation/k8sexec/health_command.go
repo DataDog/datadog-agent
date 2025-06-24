@@ -9,6 +9,7 @@ package k8sexec
 
 import (
 	"fmt"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
@@ -42,7 +43,7 @@ func (hc *HealthCommand) prepareCommand(destFile string) []string {
 }
 
 // Run runs the cws-instrumentation health command
-func (hc *HealthCommand) Run(remoteFile string, pod *corev1.Pod, container string) error {
+func (hc *HealthCommand) Run(remoteFile string, pod *corev1.Pod, container string, timeout time.Duration) error {
 	hc.Container = container
 
 	streamOptions := StreamOptions{
@@ -53,7 +54,7 @@ func (hc *HealthCommand) Run(remoteFile string, pod *corev1.Pod, container strin
 		Stdin: false,
 	}
 
-	if err := hc.Execute(pod, hc.prepareCommand(remoteFile), streamOptions); err != nil {
+	if err := hc.Execute(pod, hc.prepareCommand(remoteFile), streamOptions, timeout); err != nil {
 		return err
 	}
 
