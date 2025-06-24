@@ -46,10 +46,10 @@ func returnFingerprintConfig() FingerprintConfig {
 	if pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy") != "checksum" {
 		return FingerprintConfig{}
 	}
-	maxLines := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_max_lines")
-	maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_max_bytes")
-	bytesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_bytes_to_skip")
-	linesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_lines_to_skip")
+	maxLines := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.max_lines")
+	maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.max_bytes")
+	bytesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.bytes_to_skip")
+	linesToSkip := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.lines_to_skip")
 	return FingerprintConfig{
 		maxLines:    maxLines,
 		maxBytes:    maxBytes,

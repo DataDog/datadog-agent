@@ -1544,13 +1544,13 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// determines fingerprinting strategy to detect rotation and truncation
 	config.BindEnvAndSetDefault("logs_config.fingerprint_strategy", "default")
 	// determines maxLines before we create a fingerprint (can also be interpreted as minimum needed to fingerprint)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_max_lines", 1)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_lines", 1)
 	// determines maxBytes before we create a fingerprint (can also be interpreted as minimum needed to fingerprint)
-	config.BindEnvAndSetDefault("logs_config.fingerprint_max_bytes", 2048)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", 2048)
 	// determines lines to skip before we create fingerprint
-	config.BindEnvAndSetDefault("logs_config.fingerprint_max_bytes", 0)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.lines_to_skip", 0)
 	//determine bytes to skip before we create a fingerprint
-	config.BindEnvAndSetDefault("logs_config.fingerprint_max_bytes", 0)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.bytes_to_skip", 0)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key")
 

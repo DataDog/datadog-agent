@@ -238,7 +238,7 @@ func (s *Launcher) scan() {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
 			checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 			if checkSumEnabled == "checksum" {
-				maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_max_bytes")
+				maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.max_bytes")
 				f, err := os.Open(file.Path)
 				if err != nil {
 					log.Warnf("could not open file to check for content %s: %v", file.Path, err)

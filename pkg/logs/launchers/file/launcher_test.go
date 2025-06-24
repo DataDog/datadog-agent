@@ -153,7 +153,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_max_bytes", 256)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxbytes", 256)
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
@@ -209,7 +209,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_max_bytes", 256)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxbytes", 256)
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
@@ -410,7 +410,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 
 	// Temporarily set the global config for this test
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_max_bytes", 2048)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxbytes", 2048)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDir := t.TempDir()
 
@@ -446,7 +446,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_max_bytes", 2048)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxbytes", 2048)
 	// Temporarily set the global config for this test
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDir := t.TempDir()
