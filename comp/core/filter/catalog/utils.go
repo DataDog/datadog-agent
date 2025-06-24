@@ -8,6 +8,7 @@ package catalog
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/cel-go/cel"
@@ -91,32 +92,18 @@ func convertOldToNewFilter(old []string) (string, error) {
 			return "", fmt.Errorf("invalid filter format: %s", filter)
 		}
 
-		celsafeValue := celEscape(value)
-
 		// Legacy support for image filtering
 		if key == "image" {
-			celsafeValue = legacyFilter.PreprocessImageFilter(celsafeValue)
+			value = legacyFilter.PreprocessImageFilter(value)
 		}
 
 		if newField, ok := containerFieldMapping[key]; ok {
-			newFilters = append(newFilters, fmt.Sprintf("%s('%s')", newField, celsafeValue))
+			newFilters = append(newFilters, fmt.Sprintf(`%s(%s)`, newField, strconv.Quote(value)))
 		} else {
 			return "", fmt.Errorf("unsupported filter key '%s' must be in %v", key, getValidKeys())
 		}
 	}
 	return strings.Join(newFilters, " || "), nil
-}
-
-// celEscape escapes backslashes and single quotes for CEL compatibility
-func celEscape(s string) string {
-
-	// Backslashes must be escaped because CEL parses string literals first.
-	s = strings.ReplaceAll(s, `\`, `\\`)
-
-	// Must escape the single quote because we wrap the
-	// entire input within single quotes in the CEL expression.
-	s = strings.ReplaceAll(s, `'`, `\'`)
-	return s
 }
 
 // convertTypeToProtoType converts a filter.ResourceType to its corresponding proto type string.

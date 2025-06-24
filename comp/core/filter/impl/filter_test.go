@@ -498,3 +498,21 @@ func TestProgramErrorHandling(t *testing.T) {
 		assert.Equal(t, filterdef.Excluded, res)
 	})
 }
+
+func TestSpecialCharacters(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("container_include", []string{`name:g'oba\\r\d-0x[0-9a-fA-F]+\\n`})
+	f := newFilterObject(t, mockConfig)
+
+	container := filterdef.CreateContainer(
+		workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: `g'oba\r9-0xDEADBEEF\n`,
+			},
+		},
+		nil,
+	)
+
+	res := evaluateResource(f, container, [][]filterdef.ContainerFilter{{filterdef.LegacyContainerGlobal}})
+	assert.Equal(t, filterdef.Included, res)
+}

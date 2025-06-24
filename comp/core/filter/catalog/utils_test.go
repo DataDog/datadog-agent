@@ -16,21 +16,6 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/filter/def"
 )
 
-func TestCelEscape(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"abc", "abc"},
-		{"a'b", "a\\'b"},
-		{`a\b`, `a\\b`},
-		{`a\'b`, `a\\\'b`},
-	}
-	for _, tt := range tests {
-		assert.Equal(t, tt.expected, celEscape(tt.input))
-	}
-}
-
 func TestConvertOldToNewFilter_Success(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -40,27 +25,27 @@ func TestConvertOldToNewFilter_Success(t *testing.T) {
 		{
 			"single name filter",
 			[]string{"name:foo-.*"},
-			"container.name.matches('foo-.*')",
+			`container.name.matches("foo-.*")`,
 		},
 		{
 			"single image filter",
 			[]string{"image:nginx.*"},
-			"container.image.matches('nginx.*')",
+			`container.image.matches("nginx.*")`,
 		},
 		{
 			"multiple filters",
 			[]string{"name:foo-.*", "image:nginx.*"},
-			"container.name.matches('foo-.*') || container.image.matches('nginx.*')",
+			`container.name.matches("foo-.*") || container.image.matches("nginx.*")`,
 		},
 		{
 			"filter with single quote and backslash",
-			[]string{`name:foo\'bar\\baz`},
-			"container.name.matches('foo\\'bar\\\\baz')",
+			[]string{`name:foo'bar\zab`},
+			`container.name.matches("foo'bar\\zab")`,
 		},
 		{
 			"empty filter is skipped",
 			[]string{"", "name:foo"},
-			"container.name.matches('foo')",
+			`container.name.matches("foo")`,
 		},
 	}
 	for _, tt := range tests {
@@ -92,15 +77,15 @@ func TestConvertOldToNewFilter_Errors(t *testing.T) {
 			assert.Error(t, err)
 		})
 	}
-}
 
-func TestCreateProgramFromOldFilters(t *testing.T) {
 	logger := logmock.New(t)
-	// Valid filter
-	prog := createProgramFromOldFilters([]string{"name:foo-.*"}, filter.ContainerType, logger)
-	assert.NotNil(t, prog)
+	t.Run("valid filter key", func(t *testing.T) {
+		prog := createProgramFromOldFilters([]string{"name:foo-.*"}, filter.ContainerType, logger)
+		assert.NotNil(t, prog, "should return a valid program for valid filter key")
+	})
 
-	// Invalid filter (unsupported key)
-	prog = createProgramFromOldFilters([]string{"foo:bar"}, filter.ContainerType, logger)
-	assert.Nil(t, prog)
+	t.Run("invalid filter key", func(t *testing.T) {
+		prog := createProgramFromOldFilters([]string{"other_field:some_value"}, filter.ContainerType, logger)
+		assert.Nil(t, prog, "should return a nil program for invalid filter key")
+	})
 }
