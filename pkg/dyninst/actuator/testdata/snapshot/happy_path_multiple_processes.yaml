@@ -5,11 +5,11 @@
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/app1}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: func1}, capture_snapshot: true}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: func1}, captureSnapshot: true}
     - process_id: {pid: 1002}
       executable: {path: /usr/bin/app2}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: func2}, capture_snapshot: true}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: func2}, captureSnapshot: true}
 - !compiled {program_id: 1}
 - !loaded {program_id: 1}
 - !compiled {program_id: 2} # note that this could be after the next event
@@ -22,11 +22,11 @@ event: !processes-updated
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/app1}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: func1}, capture_snapshot: true}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: func1}, captureSnapshot: true}
     - process_id: {pid: 1002}
       executable: {path: /usr/bin/app2}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: func2}, capture_snapshot: true}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: func2}, captureSnapshot: true}
 effects:
   - !spawn-ebpf-compilation {executable: /usr/bin/app1@0.0m0.0, probes: [probe1], program_id: 1}
 state:

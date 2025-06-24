@@ -5,11 +5,11 @@
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: main}, capture_snapshot: true}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
     - process_id: {pid: 1002}
       executable: {path: /usr/bin/test2}
       probes:
-        - {type: LOG_PROBE, id: probe2, where: {method_name: main}, capture_snapshot: true}
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
 - !processes-updated {removed: [1002]} 
 ---
 event: !processes-updated
@@ -17,11 +17,11 @@ event: !processes-updated
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: main}, capture_snapshot: true}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
     - process_id: {pid: 1002}
       executable: {path: /usr/bin/test2}
       probes:
-        - {type: LOG_PROBE, id: probe2, where: {method_name: main}, capture_snapshot: true}
+        - {type: LOG_PROBE, id: probe2, where: {methodName: main}, captureSnapshot: true}
 effects:
   - !spawn-ebpf-compilation {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
 state:

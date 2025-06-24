@@ -10,7 +10,7 @@
 // representation [1]. Some any fields were replaced with json.RawMessage to
 // avoid unnecessary allocations.
 //
-// [1]: https://github.com/DataDog/dd-go/blob/beeaadef/remote-config/apps/rc-api/products/livedebugging/jsonapiconf/domain.go
+// [1]: https://github.com/DataDog/dd-go/blob/421dbec4/remote-config/pkg/products/livedebugging/domain.go
 package rcjson
 
 // TODO: Automatically generate these structures from the dd-go representation

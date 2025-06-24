@@ -30,30 +30,31 @@ var testCases = []testCase{
 				"type": "LOG_PROBE",
 				"version": 1,
 				"where": {
-					"type_name": "MyType",
-					"source_file": "myfile.go",
-					"method_name": "MyMethod",
+					"typeName": "MyType",
+					"sourceFile": "myfile.go",
+					"methodName": "MyMethod",
 					"lines": ["10", "20"],
 					"signature": "func()"
 				},
 				"tags": ["tag1", "tag2"],
 				"language": "go",
-				"template": "Hello {{.name}}",
-				"segments": [],
-				"capture_snapshot": true,
+				"template": "Hello {name}",
+				"segments": [{"str": "Hello "}, {"dsl": "name", "json": {"ref": "name"}}],
+				"captureSnapshot": true,
 				"capture": {
-					"max_reference_depth": 3,
-					"max_field_count": 10,
-					"max_collection_size": 100
+					"maxReferenceDepth": 3,
+					"maxFieldCount": 10,
+					"maxCollectionSize": 100
 				},
 				"sampling": {
-					"snapshots_per_second": 1.0
+					"snapshotsPerSecond": 1.0
 				},
-				"evaluate_at": "entry"
+				"evaluateAt": "entry"
 			}`,
 		want: &LogProbe{
 			ID:      "log-probe-1",
 			Version: 1,
+			Type:    TypeLogProbe.String(),
 			Where: &Where{
 				TypeName:   "MyType",
 				SourceFile: "myfile.go",
@@ -61,10 +62,13 @@ var testCases = []testCase{
 				Lines:      []string{"10", "20"},
 				Signature:  "func()",
 			},
-			Tags:            []string{"tag1", "tag2"},
-			Language:        "go",
-			Template:        "Hello {{.name}}",
-			Segments:        []json.RawMessage{},
+			Tags:     []string{"tag1", "tag2"},
+			Language: "go",
+			Template: "Hello {name}",
+			Segments: []json.RawMessage{
+				json.RawMessage(`{"str": "Hello "}`),
+				json.RawMessage(`{"dsl": "name", "json": {"ref": "name"}}`),
+			},
 			CaptureSnapshot: true,
 			Capture: &Capture{
 				MaxReferenceDepth: 3,
@@ -84,24 +88,25 @@ var testCases = []testCase{
 				"type": "METRIC_PROBE",
 				"version": 1,
 				"where": {
-					"type_name": "MyType",
-					"source_file": "myfile.go",
-					"method_name": "MyMethod",
+					"typeName": "MyType",
+					"sourceFile": "myfile.go",
+					"methodName": "MyMethod",
 					"lines": ["10", "20"],
 					"signature": "func()"
 				},
 				"tags": ["tag1", "tag2"],
 				"language": "go",
 				"kind": "count",
-				"metric_name": "my.metric",
+				"metricName": "my.metric",
 				"value": {
 					"dsl": "1",
 					"json": "1"
 				},
-				"evaluate_at": "entry"
+				"evaluateAt": "entry"
 			}`,
 		want: &MetricProbe{
 			ID:      "metric-probe-1",
+			Type:    TypeMetricProbe.String(),
 			Version: 1,
 			Where: &Where{
 				TypeName:   "MyType",

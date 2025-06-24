@@ -2,6 +2,6 @@ binary: busyloop
 probes:
 - id: a
   type: LOG_PROBE
-  capture_snapshot: true
+  captureSnapshot: true
   where:
-    method_name: main.noop
+    methodName: main.noop
