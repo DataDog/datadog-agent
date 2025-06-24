@@ -90,7 +90,6 @@ func main() {
 }
 
 func runAgent(tagger tagger.Component, compression logscompression.Component) {
-
 	startTime := time.Now()
 
 	setupLambdaAgentOverrides()
