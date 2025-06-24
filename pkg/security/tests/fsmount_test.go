@@ -114,7 +114,6 @@ func TestFsmount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
-			fmt.Printf("%+v\n", event.Fsmount)
 			assert.Equal(t, "/test-open", event.Open.File.PathnameStr, "Wrong pathname")
 		})
 	})
@@ -148,8 +147,6 @@ func TestFsmount(t *testing.T) {
 
 			return nil
 		}, func(event *model.Event, _ *rules.Rule) {
-			fmt.Printf("%+v\n", event)
-
 			assert.Equal(t, "/test-mkdir", event.Mkdir.File.PathnameStr, "Wrong path")
 		})
 	})

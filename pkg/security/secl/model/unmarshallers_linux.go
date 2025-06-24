@@ -512,7 +512,6 @@ func (e *FsmountEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.MountAttrs = binary.NativeEndian.Uint32(data[12:16])
 	e.MountID = e.RootPathKey.MountID
 	read += 16
-	fmt.Printf("EVENT %+v\n", e)
 	return read, nil
 }
 
