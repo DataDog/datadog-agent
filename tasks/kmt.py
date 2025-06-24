@@ -112,11 +112,6 @@ CLANG_PATH_CI = Path("/opt/datadog-agent/embedded/bin/clang-bpf")
 LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 
-@task
-def create_stack(ctx, stack=None):
-    stacks.create_stack(ctx, stack)
-
-
 @task(
     help={
         "vms": "Comma separated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",

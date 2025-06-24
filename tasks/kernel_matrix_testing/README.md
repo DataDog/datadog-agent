@@ -15,7 +15,6 @@
     *   [kmt.init](#kmtinit)
     *   [kmt.update-resources](#kmtupdate-resources)
     *   [kmt.ls](#kmtls)
-    *   [kmt.create-stack](#kmtcreate-stack)
     *   [kmt.gen-config](#kmtgen-config)
     *   [kmt.launch-stack](#kmtlaunch-stack)
     *   [kmt.status](#kmtstatus)
@@ -354,16 +353,6 @@ Lists available VM images and indicates which ones are already downloaded locall
 ```bash
 dda inv -e kmt.ls
 ```
-
-### `kmt.create-stack`
-
-Creates a new, empty stack.
-
-```bash
-dda inv -e kmt.create-stack [--stack=<name>]
-```
-
-If no `--stack` name is provided, one is automatically generated from the current git branch name. Note that `kmt.gen-config --init-stack` provides a convenient way to create and configure a stack in one step.
 
 ### `kmt.gen-config`
 
