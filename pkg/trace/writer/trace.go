@@ -278,7 +278,7 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	for i := 0; i < numToConvert; i++ {
 		idxPayloads[i] = convertToIdx(payloads[i])
 	}
-	payloads = payloads[numToConvert:]
+	// payloads = payloads[numToConvert:]
 
 	// Write converted payloads to local file for testing if we have conversions and minConvertPayloads > 0
 	if w.minConvertPayloads > 0 && numToConvert > 0 {
