@@ -45,7 +45,10 @@ func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, hand
 func (c *SharedLibraryCheck) Run() error {
 	var err *C.char
 
-	C.run_shared_library(c.handle, &err)
+	cID := C.CString(string(c.ID()))
+	defer C._free(unsafe.Pointer(cID))
+
+	C.run_shared_library(cID, c.handle, &err)
 
 	if err != nil {
 		defer C._free(unsafe.Pointer(err))

@@ -40,8 +40,11 @@ typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 */
 DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *python_home, const char *python_exe, char **error);
 
+DATADOG_AGENT_RTLOADER_API rtloader_t *init_shared_library();
+
 DATADOG_AGENT_RTLOADER_API void *load_shared_library(const char *lib_name, const char **error);
-DATADOG_AGENT_RTLOADER_API void run_shared_library(void *handle, const char **error);
+
+DATADOG_AGENT_RTLOADER_API void run_shared_library(char *checkID, void *handle, const char **error);
 
 // HELPERS
 /*! \fn void set_memory_tracker_cb(cb_memory_tracker_t)
@@ -316,6 +319,10 @@ DATADOG_AGENT_RTLOADER_API int run_simple_string(const rtloader_t *, const char 
     array employed by the underlying RtLoader implementation.
 */
 DATADOG_AGENT_RTLOADER_API int has_error(const rtloader_t *);
+
+DATADOG_AGENT_RTLOADER_API void submit_metric(char *, const metric_type_t,
+                                              char *, const double, char **,
+                                              char *, const bool);
 
 /*! \fn const char *get_error(rtloader_t *)
     \brief Routine to grab any set error on the provided RtLoader instance.

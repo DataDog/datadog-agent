@@ -64,6 +64,8 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	case C.DATADOG_AGENT_RTLOADER_HISTORATE:
 		sender.Historate(_name, _value, _hostname, _tags)
 	}
+
+	sender.Commit()
 }
 
 // SubmitServiceCheck is the method exposed to Python scripts to submit service checks

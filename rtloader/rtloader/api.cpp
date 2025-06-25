@@ -57,6 +57,8 @@ static HMODULE rtloader_backend = NULL;
 static void *rtloader_backend = NULL;
 #endif
 
+static rtloader_t *python_rtloader = NULL;
+
 #ifdef _WIN32
 
 /*! \fn create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
@@ -167,13 +169,15 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_memory_tracker_cb()));
+    RtLoader *python_rtloader_obj = create_three(python_home, python_exe, _get_memory_tracker_cb());
+
+    python_rtloader = AS_TYPE(rtloader_t, python_rtloader_obj);
+    return AS_TYPE(rtloader_t, python_rtloader_obj);
 }
 
-// rtloader_t *init_shared_library() {
-//     return AS_TYPE(rtloader_t, SharedLibrary()); // can't initialize rtloader object for shared library because of
-//     pure virtual python specific methods
-// }
+rtloader_t *init_shared_library() {
+    return make3("", "", NULL);
+}
 
 // those methods should be in SharedLibrary.cpp, but we need to keep them here until the pure virtual python specific
 // methods are moved to the Three class
@@ -197,7 +201,7 @@ void *load_shared_library(const char *lib_name, const char **error)
     return shared_library;
 }
 
-void run_shared_library(void *handle, const char **error)
+void run_shared_library(char *checkID, void *handle, const char **error)
 {
     if (!handle) {
         std::ostringstream err_msg;
@@ -217,6 +221,11 @@ void run_shared_library(void *handle, const char **error)
     std::cout << "Running shared library:" << std::endl;
 
     run_function();
+
+    char **tags = new char *[2];
+    tags[0] = strdupe("");
+
+    submit_metric(checkID, DATADOG_AGENT_RTLOADER_GAUGE, strdupe("so.metric"), 2.85, tags, strdupe(""), false);
 }
 
 void destroy(rtloader_t *rtloader)
@@ -337,6 +346,14 @@ char **get_checks_warnings(rtloader_t *rtloader, rtloader_pyobject_t *check)
 char *get_check_diagnoses(rtloader_t *rtloader, rtloader_pyobject_t *check)
 {
     return AS_TYPE(RtLoader, rtloader)->getCheckDiagnoses(AS_TYPE(RtLoaderPyObject, check));
+}
+
+DATADOG_AGENT_RTLOADER_API void submit_metric(char *checkID, const metric_type_t metricType,
+                                            char *metricName, const double value, char **tags,
+                                            char *hostname, const bool flushFirstValue)
+{
+    AS_TYPE(RtLoader, python_rtloader)->getSubmitMetricCb()(checkID, metricType, metricName, value, tags, hostname,
+                                              flushFirstValue);             
 }
 
 /*
