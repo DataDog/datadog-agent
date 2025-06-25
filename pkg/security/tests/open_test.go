@@ -32,6 +32,8 @@ import (
 func TestOpen(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	t.Error(os.LookupEnv("CI_COMMIT_SHA"))
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule",
