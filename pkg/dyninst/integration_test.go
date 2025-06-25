@@ -12,6 +12,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"os"
@@ -210,6 +211,7 @@ func testDyninst(
 		event := msg.Event()
 		err = decoder.Decode(event, decodeOut)
 		require.NoError(t, err)
+		fmt.Printf("Decoded output: %s\n", decodeOut.String())
 		header, err := event.Header()
 		require.NoError(t, err)
 
