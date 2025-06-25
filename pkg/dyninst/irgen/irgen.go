@@ -739,7 +739,7 @@ func (v *rootVisitor) newProbe(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get line reader: %w", err)
 	}
-	var injectionPCs []uint64
+	var injectionPoints []ir.InjectionPoint
 	if subprogram.OutOfLinePCRanges == nil && len(subprogram.InlinePCRanges) == 0 {
 		return nil, fmt.Errorf("subprogram %q has no pc ranges", subprogram.Name)
 	}
@@ -750,22 +750,32 @@ func (v *rootVisitor) newProbe(
 		}
 		if !ok {
 			// Frameless subprogram, first PC should be suitable for injection.
-			injectionPCs = append(injectionPCs, subprogram.OutOfLinePCRanges[0][0])
+			injectionPoints = append(injectionPoints, ir.InjectionPoint{
+				PC:        subprogram.OutOfLinePCRanges[0][0],
+				Frameless: true,
+			})
 		} else {
-			injectionPCs = append(injectionPCs, prologueEnd)
+			injectionPoints = append(injectionPoints, ir.InjectionPoint{
+				PC:        prologueEnd,
+				Frameless: false,
+			})
 		}
 	}
 	for _, inlinedInstanceRanges := range subprogram.InlinePCRanges {
-		// Inlined instances are always frameless.
-		injectionPCs = append(injectionPCs, inlinedInstanceRanges[0][0])
+		injectionPoints = append(injectionPoints, ir.InjectionPoint{
+			PC: inlinedInstanceRanges[0][0],
+			// TODO: We need to determine from the inlined parent whether the
+			// inlined instance is frameless.
+			Frameless: true,
+		})
 	}
 
 	// TODO: Find the return locations and add a return event.
 	events := []*ir.Event{
 		{
-			ID:           v.eventIDAlloc.next(),
-			InjectionPCs: injectionPCs,
-			Condition:    nil,
+			ID:              v.eventIDAlloc.next(),
+			InjectionPoints: injectionPoints,
+			Condition:       nil,
 			// Will be populated after all the types have been resolved
 			// and placeholders have been filled in.
 			Type: nil,
@@ -1052,6 +1062,8 @@ func (v *inlinedSubroutineChildVisitor) push(
 		v.sp.variables = append(v.sp.variables, entry)
 		return nil, nil
 	case dwarf.TagLexDwarfBlock:
+		return v, nil
+	case dwarf.TagTypedef:
 		return v, nil
 	}
 	return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)

@@ -7,6 +7,7 @@ needs-rules:
     - .pre
     - lint
     - notify
+    - deploy_dca
     - deploy_containers
     - deploy_mutable_image_tags
 
@@ -42,13 +43,11 @@ needs-rules:
     - tests_windows_secagent_x64
     - tests_windows_sysprobe_x64
     - trigger_auto_staging_release
-    - trigger_auto_staging_release_on_failure
     - trigger_manual_prod_release
-    - trigger_manual_prod_release_on_failure
+    - trigger_distribution
+    - trigger_distribution_on_failure
     - installer_trigger_auto_staging_release
-    - installer_trigger_auto_staging_release_on_failure
     - installer_trigger_manual_prod_release
-    - installer_trigger_manual_prod_release_on_failure
 
 # Lists jobs that are allowed to not be within JOBOWNERS
 job-owners:
