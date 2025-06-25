@@ -11,16 +11,18 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 
+	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -207,103 +209,83 @@ func testDyninst(
 	b := []byte{}
 	decodeOut := bytes.NewBuffer(b)
 	for _, msg := range read {
-		event := msg.Event()
+		event := decode.Event{
+			Event:       msg.Event(),
+			ServiceName: service,
+		}
 		err = decoder.Decode(event, decodeOut)
 		require.NoError(t, err)
 
 		t.Logf("Decoded output: \n%s\n", decodeOut.String())
-		purged := purgeAddressFields(decodeOut.Bytes())
-		purged = purgeVariableFields(t, purged)
-
-		t.Logf("Purged output: \n%s\n", string(purged))
+		redacted := redactJSON(t, decodeOut.Bytes())
+		t.Logf("Redacted output: \n%s\n", string(redacted))
 
 		outputToCompare := expOut[probes[0].GetID()]
-		assert.JSONEq(t, outputToCompare, string(purged))
+		assert.JSONEq(t, outputToCompare, string(redacted))
 
 		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
-			expOut[probes[0].GetID()] = string(purged)
+			expOut[probes[0].GetID()] = string(redacted)
 			saveActualOutputOfProbes(t, service, expOut)
 		}
 	}
 }
 
-// Purge:
-// >debugger>snapshot>stack
-// >debugger>snapshot>id
-// >debugger>snapshot>timestamp
-func purgeVariableFields(t *testing.T, b []byte) []byte {
-	var data map[string]any
-	if err := json.Unmarshal(b, &data); err != nil {
-		t.Logf("error unmarshaling JSON for purging: %v", err)
-		return b
-	}
-
-	// Navigate to debugger.snapshot and set variable fields to empty string
-	if debugger, ok := data["debugger"].(map[string]any); ok {
-		if snapshot, ok := debugger["snapshot"].(map[string]any); ok {
-			snapshot["id"] = ""
-			snapshot["stack"] = ""
-			snapshot["timestamp"] = ""
-		}
-	}
-
-	// Marshal back to JSON with a fresh byte slice
-	result, err := json.Marshal(data)
-	if err != nil {
-		t.Logf("error marshaling JSON after purging: %v", err)
-		return b
-	}
-
-	return result
+type jsonRedactor struct {
+	matches     func(ptr jsontext.Pointer) bool
+	replacement jsontext.Value
 }
 
-// Purge:
-// >debugger>snapshot>captures>entry>arguments>X>value.Address
-func purgeAddressFields(b []byte) []byte {
-	var data map[string]any
-	if err := json.Unmarshal(b, &data); err != nil {
-		// Return original if we can't parse
-		return b
+func redactPtr(toMatch string, replacement jsontext.Value) jsonRedactor {
+	return jsonRedactor{
+		matches: func(ptr jsontext.Pointer) bool {
+			return string(ptr) == toMatch
+		},
+		replacement: replacement,
 	}
+}
 
-	// Navigate to debugger.snapshot.captures.entry.arguments and purge Address fields
-	if debugger, ok := data["debugger"].(map[string]any); ok {
-		if snapshot, ok := debugger["snapshot"].(map[string]any); ok {
-			if captures, ok := snapshot["captures"].(map[string]any); ok {
-				if entry, ok := captures["entry"].(map[string]any); ok {
-					if arguments, ok := entry["arguments"].(map[string]any); ok {
-						purgeAddressFieldsRecursive(arguments)
-					}
-				}
+func redactPtrPrefixSuffix(prefix, suffix string, replacement jsontext.Value) jsonRedactor {
+	return jsonRedactor{
+		matches: func(ptr jsontext.Pointer) bool {
+			return strings.HasPrefix(string(ptr), prefix) && strings.HasSuffix(string(ptr), suffix)
+		},
+		replacement: replacement,
+	}
+}
+
+var redactors = []jsonRedactor{
+	redactPtr("/debugger/snapshot/stack", []byte(`"<stack>"`)),
+	redactPtr("/debugger/snapshot/id", []byte(`"<id>"`)),
+	redactPtr("/debugger/snapshot/timestamp", []byte(`"<ts>"`)),
+	redactPtrPrefixSuffix("/debugger/snapshot/captures/", "/Address", []byte(`"<addr>"`)),
+}
+
+func redactJSON(t *testing.T, input []byte) (redacted []byte) {
+	d := jsontext.NewDecoder(bytes.NewReader(input))
+	var buf bytes.Buffer
+	e := jsontext.NewEncoder(&buf)
+	for {
+		tok, err := d.ReadToken()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		kind, idx := d.StackIndex(d.StackDepth())
+		require.NoError(t, e.WriteToken(tok))
+		if kind != '{' || idx%2 == 0 {
+			continue
+		}
+		ptr := d.StackPointer()
+		for _, redactor := range redactors {
+			if redactor.matches(ptr) {
+				_, err := d.ReadValue()
+				require.NoError(t, err)
+				require.NoError(t, e.WriteValue(redactor.replacement))
+				break
 			}
 		}
 	}
-
-	// Marshal back to JSON
-	result, err := json.Marshal(data)
-	if err != nil {
-		return b
-	}
-
-	return result
-}
-
-// purgeAddressFieldsRecursive recursively traverses any nested structure and sets "Address" fields to ""
-func purgeAddressFieldsRecursive(v any) {
-	switch val := v.(type) {
-	case map[string]any:
-		for key, value := range val {
-			if key == "Address" {
-				val[key] = ""
-			} else {
-				purgeAddressFieldsRecursive(value)
-			}
-		}
-	case []any:
-		for _, item := range val {
-			purgeAddressFieldsRecursive(item)
-		}
-	}
+	return buf.Bytes()
 }
 
 type testMessageSink struct {
