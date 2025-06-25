@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"io"
 	"math"
 	"os"
@@ -20,10 +21,9 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/go-json-experiment/json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
