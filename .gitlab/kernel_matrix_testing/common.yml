@@ -356,7 +356,6 @@ notify_ebpf_complexity_changes:
 
 test_ebpf_complexity_changes:
   extends: .notify_ebpf_complexity_changes
-  stage: source_test
   rules:
     # Execute this job whenever there are changes to the KMT python files that are used to generate the complexity data
     - changes:
