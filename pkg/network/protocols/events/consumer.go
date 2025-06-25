@@ -17,6 +17,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -106,6 +107,14 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	// The exact number of events dropped can be obtained using the metric
 	// `kernel_dropped_events`.
 	failedFlushesCount := metricGroup.NewCounter("failed_flushes")
+
+	ringBuffer, success := ebpf.GetRingBuffer("http_batch_events")
+
+	if success {
+		ebpfTelemetry.ReportRingBufferChannelLenTelemetry(ringBuffer, func() int {
+			return int(handler.GetChannelLengthTelemetry().Swap(0))
+		})
+	}
 
 	return &Consumer[V]{
 		proto:       proto,

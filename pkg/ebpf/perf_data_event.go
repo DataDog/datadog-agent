@@ -8,6 +8,8 @@
 package ebpf
 
 import (
+	"sync/atomic"
+
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/ringbuf"
 )
@@ -18,6 +20,7 @@ type EventHandler interface {
 	DataChannel() <-chan DataEvent
 	LostChannel() <-chan uint64
 	Stop()
+	GetChannelLengthTelemetry() *atomic.Uint64
 }
 
 // DataEvent encapsulates a single event read from a perf buffer
