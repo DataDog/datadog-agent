@@ -10,6 +10,7 @@ package activitytree
 
 import (
 	"slices"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -30,6 +31,8 @@ type SocketNode struct {
 	Family         string
 	GenerationType NodeGenerationType
 	Bind           []*BindNode
+	FirstSeen      time.Time
+	LastSeen       time.Time
 }
 
 // Matches returns true if BindNodes matches
@@ -86,6 +89,7 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
 			if !dryRun {
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+				sn.updateTimes()
 			}
 			if imageTag == "" || slices.Contains(n.ImageTags, imageTag) {
 				return false
@@ -108,14 +112,26 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, imageTag string, gen
 			node.ImageTags = []string{imageTag}
 		}
 		sn.Bind = append(sn.Bind, node)
+		sn.updateTimes()
 	}
 	return true
 }
 
 // NewSocketNode returns a new SocketNode instance
 func NewSocketNode(family string, generationType NodeGenerationType) *SocketNode {
+	now := time.Now()
 	return &SocketNode{
 		Family:         family,
 		GenerationType: generationType,
+		FirstSeen:      now,
+		LastSeen:       now,
 	}
+}
+
+func (sn *SocketNode) updateTimes() {
+	now := time.Now()
+	if sn.FirstSeen.IsZero() {
+		sn.FirstSeen = now
+	}
+	sn.LastSeen = now
 }

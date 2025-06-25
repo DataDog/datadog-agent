@@ -29,6 +29,7 @@ type FileNode struct {
 	File           *model.FileEvent
 	GenerationType NodeGenerationType
 	FirstSeen      time.Time
+	LastSeen       time.Time
 
 	Open *OpenNode
 
@@ -64,6 +65,13 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		fan.File.PathnameStr = reducedFilePath
 		fan.File.BasenameStr = name
 	}
+	
+	if event != nil {
+		eventTime := event.ResolveEventTime()
+		fan.FirstSeen = eventTime
+		fan.LastSeen = eventTime
+	}
+	
 	fan.enrichFromEvent(event)
 	return fan
 }
@@ -111,7 +119,11 @@ func (fn *FileNode) enrichFromEvent(event *model.Event) {
 		return
 	}
 	if fn.FirstSeen.IsZero() {
-		fn.FirstSeen = event.ResolveEventTime()
+		eventTime := event.ResolveEventTime()
+		fn.FirstSeen = eventTime
+		fn.LastSeen = eventTime
+	} else {
+		fn.LastSeen = event.ResolveEventTime()
 	}
 
 	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, event.Rules)

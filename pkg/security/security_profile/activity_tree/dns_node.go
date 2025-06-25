@@ -11,25 +11,31 @@ package activitytree
 import (
 	"strings"
 
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // DNSNode is used to store a DNS node
 type DNSNode struct {
-	MatchedRules []*model.MatchedRule
-	ImageTags    []string
-
+	MatchedRules   []*model.MatchedRule
+	ImageTags      []string
 	GenerationType NodeGenerationType
 	Requests       []model.DNSEvent
+	FirstSeen      time.Time
+	LastSeen       time.Time
 }
 
 // NewDNSNode returns a new DNSNode instance
 func NewDNSNode(event *model.DNSEvent, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *DNSNode {
+	now := time.Now()
 	node := &DNSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
 		Requests:       []model.DNSEvent{*event},
+		FirstSeen:      now,
+		LastSeen:       now,
 	}
 	if imageTag != "" {
 		node.ImageTags = []string{imageTag}
@@ -70,3 +76,14 @@ func (dn *DNSNode) evictImageTag(imageTag string, DNSNames *utils.StringKeys) bo
 	}
 	return false
 }
+
+func (dn *DNSNode) updateTimes(event *model.Event) {
+	eventTime := event.ResolveEventTime()
+	if dn.FirstSeen.IsZero() {
+		dn.FirstSeen = eventTime
+		dn.LastSeen = eventTime
+	} else {
+		dn.LastSeen = eventTime 
+	}
+	}
+

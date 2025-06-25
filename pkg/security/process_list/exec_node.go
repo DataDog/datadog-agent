@@ -13,6 +13,7 @@ import (
 	"io"
 	"math/rand"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -30,6 +31,8 @@ type ExecNode struct {
 	ProcessLink *ProcessNode
 
 	MatchedRules []*model.MatchedRule
+	FirstSeen    time.Time
+	LastSeen time.Time
 
 	// TODO: redo
 	// Files      map[string]*FileNode
@@ -62,6 +65,16 @@ func NewExecNodeFromEvent(event *model.Event, key interface{}) *ExecNode {
 func (e *ExecNode) Insert(event *model.Event, imageTag string) (newEntryAdded bool, err error) {
 	e.Lock()
 	defer e.Unlock()
+
+
+	eventTime := event.Timestamp
+	
+	if e.FirstSeen.IsZero() {
+		e.FirstSeen = eventTime
+		newEntryAdded = true
+	}
+	
+	e.LastSeen = eventTime
 
 	// TODO
 	return false, nil
