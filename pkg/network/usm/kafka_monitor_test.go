@@ -533,42 +533,47 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(version),
+						kgo.RecordPartitioner(kgo.ManualPartitioner()), // IMPORTANT: prevent flakiness in fetch requests
+						kgo.MaxBufferedRecords(1),                      // IMPORTANT: prevent produce from batching records
 					},
 				})
 				require.NoError(t, err)
+				ctx.clients = append(ctx.clients, client)
 
-				// Create many topics
+				// Target number of requests for this test
+				// We will create this many topics, each with a single record. and then fetch them all.
 				numOfRequests := 10
+
+				// Create topics
 				var topicNames []string // topics name per request
 				for i := 0; i < numOfRequests; i++ {
 					topicNames = append(topicNames, s.getTopicName())
 				}
-				ctx.clients = append(ctx.clients, client)
 				createdTopics, err := client.CreateTopics(topicNames...)
 				require.NoError(t, err)
-				require.Len(t, createdTopics, numOfRequests, "Expected %d created topics, got %d", numOfRequests, len(createdTopics))
 
 				// Create records (to be fetched)
-				for _, createdTopic := range createdTopics {
-					produceCtxTimeout, produceCancel := context.WithTimeout(context.Background(), time.Second*15)
-					defer produceCancel()
-
-					record := &kgo.Record{Topic: createdTopic.Topic, Value: []byte("TESTTOPICRECORD")}
-					require.NoError(t, client.Client.ProduceSync(produceCtxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+				var records []*kgo.Record
+				for i, topicName := range topicNames {
+					record := &kgo.Record{Topic: topicName, Value: []byte(fmt.Sprintf("TESTTOPICRECORD-%d", i))}
+					records = append(records, record)
 				}
+				produceCtxTimeout, produceCancel := context.WithTimeout(context.Background(), time.Second*10)
+				defer produceCancel()
+				require.NoError(t, client.Client.ProduceSync(produceCtxTimeout, records...).FirstErr(), "record had a produce error while synchronously producing")
 
 				var reqs []kmsg.FetchRequest
 				for _, createdTopic := range createdTopics {
-					req := kmsg.NewFetchRequest()
 					require.NoError(t, createdTopic.Err, "Failed to create topic %s", createdTopic.Topic)
 
+					// Create a basic fetch request for each created topic
 					topic := kmsg.NewFetchRequestTopic()
 					topic.Topic = createdTopic.Topic
 					topic.TopicID = createdTopic.ID
-
-					partition := kmsg.NewFetchRequestTopicPartition() // TODO fill partition?
+					partition := kmsg.NewFetchRequestTopicPartition()
 					partition.PartitionMaxBytes = 1024 * 1024
 					topic.Partitions = append(topic.Partitions, partition)
+					req := kmsg.NewFetchRequest()
 					req.Topics = []kmsg.FetchRequestTopic{topic}
 					reqs = append(reqs, req)
 				}
@@ -583,6 +588,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				getAndValidateKafkaStats(t, monitor, fixCount(numOfRequests+numOfRequests), kafkaParsingValidation{
 					expectedNumberOfFetchRequests:   fixCount(numOfRequests),
 					expectedNumberOfProduceRequests: fixCount(numOfRequests),
+					expectedAPIVersionProduce:       expectedAPIVersionProduce,
+					expectedAPIVersionFetch:         expectedAPIVersionFetch,
 					tlsEnabled:                      tls,
 				}, kafkaSuccessErrorCode)
 			},
