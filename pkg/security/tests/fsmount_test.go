@@ -128,7 +128,7 @@ func TestFsmount(t *testing.T) {
 			defer unix.Close(fsfd)
 
 			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "source", "tmpfs", 0)
-			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "50M", 0)
+			_ = fsconfigStr(fsfd, unix.FSCONFIG_SET_STRING, "size", "1M", 0)
 			_ = fsconfig(fsfd, unix.FSCONFIG_CMD_CREATE, nil, nil, 0)
 
 			mountfd, err := unix.Fsmount(fsfd, unix.FSMOUNT_CLOEXEC, 0)
