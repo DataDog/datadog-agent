@@ -72,6 +72,10 @@ tests_nodetreemodel:
     # Don't upload junit results, which prevents e2e tests from running (they will fail)
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
   variables:
     CONDA_ENV: ddpy3
     # This env var enables the NTM config implementation
@@ -181,7 +185,7 @@ new-e2e-unit-tests:
   image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
-    - !reference [ .needs_new_e2e_template ]
+    - go_e2e_deps
     - go_deps
     - go_tools_deps
   before_script:
