@@ -11,9 +11,8 @@ import (
 	"time"
 
 	connectivitychecker "github.com/DataDog/datadog-agent/comp/connectivitychecker/def"
-	"github.com/DataDog/datadog-agent/comp/connectivitychecker/remote"
+	runner "github.com/DataDog/datadog-agent/comp/connectivitychecker/runner"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -24,10 +23,9 @@ type Requires struct {
 	// Remove this field if the component has no lifecycle hooks
 	Lifecycle compdef.Lifecycle
 
-	DiagnoseComponent diagnose.Component
-	Log               log.Component
-	Config            config.Component
-	InventoryAgent    inventoryagent.Component
+	Log            log.Component
+	Config         config.Component
+	InventoryAgent inventoryagent.Component
 }
 
 // Provides defines the output of the connectivitychecker component
@@ -36,21 +34,19 @@ type Provides struct {
 }
 
 type inventoryImpl struct {
-	log               log.Component
-	config            config.Component
-	inventoryAgent    inventoryagent.Component
-	diagnoseComponent diagnose.Component
-	stopCh            chan struct{}
+	log            log.Component
+	config         config.Component
+	inventoryAgent inventoryagent.Component
+	stopCh         chan struct{}
 }
 
 // NewComponent creates a new connectivitychecker component
 func NewComponent(reqs Requires) (Provides, error) {
 	comp := &inventoryImpl{
-		log:               reqs.Log,
-		config:            reqs.Config,
-		inventoryAgent:    reqs.InventoryAgent,
-		diagnoseComponent: reqs.DiagnoseComponent,
-		stopCh:            make(chan struct{}),
+		log:            reqs.Log,
+		config:         reqs.Config,
+		inventoryAgent: reqs.InventoryAgent,
+		stopCh:         make(chan struct{}),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: comp.Start, OnStop: comp.Stop})
@@ -76,13 +72,13 @@ func (c *inventoryImpl) Start(_ context.Context) error {
 }
 
 func (c *inventoryImpl) collect() {
-	payloads, err := remote.Run(diagnose.Config{}, c.diagnoseComponent, c.config)
+	diagnostics, err := runner.Diagnose(c.config)
 	if err != nil {
 		c.log.Errorf("Error while running diagnostics: %s", err)
 		return
 	}
 
-	c.inventoryAgent.Set("diagnostics", payloads)
+	c.inventoryAgent.Set("diagnostics", diagnostics)
 
 }
 
