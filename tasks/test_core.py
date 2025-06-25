@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import abc
-import json
 import os
-from collections import defaultdict
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.civisibility import get_test_link_to_test_on_main
 from tasks.libs.common.color import color_message
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import running_in_ci
+from tasks.libs.testing.result_json import ResultJson
 from tasks.modules import GoModule
 
 DEFAULT_TEST_OUTPUT_JSON = "test_output.json"
@@ -69,43 +68,8 @@ class TestResult(ExecResult):
         self.junit_file_path = None
 
     def get_failing_tests(self) -> tuple[set[str], dict[str, set[str]]]:
-        failed_packages: set[str] = set()
-        failed_tests: dict[str, set[str]] = defaultdict(set)
-
-        # TODO(AP-1959): this logic is now repreated, with some variations, in three places:
-        # here, in system-probe.py, and in libs/pipeline_notifications.py
-        # We should have some common result.json parsing lib.
-        with open(self.result_json_path, encoding="utf-8") as tf:
-            for line in tf:
-                json_test = json.loads(line.strip())
-                # This logic assumes that the lines in result.json are "in order", i.e. that retries
-                # are logged after the initial test run.
-
-                # The line is a "Package" line, but not a "Test" line.
-                # We take these into account, because in some cases (panics, race conditions),
-                # individual test failures are not reported, only a package-level failure is.
-                if 'Package' in json_test and 'Test' not in json_test:
-                    package = json_test['Package']
-                    action = json_test["Action"]
-
-                    if action == "fail":
-                        failed_packages.add(package)
-                    elif action == "pass" and package in failed_tests:
-                        # The package was retried and fully succeeded, removing from the list of packages to report
-                        failed_packages.remove(package)
-
-                # The line is a "Test" line.
-                elif 'Package' in json_test and 'Test' in json_test:
-                    name = json_test['Test']
-                    package = json_test['Package']
-                    action = json_test["Action"]
-                    if action == "fail":
-                        failed_tests[package].add(name)
-                    elif action == "pass" and name in failed_tests.get(package, set()):
-                        # The test was retried and succeeded, removing from the list of tests to report
-                        failed_tests[package].remove(name)
-
-        return failed_packages, failed_tests
+        obj: ResultJson = ResultJson.from_file(self.result_json_path)
+        return obj.failing_packages, obj.failing_tests
 
     def get_failure(self, flavor):
         failure_string = ""
