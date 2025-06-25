@@ -598,6 +598,8 @@ workflow:
   - changes:
       paths: *system_probe_change_paths
       compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
 
 # New E2E related rules
 
