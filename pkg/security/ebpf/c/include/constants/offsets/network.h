@@ -27,8 +27,9 @@ __attribute__((always_inline)) u16 get_protocol_from_sock(struct sock *sk) {
         LOAD_CONSTANT("sock_sk_txhash_offset", sock_sk_protocol_offset);
         sock_sk_protocol_offset += 9; // sk_protocol is 5 bytes after sk_txhash in a bitfield
     }
-    u16 protocol;
-    bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);
+    u16 protocol = 0;
+    if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset < sizeof(struct sock)) {
+        bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);    }
     return protocol;
 
 }
