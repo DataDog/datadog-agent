@@ -201,7 +201,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				getPlatformModules(),
 				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
 				haagentfx.Module(),
-				ipcfx.ModuleReadWrite(),
+				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
