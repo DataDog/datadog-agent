@@ -67,7 +67,7 @@ def run(
     from_ci = 'CI_JOB_ID' in os.environ
 
     token = (
-        "$(authanywhere)"
+        '"$(authanywhere)"'
         if from_ci
         else '"$(ddtool auth token rapid-agent-devx --datacenter us1.staging.dog --http-header)"'
     )
