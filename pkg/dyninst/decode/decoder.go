@@ -35,8 +35,6 @@ type Decoder struct {
 	probeEvents map[ir.TypeID]probeEvent
 }
 
-var errorUnimplemented = errors.New("errorUnimplemented type")
-
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(program *ir.Program) (*Decoder, error) {
 	decoder := &Decoder{
@@ -311,9 +309,9 @@ func (d *Decoder) encodeValue(
 		}
 		return nil
 	case *ir.GoEmptyInterfaceType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - empty interface"))
 	case *ir.GoInterfaceType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - non-empty interface"))
 	case *ir.GoSliceHeaderType:
 		if len(data) < int(v.ByteSize) {
 			return errors.New("passed data not long enough for slice header")
@@ -359,7 +357,7 @@ func (d *Decoder) encodeValue(
 		}
 		return nil
 	case *ir.GoChannelType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - channel"))
 	case *ir.GoStringHeaderType:
 		var address uint64
 		for _, field := range v.Fields {
@@ -387,17 +385,17 @@ func (d *Decoder) encodeValue(
 		}
 		return nil
 	case *ir.GoMapType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - map"))
 	case *ir.GoHMapHeaderType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - hmap header"))
 	case *ir.GoHMapBucketType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - hmap bucket"))
 	case *ir.GoSwissMapHeaderType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - swiss map header"))
 	case *ir.GoSwissMapGroupsType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - swiss map groups"))
 	case *ir.EventRootType:
-		return errorUnimplemented
+		return enc.WriteToken(jsontext.String("unimplemented - event root"))
 	default:
 		return errors.New("invalid type")
 	}
