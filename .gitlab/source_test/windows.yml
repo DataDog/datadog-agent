@@ -49,7 +49,7 @@
       powershell.exe -c "c:\mnt\tasks\winbuildscripts\Invoke-UnitTests.ps1 -BuildOutOfSource 1 -CheckGoVersion 1 -InstallDeps 1 -UploadCoverage 1 -UploadTestResults 1"
     - If ($lastExitCode -ne "0") { exit "$lastExitCode" }
   variables:
-    TEST_OUTPUT_FILE: e2e_test_output.json
+    TEST_OUTPUT_FILE: test_output.json
   artifacts:
     expire_in: 2 weeks
     when: always
