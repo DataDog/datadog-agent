@@ -7,7 +7,12 @@
 
 package common
 
-func (s *Setup) preInstallPackages() (err error) {
+func (s *Setup) postInstallPackages() (err error) {
+	// nothing to do on windows
+	return nil
+}
+
+func copyInstallerSSI() error {
 	// nothing to do on windows
 	return nil
 }

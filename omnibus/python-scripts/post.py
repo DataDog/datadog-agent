@@ -10,14 +10,17 @@ import os
 import sys
 import packages
 
-def post(install_directory, storage_location, skip_flag=False):
+def post(install_directory, storage_location):
     try:
         if os.path.exists(install_directory) and os.path.exists(storage_location):
             post_python_installed_packages_file = packages.post_python_installed_packages_file(storage_location)
             packages.create_python_installed_packages_file(post_python_installed_packages_file)
-            flag_path = os.path.join(storage_location, ".install_python_third_party_deps")
-            if os.path.exists(flag_path) or skip_flag:
-                print(f"File '{flag_path}' found")
+
+            flag_path = "/etc/datadog-agent/.skip_install_python_third_party_deps"
+            if os.name == "nt":
+                flag_path = os.path.join(storage_location, ".skip_install_python_third_party_deps")
+
+            if not os.path.exists(flag_path):
                 diff_python_installed_packages_file = packages.diff_python_installed_packages_file(storage_location)
                 if os.path.exists(diff_python_installed_packages_file):
                     requirements_agent_release_file = packages.requirements_agent_release_file(install_directory)
@@ -28,7 +31,10 @@ def post(install_directory, storage_location, skip_flag=False):
                     print(f"File '{diff_python_installed_packages_file}' not found.")
                     return 0
             else:
-                print(f"File '{flag_path}' not found: no third party integration will be installed.")
+                if not os.path.exists(flag_path):
+                    print(f"File '{flag_path}' found: no third party integration will be installed.")
+                else:
+                    print(f"No third party integration will be installed.")
                 return 0
         else:
             print(f"Directory '{install_directory}' and '{storage_location}' not found.")
@@ -55,7 +61,7 @@ if os.name == 'nt':
             return 1
         # The MSI uses its own flag to control whether or not this script is executed
         # so we skip/ignore the file-based flag used by other platforms.
-        return post(install_directory, data_dog_data_dir, skip_flag=True)
+        return post(install_directory, data_dog_data_dir)
 else:
     def main():
         if len(sys.argv) == 2:

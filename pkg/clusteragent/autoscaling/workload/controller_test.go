@@ -756,3 +756,22 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	assert.Falsef(t, f.autoscalingHeap.Keys["default/dpa-1"], "Expected dpa-1 to not be in heap")
 	assert.Truef(t, f.autoscalingHeap.Keys["default/dpa-2"], "Expected dpa-2 to be in heap")
 }
+
+func TestIsTimestampStale(t *testing.T) {
+	currentTime := time.Now()
+	receivedTime := currentTime.Add(-1 * time.Minute)
+
+	// no fallback policy, use default stale timestamp threshold
+	assert.False(t, isTimestampStale(currentTime, receivedTime, defaultStaleTimestampThreshold))
+	receivedTime = currentTime.Add(-1 * time.Minute * 31)
+	assert.True(t, isTimestampStale(currentTime, receivedTime, defaultStaleTimestampThreshold))
+
+	// fallback policy with stale recommendation threshold
+	staleTimestampThreshold := time.Second * 120
+	receivedTime = currentTime.Add(-1 * time.Minute)
+	assert.False(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
+	receivedTime = currentTime.Add(-1 * time.Minute * 2)
+	assert.False(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
+	receivedTime = currentTime.Add(-1 * time.Minute * 3)
+	assert.True(t, isTimestampStale(currentTime, receivedTime, staleTimestampThreshold))
+}

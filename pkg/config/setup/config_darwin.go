@@ -5,6 +5,10 @@
 
 package setup
 
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
 const (
 	defaultConfdPath            = "/opt/datadog-agent/etc/conf.d"
 	defaultAdditionalChecksPath = "/opt/datadog-agent/etc/checks.d"
@@ -36,4 +40,8 @@ const (
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
+}
+
+// FleetConfigOverride is a no-op on Darwin
+func FleetConfigOverride(_ pkgconfigmodel.Config) {
 }

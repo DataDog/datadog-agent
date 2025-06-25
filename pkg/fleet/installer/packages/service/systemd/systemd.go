@@ -16,9 +16,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/multierr"
 )
 
 const (
@@ -27,13 +29,12 @@ const (
 
 // StopUnits stops multiple systemd units
 func StopUnits(ctx context.Context, units ...string) error {
+	var errs error
 	for _, unit := range units {
 		err := StopUnit(ctx, unit)
-		if err != nil {
-			return err
-		}
+		errs = multierr.Append(errs, err)
 	}
-	return nil
+	return errs
 }
 
 // StopUnit starts a systemd unit
@@ -82,13 +83,12 @@ func EnableUnit(ctx context.Context, unit string) error {
 
 // DisableUnits disables multiple systemd units
 func DisableUnits(ctx context.Context, units ...string) error {
+	var errs error
 	for _, unit := range units {
 		err := DisableUnit(ctx, unit)
-		if err != nil {
-			return err
-		}
+		errs = multierr.Append(errs, err)
 	}
-	return nil
+	return errs
 }
 
 // DisableUnit disables a systemd unit
@@ -141,4 +141,14 @@ func IsRunning() (running bool, err error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// JournaldLogs returns the logs for a given unit since a given time
+func JournaldLogs(ctx context.Context, unit string, since time.Time) (string, error) {
+	journalctlCmd := exec.CommandContext(ctx, "journalctl", "_COMM=systemd", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
+	stdout, err := journalctlCmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return string(stdout), nil
 }

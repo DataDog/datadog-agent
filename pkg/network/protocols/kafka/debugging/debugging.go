@@ -49,7 +49,7 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 		if key.RequestAPIKey == kafka.ProduceAPIKey {
 			operationName = "produce"
 		} else if key.RequestAPIKey == kafka.FetchAPIKey {
-			operationName = "fetch"
+			operationName = "consume"
 		}
 
 		debug := RequestSummary{

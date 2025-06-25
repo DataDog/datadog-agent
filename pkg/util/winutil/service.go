@@ -237,9 +237,6 @@ func StopService(serviceName string) error {
 func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
 	depenStatus svc.ActivityStatus, callback stopServiceCallback) error {
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultServiceCommandTimeout*time.Second)
-	defer cancel()
-
 	// open dependent services
 	depServiceNames, err := service.ListDependentServices(depenStatus)
 	if err != nil {
@@ -257,6 +254,11 @@ func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
 		depServices = append(depServices, depService)
 		defer depService.Close()
 	}
+
+	// extend deadline to account for all services we are trying to stop
+	totalTimeout := time.Duration(len(depServices)+1) * defaultServiceCommandTimeout * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), totalTimeout)
+	defer cancel()
 
 	for {
 		select {

@@ -6,8 +6,11 @@
 package tagger
 
 import (
+	"crypto/tls"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // RemoteParams provides remote tagger parameters
@@ -17,9 +20,14 @@ type RemoteParams struct {
 	// RemoteTarget function return the target in which the remote tagger will connect
 	// If it returns an error we stop the application
 	RemoteTarget func(config.Component) (string, error)
-	// RemoteTokenFetcher is the function to fetch the token for the remote tagger
-	// If it returns an error the remote tagger will continue to attempt to fetch the token
-	RemoteTokenFetcher func(config.Component) func() (string, error)
+
+	// OverrideTLSConfig allows to override the TLS configuration used by the remote tagger
+	// This should be used only for Cluster Agent x CLC communication
+	OverrideTLSConfig *tls.Config
+
+	// OverrideAuthTokenGetter allows to override the auth token used by the remote tagger
+	// This should be used only for Cluster Agent x CLC communication
+	OverrideAuthTokenGetter func(pkgconfigmodel.Reader) (string, error)
 }
 
 // DualParams provides dual tagger parameters

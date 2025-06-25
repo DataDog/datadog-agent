@@ -4,7 +4,7 @@ erratic: false
 target:
   name: datadog-agent
   command: /bin/entrypoint.sh
-  cpu_allotment: 8
+  cpu_allotment: 4
   memory_allotment: 4GiB
 
   environment:

@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -40,7 +40,7 @@ const (
 	selftestMaxRetry    = 25 // more than 5 minutes so that we can get host tags
 	selftestStartAfter  = 15 * time.Second
 	selftestDelay       = 15 * time.Second
-	selftestPassedDelay = 5 * time.Minute
+	selftestPassedDelay = 60 * time.Minute
 )
 
 // CWSConsumer represents the system-probe module for the runtime security agent
@@ -68,7 +68,7 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts, compression compression.Component) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, opts Opts, compression compression.Component, ipc ipc.Component) (*CWSConsumer, error) {
 	crtelemcfg := telemetry.ContainersRunningTelemetryConfig{
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
@@ -88,7 +88,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 
 	family := config.GetFamilyAddress(cfg.SocketPath)
 
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression)
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		listeners = append(listeners, selfTester)
 	}
 
-	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c, c.statsdClient, listeners...)
+	c.ruleEngine, err = rulesmodule.NewRuleEngine(evm, cfg, evm.Probe, c.rateLimiter, c.apiServer, c, c.statsdClient, ipc, listeners...)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func (c *CWSConsumer) Start() error {
 	seclog.Infof("runtime security started")
 
 	// we can now wait for self test events
-	cb := func(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+	cb := func(success []eval.RuleID, fails []eval.RuleID) {
 		c.selfTestCount++
 
 		seclog.Debugf("self-test results : success : %v, failed : %v, run %d", success, fails, c.selfTestCount)
@@ -206,11 +206,11 @@ func (c *CWSConsumer) Start() error {
 		}
 
 		if !c.selfTestPassed && c.selfTestCount == selftestMaxRetry {
-			c.reportSelfTest(success, fails, testEvents)
+			c.reportSelfTest(success, fails)
 		} else if len(fails) == 0 {
 			c.selfTestPassed = true
 
-			c.reportSelfTest(success, fails, testEvents)
+			c.reportSelfTest(success, fails)
 		}
 
 		if _, err := c.RunSelfTest(false); err != nil {
@@ -269,7 +269,7 @@ func (c *CWSConsumer) RunSelfTest(gRPC bool) (bool, error) {
 	return true, nil
 }
 
-func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID, testEvents map[eval.RuleID]*serializers.EventSerializer) {
+func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID) {
 	if !c.config.SelfTestSendReport {
 		return
 	}
@@ -287,7 +287,7 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID,
 	}
 
 	// send the custom event with the list of succeed and failed self tests
-	rule, event := selftests.NewSelfTestEvent(c.probe.GetAgentContainerContext(), success, fails, testEvents)
+	rule, event := selftests.NewSelfTestEvent(c.probe.GetAgentContainerContext(), success, fails)
 	c.SendEvent(rule, event, nil, "")
 }
 

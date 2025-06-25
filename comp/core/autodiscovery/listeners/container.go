@@ -26,9 +26,8 @@ import (
 )
 
 const (
-	newIdentifierLabel        = "com.datadoghq.ad.check.id"
-	legacyIdentifierLabel     = "com.datadoghq.sd.check.id"
-	tolerateUnreadyAnnotation = "ad.datadoghq.com/tolerate-unready"
+	newIdentifierLabel    = "com.datadoghq.ad.check.id"
+	legacyIdentifierLabel = "com.datadoghq.sd.check.id"
 )
 
 // ContainerListener listens to container creation through a subscription to the
@@ -130,7 +129,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 
 	if pod != nil {
 		svc.hosts = map[string]string{"pod": pod.IP}
-		svc.ready = pod.Ready || shouldSkipPodReadiness(pod)
+		svc.ready = pod.Ready
 
 		svc.metricsExcluded = l.IsExcluded(
 			containers.MetricsFilter,
@@ -228,12 +227,4 @@ func computeContainerServiceIDs(entity string, image string, labels map[string]s
 		ids = append(ids, short)
 	}
 	return ids
-}
-
-func shouldSkipPodReadiness(pod *workloadmeta.KubernetesPod) bool {
-	tolerate, ok := pod.Annotations[tolerateUnreadyAnnotation]
-	if !ok {
-		return false
-	}
-	return tolerate == "true"
 }

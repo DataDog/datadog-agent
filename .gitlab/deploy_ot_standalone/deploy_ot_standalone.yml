@@ -1,0 +1,23 @@
+---
+#
+# OTel standalone image tagging & manifest publication
+#
+
+.deploy_containers-ot-standalone-base:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  before_script:
+    - if [[ "$VERSION" == "" ]]; then VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?; fi
+    - if [[ "$OTEL_AGENT_REPOSITORY" == "" ]]; then export OTEL_AGENT_REPOSITORY="otel-agent"; fi
+    - export IMG_BASE_SRC="${SRC_OTEL_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_SOURCES="${IMG_BASE_SRC}-7-amd64,${IMG_BASE_SRC}-7-arm64"
+    - export IMG_DESTINATIONS="${OTEL_AGENT_REPOSITORY}:${VERSION}"
+
+deploy_containers-ot-standalone:
+  extends: .deploy_containers-ot-standalone-base
+  rules: !reference [.on_deploy_manual_auto_on_rc]
+
+# Jobs to publish images to our internal registries.
+deploy_containers-ot-standalone_internal:
+  extends: .deploy_containers-ot-standalone-base
+  rules: !reference [.on_deploy_internal_manual_final]

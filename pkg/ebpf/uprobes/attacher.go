@@ -376,6 +376,9 @@ type UprobeAttacher struct {
 	// scansPerPid is a map of PIDs to the number of times we have scanned them, to avoid re-scanning them
 	// too many times when EnablePeriodicScanNewProcesses is true
 	scansPerPid map[uint32]int
+
+	// attachLimiter is used to limit the number of times we log warnings about attachment errors
+	attachLimiter *log.Limit
 }
 
 // NewUprobeAttacher creates a new UprobeAttacher. Receives as arguments
@@ -408,6 +411,7 @@ func NewUprobeAttacher(moduleName, name string, config AttacherConfig, mgr Probe
 		inspector:              inspector,
 		processMonitor:         processMonitor,
 		scansPerPid:            make(map[uint32]int),
+		attachLimiter:          log.NewLogLimit(10, 10*time.Minute),
 	}
 
 	utils.AddAttacher(moduleName, name, ua)
@@ -621,7 +625,10 @@ func (ua *UprobeAttacher) shouldLogRegistryError(err error) bool {
 	}
 
 	var unknownErr *utils.UnknownAttachmentError
-	return errors.As(err, &unknownErr)
+	if errors.As(err, &unknownErr) {
+		return ua.attachLimiter.ShouldLog()
+	}
+	return false
 }
 
 // handleProcessStart is called when a new process is started, wraps AttachPIDWithOptions but ignoring the error

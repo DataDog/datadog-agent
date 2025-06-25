@@ -204,6 +204,18 @@ struct dentry *__attribute__((always_inline)) get_path_dentry(struct path *path)
     return dentry;
 }
 
+u32  __attribute__((always_inline)) get_dentry_nlink(struct dentry* dentry) {
+    struct inode *d_inode = get_dentry_inode(dentry);
+
+    u64 inode_nlink_offset;
+    LOAD_CONSTANT("inode_nlink_offset", inode_nlink_offset);
+
+    int nlink = 0;
+    bpf_probe_read(&nlink, sizeof(nlink), (void *)d_inode + inode_nlink_offset);
+
+    return nlink;
+}
+
 struct dentry *__attribute__((always_inline)) get_file_dentry(struct file *file) {
     return get_path_dentry(get_file_f_path_addr(file));
 }

@@ -9,7 +9,10 @@ package cert
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"path/filepath"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -73,4 +76,33 @@ func FetchIPCCert(config configModel.Reader) ([]byte, []byte, error) {
 func FetchOrCreateIPCCert(ctx context.Context, config configModel.Reader) ([]byte, []byte, error) {
 	cert, err := filesystem.FetchOrCreateArtifact(ctx, getCertFilepath(config), &certificateFactory{})
 	return cert.cert, cert.key, err
+}
+
+// GetTLSConfigFromCert returns the TLS configs for the client and server using the provided IPC certificate and key.
+// It returns the client and server TLS configurations, or an error if the certificate or key cannot be parsed.
+// It expects the certificate and key to be in PEM format.
+func GetTLSConfigFromCert(ipccert, ipckey []byte) (*tls.Config, *tls.Config, error) {
+	certPool := x509.NewCertPool()
+	if ok := certPool.AppendCertsFromPEM(ipccert); !ok {
+		return nil, nil, fmt.Errorf("Unable to generate certPool from PERM IPC cert")
+	}
+	tlsCert, err := tls.X509KeyPair(ipccert, ipckey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Unable to generate x509 cert from PERM IPC cert and key")
+	}
+
+	clientTLSConfig := &tls.Config{
+		RootCAs:      certPool,
+		Certificates: []tls.Certificate{tlsCert},
+	}
+
+	serverTLSConfig := &tls.Config{
+		Certificates: []tls.Certificate{tlsCert},
+		// The server parses the client certificate but does not make any verification, this is useful for telemetry
+		ClientAuth: tls.RequestClientCert,
+		// The server will accept any client certificate signed by the IPC CA
+		ClientCAs: certPool,
+	}
+
+	return clientTLSConfig, serverTLSConfig, nil
 }

@@ -13,7 +13,7 @@
     - export RELEASE_STAGING="true"
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
     # Job specific variables
-    - export BASE_RELEASE_TAG="${BASE_TAG//\//-}"
+    - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
     - export RELEASE_TAG="${BASE_RELEASE_TAG}${RELEASE_TAG_SUFFIX}"
     - export TMPL_SRC_IMAGE="v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TMPL_SRC_IMAGE_SUFFIX}"
     # BUILD_TAG is always RELEASE_TAG
@@ -30,11 +30,6 @@
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}"; fi
     - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   retry: 2
-  parallel:
-    matrix:
-      # TODO: remove the non-semver tag once we have migrated all the tooling to the semver tag
-      - BASE_TAG: $CI_COMMIT_REF_SLUG
-      - BASE_TAG: $CI_COMMIT_REF_NAME # Semver tag with slashes replaced by hyphens
 
 # -- binary specific variables --
 .agent_variables: &agent_variables

@@ -11,11 +11,9 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/packets"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	"golang.org/x/net/ipv4"
-
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/common"
 )
 
 type sackTCPState struct {
@@ -28,7 +26,7 @@ type sackTCPState struct {
 }
 
 type sackPacketGen struct {
-	ipPair common.IPPair
+	ipPair packets.IPPair
 	sPort  uint16
 	dPort  uint16
 
@@ -83,10 +81,10 @@ func (s *sackPacketGen) generatePacketV4(ttl uint8) (*layers.IPv4, *layers.TCP, 
 	return ipLayer, tcpLayer, nil
 }
 
-func (s *sackPacketGen) generateBufferV4(ttl uint8) (int, []byte, error) {
+func (s *sackPacketGen) generateV4(ttl uint8) ([]byte, error) {
 	ip4, tcp, err := s.generatePacketV4(ttl)
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to generate packet: %w", err)
+		return nil, fmt.Errorf("failed to generate packet: %w", err)
 	}
 
 	buf := gopacket.NewSerializeBuffer()
@@ -96,20 +94,7 @@ func (s *sackPacketGen) generateBufferV4(ttl uint8) (int, []byte, error) {
 	}
 	err = gopacket.SerializeLayers(buf, opts, ip4, tcp, gopacket.Payload([]byte{ttl}))
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to serialize packet: %w", err)
+		return nil, fmt.Errorf("failed to serialize packet: %w", err)
 	}
-	return 20, buf.Bytes(), nil
-}
-
-func (s *sackPacketGen) generateV4(ttl uint8) (*ipv4.Header, []byte, error) {
-	headerLen, packet, err := s.generateBufferV4(ttl)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate buffer: %w", err)
-	}
-	var ipHdr ipv4.Header
-	if err := ipHdr.Parse(packet[:headerLen]); err != nil {
-		return nil, nil, fmt.Errorf("failed to parse IP header of length %d: %w", headerLen, err)
-	}
-
-	return &ipHdr, packet[headerLen:], nil
+	return buf.Bytes(), nil
 }

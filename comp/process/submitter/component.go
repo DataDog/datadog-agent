@@ -11,7 +11,7 @@ import (
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
 )
 
-// team: container-intake
+// team: container-experiences
 
 // Component is the component type.
 type Component interface {

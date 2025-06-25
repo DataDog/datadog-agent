@@ -28,6 +28,10 @@ func (e *ReceiveProbeNoPktError) Unwrap() error {
 	return e.Err
 }
 
+// ErrPacketDidNotMatchTraceroute is returned when a packet does not match the traceroute,
+// either because it is unrelated traffic or from a different traceroute instance.
+var ErrPacketDidNotMatchTraceroute = &ReceiveProbeNoPktError{Err: fmt.Errorf("packet did not match the traceroute")}
+
 // BadPacketError is a non-fatal error that occurs when a packet is malformed.
 type BadPacketError struct {
 	Err error
@@ -124,7 +128,7 @@ func clipResults(minTTL uint8, results []*ProbeResponse) []*ProbeResponse {
 
 // ToHops converts a list of ProbeResponses to a Results
 // TODO remove this, and use a single type to represent results
-func ToHops(p TracerouteParallelParams, probes []*ProbeResponse) ([]*Hop, error) {
+func ToHops(p TracerouteParams, probes []*ProbeResponse) ([]*Hop, error) {
 	if p.MinTTL != 1 {
 		return nil, fmt.Errorf("ToHops: processResults() requires MinTTL == 1")
 	}

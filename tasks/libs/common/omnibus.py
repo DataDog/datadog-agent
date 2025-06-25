@@ -11,6 +11,10 @@ from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.releasing.version import RELEASE_JSON_DEPENDENCIES
 from tasks.release import _get_release_json_value
 
+# Increase this value to force an update to the cache key, invalidating existing
+# caches and forcing a rebuild
+CACHE_VERSION = 2
+
 
 def _get_omnibus_commits(field):
     return _get_release_json_value(f'{RELEASE_JSON_DEPENDENCIES}::{field}')
@@ -218,7 +222,7 @@ def _last_omnibus_changes(ctx):
 
 def get_dd_api_key(ctx):
     if sys.platform == 'win32':
-        cmd = f'aws.cmd ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
+        cmd = f'aws.exe ssm get-parameter --region us-east-1 --name {os.environ["API_KEY_ORG2"]} --with-decryption --query "Parameter.Value" --out text'
     elif sys.platform == 'darwin':
         cmd = f'vault kv get -field=token kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     else:
@@ -245,6 +249,7 @@ def omnibus_compute_cache_key(ctx):
         h.update(str.encode(f'{k}={v}'))
         print(f'Current hash value: {h.hexdigest()}')
     cache_key = h.hexdigest()
+    cache_key += f'_{CACHE_VERSION}'
     print(f'Cache key: {cache_key}')
     return cache_key
 
@@ -347,11 +352,26 @@ def send_build_metrics(ctx, overall_duration):
             )
 
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
-    r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers)
+    r = requests.post("https://api.datadoghq.com/api/v2/series", json={'series': series}, headers=headers, timeout=10)
     if r.ok:
         print('Successfully sent build metrics to DataDog')
     else:
         print(f'Failed to send build metrics to DataDog: {r.status_code}')
+        print(r.text)
+
+
+def send_cache_mutation_event(ctx, pipeline_id, job_name, job_id):
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json', 'DD-API-KEY': get_dd_api_key(ctx)}
+    payload = {
+        'title': 'omnibus cache mutated',
+        'text': f"Job {job_name} in pipeline #{pipeline_id} attempted to mutate the cache after a hit",
+        'source_type_name': 'omnibus',
+        'date_happened': int(datetime.now().timestamp()),
+        'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache', f'job-id:{job_id}'],
+    }
+    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers)
+    if not r.ok:
+        print('Failed to send cache mutation event')
         print(r.text)
 
 
@@ -364,7 +384,7 @@ def send_cache_miss_event(ctx, pipeline_id, job_name, job_id):
         'date_happened': int(datetime.now().timestamp()),
         'tags': [f'pipeline:{pipeline_id}', f'job:{job_name}', 'source:omnibus-cache', f'job-id:{job_id}'],
     }
-    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers)
+    r = requests.post("https://api.datadoghq.com/api/v1/events", json=payload, headers=headers, timeout=10)
     if not r.ok:
         print('Failed to send cache miss event')
         print(r.text)

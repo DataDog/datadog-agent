@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+      Sensitive text from custom resources is now scrubbed from the manifest.
+      If a field is sensitive, all values within that field are automatically redacted,
+      ensuring that sensitive data is not exposed even in nested structures.

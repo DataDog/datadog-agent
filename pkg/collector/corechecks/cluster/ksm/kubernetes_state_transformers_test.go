@@ -248,6 +248,51 @@ func Test_cronJobLastScheduleTransformer(t *testing.T) {
 	}
 }
 
+func Test_cronJobLastSuccessfulTransformer(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "60 seconds",
+			args: args{
+				name: "kube_cronjob_status_last_successful_time",
+				metric: ksmstore.DDMetric{
+					Val: 1595501615,
+					Labels: map[string]string{
+						"cronjob":   "foo",
+						"namespace": "default",
+					},
+				},
+				tags:     []string{"cronjob:foo", "namespace:default"},
+				hostname: "foo",
+				now:      func() time.Time { return time.Unix(int64(1595501615+60), 0) },
+			},
+			expected: &metricsExpected{
+				name:     "kubernetes_state.cronjob.duration_since_last_successful",
+				val:      60,
+				tags:     []string{"cronjob:foo", "namespace:default"},
+				hostname: "foo",
+			},
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			currentTime := tt.args.now()
+			cronJobLastSuccessfulTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}
+
 func Test_jobCompleteTransformer(t *testing.T) {
 	tests := []struct {
 		name     string
