@@ -1299,5 +1299,6 @@ test_api:
     - |
       python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
       dda self dep sync -f legacy-tasks
-    - dda inv -e api hello --env staging || true
-    - dda inv -e api hello --env prod || true
+    - dda inv -- -e api hello --env staging || true
+    - dda inv -- -e api hello --env prod || true
+
