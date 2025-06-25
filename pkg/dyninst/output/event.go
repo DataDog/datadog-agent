@@ -110,23 +110,9 @@ func (e Event) DataItems() iter.Seq2[DataItem, error] {
 			if idx == len(e) {
 				return
 			}
-			if idx+dataItemHeaderSize > len(e) {
-				yield(DataItem{}, fmt.Errorf(
-					"not enough bytes to read data item header: %d > %d",
-					idx+dataItemHeaderSize, len(e),
-				))
-				return
-			}
 			header := (*DataItemHeader)(unsafe.Pointer(&e[idx]))
 			idx += dataItemHeaderSize // known to be aligned to 8 bytes
 			dataLen := int(header.Length)
-			if idx+dataLen > len(e) {
-				yield(DataItem{}, fmt.Errorf(
-					"not enough bytes to read data item: %d < %d",
-					len(e), idx+int(header.Length),
-				))
-				return
-			}
 			data := e[idx : idx+dataLen]
 			idx = nextMultipleOf8(idx + dataLen)
 			item := DataItem{
