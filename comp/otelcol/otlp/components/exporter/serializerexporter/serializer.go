@@ -8,6 +8,7 @@ package serializerexporter
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -16,6 +17,7 @@ import (
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
+	"golang.org/x/net/http/httpproxy"
 
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -63,7 +65,7 @@ func setupForwarder(config pkgconfigmodel.Config) {
 	config.Set("forwarder_requeue_buffer_size", 100, pkgconfigmodel.SourceDefault)
 }
 
-func setupSerializer(config pkgconfigmodel.Config) {
+func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 	// Serializer
 	config.Set("enable_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_service_checks_stream_payload_serialization", true, pkgconfigmodel.SourceDefault)
@@ -87,6 +89,28 @@ func setupSerializer(config pkgconfigmodel.Config) {
 	config.Set("enable_payloads.service_checks", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_payloads.sketches", true, pkgconfigmodel.SourceDefault)
 	config.Set("enable_payloads.json_to_v1_intake", true, pkgconfigmodel.SourceDefault)
+
+	// Proxy Setup
+	proxyConfig := httpproxy.FromEnvironment()
+	if proxyConfig.HTTPProxy != "" {
+		config.Set("proxy.http", proxyConfig.HTTPProxy, pkgconfigmodel.SourceDefault)
+	}
+	if proxyConfig.HTTPSProxy != "" {
+		config.Set("proxy.https", proxyConfig.HTTPSProxy, pkgconfigmodel.SourceDefault)
+	}
+
+	// ProxyURL takes precedence over proxy environment variables if set
+	if cfg.HTTPConfig.ProxyURL != "" {
+		config.Set("proxy.http", cfg.HTTPConfig.ProxyURL, pkgconfigmodel.SourceFile)
+		config.Set("proxy.https", cfg.HTTPConfig.ProxyURL, pkgconfigmodel.SourceFile)
+	}
+
+	// Handle no_proxy environment variable
+	var noProxy []any
+	for _, v := range strings.Split(proxyConfig.NoProxy, ",") {
+		noProxy = append(noProxy, v)
+	}
+	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
 }
 
 func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider source.Provider) (*serializer.Serializer, *defaultforwarder.DefaultForwarder, error) {
@@ -107,7 +131,7 @@ func initSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 			if cfg.Metrics.Metrics.TCPAddrConfig.Endpoint != "" {
 				pkgconfig.Set("dd_url", cfg.Metrics.Metrics.TCPAddrConfig.Endpoint, pkgconfigmodel.SourceDefault)
 			}
-			setupSerializer(pkgconfig)
+			setupSerializer(pkgconfig, cfg)
 			setupForwarder(pkgconfig)
 			pkgconfig.Set("logging_frequency", int64(500), pkgconfigmodel.SourceDefault)
 			pkgconfig.Set("skip_ssl_validation", cfg.ClientConfig.InsecureSkipVerify, pkgconfigmodel.SourceFile)
