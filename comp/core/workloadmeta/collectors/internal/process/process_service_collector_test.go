@@ -8,7 +8,6 @@
 package process
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -296,11 +295,9 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Skip("Skipping test for process collection disabled mode - will be enabled after implementation is complete")
-
 			c := setUpCollectorTest(t, nil, nil, nil)
-			ctx, cancel := context.WithCancel(context.TODO())
-			defer cancel()
+			ctx := t.Context()
+
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
 
 			socketPath, _ := startTestServer(t, tc.httpResponse, tc.shouldError)
@@ -322,13 +319,13 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 
 			// TODO: we should use Start() instead of these lines below when configuration is sorted as Start() is currently
 			// by default disabled
-			// Only start collectServices and stream (not collectProcesses) since process collection is disabled
+			// Only start collectServicesDefault and stream (not collectProcesses) since process collection is disabled
 			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
-			go c.collector.collectServices(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.collectServicesNoCache(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
 
-			// Mock processProbe.ProcessesByPID to be called directly by collectServices
+			// Mock processProbe.ProcessesByPID to be called directly by collectServicesDefault
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(makeProcessMap(tc.alivePids...), nil).Maybe()
 
 			// Trigger service collection
@@ -405,8 +402,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Collector setup
 			c := setUpCollectorTest(t, nil, nil, nil)
-			ctx, cancel := context.WithCancel(context.TODO())
-			defer cancel()
+			ctx := t.Context()
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
 
 			// Create test server & override collector client
@@ -436,7 +432,7 @@ func TestServiceStoreLifetime(t *testing.T) {
 			c.collector.containerProvider = c.mockContainerProvider
 			c.collector.store = c.mockStore
 			go c.collector.collectProcesses(ctx, c.collector.clock.Ticker(collectionInterval))
-			go c.collector.collectServices(ctx, c.collector.clock.Ticker(collectionInterval))
+			go c.collector.collectServicesCached(ctx, c.collector.clock.Ticker(collectionInterval))
 			go c.collector.stream(ctx)
 
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(makeProcessMap(tc.alivePids...), nil).Maybe()

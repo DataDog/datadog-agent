@@ -178,7 +178,11 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	}
 
 	if c.isServiceDiscoveryEnabled() {
-		go c.collectServices(ctx, c.clock.Ticker(serviceCollectionInterval))
+		if c.isProcessCollectionEnabled() {
+			go c.collectServicesCached(ctx, c.clock.Ticker(serviceCollectionInterval))
+		} else {
+			go c.collectServicesNoCache(ctx, c.clock.Ticker(serviceCollectionInterval))
+		}
 	}
 
 	go c.stream(ctx)
@@ -332,7 +336,7 @@ func (c *collector) handleServiceRetries(pid int32) {
 }
 
 // getProcessEntitiesFromServices creates Process entities with service discovery data
-func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService map[int32]*model.Service, procs map[int32]*procutil.Process, pidToLanguage map[int32]*languagemodels.Language) []*workloadmeta.Process {
+func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService map[int32]*model.Service) []*workloadmeta.Process {
 	entities := make([]*workloadmeta.Process, 0, len(pids))
 	now := c.clock.Now()
 
@@ -353,19 +357,6 @@ func (c *collector) getProcessEntitiesFromServices(pids []int32, pidsToService m
 			},
 			Pid:     int32(service.PID),
 			Service: convertModelServiceToService(service),
-		}
-
-		// Add additional process fields when process collection is disabled
-		if !c.isProcessCollectionEnabled() {
-			if proc, exists := procs[pid]; exists {
-				entity.Cmdline = proc.Cmdline
-				entity.CreationTime = time.UnixMilli(proc.Stats.CreateTime).UTC()
-
-				// Add language if available
-				if language, hasLanguage := pidToLanguage[pid]; hasLanguage {
-					entity.Language = language
-				}
-			}
 		}
 
 		entities = append(entities, entity)
@@ -390,10 +381,10 @@ func convertModelServiceToService(modelService *model.Service) *workloadmeta.Ser
 }
 
 // updateServices retrieves service discovery data for alive processes and returns workloadmeta entities
-func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
+func (c *collector) updateServices(alivePids core.PidSet) ([]*workloadmeta.Process, map[int32]*model.Service) {
 	pidsToRequest, pidsToService := c.filterPidsToRequest(alivePids)
 	if len(pidsToRequest) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	resp, err := c.getDiscoveryServices(pidsToRequest)
@@ -403,60 +394,76 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 		} else {
 			log.Errorf("failed to get services: %s", err)
 		}
-		return nil
+		return nil, nil
 	}
 
 	for i, service := range resp.Services {
 		pidsToService[int32(service.PID)] = &resp.Services[i]
 	}
 
+	return c.getProcessEntitiesFromServices(pidsToRequest, pidsToService), pidsToService
+}
+
+func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
+	entities, pidsToService := c.updateServices(alivePids)
+
 	// Only detect languages for services when process collection is disabled,
 	// otherwise the collectProcesses goroutine already did it for us.
 	var pidToLanguage map[int32]*languagemodels.Language
-	if !c.isProcessCollectionEnabled() {
-		serviceProcs := make([]*procutil.Process, 0, len(pidsToService))
-		for pid := range pidsToService {
-			if proc, exists := procs[pid]; exists {
-				serviceProcs = append(serviceProcs, proc)
-			}
+	serviceProcs := make([]*procutil.Process, 0, len(pidsToService))
+	for pid := range pidsToService {
+		if proc, exists := procs[pid]; exists {
+			serviceProcs = append(serviceProcs, proc)
 		}
-		languages := c.detectLanguages(serviceProcs)
+	}
+	languages := c.detectLanguages(serviceProcs)
 
-		// Create pidToLanguage map directly
-		pidToLanguage = make(map[int32]*languagemodels.Language)
-		for i, proc := range serviceProcs {
-			if i < len(languages) && languages[i] != nil {
-				pidToLanguage[proc.Pid] = languages[i]
+	// Create pidToLanguage map directly
+	pidToLanguage = make(map[int32]*languagemodels.Language)
+	for i, proc := range serviceProcs {
+		if i < len(languages) && languages[i] != nil {
+			pidToLanguage[proc.Pid] = languages[i]
+		}
+	}
+
+	for _, entity := range entities {
+		if proc, exists := procs[entity.Pid]; exists {
+			entity.Cmdline = proc.Cmdline
+			entity.CreationTime = time.UnixMilli(proc.Stats.CreateTime).UTC()
+
+			// Add language if available
+			if language, hasLanguage := pidToLanguage[entity.Pid]; hasLanguage {
+				entity.Language = language
 			}
 		}
 	}
 
-	return c.getProcessEntitiesFromServices(pidsToRequest, pidsToService, procs, pidToLanguage)
+	return entities
 }
 
 // getProcessDataForServices returns alive pids and processes
 func (c *collector) getProcessDataForServices() (core.PidSet, map[int32]*procutil.Process, error) {
 	// If process collection is disabled, scan processes ourselves
-	if !c.isProcessCollectionEnabled() {
-		procs, err := c.processProbe.ProcessesByPID(c.clock.Now(), false)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		alivePids := make(core.PidSet, len(procs))
-		for pid := range procs {
-			alivePids.Add(pid)
-		}
-
-		return alivePids, procs, nil
+	procs, err := c.processProbe.ProcessesByPID(c.clock.Now(), false)
+	if err != nil {
+		return nil, nil, err
 	}
 
+	alivePids := make(core.PidSet, len(procs))
+	for pid := range procs {
+		alivePids.Add(pid)
+	}
+
+	return alivePids, procs, nil
+}
+
+func (c *collector) getCachedProcessData() (core.PidSet, error) {
 	// Get alive PIDs from last collected processes (populated by collectProcesses)
 	c.mux.RLock()
 	defer c.mux.RUnlock()
 
 	if len(c.lastCollectedProcesses) == 0 {
-		return nil, nil, nil // no processes to check
+		return nil, nil // no processes to check
 	}
 
 	alivePids := make(core.PidSet, len(c.lastCollectedProcesses))
@@ -464,7 +471,7 @@ func (c *collector) getProcessDataForServices() (core.PidSet, map[int32]*procuti
 		alivePids.Add(pid)
 	}
 
-	return alivePids, c.lastCollectedProcesses, nil
+	return alivePids, nil
 }
 
 // cleanPidMaps deletes dead PIDs from the provided maps.
@@ -483,10 +490,6 @@ func cleanPidMaps[T any](alivePids core.PidSet, maps ...map[int32]T) {
 // findDeletedProcesses finds processes that exist in the store but are no longer alive.
 // Only performs cleanup when process collection is disabled (service-only mode).
 func (c *collector) findDeletedProcesses(alivePids core.PidSet) []*workloadmeta.Process {
-	if c.isProcessCollectionEnabled() {
-		return nil
-	}
-
 	storedProcesses := c.store.ListProcesses()
 	var deletedProcesses []*workloadmeta.Process
 
@@ -573,8 +576,7 @@ func (c *collector) collectProcesses(ctx context.Context, collectionTicker *cloc
 	}
 }
 
-// collectServices captures service discovery data for alive processes
-func (c *collector) collectServices(ctx context.Context, collectionTicker *clock.Ticker) {
+func (c *collector) collectServicesNoCache(ctx context.Context, collectionTicker *clock.Ticker) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer collectionTicker.Stop()
 	defer cancel()
@@ -590,7 +592,7 @@ func (c *collector) collectServices(ctx context.Context, collectionTicker *clock
 				continue // no processes to check
 			}
 
-			wlmServiceEntities := c.updateServices(alivePids, procs)
+			wlmServiceEntities := c.updateServicesNoCache(alivePids, procs)
 			deletedProcesses := c.findDeletedProcesses(alivePids)
 
 			if len(wlmServiceEntities) > 0 || len(deletedProcesses) > 0 {
@@ -598,6 +600,42 @@ func (c *collector) collectServices(ctx context.Context, collectionTicker *clock
 					Type:    EventTypeServiceDiscovery,
 					Created: wlmServiceEntities,
 					Deleted: deletedProcesses,
+				}
+			}
+
+			cleanPidMaps(alivePids, c.ignoredPids)
+			cleanPidMaps(alivePids, c.serviceRetries)
+			cleanPidMaps(alivePids, c.pidHeartbeats)
+		case <-ctx.Done():
+			log.Infof("The %s service collector has stopped", collectorID)
+			return
+		}
+	}
+}
+
+// collectServices captures service discovery data for alive processes
+func (c *collector) collectServicesCached(ctx context.Context, collectionTicker *clock.Ticker) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer collectionTicker.Stop()
+	defer cancel()
+	for {
+		select {
+		case <-collectionTicker.C:
+			alivePids, err := c.getCachedProcessData()
+			if err != nil {
+				log.Errorf("Error getting processes for service discovery: %v", err)
+				continue
+			}
+			if len(alivePids) == 0 {
+				continue // no processes to check
+			}
+
+			wlmServiceEntities, _ := c.updateServices(alivePids)
+
+			if len(wlmServiceEntities) > 0 {
+				c.processEventsCh <- &Event{
+					Type:    EventTypeServiceDiscovery,
+					Created: wlmServiceEntities,
 				}
 			}
 
