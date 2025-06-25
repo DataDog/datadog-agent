@@ -151,8 +151,8 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 
 // populateCapabilities verifies nvml API symbols exist in the native library (libnvidia-ml.so).
 // It returns an error only if a critical symbol is missing (to properly initialize device list and create a new safe device wrapper)
-func (s *safeNvml) populateCapabilities(lib nvml.Interface) error {
-	s.capabilities = make(map[string]struct{})
+func populateCapabilities(lib nvml.Interface) (map[string]struct{}, error) {
+	capabilities := make(map[string]struct{})
 
 	// Critical API from libnvidia-ml.so that are required for basic functionality
 	criticalAPI := getCriticalAPIs()
@@ -165,9 +165,9 @@ func (s *safeNvml) populateCapabilities(lib nvml.Interface) error {
 		err := lib.Extensions().LookupSymbol(api)
 		if err != nil {
 			// fail the safe nvml wrapper initialization
-			return fmt.Errorf("critical symbol %s not found in NVML library: %w", api, err)
+			return nil, fmt.Errorf("critical symbol %s not found in NVML library: %w", api, err)
 		}
-		s.capabilities[api] = struct{}{}
+		capabilities[api] = struct{}{}
 	}
 
 	// Check each capability
@@ -177,10 +177,10 @@ func (s *safeNvml) populateCapabilities(lib nvml.Interface) error {
 			// TODO: log a warning if the symbol is not found
 			continue
 		}
-		s.capabilities[api] = struct{}{}
+		capabilities[api] = struct{}{}
 	}
 
-	return nil
+	return capabilities, nil
 }
 
 // ensureInitWithOpts initializes the NVML library with the given options (used for testing)
@@ -223,7 +223,9 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 	}
 
 	// Populate and verify critical capabilities
-	if err := s.populateCapabilities(lib); err != nil {
+	var err error
+	s.capabilities, err = populateCapabilities(lib)
+	if err != nil {
 		return fmt.Errorf("failed to verify NVML capabilities: %w", err)
 	}
 
