@@ -119,6 +119,8 @@ const (
 	SetSockOptEventType
 	// FileFsmountEventType Mount event
 	FileFsmountEventType
+	// DetachedMountEventType Mount event
+	DetachedMountEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
