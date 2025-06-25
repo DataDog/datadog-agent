@@ -1,6 +1,9 @@
-from dataclasses import dataclass
+import json
+from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from functools import cached_property
 
 
 class ActionType(Enum):
@@ -34,6 +37,66 @@ class ResultJsonLine:
             test=data.get("Test"),
             output=data.get("Output"),
         )
+
+
+@dataclass
+class ResultJson:
+    lines: list[ResultJsonLine]
+    _package_tests_dict: dict[str, dict[str, list[ResultJsonLine]]] = field(
+        init=False, repr=False, default_factory=dict
+    )
+
+    def __post_init__(self):
+        self.lines.sort(key=lambda x: x.time)
+        # Create a dictionary that maps packages to their tests and actions
+        self._package_tests_dict = self._sort_into_packages_and_tests()
+
+    @classmethod
+    def from_file(cls, file: str) -> "ResultJson":
+        """Load a ResultJson from a file."""
+        res = []
+        with open(file) as f:
+            for line in f:
+                data = json.loads(line)
+                res.append(ResultJsonLine.from_dict(data))
+        return cls(res)
+
+    def _sort_into_packages_and_tests(self) -> dict[str, dict[str, list[ResultJsonLine]]]:
+        """Sorts the parsed result lines into packages and tests."""
+        result: dict[str, dict[str, list[ResultJsonLine]]] = defaultdict(lambda: defaultdict(list))
+
+        for line in self.lines:
+            package_dict = result[line.package]
+            if not line.test:
+                # Package-level action
+                package_dict["_"].append(line)
+            else:
+                # Test-level action
+                package_dict[line.test].append(line)
+
+        return result
+
+    @property
+    def packages(self) -> set[str]:
+        """Returns a set of all packages in the result."""
+        return set(self._package_tests_dict.keys())
+
+    @cached_property
+    def failing_packages(self) -> set[str]:
+        """Returns a set of packages which have package-level failures."""
+        return {pkg for pkg, tests in self._package_tests_dict.items() if run_is_failing(tests.get("_", []))}
+
+    @cached_property
+    def failing_tests(self) -> dict[str, set[str]]:
+        """Returns a dictionary of packages and their failing tests."""
+        failing_tests: dict[str, set[str]] = defaultdict(set)
+
+        for package, tests in self._package_tests_dict.items():
+            for test_name, actions in tests.items():
+                if run_is_failing(actions):
+                    failing_tests[package].add(test_name)
+
+        return failing_tests
 
 
 def run_is_failing(lines: list[ResultJsonLine]) -> bool:
