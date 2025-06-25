@@ -129,7 +129,7 @@ func (mc *MapCleaner[K, V]) Start(interval time.Duration, preClean func() bool, 
 			for {
 				select {
 				case <-ticker.C:
-					mc.CleanOnDemand(preClean, postClean, shouldClean)
+					mc.Clean(preClean, postClean, shouldClean)
 				case <-mc.done:
 					return
 				}
