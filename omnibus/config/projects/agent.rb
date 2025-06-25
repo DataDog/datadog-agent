@@ -14,7 +14,7 @@ else
   name "agent-#{flavor}"
   package_name "datadog-#{flavor}-agent"
 end
-package_dir ENV['OMNIBUS_PACKAGE_DIR']
+Omnibus::Config.package_dir = ENV['OMNIBUS_PACKAGE_DIR']
 license "Apache-2.0"
 license_file "../LICENSE"
 
