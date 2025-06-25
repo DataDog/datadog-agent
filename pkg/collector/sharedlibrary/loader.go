@@ -39,26 +39,38 @@ func (*SharedLibraryCheckLoader) Name() string {
 }
 
 // Load returns a Shared Library check
-func (cl *SharedLibraryCheckLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
-	var err *C.char
+func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+	var cErr *C.char
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
-	// ".dylib" is likely to change when there will be an automatic way of choosing the extension (Rtloader might handle this)
 	name := "libdatadog-agent-" + config.Name
 
 	cName := C.CString(name)
 	defer C._free(unsafe.Pointer(cName))
 
-	handle := C.load_shared_library(cName, &err)
-
+	// Get the shared library pointer
+	handle := C.load_shared_library(cName, &cErr)
 	if handle == nil {
-		if err != nil {
-			defer C._free(unsafe.Pointer(err))
-			return nil, fmt.Errorf("failed to load shared library %s: %s", config.Name, C.GoString(err))
+		if cErr != nil {
+			defer C._free(unsafe.Pointer(cErr))
+			return nil, fmt.Errorf("failed to load shared library %s: %s", config.Name, C.GoString(cErr))
 		}
 	}
 
-	return NewSharedLibraryCheck(config.Name, handle)
+	// Create the check
+	c, err := NewSharedLibraryCheck(senderManager, config.Name, handle)
+	if err != nil {
+		return c, err
+	}
+
+	// Set the check ID
+	configDigest := config.FastDigest()
+
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 func (gl *SharedLibraryCheckLoader) String() string {

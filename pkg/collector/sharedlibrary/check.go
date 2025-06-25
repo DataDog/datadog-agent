@@ -26,14 +26,17 @@ import (
 )
 
 type SharedLibraryCheck struct {
-	libName string
-	handle  unsafe.Pointer
+	senderManager sender.SenderManager
+	id            checkid.ID
+	libName       string
+	handle        unsafe.Pointer
 }
 
-func NewSharedLibraryCheck(name string, handle unsafe.Pointer) (*SharedLibraryCheck, error) {
+func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, handle unsafe.Pointer) (*SharedLibraryCheck, error) {
 	check := &SharedLibraryCheck{
-		libName: name,
-		handle:  handle,
+		senderManager: senderManager,
+		libName:       name,
+		handle:        handle,
 	}
 
 	return check, nil
@@ -64,7 +67,9 @@ func (c *SharedLibraryCheck) ConfigSource() string {
 	return ""
 }
 
-func (c *SharedLibraryCheck) Configure(senderManger sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (c *SharedLibraryCheck) Configure(_senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
+
 	return nil
 }
 
