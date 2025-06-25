@@ -76,6 +76,7 @@ class ResultJson:
 
     @property
     def package_tests_dict(self) -> dict[str, dict[str, list[ResultJsonLine]]]:
+        """Returns a dictionary of all ResultJsonLines sorted by package and test."""
         if not self._package_tests_dict:
             self._package_tests_dict = self._sort_into_packages_and_tests()
 
@@ -98,6 +99,9 @@ class ResultJson:
 
         for package, tests in self.package_tests_dict.items():
             for test_name, actions in tests.items():
+                if test_name == "_":
+                    # Skip package-level actions, as they are not tests
+                    continue
                 if run_is_failing(actions):
                     failing_tests[package].add(test_name)
 
