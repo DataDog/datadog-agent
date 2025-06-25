@@ -158,7 +158,7 @@ func TestNvmlAPIError(t *testing.T) {
 func TestInitFailure(t *testing.T) {
 	var safenvml safeNvml
 
-	mockNewFunc := func(opts ...nvml.LibraryOption) nvml.Interface {
+	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
 		return &nvmlmock.Interface{
 			InitFunc: func() nvml.Return {
 				return nvml.ERROR_UNKNOWN
@@ -176,7 +176,7 @@ func TestInitFailure(t *testing.T) {
 func TestPopulateCapabilitiesFailure(t *testing.T) {
 	var safenvml safeNvml
 
-	mockNewFunc := func(opts ...nvml.LibraryOption) nvml.Interface {
+	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
 		return &nvmlmock.Interface{
 			InitFunc: func() nvml.Return {
 				return nvml.ERROR_UNKNOWN
@@ -203,7 +203,7 @@ func TestInitMultipleTimes(t *testing.T) {
 
 	// Mock the nvml library to return SUCCESS on the first init and ERROR_UNKNOWN on the second, to
 	// ensure that the library is initialized only once.
-	mockNewFunc := func(opts ...nvml.LibraryOption) nvml.Interface {
+	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
 		return &nvmlmock.Interface{
 			InitFunc: func() nvml.Return {
 				numInit++
