@@ -22,6 +22,8 @@ import (
 type ProcessNode struct {
 	sync.Mutex
 
+	NodeBase
+
 	// represent the key used to retrieve the process from the cache
 	// if the owner is able to define a key we use it, otherwise we'll put
 	// a random generated uint64 cookie
@@ -60,11 +62,14 @@ func NewProcessExecNodeFromEvent(event *model.Event, processKey, execKey interfa
 	}
 	exec := NewExecNodeFromEvent(event, execKey)
 	process := &ProcessNode{
+		NodeBase:      NewNodeBase(),
 		Key:           processKey,
 		CurrentExec:   exec,
 		PossibleExecs: []*ExecNode{exec},
 	}
 	exec.ProcessLink = process
+	version := event.ContainerContext.Tags[0]
+	process.Record(version, uint64(event.ResolveEventTime().Unix()))
 	return process
 }
 
