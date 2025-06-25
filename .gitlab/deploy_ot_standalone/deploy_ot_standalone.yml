@@ -17,31 +17,7 @@ deploy_containers-ot-standalone:
   extends: .deploy_containers-ot-standalone-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
 
-deploy_containers-ot-standalone-rc:
-  extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.on_deploy_rc]
-  variables:
-    VERSION: rc
-
-deploy_containers-ot-standalone-latest:
-  extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.on_deploy_manual_final]
-  variables:
-    VERSION: latest
-
 # Jobs to publish images to our internal registries.
 deploy_containers-ot-standalone_internal:
   extends: .deploy_containers-ot-standalone-base
   rules: !reference [.on_deploy_internal_manual_final]
-
-deploy_containers-ot-standalone_internal-rc:
-  extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.on_deploy_internal_rc]
-  variables:
-    VERSION: rc
-
-deploy_containers-ot-standalone_internal-latest:
-  extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.on_deploy_internal_manual_final]
-  variables:
-    VERSION: latest

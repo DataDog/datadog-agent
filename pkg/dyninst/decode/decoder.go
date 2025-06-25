@@ -31,6 +31,7 @@ type probeEvent struct {
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
 	program     *ir.Program
+	stackHashes map[uint64][]uint64
 	probeEvents map[ir.TypeID]probeEvent
 }
 
@@ -40,6 +41,7 @@ var errorUnimplemented = errors.New("errorUnimplemented type")
 func NewDecoder(program *ir.Program) (*Decoder, error) {
 	decoder := &Decoder{
 		program:     program,
+		stackHashes: make(map[uint64][]uint64),
 		probeEvents: make(map[ir.TypeID]probeEvent),
 	}
 	for _, probe := range program.Probes {
@@ -83,14 +85,21 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		return err
 	}
 
-	frames, err := event.StackPCs()
+	header, err := event.Header()
 	if err != nil {
 		return err
 	}
 
-	header, err := event.Header()
-	if err != nil {
-		return err
+	// bpf will only upload the pc's for a given hash once.
+	// We cache the frames for each hash accordingly.
+	var frames []uint64
+	frames, ok := d.stackHashes[header.Stack_hash]
+	if !ok {
+		frames, err = event.StackPCs()
+		if err != nil {
+			return err
+		}
+		d.stackHashes[header.Stack_hash] = frames
 	}
 
 	err = enc.WriteToken(jsontext.String("prog_id"))

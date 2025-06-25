@@ -9,12 +9,14 @@ package k8sexec
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/healthcmd"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -43,7 +45,14 @@ func (hc *HealthCommand) prepareCommand(destFile string) []string {
 }
 
 // Run runs the cws-instrumentation health command
-func (hc *HealthCommand) Run(remoteFile string, pod *corev1.Pod, container string, timeout time.Duration) error {
+func (hc *HealthCommand) Run(remoteFile string, pod *corev1.Pod, container string, mode string, webhookName string, timeout time.Duration) error {
+	start := time.Now()
+	err := hc.run(remoteFile, pod, container, timeout)
+	metrics.CWSResponseDuration.Observe(time.Since(start).Seconds(), mode, webhookName, "health_command", strconv.FormatBool(err == nil), "")
+	return err
+}
+
+func (hc *HealthCommand) run(remoteFile string, pod *corev1.Pod, container string, timeout time.Duration) error {
 	hc.Container = container
 
 	streamOptions := StreamOptions{
