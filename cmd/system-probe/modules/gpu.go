@@ -117,9 +117,10 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 
 // GetStats returns the last check time
 func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
-	return map[string]interface{}{
-		"last_check": t.lastCheck.Load(),
-	}
+	stats := t.Probe.GetStats()
+	stats["last_check"] = t.lastCheck.Load()
+
+	return stats
 }
 
 func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *http.Request) {

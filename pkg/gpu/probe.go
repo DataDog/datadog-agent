@@ -14,9 +14,11 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -31,7 +33,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	gpuebpf "github.com/DataDog/datadog-agent/pkg/gpu/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
+	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -416,4 +420,35 @@ func (p *Probe) setupMapCleaner() error {
 func toPowerOf2(x int) int {
 	log := math.Log2(float64(x))
 	return int(math.Pow(2, math.Round(log)))
+}
+
+func (p *Probe) GetStats() map[string]interface{} {
+	var activeGpus []map[string]interface{}
+
+	for _, gpu := range p.sysCtx.deviceCache.All() {
+		info := gpu.GetDeviceInfo()
+		wmetaGpu, err := p.sysCtx.workloadmeta.GetGPU(info.UUID)
+		_, isMIG := gpu.(*safenvml.MIGDevice)
+
+		activeGpus = append(activeGpus, map[string]interface{}{
+			"uuid":       info.UUID,
+			"name":       info.Name,
+			"index":      info.Index,
+			"sm_version": info.SMVersion,
+			"is_mig":     isMIG,
+			"in_wmeta":   err != nil && wmetaGpu != nil,
+		})
+	}
+
+	healthStatus := health.GetLive()
+
+	return map[string]interface{}{
+		"active_gpus":  activeGpus,
+		"kernel_cache": p.sysCtx.cudaKernelCache.GetStats(),
+		"attacher": map[string]interface{}{
+			"active_processes":  usmutils.GetTracedProgramList(consts.GpuModuleName),
+			"blocked_processes": usmutils.GetBlockedPathIDsList(consts.GpuModuleName),
+		},
+		"consumer_healthy": slices.Contains(healthStatus.Healthy, consts.GpuConsumerHealthName),
+	}
 }
