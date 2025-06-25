@@ -149,7 +149,6 @@ def build_binaries(
                     pkg_result, success, message = future.result()
                     if success:
                         success_count += 1
-                        # Store the original package path and binary name
 
                     else:
                         failure_count += 1
