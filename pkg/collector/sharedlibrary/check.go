@@ -45,11 +45,13 @@ func NewSharedLibraryCheck(senderManager sender.SenderManager, name string, hand
 func (c *SharedLibraryCheck) Run() error {
 	var err *C.char
 
+	// the ID is used for sending the metrics, we need to know which check is running
+	// to retrieve the correct sender
 	cID := C.CString(string(c.ID()))
 	defer C._free(unsafe.Pointer(cID))
 
+	// execute the Run function of the shared library pointed by c.handle
 	C.run_shared_library(cID, c.handle, &err)
-
 	if err != nil {
 		defer C._free(unsafe.Pointer(err))
 		return fmt.Errorf("failed to run shared library check %s: %s", c.libName, C.GoString(err))

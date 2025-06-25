@@ -57,6 +57,7 @@ static HMODULE rtloader_backend = NULL;
 static void *rtloader_backend = NULL;
 #endif
 
+// temporary pointer to store rtloader until we have a subclass for shared library checks
 static rtloader_t *python_rtloader = NULL;
 
 #ifdef _WIN32
@@ -175,6 +176,8 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     return AS_TYPE(rtloader_t, python_rtloader_obj);
 }
 
+// it uses the python rtloader initialization because the subclass for shared library checks is not yet implemented
+// it should only use methods for this future subclass
 rtloader_t *init_shared_library() {
     return make3("", "", NULL);
 }
@@ -201,6 +204,7 @@ void *load_shared_library(const char *lib_name, const char **error)
     return shared_library;
 }
 
+// checks if the library was loaded (ie. handle is not nullptr) and runs the Run function from the shared library
 void run_shared_library(char *checkID, void *handle, const char **error)
 {
     if (!handle) {
@@ -222,6 +226,7 @@ void run_shared_library(char *checkID, void *handle, const char **error)
 
     run_function();
 
+    // temporary test metric submission
     char **tags = new char *[2];
     tags[0] = strdupe("");
 
@@ -348,6 +353,8 @@ char *get_check_diagnoses(rtloader_t *rtloader, rtloader_pyobject_t *check)
     return AS_TYPE(RtLoader, rtloader)->getCheckDiagnoses(AS_TYPE(RtLoaderPyObject, check));
 }
 
+// when  the SharedLibrary subclass is implemented, it should have rtloader pointer in the signature and uses it to call the callback
+// python_rtloader is not meant to be used for a clean version
 DATADOG_AGENT_RTLOADER_API void submit_metric(char *checkID, const metric_type_t metricType,
                                             char *metricName, const double value, char **tags,
                                             char *hostname, const bool flushFirstValue)

@@ -283,6 +283,7 @@ func run(
 	if !config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
 	}
+	// lazy load the shared library checks the same as the Python checks
 	if !config.GetBool("shared_library_lazy_loading") {
 		sharedlibrary.InitSharedLibrary()
 	}

@@ -65,6 +65,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		sender.Historate(_name, _value, _hostname, _tags)
 	}
 
+	// commit the metric here is somehow required if we don't fully initialize the Python check context
 	sender.Commit()
 }
 
