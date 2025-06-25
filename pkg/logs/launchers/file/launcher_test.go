@@ -179,7 +179,19 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	// Get tailer and manually update fingerprint in registry
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
-	fingerprint := tailer.ComputeFingerPrint()
+
+	// Create fingerprint config
+	maxLines := 1
+	maxBytes := 2048
+	linesToSkip := 0
+	bytesToSkip := 0
+	fingerprintConfig := &config.FingerprintConfig{
+		MaxLines:    &maxLines,
+		MaxBytes:    &maxBytes,
+		LinesToSkip: &linesToSkip,
+		BytesToSkip: &bytesToSkip,
+	}
+	fingerprint := tailer.ComputeFingerPrint(fingerprintConfig)
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
 	// Rotate file
@@ -197,8 +209,8 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
-	newFingerprint := newTailer.ComputeFingerPrint()
-	registryFingerprint := Checksum(s.registry, newTailer.Identifier())
+	newFingerprint := newTailer.ComputeFingerPrint(fingerprintConfig)
+	registryFingerprint := s.registry.GetFingerprint(newTailer.Identifier())
 	suite.NotEqual(registryFingerprint, newFingerprint, "The fingerprint of the new file should be different")
 
 	msg = <-suite.outputChan
@@ -236,7 +248,19 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	// Get tailer and update registry
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
-	fingerprint := tailer.ComputeFingerPrint()
+
+	// Create fingerprint config
+	maxLines := 1
+	maxBytes := 2048
+	linesToSkip := 0
+	bytesToSkip := 0
+	fingerprintConfig := &config.FingerprintConfig{
+		MaxBytes:    &maxBytes,
+		MaxLines:    &maxLines,
+		LinesToSkip: &linesToSkip,
+		BytesToSkip: &bytesToSkip,
+	}
+	fingerprint := tailer.ComputeFingerPrint(fingerprintConfig)
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
 	// Rotate file

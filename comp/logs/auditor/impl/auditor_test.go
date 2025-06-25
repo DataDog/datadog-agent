@@ -131,7 +131,7 @@ func (suite *AuditorTestSuite) TestAuditorFlushesAndRecoversRegistryWithFingerpr
 
 	r, err := os.ReadFile(suite.testRegistryPath)
 	suite.NoError(err)
-	expectedJSON := `{"Version":3,"Registry":{"file:/var/log/test.log":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"Fingerprint":12345,"FingerprintConfig":null}}}`
+	expectedJSON := `{"Version":2,"Registry":{"file:/var/log/test.log":{"LastUpdated":"2024-07-18T01:01:01.000000001Z","Offset":"150","TailingMode":"end","IngestionTimestamp":0,"Fingerprint":12345,"FingerprintConfig":null}}}`
 	suite.Equal(expectedJSON, string(r))
 
 	suite.a.registry = make(map[string]*RegistryEntry)
@@ -167,6 +167,36 @@ func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForFingerprint() {
 	fingerprint = suite.a.GetFingerprint(othersource.Config.Path)
 	suite.Equal(uint64(0), fingerprint)
 }
+
+func (suite *AuditorTestSuite) TestAuditorRecoversRegistryForFingerprintConfig() {
+	suite.a.registry = make(map[string]*RegistryEntry)
+
+	maxBytes := 1024
+	maxLines := 10
+	linesToSkip := 5
+	bytesToSkip := 20
+
+	expectedConfig := &config.FingerprintConfig{
+		MaxBytes:    &maxBytes,
+		MaxLines:    &maxLines,
+		LinesToSkip: &linesToSkip,
+		BytesToSkip: &bytesToSkip,
+	}
+
+	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{
+		Offset:            "42",
+		Fingerprint:       uint64(12345),
+		FingerprintConfig: expectedConfig,
+	}
+
+	fingerprintConfig := suite.a.GetFingerprintConfig(suite.source.Config.Path)
+	suite.Equal(expectedConfig, fingerprintConfig)
+
+	othersource := sources.NewLogSource("", &config.LogsConfig{Path: "anotherpath"})
+	fingerprintConfig = suite.a.GetFingerprintConfig(othersource.Config.Path)
+	suite.Nil(fingerprintConfig)
+}
+
 func (suite *AuditorTestSuite) TestAuditorCleansupRegistry() {
 	suite.a.registry = make(map[string]*RegistryEntry)
 	suite.a.registry[suite.source.Config.Path] = &RegistryEntry{

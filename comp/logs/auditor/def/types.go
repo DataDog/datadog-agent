@@ -5,9 +5,14 @@
 
 package auditor
 
+import (
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+)
+
 // Registry holds a list of offsets.
 type Registry interface {
 	GetOffset(identifier string) string
 	GetTailingMode(identifier string) string
 	GetFingerprint(identifier string) uint64
+	GetFingerprintConfig(identifier string) *logsconfig.FingerprintConfig
 }

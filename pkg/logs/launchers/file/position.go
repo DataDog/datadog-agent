@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	tailerfile "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
 
 // Position returns the position from where logs should be collected.
@@ -20,13 +21,16 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	var err error
 
 	value := registry.GetOffset(identifier)
+	fingerprintConfig := registry.GetFingerprintConfig(identifier)
+	previousFingerprint := registry.GetFingerprint(identifier)
+	newFingerprint := tailerfile.ComputeFileFingerprint(identifier, fingerprintConfig)
 
 	switch {
 	case mode == config.ForceBeginning:
 		offset, whence = 0, io.SeekStart
 	case mode == config.ForceEnd:
 		offset, whence = 0, io.SeekEnd
-	case value != "":
+	case value != "" && fingerprintConfig != nil && previousFingerprint == newFingerprint: //and fingerprint valid (fingerprint stored oldconfig and recalculate oldconfig the same)
 		// an offset was registered, tailing mode is not forced, tail from the offset
 		whence = io.SeekStart
 		offset, err = strconv.ParseInt(value, 10, 64)

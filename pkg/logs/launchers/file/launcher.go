@@ -187,11 +187,7 @@ func (s *Launcher) scan() {
 			fingerprintStrategy := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 			if fingerprintStrategy == "checksum" {
 				didRotate, err = tailer.DidRotateViaFingerprint()
-				if err == nil && didRotate {
-					currFingerprint := tailer.ComputeFingerPrint()
-					// rotation is confirmed only if fingerprint is different
-					didRotate = Checksum(s.registry, tailer.Identifier()) != currFingerprint
-				} else if err != nil {
+				if err != nil {
 					didRotate = false
 				}
 			} else {
@@ -248,6 +244,7 @@ func (s *Launcher) scan() {
 				reader := bufio.NewReader(limitedReader)
 				line, err := reader.ReadString('\n')
 				f.Close()
+				//Remove in favor of fingerprint
 				if err != nil && err != io.EOF {
 					log.Warnf("error checking for content in %s: %v", file.Path, err)
 					continue
@@ -470,10 +467,4 @@ func CheckProcessTelemetry(stats *procfilestats.ProcessFileStats) {
 		stats.AgentOpenFiles,
 		ratio*100,
 		stats.OsFileLimit)
-}
-
-// Checksum returns the fingerprint stored in the registry
-func Checksum(registry auditor.Registry, identifier string) uint64 {
-	fingerprint := registry.GetFingerprint(identifier)
-	return fingerprint
 }

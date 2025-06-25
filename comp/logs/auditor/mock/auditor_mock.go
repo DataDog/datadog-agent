@@ -12,6 +12,8 @@ import (
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // ProvidesMock is the mock component output
@@ -80,9 +82,10 @@ func (a *Auditor) run() {
 
 // Registry does nothing
 type Registry struct {
-	offset      string
-	tailingMode string
-	fingerprint uint64
+	offset            string
+	tailingMode       string
+	fingerprint       uint64
+	fingerprintConfig *logsconfig.FingerprintConfig
 }
 
 // NewMockRegistry returns a new mock registry.
@@ -118,4 +121,14 @@ func (r *Registry) GetFingerprint(_ string) uint64 {
 // SetFingerprint sets the checksum fingerprint
 func (r *Registry) SetFingerprint(fingerprint uint64) {
 	r.fingerprint = fingerprint
+}
+
+// GetFingerprintets the checksum fingerprint
+func (r *Registry) GetFingerprintConfig(_ string) *logsconfig.FingerprintConfig {
+	return r.fingerprintConfig
+}
+
+// SetFingerprintConfig sets the fingerprint configuration
+func (r *Registry) SetFingerprintConfig(fingerprintConfig *logsconfig.FingerprintConfig) {
+	r.fingerprintConfig = fingerprintConfig
 }

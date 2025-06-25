@@ -19,7 +19,6 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
@@ -29,7 +28,6 @@ const defaultCleanupPeriod = 300 * time.Second
 
 // latest version of the API used by the auditor to retrieve the registry from disk.
 const registryAPIVersion = 2
-const registryAPIVersionFingerprint = 3
 
 // defaultRegistryFilename is the default registry filename
 const defaultRegistryFilename = "registry.json"
@@ -157,6 +155,16 @@ func (a *registryAuditor) closeChannels() {
 		a.done = nil
 	}
 	a.inputChan = nil
+}
+
+// GetFingerprintConfig returns the fingerprint configuration for a given identifier,
+// returns nil if it doesn't exist.
+func (a *registryAuditor) GetFingerprintConfig(identifier string) *logsconfig.FingerprintConfig {
+	entry, exists := a.readOnlyRegistryEntryCopy(identifier)
+	if !exists {
+		return nil
+	}
+	return entry.FingerprintConfig
 }
 
 // Channel returns the channel to use to communicate with the auditor or nil
@@ -335,13 +343,8 @@ func (a *registryAuditor) flushRegistry() error {
 
 // marshalRegistry marshals a regsistry
 func (a *registryAuditor) marshalRegistry(registry map[string]RegistryEntry) ([]byte, error) {
-	version := registryAPIVersion
-	fingerprintStrategy := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
-	if fingerprintStrategy == "checksum" {
-		version = registryAPIVersionFingerprint
-	}
 	r := JSONRegistry{
-		Version:  version,
+		Version:  registryAPIVersion,
 		Registry: registry,
 	}
 	return json.Marshal(r)
@@ -360,8 +363,6 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 	}
 	// ensure backward compatibility
 	switch int(version) {
-	case 3:
-		return unmarshalRegistryV3(b)
 	case 2:
 		return unmarshalRegistryV2(b)
 	case 1:
