@@ -206,13 +206,6 @@ func (d *Decoder) encodeValue(
 			return errors.New("passed data not long enough for pointer")
 		}
 		addr := binary.NativeEndian.Uint64(data)
-		if addr == 0 { // nil pointers are encoded as 0.
-			err := enc.WriteToken(jsontext.String("nil"))
-			if err != nil {
-				return err
-			}
-			return nil
-		}
 		key := typeAndAddr{
 			irType: uint32(v.Pointee.GetID()),
 			addr:   addr,
@@ -232,9 +225,6 @@ func (d *Decoder) encodeValue(
 		} else {
 			header = pointedValue.Header()
 			pointedData = pointedValue.Data()
-		}
-		if header.Address == 0 {
-			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", header.Address)))
 		}
 		err := enc.WriteToken(jsontext.BeginObject)
 		if err != nil {
