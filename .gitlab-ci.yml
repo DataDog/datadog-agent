@@ -1289,7 +1289,7 @@ test_api:
       mv "authanywhere-linux-${AAA}" /bin/authanywhere
       chmod +x /bin/authanywhere
 
-    - curl https://agent-ci-api.us1.staging.dog/internal/hello -w "%{http_code}\n" -H "$(authanywhere)" || true
+    - curl https://agent-ci-api.us1.staging.dog/internal/agent-ci-api/hello -w "%{http_code}\n" -H "$(authanywhere)" || true
     - echo
 
-    - curl https://agent-ci-api.us1.ddbuild.io/internal/hello -w "%{http_code}\n" -H "$(authanywhere)" || true
+    - curl https://agent-ci-api.us1.ddbuild.io/internal/agent-ci-api/hello -w "%{http_code}\n" -H "$(authanywhere)" || true
