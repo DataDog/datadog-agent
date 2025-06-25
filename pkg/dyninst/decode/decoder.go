@@ -217,12 +217,23 @@ func (d *Decoder) encodeValue(
 			irType: uint32(v.Pointee.GetID()),
 			addr:   addr,
 		}
+
+		var (
+			header         *output.DataItemHeader
+			pointedData    []byte
+			dontParseValue bool
+		)
 		pointedValue, ok := dataItems[key]
 		if !ok {
-			return errors.New("pointer not found in address pass map")
+			header = &output.DataItemHeader{
+				Address: key.addr,
+			}
+			dontParseValue = true
+		} else {
+			header = pointedValue.Header()
+			pointedData = pointedValue.Data()
 		}
-		header := pointedValue.Header()
-		if pointedValue.Header().Address == 0 {
+		if header.Address == 0 {
 			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", header.Address)))
 		}
 		err := enc.WriteToken(jsontext.BeginObject)
@@ -233,12 +244,12 @@ func (d *Decoder) encodeValue(
 		if err != nil {
 			return err
 		}
-		err = enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", header.Address)))
+		addrString := fmt.Sprintf("0x%x", header.Address)
+		err = enc.WriteToken(jsontext.String(addrString))
 		if err != nil {
 			return err
 		}
-
-		if _, ok := currentlyEncoding[key]; !ok {
+		if _, ok := currentlyEncoding[key]; !ok && !dontParseValue {
 			currentlyEncoding[key] = struct{}{}
 			defer delete(currentlyEncoding, key)
 
@@ -251,7 +262,7 @@ func (d *Decoder) encodeValue(
 				dataItems,
 				currentlyEncoding,
 				d.program.Types[ir.TypeID(header.Type)],
-				pointedValue.Data(),
+				pointedData,
 			)
 			if err != nil {
 				return fmt.Errorf("could not get pointed-at value: %s", err)

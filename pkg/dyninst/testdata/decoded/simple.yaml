@@ -1,3 +1,4 @@
+PointerChainArg: '{"captures":{"probe_id":"PointerChainArg","ptr":{"Address":"","Value":{"Address":"","Value":{"Address":"","Value":{"Address":""}}}}},"stack_frames":""}'
 bigMapArg: '{"captures":{"m":"unimplemented - map","probe_id":"bigMapArg"},"stack_frames":""}'
 inlined: '{"captures":{"probe_id":"inlined","x":0},"stack_frames":""}'
 intArg: '{"captures":{"probe_id":"intArg","x":81985529216486900},"stack_frames":""}'
