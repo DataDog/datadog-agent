@@ -548,7 +548,6 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "filesystem",
         "uid",
         "gid"
       ],
@@ -688,7 +687,6 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "filesystem",
         "uid",
         "gid"
       ],
