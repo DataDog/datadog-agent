@@ -33,11 +33,15 @@ type probeEvent struct {
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
-	program          *ir.Program
-	stackHashes      map[uint64][]uint64
-	probeEvents      map[ir.TypeID]probeEvent
-	procInfoResolver ProcessInfoResolver
-	snapshotMessage  *snapshotMessage
+	program         *ir.Program
+	stackHashes     map[uint64][]uint64
+	probeEvents     map[ir.TypeID]probeEvent
+	snapshotMessage snapshotMessage
+}
+
+type Event struct {
+	output.Event
+	ServiceName string
 }
 
 // ProcessInfoResolver is used to inject resolution of service info which is
@@ -56,10 +60,11 @@ type snapshotMessage struct {
 	Debugger debugger `json:"debugger"`
 }
 
-func (s *snapshotMessage) init(decoder *Decoder, event output.Event) {
+func (s *snapshotMessage) init(decoder *Decoder, event Event) {
+	s.Service = event.ServiceName
 	s.Debugger.Snapshot = snapshotData{
 		decoder: decoder,
-		event:   event,
+		event:   event.Event,
 	}
 }
 
@@ -88,15 +93,12 @@ func (sd *snapshotData) MarshalJSONTo(enc *jsontext.Encoder) error {
 // NewDecoder creates a new Decoder for the given program.
 func NewDecoder(
 	program *ir.Program,
-	processInfoResolver ProcessInfoResolver,
 ) (*Decoder, error) {
 	decoder := &Decoder{
-		program:          program,
-		stackHashes:      make(map[uint64][]uint64),
-		probeEvents:      make(map[ir.TypeID]probeEvent),
-		procInfoResolver: processInfoResolver,
-		snapshotMessage: &snapshotMessage{
-			Service:  processInfoResolver.Resolve(),
+		program:     program,
+		stackHashes: make(map[uint64][]uint64),
+		probeEvents: make(map[ir.TypeID]probeEvent),
+		snapshotMessage: snapshotMessage{
 			DDSource: "dd_debugger",
 			DDTags:   "",
 			Logger: logger{
@@ -123,7 +125,7 @@ type typeAndAddr struct {
 	addr   uint64
 }
 
-func (d *Decoder) Decode(event output.Event, out io.Writer) error {
+func (d *Decoder) Decode(event Event, out io.Writer) error {
 	d.snapshotMessage.init(d, event)
 	defer d.snapshotMessage.clear()
 	return json.MarshalWrite(out, &d.snapshotMessage)
