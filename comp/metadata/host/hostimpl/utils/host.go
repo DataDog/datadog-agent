@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -98,6 +99,7 @@ type Payload struct {
 	InstallMethod *InstallMethod    `json:"install-method"`
 	ProxyMeta     *ProxyMeta        `json:"proxy-info"`
 	OtlpMeta      *OtlpMeta         `json:"otlp"`
+	FipsMode      bool              `json:"fips_mode"`
 }
 
 func getNetworkMeta(ctx context.Context) *NetworkMeta {
@@ -161,6 +163,14 @@ func getProxyMeta(conf model.Reader) *ProxyMeta {
 	}
 }
 
+func getFipsMode() bool {
+	if val, err := fips.Enabled(); err == nil {
+		return val
+	} else {
+		return false
+	}
+}
+
 // GetOSVersion returns the current OS version
 func GetOSVersion() string {
 	hostInfo := GetInformation()
@@ -192,6 +202,7 @@ func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterfa
 		InstallMethod: getInstallMethod(conf),
 		ProxyMeta:     getProxyMeta(conf),
 		OtlpMeta:      &OtlpMeta{Enabled: otlpIsEnabled(conf)},
+		FipsMode:      getFipsMode(),
 	}
 
 	// Cache the metadata for use in other payloads
