@@ -1,7 +1,9 @@
 ---
 .windows_msi_base:
   stage: package_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["windows-v2:2019"]
+  variables:
+    VARIANT: 1809
   needs: ["go_mod_tidy_check", "go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
@@ -82,12 +84,13 @@ windows_zip_agent_binaries_x64-a6:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["windows-v2:2019"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 6
     OMNIBUS_TARGET: agent_binaries
+    VARIANT: 1809
   script:
     - $ErrorActionPreference = "Stop"
     - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
