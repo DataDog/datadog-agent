@@ -37,6 +37,7 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
+from tasks.libs.testing.result_json import ResultJson, merge_result_jsons
 from tasks.libs.types.arch import ALL_ARCHS, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
@@ -1870,7 +1871,6 @@ def print_failed_tests(_, output_dir):
     fail_count = 0
     for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
         test_platform = os.path.basename(os.path.dirname(testjson_tgz))
-        test_results = {}
 
         if os.path.isdir(testjson_tgz):
             # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
@@ -1879,32 +1879,14 @@ def print_failed_tests(_, output_dir):
         with tempfile.TemporaryDirectory() as unpack_dir:
             with tarfile.open(testjson_tgz) as tgz:
                 tgz.extractall(path=unpack_dir)
+            result_jsons = [ResultJson.from_file(file) for file in glob.glob(f"{unpack_dir}/*.json")]
 
-            for test_json in glob.glob(f"{unpack_dir}/*.json"):
-                with open(test_json) as tf:
-                    for line in tf:
-                        json_test = json.loads(line.strip())
-                        if 'Test' in json_test:
-                            name = json_test['Test']
-                            package = json_test['Package']
-                            action = json_test["Action"]
+        merged_test_json = merge_result_jsons(result_jsons)
+        failing_tests = merged_test_json.failing_tests
 
-                            if action == "pass" or action == "fail" or action == "skip":
-                                test_key = f"{package}.{name}"
-                                res = test_results.get(test_key)
-                                if res is None:
-                                    test_results[test_key] = action
-                                    continue
-
-                                if res == "fail":
-                                    print(f"re-ran [{test_platform}] {package} {name}: {action}")
-                                if (action == "pass" or action == "skip") and res == "fail":
-                                    test_results[test_key] = action
-
-        for key, res in test_results.items():
-            if res == "fail":
-                package, name = key.split(".", maxsplit=1)
-                print(color_message(f"FAIL: [{test_platform}] {package} {name}", "red"))
+        for package, tests in failing_tests.items():
+            for test_name in tests:
+                print(color_message(f"FAIL: [{test_platform}] {package} {test_name}", "red"))
                 fail_count += 1
 
     if fail_count > 0:
