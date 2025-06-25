@@ -15,7 +15,7 @@ jobs:
     if: github.event.schedule == '0 6 2 * * *'
     strategy:
       matrix:
-        value: ['datadog-agent', 'datadog-agent-buildimages', 'datadog-agent-macos-build', 'omnibus-ruby', 'agent-release-management']
+        value: ['datadog-agent', 'datadog-agent-buildimages', 'omnibus-ruby', 'agent-release-management']
       fail-fast: false
     environment:
       name: main
