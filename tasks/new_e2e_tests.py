@@ -149,11 +149,13 @@ def build_binaries(
                     pkg_result, success, message = future.result()
                     if success:
                         success_count += 1
-                        # Store the original package path and binary name
-                        binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
-                        built_packages.append((pkg_result, binary_name))
+
                     else:
                         failure_count += 1
+
+                    # Even if it failed to build, we still want to add it to the manifest, so that we know something is missing in the test execution
+                    binary_name = pkg.replace("/", "-").replace("\\", "-") + ".test"
+                    built_packages.append((pkg_result, binary_name))
 
                     # Print progress
                     with print_lock:
@@ -198,7 +200,8 @@ def build_binaries(
     print(f"Manifest created: {manifest_file_path}")
 
     if failure_count > 0:
-        print(f"Warning: {failure_count} packages failed to build")
+        print(f"Error: {failure_count} packages failed to build")
+        raise Exit(code=1)
 
 
 @task(

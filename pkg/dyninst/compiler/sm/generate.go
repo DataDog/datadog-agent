@@ -71,9 +71,9 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	throttlers := make([]Throttler, 0, len(program.Probes))
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
-			for _, injectionPC := range event.InjectionPCs {
+			for _, injectionPoint := range event.InjectionPoints {
 				err := g.addEventHandler(
-					injectionPC,
+					injectionPoint,
 					len(throttlers),
 					probe.PointerChasingLimit,
 					event.Type,
@@ -112,15 +112,16 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers.
 func (g *generator) addEventHandler(
-	injectionPC uint64,
+	injectionPoint ir.InjectionPoint,
 	throttlerIdx int,
 	pointerChasingLimit uint32,
 	rootType *ir.EventRootType,
 ) error {
 	id := ProcessEvent{
-		InjectionPC:         injectionPC,
+		InjectionPC:         injectionPoint.PC,
 		ThrottlerIdx:        throttlerIdx,
 		PointerChasingLimit: pointerChasingLimit,
+		Frameless:           injectionPoint.Frameless,
 		EventRootType:       rootType,
 	}
 	ops := make([]Op, 0, 2+len(rootType.Expressions))
@@ -128,7 +129,7 @@ func (g *generator) addEventHandler(
 		EventRootType: rootType,
 	})
 	for i := range rootType.Expressions {
-		exprFunctionID, err := g.addExpressionHandler(injectionPC, rootType, uint32(i))
+		exprFunctionID, err := g.addExpressionHandler(injectionPoint.PC, rootType, uint32(i))
 		if err != nil {
 			return err
 		}

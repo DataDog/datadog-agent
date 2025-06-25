@@ -87,9 +87,13 @@ func GenerateCCode(program sm.Program, out io.Writer) (attachpoints []BPFAttachP
 				PC:     f.InjectionPC,
 				Cookie: uint64(len(attachpoints)),
 			})
+			frameless := "false"
+			if f.Frameless {
+				frameless = "true"
+			}
 			mustFprintf(
-				out, "\t{.throttler_idx = %d, .stack_machine_pc = 0x%x, .pointer_chasing_limit = %d, .frameless = false},\n",
-				f.ThrottlerIdx, metadata.FunctionLoc[f], f.PointerChasingLimit,
+				out, "\t{.throttler_idx = %d, .stack_machine_pc = 0x%x, .pointer_chasing_limit = %d, .frameless = %s},\n",
+				f.ThrottlerIdx, metadata.FunctionLoc[f], f.PointerChasingLimit, frameless,
 			)
 		}
 	}

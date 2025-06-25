@@ -41,7 +41,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.33.0
 	golang.org/x/time v0.12.0
-	google.golang.org/grpc v1.72.2
+	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 	gopkg.in/ini.v1 v1.67.0
 	k8s.io/apimachinery v0.32.3
@@ -52,7 +52,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
 	github.com/shirou/gopsutil/v4 v4.25.5
 	go.opentelemetry.io/collector/component/componenttest v0.128.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250519155744-55703ea1f237
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822
 )
 
 require go.opentelemetry.io/collector/processor v1.34.0 // indirect
