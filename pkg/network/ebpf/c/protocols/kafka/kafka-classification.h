@@ -180,7 +180,7 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
     return true;
 }
 
-static __always_inline u16 get_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
+static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
     u8 bytes[2] = {};
 
     // Should be safe to assume that there is always more than one byte present,
@@ -189,27 +189,19 @@ static __always_inline u16 get_varint_number_of_topics(pktbuf_t pkt, u32 *offset
         return false;
     }
 
-    pktbuf_load_bytes_with_telemetry(pkt, *offset, bytes, sizeof(bytes));
+    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
 
     *offset += 1;
     if (isMSBSet(bytes[0])) {
         *offset += 1;
 
         if (isMSBSet(bytes[1])) {
-            // More than 16383 topics? return invalid
-            return -1;
+            // More than 16383 topics?
+            return false;
         }
     }
 
-    // Convert varint bytes to u16
-    return (u16)((bytes[1] >> 8) + bytes[0]);
-}
-
-static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
-    u16 topic_count = get_varint_number_of_topics(pkt, offset);
-
-    // More than 16383 topics?
-    return topic_count > 0 && topic_count < 16383;
+    return true;
 }
 
 // Skips a varint of up to `max_bytes` (4).  The `skip_varint_number_of_topics`

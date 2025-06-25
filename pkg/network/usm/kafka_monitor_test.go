@@ -520,7 +520,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 			},
 		},
 		{
-			name: "Many topics in a single fetch request",
+			name: "Many fetch requests",
 			context: testContext{
 				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
@@ -532,42 +532,47 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(version),
-						kgo.ClientID(""),
 					},
 				})
 				require.NoError(t, err)
 
 				// Create many topics
-				numOfTopics := 10
-				var topicNames []string
-				for i := 0; i < numOfTopics; i++ {
+				numOfRequests := 10
+				var topicNames []string // topics name per request
+				for i := 0; i < numOfRequests; i++ {
 					topicNames = append(topicNames, s.getTopicName())
 				}
 				ctx.clients = append(ctx.clients, client)
 				createdTopics, err := client.CreateTopics(topicNames...)
 				require.NoError(t, err)
-				require.Len(t, createdTopics, numOfTopics, "Expected %d created topics, got %d", numOfTopics, len(createdTopics))
+				require.Len(t, createdTopics, numOfRequests, "Expected %d created topics, got %d", numOfRequests, len(createdTopics))
 
-				req := kmsg.NewFetchRequest()
+				var reqs []kmsg.FetchRequest
 				for _, createdTopic := range createdTopics {
+					req := kmsg.NewFetchRequest()
 					require.NoError(t, createdTopic.Err, "Failed to create topic %s", createdTopic.Topic)
+
 					topic := kmsg.NewFetchRequestTopic()
 					topic.Topic = createdTopic.Topic
 					topic.TopicID = createdTopic.ID
-					partition := kmsg.NewFetchRequestTopicPartition()
+
+					partition := kmsg.NewFetchRequestTopicPartition() // TODO fill partition?
 					partition.PartitionMaxBytes = 1024 * 1024
-					// TODO fill partition?
 					topic.Partitions = append(topic.Partitions, partition)
-					req.Topics = append(req.Topics, topic)
+					req.Topics = []kmsg.FetchRequestTopic{topic}
+					reqs = append(reqs, req)
 				}
 
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 				defer cancel()
-				_, err = req.RequestWith(ctxTimeout, client.Client)
-				require.NoError(t, err)
 
-				getAndValidateKafkaStats(t, monitor, fixCount(1), kafkaParsingValidation{
-					expectedNumberOfFetchRequests: fixCount(1),
+				for _, req := range reqs {
+					_, err = req.RequestWith(ctxTimeout, client.Client)
+					require.NoError(t, err)
+				}
+
+				getAndValidateKafkaStats(t, monitor, fixCount(numOfRequests), kafkaParsingValidation{
+					expectedNumberOfFetchRequests: fixCount(numOfRequests),
 					tlsEnabled:                    tls,
 				}, kafkaSuccessErrorCode)
 			},
@@ -1085,7 +1090,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			numFetchedRecords: 1 * 1 * 25,
 		},
 		{
-			name:  "many topics",
+			name:  "many topics - should count all but parse only one",
 			topic: defaultTopic,
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				// Use a minimal record size in order to pack topics more
@@ -1773,11 +1778,13 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 				prevStats, ok := kafkaStats[key]
 				if ok && prevStats != nil {
 					prevStats.CombineWith(stats)
-				} else {
-					kafkaStats[key] = currentStats[key]
 				}
 			}
 		}
+		for kafkaKey, kafkaStat := range kafkaStats {
+			fmt.Println("kafkaKey:", kafkaKey, "kafkaStat:", kafkaStat)
+		}
+		fmt.Println("expectedStatsCount:", expectedStatsCount, "kafkaStats:", len(kafkaStats))
 		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
 		if expectedStatsCount != 0 {
 			validateProduceFetchCount(collect, kafkaStats, validation, errorCode)

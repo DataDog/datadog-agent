@@ -29,6 +29,7 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
             if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {  \
                 continue;                                                                                                                   \
             }                                                                                                                               \
+            log_debug("GUY 1: Invalid character '%c' in buffer", ch);                                                \
             return false;                                                                                                                   \
         }                                                                                                                                   \
     }                                                                                                                                       \
@@ -1036,9 +1037,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         case KAFKA_METADATA_RESPONSE_NUM_TOPICS:
             extra_debug("KAFKA_METADATA_RESPONSE_NUM_TOPICS");
 
-            __u8 test[5] = {0};
-            pktbuf_load_bytes(pkt, offset, test, sizeof(test));
-
             // Assume flexible=true because we don't support old versions
             ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_topics, first,
                                     VARINT_BYTES_NUM_TOPICS);
@@ -1167,7 +1165,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         extra_debug("record batches state: %d", response->state);
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
-                extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
+                log_debug("GUY KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
                 response->partition_error_code,
                 response->transaction.records_count);
             // If the next record batch has an error code that the ones we've
@@ -1423,7 +1421,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
             ret = kafka_continue_parse_response_partition_loop_produce(kafka, tup, response, pkt, offset, data_end, api_version);
         } else if (api_key == KAFKA_FETCH) {
             ret = kafka_continue_parse_response_partition_loop_fetch(kafka, tup, response, pkt, offset, data_end, api_version);
-            log_debug("GUY fetch response ret %d", ret);
+            log_debug("GUY fetch response ret %d, records_count %d", ret, response->transaction.records_count);
         } else if (api_key == KAFKA_METADATA) {
              ret = kafka_continue_parse_response_partition_loop_metadata(kafka, tup, response, pkt, offset, data_end, api_version);
              log_debug("GUY metadata response ret %d", ret);
@@ -1960,6 +1958,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         }
         flexible = kafka_header.api_version >= 12;
         topic_id_instead_of_name = kafka_header.api_version >= 13;
+        log_debug("GUY fetch request with topic_id_instead_of_name %d", topic_id_instead_of_name);
         break;
     case KAFKA_METADATA:
         // we only support v10+ but just to be safe
@@ -1976,8 +1975,8 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
 
     // Skipping number of entries for now
     if (flexible) {
-        if (get_varint_number_of_topics(pkt, &offset) > NUM_TOPICS_MAX) {
-            log_debug("GUY number of topics exceeds max %u", NUM_TOPICS_MAX);
+        if (!skip_varint_number_of_topics(pkt, &offset)) {
+            log_debug("GUY failed to skip varint number of topics");
             return false;
         }
     } else {
@@ -2032,6 +2031,10 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         } else {
             s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
             if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+                __u8 test[5] = {0};
+                pktbuf_load_bytes(pkt, offset - 5, test, sizeof(test));
+                log_debug("GUY topic name size %d is invalid, test1 %02x%02x", topic_name_size, test[0], test[1]);
+                log_debug("GUY cont test2 %02x%02x%02x", test[2], test[3], test[4]);
                 return false;
             }
 

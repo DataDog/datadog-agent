@@ -43,7 +43,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	fmt.Println("Processing Kafka transaction", tx.ConnTuple(), "API Key:", tx.APIKey(), "Version:", tx.APIVersion())
 	latency := tx.RequestLatency()
 	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
-	if tx.APIKey() != ProduceAPIKey && latency <= 0 {
+	if tx.APIKey() == FetchAPIKey && latency <= 0 {
 		statKeeper.telemetry.invalidLatency.Add(int64(tx.RecordsCount()))
 		return
 	}
@@ -74,6 +74,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		statKeeper.stats[key] = requestStats
 	}
 
+	fmt.Println("Adding request stats for", key, "with api key", tx.APIKey(), "and records count", tx.RecordsCount())
 	requestStats.AddRequest(int32(tx.ErrorCode()), int(tx.RecordsCount()), uint64(tx.Transaction.Tags), latency)
 }
 
