@@ -136,6 +136,7 @@ type AdvancedADIdentifier struct {
 type KubeNamespacedName struct {
 	Name      string `yaml:"name"`
 	Namespace string `yaml:"namespace"`
+	Resolve   string `yaml:"resolve,omitempty"` // Endpoint resolve mode: "auto" (default) or "ip"
 }
 
 // IsEmpty returns true if the KubeNamespacedName is empty

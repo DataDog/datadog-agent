@@ -216,3 +216,45 @@ func TestStoreGenerateConfigs(t *testing.T) {
 		})
 	}
 }
+
+func TestEndpointChecksFromTemplateWithResolveMode(t *testing.T) {
+	tpl := integration.Config{
+		Name: "http_check",
+		Instances: []integration.Data{
+			integration.Data(`{"name": "test", "url": "http://%%host%%"}`),
+		},
+	}
+
+	node1, node2 := "node1", "node2"
+	ep := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: "ep1", Namespace: "ns1"},
+		Subsets: []v1.EndpointSubset{
+			{
+				Addresses: []v1.EndpointAddress{
+					{IP: "10.0.0.1", NodeName: &node1, TargetRef: &v1.ObjectReference{UID: types.UID("pod-1"), Kind: "Pod"}},
+					{IP: "10.0.0.2", NodeName: &node2, TargetRef: &v1.ObjectReference{UID: types.UID("pod-2"), Kind: "Pod"}},
+				},
+			},
+		},
+	}
+
+	// Test with "auto" resolve mode - should include node and pod info
+	configsAuto := endpointChecksFromTemplate(tpl, ep, "auto")
+	assert.Len(t, configsAuto, 2)
+
+	// Check that auto mode sets NodeName (indicating ResolveEndpointConfigAuto was called)
+	assert.Equal(t, "node1", configsAuto[0].NodeName)
+	assert.Equal(t, "node2", configsAuto[1].NodeName)
+
+	// Test with "ip" resolve mode - should NOT include node and pod info
+	configsIP := endpointChecksFromTemplate(tpl, ep, "ip")
+	assert.Len(t, configsIP, 2)
+
+	// Check that ip mode does NOT set NodeName (indicating ResolveEndpointConfigAuto was NOT called)
+	assert.Equal(t, "", configsIP[0].NodeName)
+	assert.Equal(t, "", configsIP[1].NodeName)
+
+	// Both should have the same ServiceIDs though
+	assert.Equal(t, "kube_endpoint_uid://ns1/ep1/10.0.0.1", configsAuto[0].ServiceID)
+	assert.Equal(t, "kube_endpoint_uid://ns1/ep1/10.0.0.1", configsIP[0].ServiceID)
+}
