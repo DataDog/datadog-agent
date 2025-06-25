@@ -193,7 +193,7 @@ func computeFileFingerPrintByLines(fpFile *os.File, filePath string, fingerprint
 	return checksum
 }
 
-// ComputeFingerprintPrint computes the fingerprint for the given tailer and config settings
+// ComputeFingerPrint computes the fingerprint for the given tailer and config settings
 func (t *Tailer) ComputeFingerPrint(fingerprintConfig *logsconfig.FingerprintConfig) uint64 {
 	fpFile, err := os.Open(t.file.Path)
 	if err != nil {
