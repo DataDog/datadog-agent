@@ -5,7 +5,7 @@
     - !reference [.except_mergequeue]
     - when: on_success
   needs: ["go_deps", "go_tools_deps"]
-  tags: ["runner:windows-docker", "windowsversion:1809"]
+  tags: ["windows-v2:2019"]
   before_script:
     - $vcpkgBlobSaSUrl = (aws ssm get-parameter --region us-east-1 --name $VCPKG_BLOB_SAS_URL_SSM_NAME --with-decryption --query "Parameter.Value" --out text)
   script:
@@ -37,3 +37,4 @@ integration_tests_windows-x64:
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
+    VARIANT: 1809
