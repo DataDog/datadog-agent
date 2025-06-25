@@ -53,10 +53,9 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_container_context(entry, &event->container);
     fill_span_context(&event->span);
-    int size_to_sent = sizeof(struct sock_filter) * syscall->setsockopt.filter_len;
-    if (syscall->setsockopt.filter_len > MAX_BPF_FILTER_SIZE / sizeof(struct sock_filter)) {
-        size_to_sent = MAX_BPF_FILTER_SIZE;
-    }
+    int size_to_sent = (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE )
+        ? MAX_BPF_FILTER_SIZE
+        : syscall->setsockopt.filter_size_to_send;
     event->sent_size = size_to_sent;
     send_event_with_size_ptr(ctx, EVENT_SETSOCKOPT, event, (offsetof(struct setsockopt_event_t, bpf_filters_buffer) + size_to_sent));
     
@@ -134,30 +133,31 @@ int rethook_release_sock(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    
     struct sock_fprog prog;
     int ret = bpf_probe_read(&prog, sizeof(struct sock_fprog), syscall->setsockopt.fprog);
 
     if (ret < 0) {
         return 0;
     }
-    unsigned short prog_len = prog.len;
-    int prog_size = sizeof(struct sock_filter) * prog_len;
-    syscall->setsockopt.filter_len = prog_len;
+    syscall->setsockopt.filter_len = (unsigned short) prog.len;
+
+    syscall->setsockopt.filter_size_to_send = (unsigned short) (sizeof(struct sock_filter) * prog.len);
     int key = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event, &key);
-    if (prog_size > MAX_BPF_FILTER_SIZE) {
-        prog_size = MAX_BPF_FILTER_SIZE;
-        syscall->setsockopt.truncated = 1;
+
+    if (!event) {
+        return 0;
     }
-    else {
+    if (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE) {
+        bpf_probe_read(&event->bpf_filters_buffer, MAX_BPF_FILTER_SIZE, prog.filter); 
+        syscall->setsockopt.truncated = 1;
+        syscall->setsockopt.filter_size_to_send = MAX_BPF_FILTER_SIZE;
+    }
+    else if (syscall->setsockopt.filter_size_to_send >= sizeof(struct sock_filter)) {
+        bpf_probe_read(&event->bpf_filters_buffer, syscall->setsockopt.filter_size_to_send, prog.filter); 
         syscall->setsockopt.truncated = 0;
     }
 
-    if (event && 1 < prog_size ) { 
-        bpf_probe_read(&event->bpf_filters_buffer, prog_size & MAX_BPF_FILTER_SIZE , prog.filter); 
-    }
     return 0;
 }
-
 #endif
