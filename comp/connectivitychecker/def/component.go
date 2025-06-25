@@ -6,7 +6,7 @@
 // Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 package connectivitychecker
 
-// team: fleet-automation
+// team: fleet
 
 // Component is the component type.
 type Component interface {

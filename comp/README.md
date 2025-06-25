@@ -689,7 +689,7 @@ Package datadogclient provides a client to query the datadog API
 
 ### [comp/connectivitychecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/connectivitychecker)
 
-*Datadog Team*: fleet-automation
+*Datadog Team*: fleet
 
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
