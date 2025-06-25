@@ -8,5 +8,9 @@
 ---
 fixes:
   - |
-    Fixes the Oracle service name tag to be `service_name` instead of
+    Breaking change - Fixes the Oracle service name tag to be `service_name` instead of
     `service`. This corrects the conflict with the APM `service` tag.
+    This is a breaking change for any users who had been relying on
+    the `service` tag to be set to the Oracle service name. The `service`
+    tag can still be set explicitly in the tags configuration if needed.
+
