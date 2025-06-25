@@ -60,12 +60,16 @@ def build(
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
     build_tags = get_build_tags(build_include, build_exclude)
+    cover = ""
+    if os.getenv("E2E_COVERAGE_PIPELINE") == "true":
+        build_tags.append("e2ecoverage")
+        cover = "-cover"
 
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
     agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
-    cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" {cover} "
     cmd += f"-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/trace-agent"
 
     # go generate only works if you are in the module the target file is in, so we

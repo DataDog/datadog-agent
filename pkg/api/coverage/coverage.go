@@ -22,10 +22,10 @@ import (
 )
 
 func SetupCoverageHandler(r *mux.Router) {
-	r.HandleFunc("/coverage", componentCoverageHandler).Methods("GET")
+	r.HandleFunc("/coverage", ComponentCoverageHandler).Methods("GET")
 }
 
-func componentCoverageHandler(w http.ResponseWriter, _ *http.Request) {
+func ComponentCoverageHandler(w http.ResponseWriter, _ *http.Request) {
 	tempDir := path.Join(os.TempDir(), "coverage")
 	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
