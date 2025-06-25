@@ -55,7 +55,7 @@ type MapCleaner[K any, V any] struct {
 	aborts        telemetry.SimpleCounter
 	elapsed       telemetry.SimpleHistogram
 
-	cb func(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool)
+	cleanerFunc func(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool)
 }
 
 // NewMapCleaner instantiates a new MapCleaner. defaultBatchSize controls the
@@ -100,9 +100,9 @@ func NewMapCleaner[K any, V any](emap *ebpf.Map, defaultBatchSize uint32, name, 
 	// required to clean the map. We use the new batch operations if they are supported (we check with a feature test instead
 	// of a version comparison because some distros have backported this API), and fallback to
 	// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
-	cleaner.cb = cleaner.cleanWithoutBatches
+	cleaner.cleanerFunc = cleaner.cleanWithoutBatches
 	if useBatchAPI {
-		cleaner.cb = cleaner.cleanWithBatches
+		cleaner.cleanerFunc = cleaner.cleanWithBatches
 	}
 
 	return cleaner, nil
@@ -154,7 +154,7 @@ func (mc *MapCleaner[K, V]) Clean(preClean func() bool, postClean func(), should
 	if preClean != nil && !preClean() {
 		return
 	}
-	mc.cb(now, shouldClean)
+	mc.cleanerFunc(now, shouldClean)
 	// Allowing cleanup after the cleanup.
 	if postClean != nil {
 		postClean()
