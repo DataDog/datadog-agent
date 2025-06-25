@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Fixed the exporter serializer not setting the correct proxy variables when sending metric data.
