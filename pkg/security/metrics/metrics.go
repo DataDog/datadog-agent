@@ -584,7 +584,8 @@ var (
 	MetricRuntimeCgroupMemoryKmemLimitInBytes = newRuntimeMetric(".runtime_monitor.cgroup.memory.kmem_limit_in_bytes")
 
 	//BPFFilter metrics
-	//BPFFilterTruncated is the name of the metric used to report truncated BPF filter
+
+	//MetricBPFFilterTruncated is the name of the metric used to report truncated BPF filter
 	// Tags: -
 	MetricBPFFilterTruncated = newRuntimeMetric(".bpf_filter.truncated")
 )
