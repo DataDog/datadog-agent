@@ -1098,6 +1098,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
+	case model.DetachedMountEventType:
+		fmt.Printf("MNTP Detached Mount: %+v", data[offset:])
+
 	case model.FileMountEventType:
 		if _, err = event.Mount.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode mount event: %s (offset %d, len %d)", err, offset, dataLen)

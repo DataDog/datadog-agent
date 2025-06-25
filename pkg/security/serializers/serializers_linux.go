@@ -493,6 +493,8 @@ type MountEventSerializer struct {
 	MountRootPathResolutionError string `json:"mountpoint.path_error,omitempty"`
 	// Mount source path error
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
+	// Mount is not attached to the VFS tree
+	Detached bool `json:"detached,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -1089,9 +1091,6 @@ func newConnectEventSerializer(e *model.Event) *ConnectEventSerializer {
 func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 	fh := e.FieldHandlers
 
-	//src, srcErr := , e.Mount.MountPointPathResolutionError
-	//resolvers.PathResolver.ResolveMountRoot(e, &e.Mount.Mount)
-	//dst, dstErr := resolvers.PathResolver.ResolveMountPoint(e, &e.Mount.Mount)
 	mountPointPath := fh.ResolveMountPointPath(e, &e.Mount)
 	mountSourcePath := fh.ResolveMountSourcePath(e, &e.Mount)
 
