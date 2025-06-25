@@ -152,7 +152,7 @@ func checkPidExistsInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf.M
 		require.NoError(t, err)
 
 		assert.Eventually(t, func() bool {
-			return findKeyInMap(m, key)
+			return findKeyInMap[uint64, any](m, key)
 		}, 1*time.Second, 100*time.Millisecond)
 		if t.Failed() {
 			t.Logf("pid '%d' not found in the map %q", pid, mapInfo.Name)
@@ -172,7 +172,7 @@ func checkPidNotFoundInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf
 		mapInfo, err := m.Info()
 		require.NoError(t, err)
 
-		if findKeyInMap(m, key) == true {
+		if findKeyInMap[uint64, any](m, key) {
 			t.Logf("pid '%d' was found in the map %q", pid, mapInfo.Name)
 			ebpftest.DumpMapsTestHelper(t, manager.DumpMaps, mapInfo.Name)
 			t.FailNow()
@@ -180,10 +180,10 @@ func checkPidNotFoundInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf
 	}
 }
 
-// findKeyInMap returns true if 'theKey' was found in the map, otherwise returns false.
-func findKeyInMap(m *ebpf.Map, theKey uint64) bool {
-	var key uint64
-	value := make([]byte, m.ValueSize())
+// findKeyInMap is a generic helper to find a key in an eBPF map.
+func findKeyInMap[K comparable, V any](m *ebpf.Map, theKey K) bool {
+	var key K
+	var value V
 	iter := m.Iterate()
 
 	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
@@ -342,4 +342,73 @@ func countMapEntries(t *testing.T, m *ebpf.Map) int {
 		t.Logf("Error iterating map %s: %v", mapName, err)
 	}
 	return count
+}
+
+// TestDeleteDeadPidsInSSLCtxMap verifies that the user-space cleanup mechanism for SSL maps
+// correctly removes entries belonging to dead PIDs while preserving entries for alive PIDs.
+func TestDeleteDeadPidsInSSLCtxMap(t *testing.T) {
+	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
+		t.Skip("TLS not supported for this setup")
+	}
+
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableNativeTLSMonitoring = true
+	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	manager := usmMonitor.ebpfProgram.Manager.Manager
+
+	sslCtxByPIDTGIDMap, _, err := manager.GetMap(sslCtxByPIDTGIDMap)
+	require.NoError(t, err)
+	sslSockByCtxMap, _, err := manager.GetMap(sslSockByCtxMap)
+	require.NoError(t, err)
+	sslCtxByTupleMap, _, err := manager.GetMap(sslCtxByTupleMap)
+	require.NoError(t, err)
+
+	const (
+		deadPID  = 1234
+		alivePID = 5678
+	)
+	var (
+		deadSSLContext  uintptr = 0xDEADBEEF
+		aliveSSLContext uintptr = 0xCAFEBABE
+	)
+
+	deadPIDKey := uint64(deadPID<<32 | deadPID)
+	alivePIDKey := uint64(alivePID<<32 | alivePID)
+	deadTuple := http.ConnTuple{Saddr_l: 1, Daddr_l: 2}
+	aliveTuple := http.ConnTuple{Saddr_l: 3, Daddr_l: 4}
+	deadFakeSock := http.SslSock{Tup: deadTuple}
+	aliveFakeSock := http.SslSock{Tup: aliveTuple}
+
+	// Insert entries for the dead PID
+	require.NoError(t, sslCtxByPIDTGIDMap.Put(unsafe.Pointer(&deadPIDKey), unsafe.Pointer(&deadSSLContext)))
+	require.NoError(t, sslSockByCtxMap.Put(unsafe.Pointer(&deadSSLContext), unsafe.Pointer(&deadFakeSock)))
+	require.NoError(t, sslCtxByTupleMap.Put(unsafe.Pointer(&deadTuple), unsafe.Pointer(&deadSSLContext)))
+
+	// Insert entries for the alive PID
+	require.NoError(t, sslCtxByPIDTGIDMap.Put(unsafe.Pointer(&alivePIDKey), unsafe.Pointer(&aliveSSLContext)))
+	require.NoError(t, sslSockByCtxMap.Put(unsafe.Pointer(&aliveSSLContext), unsafe.Pointer(&aliveFakeSock)))
+	require.NoError(t, sslCtxByTupleMap.Put(unsafe.Pointer(&aliveTuple), unsafe.Pointer(&aliveSSLContext)))
+
+	// Verify everything was inserted correctly before cleaning
+	assert.True(t, findKeyInMap[uint64, uintptr](sslCtxByPIDTGIDMap, deadPIDKey), "dead pid key should exist before cleanup")
+	assert.True(t, findKeyInMap[uint64, uintptr](sslCtxByPIDTGIDMap, alivePIDKey), "alive pid key should exist before cleanup")
+	assert.True(t, findKeyInMap[uintptr, http.SslSock](sslSockByCtxMap, deadSSLContext), "dead ssl_ctx should exist before cleanup")
+	assert.True(t, findKeyInMap[uintptr, http.SslSock](sslSockByCtxMap, aliveSSLContext), "alive ssl_ctx should exist before cleanup")
+	assert.True(t, findKeyInMap[http.ConnTuple, uintptr](sslCtxByTupleMap, deadTuple), "dead tuple should exist before cleanup")
+	assert.True(t, findKeyInMap[http.ConnTuple, uintptr](sslCtxByTupleMap, aliveTuple), "alive tuple should exist before cleanup")
+
+	alivePIDs := map[uint32]struct{}{
+		alivePID: {},
+	}
+
+	err = deleteDeadPidsInSSLCtxMap(manager, alivePIDs)
+	require.NoError(t, err)
+
+	// Assert that the dead entries are gone and the alive entries remain
+	assert.False(t, findKeyInMap[uint64, uintptr](sslCtxByPIDTGIDMap, deadPIDKey), "dead pid key should not exist after cleanup")
+	assert.True(t, findKeyInMap[uint64, uintptr](sslCtxByPIDTGIDMap, alivePIDKey), "alive pid key should still exist after cleanup")
+	assert.False(t, findKeyInMap[uintptr, http.SslSock](sslSockByCtxMap, deadSSLContext), "dead ssl_ctx should not exist after cleanup")
+	assert.True(t, findKeyInMap[uintptr, http.SslSock](sslSockByCtxMap, aliveSSLContext), "alive ssl_ctx should still exist after cleanup")
+	assert.False(t, findKeyInMap[http.ConnTuple, uintptr](sslCtxByTupleMap, deadTuple), "dead tuple should not exist after cleanup")
+	assert.True(t, findKeyInMap[http.ConnTuple, uintptr](sslCtxByTupleMap, aliveTuple), "alive tuple should still exist after cleanup")
 }

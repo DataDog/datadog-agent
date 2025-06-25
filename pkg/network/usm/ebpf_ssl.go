@@ -684,7 +684,6 @@ func (o *sslProgram) cleanupDeadPids(alivePIDs map[uint32]struct{}) {
 			log.Debugf("SSL map %q cleanup error: %v", mapName, err)
 		}
 	}
-
 	if err := deleteDeadPidsInSSLCtxMap(o.ebpfManager, alivePIDs); err != nil {
 		log.Debugf("SSL map %q cleanup error: %v", sslCtxByPIDTGIDMap, err)
 	}
@@ -722,31 +721,49 @@ func deleteDeadPidsInSSLCtxMap(manager *manager.Manager, alivePIDs map[uint32]st
 	if err != nil {
 		return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslCtxByPIDTGIDMap, err)
 	}
-
 	sslSockByCtxMapObj, _, err := manager.GetMap(sslSockByCtxMap)
 	if err != nil {
 		return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslSockByCtxMap, err)
 	}
+	sslCtxByTupleMapObj, _, err := manager.GetMap(sslCtxByTupleMap)
+	if err != nil {
+		return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslCtxByTupleMap, err)
+	}
 
-	//sslCtxByTupleMapObj, _, err := manager.GetMap(sslCtxByTupleMap)
-	//if err != nil {
-	//	return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslCtxByTupleMap, err)
-	//}
+	var pidKeysToDelete []uint64
+	var sockKeysToDelete []uintptr
+	var tupleKeysToDelete []http.ConnTuple
 
-	var keysToDelete []uint64
 	var key uint64
-	value := make([]byte, sslCtxByPIDTGIDMapObj.ValueSize())
+	var value uintptr
 	iter := sslCtxByPIDTGIDMapObj.Iterate()
 
 	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 		pid := uint32(key >> 32)
 		if _, exists := alivePIDs[pid]; !exists {
-			_ = sslSockByCtxMapObj.Delete(unsafe.Pointer(&value))
-			keysToDelete = append(keysToDelete, key)
+			pidKeysToDelete = append(pidKeysToDelete, key)
+
+			sslCtxKey := value
+			sockKeysToDelete = append(sockKeysToDelete, sslCtxKey)
+
+			var sock http.SslSock
+			if err := sslSockByCtxMapObj.Lookup(unsafe.Pointer(&sslCtxKey), unsafe.Pointer(&sock)); err == nil {
+				tupleKeysToDelete = append(tupleKeysToDelete, sock.Tup)
+			}
 		}
 	}
-	for _, k := range keysToDelete {
-		_ = sslCtxByPIDTGIDMapObj.Delete(unsafe.Pointer(&k))
+
+	for _, k := range tupleKeysToDelete {
+		keyToDelete := k
+		_ = sslCtxByTupleMapObj.Delete(unsafe.Pointer(&keyToDelete))
+	}
+	for _, k := range sockKeysToDelete {
+		keyToDelete := k
+		_ = sslSockByCtxMapObj.Delete(unsafe.Pointer(&keyToDelete))
+	}
+	for _, k := range pidKeysToDelete {
+		keyToDelete := k
+		_ = sslCtxByPIDTGIDMapObj.Delete(unsafe.Pointer(&keyToDelete))
 	}
 
 	return nil
