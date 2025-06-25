@@ -48,8 +48,6 @@ class ResultJson:
 
     def __post_init__(self):
         self.lines.sort(key=lambda x: x.time)
-        # Create a dictionary that maps packages to their tests and actions
-        self._package_tests_dict = self._sort_into_packages_and_tests()
 
     @classmethod
     def from_file(cls, file: str) -> "ResultJson":
@@ -77,21 +75,28 @@ class ResultJson:
         return result
 
     @property
+    def package_tests_dict(self) -> dict[str, dict[str, list[ResultJsonLine]]]:
+        if not self._package_tests_dict:
+            self._package_tests_dict = self._sort_into_packages_and_tests()
+
+        return self._package_tests_dict
+
+    @property
     def packages(self) -> set[str]:
         """Returns a set of all packages in the result."""
-        return set(self._package_tests_dict.keys())
+        return set(self.package_tests_dict.keys())
 
     @cached_property
     def failing_packages(self) -> set[str]:
         """Returns a set of packages which have package-level failures."""
-        return {pkg for pkg, tests in self._package_tests_dict.items() if run_is_failing(tests.get("_", []))}
+        return {pkg for pkg, tests in self.package_tests_dict.items() if run_is_failing(tests.get("_", []))}
 
     @cached_property
     def failing_tests(self) -> dict[str, set[str]]:
         """Returns a dictionary of packages and their failing tests."""
         failing_tests: dict[str, set[str]] = defaultdict(set)
 
-        for package, tests in self._package_tests_dict.items():
+        for package, tests in self.package_tests_dict.items():
             for test_name, actions in tests.items():
                 if run_is_failing(actions):
                     failing_tests[package].add(test_name)
@@ -110,3 +115,18 @@ def run_is_failing(lines: list[ResultJsonLine]) -> bool:
             is_fail = False
             break
     return is_fail
+
+
+def merge_result_jsons(result_jsons: list[ResultJson]) -> ResultJson:
+    """Merges multiple ResultJson objects into one."""
+    merged_lines = []
+    merged_results_dict: dict[str, dict[str, list[ResultJsonLine]]] = defaultdict(lambda: defaultdict(list))
+    for result_json in result_jsons:
+        merged_lines.extend(result_json.lines)
+        for package, tests in result_json.package_tests_dict.items():
+            for test, actions in tests.items():
+                merged_results_dict[package][test].extend(actions)
+
+    result = ResultJson(merged_lines)
+    result._package_tests_dict = merged_results_dict  # pylint:disable=protected-access
+    return result
