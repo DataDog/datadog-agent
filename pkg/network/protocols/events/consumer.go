@@ -108,7 +108,7 @@ func NewConsumer[V any](proto string, ebpf *manager.Manager, callback func([]V))
 	// `kernel_dropped_events`.
 	failedFlushesCount := metricGroup.NewCounter("failed_flushes")
 
-	ringBuffer, success := ebpf.GetRingBuffer("http_batch_evens")
+	ringBuffer, success := ebpf.GetRingBuffer("http_batch_events")
 
 	if success {
 		ebpfTelemetry.ReportRingBufferChannelLenTelemetry(ringBuffer, func() int {
