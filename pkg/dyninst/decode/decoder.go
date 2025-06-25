@@ -8,7 +8,6 @@
 package decode
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -18,6 +17,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
 
@@ -33,11 +33,11 @@ type probeEvent struct {
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
-	program                *ir.Program
-	stackHashes            map[uint64][]uint64
-	probeEvents            map[ir.TypeID]probeEvent
-	procInfoResolver       ProcessInfoResolver
-	defaultSnapshotMessage *snapshotMessage
+	program          *ir.Program
+	stackHashes      map[uint64][]uint64
+	probeEvents      map[ir.TypeID]probeEvent
+	procInfoResolver ProcessInfoResolver
+	snapshotMessage  *snapshotMessage
 }
 
 // ProcessInfoResolver is used to inject resolution of service info which is
@@ -52,17 +52,37 @@ type snapshotMessage struct {
 	Service  string   `json:"service"`
 	DDSource string   `json:"ddsource"`
 	DDTags   string   `json:"ddtags"`
-	Logger   Logger   `json:"logger"`
-	Debugger Debugger `json:"debugger"`
+	Logger   logger   `json:"logger"`
+	Debugger debugger `json:"debugger"`
 }
 
-type Logger struct {
+func (s *snapshotMessage) init(decoder *Decoder, event output.Event) {
+	s.Debugger.Snapshot = snapshotData{
+		decoder: decoder,
+		event:   event,
+	}
+}
+
+func (s *snapshotMessage) clear() {
+	s.Debugger.Snapshot = snapshotData{}
+}
+
+type logger struct {
 	Name   string `json:"name"`
 	Method string `json:"method"`
 }
 
-type Debugger struct {
-	Snapshot []byte `json:"snapshot"`
+type debugger struct {
+	Snapshot snapshotData `json:"snapshot"`
+}
+
+type snapshotData struct {
+	decoder *Decoder
+	event   output.Event
+}
+
+func (sd *snapshotData) MarshalJSONTo(enc *jsontext.Encoder) error {
+	return sd.decoder.decodeEvent(sd.event, enc)
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -75,16 +95,13 @@ func NewDecoder(
 		stackHashes:      make(map[uint64][]uint64),
 		probeEvents:      make(map[ir.TypeID]probeEvent),
 		procInfoResolver: processInfoResolver,
-		defaultSnapshotMessage: &snapshotMessage{
+		snapshotMessage: &snapshotMessage{
 			Service:  processInfoResolver.Resolve(),
 			DDSource: "dd_debugger",
 			DDTags:   "",
-			Logger: Logger{
+			Logger: logger{
 				Name:   "",
 				Method: "",
-			},
-			Debugger: Debugger{
-				Snapshot: []byte{},
 			},
 		},
 	}
@@ -107,21 +124,9 @@ type typeAndAddr struct {
 }
 
 func (d *Decoder) Decode(event output.Event, out io.Writer) error {
-	b := []byte{}
-	buf := bytes.NewBuffer(b)
-	enc := jsontext.NewEncoder(buf)
-	err := d.decodeEvent(event, enc)
-	if err != nil {
-		return err
-	}
-	d.defaultSnapshotMessage.Debugger.Snapshot = buf.Bytes()
-
-	enc = jsontext.NewEncoder(out)
-	err = d.defaultSnapshotMessage.MarshalJSONTo(enc)
-	if err != nil {
-		return err
-	}
-	return nil
+	d.snapshotMessage.init(d, event)
+	defer d.snapshotMessage.clear()
+	return json.MarshalWrite(out, &d.snapshotMessage)
 }
 
 // decodeEvent decodes the given event into the given writer.
@@ -637,11 +642,12 @@ func (s *snapshotMessage) MarshalJSONTo(enc *jsontext.Encoder) error {
 	if err != nil {
 		return err
 	}
-	// Write the snapshot JSON bytes directly as a JSON value
-	err = enc.WriteValue(s.Debugger.Snapshot)
+	err = s.Debugger.Snapshot.MarshalJSONTo(enc)
 	if err != nil {
 		return err
 	}
+
+	// Write the snapshot JSON bytes directly as a JSON value
 	return writeTokens(enc,
 		jsontext.EndObject, // end debugger
 		jsontext.EndObject, // end top level object
