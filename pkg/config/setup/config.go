@@ -1085,6 +1085,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Shared library loader initialization
 	config.BindEnvAndSetDefault("shared_library_checks", true)
+	config.BindEnvAndSetDefault("shared_library_lazy_loading", true)
 }
 
 func agent(config pkgconfigmodel.Setup) {

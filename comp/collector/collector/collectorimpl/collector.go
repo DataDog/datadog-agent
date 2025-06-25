@@ -139,7 +139,9 @@ func newCollector(deps dependencies) *collectorImpl {
 		python.InitPython(common.GetPythonPaths()...)
 	}
 
-	sharedlibrary.InitSharedLibrary()
+	if !deps.Config.GetBool("shared_library_lazy_loading") {
+		sharedlibrary.InitSharedLibrary()
+	}
 
 	deps.Lc.Append(fx.Hook{
 		OnStart: c.start,

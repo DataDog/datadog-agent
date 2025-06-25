@@ -15,12 +15,16 @@ import "C"
 
 import (
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
+
+var sharedlibraryOnce sync.Once
 
 // SharedLibraryCheckLoaderName is the name of the Shared Library loader
 const SharedLibraryCheckLoaderName string = "sharedlibrary"
@@ -40,6 +44,10 @@ func (*SharedLibraryCheckLoader) Name() string {
 
 // Load returns a Shared Library check
 func (cl *SharedLibraryCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+	if pkgconfigsetup.Datadog().GetBool("shared_library_lazy_loading") {
+		sharedlibraryOnce.Do(InitSharedLibrary)
+	}
+
 	var cErr *C.char
 
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path

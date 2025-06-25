@@ -31,26 +31,21 @@ var (
 // add the shared library loader to the scheduler
 // the loader needs to be registered in this function otherwise it won't be listed when we load a check using the CLI
 func init() {
-	factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
-		loader, err := NewSharedLibraryCheckLoader()
-		priority := 40
-		return loader, priority, err
-	}
-
-	loaders.RegisterLoader(factory)
-}
-
-// useless for now, will be used later
-func initLoaderConfig() {
-	// get rtloader shared library object pointer
-	//rtloader = C.init_shared_library() // can't implement this now, see api.cpp to understand why
-}
-
-// initSharedLibrary initializes the shared library loader if enabled
-func InitSharedLibrary() {
 	if pkgconfigsetup.Datadog().GetBool("shared_library_checks") {
-		initLoaderConfig()
+		factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
+			loader, err := NewSharedLibraryCheckLoader()
+			priority := 40
+			return loader, priority, err
+		}
+
+		loaders.RegisterLoader(factory)
 	} else {
 		log.Warn("Shared Library checks are disabled.")
 	}
+}
+
+// InitSharedLibrary initializes the shared library rtloader environment.
+func InitSharedLibrary() {
+	// get rtloader shared library object pointer
+	//rtloader = C.init_shared_library() // can't implement this now, see api.cpp to understand why
 }

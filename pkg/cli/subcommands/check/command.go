@@ -70,6 +70,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -281,6 +282,9 @@ func run(
 	check.InitializeInventoryChecksContext(invChecks)
 	if !config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
+	}
+	if !config.GetBool("shared_library_lazy_loading") {
+		sharedlibrary.InitSharedLibrary()
 	}
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
