@@ -1295,3 +1295,9 @@ test_api:
 
     - |
       curl https://agent-ci-api.us1.ddbuild.io/internal/agent-ci-api/hello -w "%{http_code}\n" -H "$(authanywhere)" -H "X-DdOrigin: ${CI_JOB_URL:-curl-authanywhere}" || true
+
+    - |
+      python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"
+      dda self dep sync -f legacy-tasks
+    - dda inv -e api hello --env staging || true
+    - dda inv -e api hello --env prod || true
