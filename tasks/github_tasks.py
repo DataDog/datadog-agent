@@ -44,8 +44,6 @@ def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-i
         github_action_ref=args_per_repo[repo]["github_action_ref"],
         new_version=new_version,
     )
-    # We are only waiting 0.5min between each status check because
-    # ci-platform-machine-images are much faster than macOS builds
     full_repo = f"DataDog/{repo}"
     workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
 
