@@ -138,7 +138,7 @@ func (mc *MapCleaner[K, V]) Start(interval time.Duration, preClean func() bool, 
 	})
 }
 
-// CleanOnDemand eBPF map on demand.
+// Clean eBPF map on demand.
 // `interval` determines how often the eBPF map is scanned;
 // `shouldClean` is a predicate method that determines whether a certain
 // map entry should be deleted. the callback argument `nowTS` can be directly
@@ -146,7 +146,7 @@ func (mc *MapCleaner[K, V]) Start(interval time.Duration, preClean func() bool, 
 // `preClean` callback (optional, can pass nil) is invoked before the map is scanned; if it returns false,
 // the map is not scanned; this can be used to synchronize with other maps, or preform preliminary checks.
 // `postClean` callback (optional, can pass nil) is invoked after the map is scanned, to allow resource cleanup.
-func (mc *MapCleaner[K, V]) CleanOnDemand(preClean func() bool, postClean func(), shouldClean func(nowTS int64, k K, v V) bool) {
+func (mc *MapCleaner[K, V]) Clean(preClean func() bool, postClean func(), shouldClean func(nowTS int64, k K, v V) bool) {
 	now, err := NowNanoseconds()
 	if err != nil {
 		return
