@@ -139,7 +139,6 @@ func (mc *MapCleaner[K, V]) Start(interval time.Duration, preClean func() bool, 
 }
 
 // Clean eBPF map on demand.
-// `interval` determines how often the eBPF map is scanned;
 // `shouldClean` is a predicate method that determines whether a certain
 // map entry should be deleted. the callback argument `nowTS` can be directly
 // compared to timestamps generated using the `bpf_ktime_get_ns()` helper;
