@@ -147,6 +147,8 @@ func (c *NetworkCheck) Run() error {
 		}
 	}
 
+	submitInterfaceSysMetrics(sender)
+
 	for _, interfaceIO := range ioByInterface {
 		if !c.isDeviceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
@@ -185,6 +187,46 @@ func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
 		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)
 	}
 	return false
+}
+
+func submitInterfaceSysMetrics(sender sender.Sender) {
+	sysNetLocation := "/sys/class/net"
+	sysNetMetrics := []string{"mtu", "tx_queue_len", "up"}
+	ifaces, err := afero.ReadDir(filesystem, sysNetLocation)
+	if err != nil {
+		log.Debugf("Unable to list %s, skipping system iface metrics: %s.", sysNetLocation, err)
+		return
+	}
+	for _, iface := range ifaces {
+		ifaceTag := []string{fmt.Sprintf("iface:%s", iface)}
+		for _, metricName := range sysNetMetrics {
+			metricFileName := metricName
+			if metricName == "up" {
+				metricFileName = "carrier"
+			}
+			metricFilepath := filepath.Join(sysNetLocation, iface, metricFileName)
+			val, err := readIntFile(metricFilepath, filesystem)
+			if err != nil {
+				sender.Gauge(fmt.Sprintf("system.net.iface.%s", metricName), val, "", ifaceTag)
+			}
+		}
+		queuesFilepath := filepath.Join(sysNetLocation, iface, "queues")
+		queues, err := afero.ReadDir(filesystem, queuesFilepath)
+		if err != nil {
+			log.Debugf("Unable to list %s, skipping: %s.", queuesFilepath, err)
+		} else {
+			txQueueCount, rxQueueCount := 0, 0
+			for _, queue := range queues {
+				if strings.HasPrefix(queue, "tx-") {
+					txQueueCount += 1
+				} else if strings.HasPrefix(queue, "rx-") {
+					rxQueueCount += 1
+				}
+			}
+			sender.Gauge("system.net.iface.num_tx_queues", txQueueCount, "", ifaceTag)
+			sender.Gauge("system.net.iface.num_rx_queues", rxQueueCount, "", ifaceTag)
+		}
+	}
 }
 
 func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat) {
