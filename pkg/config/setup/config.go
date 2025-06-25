@@ -313,6 +313,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
+	// If false, the core check will be skipped.
+	config.BindEnvAndSetDefault("disk_check.use_core_loader", false)
+	config.BindEnvAndSetDefault("network_check.use_core_loader", false)
+
+	// If true, then the go loader will be prioritized over the python loader.
+	config.BindEnvAndSetDefault("prioritize_go_check_loader", false)
+
 	// If true, then new version of disk v2 check will be used.
 	// Otherwise, the old version of disk check will be used (maintaining backward compatibility).
 	config.BindEnvAndSetDefault("use_diskv2_check", false)
@@ -341,6 +348,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
+	config.BindEnvAndSetDefault("secret_backend_type", "")
+	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
@@ -608,7 +617,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
 	// GPU
-	config.BindEnvAndSetDefault("collect_gpu_tags", false)
+	config.BindEnvAndSetDefault("collect_gpu_tags", true)
 	config.BindEnvAndSetDefault("nvml_lib_path", "")
 	config.BindEnvAndSetDefault("enable_nvml_detection", false)
 
@@ -814,6 +823,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mode", "remote_copy")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.remote_copy.mount_volume", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.remote_copy.directory", "/tmp")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.timeout", 2)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.provider", "")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.endpoint", "/agentsidecar")
@@ -825,6 +835,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_name", "agent")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.image_tag", "latest")
 	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.cluster_agent.enabled", "true")
+	config.BindEnvAndSetDefault("admission_controller.agent_sidecar.kubelet_api_logging.enabled", false)
+
 	config.BindEnvAndSetDefault("admission_controller.kubernetes_admission_events.enabled", false)
 
 	// Declare other keys that don't have a default/env var.
@@ -917,6 +929,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
+	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"})
+	config.ParseEnvAsStringSlice("otelcollector.converter.features", func(s string) []string {
+		// Support both comma and space separators
+		return strings.FieldsFunc(s, func(r rune) bool {
+			return r == ',' || r == ' '
+		})
+	})
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -1843,7 +1862,9 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 
 	if noProxy, found := lookupEnv("DD_PROXY_NO_PROXY"); found {
 		isSet = true
-		p.NoProxy = strings.Split(noProxy, " ") // space-separated list, consistent with viper
+		p.NoProxy = strings.FieldsFunc(noProxy, func(r rune) bool {
+			return r == ',' || r == ' '
+		}) // comma and space-separated list, consistent with viper and documentation
 	} else if noProxy, found := lookupEnvCaseInsensitive("NO_PROXY"); found {
 		isSet = true
 		p.NoProxy = strings.Split(noProxy, ",") // comma-separated list, consistent with other tools that use the NO_PROXY env var
@@ -1861,8 +1882,8 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
-		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceEnvVar)
-		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceEnvVar)
+		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceAgentRuntime)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -1871,7 +1892,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
+		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
 
@@ -2314,6 +2335,8 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
+		Type:                   config.GetString("secret_backend_type"),
+		Config:                 config.GetStringMap("secret_backend_config"),
 		Command:                config.GetString("secret_backend_command"),
 		Arguments:              config.GetStringSlice("secret_backend_arguments"),
 		Timeout:                config.GetInt("secret_backend_timeout"),
@@ -2326,7 +2349,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		AuditFileMaxSize:       config.GetInt("secret_audit_file_max_size"),
 	})
 
-	if config.GetString("secret_backend_command") != "" {
+	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
 		// locations we let viper determine the one to use before

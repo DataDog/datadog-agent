@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -942,6 +943,470 @@ func TestActionSetVariableInherited(t *testing.T) {
 	assert.True(t, set)
 }
 
+func stringPtr(input string) *string {
+	return &input
+}
+
+func fakeOpenEvent(path string, pid uint32, ancestor *model.ProcessCacheEntry) *model.Event {
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	event.ProcessCacheEntry = &model.ProcessCacheEntry{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				PIDContext: model.PIDContext{
+					Pid: pid,
+				},
+			},
+		},
+	}
+	if ancestor != nil {
+		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
+	}
+	event.ProcessCacheEntry.Retain()
+	event.SetFieldValue("open.file.path", path)
+	return event
+}
+
+func TestActionSetVariableInheritedFilter(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "first_execution_context",
+				Expression: `open.file.path == "/tmp/first" && ${process.correlation_key} == ""`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"first_${builtins.uuid4}"`,
+							Scope:        "process",
+							Inherited:    true,
+						},
+					},
+				},
+			},
+			{
+				ID:         "second_execution_context",
+				Expression: `open.file.path == "/tmp/second" && ${process.correlation_key} in ["", ~"first_*"]`,
+				Actions: []*ActionDefinition{
+					{
+						Filter: stringPtr(`${process.correlation_key} != ""`),
+						Set: &SetDefinition{
+							Name:         "parent_correlation_keys",
+							DefaultValue: "",
+							Expression:   "${process.correlation_key}",
+							Scope:        "process",
+							Append:       true,
+							Inherited:    true,
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"second_${builtins.uuid4}"`,
+							Scope:        "process",
+							Inherited:    true,
+						},
+					},
+				},
+			},
+			{
+				ID:         "third_execution_context",
+				Expression: `open.file.path == "/tmp/third" && ${process.correlation_key} in ["", ~"first_*", ~"second_*"]`,
+				Actions: []*ActionDefinition{
+					{
+						Filter: stringPtr(`${process.correlation_key} != ""`),
+						Set: &SetDefinition{
+							Name:         "parent_correlation_keys",
+							DefaultValue: "",
+							Expression:   "${process.correlation_key}",
+							Scope:        "process",
+							Append:       true,
+							Inherited:    true,
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"third_${builtins.uuid4}"`,
+							Scope:        "process",
+							Inherited:    true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := rs.evalOpts
+
+	// Fetch process.correlation_key variable
+	correlationKeySECLVariable := opts.VariableStore.Get("process.correlation_key")
+	assert.NotNil(t, correlationKeySECLVariable)
+	correlationKeyScopedVariable, ok := correlationKeySECLVariable.(eval.ScopedVariable)
+	assert.NotNil(t, correlationKeyScopedVariable)
+	assert.True(t, ok)
+
+	// Fetch process.parent_correlation_keys variable
+	parentCorrelationKeysSECLVariable := opts.VariableStore.Get("process.parent_correlation_keys")
+	assert.NotNil(t, parentCorrelationKeysSECLVariable)
+	parentCorrelationKeysScopedVariable, ok := parentCorrelationKeysSECLVariable.(eval.ScopedVariable)
+	assert.NotNil(t, parentCorrelationKeysScopedVariable)
+	assert.True(t, ok)
+
+	event := fakeOpenEvent("/tmp/first", 1, nil)
+	ctx := eval.NewContext(event)
+
+	// test correlation key initial value
+	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, "", correlationKeyValue)
+	assert.False(t, set)
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "first_"))
+	assert.True(t, set)
+
+	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx)
+	assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
+
+	correlationKeyFromFirstRule := correlationKeyValue.(string)
+
+	// trigger the first rule again, and make sure nothing changes
+	event2 := fakeOpenEvent("/tmp/first", 2, event.ProcessCacheEntry)
+	ctx = eval.NewContext(event2)
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
+	assert.True(t, set)
+
+	if rs.Evaluate(event2) {
+		t.Errorf("Didn't expected event to match rule")
+	}
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
+	assert.True(t, set)
+
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	assert.Equal(t, len(parentCorrelationKeysValue.([]string)), 0)
+
+	// jump to the third rule, check:
+	//  - that the correlation key is updated with the pattern from the third rule
+	//  - that the first correlation key is now in the "parent correlation keys" variable
+	event3 := fakeOpenEvent("/tmp/third", 3, event2.ProcessCacheEntry)
+	ctx = eval.NewContext(event3)
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromFirstRule)
+	assert.True(t, set)
+
+	if !rs.Evaluate(event3) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.True(t, strings.HasPrefix(correlationKeyValue.(string), "third_"))
+	assert.True(t, set)
+
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
+
+	correlationKeyFromThirdRule := correlationKeyValue.(string)
+
+	// trigger the second rule, make sure nothing changes
+	event4 := fakeOpenEvent("/tmp/second", 4, event3.ProcessCacheEntry)
+	ctx = eval.NewContext(event4)
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
+	assert.True(t, set)
+
+	if rs.Evaluate(event4) {
+		t.Errorf("Didn't expected event to match rule")
+	}
+
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, correlationKeyValue, correlationKeyFromThirdRule)
+	assert.True(t, set)
+
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx)
+	assert.True(t, len(parentCorrelationKeysValue.([]string)) == 1 && slices.Contains(parentCorrelationKeysValue.([]string), correlationKeyFromFirstRule))
+}
+
+func newFakeCGroupWrite(cgroupWritePID int, path string, pid uint32, ancestor *model.ProcessCacheEntry) *model.Event {
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.CgroupWriteEventType)
+	event.ProcessCacheEntry = &model.ProcessCacheEntry{
+		ProcessContext: model.ProcessContext{
+			Process: model.Process{
+				PIDContext: model.PIDContext{
+					Pid: pid,
+				},
+			},
+		},
+	}
+	event.ProcessCacheEntry.Retain()
+	if ancestor != nil {
+		event.ProcessCacheEntry.ProcessContext.Ancestor = ancestor
+	}
+	event.SetFieldValue("cgroup_write.pid", cgroupWritePID)
+	event.SetFieldValue("cgroup_write.file.path", path)
+	return event
+}
+
+func TestActionSetVariableScopeField(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "first_execution_context",
+				Expression: `cgroup_write.file.path == "/tmp/one" && ${process.correlation_key} == ""`,
+				Actions: []*ActionDefinition{
+					{
+						// This action should set the value or the correlation_key of the target process of the cgroup_write event
+						Filter: stringPtr(`${process.correlation_key} == ""`),
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"first"`,
+							Scope:        "process",
+							ScopeField:   "cgroup_write.pid",
+							Inherited:    true,
+						},
+					},
+					{
+						// This action should set the value or the correlation_key of the process doing the cgroup_write
+						Filter: stringPtr(`${process.correlation_key} == ""`),
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"cgroup_write_first"`,
+							Scope:        "process",
+							Inherited:    true,
+						},
+					},
+				},
+			},
+			{
+				ID:         "second_execution_context",
+				Expression: `cgroup_write.file.path == "/tmp/two" && ${process.correlation_key} == "cgroup_write_first"`,
+				Actions: []*ActionDefinition{
+					{
+						// This action should set the value or the correlation_key of the target process of the cgroup_write event
+						Filter: stringPtr(`${process.correlation_key} == "first"`),
+						Set: &SetDefinition{
+							Name:         "parent_correlation_keys",
+							DefaultValue: "",
+							ScopeField:   "cgroup_write.pid",
+							Expression:   "${process.correlation_key}",
+							Scope:        "process",
+							Append:       true,
+							Inherited:    true,
+						},
+					},
+					{
+						// This action should set the value or the correlation_key of the target process of the cgroup_write event
+						Filter: stringPtr(`${process.correlation_key} == "first"`),
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"second"`,
+							Scope:        "process",
+							ScopeField:   "cgroup_write.pid",
+							Inherited:    true,
+						},
+					},
+					{
+						// This action should set the value or the correlation_key of the target process of the cgroup_write event
+						Filter: stringPtr(`${process.correlation_key} == "cgroup_write_first"`),
+						Set: &SetDefinition{
+							Name:         "parent_correlation_keys",
+							DefaultValue: "",
+							Expression:   "${process.correlation_key}",
+							Scope:        "process",
+							Append:       true,
+							Inherited:    true,
+						},
+					},
+					{
+						// This action should set the value or the correlation_key of the process doing the cgroup_write
+						Filter: stringPtr(`${process.correlation_key} == "cgroup_write_first"`),
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"cgroup_write_second"`,
+							Scope:        "process",
+							Inherited:    true,
+						},
+					},
+				},
+			},
+			{
+				ID:         "third_execution_context",
+				Expression: `open.file.path == "/tmp/third" && ${process.correlation_key} == "second"`,
+				Actions: []*ActionDefinition{
+					{
+						// This action should set the value or the correlation_key of the target process of the cgroup_write event
+						Filter: stringPtr(`${process.correlation_key} == "second"`),
+						Set: &SetDefinition{
+							Name:         "parent_correlation_keys",
+							DefaultValue: "",
+							Expression:   "${process.correlation_key}",
+							Scope:        "process",
+							Append:       true,
+							Inherited:    true,
+						},
+					},
+					{
+						Set: &SetDefinition{
+							Name:         "correlation_key",
+							DefaultValue: "",
+							Expression:   `"third"`,
+							Scope:        "process",
+							Inherited:    true,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := rs.evalOpts
+
+	// Fetch process.correlation_key variable
+	correlationKeySECLVariable := opts.VariableStore.Get("process.correlation_key")
+	assert.NotNil(t, correlationKeySECLVariable)
+	correlationKeyScopedVariable, ok := correlationKeySECLVariable.(eval.ScopedVariable)
+	assert.NotNil(t, correlationKeyScopedVariable)
+	assert.True(t, ok)
+
+	// Fetch process.parent_correlation_keys variable
+	parentCorrelationKeysSECLVariable := opts.VariableStore.Get("process.parent_correlation_keys")
+	assert.NotNil(t, parentCorrelationKeysSECLVariable)
+	parentCorrelationKeysScopedVariable, ok := parentCorrelationKeysSECLVariable.(eval.ScopedVariable)
+	assert.NotNil(t, parentCorrelationKeysScopedVariable)
+	assert.True(t, ok)
+
+	// create cgroup_write event
+	event1 := newFakeCGroupWrite(2, "/tmp/one", 1, nil)
+	event2 := newFakeCGroupWrite(2, "/tmp/two", 1, nil)
+	eventPID2 := newFakeCGroupWrite(0, "", 2, nil)
+	event3 := fakeOpenEvent("/tmp/third", 3, eventPID2.ProcessCacheEntry)
+	ctx1 := eval.NewContext(event1)
+	ctx3 := eval.NewContext(event3)
+
+	if !rs.Evaluate(event1) {
+		t.Errorf("Expected event1 to match a rule")
+	}
+
+	// check the correlation_key of the current process
+	correlationKeyValue, set := correlationKeyScopedVariable.GetValue(ctx1)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, "cgroup_write_first", correlationKeyValue.(string))
+	assert.True(t, set)
+
+	// check the correlation key of the PID from the cgroup_write
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, "first", correlationKeyValue.(string))
+	assert.True(t, set)
+
+	if !rs.Evaluate(event2) {
+		t.Errorf("Expected event2 to match a rule")
+	}
+
+	// check the correlation_key of the current process
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
+	assert.True(t, set)
+
+	// check the parent_correlation_keys of the current process
+	parentCorrelationKeysValue, _ := parentCorrelationKeysScopedVariable.GetValue(ctx1)
+	assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
+
+	// check the correlation key of the PID from the cgroup_write
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, "second", correlationKeyValue.(string))
+	assert.True(t, set)
+
+	// check the parent_correlation_keys of the PID from the cgroup_write
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3)
+	assert.Equal(t, []string{"first"}, parentCorrelationKeysValue.([]string))
+
+	if !rs.Evaluate(event3) {
+		t.Errorf("Expected event3 to match a rule")
+	}
+
+	// check the correlation_key of the current process
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx1)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, "cgroup_write_second", correlationKeyValue.(string))
+	assert.True(t, set)
+
+	// check the parent_correlation_keys of the current process
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx1)
+	assert.Equal(t, []string{"cgroup_write_first"}, parentCorrelationKeysValue.([]string))
+
+	// check the correlation key of the PID from the cgroup_write
+	correlationKeyValue, set = correlationKeyScopedVariable.GetValue(ctx3)
+	assert.NotNil(t, correlationKeyValue)
+	assert.Equal(t, "third", correlationKeyValue.(string))
+	assert.True(t, set)
+
+	// check the parent_correlation_keys of the PID from the cgroup_write
+	parentCorrelationKeysValue, _ = parentCorrelationKeysScopedVariable.GetValue(ctx3)
+	assert.ElementsMatch(t, []string{"first", "second"}, parentCorrelationKeysValue.([]string))
+}
+
 func TestActionSetVariableExpression(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{
@@ -1497,6 +1962,102 @@ func TestActionSetVariableInvalid(t *testing.T) {
 	})
 }
 
+func TestActionSetVariableLength(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{
+				{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Value: "foo",
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:         "var2",
+						Expression:   "${var1.length}",
+						DefaultValue: 0,
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "var3",
+						Append: true,
+						Value:  1,
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:   "var3",
+						Append: true,
+						Value:  2,
+					},
+				},
+				{
+					Set: &SetDefinition{
+						Name:         "var4",
+						Expression:   "${var3.length}",
+						DefaultValue: 0,
+					},
+				},
+			},
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.ContainerContext = &model.ContainerContext{
+		ContainerID: "0123456789abcdef",
+	}
+	event.ProcessCacheEntry = processCacheEntry
+	event.SetFieldValue("open.file.path", "/tmp/test")
+
+	if !rs.Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	opts := rs.evalOpts
+
+	existingVariable := opts.VariableStore.Get("var2")
+	assert.NotNil(t, existingVariable)
+	intArrayVar, ok := existingVariable.(eval.Variable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	intValue, _ := intArrayVar.GetValue()
+	assert.NotNil(t, intValue)
+	assert.Equal(t, 3, intValue)
+
+	existingVariable = opts.VariableStore.Get("var4")
+	assert.NotNil(t, existingVariable)
+	intArrayVar, ok = existingVariable.(eval.Variable)
+	assert.NotNil(t, intArrayVar)
+	assert.True(t, ok)
+	intValue, _ = intArrayVar.GetValue()
+	assert.NotNil(t, intValue)
+	assert.Equal(t, 2, intValue)
+}
+
 // go test -v github.com/DataDog/datadog-agent/pkg/security/secl/rules --run="TestLoadPolicy"
 func TestLoadPolicy(t *testing.T) {
 	type args struct {
@@ -1525,7 +2086,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)}.Error())
 			},
 		},
 		{
@@ -1541,7 +2102,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`EOF`)}.Error())
+				return assert.EqualError(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)}.Error())
 			},
 		},
 		{
@@ -1581,7 +2142,7 @@ broken
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
+				return assert.ErrorContains(t, err, ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)}.Error())
 			},
 		},
 		{

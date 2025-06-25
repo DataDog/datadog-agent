@@ -326,6 +326,9 @@ const (
 	MetricSourceLustre
 	MetricSourceProxmox
 	MetricSourceResilience4j
+	MetricSourceSupabase
+	MetricSourceKeda
+	MetricSourceDuckdb
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -983,6 +986,12 @@ func (ms MetricSource) String() string {
 		return "proxmox"
 	case MetricSourceResilience4j:
 		return "resilience4j"
+	case MetricSourceSupabase:
+		return "supabase"
+	case MetricSourceKeda:
+		return "keda"
+	case MetricSourceDuckdb:
+		return "duckdb"
 	case MetricSourceOpenTelemetryCollectorUnknown:
 		return "opentelemetry_collector_unknown"
 	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:

@@ -14,16 +14,18 @@
     # Caching setup
     - DOCKER_CACHE_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"
     - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_TARGET}"
+    - CACHE_TO=""
     - |
-      DOCKER_NO_CACHE_FILTER=""
+      DOCKER_NO_CACHE=""
       for target in ${NO_CACHE_TARGETS}; do
-        DOCKER_NO_CACHE_FILTER="${DOCKER_NO_CACHE_FILTER} --no-cache-filter ${target}"
+        DOCKER_NO_CACHE="${DOCKER_NO_CACHE_FILTER} --no-cache-filter ${target}"
       done
     # Don't use caching on nightlies, to allow for regular cache invalidation,
     # and update the cache on both main and nightly builds
     - |
       if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
-        CACHE_SOURCE="--no-cache"
+        DOCKER_NO_CACHE="--no-cache"
+        CACHE_SOURCE=""
         CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_TARGET},mode=max"
       fi
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
@@ -32,7 +34,8 @@
     # Don't use the cache on deploy pipelines to make sure we get the latest of everything
     - |
       if [[ "$DEPLOY_AGENT" == "true" ]]; then
-        CACHE_SOURCE="--no-cache"
+        DOCKER_NO_CACHE="--no-cache"
+        CACHE_SOURCE=""
       fi
     - AGENT_BASE_IMAGE_TAG=registry.ddbuild.io/ci/datadog-agent/agent-base-image${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-$ARCH
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
@@ -42,7 +45,7 @@
       docker buildx build --push --pull --platform linux/$ARCH \
         ${CACHE_SOURCE} \
         ${CACHE_TO} \
-        ${DOCKER_NO_CACHE_FILTER} \
+        ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
         --build-arg CIBUILD=true \
         --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
@@ -359,7 +362,7 @@ docker_build_cluster_agent_arm64:
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
-    - go tool nm ${ARTIFACTS_BUILD_CONTEXT}/datadog-cluster-agent | grep '_Cfunc__goboringcrypto_'
+    - go tool nm $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped | grep '_Cfunc__goboringcrypto_'
 
 docker_build_cluster_agent_fips_amd64:
   extends: [.docker_build_job_definition_amd64, .docker_build_cluster_agent_fips]

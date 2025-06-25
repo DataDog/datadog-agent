@@ -432,11 +432,6 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fallbackPolicy := &datadoghq.DatadogFallbackPolicy{
-				Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-					Enabled: true,
-				},
-			}
 			objective := datadoghqcommon.DatadogPodAutoscalerObjective{
 				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
 				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
@@ -447,7 +442,7 @@ func TestCalculateUtilizationPodResource(t *testing.T) {
 					},
 				},
 			}
-			recSettings, err := newResourceRecommenderSettings(fallbackPolicy, objective)
+			recSettings, err := newResourceRecommenderSettings(objective)
 			assert.NoError(t, err)
 			utilization, err := calculateUtilization(*recSettings, tt.pods, tt.queryResult, tt.currentTime)
 			if err != nil {
@@ -803,11 +798,6 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fallbackPolicy := &datadoghq.DatadogFallbackPolicy{
-			Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-				Enabled: true,
-			},
-		}
 		objective := datadoghqcommon.DatadogPodAutoscalerObjective{
 			Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
 			ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{
@@ -820,7 +810,7 @@ func TestCalculateUtilizationContainerResource(t *testing.T) {
 			},
 		}
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(fallbackPolicy, objective)
+			recSettings, err := newResourceRecommenderSettings(objective)
 			assert.NoError(t, err)
 			utilization, err := calculateUtilization(*recSettings, tt.pods, tt.queryResult, tt.currentTime)
 			if err != nil {
@@ -873,7 +863,7 @@ func TestCalculateReplicas(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(nil, datadoghqcommon.DatadogPodAutoscalerObjective{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
 				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
 				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",
@@ -1520,7 +1510,7 @@ func TestRecommend(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recSettings, err := newResourceRecommenderSettings(nil, datadoghqcommon.DatadogPodAutoscalerObjective{
+			recSettings, err := newResourceRecommenderSettings(datadoghqcommon.DatadogPodAutoscalerObjective{
 				Type: datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
 				PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{
 					Name: "cpu",

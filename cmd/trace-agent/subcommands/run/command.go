@@ -34,7 +34,6 @@ import (
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -93,11 +92,6 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		remoteTaggerfx.Module(tagger.RemoteParams{
 			RemoteTarget: func(c coreconfig.Component) (string, error) {
 				return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-			},
-			RemoteTokenFetcher: func(c coreconfig.Component) func() (string, error) {
-				return func() (string, error) {
-					return security.FetchAuthToken(c)
-				}
 			},
 			RemoteFilter: taggerTypes.NewMatchAllFilter(),
 		}),

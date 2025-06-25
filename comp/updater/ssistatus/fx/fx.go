@@ -23,12 +23,12 @@ func Module() fxutil.Module {
 		fxutil.ProvideOptional[ssistatus.Component](),
 
 		// ssistatus is a component with no public method, therefore nobody depends on it and FX only instantiates
-		// components when they're needed. Adding a dummy function that takes our Component as a parameter force
+		// components when they're needed. Adding a dummy function that takes our Component as a parameter forces
 		// the instantiation of ssistatus. This means that simply using 'ssistatusfx.Module()' will run our
 		// component (which is the expected behavior).
 		//
-		// This prevent silent corner case where including 'ssistatus' in the main function would not actually
-		// instantiate it. This also remove the need for every main using ssistatus to add the line bellow.
+		// This prevents silent corner case where including 'ssistatus' in the main function would not actually
+		// instantiate it. This also removes the need for every main using ssistatus to add the line below.
 		uberfx.Invoke(func(_ ssistatus.Component) {}),
 	)
 }

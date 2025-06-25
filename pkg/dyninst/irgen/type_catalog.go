@@ -147,7 +147,7 @@ func (c *typeCatalog) buildType(
 	switch entry.Tag {
 	case dwarf.TagArrayType:
 		var haveCount bool
-		var count int64
+		var count uint32
 		if !entry.Children {
 			return nil, fmt.Errorf("array type has no children")
 		}
@@ -164,12 +164,21 @@ func (c *typeCatalog) buildType(
 			}
 			switch child.Tag {
 			case dwarf.TagSubrangeType:
-				count, err = getAttr[int64](child, dwarf.AttrCount)
+				countInt64, err := getAttr[int64](child, dwarf.AttrCount)
 				if err != nil {
 					return nil, fmt.Errorf(
 						"failed to get count for subrange type: %w", err,
 					)
 				}
+				if countInt64 < 0 {
+					return nil, fmt.Errorf("count for subrange type is negative: %d", countInt64)
+				}
+				if countInt64 > math.MaxUint32 {
+					return nil, fmt.Errorf(
+						"count for subrange type is too large: %d", countInt64,
+					)
+				}
+				count = uint32(countInt64)
 				haveCount = true
 			case 0:
 				if haveCount {
@@ -192,7 +201,7 @@ func (c *typeCatalog) buildType(
 		return &ir.ArrayType{
 			TypeCommon:       common,
 			GoTypeAttributes: goAttrs,
-			Count:            int(count),
+			Count:            count,
 			HasCount:         true,
 			Element:          element,
 		}, nil

@@ -20,9 +20,9 @@ import (
 func NetworkNFNatSelectors() []manager.ProbesSelector {
 	return []manager.ProbesSelector{
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
-			kprobeOrFentry("nf_nat_manip_pkt"),
-			kprobeOrFentry("nf_nat_packet"),
-			kprobeOrFentry("nf_ct_delete"),
+			hookFunc("hook_nf_nat_manip_pkt"),
+			hookFunc("hook_nf_nat_packet"),
+			hookFunc("hook_nf_ct_delete"),
 		}},
 	}
 }
@@ -31,7 +31,7 @@ func NetworkNFNatSelectors() []manager.ProbesSelector {
 func NetworkVethSelectors() []manager.ProbesSelector {
 	return []manager.ProbesSelector{
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			kprobeOrFentry("rtnl_create_link"),
+			hookFunc("hook_rtnl_create_link"),
 		}},
 	}
 }
@@ -41,38 +41,38 @@ func NetworkSelectors() []manager.ProbesSelector {
 	return []manager.ProbesSelector{
 		// flow classification probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			kprobeOrFentry("accept"),
-			kprobeOrFentry("security_socket_bind"),
-			kprobeOrFentry("security_socket_connect"),
-			kprobeOrFentry("security_sk_classify_flow"),
-			kprobeOrFentry("inet_release"),
-			kprobeOrFentry("inet_csk_destroy_sock"),
-			kprobeOrFentry("sk_destruct"),
-			kprobeOrFentry("inet_put_port"),
-			kprobeOrFentry("inet_shutdown"),
-			kprobeOrFentry("inet_bind"),
-			kretprobeOrFexit("inet_bind"),
-			kprobeOrFentry("inet6_bind"),
-			kretprobeOrFexit("inet6_bind"),
-			kprobeOrFentry("sk_common_release"),
-			kprobeOrFentry("path_get"),
-			kprobeOrFentry("proc_fd_link"),
+			hookFunc("hook_accept"),
+			hookFunc("hook_security_socket_bind"),
+			hookFunc("hook_security_socket_connect"),
+			hookFunc("hook_security_sk_classify_flow"),
+			hookFunc("hook_inet_release"),
+			hookFunc("hook_inet_csk_destroy_sock"),
+			hookFunc("hook_sk_destruct"),
+			hookFunc("hook_inet_put_port"),
+			hookFunc("hook_inet_shutdown"),
+			hookFunc("hook_inet_bind"),
+			hookFunc("rethook_inet_bind"),
+			hookFunc("hook_inet6_bind"),
+			hookFunc("rethook_inet6_bind"),
+			hookFunc("hook_sk_common_release"),
+			hookFunc("hook_path_get"),
+			hookFunc("hook_proc_fd_link"),
 		}},
 
 		// network device probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
-			kprobeOrFentry("register_netdevice"),
-			kretprobeOrFexit("register_netdevice"),
+			hookFunc("hook_register_netdevice"),
+			hookFunc("rethook_register_netdevice"),
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("dev_change_net_namespace"),
-				kprobeOrFentry("__dev_change_net_namespace"),
+				hookFunc("hook_dev_change_net_namespace"),
+				hookFunc("hook___dev_change_net_namespace"),
 			}},
 		}},
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
-			kprobeOrFentry("dev_get_valid_name"),
-			kprobeOrFentry("dev_new_index"),
-			kretprobeOrFexit("dev_new_index"),
-			kprobeOrFentry("__dev_get_by_index"),
+			hookFunc("hook_dev_get_valid_name"),
+			hookFunc("hook_dev_new_index"),
+			hookFunc("rethook_dev_new_index"),
+			hookFunc("hook___dev_get_by_index"),
 		}},
 	}
 }
@@ -91,13 +91,13 @@ func SyscallMonitorSelectors() []manager.ProbesSelector {
 
 // SnapshotSelectors selectors required during the snapshot
 func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
-	procsOpen := kprobeOrFentry("cgroup_procs_open")
-	tasksOpen := kprobeOrFentry("cgroup_tasks_open")
+	procsOpen := hookFunc("hook_cgroup_procs_open")
+	tasksOpen := hookFunc("hook_cgroup_tasks_open")
 	return []manager.ProbesSelector{
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{procsOpen, tasksOpen}},
 
 		// required to stat /proc/.../exe
-		kprobeOrFentry("security_inode_getattr"),
+		hookFunc("hook_security_inode_getattr"),
 		&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "newfstatat", fentry, EntryAndExit)},
 	}
 }
@@ -110,44 +110,44 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			// Exec probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
-				kprobeOrFentry("do_exit"),
+				hookFunc("hook_do_exit"),
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
-					kprobeOrFentry("prepare_binprm"),
-					kprobeOrFentry("bprm_execve"),
-					kprobeOrFentry("security_bprm_check"),
+					hookFunc("hook_prepare_binprm"),
+					hookFunc("hook_bprm_execve"),
+					hookFunc("hook_security_bprm_check"),
 				}},
-				kprobeOrFentry("setup_new_exec_interp"),
+				hookFunc("hook_setup_new_exec_interp"),
 				// kernels < 4.17 will rely on the tracefs events interface to attach kprobes, which requires event names to be unique
 				// because the setup_new_exec_interp and setup_new_exec_args_envs probes are attached to the same function, we rely on using a secondary uid for that purpose
-				kprobeOrFentry("setup_new_exec_args_envs", withUID(SecurityAgentUID+"_a")),
-				kprobeOrFentry("setup_arg_pages"),
-				kprobeOrFentry("mprotect_fixup"),
-				kprobeOrFentry("exit_itimers"),
-				kprobeOrFentry("do_dentry_open"),
-				kprobeOrFentry("vfs_open"),
-				kprobeOrFentry("commit_creds"),
-				kprobeOrFentry("switch_task_namespaces"),
-				kprobeOrFentry("do_coredump"),
-				kprobeOrFentry("audit_set_loginuid"),
-				kretprobeOrFexit("audit_set_loginuid"),
+				hookFunc("hook_setup_new_exec_args_envs", withUID(SecurityAgentUID+"_a")),
+				hookFunc("hook_setup_arg_pages"),
+				hookFunc("hook_mprotect_fixup"),
+				hookFunc("hook_exit_itimers"),
+				hookFunc("hook_do_dentry_open"),
+				hookFunc("hook_vfs_open"),
+				hookFunc("hook_commit_creds"),
+				hookFunc("hook_switch_task_namespaces"),
+				hookFunc("hook_do_coredump"),
+				hookFunc("hook_audit_set_loginuid"),
+				hookFunc("rethook_audit_set_loginuid"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("cgroup_procs_write"),
-				kprobeOrFentry("cgroup1_procs_write"),
+				hookFunc("hook_cgroup_procs_write"),
+				hookFunc("hook_cgroup1_procs_write"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("cgroup_procs_open"),
+				hookFunc("hook_cgroup_procs_open"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("_do_fork"),
-				kprobeOrFentry("do_fork"),
-				kprobeOrFentry("kernel_clone"),
-				kprobeOrFentry("kernel_thread"),
-				kprobeOrFentry("user_mode_thread"),
+				hookFunc("hook__do_fork"),
+				hookFunc("hook_do_fork"),
+				hookFunc("hook_kernel_clone"),
+				hookFunc("hook_kernel_thread"),
+				hookFunc("hook_user_mode_thread"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("cgroup_tasks_write"),
-				kprobeOrFentry("cgroup1_tasks_write"),
+				hookFunc("hook_cgroup_tasks_write"),
+				hookFunc("hook_cgroup1_tasks_write"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execve", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execveat", fentry, EntryAndExit)},
@@ -170,14 +170,14 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "capset", fentry, EntryAndExit)},
 
 			// File Attributes
-			kprobeOrFentry("security_inode_setattr"),
+			hookFunc("hook_security_inode_setattr"),
 
 			// Open probes
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("security_path_truncate"),
-				kprobeOrFentry("security_file_truncate"),
-				kprobeOrFentry("vfs_truncate"),
-				kprobeOrFentry("do_truncate"),
+				hookFunc("hook_security_path_truncate"),
+				hookFunc("hook_security_file_truncate"),
+				hookFunc("hook_vfs_truncate"),
+				hookFunc("hook_do_truncate"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open", fentry, EntryAndExit, true)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "creat", fentry, EntryAndExit)},
@@ -187,100 +187,104 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "openat2", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "open_by_handle_at", fentry, EntryAndExit, true)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("io_openat"),
-				kprobeOrFentry("io_openat2"),
-				kretprobeOrFexit("io_openat2"),
+				hookFunc("hook_io_openat"),
+				hookFunc("hook_io_openat2"),
+				hookFunc("rethook_io_openat2"),
 			}},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("filp_close"),
+				hookFunc("hook_filp_close"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("terminate_walk"),
+				hookFunc("hook_terminate_walk"),
 			}},
 
 			// iouring
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "io_uring_create"}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					kprobeOrFentry("io_allocate_scq_urings"),
-					kprobeOrFentry("io_sq_offload_start"),
-					kretprobeOrFexit("io_ring_ctx_alloc"),
+					hookFunc("hook_io_allocate_scq_urings"),
+					hookFunc("hook_io_sq_offload_start"),
+					hookFunc("rethook_io_ring_ctx_alloc"),
 				}},
 			}},
 
 			// Mount probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("attach_recursive_mnt"),
-				kprobeOrFentry("propagate_mnt"),
-				kprobeOrFentry("security_sb_umount"),
-				kprobeOrFentry("clone_mnt"),
+				hookFunc("hook_attach_recursive_mnt"),
+				hookFunc("hook_propagate_mnt"),
+				hookFunc("hook_security_sb_umount"),
+				hookFunc("hook_clone_mnt"),
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("rethook_alloc_vfsmnt"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mount", fentry, EntryAndExit, true)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fsmount", fentry, EntryAndExit, false)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "umount", fentry, Exit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("attach_mnt"),
-				kprobeOrFentry("__attach_mnt"),
-				kprobeOrFentry("mnt_set_mountpoint"),
+				hookFunc("hook_attach_mnt"),
+				hookFunc("hook___attach_mnt"),
+				hookFunc("hook_mnt_set_mountpoint"),
 			}},
 
 			// Rename probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("vfs_rename"),
-				kprobeOrFentry("mnt_want_write"),
+				hookFunc("hook_vfs_rename"),
+				hookFunc("hook_mnt_want_write"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rename", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "renameat", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: append(
 				[]manager.ProbesSelector{
-					kprobeOrFentry("do_renameat2"),
-					kretprobeOrFexit("do_renameat2"),
+					hookFunc("hook_do_renameat2"),
+					hookFunc("rethook_do_renameat2"),
 				},
 				ExpandSyscallProbesSelector(SecurityAgentUID, "renameat2", fentry, EntryAndExit)...)},
 
 			// unlink rmdir probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("mnt_want_write"),
+				hookFunc("hook_mnt_want_write"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlinkat", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("do_unlinkat"),
-				kretprobeOrFexit("do_unlinkat"),
+				hookFunc("hook_do_unlinkat"),
+				hookFunc("rethook_do_unlinkat"),
 			}},
 
 			// Rmdir probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("security_inode_rmdir"),
+				hookFunc("hook_security_inode_rmdir"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "rmdir", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("do_rmdir"),
-				kretprobeOrFexit("do_rmdir"),
+				hookFunc("hook_do_rmdir"),
+				hookFunc("rethook_do_rmdir"),
 			}},
 
 			// Unlink probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("vfs_unlink"),
+				hookFunc("hook_vfs_unlink"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unlink", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("do_linkat"),
-				kretprobeOrFexit("do_linkat"),
+				hookFunc("hook_do_linkat"),
+				hookFunc("rethook_do_linkat"),
 			}},
 
 			// ioctl probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("do_vfs_ioctl"),
+				hookFunc("hook_do_vfs_ioctl"),
 			}},
 
 			// Link
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				// source dentry
-				kprobeOrFentry("complete_walk"),
+				hookFunc("hook_complete_walk"),
 				// target dentry
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					kretprobeOrFexit("filename_create"),
-					kretprobeOrFexit("__lookup_hash"),
+					hookFunc("rethook_filename_create"),
+					hookFunc("rethook___lookup_hash"),
 				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "link", fentry, EntryAndExit)},
@@ -289,16 +293,16 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			// selinux
 			// This needs to be best effort, as sel_write_disable is in the process of being removed
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("sel_write_disable"),
-				kprobeOrFentry("sel_write_enforce"),
-				kprobeOrFentry("sel_write_bool"),
-				kprobeOrFentry("sel_commit_bools_write"),
+				hookFunc("hook_sel_write_disable"),
+				hookFunc("hook_sel_write_enforce"),
+				hookFunc("hook_sel_write_bool"),
+				hookFunc("hook_sel_commit_bools_write"),
 			}}},
 
 		// List of probes required to capture chmod events
 		"chmod": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("mnt_want_write"),
+				hookFunc("hook_mnt_want_write"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chmod", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchmod", fentry, EntryAndExit)},
@@ -309,11 +313,11 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture chown events
 		"chown": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("mnt_want_write"),
+				hookFunc("hook_mnt_want_write"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("mnt_want_write_file"),
-				kprobeOrFentry("mnt_want_write_file_path"),
+				hookFunc("hook_mnt_want_write_file"),
+				hookFunc("hook_mnt_want_write_file_path"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chown", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chown16", fentry, EntryAndExit)},
@@ -327,28 +331,28 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture mkdir events
 		"mkdir": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("vfs_mkdir"),
+				hookFunc("hook_vfs_mkdir"),
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					kprobeOrFentry("filename_create"),
-					kprobeOrFentry("security_path_mkdir"),
+					hookFunc("hook_filename_create"),
+					hookFunc("hook_security_path_mkdir"),
 				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdir", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mkdirat", fentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("do_mkdirat"),
-				kretprobeOrFexit("do_mkdirat"),
+				hookFunc("hook_do_mkdirat"),
+				hookFunc("rethook_do_mkdirat"),
 			}}},
 
 		// List of probes required to capture removexattr events
 		"removexattr": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("vfs_removexattr"),
-				kprobeOrFentry("mnt_want_write"),
+				hookFunc("hook_vfs_removexattr"),
+				hookFunc("hook_mnt_want_write"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("mnt_want_write_file"),
-				kprobeOrFentry("mnt_want_write_file_path"),
+				hookFunc("hook_mnt_want_write_file"),
+				hookFunc("hook_mnt_want_write_file_path"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "removexattr", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fremovexattr", fentry, EntryAndExit)},
@@ -358,18 +362,18 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture setxattr events
 		"setxattr": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("vfs_setxattr"),
-				kprobeOrFentry("mnt_want_write"),
+				hookFunc("hook_vfs_setxattr"),
+				hookFunc("hook_mnt_want_write"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("io_fsetxattr"),
-				kretprobeOrFexit("io_fsetxattr"),
-				kprobeOrFentry("io_setxattr"),
-				kretprobeOrFexit("io_setxattr"),
+				hookFunc("hook_io_fsetxattr"),
+				hookFunc("rethook_io_fsetxattr"),
+				hookFunc("hook_io_setxattr"),
+				hookFunc("rethook_io_setxattr"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("mnt_want_write_file"),
-				kprobeOrFentry("mnt_want_write_file_path"),
+				hookFunc("hook_mnt_want_write_file"),
+				hookFunc("hook_mnt_want_write_file_path"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setxattr", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fsetxattr", fentry, EntryAndExit)},
@@ -379,7 +383,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture utimes events
 		"utimes": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("mnt_want_write"),
+				hookFunc("hook_mnt_want_write"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utime", fentry, EntryAndExit, true)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "utime32", fentry, EntryAndExit)},
@@ -394,9 +398,9 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture bpf events
 		"bpf": {
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("security_bpf_map"),
-				kprobeOrFentry("security_bpf_prog"),
-				kprobeOrFentry("check_helper_call"),
+				hookFunc("hook_security_bpf_map"),
+				hookFunc("hook_security_bpf_prog"),
+				hookFunc("hook_check_helper_call"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bpf", fentry, EntryAndExit)},
 		},
@@ -405,27 +409,27 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"ptrace": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "ptrace", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("ptrace_check_attach"),
-				kprobeOrFentry("arch_ptrace"),
+				hookFunc("hook_ptrace_check_attach"),
+				hookFunc("hook_arch_ptrace"),
 			}},
 		},
 
 		// List of probes required to capture mmap events
 		"mmap": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("vm_mmap_pgoff"),
-				kretprobeOrFexit("vm_mmap_pgoff"),
-				kprobeOrFentry("security_mmap_file"),
+				hookFunc("hook_vm_mmap_pgoff"),
+				hookFunc("rethook_vm_mmap_pgoff"),
+				hookFunc("hook_security_mmap_file"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("get_unmapped_area"),
+				hookFunc("hook_get_unmapped_area"),
 			}},
 		},
 
 		// List of probes required to capture mprotect events
 		"mprotect": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("security_file_mprotect"),
+				hookFunc("hook_security_file_mprotect"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mprotect", fentry, EntryAndExit)},
 		},
@@ -434,12 +438,12 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		"load_module": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					kprobeOrFentry("security_kernel_read_file"),
-					kprobeOrFentry("security_kernel_module_from_file"),
+					hookFunc("hook_security_kernel_read_file"),
+					hookFunc("hook_security_kernel_module_from_file"),
 				}},
 				&manager.OneOf{Selectors: []manager.ProbesSelector{
-					kprobeOrFentry("mod_sysfs_setup"),
-					kprobeOrFentry("module_param_sysfs_setup"),
+					hookFunc("hook_mod_sysfs_setup"),
+					hookFunc("hook_module_param_sysfs_setup"),
 				}},
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "init_module", fentry, EntryAndExit)},
@@ -454,45 +458,50 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture signal events
 		"signal": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kretprobeOrFexit("check_kill_permission"),
-				kprobeOrFentry("check_kill_permission"),
+				hookFunc("rethook_check_kill_permission"),
+				hookFunc("hook_check_kill_permission"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "kill", fentry, Entry)},
+		},
+
+		// List of probes required to capture setsockopt events
+		"setsockopt": {
+			&manager.AllOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setsockopt", fentry, EntryAndExit)},
 		},
 
 		// List of probes required to capture splice events
 		"splice": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "splice", fentry, EntryAndExit)},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("get_pipe_info"),
-				kretprobeOrFexit("get_pipe_info"),
+				hookFunc("hook_get_pipe_info"),
+				hookFunc("rethook_get_pipe_info"),
 			}}},
 
 		// List of probes required to capture accept events
 		"accept": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("accept"),
+				hookFunc("hook_accept"),
 			}},
 		},
 		// List of probes required to capture bind events
 		"bind": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("security_socket_bind"),
+				hookFunc("hook_security_socket_bind"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("io_bind"),
-				kretprobeOrFexit("io_bind"),
+				hookFunc("hook_io_bind"),
+				hookFunc("rethook_io_bind"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "bind", fentry, EntryAndExit)},
 		},
 		// List of probes required to capture connect events
 		"connect": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("security_socket_connect"),
+				hookFunc("hook_security_socket_connect"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("io_connect"),
-				kretprobeOrFexit("io_connect"),
+				hookFunc("hook_io_connect"),
+				hookFunc("rethook_io_connect"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", fentry, EntryAndExit)},
 		},
@@ -500,7 +509,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture chdir events
 		"chdir": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				kprobeOrFentry("set_fs_pwd"),
+				hookFunc("hook_set_fs_pwd"),
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chdir", fentry, EntryAndExit)},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchdir", fentry, EntryAndExit)},
@@ -525,10 +534,17 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 				&manager.ProbeSelector{
 					ProbeIdentificationPair: manager.ProbeIdentificationPair{
 						UID:          SecurityAgentUID,
-						EBPFFuncName: "cgroup_sysctl",
+						EBPFFuncName: SysCtlProbeFunctionName,
 					},
 				},
-				kprobeOrFentry("proc_sys_call_handler"),
+				hookFunc("hook_proc_sys_call_handler"),
+			}},
+		},
+		"setrlimit": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setrlimit", fentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prlimit64", fentry, EntryAndExit)},
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_security_task_setrlimit"),
 			}},
 		},
 	}

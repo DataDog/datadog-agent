@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	installertypes "github.com/DataDog/datadog-agent/pkg/fleet/installer/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -63,6 +63,7 @@ type Daemon interface {
 	Stop(ctx context.Context) error
 
 	SetCatalog(c catalog)
+	SetConfigCatalog(configs map[string]installerConfig)
 	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 	StartExperiment(ctx context.Context, url string) error
@@ -83,18 +84,19 @@ type daemonImpl struct {
 	stopChan chan struct{}
 
 	env             *env.Env
-	installer       func(*env.Env) installertypes.Installer
+	installer       func(*env.Env) installer.Installer
 	rc              *remoteConfig
 	catalog         catalog
 	catalogOverride catalog
 	configs         map[string]installerConfig
+	configsOverride map[string]installerConfig
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
 }
 
-func newInstaller(installerBin string) func(env *env.Env) installertypes.Installer {
-	return func(env *env.Env) installertypes.Installer {
+func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
+	return func(env *env.Env) installer.Installer {
 		return exec.NewInstallerExec(env, installerBin)
 	}
 }
@@ -139,7 +141,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config config.Re
 	return newDaemon(rc, installer, env, taskDB), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installertypes.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
 		rc:              rc,
@@ -148,6 +150,7 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installertypes.Ins
 		catalog:         catalog{},
 		catalogOverride: catalog{},
 		configs:         make(map[string]installerConfig),
+		configsOverride: make(map[string]installerConfig),
 		stopChan:        make(chan struct{}),
 		taskDB:          taskDB,
 	}
@@ -256,10 +259,23 @@ func (d *daemonImpl) SetCatalog(c catalog) {
 	d.catalogOverride = c
 }
 
+// SetConfigCatalog sets the config catalog override.
+func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
+	d.m.Lock()
+	defer d.m.Unlock()
+	d.configsOverride = configs
+}
+
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+
+	if !d.env.RemoteUpdates {
+		// If remote updates are disabled, we don't need to start the daemon
+		return nil
+	}
+
 	go func() {
 		gcTicker := time.NewTicker(gcInterval)
 		defer gcTicker.Stop()
@@ -296,6 +312,12 @@ func (d *daemonImpl) Start(_ context.Context) error {
 func (d *daemonImpl) Stop(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
+
+	if !d.env.RemoteUpdates {
+		// If remote updates are disabled, we don't need to stop the daemon as it was never started
+		return nil
+	}
+
 	d.rc.Close()
 	close(d.stopChan)
 	d.requestsWG.Wait()
@@ -425,7 +447,11 @@ func (d *daemonImpl) startConfigExperiment(ctx context.Context, pkg string, vers
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Starting config experiment version %s for package %s", version, pkg)
-	config, ok := d.configs[version]
+	configs := d.configs
+	if len(d.configsOverride) > 0 {
+		configs = d.configsOverride
+	}
+	config, ok := configs[version]
 	if !ok {
 		return fmt.Errorf("could not find config version %s", version)
 	}
