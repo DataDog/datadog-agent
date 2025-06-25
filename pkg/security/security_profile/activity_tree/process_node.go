@@ -40,6 +40,7 @@ type ProcessNode struct {
 	GenerationType NodeGenerationType
 	ImageTags      []string
 	MatchedRules   []*model.MatchedRule
+	FirstSeen      time.Time
 	LastSeen       time.Time
 
 	Files          map[string]*FileNode
@@ -61,6 +62,7 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
 		}
 	}
+	now := time.Now()
 	return &ProcessNode{
 		Process:        entry.Process,
 		GenerationType: generationType,
@@ -68,7 +70,8 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		DNSNames:       make(map[string]*DNSNode),
 		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode),
-		LastSeen:       time.Now(),
+		FirstSeen:      now,
+		LastSeen:       now,
 	}
 }
 
@@ -221,6 +224,10 @@ func (pn *ProcessNode) Matches(entry *model.Process, matchArgs bool, normalize b
 
 // InsertSyscalls inserts the syscall of the process in the dump
 func (pn *ProcessNode) InsertSyscalls(e *model.Event, imageTag string, syscallMask map[int]int, stats *Stats, dryRun bool) bool {
+	if !dryRun {
+		pn.updateTimes(e)
+	}
+	
 	var hasNewSyscalls bool
 newSyscallLoop:
 	for _, newSyscall := range e.Syscalls.Syscalls {
@@ -228,6 +235,9 @@ newSyscallLoop:
 			if existingSyscall.Syscall == int(newSyscall) {
 				if imageTag != "" && !slices.Contains(existingSyscall.ImageTags, imageTag) {
 					existingSyscall.ImageTags = append(existingSyscall.ImageTags, imageTag)
+				}
+				if !dryRun {
+					existingSyscall.updateTimes(e)
 				}
 				continue newSyscallLoop
 			}
@@ -249,6 +259,10 @@ newSyscallLoop:
 // InsertFileEvent inserts the provided file event in the current node. This function returns true if a new entry was
 // added, false if the event was dropped.
 func (pn *ProcessNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Event, imageTag string, generationType NodeGenerationType, stats *Stats, dryRun bool, reducer *PathsReducer, resolvers *resolvers.EBPFResolvers) bool {
+	if !dryRun {
+		pn.updateTimes(event)
+	}
+	
 	var filePath string
 	if generationType != Snapshot {
 		filePath = event.FieldHandlers.ResolveFilePath(event, fileEvent)
@@ -316,6 +330,8 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 		return !pn.findDNSNode(evt.DNS.Question.Name, dnsMatchMaxDepth, evt.DNS.Question.Type)
 	}
 
+	pn.updateTimes(evt)
+
 	DNSNames.Insert(evt.DNS.Question.Name)
 	dnsNode, ok := pn.DNSNames[evt.DNS.Question.Name]
 	if ok {
@@ -323,6 +339,7 @@ func (pn *ProcessNode) InsertDNSEvent(evt *model.Event, imageTag string, generat
 		dnsNode.MatchedRules = model.AppendMatchedRule(dnsNode.MatchedRules, evt.Rules)
 
 		dnsNode.ImageTags, _ = AppendIfNotPresent(dnsNode.ImageTags, imageTag)
+		dnsNode.updateTimes(evt)
 
 		// look for the DNS request type
 		for _, req := range dnsNode.Requests {
@@ -347,10 +364,15 @@ func (pn *ProcessNode) InsertIMDSEvent(evt *model.Event, imageTag string, genera
 	if ok {
 		imdsNode.MatchedRules = model.AppendMatchedRule(imdsNode.MatchedRules, evt.Rules)
 		imdsNode.appendImageTag(imageTag)
+		if !dryRun {
+			pn.updateTimes(evt)
+			imdsNode.updateTimes(evt)
+		}
 		return false
 	}
 
 	if !dryRun {
+		pn.updateTimes(evt)
 		// create new node
 		pn.IMDSEvents[evt.IMDS] = NewIMDSNode(&evt.IMDS, evt.Rules, generationType, imageTag)
 		stats.IMDSNodes++
@@ -378,6 +400,11 @@ func (pn *ProcessNode) InsertBindEvent(evt *model.Event, imageTag string, genera
 	if evt.Bind.SyscallEvent.Retval != 0 {
 		return false
 	}
+	
+	if !dryRun {
+		pn.updateTimes(evt)
+	}
+	
 	var newNode bool
 	evtFamily := model.AddressFamily(evt.Bind.AddrFamily).String()
 
@@ -530,4 +557,14 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 
 func (pn *ProcessNode) UpdateLastSeen() {
 	pn.LastSeen = time.Now()
+}
+
+func (pn *ProcessNode) updateTimes(event *model.Event) {
+	eventTime := event.ResolveEventTime()
+	if pn.FirstSeen.IsZero() {
+		pn.FirstSeen = eventTime
+		pn.LastSeen = eventTime
+	} else {
+		pn.LastSeen = eventTime
+	}
 }

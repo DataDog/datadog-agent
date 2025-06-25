@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -16,19 +18,21 @@ import (
 type NetworkDeviceNode struct {
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
-
-	Context model.NetworkDeviceContext
-
-	// FlowNodes are indexed by source IPPortContexts
-	FlowNodes map[model.FiveTuple]*FlowNode
+	Context        model.NetworkDeviceContext
+	FlowNodes      map[model.FiveTuple]*FlowNode
+	FirstSeen      time.Time
+	LastSeen       time.Time
 }
 
 // NewNetworkDeviceNode returns a new NetworkDeviceNode instance
 func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGenerationType) *NetworkDeviceNode {
+	now := time.Now()
 	node := &NetworkDeviceNode{
 		GenerationType: generationType,
 		Context:        *ctx,
 		FlowNodes:      make(map[model.FiveTuple]*FlowNode),
+		FirstSeen:      now,
+		LastSeen:       now,
 	}
 	return node
 }
@@ -54,6 +58,10 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 		netdevice.MatchedRules = model.AppendMatchedRule(netdevice.MatchedRules, rules)
 	}
 
+	if !dryRun {
+		netdevice.updateTimes()
+	}
+
 	var newFlow bool
 	for _, flow := range event.Flows {
 		existingNode, ok := netdevice.FlowNodes[flow.GetFiveTuple()]
@@ -74,4 +82,14 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 	}
 
 	return newFlow
+}
+
+func (netdevice *NetworkDeviceNode) updateTimes(event *model.Event) {
+	eventTime := event.ResolveEventTime()
+	if netdevice.FirstSeen.IsZero() {
+		netdevice.FirstSeen = eventTime
+		netdevice.LastSeen = eventTime
+	} else {
+		netdevice.LastSeen = eventTime
+	}
 }
