@@ -9,5 +9,5 @@
 enhancements:
   - |
     If a check has both a Go and a Python version, the Go version now has priority by default.
-    It should not have any visible impact for users, but if needed it can be
-    disabled by setting `prioritize_go_check_loader` configuration to `false`.
+    This change should not have any visible impact, but if needed, you can
+    disable this configuration by setting `prioritize_go_check_loader` to `false`.
