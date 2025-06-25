@@ -166,9 +166,8 @@ func getProxyMeta(conf model.Reader) *ProxyMeta {
 func getFipsMode() bool {
 	if val, err := fips.Enabled(); err == nil {
 		return val
-	} else {
-		return false
 	}
+	return false
 }
 
 // GetOSVersion returns the current OS version
