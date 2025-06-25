@@ -115,10 +115,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 		// hostname should be resolved. Skipping hostname resolution saves >1s
 		// in load time between gRPC calls and agent commands.
 		pkgconfigsetup.Datadog().Set("serverless.enabled", true, model.SourceAgentRuntime)
-
-		// Turn off apm_sampling as it's not supported and generates debug logs
-		pkgconfigsetup.Datadog().Set("remote_configuration.apm_sampling.enabled", false, model.SourceAgentRuntime)
-
+		
 		tc, confErr := args.LoadConfig.Load()
 		if confErr != nil {
 			log.Errorf("Unable to load trace agent config: %s", confErr)

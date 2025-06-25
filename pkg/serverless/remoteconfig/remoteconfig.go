@@ -7,6 +7,8 @@
 package remoteconfig
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -21,7 +23,7 @@ import (
 func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 	config := pkgconfigsetup.Datadog()
 	if pkgconfigsetup.IsRemoteConfigEnabled(config) {
-		config.Set("run_path", "/tmp/datadog-agent", model.SourceAgentRuntime)
+		config.Set("run_path", "/tmp/dd/datadog-agent", model.SourceAgentRuntime)
 		apiKey := config.GetString("api_key")
 		if config.IsSet("remote_configuration.api_key") {
 			apiKey = config.GetString("remote_configuration.api_key")
@@ -32,11 +34,11 @@ func StartRCService(functionARN string) *remoteconfig.CoreAgentService {
 
 		options := []remoteconfig.Option{
 			remoteconfig.WithAPIKey(apiKey),
+			remoteconfig.WithRefreshInterval(5*time.Second, "remote_configuration.refresh_interval"),
 			remoteconfig.WithTraceAgentEnv(traceAgentEnv),
 			remoteconfig.WithConfigRootOverride(config.GetString("site"), config.GetString("remote_configuration.config_root")),
 			remoteconfig.WithDirectorRootOverride(config.GetString("site"), config.GetString("remote_configuration.director_root")),
 			remoteconfig.WithRcKey(config.GetString("remote_configuration.key")),
-			remoteconfig.WithAgentPollLoopDisabled(),
 			remoteconfig.WithClientCacheBypassLimit(10, "remote_configuration.clients.cache_bypass_limit"),
 		}
 
