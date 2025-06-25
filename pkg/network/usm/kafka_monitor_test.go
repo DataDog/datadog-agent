@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"io"
 	"net"
 	"os"
@@ -547,6 +548,15 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				require.NoError(t, err)
 				require.Len(t, createdTopics, numOfRequests, "Expected %d created topics, got %d", numOfRequests, len(createdTopics))
 
+				// Create records (to be fetched)
+				for _, createdTopic := range createdTopics {
+					produceCtxTimeout, produceCancel := context.WithTimeout(context.Background(), time.Second*15)
+					defer produceCancel()
+
+					record := &kgo.Record{Topic: createdTopic.Topic, Value: []byte("TESTTOPICRECORD")}
+					require.NoError(t, client.Client.ProduceSync(produceCtxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
+				}
+
 				var reqs []kmsg.FetchRequest
 				for _, createdTopic := range createdTopics {
 					req := kmsg.NewFetchRequest()
@@ -565,15 +575,15 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 				ctxTimeout, cancel := context.WithTimeout(context.Background(), time.Second*5)
 				defer cancel()
-
 				for _, req := range reqs {
 					_, err = req.RequestWith(ctxTimeout, client.Client)
 					require.NoError(t, err)
 				}
 
-				getAndValidateKafkaStats(t, monitor, fixCount(numOfRequests), kafkaParsingValidation{
-					expectedNumberOfFetchRequests: fixCount(numOfRequests),
-					tlsEnabled:                    tls,
+				getAndValidateKafkaStats(t, monitor, fixCount(numOfRequests+numOfRequests), kafkaParsingValidation{
+					expectedNumberOfFetchRequests:   fixCount(numOfRequests),
+					expectedNumberOfProduceRequests: fixCount(numOfRequests),
+					tlsEnabled:                      tls,
 				}, kafkaSuccessErrorCode)
 			},
 		},
@@ -1374,9 +1384,9 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			// TODO restore counter to verify events captured (disabled due to metadata transactions cause count to be +1)
 			// The NewCounter() API will return the existing counter with the
 			// given name if it exists.
-			//counter := telemetry.NewCounter("usm.kafka.events_captured",
-			//	telemetry.OptStatsd)
-			//beforeEvents := counter.Get()
+			counter := telemetry.NewCounter("usm.kafka.events_captured",
+				telemetry.OptStatsd)
+			beforeEvents := counter.Get()
 
 			can.runClient(msgs)
 
@@ -1391,14 +1401,14 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				}, tt.errorCode)
 			}
 
-			//afterEvents := counter.Get()
-			//eventsCaptured := afterEvents - beforeEvents
-			//expectedCaptured := 1
-			//if tt.numCapturedEvents > 0 {
-			//	expectedCaptured = tt.numCapturedEvents
-			//}
+			afterEvents := counter.Get()
+			eventsCaptured := afterEvents - beforeEvents
+			expectedCaptured := 1
+			if tt.numCapturedEvents > 0 {
+				expectedCaptured = tt.numCapturedEvents
+			}
 
-			//assert.Equal(t, int64(expectedCaptured), eventsCaptured)
+			assert.Equal(t, int64(expectedCaptured), eventsCaptured)
 		})
 
 		// Test with buildMessages have custom splitters
@@ -1778,13 +1788,11 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 				prevStats, ok := kafkaStats[key]
 				if ok && prevStats != nil {
 					prevStats.CombineWith(stats)
+				} else {
+					kafkaStats[key] = currentStats[key]
 				}
 			}
 		}
-		for kafkaKey, kafkaStat := range kafkaStats {
-			fmt.Println("kafkaKey:", kafkaKey, "kafkaStat:", kafkaStat)
-		}
-		fmt.Println("expectedStatsCount:", expectedStatsCount, "kafkaStats:", len(kafkaStats))
 		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
 		if expectedStatsCount != 0 {
 			validateProduceFetchCount(collect, kafkaStats, validation, errorCode)

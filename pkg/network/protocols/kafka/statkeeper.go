@@ -74,7 +74,6 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		statKeeper.stats[key] = requestStats
 	}
 
-	fmt.Println("Adding request stats for", key, "with api key", tx.APIKey(), "and records count", tx.RecordsCount())
 	requestStats.AddRequest(int32(tx.ErrorCode()), int(tx.RecordsCount()), uint64(tx.Transaction.Tags), latency)
 }
 

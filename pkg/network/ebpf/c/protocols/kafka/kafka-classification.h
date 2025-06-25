@@ -61,7 +61,7 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
         return false;
     }
     bpf_memset(client_id, 0, CLIENT_ID_SIZE_TO_VALIDATE);
-    pktbuf_read_into_buffer_client_id(client_id, pkt, offset);
+    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
     CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);

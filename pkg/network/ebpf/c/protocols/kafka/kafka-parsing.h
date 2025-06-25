@@ -1958,7 +1958,6 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         }
         flexible = kafka_header.api_version >= 12;
         topic_id_instead_of_name = kafka_header.api_version >= 13;
-        log_debug("GUY fetch request with topic_id_instead_of_name %d", topic_id_instead_of_name);
         break;
     case KAFKA_METADATA:
         // we only support v10+ but just to be safe
@@ -2031,10 +2030,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         } else {
             s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
             if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-                __u8 test[5] = {0};
-                pktbuf_load_bytes(pkt, offset - 5, test, sizeof(test));
-                log_debug("GUY topic name size %d is invalid, test1 %02x%02x", topic_name_size, test[0], test[1]);
-                log_debug("GUY cont test2 %02x%02x%02x", test[2], test[3], test[4]);
+                log_debug("GUY topic name size %d is invalid", topic_name_size);
                 return false;
             }
 
