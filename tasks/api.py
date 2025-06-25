@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 
 from invoke import task
 
@@ -77,12 +78,19 @@ def run(
         if is_local
         else f"https://agent-ci-api.{get_datacenter(env)}/{prefix}{endpoint}"
     )
-    jq_pipe = '| jq -C .' if jq == 'yes' or (jq == 'auto' and has_jq) else ''
     silent = '-s' if silent_curl else ''
 
     if payload:
         payload = f'-d \'{payload}\''
 
-    cmd = f'curl {silent} -X {method.upper()} {url} -H {token} -H {extra_header} {payload} {jq_pipe}'
+    cmd = f'curl {silent} -X {method.upper()} {url} -H {token} -H {extra_header} {payload}'
 
-    ctx.run(cmd)
+    result = ctx.run(cmd, hide=True)
+    if not result.ok:
+        raise RuntimeError(f'Command failed with exit code {result.exited}:\n{cmd}\n{result.stderr}')
+    elif jq == 'yes' or (jq == 'auto' and has_jq):
+        jq_result = subprocess.run(['jq', '-C', '.'], input=result.stdout, text=True)
+
+        # Jq parsing failed, ignore (otherwise everything is already printed)
+        if jq_result.returncode != 0:
+            print(result.stdout)
