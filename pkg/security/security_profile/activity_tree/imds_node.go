@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -17,19 +19,22 @@ type IMDSNode struct {
 	MatchedRules   []*model.MatchedRule
 	ImageTags      []string
 	GenerationType NodeGenerationType
-
-	Event model.IMDSEvent
+	Event          model.IMDSEvent
+	FirstSeen      time.Time
+	LastSeen       time.Time
 }
 
-// NewIMDSNode returns a new IMDSNode instance
 func NewIMDSNode(event *model.IMDSEvent, rules []*model.MatchedRule, generationType NodeGenerationType, imageTag string) *IMDSNode {
+	now := time.Now()
 	node := &IMDSNode{
 		MatchedRules:   rules,
 		GenerationType: generationType,
 		Event:          *event,
+		FirstSeen:      now,
+		LastSeen:       now,
 	}
 	if imageTag != "" {
-		node.ImageTags = []string{imageTag}
+	node.appendImageTag(imageTag)
 	}
 	return node
 }
@@ -48,3 +53,16 @@ func (imds *IMDSNode) evictImageTag(imageTag string) bool {
 	}
 	return false
 }
+
+func (imds *IMDSNode) updateTimes(event *model.Event) {
+	eventTime := event.ResolveEventTime()
+	if imds.FirstSeen.IsZero() {
+		imds.FirstSeen = eventTime
+		imds.LastSeen = eventTime
+	} else {
+		imds.LastSeen = eventTime 
+	}
+	}
+
+	
+
