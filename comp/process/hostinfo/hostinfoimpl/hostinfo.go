@@ -12,6 +12,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	hostinfoComp "github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -27,8 +29,10 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Config config.Component
-	Logger log.Component
+	Config   config.Component
+	Hostname hostnameinterface.Component
+	Logger   log.Component
+	IPC      ipc.Component
 }
 
 type hostinfo struct {
@@ -36,7 +40,7 @@ type hostinfo struct {
 }
 
 func newHostInfo(deps dependencies) (hostinfoComp.Component, error) {
-	hinfo, err := checks.CollectHostInfo(deps.Config)
+	hinfo, err := checks.CollectHostInfo(deps.Config, deps.Hostname, deps.IPC)
 	if err != nil {
 		_ = deps.Logger.Critical("Error collecting host details:", err)
 		return nil, fmt.Errorf("error collecting host details: %v", err)

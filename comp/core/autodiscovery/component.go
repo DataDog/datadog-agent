@@ -23,8 +23,6 @@ import (
 type Component interface {
 	AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
 	LoadAndRun(ctx context.Context)
-	ForceRanOnceFlag()
-	HasRunOnce() bool
 	GetAllConfigs() []integration.Config
 	AddListeners(listenerConfigs []pkgconfigsetup.Listeners)
 	AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool)

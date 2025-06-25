@@ -114,7 +114,7 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
 		Query:             sanitizedConfig.Query,
 		ProcessRawMessage: sanitizedConfig.ProcessRawMessage,
 	}
-	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan())
+	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan(), l.registry)
 	bookmark := l.registry.GetOffset(t.Identifier())
 	t.Start(bookmark)
 	return t, nil

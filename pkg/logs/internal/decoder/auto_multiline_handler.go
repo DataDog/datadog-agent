@@ -8,6 +8,7 @@ package decoder
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -25,28 +26,55 @@ type AutoMultilineHandler struct {
 }
 
 // NewAutoMultilineHandler creates a new auto multiline handler.
-func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry) *AutoMultilineHandler {
+func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample) *AutoMultilineHandler {
 
 	// Order is important
 	heuristics := []automultilinedetection.Heuristic{}
+	sourceHasSettings := sourceSettings != nil
 
-	heuristics = append(heuristics, automultilinedetection.NewTokenizer(pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")))
-	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog()))
+	tokenizerMaxInputBytes := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	if sourceHasSettings && sourceSettings.TokenizerMaxInputBytes != nil {
+		tokenizerMaxInputBytes = *sourceSettings.TokenizerMaxInputBytes
+	}
+	heuristics = append(heuristics, automultilinedetection.NewTokenizer(tokenizerMaxInputBytes))
+	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog(), sourceSamples))
 
 	enableJSONAggregation := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
+	if sourceHasSettings && sourceSettings.EnableJSONAggregation != nil {
+		enableJSONAggregation = *sourceSettings.EnableJSONAggregation
+	}
 
-	if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_detection") {
+	enableJSONDetection := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_detection")
+	if sourceHasSettings && sourceSettings.EnableJSONDetection != nil {
+		enableJSONDetection = *sourceSettings.EnableJSONDetection
+	}
+	if enableJSONDetection {
 		heuristics = append(heuristics, automultilinedetection.NewJSONDetector())
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_datetime_detection") {
-		heuristics = append(heuristics, automultilinedetection.NewTimestampDetector(
-			pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold")))
+	enableDatetimeDetection := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_datetime_detection")
+	if sourceHasSettings && sourceSettings.EnableDatetimeDetection != nil {
+		enableDatetimeDetection = *sourceSettings.EnableDatetimeDetection
+	}
+	if enableDatetimeDetection {
+		timestampDetectorMatchThreshold := pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold")
+		if sourceHasSettings && sourceSettings.TimestampDetectorMatchThreshold != nil {
+			timestampDetectorMatchThreshold = *sourceSettings.TimestampDetectorMatchThreshold
+		}
+		heuristics = append(heuristics, automultilinedetection.NewTimestampDetector(timestampDetectorMatchThreshold))
 	}
 
+	patternTableMaxSize := pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.pattern_table_max_size")
+	if sourceHasSettings && sourceSettings.PatternTableMaxSize != nil {
+		patternTableMaxSize = *sourceSettings.PatternTableMaxSize
+	}
+	patternTableMatchThreshold := pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line.pattern_table_match_threshold")
+	if sourceHasSettings && sourceSettings.PatternTableMatchThreshold != nil {
+		patternTableMatchThreshold = *sourceSettings.PatternTableMatchThreshold
+	}
 	analyticsHeuristics := []automultilinedetection.Heuristic{automultilinedetection.NewPatternTable(
-		pkgconfigsetup.Datadog().GetInt("logs_config.auto_multi_line.pattern_table_max_size"),
-		pkgconfigsetup.Datadog().GetFloat64("logs_config.auto_multi_line.pattern_table_match_threshold"),
+		patternTableMaxSize,
+		patternTableMatchThreshold,
 		tailerInfo),
 	}
 

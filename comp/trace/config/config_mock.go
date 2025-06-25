@@ -27,6 +27,7 @@ func newMock(deps Dependencies, _ testing.TB) (Component, error) {
 		warnings:    &model.Warnings{},
 		coreConfig:  deps.Config,
 		AgentConfig: traceCfg,
+		ipc:         deps.IPC,
 	}
 
 	c.SetMaxMemCPU(env.IsContainerized())

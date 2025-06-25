@@ -10,16 +10,19 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/extension"
+
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 func getTestFactory(t *testing.T) extension.Factory {
 	factories, err := components()
 	assert.NoError(t, err)
 
-	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false), false)
+	return NewFactoryForAgent(&factories, newConfigProviderSettings(uriFromFile("config.yaml"), false), option.None[ipc.Component](), false)
 }
 
 func TestNewFactoryForAgent(t *testing.T) {

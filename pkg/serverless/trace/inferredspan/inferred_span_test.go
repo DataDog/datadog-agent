@@ -107,6 +107,7 @@ func TestIsInferredSpansEnabledWhileInvalid(t *testing.T) {
 }
 
 func setEnvVars(t *testing.T, trace string, managedServices string) {
+	configmock.SetDefaultConfigType(t, "yaml")
 	t.Setenv("DD_TRACE_ENABLED", trace)
 	t.Setenv("DD_TRACE_MANAGED_SERVICES", managedServices)
 }

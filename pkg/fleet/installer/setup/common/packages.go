@@ -72,7 +72,8 @@ func resolvePackages(env *env.Env, packages Packages) []packageWithVersion {
 
 // Packages is a list of packages to install
 type Packages struct {
-	install map[string]packageWithVersion
+	install          map[string]packageWithVersion
+	copyInstallerSSI bool
 }
 
 type packageWithVersion struct {
@@ -86,4 +87,10 @@ func (p *Packages) Install(pkg string, version string) {
 		name:    pkg,
 		version: version,
 	}
+}
+
+// WriteSSIInstaller marks that the installer should be copied to /opt/datadog-packages/run/datadog-installer-ssi
+// Use this when installing SSI without the agent, so that the installer can be used later to remove the packages.
+func (p *Packages) WriteSSIInstaller() {
+	p.copyInstallerSSI = true
 }

@@ -41,8 +41,12 @@ var dockerImageLibrary = map[string][]string{
 		"public.ecr.aws/docker/library/centos:7",
 	},
 	"alpine": {
-		"alpine",
-		"public.ecr.aws/docker/library/alpine:latest",
+		"alpine:3.18.2",
+		"public.ecr.aws/docker/library/alpine:3.18.2", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
+	},
+	"busybox": {
+		"busybox:1.36.1",
+		"docker.io/busybox:1.36.1", // before changing the version make sure that the new version behaves as previously (hardlink vs symlink)
 	},
 }
 

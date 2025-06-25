@@ -69,7 +69,6 @@ func (is *persistingIntegrationsSuite) AfterTest(suiteName, testName string) {
 }
 
 func TestPersistingIntegrations(t *testing.T) {
-
 	platformJSON := map[string]map[string]map[string]string{}
 
 	err := json.Unmarshal(platforms.Content, &platformJSON)
@@ -108,28 +107,28 @@ func TestPersistingIntegrations(t *testing.T) {
 	}
 }
 
-func (is *persistingIntegrationsSuite) TestIntegrationPersistsWithFileFlag() {
+func (is *persistingIntegrationsSuite) TestIntegrationPersistsByDefault() {
 	VMclient := is.SetupTestClient()
 
 	startAgentVersion := is.SetupAgentStartVersion(VMclient)
 	is.InstallNVMLIntegration(VMclient)
 
-	// set the flag to install third party deps
-	is.EnableInstallThirdPartyDepsFlag(VMclient)
+	// remove the flag to skip installing third party deps if it exists
+	is.DisableSkipInstallThirdPartyDepsFlag(VMclient)
 
 	upgradedAgentVersion := is.UpgradeAgentVersion(VMclient)
 	is.Require().NotEqual(startAgentVersion, upgradedAgentVersion)
 	is.CheckIntegrationInstalled(VMclient)
 }
 
-func (is *persistingIntegrationsSuite) TestIntegrationDoesNotPersistWithoutFileFlag() {
+func (is *persistingIntegrationsSuite) TestIntegrationDoesNotPersistWithSkipFileFlag() {
 	VMclient := is.SetupTestClient()
 
 	startAgentVersion := is.SetupAgentStartVersion(VMclient)
 	is.InstallNVMLIntegration(VMclient)
 
-	// unset the flag to install third party deps if it was set
-	VMclient.Host.Execute("sudo rm -f /opt/datadog-agent/.install_python_third_party_deps")
+	// set the flag to skip installing third party deps
+	is.EnableSkipInstallThirdPartyDepsFlag(VMclient)
 
 	upgradedAgentVersion := is.UpgradeAgentVersion(VMclient)
 	is.Require().NotEqual(startAgentVersion, upgradedAgentVersion)
@@ -159,8 +158,12 @@ func (is *persistingIntegrationsSuite) InstallNVMLIntegration(VMclient *common.T
 	is.Require().Contains(freezeRequirement, "datadog-nvml==1.0.0")
 }
 
-func (is *persistingIntegrationsSuite) EnableInstallThirdPartyDepsFlag(VMclient *common.TestClient) string {
-	return VMclient.Host.MustExecute("sudo touch /opt/datadog-agent/.install_python_third_party_deps")
+func (is *persistingIntegrationsSuite) EnableSkipInstallThirdPartyDepsFlag(VMclient *common.TestClient) string {
+	return VMclient.Host.MustExecute("sudo touch /etc/datadog-agent/.skip_install_python_third_party_deps")
+}
+
+func (is *persistingIntegrationsSuite) DisableSkipInstallThirdPartyDepsFlag(VMclient *common.TestClient) (string, error) {
+	return VMclient.Host.Execute("sudo rm -f /etc/datadog-agent/.skip_install_python_third_party_deps")
 }
 
 func (is *persistingIntegrationsSuite) SetupAgentStartVersion(VMclient *common.TestClient) string {

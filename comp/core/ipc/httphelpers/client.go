@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -26,9 +27,9 @@ import (
 )
 
 type ipcClient struct {
-	http.Client
-	authToken string
-	config    pkgconfigmodel.Reader
+	innerClient http.Client
+	authToken   string
+	config      pkgconfigmodel.Reader
 }
 
 // NewClient creates a new secure client
@@ -38,9 +39,9 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 	}
 
 	return &ipcClient{
-		Client:    http.Client{Transport: tr},
-		authToken: authToken,
-		config:    config,
+		innerClient: http.Client{Transport: tr},
+		authToken:   authToken,
+		config:      config,
 	}
 }
 
@@ -90,16 +91,28 @@ func (s *ipcClient) PostForm(url string, data url.Values, opts ...ipc.RequestOpt
 }
 
 func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byte), opts ...ipc.RequestOption) (resp []byte, err error) {
-
 	// Apply all options to the request
-	for _, opt := range opts {
-		req = opt(req)
+	params := ipc.RequestParams{
+		Request: req,
+		Timeout: s.innerClient.Timeout,
 	}
+	for _, opt := range opts {
+		opt(&params)
+	}
+
+	// Some options replace the request pointer, so we need to make a shallow copy
+	req = params.Request
+
+	// Create a shallow copy of the client to avoid modifying the original client's timeout.
+	// This is efficient since http.Client is lightweight and only the Transport field (which is the heavy part)
+	// is shared between copies. This approach enables per-request timeout customization.
+	client := s.innerClient
+	client.Timeout = params.Timeout
 
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+s.authToken)
 
-	r, err := s.Client.Do(req)
+	r, err := client.Do(req)
 
 	if err != nil {
 		return resp, err
@@ -131,7 +144,7 @@ func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byt
 	}
 
 	if r.StatusCode >= 400 {
-		return body, errors.New(string(body))
+		return body, fmt.Errorf("status code: %d, body: %s", r.StatusCode, string(body))
 	}
 	return body, nil
 }
@@ -202,29 +215,32 @@ func (end *IPCEndpoint) DoGet(options ...ipc.RequestOption) ([]byte, error) {
 }
 
 // WithCloseConnection is a request option that closes the connection after the request
-func WithCloseConnection(req *http.Request) *http.Request {
+func WithCloseConnection(req *ipc.RequestParams) {
 	req.Close = true
-	return req
 }
 
 // WithLeaveConnectionOpen is a request option that leaves the connection open after the request
-func WithLeaveConnectionOpen(req *http.Request) *http.Request {
+func WithLeaveConnectionOpen(req *ipc.RequestParams) {
 	req.Close = false
-	return req
 }
 
 // WithContext is a request option that sets the context for the request
 func WithContext(ctx context.Context) ipc.RequestOption {
-	return func(req *http.Request) *http.Request {
-		req = req.WithContext(ctx)
-		return req
+	return func(params *ipc.RequestParams) {
+		params.Request = params.Request.WithContext(ctx)
+	}
+}
+
+// WithTimeout is a request option that sets the timeout for the request
+func WithTimeout(timeout time.Duration) ipc.RequestOption {
+	return func(params *ipc.RequestParams) {
+		params.Timeout = timeout
 	}
 }
 
 // WithValues is a request option that sets the values for the request
 func WithValues(values url.Values) ipc.RequestOption {
-	return func(req *http.Request) *http.Request {
-		req.URL.RawQuery = values.Encode()
-		return req
+	return func(params *ipc.RequestParams) {
+		params.Request.URL.RawQuery = values.Encode()
 	}
 }

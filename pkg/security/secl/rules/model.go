@@ -7,10 +7,14 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // MacroID represents the ID of a macro
@@ -106,6 +110,11 @@ const (
 	LogAction ActionName = "log"
 )
 
+// ActionDefinitionInterface is an interface that describes a rule action section
+type ActionDefinitionInterface interface {
+	Check(opts PolicyLoaderOpts) error
+}
+
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
 	Filter   *string             `yaml:"filter" json:"filter,omitempty"`
@@ -134,6 +143,47 @@ func (a *ActionDefinition) Name() ActionName {
 	}
 }
 
+// Check returns an error if the action is invalid
+func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
+	var (
+		candidateActions = []ActionDefinitionInterface{
+			a.Set,
+			a.Kill,
+			a.Hash,
+			a.CoreDump,
+			a.Log,
+		}
+
+		names = []string{
+			SetAction,
+			KillAction,
+			CoreDumpAction,
+			HashAction,
+			LogAction,
+		}
+		actions = 0
+	)
+
+	for _, action := range candidateActions {
+		if !reflect.ValueOf(action).IsNil() {
+			if err := action.Check(opts); err != nil {
+				return err
+			}
+			actions++
+		}
+	}
+
+	if actions == 0 {
+		return fmt.Errorf("either %+v section of an action must be specified", names)
+	}
+
+	if actions > 1 {
+		return errors.New("only one action can be specified")
+	}
+
+	return nil
+}
+
 // Scope describes the scope variables
 type Scope string
 
@@ -146,10 +196,45 @@ type SetDefinition struct {
 	Expression   string                 `yaml:"expression" json:"expression,omitempty"`
 	Append       bool                   `yaml:"append" json:"append,omitempty"`
 	Scope        Scope                  `yaml:"scope" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
+	ScopeField   string                 `yaml:"scope_field" json:"scope_field,omitempty"`
 	Size         int                    `yaml:"size" json:"size,omitempty"`
 	TTL          *HumanReadableDuration `yaml:"ttl" json:"ttl,omitempty"`
 	Private      bool                   `yaml:"private" json:"private,omitempty"`
 	Inherited    bool                   `yaml:"inherited" json:"inherited,omitempty"`
+}
+
+// Check returns an error if the set action is invalid
+func (s *SetDefinition) Check(_ PolicyLoaderOpts) error {
+	if s.Name == "" {
+		return errors.New("variable name is empty")
+	}
+
+	if s.DefaultValue != nil {
+		if defaultValueType, valueType := reflect.TypeOf(s.DefaultValue), reflect.TypeOf(s.Value); valueType != nil && defaultValueType != valueType {
+			return fmt.Errorf("'default_value' and 'value' must be of the same type (%s != %s)", defaultValueType, valueType)
+		}
+	}
+
+	if (s.Value == nil && s.Expression == "" && s.Field == "") ||
+		(s.Expression != "" && s.Field != "") ||
+		(s.Field != "" && s.Value != nil) ||
+		(s.Value != nil && s.Expression != "") {
+		return errors.New("either 'value', 'field' or 'expression' must be specified")
+	}
+
+	if s.Expression != "" && s.DefaultValue == nil && s.Value == nil {
+		return fmt.Errorf("failed to infer type for variable '%s', please set 'default_value'", s.Name)
+	}
+
+	if s.Inherited && s.Scope != "process" {
+		return fmt.Errorf("only variables scoped to process can be marked as inherited")
+	}
+
+	if len(s.ScopeField) > 0 && s.Scope != "process" {
+		return fmt.Errorf("only variables scoped to process can have a custom scope_field")
+	}
+
+	return nil
 }
 
 // KillDefinition describes the 'kill' section of a rule action
@@ -160,6 +245,23 @@ type KillDefinition struct {
 	DisableExecutableDisarmer bool   `yaml:"disable_executable_disarmer" json:"disable_executable_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic executable disarmer safeguard"`
 }
 
+// Check returns an error if the kill action is invalid
+func (k *KillDefinition) Check(opts PolicyLoaderOpts) error {
+	if opts.DisableEnforcement {
+		return errors.New("'kill' action is disabled globally")
+	}
+
+	if k.Signal == "" {
+		return errors.New("a valid signal has to be specified to the 'kill' action")
+	}
+
+	if _, found := model.SignalConstants[k.Signal]; !found {
+		return fmt.Errorf("unsupported signal '%s'", k.Signal)
+	}
+
+	return nil
+}
+
 // CoreDumpDefinition describes the 'coredump' action
 type CoreDumpDefinition struct {
 	Process       bool `yaml:"process" json:"process,omitempty" jsonschema:"anyof_required=CoreDumpWithProcess"`
@@ -168,13 +270,32 @@ type CoreDumpDefinition struct {
 	NoCompression bool `yaml:"no_compression" json:"no_compression,omitempty"`
 }
 
+// Check returns an error if the core dump action is invalid
+func (c *CoreDumpDefinition) Check(_ PolicyLoaderOpts) error {
+	return nil
+}
+
 // HashDefinition describes the 'hash' section of a rule action
 type HashDefinition struct{}
+
+// Check returns an error if the hash action is invalid
+func (h *HashDefinition) Check(_ PolicyLoaderOpts) error {
+	return nil
+}
 
 // LogDefinition describes the 'log' section of a rule action
 type LogDefinition struct {
 	Level   string
 	Message string
+}
+
+// Check returns an error if the log action is invalid
+func (l *LogDefinition) Check(_ PolicyLoaderOpts) error {
+	if l.Level == "" {
+		return errors.New("a valid log level must be specified to the the 'log' action")
+	}
+
+	return nil
 }
 
 // OnDemandHookPoint represents a hook point definition

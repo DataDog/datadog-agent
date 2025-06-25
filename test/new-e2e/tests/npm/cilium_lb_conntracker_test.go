@@ -86,7 +86,7 @@ func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
 			awskubernetes.KindProvisioner(
 				awskubernetes.WithName(name),
 				awskubernetes.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
-				awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigWithCiliumLB)),
+				awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
 				awskubernetes.WithWorkloadApp(httpBinServiceInstall),
 				awskubernetes.WithWorkloadApp(npmToolsWorkload),
 			),

@@ -11,10 +11,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// Capababilities is a map of event types to field capabilities
+type Capababilities map[eval.EventType]rules.FieldCapabilities
+
 // allCapabilities hold all the supported filtering capabilities
-var allCapabilities = make(map[eval.EventType]rules.FieldCapabilities)
+var allCapabilities = make(Capababilities)
 
 // GetCapababilities returns all the filtering capabilities
-func GetCapababilities() map[eval.EventType]rules.FieldCapabilities {
+func GetCapababilities() Capababilities {
 	return allCapabilities
+}
+
+// Clone returns a copy of the Capababilities
+func (c *Capababilities) Clone() Capababilities {
+	clone := make(Capababilities, len(*c))
+	for k, v := range *c {
+		clone[k] = v.Clone()
+	}
+	return clone
 }

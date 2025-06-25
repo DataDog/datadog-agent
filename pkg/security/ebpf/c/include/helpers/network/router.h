@@ -29,7 +29,7 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
         }
     }
 
-    return ACT_OK;
+    return TC_ACT_UNSPEC;
 }
 
 #endif

@@ -2,16 +2,22 @@
 msi namespaced tasks
 """
 
+import glob
 import hashlib
 import mmap
 import os
 import shutil
 import sys
+import tempfile
+import zipfile
 from contextlib import contextmanager
+from pathlib import Path
 
+from gitlab.v4.objects import Project
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile, timed
 from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_dependencies
 
@@ -570,3 +576,69 @@ def fetch_driver_msm(ctx, drivers=None):
 
         print(f"Updated {driver}")
         print(f"\t-> Downloaded {url} to {path}")
+
+
+@task(
+    help={
+        'ref': 'The name of the ref (branch, tag) to fetch the latest artifacts from',
+    },
+)
+def fetch_artifacts(ctx, ref: str | None = None) -> None:
+    """
+    Initialize the build environment with artifacts from a ref (default: main)
+
+    Example:
+    dda inv msi.fetch_artifacts --ref main
+    dda inv msi.fetch_artifacts --ref 7.66.x
+    """
+    if ref is None:
+        ref = 'main'
+
+    project = get_gitlab_repo()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        download_latest_artifacts_for_ref(project, ref, tmp_dir)
+        tmp_dir = Path(tmp_dir) / "omnibus/pkg"
+        # extract datadog-agent*-x86_64.zip (glob) to C:\opt\datadog-agent
+        dest = Path(r'C:\opt\datadog-agent')
+        for zip_file in glob.glob(os.path.join(tmp_dir, 'datadog-agent-*-x86_64.zip')):
+            print(f"Extracting {zip_file} to {dest}")
+            with zipfile.ZipFile(zip_file, "r") as zip_ref:
+                zip_ref.extractall(dest)
+        # extract datadog-installer-*.zip (glob) to C:\opt\datadog-installer
+        dest = Path(r'C:\opt\datadog-installer')
+        for zip_file in glob.glob(os.path.join(tmp_dir, 'datadog-installer-*-x86_64.zip')):
+            print(f"Extracting {zip_file} to {dest}")
+            with zipfile.ZipFile(zip_file, "r") as zip_ref:
+                zip_ref.extractall(dest)
+
+
+def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_dir: str) -> None:
+    """
+    Fetch the latest MSI artifacts for a ref from gitlab and store them in the output directory
+    """
+    print(f"Downloading artifacts for branch {ref_name}")
+    fd, tmp_path = tempfile.mkstemp()
+    try:
+        with os.fdopen(fd, "wb") as f:
+            # fd will be closed by context manager, so we no longer need it
+            fd = None
+
+            # wrap write to satisfy type for action
+            def writewrapper(b: bytes) -> None:
+                f.write(b)
+
+            project.artifacts.download(
+                ref_name=ref_name,
+                job='windows_msi_and_bosh_zip_x64-a7',
+                streamed=True,
+                action=writewrapper,
+            )
+        print(f"Extracting artifacts to {output_dir}")
+        with zipfile.ZipFile(tmp_path, "r") as zip_ref:
+            zip_ref.extractall(output_dir)
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)

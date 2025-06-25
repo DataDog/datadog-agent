@@ -46,7 +46,7 @@ func newKernelTelemetry() *kernelTelemetry {
 	kafkaKernelTel.produceNoRequiredAcks = metricGroup.NewCounter("produce_no_required_acks")
 
 	for bucketIndex := range kafkaKernelTel.classifiedFetchAPIVersionHits {
-		kafkaKernelTel.classifiedFetchAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:fetch", "protocol_version:"+strconv.Itoa(bucketIndex))
+		kafkaKernelTel.classifiedFetchAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:consume", "protocol_version:"+strconv.Itoa(bucketIndex))
 	}
 	for bucketIndex := range kafkaKernelTel.classifiedProduceAPIVersionHits {
 		kafkaKernelTel.classifiedProduceAPIVersionHits[bucketIndex] = metricGroup.NewCounter("classified_hits", "operation:produce", "protocol_version:"+strconv.Itoa(bucketIndex))

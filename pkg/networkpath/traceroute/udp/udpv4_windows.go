@@ -66,7 +66,7 @@ func (u *UDPv4) TracerouteSequential() (*common.Results, error) {
 }
 
 func (u *UDPv4) sendAndReceive(rs winconn.RawConnWrapper, ttl int, timeout time.Duration) (*common.Hop, error) {
-	ipHdr, buffer, udpChecksum, _, err := u.createRawUDPBuffer(u.srcIP, u.srcPort, u.Target, u.TargetPort, ttl)
+	ipHdrID, buffer, udpChecksum, err := u.createRawUDPBuffer(u.srcIP, u.srcPort, u.Target, u.TargetPort, ttl)
 	if err != nil {
 		log.Errorf("failed to create UDP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
@@ -82,7 +82,7 @@ func (u *UDPv4) sendAndReceive(rs winconn.RawConnWrapper, ttl int, timeout time.
 		windows.IPPROTO_ICMP: u.icmpParser.Match,
 	}
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, end, err := rs.ListenPackets(timeout, u.srcIP, u.srcPort, u.Target, u.TargetPort, uint32(udpChecksum), uint16(ipHdr.ID), matcherFuncs)
+	hopIP, end, err := rs.ListenPackets(timeout, u.srcIP, u.srcPort, u.Target, u.TargetPort, uint32(udpChecksum), ipHdrID, matcherFuncs)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err

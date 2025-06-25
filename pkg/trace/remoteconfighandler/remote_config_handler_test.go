@@ -194,9 +194,7 @@ func TestLogLevel(t *testing.T) {
 		RemoteConfigClient: remoteClient,
 		DefaultEnv:         "agent-env",
 		DebugServerPort:    port,
-		GetAgentAuthToken: func() string {
-			return "fakeToken"
-		},
+		AuthToken:          "fakeToken",
 	}
 	h := New(&agentConfig, prioritySampler, rareSampler, errorsSampler)
 
