@@ -44,12 +44,6 @@ type Event struct {
 	ServiceName string
 }
 
-// ProcessInfoResolver is used to inject resolution of service info which is
-// not present in the ir.Program or the output.Event.
-type ProcessInfoResolver interface {
-	Resolve() (serviceName string)
-}
-
 var errorUnimplemented = errors.New("errorUnimplemented type")
 
 type snapshotMessage struct {
