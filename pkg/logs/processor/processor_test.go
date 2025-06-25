@@ -331,7 +331,7 @@ func TestBuffering(t *testing.T) {
 			scanner:       sds.CreateScanner("42"),
 		},
 		pipelineMonitor: pm,
-		utilization:     pm.MakeUtilizationMonitor("processor"),
+		utilization:     pm.MakeUtilizationMonitor("processor", "0"),
 	}
 
 	var processedMessages atomic.Int32
