@@ -66,11 +66,13 @@ func TestBuildConfigStore(t *testing.T) {
 					templates:     []integration.Config{*tpl1},
 					ep:            nil,
 					shouldCollect: false,
+					resolveMode:   kubeEndpointResolveAuto,
 				},
 				"ep-ns2/ep-name2": {
 					templates:     []integration.Config{*tpl2},
 					ep:            nil,
 					shouldCollect: false,
+					resolveMode:   kubeEndpointResolveAuto,
 				},
 			},
 		},
@@ -82,6 +84,7 @@ func TestBuildConfigStore(t *testing.T) {
 					templates:     []integration.Config{*tpl3},
 					ep:            nil,
 					shouldCollect: false,
+					resolveMode:   kubeEndpointResolveAuto,
 				},
 			},
 		},
@@ -238,23 +241,40 @@ func TestEndpointChecksFromTemplateWithResolveMode(t *testing.T) {
 		},
 	}
 
-	// Test with "auto" resolve mode - should include node and pod info
-	configsAuto := endpointChecksFromTemplate(tpl, ep, "auto")
-	assert.Len(t, configsAuto, 2)
+	tests := []struct {
+		name               string
+		resolveMode        endpointResolveMode
+		expectedNodeNames  []string
+		expectedServiceIDs []string
+	}{
+		{
+			name:               "Auto mode",
+			resolveMode:        "auto",
+			expectedNodeNames:  []string{"node1", "node2"},
+			expectedServiceIDs: []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kube_endpoint_uid://ns1/ep1/10.0.0.2"},
+		},
+		{
+			name:               "IP mode",
+			resolveMode:        "ip",
+			expectedNodeNames:  []string{"", ""},
+			expectedServiceIDs: []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kube_endpoint_uid://ns1/ep1/10.0.0.2"},
+		},
+		{
+			name:               "Unknown mode",
+			resolveMode:        "unknown",
+			expectedNodeNames:  []string{"node1", "node2"},
+			expectedServiceIDs: []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kube_endpoint_uid://ns1/ep1/10.0.0.2"},
+		},
+	}
 
-	// Check that auto mode sets NodeName (indicating ResolveEndpointConfigAuto was called)
-	assert.Equal(t, "node1", configsAuto[0].NodeName)
-	assert.Equal(t, "node2", configsAuto[1].NodeName)
-
-	// Test with "ip" resolve mode - should NOT include node and pod info
-	configsIP := endpointChecksFromTemplate(tpl, ep, "ip")
-	assert.Len(t, configsIP, 2)
-
-	// Check that ip mode does NOT set NodeName (indicating ResolveEndpointConfigAuto was NOT called)
-	assert.Equal(t, "", configsIP[0].NodeName)
-	assert.Equal(t, "", configsIP[1].NodeName)
-
-	// Both should have the same ServiceIDs though
-	assert.Equal(t, "kube_endpoint_uid://ns1/ep1/10.0.0.1", configsAuto[0].ServiceID)
-	assert.Equal(t, "kube_endpoint_uid://ns1/ep1/10.0.0.1", configsIP[0].ServiceID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configs := endpointChecksFromTemplate(tpl, ep, tt.resolveMode)
+			assert.Len(t, configs, len(tt.expectedNodeNames))
+			for i := range configs {
+				assert.Equal(t, tt.expectedNodeNames[i], configs[i].NodeName)
+				assert.Equal(t, tt.expectedServiceIDs[i], configs[i].ServiceID)
+			}
+		})
+	}
 }

@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
@@ -39,14 +38,14 @@ type epConfig struct {
 	templates     []integration.Config
 	ep            *v1.Endpoints
 	shouldCollect bool
-	resolveMode   string
+	resolveMode   endpointResolveMode
 }
 
 func newEpConfig() *epConfig {
 	return &epConfig{
 		templates:     []integration.Config{},
 		shouldCollect: false,
-		resolveMode:   "auto", // default to auto mode
+		resolveMode:   kubeEndpointResolveAuto, // default to auto mode
 	}
 }
 
@@ -188,12 +187,12 @@ func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integrati
 				continue
 			}
 
-			resolveMode := advancedAD.KubeEndpoints.Resolve
+			resolveMode := endpointResolveMode(advancedAD.KubeEndpoints.Resolve)
 			if resolveMode == "" {
-				resolveMode = "auto" // default to auto mode
+				resolveMode = kubeEndpointResolveAuto // default to auto mode
 			}
 
-			p.store.insertTemplateWithResolveMode(epID(advancedAD.KubeEndpoints.Namespace, advancedAD.KubeEndpoints.Name), tpl, resolveMode)
+			p.store.insertTemplate(epID(advancedAD.KubeEndpoints.Namespace, advancedAD.KubeEndpoints.Name), tpl, resolveMode)
 		}
 	}
 }
@@ -207,13 +206,8 @@ func (s *store) shouldHandle(ep *v1.Endpoints) bool {
 	return found
 }
 
-// insertTemplate caches config templates.
-func (s *store) insertTemplate(id string, tpl integration.Config) {
-	s.insertTemplateWithResolveMode(id, tpl, "auto")
-}
-
-// insertTemplateWithResolveMode caches config templates with a specific resolve mode.
-func (s *store) insertTemplateWithResolveMode(id string, tpl integration.Config, resolveMode string) {
+// insertTemplate caches config templates with a specific resolve mode.
+func (s *store) insertTemplate(id string, tpl integration.Config, resolveMode endpointResolveMode) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -284,28 +278,14 @@ func (s *store) generateConfigs() []integration.Config {
 }
 
 // endpointChecksFromTemplate resolves an integration.Config template based on the provided Endpoints object.
-func endpointChecksFromTemplate(tpl integration.Config, ep *v1.Endpoints, resolveMode string) []integration.Config {
+func endpointChecksFromTemplate(tpl integration.Config, ep *v1.Endpoints, resolveMode endpointResolveMode) []integration.Config {
 	configs := []integration.Config{}
 	if ep == nil {
 		return configs
 	}
 
 	// Check resolve mode to know how we should process this endpoint
-	var resolveFunc func(*integration.Config, v1.EndpointAddress)
-	switch resolveMode {
-	// IP: we explicitly ignore what's behind this address (nothing to do)
-	case "ip":
-		resolveFunc = nil
-	// In case of unknown value, fallback to auto
-	default:
-		log.Warnf("Unknown resolve value: %s for endpoint: %s/%s - fallback to auto mode", resolveMode, ep.Namespace, ep.Name)
-		fallthrough
-	// Auto or empty (default to auto): we try to resolve the POD behind this address
-	case "":
-		fallthrough
-	case "auto":
-		resolveFunc = utils.ResolveEndpointConfigAuto
-	}
+	resolveFunc := getEndpointResolveFunc(resolveMode, ep.Namespace, ep.Name)
 
 	for i := range ep.Subsets {
 		for j := range ep.Subsets[i].Addresses {
