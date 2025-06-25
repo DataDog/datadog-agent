@@ -211,10 +211,15 @@ def build(
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
 
+    cover = ""
+    if os.getenv("E2E_COVERAGE_PIPELINE") == "true":
+        cover = "-cover"
+        build_tags.append("e2ecoverage")
+
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
 
-    cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
+    cmd = "go build -mod={go_mod} {race_opt} {build_type} {cover} -tags \"{go_build_tags}\" "
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
@@ -224,6 +229,7 @@ def build(
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
+        "cover": cover,
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
