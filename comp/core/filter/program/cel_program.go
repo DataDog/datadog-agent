@@ -35,10 +35,10 @@ func (p CELProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []e
 					return filterdef.Included, nil
 				}
 			} else {
-				errs = append(errs, fmt.Errorf("Include (%s) result not bool: %v", p.Name, out.Value()))
+				errs = append(errs, fmt.Errorf("include (%s) result not bool: %v", p.Name, out.Value()))
 			}
 		} else {
-			errs = append(errs, fmt.Errorf("Include (%s) eval error: %w", p.Name, err))
+			errs = append(errs, fmt.Errorf("include (%s) eval error: %w", p.Name, err))
 		}
 	}
 
@@ -51,10 +51,10 @@ func (p CELProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []e
 					return filterdef.Excluded, nil
 				}
 			} else {
-				errs = append(errs, fmt.Errorf("Exclude (%s) result not bool: %v", p.Name, out.Value()))
+				errs = append(errs, fmt.Errorf("exclude (%s) result not bool: %v", p.Name, out.Value()))
 			}
 		} else {
-			errs = append(errs, fmt.Errorf("Exclude (%s) eval error: %w", p.Name, err))
+			errs = append(errs, fmt.Errorf("exclude (%s) eval error: %w", p.Name, err))
 		}
 	}
 
