@@ -369,8 +369,8 @@ def run(
         "extra_flags": extra_flags,
     }
 
-    washer = TestWasher(test_output_json_file=result_json)
     to_teardown: set[tuple[str, str]] = set()
+    result_jsons: list[str] = []
     for attempt in range(max_retries + 1):
         remaining_tries = max_retries - attempt
         if remaining_tries > 0:
@@ -378,6 +378,9 @@ def run(
             env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
         else:
             env_vars.pop("E2E_SKIP_DELETE_ON_FAILURE", None)
+
+        partial_result_json = f"{result_json}.{attempt}.part"
+        result_jsons.append(partial_result_json)
 
         test_res = test_flavor(
             ctx,
@@ -388,9 +391,11 @@ def run(
             cmd=cmd,
             env=env_vars,
             junit_tar=junit_tar,
-            result_json=result_json,
+            result_json=partial_result_json,
             test_profiler=None,
         )
+
+        washer = TestWasher(test_output_json_file=partial_result_json)
 
         if remaining_tries > 0:
             failed_tests = filter_only_leaf_tests(
@@ -458,9 +463,15 @@ def run(
             cmd=cmd,
             env=env_vars,
             junit_tar=junit_tar,
-            result_json=result_json,
+            result_json="/dev/null",  # No need to store results for teardown-only runs
             test_profiler=None,
         )
+
+    # Merge all the partial result JSON files into the final result JSON
+    with open(result_json, "w") as merged_file:
+        for partial_file in result_jsons:
+            with open(partial_file) as f:
+                merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
 
