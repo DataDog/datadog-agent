@@ -528,6 +528,8 @@ func start(log log.Component,
 				pkglog.Warnf("Admission controller started with errors: %v", err)
 				pkglog.Debugf("Closing ValidatingWebhooksInformer channel")
 				close(validatingStopCh)
+				// Prevent double close during shutdown
+				validatingStopCh = nil
 			}
 			// Webhook and secret controllers are started successfully
 			// Set up the k8s admission webhook server
