@@ -1,8 +1,4 @@
 ---
-include:
-  - .gitlab/common/container_publish_job_templates.yml
-  - .gitlab/deploy_containers/conditions.yml
-
 #
 # OTel standalone image tagging & manifest publication
 #
@@ -19,33 +15,9 @@ include:
 
 deploy_containers-ot-standalone:
   extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.manual_on_deploy_auto_on_rc]
-
-deploy_containers-ot-standalone-rc:
-  extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.on_rc]
-  variables:
-    VERSION: rc
-
-deploy_containers-ot-standalone-latest:
-  extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.on_final]
-  variables:
-    VERSION: latest
+  rules: !reference [.on_deploy_manual_auto_on_rc]
 
 # Jobs to publish images to our internal registries.
 deploy_containers-ot-standalone_internal:
   extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.on_internal_final]
-
-deploy_containers-ot-standalone_internal-rc:
-  extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.on_internal_rc]
-  variables:
-    VERSION: rc
-
-deploy_containers-ot-standalone_internal-latest:
-  extends: .deploy_containers-ot-standalone-base
-  rules: !reference [.on_internal_final]
-  variables:
-    VERSION: latest
+  rules: !reference [.on_deploy_internal_manual_final]
