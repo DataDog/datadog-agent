@@ -132,6 +132,8 @@ type AdvancedADIdentifier struct {
 	KubeEndpoints KubeEndpointsIdentifier `yaml:"kube_endpoints,omitempty"`
 }
 
+// KubeEndpointsIdentifier identifies a kubernetes endpoints object
+// alongside the method to resolve the endpoints.
 type KubeEndpointsIdentifier struct {
 	KubeNamespacedName `yaml:",inline"`
 	Resolve            string `yaml:"resolve,omitempty"` // Endpoint resolve mode: "auto" (default) or "ip"

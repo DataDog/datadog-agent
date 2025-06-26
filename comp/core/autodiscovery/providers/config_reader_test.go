@@ -83,19 +83,19 @@ func TestGetIntegrationConfig(t *testing.T) {
 	// advanced autodiscovery kube_endpoints
 	config, err = GetIntegrationConfigFromFile("foo", "tests/advanced_ad_kube_endpoints.yaml")
 	require.Nil(t, err)
-	assert.Equal(t, []integration.AdvancedADIdentifier{{
-		// KubeService: integration.KubeNamespacedName{
-		// 	Name:      "svc-name",
-		// 	Namespace: "svc-ns",
-		// },
-		KubeEndpoints: integration.KubeEndpointsIdentifier{
-			KubeNamespacedName: integration.KubeNamespacedName{
-				Name:      "svc-name",
-				Namespace: "svc-ns",
+	assert.Equal(t,
+		[]integration.AdvancedADIdentifier{
+			{
+				KubeEndpoints: integration.KubeEndpointsIdentifier{
+					KubeNamespacedName: integration.KubeNamespacedName{
+						Name:      "svc-name",
+						Namespace: "svc-ns",
+					},
+					Resolve: "ip",
+				},
 			},
-			Resolve: "ip",
 		},
-	}}, config.AdvancedADIdentifiers,
+		config.AdvancedADIdentifiers,
 	)
 
 	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
@@ -116,7 +116,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 19, len(configs))
+	require.Equal(t, 20, len(configs))
 	require.Equal(t, 4, len(errors))
 
 	for _, c := range configs {
@@ -129,10 +129,39 @@ func TestReadConfigFiles(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 18, len(configs))
 
+	expectedConfig1 := integration.Config{
+		Name:                  "advanced_ad",
+		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{KubeService: integration.KubeNamespacedName{Name: "svc-name", Namespace: "svc-ns"}}},
+		Instances: []integration.Data{
+			integration.Data("foo: bar\n"),
+		},
+		Source: "file:tests/advanced_ad.yaml",
+	}
+
+	expectedConfig2 := integration.Config{
+		Name: "advanced_ad_kube_endpoints",
+		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
+			{
+				KubeEndpoints: integration.KubeEndpointsIdentifier{
+					KubeNamespacedName: integration.KubeNamespacedName{
+						Name:      "svc-name",
+						Namespace: "svc-ns",
+					},
+					Resolve: "ip",
+				},
+			},
+		},
+		Instances: []integration.Data{
+			integration.Data("foo: bar\n"),
+		},
+		Source: "file:tests/advanced_ad_kube_endpoints.yaml",
+	}
+
 	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
 	require.Nil(t, err)
-	require.Equal(t, 1, len(configs))
-	require.Equal(t, configs[0].AdvancedADIdentifiers, []integration.AdvancedADIdentifier{{KubeService: integration.KubeNamespacedName{Name: "svc-name", Namespace: "svc-ns"}}})
+	require.Equal(t, 2, len(configs))
+	require.Contains(t, configs, expectedConfig1)
+	require.Contains(t, configs, expectedConfig2)
 
 	configs, _, err = ReadConfigFiles(func(c integration.Config) bool { return c.Name == "baz" })
 	require.Nil(t, err)

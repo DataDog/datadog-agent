@@ -8,7 +8,7 @@
 ---
 fixes:
   - |
-    Add support for selecting endpoint resolution method with
-    advanced AD identifiers for kube endpoint check configurations
-    defined in files or configmaps. Allows static pod check configurations
-    to properly resolve the endpoint by setting resolve method to "ip".
+    Add support for selecting the endpoint resolution method using
+    advanced AD identifiers in Kubernetes endpoint check configurations
+    defined in files or configmaps. This enables static pod check configurations
+    to correctly resolve the endpoint by setting resolve method to "ip".
