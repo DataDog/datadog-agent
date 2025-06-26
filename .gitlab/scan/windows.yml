@@ -44,6 +44,15 @@
         fi
       done
 
+scan_packages_windows-x64:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  extends: .scan_windows_package
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+
 scan_nightly_packages_windows-x64:
   rules:
     !reference [.on_deploy_nightly_repo_branch]
