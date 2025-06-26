@@ -17,6 +17,7 @@ from tasks.libs.common.omnibus import (
     omnibus_compute_cache_key,
     send_build_metrics,
     send_cache_miss_event,
+    send_cache_mutation_event,
     should_retry_bundle_install,
 )
 from tasks.libs.common.user_interactions import yes_no_question
@@ -58,7 +59,8 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         # make sure bundle install starts from a clean state
         try:
             os.remove("Gemfile.lock")
-        except Exception:
+        except FileNotFoundError:
+            # It's okay if the file doesn't exist - we just want to ensure it's not there
             pass
 
         cmd = "bundle install"
@@ -258,7 +260,10 @@ def build(
         and host_distribution != "ociru"
         and "OMNIBUS_PACKAGE_ARTIFACT_DIR" not in os.environ
     )
-    aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
+    remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
+    use_remote_cache = use_omnibus_git_cache and remote_cache_name is not None
+    cache_state = None
+    aws_cmd = "aws.exe" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
         # the git repository itself will be located in a subfolder that replicates
@@ -272,15 +277,12 @@ def build(
         # which effectively drops whatever was in omnibus_cache_dir
         install_directory = install_directory.lstrip('/')
         omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
-        remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
         # generated one.
         with gitlab_section("Manage omnibus cache", collapsed=True):
-            use_remote_cache = remote_cache_name is not None
             if use_remote_cache:
-                cache_state = None
                 cache_key = omnibus_compute_cache_key(ctx)
                 git_cache_url = f"s3://{os.environ['S3_OMNIBUS_GIT_CACHE_BUCKET']}/{cache_key}/{remote_cache_name}"
                 bundle_dir = tempfile.TemporaryDirectory()
@@ -321,15 +323,20 @@ def build(
         stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
         # Purge the cache manually as omnibus will stick to not restoring a tag when
         # a mismatch is detected, but will keep the old cached tags.
-        # Do this before checking for tag differences, in order to remove staled tags
+        # Do this before checking for tag differences, in order to remove stale tags
         # in case they were included in the bundle in a previous build
         for _, tag in enumerate(stale_tags.split(os.linesep)):
             ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
-        with timed(quiet=True) as durations['Updating omnibus cache']:
-            if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
-                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
-                ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
-                bundle_dir.cleanup()
+        if use_remote_cache:
+            if cache_state is None:
+                with timed(quiet=True) as durations['Updating omnibus cache']:
+                    ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
+                    ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+                    bundle_dir.cleanup()
+            elif ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+                send_cache_mutation_event(
+                    ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                )
 
     # Output duration information for different steps
     print("Build component timing:")
@@ -422,7 +429,7 @@ def build_repackaged_agent(ctx, log_level="info"):
     # The assumption here is that only nightlies from master are pushed to the nightly repository
     # and that simply picking up the highest pipeline ID will give us what we want without having to query Gitlab.
     packages_url = f"https://apt.datad0g.com/dists/nightly/7/binary-{architecture}/Packages"
-    with requests.get(packages_url, stream=True) as response:
+    with requests.get(packages_url, stream=True, timeout=10) as response:
         response.raise_for_status()
         lines = response.iter_lines(decode_unicode=True)
 

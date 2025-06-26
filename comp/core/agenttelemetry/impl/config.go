@@ -216,6 +216,10 @@ var defaultProfiles = `
           aggregate_tags:
             - compression_kind
         - name: logs.sender_latency
+        - name: logs.truncated
+          aggregate_tags:
+            - service
+            - source
         - name: logs.auto_multi_line_aggregator_flush
           aggregate_tags:
             - truncated
@@ -276,15 +280,6 @@ var defaultProfiles = `
         request_type: agent-bsod
         payload_key: agent_bsod
         message: 'Agent BSOD'
-  - name: status
-    metric:
-      exclude:
-        zero_metric: true
-      metrics:
-        - name: status.dce_render_errors
-          aggregate_tags:
-            - kind
-            - template_name
   - name: service-discovery
     metric:
       metrics:

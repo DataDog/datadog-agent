@@ -31,6 +31,7 @@ const (
 	tracerouteNS                 = "traceroute"
 	discoveryNS                  = "discovery"
 	gpuNS                        = "gpu_monitoring"
+	swNS                         = "software_inventory"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultRuntimeCompilerOutputDir is the default path for output from the system-probe runtime compiler
@@ -218,7 +219,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "conntrack_init_timeout"), 10*time.Second)
 	cfg.BindEnvAndSetDefault(join(netNS, "allow_netlink_conntracker_fallback"), true)
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_ebpf_conntracker"), true)
-	cfg.BindEnvAndSetDefault(join(netNS, "enable_cilium_lb_conntracker"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "enable_cilium_lb_conntracker"), true)
 
 	cfg.BindEnvAndSetDefault(join(spNS, "source_excludes"), map[string][]string{})
 	cfg.BindEnvAndSetDefault(join(spNS, "dest_excludes"), map[string][]string{})
@@ -386,6 +387,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.ingress.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.limiter_rate"), 10)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.raw_packet.filter"), "no_pid_tcp_syn")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.private_ip_ranges"), DefaultPrivateIPCIDRs)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.extra_private_ip_ranges"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
@@ -438,6 +440,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "max_mem_alloc_events_per_stream"), 1000)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "max_streams"), 100)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "max_stream_inactivity_seconds"), 30) // 30 seconds by default, includes two checks at the default interval of 15 seconds
+
+	// Software Inventory
+	cfg.BindEnvAndSetDefault(join(swNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

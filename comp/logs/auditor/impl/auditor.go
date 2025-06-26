@@ -53,6 +53,7 @@ type registryAuditor struct {
 	chansMutex         sync.Mutex
 	inputChan          chan *message.Payload
 	registry           map[string]*RegistryEntry
+	tailedSources      map[string]bool
 	registryPath       string
 	registryDirPath    string
 	registryTmpFile    string
@@ -96,6 +97,7 @@ func newAuditor(deps Dependencies) *registryAuditor {
 		registryPath:       filepath.Join(runPath, filename),
 		registryDirPath:    deps.Config.GetString("logs_config.run_path"),
 		registryTmpFile:    filepath.Base(filename) + ".tmp",
+		tailedSources:      make(map[string]bool),
 		entryTTL:           ttl,
 		messageChannelSize: messageChannelSize,
 		log:                deps.Log,
@@ -120,7 +122,6 @@ func (a *registryAuditor) Start() {
 
 	a.createChannels()
 	a.registry = a.recoverRegistry()
-	a.cleanupRegistry()
 	go a.run()
 }
 
@@ -180,6 +181,34 @@ func (a *registryAuditor) GetTailingMode(identifier string) string {
 		return ""
 	}
 	return entry.TailingMode
+}
+
+// KeepAlive modifies the last updated timestamp for a given identifier to signal that the identifier is still being tailed
+// even if no new data is being received.
+// This is used for entities that are not guaranteed to have a tailer assigned to them
+func (a *registryAuditor) KeepAlive(identifier string) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if _, ok := a.registry[identifier]; ok {
+		a.registry[identifier].LastUpdated = time.Now().UTC()
+	}
+}
+
+// SetTailed is used to signal the identifier's status for registry cleanup purposes
+func (a *registryAuditor) SetTailed(identifier string, isTailed bool) {
+	a.registryMutex.Lock()
+	defer a.registryMutex.Unlock()
+	if isTailed {
+		a.tailedSources[identifier] = true
+	} else {
+		delete(a.tailedSources, identifier)
+	}
+
+	// entities that are no longer tailed should remain in the registry for the TTL period
+	// in case they are tailed again.
+	if _, ok := a.registry[identifier]; ok {
+		a.registry[identifier].LastUpdated = time.Now().UTC()
+	}
 }
 
 // run keeps up to date the registry on different events
@@ -253,8 +282,12 @@ func (a *registryAuditor) cleanupRegistry() {
 	expireBefore := time.Now().UTC().Add(-a.entryTTL)
 	for path, entry := range a.registry {
 		if entry.LastUpdated.Before(expireBefore) {
-			a.log.Debugf("TTL for %s is expired, removing from registry.", path)
-			delete(a.registry, path)
+			if a.tailedSources[path] {
+				a.log.Debugf("TTL for %s is expired but it is still tailed, keeping in registry.", path)
+			} else {
+				a.log.Debugf("TTL for %s is expired, removing from registry.", path)
+				delete(a.registry, path)
+			}
 		}
 	}
 }

@@ -10,23 +10,23 @@ package sysprobe
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 
 // SystemProbeConfig fetch the configuration from the system-probe process by querying its API
-func SystemProbeConfig(config config.Reader) (string, error) {
+func SystemProbeConfig(config config.Reader, _ ipc.HTTPClient) (string, error) {
 	hc := client.Get(config.GetString("system_probe_config.sysprobe_socket"))
 
-	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.CloseConnection))
+	c := settingshttp.NewHTTPClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(settingshttp.CloseConnection))
 	return c.FullConfig()
 }
 
 // SystemProbeConfigBySource fetch the all configuration layers from the system-probe process by querying its API
-func SystemProbeConfigBySource(config config.Reader) (string, error) {
+func SystemProbeConfigBySource(config config.Reader, _ ipc.HTTPClient) (string, error) {
 	hc := client.Get(config.GetString("system_probe_config.sysprobe_socket"))
 
-	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.CloseConnection))
+	c := settingshttp.NewHTTPClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(settingshttp.CloseConnection))
 	return c.FullConfigBySource()
 }

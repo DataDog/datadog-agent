@@ -6,70 +6,170 @@
   stage: deploy_mutable_image_tags
   dependencies: []
   before_script:
-    - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
-    - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${IMG_TAG_REFERENCE_SUFFIX}
+    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${SUFFIX}
+    - if [[ -z "$IMG_NEW_TAGS" ]]; then export IMG_NEW_TAGS=${TAG_BASE}${SUFFIX}; fi
 
-# Stable tags
+.deploy_mutable_image_tags_7-rc:
+  extends: .deploy_mutable_image_tags_base
+  dependencies: []
+  variables:
+    TAG_BASE: "7-rc"
+
+.deploy_mutable_image_tags_7:
+  extends: .deploy_mutable_image_tags_base
+  dependencies: []
+  variables:
+    TAG_BASE: "7"
+
+# Jobs [.on_deploy_rc]
+
+deploy_mutable_image_tags-a7-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-a7
+      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX:
+          - ""
+          - "-jmx"
+          - "-servercore"
+          - "-servercore-jmx"
+          - "-linux"
+          - "-linux-jmx"
+
+deploy_mutable_image_tags-a7-win-only-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-a7-win-only
+      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX:
+          - "-ltsc2019"
+          - "-servercore-ltsc2019"
+          - "-ltsc2022"
+          - "-servercore-ltsc2022"
+          - "-ltsc2019-jmx"
+          - "-servercore-ltsc2019-jmx"
+          - "-ltsc2022-jmx"
+          - "-servercore-ltsc2022-jmx"
+
+deploy_mutable_image_tags-a7-full-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-a7-full
+      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX: ["-full"]
+
+deploy_mutable_image_tags-a7-fips-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-a7-fips
+      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX:
+          - "-fips"
+          - "-fips-jmx"
+
+# Jobs [.on_deploy_internal_rc]
+
+deploy_mutable_image_tags-a7_internal-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_internal_rc]
+  needs:
+    - job: deploy_containers-a7_internal-rc
+      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX: [""]
+
+deploy_mutable_image_tags-a7-fips_internal-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_internal_rc]
+  needs:
+    - job: deploy_containers-a7-fips_internal-rc
+      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX:
+          - "-fips"
+          - "-fips-jmx"
+
+# Jobs [.on_deploy_internal_manual_final]
+
+deploy_mutable_image_tags-a7_internal:
+  extends: .deploy_mutable_image_tags_7
+  rules:
+    !reference [.on_deploy_internal_manual_final]
+  parallel:
+    matrix:
+      - SUFFIX:
+          - "-jmx"
+          - "-full"
+          - "-fips-jmx"
+
+# Jobs [.on_deploy_manual_final]
 
 deploy_mutable_image_tags-a7:
   extends: .deploy_mutable_image_tags_base
-  stage: deploy_mutable_image_tags
-  rules: !reference [.on_final]
+  rules:
+    !reference [.on_deploy_manual_final]
   parallel:
     matrix:
-      - IMG_TAG_REFERENCE_SUFFIX: [""]
+      - SUFFIX: [""]
         IMG_NEW_TAGS: ["7,latest"]
-      - IMG_TAG_REFERENCE_SUFFIX: ["-jmx"]
+      - SUFFIX: ["-jmx"]
         IMG_NEW_TAGS: ["7-jmx,latest-jmx"]
-      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore"]
+      - SUFFIX: ["-servercore"]
         IMG_NEW_TAGS: ["7-servercore,latest-servercore"]
-      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore-jmx"]
+      - SUFFIX: ["-servercore-jmx"]
         IMG_NEW_TAGS: ["7-servercore-jmx,latest-servercore-jmx"]
-      - IMG_TAG_REFERENCE_SUFFIX: ["-ltsc2019"]
+      - SUFFIX: ["-ltsc2019"]
         IMG_NEW_TAGS: ["7-ltsc2019,latest-ltsc2019"]
-      - IMG_TAG_REFERENCE_SUFFIX: ["-ltsc2022"]
+      - SUFFIX: ["-ltsc2022"]
         IMG_NEW_TAGS: ["7-ltsc2022,latest-ltsc2022"]
-      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore-ltsc2019"]
+      - SUFFIX: ["-servercore-ltsc2019"]
         IMG_NEW_TAGS: ["7-servercore-ltsc2019,latest-servercore-ltsc2019"]
-      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore-ltsc2022"]
+      - SUFFIX: ["-servercore-ltsc2022"]
         IMG_NEW_TAGS: ["7-servercore-ltsc2022,latest-servercore-ltsc2022"]
-      - IMG_TAG_REFERENCE_SUFFIX: "-servercore-ltsc2019-jmx"
+      - SUFFIX: "-servercore-ltsc2019-jmx"
         IMG_NEW_TAGS: ["7-servercore-ltsc2019-jmx,latest-servercore-ltsc2019-jmx"]
-      - IMG_TAG_REFERENCE_SUFFIX: ["-servercore-ltsc2022-jmx"]
+      - SUFFIX: ["-servercore-ltsc2022-jmx"]
         IMG_NEW_TAGS: ["7-servercore-ltsc2022-jmx,latest-servercore-ltsc2022-jmx"]
-      - IMG_TAG_REFERENCE_SUFFIX: ["-full"]
+      - SUFFIX: ["-full"]
         IMG_NEW_TAGS: ["7-full,latest-full"]
-
-deploy_mutable_image_tags-a7_internal:
-  extends: .deploy_mutable_image_tags_base
-  stage: deploy_mutable_image_tags
-  rules: !reference [.on_internal_final]
-  parallel:
-    matrix:
-      - IMG_TAG_REFERENCE_SUFFIX: "-jmx"
-        IMG_NEW_TAGS: 7-jmx
-      - IMG_TAG_REFERENCE_SUFFIX: "-full"
-        IMG_NEW_TAGS: 7-full
-      - IMG_TAG_REFERENCE_SUFFIX: "-fips-jmx"
-        IMG_NEW_TAGS: 7-fips-jmx
 
 deploy_mutable_image_tags-dogstatsd:
   extends: .docker_publish_job_definition
   stage: deploy_mutable_image_tags
-  rules: !reference [.on_final]
+  rules:
+    !reference [.on_deploy_manual_final]
   before_script:
     - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}
     - export IMG_NEW_TAGS=7,latest
 
 deploy_mutable_image_tags-a7-fips:
-  extends: .deploy_mutable_image_tags_base
-  stage: deploy_mutable_image_tags
-  rules: !reference [.on_final]
+  extends: .deploy_mutable_image_tags_7
+  rules:
+    !reference [.on_deploy_manual_final]
   parallel:
     matrix:
-      - IMG_TAG_REFERENCE_SUFFIX: "-fips"
-        IMG_NEW_TAGS: 7-fips
-      - IMG_TAG_REFERENCE_SUFFIX: "-fips-jmx"
-        IMG_NEW_TAGS: 7-fips-jmx
-
+      - SUFFIX:
+          - "-fips"
+          - "-fips-jmx"
