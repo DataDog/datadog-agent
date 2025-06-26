@@ -1,0 +1,16 @@
+service:
+  telemetry:
+    logs:
+      level: info
+exporters:
+  datadog:
+    proxy_url: "http://proxyurl.example.com:3128"
+    api:
+      key: test-key
+      site: datadoghq.com
+    metrics:
+      endpoint: https://api.datadoghq.com
+    logs:
+      endpoint: https://agent-http-intake.logs.datadoghq.com
+    traces:
+      endpoint: https://trace.agent.datadoghq.com
