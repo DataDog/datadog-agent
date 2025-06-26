@@ -112,7 +112,7 @@ variables:
   # access to OMNIBUS_PACKAGE_DIR directly. To avoid spreading out many hardcoded
   # occurrences of "omnibus/pkg" we expose it as a single variable that can be
   # used to construct the full path expected by the CI
-  OMNIBUS_PACKAGE_SUBDIR: omnibus/pkg
+  OMNIBUS_PACKAGE_SUBDIR: omnibus/pkg/$CI_PIPELINE_ID
   # Directory in which we put the artifacts after the build
   # Must be in $CI_PROJECT_DIR to be usable as an artifact
   OMNIBUS_PACKAGE_DIR: $CI_PROJECT_DIR/$OMNIBUS_PACKAGE_SUBDIR/
