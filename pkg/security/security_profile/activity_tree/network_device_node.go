@@ -11,17 +11,18 @@ package activitytree
 import (
 	"time"
 
+	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // NetworkDeviceNode is used to store a Network Device node
 type NetworkDeviceNode struct {
+	processlist.NodeBase
 	MatchedRules   []*model.MatchedRule
 	GenerationType NodeGenerationType
 	Context        model.NetworkDeviceContext
+	// FlowNodes are indexed by source IPPortContexts
 	FlowNodes      map[model.FiveTuple]*FlowNode
-	FirstSeen      time.Time
-	LastSeen       time.Time
 }
 
 // NewNetworkDeviceNode returns a new NetworkDeviceNode instance
@@ -31,9 +32,9 @@ func NewNetworkDeviceNode(ctx *model.NetworkDeviceContext, generationType NodeGe
 		GenerationType: generationType,
 		Context:        *ctx,
 		FlowNodes:      make(map[model.FiveTuple]*FlowNode),
-		FirstSeen:      now,
-		LastSeen:       now,
 	}
+	node.NodeBase = processlist.NewNodeBase()
+	node.Record("", now)
 	return node
 }
 
@@ -59,7 +60,7 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 	}
 
 	if !dryRun {
-		netdevice.updateTimes()
+		netdevice.updateTimes(imageTag)
 	}
 
 	var newFlow bool
@@ -84,12 +85,7 @@ func (netdevice *NetworkDeviceNode) insertNetworkFlowMonitorEvent(event *model.N
 	return newFlow
 }
 
-func (netdevice *NetworkDeviceNode) updateTimes(event *model.Event) {
-	eventTime := event.ResolveEventTime()
-	if netdevice.FirstSeen.IsZero() {
-		netdevice.FirstSeen = eventTime
-		netdevice.LastSeen = eventTime
-	} else {
-		netdevice.LastSeen = eventTime
-	}
+func (netdevice *NetworkDeviceNode) updateTimes(imageTag string) {
+	now := time.Now()
+	netdevice.Record(imageTag, now)
 }
