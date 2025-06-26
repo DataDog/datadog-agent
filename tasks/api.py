@@ -80,16 +80,17 @@ def run(
         else f"https://agent-ci-api.{dc}/{prefix}{endpoint}"
     )
     silent = '-s' if silent_curl else ''
+    use_jq = jq == 'yes' or (jq == 'auto' and has_jq)
 
     if payload:
         payload = f'-d \'{payload}\''
 
     cmd = f'curl {silent} -X {method.upper()} {url} -H {token} -H {extra_header} {payload}'
 
-    result = ctx.run(cmd, hide=True)
+    result = ctx.run(cmd, hide=use_jq)
     if not result.ok:
         raise RuntimeError(f'Command failed with exit code {result.exited}:\n{cmd}\n{result.stderr}')
-    elif jq == 'yes' or (jq == 'auto' and has_jq):
+    elif use_jq:
         jq_result = subprocess.run(['jq', '-C', '.'], input=result.stdout, text=True)
 
         # Jq parsing failed, ignore (otherwise everything is already printed)
