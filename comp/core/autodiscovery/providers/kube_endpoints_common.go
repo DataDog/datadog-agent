@@ -26,17 +26,18 @@ const (
 func getEndpointResolveFunc(resolveMode endpointResolveMode, namespace, name string) func(*integration.Config, v1.EndpointAddress) {
 	// Check resolve annotation to know how we should process this endpoint
 	var resolveFunc func(*integration.Config, v1.EndpointAddress)
+
 	switch resolveMode {
-	// IP: we explicitly ignore what's behind this address (nothing to do)
 	case kubeEndpointResolveIP:
-	// In case of unknown value, fallback to auto
+		// IP: we explicitly ignore what's behind this address (nothing to do)
+
+	case "", kubeEndpointResolveAuto:
+		// Auto or empty (default to auto): we try to resolve the POD behind this address
+		resolveFunc = utils.ResolveEndpointConfigAuto
+
 	default:
-		log.Warnf("Unknown resolve value: %s for endpoint: %s/%s - fallback to auto mode", resolveMode, namespace, name)
-		fallthrough
-	// Auto or empty (default to auto): we try to resolve the POD behind this address
-	case "":
-		fallthrough
-	case kubeEndpointResolveAuto:
+		// Unknown value: log warning and fallback to auto mode
+		log.Warnf("Unknown resolve value: %s for endpoint: %s/%s - falling back to auto mode", resolveMode, namespace, name)
 		resolveFunc = utils.ResolveEndpointConfigAuto
 	}
 
