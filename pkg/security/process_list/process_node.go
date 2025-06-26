@@ -69,7 +69,7 @@ func NewProcessExecNodeFromEvent(event *model.Event, processKey, execKey interfa
 	}
 	exec.ProcessLink = process
 	version := event.ContainerContext.Tags[0]
-	process.Record(version, uint64(event.ResolveEventTime().Unix()))
+	process.Record(version, event.ResolveEventTime())
 	return process
 }
 

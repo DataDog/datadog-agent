@@ -13,7 +13,6 @@ import (
 	"io"
 	"math/rand"
 	"sync"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -23,6 +22,8 @@ type ExecNode struct {
 	sync.Mutex
 	model.Process
 
+	NodeBase
+
 	// Key represents the key used to retrieve the exec from the cache
 	// if the owner is able to define a key we use it, otherwise we'll put
 	// a random generated uint64 cookie
@@ -31,8 +32,6 @@ type ExecNode struct {
 	ProcessLink *ProcessNode
 
 	MatchedRules []*model.MatchedRule
-	FirstSeen    time.Time
-	LastSeen time.Time
 
 	// TODO: redo
 	// Files      map[string]*FileNode
@@ -45,7 +44,9 @@ type ExecNode struct {
 // NewEmptyExecNode returns a new empty ExecNode instance
 func NewEmptyExecNode() *ExecNode {
 	// TODO: init maps
-	return &ExecNode{}
+	return &ExecNode{
+		NodeBase: NewNodeBase(),
+	}
 }
 
 // NewExecNodeFromEvent returns a new exec node from a given event, and if any, use
@@ -66,18 +67,20 @@ func (e *ExecNode) Insert(event *model.Event, imageTag string) (newEntryAdded bo
 	e.Lock()
 	defer e.Unlock()
 
-
-	eventTime := event.Timestamp
-	
-	if e.FirstSeen.IsZero() {
-		e.FirstSeen = eventTime
-		newEntryAdded = true
+	if event == nil {
+		return false, fmt.Errorf("event cannot be nil")
 	}
-	
-	e.LastSeen = eventTime
 
-	// TODO
-	return false, nil
+	eventTime := event.ResolveEventTime()
+	
+	// Check if this is a new entry by checking if the version exists before recording
+	newEntryAdded = !e.HasVersion(imageTag)
+	
+	// Record the event - NodeBase.Record() handles its own locking
+	e.Record(imageTag, eventTime)
+
+	// TODO: Add event-specific processing here
+	return newEntryAdded, nil
 }
 
 // Debug prints out recursively content of each node

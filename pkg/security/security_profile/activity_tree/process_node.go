@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"time"
 
+	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -35,13 +36,12 @@ type ProcessNodeParent interface {
 
 // ProcessNode holds the activity of a process
 type ProcessNode struct {
+	processlist.NodeBase
 	Process        model.Process
 	Parent         ProcessNodeParent
 	GenerationType NodeGenerationType
 	ImageTags      []string
 	MatchedRules   []*model.MatchedRule
-	FirstSeen      time.Time
-	LastSeen       time.Time
 
 	Files          map[string]*FileNode
 	DNSNames       map[string]*DNSNode
@@ -63,16 +63,17 @@ func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGeneratio
 		}
 	}
 	now := time.Now()
-	return &ProcessNode{
+	node := &ProcessNode{
 		Process:        entry.Process,
 		GenerationType: generationType,
 		Files:          make(map[string]*FileNode),
 		DNSNames:       make(map[string]*DNSNode),
 		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode),
-		FirstSeen:      now,
-		LastSeen:       now,
 	}
+	node.NodeBase = processlist.NewNodeBase()
+	node.Record("", now)
+	return node
 }
 
 // GetChildren returns the list of children from the ProcessNode
@@ -555,16 +556,11 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 	return false
 }
 
-func (pn *ProcessNode) UpdateLastSeen() {
-	pn.LastSeen = time.Now()
+func (pn *ProcessNode) UpdateLastSeen(version string) {
+	pn.Record(version, time.Now())
 }
 
 func (pn *ProcessNode) updateTimes(event *model.Event) {
 	eventTime := event.ResolveEventTime()
-	if pn.FirstSeen.IsZero() {
-		pn.FirstSeen = eventTime
-		pn.LastSeen = eventTime
-	} else {
-		pn.LastSeen = eventTime
-	}
+	pn.Record(event.ContainerContext.Tags[0], eventTime)
 }

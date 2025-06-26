@@ -382,7 +382,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	}
 
 	if !dryRun {
-		node.UpdateLastSeen()
+		node.UpdateLastSeen(imageTag)
 	}
 
 	// resolve fields
