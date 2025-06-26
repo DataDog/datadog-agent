@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -442,6 +443,13 @@ type sslProgram struct {
 	cfg         *config.Config
 	attacher    *uprobes.UprobeAttacher
 	ebpfManager *manager.Manager
+
+	// sslCtxByPIDTGIDMapCleaner map cleaner sslCtxByPIDTGID
+	sslCtxByPIDTGIDMapCleaner *ddebpf.MapCleaner[uint64, uintptr]
+	// sslSockByCtxMap a reference to the ssl_sock_by_ctx map to be used by the sslCtxByPIDTGIDMapCleaner
+	sslSockByCtxMap *ebpf.Map
+	// sslCtxByTupleMap a reference to the ssl_ctx_by_tuple map to be used by the sslCtxByPIDTGIDMapCleaner
+	sslCtxByTupleMap *ebpf.Map
 }
 
 func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protocols.Protocol, error) {
@@ -533,6 +541,26 @@ func (o *sslProgram) ConfigureOptions(options *manager.Options) {
 
 // PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart() error {
+	sslCtxByPIDTGIDMapObj, _, err := o.ebpfManager.GetMap(sslCtxByPIDTGIDMap)
+	if err != nil {
+		return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslCtxByPIDTGIDMap, err)
+	}
+	sslSockByCtxMapObj, _, err := o.ebpfManager.GetMap(sslSockByCtxMap)
+	if err != nil {
+		return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslSockByCtxMap, err)
+	}
+	sslCtxByTupleMapObj, _, err := o.ebpfManager.GetMap(sslCtxByTupleMap)
+	if err != nil {
+		return fmt.Errorf("dead process ssl cleaner failed to get map: %q error: %w", sslCtxByTupleMap, err)
+	}
+
+	cleaner, err := ddebpf.NewMapCleaner[uint64, uintptr](sslCtxByPIDTGIDMapObj, protocols.DefaultMapCleanerBatchSize, sslCtxByPIDTGIDMap, UsmTLSAttacherName)
+	if err != nil {
+		return fmt.Errorf("failed to create sslCtxByPIDTGIDMap cleaner: %w", err)
+	}
+	o.sslCtxByPIDTGIDMapCleaner = cleaner
+	o.sslSockByCtxMap = sslSockByCtxMapObj
+	o.sslCtxByTupleMap = sslCtxByTupleMapObj
 	return o.attacher.Start()
 }
 
