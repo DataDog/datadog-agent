@@ -7,9 +7,6 @@
 package file
 
 import (
-	"bufio"
-	"io"
-	"os"
 	"regexp"
 	"slices"
 	"time"
@@ -234,23 +231,8 @@ func (s *Launcher) scan() {
 			// create a new tailer tailing from the beginning of the file if no offset has been recorded
 			checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 			if checkSumEnabled == "checksum" {
-				maxBytes := pkgconfigsetup.Datadog().GetInt("logs_config.fingerprint_config.max_bytes")
-				f, err := os.Open(file.Path)
-				if err != nil {
-					log.Warnf("could not open file to check for content %s: %v", file.Path, err)
-					continue
-				}
-				limitedReader := io.LimitReader(f, int64(maxBytes))
-				reader := bufio.NewReader(limitedReader)
-				line, err := reader.ReadString('\n')
-				f.Close()
-				//Remove in favor of fingerprint
-				if err != nil && err != io.EOF {
-					log.Warnf("error checking for content in %s: %v", file.Path, err)
-					continue
-				}
-				if len(line) == 0 {
-					log.Debugf("file %s is empty or does not contain a line within the first %d bytes, skipping", file.Path, maxBytes)
+
+				if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig()) == 0 {
 					continue
 				}
 				succeeded := s.startNewTailer(file, config.Beginning)

@@ -170,7 +170,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	movingSum := util.NewMovingSum(timeWindow, bucketSize, clock.New())
 	opts.Info.Register(movingSum)
 
-	fingerprintConfig := returnFingerprintConfig()
+	fingerprintConfig := ReturnFingerprintConfig()
 	fingerprintingEnabled := false
 	if pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy") == "checksum" {
 		fingerprintingEnabled = true
@@ -204,7 +204,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
 	}
 	if t.fingerprintingEnabled {
-		t.fingerprint = t.ComputeFingerPrint(t.fingerprintConfig)
+		t.fingerprint = ComputeFingerprint(t.file.Path, t.fingerprintConfig)
 	}
 	return t
 }
@@ -321,7 +321,8 @@ func (t *Tailer) readForever() {
 		}
 
 		if n > 0 && t.fingerprintingEnabled && t.fingerprint == 0 {
-			t.fingerprint = t.ComputeFingerPrint(t.fingerprintConfig)
+			filePath := t.Identifier()[5:]
+			t.fingerprint = ComputeFingerprint(filePath, t.fingerprintConfig)
 			if t.fingerprint != 0 {
 				log.Infof("Successfully computed fingerprint for file %q on retry", t.file.Path)
 			}

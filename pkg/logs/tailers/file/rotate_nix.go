@@ -60,8 +60,7 @@ func (t *Tailer) DidRotate() (bool, error) {
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotateViaFingerprint() (bool, error) {
-	newFingerprint := t.ComputeFingerPrint(t.fingerprintConfig)
-
+	newFingerprint := ComputeFingerprint(t.file.Path, t.fingerprintConfig)
 	// If the old fingerprint is 0, we can't know for sure.
 	// This can happen if the file was empty when the tailer started.
 	if t.fingerprint == 0 {

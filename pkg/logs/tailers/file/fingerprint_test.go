@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -64,7 +64,7 @@ func (suite *FingerprintTestSuite) TestFingerprintOffsetCorrection() {
 	suite.Require().Nil(err)
 
 	// 3. Compute the fingerprint
-	tailer.ComputeFingerPrint(tailer.fingerprintConfig)
+	ComputeFingerprint(tailer.file.Path, tailer.fingerprintConfig)
 
 	// 4. Verify the offset is restored
 	currentOffset, err := tailer.osFile.Seek(0, io.SeekCurrent)
@@ -137,7 +137,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip1() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -181,7 +181,7 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -229,7 +229,7 @@ func (suite *FingerprintTestSuite) TestLineBased_MultipleLinesAddUpToByteLimit()
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -271,7 +271,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip2() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -299,7 +299,7 @@ func (suite *FingerprintTestSuite) TestLineBased_EmptyFile() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -336,7 +336,7 @@ func (suite *FingerprintTestSuite) TestLineBased_InsufficientData() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -371,8 +371,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip1() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -406,7 +405,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip_InvalidNotEnoughData()
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -443,7 +442,7 @@ func (suite *FingerprintTestSuite) TestByteBased_NoSkip() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -477,7 +476,7 @@ func (suite *FingerprintTestSuite) TestByteBased_InsufficientData() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -516,7 +515,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip3() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -550,7 +549,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip2() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -588,7 +587,7 @@ func (suite *FingerprintTestSuite) TestLineBased_NoSkip() {
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
 
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
 
@@ -626,7 +625,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip5() {
 	tailer.osFile = osFile
 
 	// Compute fingerprint (now returns uint64 directly)
-	fingerprint := tailer.ComputeFingerPrint(config)
+	fingerprint := ComputeFingerprint(tailer.file.Path, config)
 
 	expectedText := "line 1: important data\n" + "line 2: more important data\n"
 	table := crc64.MakeTable(crc64.ISO)
@@ -662,7 +661,7 @@ func (suite *FingerprintTestSuite) TestByteBased_WithSkip3() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint := tailer.ComputeFingerPrint(config)
+	fingerprint := ComputeFingerprint(tailer.file.Path, config)
 
 	textToHash := "thisisexactly20chars"
 	table := crc64.MakeTable(crc64.ISO)
@@ -689,7 +688,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint := tailer.ComputeFingerPrint(config)
+	fingerprint := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(uint64(0), fingerprint, "Empty file should return 0")
 	osFile.Close()
 
@@ -707,7 +706,7 @@ func (suite *FingerprintTestSuite) TestEmptyFile_And_SkippingMoreThanFileSize() 
 
 	tailer = suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint = tailer.ComputeFingerPrint(config)
+	fingerprint = ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(uint64(0), fingerprint, "Insufficient data should return 0")
 }
 
@@ -738,7 +737,7 @@ func (suite *FingerprintTestSuite) TestLineBased_SingleLongLine2() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint := tailer.ComputeFingerPrint(config)
+	fingerprint := ComputeFingerprint(tailer.file.Path, config)
 
 	expectedText := strings.Repeat("X", 80)
 	table := crc64.MakeTable(crc64.ISO)
@@ -780,7 +779,7 @@ func (suite *FingerprintTestSuite) TestXLinesOrYBytesFirstHash() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint := tailer.ComputeFingerPrint(config)
+	fingerprint := ComputeFingerprint(tailer.file.Path, config)
 
 	fmt.Println(lines)
 	stringToHash := strings.Repeat("A", 30) + "\n" + strings.Repeat("B", 30) + "\n" + strings.Repeat("C", 18)
@@ -814,7 +813,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 
 	tailer := suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint1 := tailer.ComputeFingerPrint(fpConfig)
+	fingerprint1 := ComputeFingerprint(tailer.file.Path, fpConfig)
 	osFile.Close()
 
 	// Reset file for next test
@@ -847,7 +846,7 @@ func (suite *FingerprintTestSuite) TestLineBased_WithSkip4() {
 
 	tailer = suite.createTailer()
 	tailer.osFile = osFile
-	fingerprint2 := tailer.ComputeFingerPrint(fpConfig)
+	fingerprint2 := ComputeFingerprint(tailer.file.Path, fpConfig)
 	textToHash2 := "\nline2\nlin"
 	table = crc64.MakeTable(crc64.ISO)
 	expectedHash2 := crc64.Checksum([]byte(textToHash2), table)
@@ -892,7 +891,7 @@ func (suite *FingerprintTestSuite) TestInvalidConfig_BothSkipValuesSet() {
 	tailer.osFile = osFile
 
 	expectedChecksum := uint64(0)
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 
 	suite.Equal(expectedChecksum, receivedChecksum)
 }
@@ -904,20 +903,31 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	_, err := suite.testFile.WriteString("line 1\nline 2\nline 3\n")
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
-	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxlines", 1)
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxbytes", 2048)
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.bytes_to_skip", 0)
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.lines_to_skip", 0)
-	config := returnFingerprintConfig()
+
+	// Set the global configuration values
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.max_lines", 1)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.max_bytes", 2048)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.bytes_to_skip", 0)
+	pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.lines_to_skip", 0)
+
+	// Ensure cleanup of configuration values
+	defer func() {
+		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_strategy", nil)
+		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.max_lines", nil)
+		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.max_bytes", nil)
+		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.bytes_to_skip", nil)
+		pkgconfigsetup.Datadog().SetWithoutSource("logs_config.fingerprint_config.lines_to_skip", nil)
+	}()
+
+	config := ReturnFingerprintConfig()
 	suite.Equal(1, *config.MaxLines)
 	suite.Equal(2048, *config.MaxBytes)
 	suite.Equal(0, *config.BytesToSkip)
 	suite.Equal(0, *config.LinesToSkip)
 	tailer := suite.createTailer()
 	tailer.fingerprintingEnabled = true
-	tailer.fingerprint = tailer.ComputeFingerPrint(config)
+	tailer.fingerprint = ComputeFingerprint(tailer.file.Path, config)
 
 	table := crc64.MakeTable(crc64.ISO)
 	expectedChecksum := crc64.Checksum([]byte("line 1\n"), table)
@@ -949,7 +959,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	// This tailer now considers the current content ("a completely new file") as its baseline.
 	tailer = suite.createTailer()
 	tailer.fingerprintingEnabled = true
-	tailer.fingerprint = tailer.ComputeFingerPrint(config)
+	tailer.fingerprint = ComputeFingerprint(tailer.file.Path, config)
 
 	expectedChecksum = crc64.Checksum([]byte("a completely new file\n"), table)
 	suite.Equal(expectedChecksum, tailer.fingerprint)
@@ -977,7 +987,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(err)
 	suite.True(rotated, "Should detect rotation after file content changes")
 	expectedChecksum = crc64.Checksum([]byte("even more different content\n"), table)
-	receivedChecksum := tailer.ComputeFingerPrint(config)
+	receivedChecksum := ComputeFingerprint(tailer.file.Path, config)
 	suite.Equal(expectedChecksum, receivedChecksum)
 
 	// 5. Test case with an an empty file.
@@ -989,7 +999,7 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	suite.Nil(suite.testFile.Sync())
 	tailer = suite.createTailer()
 	tailer.fingerprintingEnabled = true
-	tailer.fingerprint = tailer.ComputeFingerPrint(config)
+	tailer.fingerprint = ComputeFingerprint(tailer.file.Path, config)
 	suite.Zero(tailer.fingerprint, "Fingerprint of an empty file should be 0")
 
 	// `DidRotateViaFingerprint` is designed to return `false` if the original
@@ -997,5 +1007,5 @@ func (suite *FingerprintTestSuite) TestDidRotateViaFingerprint() {
 	rotated, err = tailer.DidRotateViaFingerprint()
 	suite.Nil(err)
 	suite.False(rotated, "Should not detect rotation if the initial fingerprint was zero")
-	suite.Equal(uint64(0), tailer.ComputeFingerPrint(config))
+	suite.Equal(uint64(0), ComputeFingerprint(tailer.file.Path, config))
 }

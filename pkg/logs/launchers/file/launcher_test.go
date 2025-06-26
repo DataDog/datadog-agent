@@ -153,7 +153,6 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxbytes", 256)
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
@@ -191,7 +190,8 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 		LinesToSkip: &linesToSkip,
 		BytesToSkip: &bytesToSkip,
 	}
-	fingerprint := tailer.ComputeFingerPrint(fingerprintConfig)
+	filePath := tailer.Identifier()[5:]
+	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
 	// Rotate file
@@ -209,7 +209,8 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
-	newFingerprint := newTailer.ComputeFingerPrint(fingerprintConfig)
+	filePath = newTailer.Identifier()[5:]
+	newFingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
 	registryFingerprint := s.registry.GetFingerprint(newTailer.Identifier())
 	suite.NotEqual(registryFingerprint, newFingerprint, "The fingerprint of the new file should be different")
 
@@ -221,7 +222,6 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxbytes", 256)
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
@@ -260,7 +260,8 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 		LinesToSkip: &linesToSkip,
 		BytesToSkip: &bytesToSkip,
 	}
-	fingerprint := tailer.ComputeFingerPrint(fingerprintConfig)
+	filePath := tailer.Identifier()[5:]
+	fingerprint := filetailer.ComputeFingerprint(filePath, fingerprintConfig)
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
 	// Rotate file
@@ -403,7 +404,6 @@ func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
 
 	// Temporarily set the global config for this test
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	fmt.Println(mockConfig.Get("logs_config.fingerprint_strategy"))
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDir := t.TempDir()
 
@@ -434,7 +434,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 
 	// Temporarily set the global config for this test
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxbytes", 2048)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 2048)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDir := t.TempDir()
 
@@ -470,7 +470,7 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.maxbytes", 2048)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 2048)
 	// Temporarily set the global config for this test
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDir := t.TempDir()
