@@ -140,6 +140,7 @@ HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
 }
 
 HOOK_SYSCALL_EXIT(unshare) {
+    bpf_printk("pop c");
     pop_syscall(EVENT_UNSHARE_MNTNS);
     return 0;
 }
@@ -156,6 +157,8 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     struct mount_event_t event = {
         .syscall.retval = 0,
         .syscall_ctx.id = syscall->ctx_id,
+        .visible = false,
+        .detached = true,
     };
 
     fill_mount_fields(syscall, &event.mountfields);
@@ -163,14 +166,14 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
-    pop_syscall(EVENT_MOUNT);
     bpf_printk("send_detached_event. BindSrcMountID=%d, MountID=%d", event.mountfields.bind_src_mount_id, event.mountfields.mountpoint_key.mount_id);
-    send_event(ctx, EVENT_MOUNT, event);
+    send_event(ctx, DETACHED_COPY, event);
 
     return 0;
 }
 
 void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type, bool detached) {
+    bpf_printk("handle new mount");
     // populate the root dentry key
     struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
@@ -178,6 +181,7 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     update_path_id(&syscall->mount.root_key, 0);
 
     if(!detached) {
+        bpf_printk("not detached");
         // populate the mountpoint dentry key
         syscall->mount.mountpoint_key.mount_id = get_mount_mount_id(syscall->mount.parent);
         syscall->mount.mountpoint_key.ino = get_dentry_ino(syscall->mount.mountpoint_dentry);
@@ -193,6 +197,7 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     bpf_probe_read(&syscall->mount.fstype, sizeof(syscall->mount.fstype), &s_type->name);
 
     if (syscall->mount.root_key.mount_id == 0 || (!detached && syscall->mount.mountpoint_key.mount_id == 0) || syscall->mount.device == 0) {
+        bpf_printk("returning here");
         pop_syscall(syscall->type);
         return;
     }
@@ -207,16 +212,18 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
         syscall->resolver.ret = 0;
 
         resolve_dentry(ctx, prog_type);
+
+        // if the tail call fails, we need to pop the syscall cache entry
+        bpf_printk("pop d");
+        pop_syscall(syscall->type);
     } else {
-        bpf_printk("mout not attached");
+        bpf_printk("mount not attached");
         send_detached_event(ctx, syscall);
     }
-
-    // if the tail call fails, we need to pop the syscall cache entry
-    pop_syscall(syscall->type);
 }
 
 int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+    bpf_printk("stage_one_callback");
     struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
@@ -231,6 +238,8 @@ int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum T
 
     resolve_dentry(ctx, prog_type);
     // if the tail call fails, we need to pop the syscall cache entry
+    bpf_printk("pop e");
+    // Should it pop when it fails and is a DETACHED_COPY??
     pop_syscall(syscall->type);
 
     return 0;
@@ -245,12 +254,13 @@ TAIL_CALL_TRACEPOINT_FNC(dr_mount_stage_one_callback, struct tracepoint_syscalls
 }
 
 int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
+    bpf_printk("On stage two callback");
     struct syscall_cache_t *syscall = peek_syscall_with(mountpoint_predicate);
     if (!syscall) {
         return 0;
     }
 
-    if (syscall->type == EVENT_MOUNT) {
+    if (syscall->type == EVENT_MOUNT || syscall->type == DETACHED_COPY) {
         struct mount_event_t event = {
             .syscall.retval = 0,
             .syscall_ctx.id = syscall->ctx_id,
@@ -260,10 +270,12 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
         struct proc_cache_t *entry = fill_process_context(&event.process);
         fill_container_context(entry, &event.container);
         fill_span_context(&event.span);
-
-        pop_syscall(EVENT_MOUNT);
+        if (syscall->type != DETACHED_COPY) {
+            pop_syscall(EVENT_MOUNT);
+        }
         bpf_printk("sending EVENT_MOUNT. BindSrcMountID=%d, MountID=%d", event.mountfields.bind_src_mount_id, event.mountfields.mountpoint_key.mount_id);
-        send_event(ctx, EVENT_MOUNT, event);
+        send_event(ctx, syscall->type, event);
+
     } else if (syscall->type == EVENT_UNSHARE_MNTNS) {
         struct unshare_mntns_event_t event = { 0 };
 
@@ -288,14 +300,16 @@ HOOK_ENTRY("attach_mnt")
 int hook_attach_mnt(ctx_t *ctx) {
     bpf_printk("attach_mnt");
 
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE_MNTNS);
+    struct syscall_cache_t *syscall = peek_syscall_with(mount_or_detached_copy);
     if (!syscall) {
+        bpf_printk("no syscall");
         return 0;
     }
 
     struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
     // check if this mount has already been processed
     if (syscall->mount.newmnt == newmnt) {
+        bpf_printk("new is first");
         return 0;
     }
 
@@ -304,6 +318,7 @@ int hook_attach_mnt(ctx_t *ctx) {
     struct mountpoint *mp = (struct mountpoint *)CTX_PARM3(ctx);
     syscall->mount.mountpoint_dentry = get_mountpoint_dentry(mp);
 
+    bpf_printk("calling handle_new_mount");
     handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, false);
 
     return 0;
@@ -376,7 +391,6 @@ int hook_clone_mnt(ctx_t *ctx) {
 
 HOOK_EXIT("clone_mnt")
 int rethook_clone_mnt(ctx_t *ctx) {
-    struct mount *ret = (struct mount *)CTX_PARMRET(ctx);
     struct syscall_cache_t *syscall = peek_syscall(DETACHED_COPY);
 
     if (!syscall) {
@@ -386,35 +400,10 @@ int rethook_clone_mnt(ctx_t *ctx) {
     if(syscall->mount.clone_mnt_ctr != 1) {
         return 0;
     }
-    struct detached_mount_event_t event = {
-        .syscall.retval = 0,
-        //.syscall_ctx.id = syscall->ctx_id,
-    };
-    //.mountfields.root_key.
-    bpf_printk("Bind src mountid: %d", syscall->mount.bind_src_mount_id);
-    bpf_printk("clone_mnt ctr: %d", syscall->mount.clone_mnt_ctr);
 
-    event.mountfields.root_key.mount_id = get_mount_mount_id(ret);
-    bpf_printk("Mount id: %d", event.mountfields.root_key.mount_id);
-
-    struct dentry *root_dentry = get_mount_mountpoint_dentry(ret);
-    event.mountfields.root_key.ino = get_dentry_ino(root_dentry);
-    bpf_printk("Inode: %d", event.mountfields.root_key.ino);
-
-    event.mountfields.device = get_mount_dev(ret);
-    bpf_printk("Device: %d", event.mountfields.device);
-
-    struct super_block *sb = get_dentry_sb(root_dentry);
-    struct file_system_type *s_type = get_super_block_fs(sb);
-    bpf_probe_read_str(&event.mountfields.fstype, sizeof(event.mountfields.fstype), &s_type->name);
-    bpf_printk("Filesystem type: %s", event.mountfields.fstype);
-
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_container_context(entry, &event.container);
-    fill_span_context(&event.span);
-    bpf_printk("Sending event DETACHED_COPY");
-    send_event(ctx, DETACHED_COPY, event);
-
+    struct mount *ret = (struct mount *)CTX_PARMRET(ctx);
+    syscall->mount.newmnt = ret;
+    handle_new_mount(ctx, syscall, KPROBE_OR_FENTRY_TYPE, true);
     return 0;
 }
 
@@ -447,7 +436,6 @@ int hook_propagate_mnt(ctx_t *ctx) {
         return 0;
     }
     bpf_printk("propagate_mnt");
-
     struct mount *newmnt = (struct mount *)CTX_PARM3(ctx);
     // check if this mount has already been processed
     if (syscall->mount.newmnt == newmnt) {
@@ -464,6 +452,7 @@ int hook_propagate_mnt(ctx_t *ctx) {
 
 int __attribute__((always_inline)) sys_mount_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (retval) {
+        bpf_printk("pop a");
         pop_syscall(EVENT_MOUNT);
         return 0;
     }
@@ -514,7 +503,7 @@ int hook_open_detached_copy(ctx_t *ctx) {
     struct syscall_cache_t syscall = {
         .type = DETACHED_COPY,
     };
-
+    bpf_printk("cache syscall");
     cache_syscall(&syscall);
     return 0;
 }
@@ -525,8 +514,6 @@ int rethook_open_detached_copy(ctx_t *ctx) {
     pop_syscall(DETACHED_COPY);
     return 0;
 }
-
-    ;
 
 HOOK_SYSCALL_ENTRY3(open_tree, int, dfd, const char *, filename, unsigned int, flags)
 {
@@ -559,6 +546,7 @@ HOOK_SYSCALL_ENTRY3(fsmount, int, fs_fd, unsigned int, flags, unsigned int, attr
 
 
 HOOK_SYSCALL_EXIT(fsmount) {
+    bpf_printk("pop b");
     struct syscall_cache_t *syscall = pop_syscall(EVENT_FSMOUNT);
     if (!syscall) {
         // should never happen

@@ -29,7 +29,7 @@ int __attribute__((always_inline)) credentials_predicate(u64 type) {
 }
 
 int __attribute__((always_inline)) mountpoint_predicate(u64 type) {
-    return type == EVENT_MOUNT || type == EVENT_UNSHARE_MNTNS;
+    return type == EVENT_MOUNT || type == EVENT_UNSHARE_MNTNS || type == DETACHED_COPY;
 }
 
 int __attribute__((always_inline)) mount_or_detached_copy(u64 type) {
