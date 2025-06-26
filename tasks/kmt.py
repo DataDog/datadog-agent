@@ -2351,6 +2351,9 @@ def download_complexity_data(
     dest_path = Path(dest_path)
     deps: list[JobDependency] = []
 
+    # Ensure the destination path exists
+    dest_path.mkdir(parents=True, exist_ok=True)
+
     if not download_all_jobs:
         print("Parsing .gitlab-ci.yml file to understand the dependencies for notify_ebpf_complexity_changes")
 
