@@ -36,6 +36,7 @@ const (
 	remappedRows CollectorName = "remapped_rows"
 	samples      CollectorName = "samples"
 	nvlink       CollectorName = "nvlink"
+	gpm          CollectorName = "gpm"
 )
 
 // Metric represents a single metric collected from the NVML library.
@@ -70,11 +71,11 @@ var factory = map[CollectorName]subsystemBuilder{
 	clock:        newClocksCollector,
 	samples:      newSamplesCollector,
 	nvlink:       newNVLinkCollector,
+	gpm:          newGPMCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
-
 	// DeviceCache is a cache of GPU devices.
 	DeviceCache ddnvml.DeviceCache
 }
@@ -89,6 +90,7 @@ func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]sub
 
 	for _, dev := range deps.DeviceCache.All() {
 		for name, builder := range builders {
+			log.Debugf("building collector %s for device %s", name, dev.GetDeviceInfo().UUID)
 			c, err := builder(dev)
 			if errors.Is(err, errUnsupportedDevice) {
 				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
