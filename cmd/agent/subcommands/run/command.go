@@ -37,6 +37,7 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/datastreams"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/firewallscanner"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/ports"
@@ -588,6 +589,12 @@ func startAgent(
 	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
+		controller := datastreams.NewController(ac)
+		subscribe := func() {
+			rcclient.Subscribe(data.ProductDataStreamsLiveMessages, controller.Update)
+		}
+		go controller.ManageSubscriptionToRC(subscribe)
+		ac.AddConfigProvider(controller, false, 0)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
