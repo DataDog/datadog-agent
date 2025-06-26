@@ -9,14 +9,13 @@ package statusimpl
 import (
 	"embed"
 	"encoding/json"
-	"fmt"
+	"expvar"
 	"io"
+	"net/http/httptest"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -25,7 +24,6 @@ type dependencies struct {
 	fx.In
 
 	Config config.Component
-	Client ipc.HTTPClient
 }
 
 type provides struct {
@@ -42,14 +40,12 @@ func Module() fxutil.Module {
 
 type statusProvider struct {
 	Config config.Component
-	Client ipc.HTTPClient
 }
 
 func newStatus(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
 			Config: deps.Config,
-			Client: deps.Client,
 		}),
 	}
 }
@@ -78,21 +74,20 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 }
 
 func (s statusProvider) populateStatus() map[string]interface{} {
-	port := s.Config.GetInt("apm_config.debug.port")
+	w := httptest.NewRecorder()
+	expvar.Handler().ServeHTTP(w, nil)
+	resp := w.Result()
 
-	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return map[string]interface{}{
-			"port":  port,
 			"error": err.Error(),
 		}
 	}
 
 	status := make(map[string]interface{})
-	if err := json.Unmarshal(resp, &status); err != nil {
+	if err := json.Unmarshal(body, &status); err != nil {
 		return map[string]interface{}{
-			"port":  port,
 			"error": err.Error(),
 		}
 	}
