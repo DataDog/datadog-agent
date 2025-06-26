@@ -29,6 +29,7 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
             if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {  \
                 continue;                                                                                                                   \
             }                                                                                                                               \
+            log_debug("GUY 1: Invalid character '%c' in buffer", ch);                                                \
             return false;                                                                                                                   \
         }                                                                                                                                   \
     }                                                                                                                                       \
@@ -46,6 +47,8 @@ static void __always_inline kafka_tcp_termination(conn_tuple_t *tup)
     // for the other direction may not be reached in some cases (localhost).
     flip_tuple(tup);
     bpf_map_delete_elem(&kafka_response, tup);
+
+    // TODO clean up kafka_topic_id_to_name
 }
 
 SEC("socket/kafka_filter")
@@ -476,7 +479,7 @@ static enum parser_level parser_state_to_level(kafka_response_state state)
     switch (state) {
     case KAFKA_FETCH_RESPONSE_START:
     case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
-    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_OR_ID:
     case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
     case KAFKA_FETCH_RESPONSE_PARTITION_START:
     case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
@@ -499,6 +502,13 @@ static enum parser_level parser_state_to_level(kafka_response_state state)
         return PARSER_LEVEL_RECORD_BATCH;
     case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
     case KAFKA_FETCH_RESPONSE_PARTITION_END:
+    case KAFKA_METADATA_RESPONSE_START:
+    case KAFKA_METADATA_RESPONSE_NUM_BROKERS:
+    case KAFKA_METADATA_RESPONSE_BROKERS_LOOP:
+    case KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS:
+    case KAFKA_METADATA_RESPONSE_NUM_TOPICS:
+    case KAFKA_METADATA_RESPONSE_TOPICS_LOOP:
+//    case KAFKA_METADATA_RESPONSE_END:
         return PARSER_LEVEL_PARTITION;
     }
 }
@@ -513,12 +523,14 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     extra_debug("Parsing fetch response v%d", api_version);
     u32 orig_offset = offset;
     bool flexible = api_version >= 12;
+    bool topic_id_instead_of_name = api_version >= 13;
     enum parse_result ret;
 
 
     extra_debug("carry_over_offset %d", response->carry_over_offset);
 
     if (response->carry_over_offset < 0) {
+        log_debug("GUY 1 returning RET_ERR");
         return RET_ERR;
     }
 
@@ -530,6 +542,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         if (flexible) {
             ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
             if (ret != RET_DONE) {
+                log_debug("GUY 2 returning %d", ret);
                 return ret;
             }
         }
@@ -551,30 +564,37 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                      VARINT_BYTES_NUM_TOPICS);
             extra_debug("num_topics: %lld", num_topics);
             if (ret != RET_DONE) {
+                log_debug("GUY 3 returning %d", ret);
                 return ret;
             }
             if (num_topics <= 0) {
+                log_debug("GUY 4 returning RET_ERR");
                 return RET_ERR;
             }
         }
-        response->state = KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE;
+        response->state = KAFKA_FETCH_RESPONSE_TOPIC_NAME_OR_ID;
         // fallthrough
 
-    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_OR_ID:
         {
-            s64 topic_name_size = 0;
-            ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
-                                     VARINT_BYTES_TOPIC_NAME_SIZE);
-            extra_debug("topic_name_size: %lld", topic_name_size);
-            if (ret != RET_DONE) {
-                return ret;
-            }
-            if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-                return RET_ERR;
-            }
+            if (topic_id_instead_of_name) {
+                offset += 16; // UUID is 16 bytes long.
+            } else {
+                s64 topic_name_size = 0;
+                ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
+                                         VARINT_BYTES_TOPIC_NAME_SIZE);
+                extra_debug("topic_name_size: %lld", topic_name_size);
+                if (ret != RET_DONE) {
+                    log_debug("GUY 5 returning %d", ret);
+                    return ret;
+                }
+                if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+                    return RET_ERR;
+                }
 
-            // Should we check that topic name matches the topic we expect?
-            offset += topic_name_size;
+                // Should we check that topic name matches the topic we expect?
+                offset += topic_name_size;
+            }
         }
         response->state = KAFKA_FETCH_RESPONSE_NUM_PARTITIONS;
         // fallthrough
@@ -610,7 +630,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_START:
         case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
-        case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+        case KAFKA_FETCH_RESPONSE_TOPIC_NAME_OR_ID:
         case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
             // Never happens. Only present to supress a compiler warning.
             break;
@@ -626,10 +646,12 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             s16 error_code = 0;
             ret = read_with_remainder_s16(response, pkt, &offset, data_end, &error_code, first);
             if (ret != RET_DONE) {
+                log_debug("GUY 9 returning");
                 return ret;
             }
             if (error_code < -1 || error_code > 119) {
                 extra_debug("invalid error code: %d", error_code);
+                log_debug("GUY 10 returning");
                 return RET_ERR;
             }
             extra_debug("got error code: %d", error_code);
@@ -898,6 +920,223 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     return RET_LOOP_END;
 }
 
+static __always_inline enum parse_result kafka_continue_parse_response_partition_loop_metadata(kafka_info_t *kafka,
+                                                                            conn_tuple_t *tup,
+                                                                            kafka_response_context_t *response,
+                                                                            pktbuf_t pkt, u32 offset,
+                                                                            u32 data_end,
+                                                                            u32 api_version)
+{
+    extra_debug("Parsing metadata response v%d", api_version);
+
+    u32 orig_offset = offset;
+    enum parse_result ret;
+    s64 num_of_brokers = 0;
+    s64 num_of_topics = 0;
+    s64 num_of_partitions = 0;
+    char topic_name[TOPIC_NAME_MAX_STRING_SIZE] = {};
+
+    extra_debug("carry_over_offset %d", response->carry_over_offset);
+
+    if (response->carry_over_offset < 0) {
+        log_debug("GUY returning RET_ERR due to negative carry_over_offset");
+        return RET_ERR;
+    }
+
+    offset += response->carry_over_offset;
+    response->carry_over_offset = 0;
+
+#pragma unroll(KAFKA_RESPONSE_PARSER_MAX_ITERATIONS)
+    for (int i = 0; i < KAFKA_RESPONSE_PARSER_MAX_ITERATIONS; i++) {
+        bool first = i == 0;
+
+        switch (response->state) {
+        case KAFKA_METADATA_RESPONSE_START:
+            extra_debug("KAFKA_METADATA_RESPONSE_START");
+
+            ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
+            if (ret != RET_DONE) {
+                log_debug("GUY returning %d from skip_tagged_fields in START", ret);
+                return ret;
+            }
+
+            offset += sizeof(s32); // Skip throttle_time_ms
+
+            response->state = KAFKA_METADATA_RESPONSE_NUM_BROKERS;
+            // fallthrough
+        case KAFKA_METADATA_RESPONSE_NUM_BROKERS:
+        {
+            extra_debug("KAFKA_METADATA_RESPONSE_NUM_BROKERS");
+            // Assume flexible=true because we don't support old versions
+            ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_brokers, first,
+                                    VARINT_BYTES_NUM_BROKERS);
+            if (ret != RET_DONE) {
+               log_debug("GUY returning %d from read_varint_or_s32 in NUM_BROKERS", ret);
+               return ret;
+            }
+            if (num_of_brokers < 0 || num_of_brokers > NUM_BROKERS_MAX) {
+               extra_debug("invalid number of brokers: %lld", num_of_brokers);
+               log_debug("GUY returning RET_ERR due to invalid number of brokers: %lld", num_of_brokers);
+               return RET_ERR;
+            }
+
+            response->state = KAFKA_METADATA_RESPONSE_BROKERS_LOOP;
+            // fallthrough
+        }
+        case KAFKA_METADATA_RESPONSE_BROKERS_LOOP: // Loop through brokers until num_of_brokers
+        {
+            extra_debug("KAFKA_METADATA_RESPONSE_BROKERS_LOOP");
+
+            // Move to next step if we have no more brokers to parse
+            // Note that num_of_brokers can be 0
+            if (num_of_brokers <= 0) {
+                response->state = KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS;
+                continue;
+            }
+
+            offset += sizeof(s32); // Skip node_id
+            // Assume flexible=true because we don't support old versions
+            s16 host_size = read_nullable_string_size(pkt, true, &offset);
+            if (host_size <= 0) {
+                extra_debug("invalid broker host length: %d", host_size);
+                log_debug("GUY returning RET_ERR due to invalid broker host length: %d", host_size);
+                return RET_ERR;
+            }
+            offset += host_size; // Skip host
+            offset += sizeof(s32); // Skip port
+
+            // rack_size may be -1 when it's null
+            s16 rack_size = read_nullable_string_size(pkt, true, &offset);
+            if (rack_size > 0) {
+                offset += rack_size; // Skip rack
+            }
+
+            ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
+            if (ret != RET_DONE) {
+                log_debug("GUY error skipping tagged fields in broker loop");
+                log_debug("GUY returning %d from skip_tagged_fields in BROKERS_LOOP", ret);
+                return ret;
+            }
+
+            // If we have more brokers to parse, break and continue parsing brokers
+            num_of_brokers--;
+        }
+        case KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS:
+            extra_debug("KAFKA_METADATA_RESPONSE_SKIP_TO_TOPICS");
+
+            // cluster_id_size may be -1 when it's null
+            s16 cluster_id_size = read_nullable_string_size(pkt, true, &offset);
+            if (cluster_id_size > 0) {
+                offset += cluster_id_size; // Skip cluster_id
+            }
+
+            offset += sizeof(s32); // Skip controller_id
+
+            response->state = KAFKA_METADATA_RESPONSE_NUM_TOPICS;
+            // fallthrough
+        case KAFKA_METADATA_RESPONSE_NUM_TOPICS:
+            extra_debug("KAFKA_METADATA_RESPONSE_NUM_TOPICS");
+
+            // Assume flexible=true because we don't support old versions
+            ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_topics, first,
+                                    VARINT_BYTES_NUM_TOPICS);
+            extra_debug("num_of_topics: %lld, ret: %d", num_of_topics, ret);
+            if (ret != RET_DONE) {
+                log_debug("GUY returning %d from read_varint_or_s32 in NUM_TOPICS", ret);
+                return ret;
+            }
+            if (num_of_topics <= 0) {
+                log_debug("GUY returning RET_DONE due to num_of_topics <= 0");
+                return RET_DONE;
+            }
+            if (num_of_topics > NUM_TOPICS_MAX) {
+                extra_debug("invalid number of topics: %lld", num_of_topics);
+                log_debug("GUY returning RET_ERR due to invalid number of topics: %lld", num_of_topics);
+                return RET_ERR;
+            }
+
+            response->state = KAFKA_METADATA_RESPONSE_TOPICS_LOOP;
+            // fallthrough
+        case KAFKA_METADATA_RESPONSE_TOPICS_LOOP: // Loop through topics until num_of_topics
+            extra_debug("KAFKA_METADATA_RESPONSE_TOPICS_LOOP");
+
+            // Move to next step if we have no more topics to parse
+            if (num_of_topics <= 0) {
+                extra_debug("KAFKA_METADATA_RESPONSE_TOPICS_LOOP finished");
+                return RET_DONE;
+            }
+
+            // TODO handle error? (3 = unknown topic or partition)
+            offset += sizeof(s16); // Skip error_code
+
+            // Read topic name
+            s16 topic_name_size = read_nullable_string_size(pkt, true, &offset);
+            if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+                log_debug("GUY continuing due to invalid topic_name_size: %d", topic_name_size);
+                continue; // maybe handle null or empty topic names?
+            }
+            if (offset + topic_name_size > pktbuf_data_end(pkt)) {
+                // handle reminder?
+                extra_debug("not enough data to read topic_name");
+                log_debug("GUY not enough data to read topic_name");
+                break;
+            }
+            if (topic_name_size < TOPIC_NAME_MAX_STRING_SIZE) {
+                pktbuf_load_bytes_with_telemetry(pkt, offset, topic_name, topic_name_size);
+            } else {
+                pktbuf_load_bytes_with_telemetry(pkt, offset, topic_name, TOPIC_NAME_MAX_STRING_SIZE);
+            }
+            offset += topic_name_size;
+
+            // Read topic UUID
+            u8 topic_id[16] = {};
+            if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
+                // handle reminder?
+                extra_debug("not enough data to read topic_id");
+                log_debug("GUY breaking due to not enough data to read topic_id");
+                break;
+            }
+            pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
+            offset += sizeof(topic_id);
+
+            // topic_id may be a zeroed UUID so we need to check it's a valid UUID v4
+            if (IS_UUID_V4(topic_id)) {
+                kafka_topic_id_to_name_key_t key;
+                bpf_memset(&key, 0, sizeof(key));
+                bpf_memcpy(&key.topic_id, topic_id, sizeof(topic_id));
+
+                kafka_topic_id_to_name_value_t value;
+                bpf_memset(&value, 0, sizeof(value));
+                bpf_memcpy(&value.topic_name, topic_name, sizeof(value.topic_name));
+                value.topic_name_size = topic_name_size;
+
+                log_debug("GUY got mapping %02x%02x... -> %s", topic_id[0], topic_id[1], topic_name);
+                bpf_map_update_elem(&kafka_topic_id_to_name, &key, &value, BPF_ANY); // BPF_ANY?
+            }
+
+            offset += sizeof(u8); // Skip bool is_internal
+
+            // Read num_partitions
+            ret = read_varint_or_s32(true, response, pkt, &offset, data_end, &num_of_partitions, first,
+                                                VARINT_BYTES_NUM_PARTITIONS);
+            if (ret != RET_DONE) {
+                log_debug("GUY returning %d from read_varint_or_s32 in NUM_PARTITIONS", ret);
+                return ret;
+            }
+            offset += 26 * num_of_partitions; // Skip partitions TODO variable length partitions
+
+            // Continue parsing topics, we'll move ot the next state when num_of_topics reaches 0
+            num_of_topics--;
+        default:
+            break;
+        }
+    }
+
+    response->carry_over_offset = offset - orig_offset;
+    log_debug("GUY returning RET_LOOP_END at end of function");
+    return RET_LOOP_END;
+}
+
 static __always_inline enum parse_result kafka_continue_parse_response_record_batches_loop(kafka_info_t *kafka,
                                                                             conn_tuple_t *tup,
                                                                             kafka_response_context_t *response,
@@ -926,7 +1165,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         extra_debug("record batches state: %d", response->state);
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
-            extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
+                log_debug("GUY KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
                 response->partition_error_code,
                 response->transaction.records_count);
             // If the next record batch has an error code that the ones we've
@@ -1136,6 +1375,12 @@ static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *
                 index = PROG_KAFKA_PRODUCE_RESPONSE_PARTITION_PARSER_V0;
             }
             break;
+        case KAFKA_METADATA:
+            if (api_version >= 10) {
+                // We don't need to support earlier versions of the metadata response
+                index = PROG_KAFKA_METADATA_RESPONSE_PARTITION_PARSER_V10;
+            }
+            break;
         default:
             // Shouldn't happen
             return;
@@ -1176,7 +1421,11 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
             ret = kafka_continue_parse_response_partition_loop_produce(kafka, tup, response, pkt, offset, data_end, api_version);
         } else if (api_key == KAFKA_FETCH) {
             ret = kafka_continue_parse_response_partition_loop_fetch(kafka, tup, response, pkt, offset, data_end, api_version);
-        }
+            log_debug("GUY fetch response ret %d, records_count %d", ret, response->transaction.records_count);
+        } else if (api_key == KAFKA_METADATA) {
+             ret = kafka_continue_parse_response_partition_loop_metadata(kafka, tup, response, pkt, offset, data_end, api_version);
+             log_debug("GUY metadata response ret %d", ret);
+         }
         extra_debug("partition loop ret %d record_batches_array_count %u partitions_count %u", ret, response->record_batches_arrays_count, response->partitions_count);
 
         // If we have parsed any record batches arrays (message sets), then
@@ -1413,6 +1662,11 @@ int socket__kafka_produce_response_partition_parser_v9(struct __sk_buff *skb) {
     return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 9, KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION, KAFKA_PRODUCE);
 }
 
+SEC("socket/kafka_metadata_response_partition_parser_v10")
+int socket__kafka_metadata_response_partition_parser_v10(struct __sk_buff *skb) {
+    return __socket__kafka_response_parser(skb, PARSER_LEVEL_PARTITION, 10, KAFKA_DECODING_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION, KAFKA_METADATA);
+}
+
 static __always_inline int __uprobe__kafka_tls_response_parser(struct pt_regs *ctx, enum parser_level level, u32 min_api_version, u32 max_api_version, u32 target_api_key) {
     const __u32 zero = 0;
     kafka_info_t *kafka = bpf_map_lookup_elem(&kafka_heap, &zero);
@@ -1460,6 +1714,11 @@ int uprobe__kafka_tls_produce_response_partition_parser_v0(struct pt_regs *ctx) 
 SEC("uprobe/kafka_tls_produce_response_partition_parser_v9")
 int uprobe__kafka_tls_produce_response_partition_parser_v9(struct pt_regs *ctx) {
     return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 9, KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION, KAFKA_PRODUCE);
+}
+
+SEC("uprobe/kafka_tls_metadata_response_partition_parser_v10")
+int uprobe__kafka_tls_metadata_response_partition_parser_v10(struct pt_regs *ctx) {
+    return __uprobe__kafka_tls_response_parser(ctx, PARSER_LEVEL_PARTITION, 10, KAFKA_DECODING_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION, KAFKA_METADATA);
 }
 
 // Gets the next expected TCP sequence in the stream, assuming
@@ -1532,7 +1791,9 @@ static __always_inline bool kafka_process_new_response(void *ctx, conn_tuple_t *
         kafka->response.state = KAFKA_FETCH_RESPONSE_START;
     } else if (request->request_api_key == KAFKA_PRODUCE) {
         kafka->response.state = KAFKA_PRODUCE_RESPONSE_START;
-    } else {
+    } else if (request->request_api_key == KAFKA_METADATA) {
+        kafka->response.state = KAFKA_METADATA_RESPONSE_START;
+      } else {
         return false;
     }
     kafka->response.carry_over_offset = offset - orig_offset;
@@ -1650,6 +1911,12 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
                 return false;
             }
             break;
+        case KAFKA_METADATA:
+            if (kafka_header.api_version < KAFKA_DECODING_MIN_SUPPORTED_METADATA_REQUEST_API_VERSION
+                || kafka_header.api_version > KAFKA_DECODING_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION) {
+                return false;
+            }
+            break;
     }
 
     kafka_transaction->request_started = bpf_ktime_get_ns();
@@ -1671,6 +1938,8 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     }
 
     bool flexible = false;
+    bool topic_id_instead_of_name = false;
+    bool skip_parse_topic = false; // Used to skip parsing the topic, used for Metadata when we only care about the response
 
     s16 produce_required_acks = 0;
     switch (kafka_header.api_key) {
@@ -1688,6 +1957,16 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
             return false;
         }
         flexible = kafka_header.api_version >= 12;
+        topic_id_instead_of_name = kafka_header.api_version >= 13;
+        break;
+    case KAFKA_METADATA:
+        // we only support v10+ but just to be safe
+        if (kafka_header.api_version >= 9) {
+            if (!skip_request_tagged_fields(pkt, &offset)) {
+                return false;
+            }
+        }
+        skip_parse_topic = true;
         break;
     default:
         return false;
@@ -1696,6 +1975,7 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     // Skipping number of entries for now
     if (flexible) {
         if (!skip_varint_number_of_topics(pkt, &offset)) {
+            log_debug("GUY failed to skip varint number of topics");
             return false;
         }
     } else {
@@ -1703,20 +1983,68 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     }
 
     // Parsing the topic name
-    s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
-    if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-        return false;
+    // When we process metadata request we need to skip the topic name
+    if (!skip_parse_topic) {
+        if (topic_id_instead_of_name) {
+            // The topic id is a UUID, which is 16 bytes long.
+            u8 topic_id[16] = {};
+
+            if (offset + sizeof(topic_id) > pktbuf_data_end(pkt)) {
+                return false;
+            }
+
+            pktbuf_load_bytes_with_telemetry(pkt, offset, topic_id, sizeof(topic_id));
+            offset += sizeof(topic_id);
+
+            // Exit if the topic ID is not a valid UUID v4.
+            if (!(IS_UUID_V4(topic_id))) {
+                return false;
+            }
+
+            kafka_topic_id_to_name_key_t key;
+            bpf_memset(&key, 0, sizeof(key));
+            bpf_memcpy(&key.topic_id, topic_id, sizeof(topic_id));
+            kafka_topic_id_to_name_value_t *topic_name_result = bpf_map_lookup_elem(&kafka_topic_id_to_name, &key);
+            if (topic_name_result == NULL) {
+                log_debug("GUY map lookup failed for topic_id %02x%02x%02x", topic_id[0], topic_id[1], topic_id[2]);
+                return false;
+            } else {
+                log_debug("GUY map lookup successful for topic_id %02x%02x found in map with topic_name_size %u",
+                    topic_id[0], topic_id[1], topic_name_result->topic_name_size);
+            }
+
+            // Check is only for the verifier, as we only populate the map with valid values.
+            if (topic_name_result->topic_name_size <= 0 || topic_name_result->topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+                log_debug("GUY topic name size %u is invalid", topic_name_result->topic_name_size);
+                return false;
+            }
+
+            extra_debug("topic_name_size: %u", topic_name_result->topic_name_size);
+            update_topic_name_size_telemetry(kafka_tel, topic_name_result->topic_name_size);
+            kafka_transaction->topic_name_size = topic_name_result->topic_name_size;
+
+            bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+            bpf_memcpy(kafka_transaction->topic_name, topic_name_result->topic_name, sizeof(kafka_transaction->topic_name));
+
+            CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_result->topic_name_size, kafka_transaction->topic_name);
+        } else {
+            s16 topic_name_size = read_nullable_string_size(pkt, flexible, &offset);
+            if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+                log_debug("GUY topic name size %d is invalid", topic_name_size);
+                return false;
+            }
+
+            extra_debug("topic_name_size: %u", topic_name_size);
+            update_topic_name_size_telemetry(kafka_tel, topic_name_size);
+            kafka_transaction->topic_name_size = topic_name_size;
+
+            bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
+            pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
+
+            offset += topic_name_size;
+            CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
+        }
     }
-
-    extra_debug("topic_name_size: %u", topic_name_size);
-    update_topic_name_size_telemetry(kafka_tel, topic_name_size);
-    kafka_transaction->topic_name_size = topic_name_size;
-
-    bpf_memset(kafka_transaction->topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE);
-    pktbuf_read_into_buffer_topic_name_parser((char *)kafka_transaction->topic_name, pkt, offset);
-
-    offset += topic_name_size;
-    CHECK_STRING_COMPOSED_OF_ASCII_FOR_PARSING(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, kafka_transaction->topic_name);
 
     switch (kafka_header.api_key) {
     case KAFKA_PRODUCE:
@@ -1785,6 +2113,10 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         // Filled in when the response is parsed.
         kafka_transaction->records_count = 0;
         break;
+    case KAFKA_METADATA:
+        // TODO how should we handle this?
+        kafka_transaction->records_count = 0;
+        break;
     default:
         return false;
      }
@@ -1805,6 +2137,8 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
     // Flip the tuple for the response path.
     flip_tuple(&key.tuple);
     bpf_map_update_elem(&kafka_in_flight, &key, &transaction, BPF_NOEXIST);
+    log_debug("GUY kafka: finished parsing request successfully with api_key %d api_version %d",
+              kafka_header.api_key, kafka_header.api_version);
     return true;
 }
 

@@ -24,6 +24,8 @@ const (
 	DecodingMaxSupportedFetchRequestApiVersion             = C.KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION
 	ClassificationMinSupportedAPIVersionsRequestApiVersion = C.KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION
 	ClassificationMaxSupportedAPIVersionsRequestApiVersion = C.KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION
+	DecodingMinSupportedMetadataRequestApiVersion          = C.KAFKA_DECODING_MIN_SUPPORTED_METADATA_REQUEST_API_VERSION
+	DecodingMaxSupportedMetadataRequestApiVersion          = C.KAFKA_DECODING_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION
 )
 
 type ConnTuple C.conn_tuple_t
@@ -36,3 +38,5 @@ type KafkaTransaction C.kafka_transaction_t
 type KafkaResponseContext C.kafka_response_context_t
 
 type RawKernelTelemetry C.kafka_telemetry_t
+
+type KafkaTopicIDToNameKey C.kafka_topic_id_to_name_key_t

@@ -8,6 +8,7 @@
 package kafka
 
 import (
+	"bytes"
 	"io"
 	"time"
 	"unsafe"
@@ -44,26 +45,29 @@ const (
 	eventStreamName = "kafka"
 	filterTailCall  = "socket__kafka_filter"
 
-	fetchResponsePartitionParserV0TailCall    = "socket__kafka_fetch_response_partition_parser_v0"
-	fetchResponsePartitionParserV12TailCall   = "socket__kafka_fetch_response_partition_parser_v12"
-	fetchResponseRecordBatchParserV0TailCall  = "socket__kafka_fetch_response_record_batch_parser_v0"
-	fetchResponseRecordBatchParserV12TailCall = "socket__kafka_fetch_response_record_batch_parser_v12"
-	produceResponsePartitionParserV0TailCall  = "socket__kafka_produce_response_partition_parser_v0"
-	produceResponsePartitionParserV9TailCall  = "socket__kafka_produce_response_partition_parser_v9"
+	fetchResponsePartitionParserV0TailCall     = "socket__kafka_fetch_response_partition_parser_v0"
+	fetchResponsePartitionParserV12TailCall    = "socket__kafka_fetch_response_partition_parser_v12"
+	fetchResponseRecordBatchParserV0TailCall   = "socket__kafka_fetch_response_record_batch_parser_v0"
+	fetchResponseRecordBatchParserV12TailCall  = "socket__kafka_fetch_response_record_batch_parser_v12"
+	produceResponsePartitionParserV0TailCall   = "socket__kafka_produce_response_partition_parser_v0"
+	produceResponsePartitionParserV9TailCall   = "socket__kafka_produce_response_partition_parser_v9"
+	metadataResponsePartitionParserV10TailCall = "socket__kafka_metadata_response_partition_parser_v10"
 
 	dispatcherTailCall = "socket__protocol_dispatcher_kafka"
 	kafkaHeapMap       = "kafka_heap"
 	inFlightMap        = "kafka_in_flight"
 	responseMap        = "kafka_response"
+	topicIDToNameMap   = "kafka_topic_id_to_name"
 
 	tlsFilterTailCall = "uprobe__kafka_tls_filter"
 
-	tlsFetchResponsePartitionParserV0TailCall    = "uprobe__kafka_tls_fetch_response_partition_parser_v0"
-	tlsFetchResponsePartitionParserV12TailCall   = "uprobe__kafka_tls_fetch_response_partition_parser_v12"
-	tlsFetchResponseRecordBatchParserV0TailCall  = "uprobe__kafka_tls_fetch_response_record_batch_parser_v0"
-	tlsFetchResponseRecordBatchParserV12TailCall = "uprobe__kafka_tls_fetch_response_record_batch_parser_v12"
-	tlsProduceResponsePartitionParserV0TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v0"
-	tlsProduceResponsePartitionParserV9TailCall  = "uprobe__kafka_tls_produce_response_partition_parser_v9"
+	tlsFetchResponsePartitionParserV0TailCall     = "uprobe__kafka_tls_fetch_response_partition_parser_v0"
+	tlsFetchResponsePartitionParserV12TailCall    = "uprobe__kafka_tls_fetch_response_partition_parser_v12"
+	tlsFetchResponseRecordBatchParserV0TailCall   = "uprobe__kafka_tls_fetch_response_record_batch_parser_v0"
+	tlsFetchResponseRecordBatchParserV12TailCall  = "uprobe__kafka_tls_fetch_response_record_batch_parser_v12"
+	tlsProduceResponsePartitionParserV0TailCall   = "uprobe__kafka_tls_produce_response_partition_parser_v0"
+	tlsProduceResponsePartitionParserV9TailCall   = "uprobe__kafka_tls_produce_response_partition_parser_v9"
+	tlsMetadataResponsePartitionParserV10TailCall = "uprobe__kafka_tls_metadata_response_partition_parser_v10"
 
 	tlsTerminationTailCall = "uprobe__kafka_tls_termination"
 	tlsDispatcherTailCall  = "uprobe__tls_protocol_dispatcher_kafka"
@@ -85,6 +89,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: responseMap,
+		},
+		{
+			Name: topicIDToNameMap,
 		},
 		{
 			Name: "kafka_client_id",
@@ -171,6 +178,13 @@ var Spec = &protocols.ProtocolSpec{
 			},
 		},
 		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaMetadataResponsePartitionParserV10),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: metadataResponsePartitionParserV10TailCall,
+			},
+		},
+		{
 			ProgArrayName: protocols.ProtocolDispatcherClassificationPrograms,
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -228,6 +242,13 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaMetadataResponsePartitionParserV10),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsMetadataResponsePartitionParserV10TailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramKafkaTermination),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsTerminationTailCall,
@@ -271,6 +292,10 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[responseMap] = manager.MapSpecEditor{
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[topicIDToNameMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -348,6 +373,24 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, zeroKey, value)
 		if err := currentMap.Lookup(unsafe.Pointer(&zeroKey), unsafe.Pointer(&value)); err == nil {
 			spew.Fdump(w, zeroKey, value)
+		}
+	case topicIDToNameMap:
+		var key KafkaTopicIDToNameKey
+		var value [TopicNameMaxSize]byte
+
+		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
+		iter := currentMap.Iterate()
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			nullTerminatorIndex := bytes.Index(value[:], []byte{0})
+
+			// The value may NOT contain a null terminator
+			// when its truncated, in that case the size will be TopicNameMaxSize.
+			topicName := string(value[:])
+			if nullTerminatorIndex != -1 {
+				topicName = string(value[:nullTerminatorIndex])
+			}
+
+			spew.Fdump(w, key, topicName)
 		}
 	}
 }
