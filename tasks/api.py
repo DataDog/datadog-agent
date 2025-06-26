@@ -28,17 +28,28 @@ def run(
     localport=8080,
     prefix='internal/agent-ci-api/',
     jq='auto',
+    query='.data',
     silent_curl=True,
 ):
     """Triggers the agent-ci-api service.
 
     Args:
-        env: One of 'prod', 'staging' or 'local'.
+        endpoint: The endpoint name (see `prefix` for full endpoint).
+        method: The HTTP method to use (default is 'get' if payload is empty, otherwise 'post').
         jq: One of 'no', 'auto' or 'yes'. Will pipe the json result to jq for pretty printing if jq present.
         ty: The RAPID type.
         attrs: The RAPID attributes.
+        payload: Raw payload to send. Prefer using `ty` and `attrs` if possible.
+        env: One of 'prod', 'staging' or 'local'.
+        localport: The port to use for the local endpoint.
+        prefix: The prefix to use for the endpoint.
+        jq: Will use jq to pretty print the JSON response if set to 'yes' or 'auto'.
+        query: JQ query for the output.
+        silent_curl: If True, will silence curl verbose output.
 
-    Example:
+    Examples:
+        $ dda inv -- api hello --env staging
+        $ dda inv -- api hello --env local
         $ dda inv -- api stackcleaner/workflow --env staging --ty stackcleaner_workflow_request --attrs debug_job_name=abc,debug_job_id=123,debug_pipeline_id=1234,debug_ref=cc
     """
 
@@ -65,15 +76,16 @@ def run(
     has_jq = ctx.run('which jq', hide=True, warn=True).ok
     is_local = env == 'local'
     from_ci = 'CI_JOB_ID' in os.environ
-    dc = get_datacenter(env)
+    dc = None if is_local else get_datacenter(env)
 
-    token = (
-        '"$(authanywhere --audience rapid-agent-devx)"'
-        if from_ci
-        else f'"$(ddtool auth token rapid-agent-devx --datacenter {dc} --http-header)"'
-    )
+    token = ''
+    if not is_local:
+        token = (
+            '"$(authanywhere --audience rapid-agent-devx)"'
+            if from_ci
+            else f'"$(ddtool auth token rapid-agent-devx --datacenter {dc} --http-header)"'
+        )
     extra_header = f'"X-DdOrigin: {os.environ["CI_JOB_ID"]}"' if from_ci else '"X-DdOrigin: curl-authanywhere"'
-
     url = (
         f"http://localhost:{localport}/{prefix}{endpoint}"
         if is_local
@@ -81,18 +93,24 @@ def run(
     )
     silent = '-s' if silent_curl else ''
     use_jq = jq == 'yes' or (jq == 'auto' and has_jq and not from_ci)
-
     if payload:
         payload = f'-d \'{payload}\''
 
-    cmd = f'curl {silent} -X {method.upper()} {url} -H {token} -H {extra_header} {payload}'
+    cmd = f'curl {silent} -X {method.upper()} {url} {token} -H {extra_header} {payload}'
 
     result = ctx.run(cmd, hide=use_jq)
     if not result.ok:
         raise RuntimeError(f'Command failed with exit code {result.exited}:\n{cmd}\n{result.stderr}')
     elif use_jq:
-        jq_result = subprocess.run(['jq', '-C', '.'], input=result.stdout, text=True)
+        jq_result = subprocess.run(['jq', '-C', query], input=result.stdout, text=True)
 
         # Jq parsing failed, ignore (otherwise everything is already printed)
         if jq_result.returncode != 0:
             print(result.stdout)
+
+
+@task
+def hello(ctx, env='prod'):
+    """Verifies that the agent-ci-api service is running."""
+
+    return run(ctx, endpoint='hello', env=env)
