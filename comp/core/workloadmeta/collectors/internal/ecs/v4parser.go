@@ -60,7 +60,7 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.Task) (v3or4.Task, error) {
 	rt, ok := c.resourceTags[task.Arn]
 	if ok {
-		return rt
+		return rt, nil
 	}
 
 	var metaURI string
