@@ -401,6 +401,19 @@ def ninja_discovery_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
         ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDEBUG=1"})
 
 
+def ninja_dynamic_instrumentation_ebpf_programs(nw: NinjaWriter, co_re_build_dir):
+    dir = Path("pkg/dyninst/ebpf")
+    flags = f"-I{dir}"
+    programs = ["event"]
+
+    for prog in programs:
+        infile = os.path.join(dir, f"{prog}.c")
+        outfile = os.path.join(co_re_build_dir, f"dyninst_{prog}.o")
+        ninja_ebpf_co_re_program(nw, infile, outfile, {"flags": flags})
+        root, ext = os.path.splitext(outfile)
+        ninja_ebpf_co_re_program(nw, infile, f"{root}-debug{ext}", {"flags": flags + " -DDYNINST_DEBUG=1"})
+
+
 def ninja_runtime_compilation_files(nw: NinjaWriter, gobin):
     bc_dir = os.path.join("pkg", "ebpf", "bytecode")
     build_dir = os.path.join(bc_dir, "build")
@@ -649,6 +662,7 @@ def ninja_generate(
             ninja_telemetry_ebpf_programs(nw, build_dir, co_re_build_dir)
             ninja_gpu_ebpf_programs(nw, co_re_build_dir)
             ninja_discovery_ebpf_programs(nw, co_re_build_dir)
+            ninja_dynamic_instrumentation_ebpf_programs(nw, co_re_build_dir)
 
         ninja_cgo_type_files(nw)
 

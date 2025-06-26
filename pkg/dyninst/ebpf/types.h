@@ -110,7 +110,7 @@ DEFINE_BINARY_SEARCH(
   num_types
 );
 
-static bool get_type_info(type_t t, const type_info_t** info_out) {
+bool get_type_info(type_t t, const type_info_t** info_out) {
   uint32_t idx = lookup_type_info_by_type_id(t);
   if (idx >= num_types || type_ids[idx] != t) {
     return false;

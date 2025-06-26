@@ -29,7 +29,6 @@ __attribute__((noinline)) bool chased_pointer_contains(chased_pointers_t* chased
   if (!chased) {
     return false;
   }
-  uint32_t i = 0;
   uint32_t max = chased->n;
   if (max >= MAX_CHASED_POINTERS) {
     return false;
@@ -156,21 +155,21 @@ sm_read_program_uint8(stack_machine_t* sm) {
   return param;
 }
 
-inline __attribute__((always_inline)) uint32_t
+static inline __attribute__((always_inline)) uint32_t
 sm_read_program_uint16(stack_machine_t* sm) {
   uint32_t param = read_uint16(&stack_machine_code[sm->pc]);
   sm->pc += 2;
   return param;
 }
 
-inline __attribute__((always_inline)) uint32_t
+static inline __attribute__((always_inline)) uint32_t
 sm_read_program_uint32(stack_machine_t* sm) {
   uint32_t param = read_uint32(&stack_machine_code[sm->pc]);
   sm->pc += 4;
   return param;
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_data_stack_push(stack_machine_t* sm, uint32_t value) {
   if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
     LOG(2, "enqueue: push on full data stack");
@@ -181,7 +180,7 @@ sm_data_stack_push(stack_machine_t* sm, uint32_t value) {
   return true;
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_data_stack_pop(stack_machine_t* sm) {
   if (sm->data_stack_pointer == 0) {
     LOG(2, "enqueue: pop on empty data stack");
@@ -198,7 +197,7 @@ sm_data_stack_pop(stack_machine_t* sm) {
   return true;
 }
 
-inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
+static inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
   if (sm->pc_stack_pointer == 0) {
     return false;
   }
@@ -214,7 +213,7 @@ inline __attribute__((always_inline)) bool sm_return(stack_machine_t* sm) {
   return true;
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
   stack_machine_t* sm = ctx->stack_machine;
 
@@ -258,7 +257,7 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
 }
 
 // Returns false if the pointer has already been memoized.
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
                    target_ptr_t addr) {
   // Check if address was already processed before.
@@ -266,7 +265,7 @@ sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
   return chased_pointers_push(&sm->chased, addr, type);
 }
 
-inline __attribute__((always_inline)) bool
+static inline __attribute__((always_inline)) bool
 sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
                   bool decrease_ttl,
                   uint32_t maybe_len) {
@@ -853,7 +852,6 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // checking from the verifier.
     barrier_var(typ);
     barrier_var(data_len);
-    uint32_t sb_len = scratch_buf_len(buf);
 
     sm->di_0.type = typ;
     sm->di_0.length = data_len;

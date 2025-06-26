@@ -1,9 +1,9 @@
 #ifndef __EVENT_H__
 #define __EVENT_H__
 
+#include "bpf_metadata.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
-#include "kconfig.h"
 #include "compiler.h"
 #include "context.h"
 #include "framing.h"
@@ -61,12 +61,12 @@ SEC("uprobe") int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
 
-  event_header_t* header = events_scratch_buf_init(&global_ctx.buf);
+  di_event_header_t* header = events_scratch_buf_init(&global_ctx.buf);
   if (!header) {
     return 0;
   }
-  *header = (event_header_t){
-      .data_byte_len = sizeof(event_header_t),
+  *header = (di_event_header_t){
+      .data_byte_len = sizeof(di_event_header_t),
       .stack_byte_len = 0, // set this if we collect stacks
       .ktime_ns = start_ns,
       .prog_id = prog_id,
