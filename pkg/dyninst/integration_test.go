@@ -87,7 +87,7 @@ func testDyninst(
 	service string,
 	sampleServicePath string,
 	probes []irgen.ProbeDefinition,
-	expOut map[string]expectedOutput,
+	expOut map[string]string,
 ) {
 	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
 		os.Stderr, log.DebugLvl, "[%LEVEL] %Msg\n",
@@ -207,12 +207,6 @@ func testDyninst(
 	b := []byte{}
 	decodeOut := bytes.NewBuffer(b)
 	for _, msg := range read {
-		exp := expOut[probes[0].GetID()]
-		if exp.ExpectedToFail {
-			t.Skipf("expected output for probe %s to fail", probes[0].GetID())
-			break
-		}
-
 		event := msg.Event()
 		err = decoder.Decode(event, decodeOut)
 		require.NoError(t, err)
@@ -242,13 +236,11 @@ func testDyninst(
 		purged, err := json.Marshal(tmpMap)
 		assert.NoError(t, err)
 
-		outputToCompare := expOut[probes[0].GetID()].OutputJSON
+		outputToCompare := expOut[probes[0].GetID()]
 		assert.JSONEq(t, outputToCompare, string(purged))
 
 		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
-			expOut[probes[0].GetID()] = expectedOutput{
-				OutputJSON: string(purged),
-			}
+			expOut[probes[0].GetID()] = string(purged)
 			saveActualOutputOfProbes(t, service, expOut)
 		}
 	}
@@ -319,11 +311,6 @@ func (r *testReporter) ReportAttached(actuator.ProcessID, []irgen.ProbeDefinitio
 
 func (r *testReporter) ReportDetached(actuator.ProcessID, []irgen.ProbeDefinition) {}
 
-type expectedOutput struct {
-	OutputJSON     string `yaml:"OutputJSON"`
-	ExpectedToFail bool   `yaml:"ExpectedToFail"`
-}
-
 // clearAddressFields recursively traverses the captures structure and sets all "Address" fields to empty strings.
 func clearAddressFields(data map[string]any) {
 	if captures, ok := data["captures"]; ok {
@@ -350,8 +337,8 @@ func clearAddressFieldsRecursive(v any) {
 }
 
 // getExpectedDecodedOutputOfProbes returns the expected output for a given service.
-func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]expectedOutput {
-	expectedOutput := make(map[string]expectedOutput)
+func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
+	expectedOutput := make(map[string]string)
 	filename := "testdata/decoded/" + name + ".yaml"
 
 	yamlData, err := testdataFS.ReadFile(filename)
@@ -370,7 +357,7 @@ func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]expe
 // saveActualOutputOfProbes saves the actual output for a given service.
 // The output is saved to the expected output directory with the same format as getExpectedDecodedOutputOfProbes.
 // Note: This function now saves to the current working directory since embedded files are read-only.
-func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]expectedOutput) {
+func saveActualOutputOfProbes(t *testing.T, name string, savedState map[string]string) {
 	// Create testdata/decoded directory if it doesn't exist
 	err := os.MkdirAll("testdata/decoded", 0755)
 	if err != nil {
