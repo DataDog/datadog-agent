@@ -230,21 +230,13 @@ def get_dd_api_key(ctx):
     return ctx.run(cmd, hide=True).stdout.strip()
 
 
-def omnibus_compute_cache_key(ctx):
+def omnibus_compute_cache_key(ctx, env):
     print('Computing cache key')
     h = hashlib.sha1()
     omnibus_last_changes = _last_omnibus_changes(ctx)
     h.update(str.encode(omnibus_last_changes))
     h.update(str.encode(os.getenv('CI_JOB_IMAGE', 'local_build')))
-    # Some values can be forced through the environment so we need to read it
-    # from there first, and fallback to release.json
-    release_json_values = ['OMNIBUS_RUBY_VERSION', 'INTEGRATIONS_CORE_VERSION']
-    for val_key in release_json_values:
-        value = os.getenv(val_key, _get_omnibus_commits(val_key))
-        print(f'{val_key}: {value}')
-        h.update(str.encode(value))
-    environment = _get_environment_for_cache()
-    for k, v in environment.items():
+    for k, v in env.items():
         print(f'\tUsing environment variable {k} to compute cache key')
         h.update(str.encode(f'{k}={v}'))
         print(f'Current hash value: {h.hexdigest()}')
