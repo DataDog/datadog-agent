@@ -202,7 +202,7 @@ func (w *WinCertChk) Run() error {
 
 	for _, cert := range certificates {
 		log.Debugf("Found certificate: %s", cert.Subject.String())
-		daysRemaining := getCertExpiration(cert)
+		daysRemaining := getExpiration(cert.NotAfter)
 		expirationDate := cert.NotAfter.Format(time.RFC3339)
 
 		// Adding Subject and Certificate Store as tags
@@ -244,7 +244,7 @@ func (w *WinCertChk) Run() error {
 		crlIssuer := crl.Issuer
 		log.Debugf("Found CRL Issued by: %s", crlIssuer)
 
-		crlDaysRemaining := getCrlExpiration(crl.NextUpdate)
+		crlDaysRemaining := getExpiration(crl.NextUpdate)
 		crlExpirationDate := crl.NextUpdate.Format(time.RFC3339)
 
 		// Adding CRL Issuer and Certificate Store as tags
@@ -571,13 +571,8 @@ func freeContext(certContext *windows.CertContext) {
 	}
 }
 
-func getCertExpiration(cert *x509.Certificate) float64 {
-	daysRemaining := time.Until(cert.NotAfter).Hours() / 24
-	return float64(daysRemaining)
-}
-
-func getCrlExpiration(nextUpdate time.Time) float64 {
-	daysRemaining := time.Until(nextUpdate).Hours() / 24
+func getExpiration(expirationDate time.Time) float64 {
+	daysRemaining := time.Until(expirationDate).Hours() / 24
 	return float64(daysRemaining)
 }
 
