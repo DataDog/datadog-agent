@@ -48,11 +48,6 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 		return
 	}
 
-	// Metadata requests do not have a topic name, so we skip them
-	if tx.APIKey() == MetadataAPIKey {
-		return
-	}
-
 	// extractTopicName is an expensive operation but, it is also concurrent safe, so we can do it here
 	// without holding the lock.
 	key := Key{

@@ -15,10 +15,6 @@
 #define KAFKA_CLASSIFICATION_MIN_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION 3
 #define KAFKA_CLASSIFICATION_MAX_SUPPORTED_API_VERSIONS_REQUEST_API_VERSION 4
 
-// Used to get the topic id to name mapping at the start of kafka connections
-#define KAFKA_DECODING_MIN_SUPPORTED_METADATA_REQUEST_API_VERSION 10
-#define KAFKA_DECODING_MAX_SUPPORTED_METADATA_REQUEST_API_VERSION 13
-
 #define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))
 #define CLIENT_ID_SIZE_TO_VALIDATE 30
 #define TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE 48 // 16 * 3. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.

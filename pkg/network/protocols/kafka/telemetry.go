@@ -16,8 +16,8 @@ import (
 type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
-	produceHits, fetchHits, metadataHits *apiVersionCounter
-	dropped                              *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
+	produceHits, fetchHits *apiVersionCounter
+	dropped                *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
 
 	invalidLatency *libtelemetry.Counter
 }
@@ -30,7 +30,6 @@ func NewTelemetry() *Telemetry {
 		metricGroup:    metricGroup,
 		produceHits:    newAPIVersionCounter(metricGroup, "total_hits", ClassificationMinSupportedProduceRequestApiVersion, ClassificationMaxSupportedProduceRequestApiVersion, "operation:produce", libtelemetry.OptStatsd),
 		fetchHits:      newAPIVersionCounter(metricGroup, "total_hits", ClassificationMinSupportedFetchRequestApiVersion, ClassificationMaxSupportedFetchRequestApiVersion, "operation:fetch", libtelemetry.OptStatsd),
-		metadataHits:   newAPIVersionCounter(metricGroup, "total_hits", DecodingMinSupportedMetadataRequestApiVersion, DecodingMaxSupportedMetadataRequestApiVersion, "operation:metadata", libtelemetry.OptStatsd),
 		dropped:        metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
 		invalidLatency: metricGroup.NewCounter("malformed", "type:invalid-latency", libtelemetry.OptStatsd),
 	}
@@ -43,8 +42,6 @@ func (t *Telemetry) Count(tx *KafkaTransaction) {
 		t.produceHits.Add(tx)
 	case FetchAPIKey:
 		t.fetchHits.Add(tx)
-	case MetadataAPIKey:
-		t.metadataHits.Add(tx)
 	default:
 		log.Errorf("unsupported request api key: %d", tx.Request_api_key)
 	}

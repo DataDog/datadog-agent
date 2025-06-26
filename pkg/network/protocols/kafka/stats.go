@@ -22,9 +22,6 @@ const (
 
 	// FetchAPIKey is the API key for fetch requests
 	FetchAPIKey = 1
-
-	// MetadataAPIKey is the API key for metadata requests
-	MetadataAPIKey = 3
 )
 
 // Key is an identifier for a group of Kafka transactions
