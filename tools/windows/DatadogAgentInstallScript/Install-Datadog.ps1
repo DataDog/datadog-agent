@@ -193,6 +193,11 @@ function Update-DatadogAgentConfig() {
       $tagsYaml = "tags:`n" + ($tags -join "`n")
       Update-DatadogConfigFile "^[ #]*tags:.*" $tagsYaml
    }
+
+   if ($env:DD_LOGS_ENABLED) {
+      Write-Host "Writing DD_LOGS_ENABLED"
+      Update-DatadogConfigFile "^[ #]*logs_enabled:.*" "logs_enabled: $($env:DD_LOGS_ENABLED.ToLower())"
+   }
 }
 
 if ($env:SCRIPT_IMPORT_ONLY) {
