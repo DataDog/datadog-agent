@@ -672,7 +672,6 @@ var sslPidKeyMaps = []string{
 	sslReadExArgsMap,
 	sslWriteArgsMap,
 	sslWriteExArgsMap,
-	sslCtxByPIDTGIDMap,
 	bioNewSocketArgsMap,
 }
 
