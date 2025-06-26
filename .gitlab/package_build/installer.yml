@@ -242,6 +242,6 @@ windows-installer-amd64:
   artifacts:
     expire_in: 2 weeks
     paths:
-      - omnibus/pkg
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
   variables:
     ARCH: "x64"
