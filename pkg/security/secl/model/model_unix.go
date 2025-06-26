@@ -514,6 +514,8 @@ type Mount struct {
 	RootStr        string  `field:"-"`
 	Path           string  `field:"-"`
 	Origin         uint32  `field:"-"`
+	Detached       bool    `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
+	Visible        bool    `field:"visible"`  // SECLDoc[detached] Definition:`Mount is not visible in the VFS`
 }
 
 // MountEvent represents a mount event
@@ -524,7 +526,6 @@ type MountEvent struct {
 	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath"` // SECLDoc[mountpoint.path] Definition:`Path of the mount point`
 	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // SECLDoc[source.path] Definition:`Source path of a bind mount`
 	MountRootPath                  string `field:"root.path,handler:ResolveMountRootPath"`        // SECLDoc[root.path] Definition:`Root path of the mount`
-	Detached                       bool   `field:"detached"`                                      // SECLDoc[detached] Definition:`Mount is detached from the VFS`
 	MountPointPathResolutionError  error  `field:"-"`
 	MountSourcePathResolutionError error  `field:"-"`
 	MountRootPathResolutionError   error  `field:"-"`
