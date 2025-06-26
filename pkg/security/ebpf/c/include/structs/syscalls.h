@@ -111,6 +111,7 @@ struct syscall_cache_t {
             struct path_key_t root_key;
             struct path_key_t mountpoint_key;
             dev_t device;
+            int clone_mnt_ctr;
         } mount;
 
         struct {
