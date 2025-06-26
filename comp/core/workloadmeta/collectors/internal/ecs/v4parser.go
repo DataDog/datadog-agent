@@ -96,6 +96,13 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		}
 		return v1TaskToV4Task(task), err
 	}
+	// Add tags to the cache
+	rt = resourceTags{
+		tags:                  taskWithTags.TaskTags,
+		containerInstanceTags: taskWithTags.ContainerInstanceTags,
+	}
+
+	c.resourceTags[entity.ID] = rt
 
 	return *taskWithTags, nil
 }
