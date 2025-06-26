@@ -302,7 +302,7 @@ var defaultProfiles = `
       exclude:
         zero_metric: true
       metrics:
-        - name: agent.state
+        - name: runtime.state
           aggregate_tags:
             - status
 `

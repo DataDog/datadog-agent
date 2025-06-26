@@ -28,7 +28,7 @@ const defaultTimeout = time.Second
 
 var (
 	agentState = telemetry.NewGauge(
-		"agent",
+		"runtime",
 		"state",
 		[]string{"status"},
 		"Establish if the state of the agent, either started or running",
