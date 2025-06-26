@@ -1290,11 +1290,11 @@ test_api:
       chmod +x /bin/authanywhere
 
     - |
-      curl https://agent-ci-api.us1.staging.dog/internal/agent-ci-api/hello -w "%{http_code}\n" -H "$(authanywhere)" -H "X-DdOrigin: ${CI_JOB_URL:-curl-authanywhere}" || true
+      curl https://agent-ci-api.us1.staging.dog/internal/agent-ci-api/hello -w "%{http_code}\n" -H "$(authanywhere --audience rapid-agent-devx)" -H "X-DdOrigin: ${CI_JOB_URL:-curl-authanywhere}" || true
     - echo
 
     - |
-      curl https://agent-ci-api.us1.ddbuild.io/internal/agent-ci-api/hello -w "%{http_code}\n" -H "$(authanywhere)" -H "X-DdOrigin: ${CI_JOB_URL:-curl-authanywhere}" || true
+      curl https://agent-ci-api.us1.ddbuild.io/internal/agent-ci-api/hello -w "%{http_code}\n" -H "$(authanywhere --audience rapid-agent-devx)" -H "X-DdOrigin: ${CI_JOB_URL:-curl-authanywhere}" || true
 
     - |
       python3 -m pip install "git+https://github.com/DataDog/datadog-agent-dev.git@v$(cat .dda/version)"

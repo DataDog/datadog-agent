@@ -68,7 +68,7 @@ def run(
     dc = get_datacenter(env)
 
     token = (
-        '"$(authanywhere)"'
+        '"$(authanywhere --audience rapid-agent-devx)"'
         if from_ci
         else f'"$(ddtool auth token rapid-agent-devx --datacenter {dc} --http-header)"'
     )
