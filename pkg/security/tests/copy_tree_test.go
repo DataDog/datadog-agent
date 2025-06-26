@@ -10,12 +10,14 @@ package tests
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"log"
 	"os"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 
 	"golang.org/x/sys/unix"
 )
@@ -42,6 +44,17 @@ func TmpMountAt(dir string) error {
 	return nil
 }
 
+// getMountID returns the mount ID reported by the kernel for the mount which
+// contains the provided path. It relies on the STATX_MNT_ID extension which is
+// available on Linux ≥ 5.8.
+func getMountID(path string) (uint32, error) {
+	var stx unix.Statx_t
+	if err := unix.Statx(unix.AT_FDCWD, path, unix.AT_SYMLINK_NOFOLLOW, unix.STATX_MNT_ID, &stx); err != nil {
+		return 0, err
+	}
+	return uint32(stx.Mnt_id), nil
+}
+
 func TestCopyTree(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -58,7 +71,7 @@ func TestCopyTree(t *testing.T) {
 	}
 	defer test.Close()
 
-	t.Run("copy-tree-test", func(t *testing.T) {
+	t.Run("copy-tree-test-recursive", func(t *testing.T) {
 		// Mount the following directory struct in /tmp:
 		// + /tmp/<somedir>/001        (tmpfs, 1MB)
 		// |-- /tmp/<somedir>/001/tmp1 (tmpfs, 1MB)
@@ -70,6 +83,12 @@ func TestCopyTree(t *testing.T) {
 
 		dir := t.TempDir()
 		tounmount = append(tounmount, dir)
+
+		if id, err := getMountID(dir); err == nil {
+			t.Logf("mountID(%s) = %d", dir, id)
+		} else {
+			log.Printf("statx failed for %s: %v", dir, err)
+		}
 
 		err := TmpMountAt(dir)
 		if err != nil {
@@ -87,6 +106,12 @@ func TestCopyTree(t *testing.T) {
 			err = TmpMountAt(subdir)
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			if id, err := getMountID(subdir); err == nil {
+				t.Logf("mountID(%s) = %d", subdir, id)
+			} else {
+				log.Printf("statx failed for %s: %v", subdir, err)
 			}
 		}
 
@@ -106,7 +131,7 @@ func TestCopyTree(t *testing.T) {
 		var detachedMounts, mounts int
 		err = test.GetProbeEvent(func() error {
 			// Now we attempt to make a recursive copy of the entire tree that was created previously created
-			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE)
+			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			return nil
 		}, func(event *model.Event) bool {
 			if event.GetType() == "detached_mount" {
@@ -124,5 +149,7 @@ func TestCopyTree(t *testing.T) {
 			return detachedMounts == 2 && mounts == 1
 		}, 3*time.Second, model.FileFsmountEventType)
 	})
+
+	//TOOD: Create copy-tree-test-not-recursive
 
 }
