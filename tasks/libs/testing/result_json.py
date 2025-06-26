@@ -112,7 +112,8 @@ def run_is_failing(lines: list[ResultJsonLine]) -> bool:
     """Determines the failure status of the test run based on the actions in the lines."""
     is_fail = False
     for line in lines:
-        if line.action == ActionType.FAIL:
+        # Some test lines don't set their action to fail when they panic, but we should also consider that a failure
+        if line.action == ActionType.FAIL or line.output and "panic:" in line.output:
             is_fail = True
         elif line.action == ActionType.PASS:
             # As soon as we find a PASS action, we can conclude the test run is not a failure (retry succeeded)
