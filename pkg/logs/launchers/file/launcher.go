@@ -171,8 +171,8 @@ func (s *Launcher) scan() {
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
 		scanKey := file.GetScanKey()
-		tailer, isTailed := s.tailers.Get(scanKey)
-		if isTailed && tailer.IsFinished() {
+		tailered, isTailed := s.tailers.Get(scanKey)
+		if isTailed && tailered.IsFinished() {
 			// skip this tailer as it must be stopped
 			continue
 		}
@@ -183,20 +183,26 @@ func (s *Launcher) scan() {
 			var err error
 			fingerprintStrategy := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
 			if fingerprintStrategy == "checksum" {
-				didRotate, err = tailer.DidRotateViaFingerprint()
+				didRotate, err = tailered.DidRotateViaFingerprint()
 				if err != nil {
 					didRotate = false
 				}
 			} else {
-				didRotate, err = tailer.DidRotate()
+				didRotate, err = tailered.DidRotate()
 			}
 			if err != nil {
 				log.Debugf("failed to detect log rotation: %v", err)
 				continue
 			}
 			if didRotate {
+				checkSumEnabled := pkgconfigsetup.Datadog().GetString("logs_config.fingerprint_strategy")
+				if checkSumEnabled == "checksum" {
+					if tailer.ComputeFingerprint(file.Path, tailer.ReturnFingerprintConfig()) == 0 {
+						continue
+					}
+				}
 				// restart tailer because of file-rotation on file
-				succeeded := s.restartTailerAfterFileRotation(tailer, file)
+				succeeded := s.restartTailerAfterFileRotation(tailered, file)
 				if !succeeded {
 					// the setup failed, let's try to tail this file in the next scan
 					continue

@@ -222,6 +222,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
 
 	sleepDuration := 20 * time.Millisecond
 	fc := flareController.NewFlareController()
@@ -405,6 +406,7 @@ func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
 	// Temporarily set the global config for this test
 	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
 	testDir := t.TempDir()
 
 	// create launcher
@@ -989,6 +991,57 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 	assert.Equal(t, launcher.tailers.Count(), 2)
 	assert.True(t, launcher.tailers.Contains(path("z.log")))
 	assert.True(t, launcher.tailers.Contains(path("b.log")))
+}
+
+func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUndersizedFile() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.fingerprint_strategy", "checksum")
+
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger)
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	defer status.Clear()
+
+	// Write initial content
+	_, err := suite.testFile.WriteString("hello world\n")
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	s.scan()
+
+	// Read message to confirm tailer is working
+	msg := <-suite.outputChan
+	suite.Equal("hello world", string(msg.GetContent()))
+
+	// Get initial tailer and verify rotation detection works
+	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.True(found, "tailer should be found")
+	initialTailerCount := s.tailers.Count()
+
+	// Simulate rotation: truncate file to empty (fingerprint becomes 0)
+	suite.Nil(suite.testFile.Truncate(0))
+	_, err = suite.testFile.Seek(0, 0)
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	// Verify rotation is detected
+	didRotate, err := tailer.DidRotateViaFingerprint()
+	suite.Nil(err)
+	suite.True(didRotate, "Should detect rotation when file becomes empty (fingerprint = 0)")
+
+	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
+	s.scan()
+
+	// Verify no new tailer was created for the undersized file
+	// The old tailer should be removed but no new one should be created
+	afterScanCount := s.tailers.Count()
+	suite.Equal(initialTailerCount-1, afterScanCount, "No new tailer should be created for undersized file after rotation")
 }
 
 func getScanKey(path string, source *sources.LogSource) string {
