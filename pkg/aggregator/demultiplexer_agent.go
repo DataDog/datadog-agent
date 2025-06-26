@@ -29,15 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
-)
-
-var agentStarted = telemetry.NewCounter(
-	"runtime",
-	"started",
-	[]string{},
-	"Number of times the agent has started",
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
@@ -256,8 +248,6 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 			SampleRate: 1,
 			Timestamp:  0,
 		})
-
-		agentStarted.Inc()
 
 		if d.aggregator.hostname != "" {
 			// Send startup event only when we have a valid hostname

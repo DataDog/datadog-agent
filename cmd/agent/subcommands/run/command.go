@@ -181,6 +181,22 @@ import (
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 )
 
+var (
+	agentStarted = pkgTelemetry.NewCounter(
+		"runtime",
+		"started",
+		[]string{},
+		"Establish if the agent has started",
+	)
+
+	agentRunning = pkgTelemetry.NewGauge(
+		"runtime",
+		"running",
+		[]string{},
+		"Establish if the agent is running",
+	)
+)
+
 type cliParams struct {
 	*command.GlobalParams
 
@@ -573,6 +589,9 @@ func startAgent(
 	telemetryHandler := telemetry.Handler()
 
 	http.Handle("/telemetry", telemetryHandler)
+
+	agentStarted.Inc()
+	defer agentRunning.Set(1)
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
