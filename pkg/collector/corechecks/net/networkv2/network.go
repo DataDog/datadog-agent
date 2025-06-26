@@ -198,19 +198,19 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 		return
 	}
 	for _, iface := range ifaces {
-		ifaceTag := []string{fmt.Sprintf("iface:%s", iface)}
+		ifaceTag := []string{fmt.Sprintf("iface:%s", iface.Name())}
 		for _, metricName := range sysNetMetrics {
 			metricFileName := metricName
 			if metricName == "up" {
 				metricFileName = "carrier"
 			}
-			metricFilepath := filepath.Join(sysNetLocation, iface, metricFileName)
+			metricFilepath := filepath.Join(sysNetLocation, iface.Name(), metricFileName)
 			val, err := readIntFile(metricFilepath, filesystem)
 			if err != nil {
-				sender.Gauge(fmt.Sprintf("system.net.iface.%s", metricName), val, "", ifaceTag)
+				sender.Gauge(fmt.Sprintf("system.net.iface.%s", metricName), float64(val), "", ifaceTag)
 			}
 		}
-		queuesFilepath := filepath.Join(sysNetLocation, iface, "queues")
+		queuesFilepath := filepath.Join(sysNetLocation, iface.Name(), "queues")
 		queues, err := afero.ReadDir(filesystem, queuesFilepath)
 		if err != nil {
 			log.Debugf("Unable to list %s, skipping: %s.", queuesFilepath, err)
@@ -223,8 +223,8 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 					rxQueueCount += 1
 				}
 			}
-			sender.Gauge("system.net.iface.num_tx_queues", txQueueCount, "", ifaceTag)
-			sender.Gauge("system.net.iface.num_rx_queues", rxQueueCount, "", ifaceTag)
+			sender.Gauge("system.net.iface.num_tx_queues", float64(txQueueCount), "", ifaceTag)
+			sender.Gauge("system.net.iface.num_rx_queues", float64(rxQueueCount), "", ifaceTag)
 		}
 	}
 }
