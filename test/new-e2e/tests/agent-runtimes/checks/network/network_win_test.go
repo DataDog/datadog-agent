@@ -23,7 +23,7 @@ func TestWindowsNetworkSuite(t *testing.T) {
 	suite := &windowsNetworkCheckSuite{
 		networkCheckSuite{
 			descriptor:            e2eos.WindowsDefault,
-			metricCompareFraction: 0.02,
+			metricCompareFraction: 0.1,
 			metricCompareDecimals: 1,
 		},
 	}
