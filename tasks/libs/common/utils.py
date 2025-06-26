@@ -238,6 +238,7 @@ def get_build_flags(
     else:
         # for pkg/ebpf/compiler on linux
         env['CGO_LDFLAGS_ALLOW'] = "-Wl,--wrap=.*"
+        env["GOEXPERIMENT"] = "greenteagc"
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)

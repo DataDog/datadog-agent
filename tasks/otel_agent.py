@@ -53,6 +53,7 @@ def build(ctx, byoc=False):
     ldflags = get_version_ldflags(ctx, major_version='7')
     ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
 
+    env["GOEXPERIMENT"] = "greenteagc"
     cmd = f"go build -mod=readonly -tags=\"{' '.join(build_tags)}\" -ldflags=\"{ldflags}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
     ctx.run(cmd, env=env)
