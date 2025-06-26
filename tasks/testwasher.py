@@ -91,12 +91,15 @@ class TestWasher:
         - The test failed and is marked as flaky
         - Test failed and is not marked as flaky but all its failing children are marked as flaky or are flaky failures.
         """
+        # TODO[ACIX-913]: Fix the semantics of this function - it actually returns all flaky tests, not just *failing* tests.
+        # See for example the test_pretty_print_inner_depth2 test in tasks/unit_tests/e2e_testing_tests.py.
+        # When running the test, this function returns a non-empty result, even though all the tests in the dummy json output are passing.
+        # This is not super easy to fix, because it is used in many places that now rely on this behavior.
         failing_tests = self.test_output_json.failing_tests
 
         flaky_failures = defaultdict(set)
-        for package, tests in failing_tests.items():
-            for test in tests:
-                lines = self.test_output_json.package_tests_dict[package][test]
+        for package, tests in self.test_output_json.package_tests_dict.items():
+            for test, lines in tests.items():
                 if any(self.is_flaky_failure(package, test, line.output) for line in lines if line.output):
                     flaky_failures[package].add(test)
 
