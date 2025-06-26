@@ -109,15 +109,13 @@
     - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
     - ls $OMNIBUS_PACKAGE_DIR/*.xz | grep -v -- -dbg- | xargs -I '{}' mv '{}' $ARTIFACTS_BUILD_CONTEXT/
 
-.docker_build_job_definition_amd64:
-  extends: .docker_build_job_definition
+.docker_build_amd64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64"]
   variables:
     ARCH: amd64
 
-.docker_build_job_definition_arm64:
-  extends: .docker_build_job_definition
+.docker_build_arm64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_arm64$CI_IMAGE_DOCKER_ARM64_SUFFIX:$CI_IMAGE_DOCKER_ARM64
   tags: ["arch:arm64"]
   variables:
@@ -136,7 +134,7 @@
     CACHE_TARGET: release-base
 
 docker_build_agent7:
-  extends: [.docker_build_agent7, .docker_build_job_definition_amd64]
+  extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-x64
   variables:
@@ -164,7 +162,7 @@ single_machine_performance-full-amd64-a7:
     IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64
 
 docker_build_agent7_arm64:
-  extends: [.docker_build_agent7, .docker_build_job_definition_arm64]
+  extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-arm64
   variables:
@@ -173,7 +171,7 @@ docker_build_agent7_arm64:
 
 # build agent7 fips image
 docker_build_fips_agent7:
-  extends: [.docker_build_agent7, .docker_build_job_definition_amd64]
+  extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-x64-fips
   variables:
@@ -181,7 +179,7 @@ docker_build_fips_agent7:
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
 
 docker_build_fips_agent7_arm64:
-  extends: [.docker_build_agent7, .docker_build_job_definition_arm64]
+  extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-arm64-fips
   variables:
@@ -190,7 +188,7 @@ docker_build_fips_agent7_arm64:
 
 # build agent7 jmx image
 docker_build_agent7_jmx:
-  extends: [.docker_build_agent7, .docker_build_job_definition_amd64]
+  extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-x64
   variables:
@@ -198,7 +196,7 @@ docker_build_agent7_jmx:
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
 
 docker_build_agent7_jmx_arm64:
-  extends: [.docker_build_agent7, .docker_build_job_definition_arm64]
+  extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-arm64
   variables:
@@ -206,7 +204,7 @@ docker_build_agent7_jmx_arm64:
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
 
 docker_build_fips_agent7_jmx:
-  extends: [.docker_build_agent7, .docker_build_job_definition_amd64]
+  extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-x64-fips
   variables:
@@ -214,7 +212,7 @@ docker_build_fips_agent7_jmx:
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
 
 docker_build_fips_agent7_arm64_jmx:
-  extends: [.docker_build_agent7, .docker_build_job_definition_arm64]
+  extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-arm64-fips
   variables:
@@ -223,6 +221,7 @@ docker_build_fips_agent7_arm64_jmx:
 
 # agent base image: future agent images will be based on this image
 .docker_build_base_image:
+  extends: .docker_build_job_definition
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -234,12 +233,13 @@ docker_build_fips_agent7_arm64_jmx:
     CACHE_TARGET: release
 
 docker_build_base_image_amd64:
-  extends: [.docker_build_base_image, .docker_build_job_definition_amd64]
+  extends: [.docker_build_base_image, .docker_build_amd64]
 
 docker_build_base_image_arm64:
-  extends: [.docker_build_base_image, .docker_build_job_definition_arm64]
+  extends: [.docker_build_base_image, .docker_build_arm64]
 
 .docker_build_ot_agent_standalone:
+  extends: .docker_build_job_definition
   before_script:
     - cp bin/otel-agent/otel-agent $BUILD_CONTEXT/
     - cp cmd/otel-agent/dist/otel-config.yaml $BUILD_CONTEXT/
@@ -256,20 +256,20 @@ docker_build_base_image_arm64:
 
 docker_build_ot_agent_standalone_amd64:
   extends:
-    [.docker_build_ot_agent_standalone, .docker_build_job_definition_amd64]
+    [.docker_build_ot_agent_standalone, .docker_build_amd64]
   needs:
     - job: docker_build_base_image_amd64
     - job: build_otel_agent_binary_x64
 
 docker_build_ot_agent_standalone_arm64:
   extends:
-    [.docker_build_ot_agent_standalone, .docker_build_job_definition_arm64]
+    [.docker_build_ot_agent_standalone, .docker_build_arm64]
   needs:
     - job: docker_build_base_image_arm64
     - job: build_otel_agent_binary_arm64
 
 docker_build_agent7_full:
-  extends: [.docker_build_agent7, .docker_build_job_definition_amd64]
+  extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-x64
     - job: datadog-otel-agent-x64
@@ -278,7 +278,7 @@ docker_build_agent7_full:
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
 
 docker_build_agent7_full_arm64:
-  extends: [.docker_build_agent7, .docker_build_job_definition_arm64]
+  extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-arm64
     - job: datadog-otel-agent-arm64
@@ -288,6 +288,7 @@ docker_build_agent7_full_arm64:
 
 # build the cluster-agent image
 .docker_build_cluster_agent:
+  extends: .docker_build_job_definition
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -303,7 +304,7 @@ docker_build_agent7_full_arm64:
     - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
 
 docker_build_cluster_agent_amd64:
-  extends: [.docker_build_job_definition_amd64, .docker_build_cluster_agent]
+  extends: [.docker_build_amd64, .docker_build_cluster_agent]
   needs:
     - job: cluster_agent-build_amd64
       artifacts: true
@@ -313,7 +314,7 @@ docker_build_cluster_agent_amd64:
       artifacts: true
 
 docker_build_cluster_agent_arm64:
-  extends: [.docker_build_job_definition_arm64, .docker_build_cluster_agent]
+  extends: [.docker_build_arm64, .docker_build_cluster_agent]
   needs:
     - job: cluster_agent-build_arm64
       artifacts: true
@@ -323,6 +324,7 @@ docker_build_cluster_agent_arm64:
       artifacts: true
 
 .docker_build_cluster_agent_fips:
+  extends: .docker_build_job_definition
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -340,7 +342,7 @@ docker_build_cluster_agent_arm64:
     - go tool nm $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped | grep '_Cfunc__goboringcrypto_'
 
 docker_build_cluster_agent_fips_amd64:
-  extends: [.docker_build_job_definition_amd64, .docker_build_cluster_agent_fips]
+  extends: [.docker_build_amd64, .docker_build_cluster_agent_fips]
   needs:
     - job: cluster_agent_fips-build_amd64
       artifacts: true
@@ -350,7 +352,7 @@ docker_build_cluster_agent_fips_amd64:
       artifacts: true
 
 docker_build_cluster_agent_fips_arm64:
-  extends: [.docker_build_job_definition_arm64, .docker_build_cluster_agent_fips]
+  extends: [.docker_build_arm64, .docker_build_cluster_agent_fips]
   needs:
     - job: cluster_agent_fips-build_arm64
       artifacts: true
@@ -361,7 +363,7 @@ docker_build_cluster_agent_fips_arm64:
 
 # build the cws-instrumentation image
 docker_build_cws_instrumentation_amd64:
-  extends: [.docker_build_job_definition_amd64]
+  extends: [.docker_build_job_definition, .docker_build_amd64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -375,7 +377,7 @@ docker_build_cws_instrumentation_amd64:
     - cp $CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation.${ARCH} $BUILD_CONTEXT/
 
 docker_build_cws_instrumentation_arm64:
-  extends: [.docker_build_job_definition_arm64]
+  extends: [.docker_build_job_definition, .docker_build_arm64]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -390,7 +392,7 @@ docker_build_cws_instrumentation_arm64:
 
 # build the dogstatsd image
 docker_build_dogstatsd_amd64:
-  extends: [.docker_build_job_definition_amd64, .docker_build_s3]
+  extends: [.docker_build_job_definition, .docker_build_amd64, .docker_build_s3]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -405,7 +407,7 @@ docker_build_dogstatsd_amd64:
 
 # build the dogstatsd image
 docker_build_dogstatsd_arm64:
-  extends: [.docker_build_job_definition_arm64, .docker_build_s3]
+  extends: [.docker_build_job_definition, .docker_build_arm64, .docker_build_s3]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
