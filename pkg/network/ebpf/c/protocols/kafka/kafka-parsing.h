@@ -927,7 +927,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             u32 data_end,
                                                                             u32 api_version)
 {
-    extra_debug("Parsing metadata response v%d", api_version);
+//    extra_debug("Parsing metadata response v%d", api_version);
+    log_debug("GUY parsing metadata response v%d", api_version);
 
     u32 orig_offset = offset;
     enum parse_result ret;
@@ -1045,16 +1046,17 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 log_debug("GUY returning %d from read_varint_or_s32 in NUM_TOPICS", ret);
                 return ret;
             }
+            // Note that Metadata Response can have 0 topics so we just stop parsing
             if (num_of_topics <= 0) {
-                log_debug("GUY returning RET_DONE due to num_of_topics <= 0");
                 return RET_DONE;
             }
+
             if (num_of_topics > NUM_TOPICS_MAX) {
                 extra_debug("invalid number of topics: %lld", num_of_topics);
-                log_debug("GUY returning RET_ERR due to invalid number of topics: %lld", num_of_topics);
                 return RET_ERR;
             }
 
+            extra_debug("metadata response num_of_topics: %lld", num_of_topics);
             response->state = KAFKA_METADATA_RESPONSE_TOPICS_LOOP;
             // fallthrough
         case KAFKA_METADATA_RESPONSE_TOPICS_LOOP: // Loop through topics until num_of_topics
@@ -1072,7 +1074,11 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             // Read topic name
             s16 topic_name_size = read_nullable_string_size(pkt, true, &offset);
             if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-                log_debug("GUY continuing due to invalid topic_name_size: %d", topic_name_size);
+                u8 test[5];
+                pktbuf_load_bytes_with_telemetry(pkt, offset, test, sizeof(test));
+
+                log_debug("GUY continuing due to invalid topic_name_size: %d, testdata: %02x%02x", topic_name_size, test[0], test[1]);
+                log_debug("GUY continuing due to invalid topic_name_size CONT, %02x%02x%02x", test[2], test[3], test[4]);
                 continue; // maybe handle null or empty topic names?
             }
             if (offset + topic_name_size > pktbuf_data_end(pkt)) {
@@ -1124,6 +1130,13 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 return ret;
             }
             offset += 26 * num_of_partitions; // Skip partitions TODO variable length partitions
+            offset += sizeof(s32); // Skip topic_authorized_operations
+
+            // Skip tagged fields, don't verify due to code size limitations
+            ret = skip_tagged_fields(response, pkt, &offset, data_end, false);
+            if (ret != RET_DONE) {
+                return ret;
+            }
 
             // Continue parsing topics, we'll move ot the next state when num_of_topics reaches 0
             num_of_topics--;
@@ -1165,7 +1178,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         extra_debug("record batches state: %d", response->state);
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
-                log_debug("GUY KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
+                extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d", response->partition_error_code,
                 response->partition_error_code,
                 response->transaction.records_count);
             // If the next record batch has an error code that the ones we've
@@ -2006,11 +2019,9 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
             bpf_memcpy(&key.topic_id, topic_id, sizeof(topic_id));
             kafka_topic_id_to_name_value_t *topic_name_result = bpf_map_lookup_elem(&kafka_topic_id_to_name, &key);
             if (topic_name_result == NULL) {
+                // REPORT TELEMETRY FOR MISSING TOPIC ID
                 log_debug("GUY map lookup failed for topic_id %02x%02x%02x", topic_id[0], topic_id[1], topic_id[2]);
                 return false;
-            } else {
-                log_debug("GUY map lookup successful for topic_id %02x%02x found in map with topic_name_size %u",
-                    topic_id[0], topic_id[1], topic_name_result->topic_name_size);
             }
 
             // Check is only for the verifier, as we only populate the map with valid values.
