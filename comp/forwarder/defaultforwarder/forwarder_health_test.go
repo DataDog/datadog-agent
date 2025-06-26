@@ -375,3 +375,71 @@ func TestConfigUpdateAPIKey(t *testing.T) {
 		runUpdateAPIKeysTest(t, test.description, test.before, test.after, test.expectBefore, test.expectAfter)
 	}
 }
+
+func TestOneEndpointNoAPIKeys(t *testing.T) {
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts1.Close()
+	defer ts2.Close()
+
+	// additional endpoints has no API keys, but endpoint should still
+	// be valid because the main endpoint does.
+	keysPerDomains := map[string][]utils.APIKeys{
+		ts1.URL: {utils.NewAPIKeys("api_key", "api_key1")},
+		ts2.URL: {
+			utils.NewAPIKeys("additional_endpoints"),
+		},
+	}
+
+	log := logmock.New(t)
+	cfg := config.NewMock(t)
+
+	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+
+	for _, r := range resolvers {
+		resolver.OnUpdateConfig(r, log, cfg)
+	}
+
+	require.NoError(t, err)
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	fh.init()
+	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
+}
+
+func TestOneEndpointInvalid(t *testing.T) {
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer ts1.Close()
+	defer ts2.Close()
+
+	// additional endpoints has no API keys, but endpoint should still
+	// be valid because the main endpoint does.
+	keysPerDomains := map[string][]utils.APIKeys{
+		ts1.URL: {utils.NewAPIKeys("api_key", "api_key1")},
+		ts2.URL: {
+			utils.NewAPIKeys("additional_endpoints", "api_key2"),
+		},
+	}
+
+	log := logmock.New(t)
+	cfg := config.NewMock(t)
+
+	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
+
+	for _, r := range resolvers {
+		resolver.OnUpdateConfig(r, log, cfg)
+	}
+
+	require.NoError(t, err)
+	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	fh.init()
+	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
+}

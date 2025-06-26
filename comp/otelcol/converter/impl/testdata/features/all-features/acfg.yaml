@@ -1,0 +1,6 @@
+otelcollector:
+  converter:
+    enabled: true
+    features: ["infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"]
+api_key: ggggg77777
+site: datadoghq.eu

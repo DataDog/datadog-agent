@@ -623,10 +623,31 @@ func TestGetAuroraClustersFromTags(t *testing.T) {
 		expectedErr        error
 	}{
 		{
-			name:            "no filter tags supplied",
-			configureClient: func(_ *MockrdsService) {},
-			tags:            []string{},
-			expectedErr:     errors.New("at least one tag filter is required"),
+			name: "empty tag filter returns all clusters",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBClusters(gomock.Any(), &rds.DescribeDBClustersInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBClustersOutput{
+					DBClusters: []types.DBCluster{
+						{
+							DBClusterIdentifier: aws.String("test-cluster"),
+							TagList: []types.Tag{
+								{
+									Key:   aws.String("test"),
+									Value: aws.String("tag"),
+								},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags:               []string{},
+			expectedClusterIDs: []string{"test-cluster"},
 		},
 		{
 			name: "single tag filter returns error from API",

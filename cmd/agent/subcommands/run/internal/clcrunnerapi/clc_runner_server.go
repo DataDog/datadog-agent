@@ -109,8 +109,9 @@ func StopCLCRunnerServer() {
 }
 
 func validateCLCRunnerToken(next http.Handler) http.Handler {
+	DCAValidator := util.TokenValidator(util.GetDCAAuthToken)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := util.ValidateDCARequest(w, r); err != nil {
+		if err := DCAValidator(w, r); err != nil {
 			return
 		}
 		next.ServeHTTP(w, r)

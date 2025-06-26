@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 import (
@@ -60,6 +60,8 @@ type NetworkCheck struct {
 }
 
 type networkInstanceConfig struct {
+	CollectRateMetrics        bool     `yaml:"collect_rate_metrics"`
+	CollectCountMetrics       bool     `yaml:"collect_count_metrics"`
 	CollectConnectionState    bool     `yaml:"collect_connection_state"`
 	CollectConnectionQueues   bool     `yaml:"collect_connection_queues"`
 	ExcludedInterfaces        []string `yaml:"excluded_interfaces"`
@@ -140,7 +142,7 @@ func (c *NetworkCheck) Run() error {
 	} else {
 		for _, protocol := range protocols {
 			if _, ok := counters[protocol]; ok {
-				submitProtocolMetrics(sender, counters[protocol])
+				c.submitProtocolMetrics(sender, counters[protocol])
 			}
 		}
 	}
@@ -176,10 +178,8 @@ func (c *NetworkCheck) Run() error {
 }
 
 func (c *NetworkCheck) isDeviceExcluded(deviceName string) bool {
-	for _, excludedDevice := range c.config.instance.ExcludedInterfaces {
-		if deviceName == excludedDevice {
-			return true
-		}
+	if slices.Contains(c.config.instance.ExcludedInterfaces, deviceName) {
+		return true
 	}
 	if c.config.instance.ExcludedInterfacePattern != nil {
 		return c.config.instance.ExcludedInterfacePattern.MatchString(deviceName)
@@ -360,12 +360,16 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 	return result
 }
 
-func submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCountersStat) {
+func (c *NetworkCheck) submitProtocolMetrics(sender sender.Sender, protocolStats net.ProtoCountersStat) {
 	if protocolMapping, ok := protocolsMetricsMapping[protocolStats.Protocol]; ok {
 		for rawMetricName, metricName := range protocolMapping {
 			if metricValue, ok := protocolStats.Stats[rawMetricName]; ok {
-				sender.Rate(metricName, float64(metricValue), "", nil)
-				sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+				if c.config.instance.CollectRateMetrics {
+					sender.Rate(metricName, float64(metricValue), "", nil)
+				}
+				if c.config.instance.CollectCountMetrics {
+					sender.MonotonicCount(fmt.Sprintf("%s.count", metricName), float64(metricValue), "", nil)
+				}
 			}
 		}
 	}
@@ -391,7 +395,7 @@ func getQueueMetrics(ipVersion string, procfsPath string) (map[string][]uint64, 
 	return parseQueueMetrics(output)
 }
 
-func getQueueMetricsNetstat(ipVersion string, _ string) (map[string][]uint64, error) {
+func getQueueMetricsNetstat(_ string, _ string) (map[string][]uint64, error) {
 	output, err := runCommandFunction([]string{"netstat", "-n", "-u", "-t", "-a"}, []string{})
 	if err != nil {
 		return nil, fmt.Errorf("error executing netstat command: %v", err)
@@ -741,7 +745,14 @@ func newCheck(cfg config.Component) check.Check {
 	}
 
 	return &NetworkCheck{
-		net:       defaultNetworkStats{procPath: procfsPath},
 		CheckBase: core.NewCheckBase(CheckName),
+		net:       defaultNetworkStats{procPath: procfsPath},
+		config: networkConfig{
+			instance: networkInstanceConfig{
+				CollectRateMetrics:        true,
+				WhitelistConntrackMetrics: []string{"max", "count"},
+				UseSudoConntrack:          true,
+			},
+		},
 	}
 }

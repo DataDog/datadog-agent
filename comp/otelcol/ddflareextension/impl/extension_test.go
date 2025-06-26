@@ -16,6 +16,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	ddflareextension "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/def"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
@@ -56,13 +57,13 @@ func getExtensionTestConfig(t *testing.T) *Config {
 	}
 }
 
-func getTestExtension(t *testing.T) (ddflareextension.Component, error) {
+func getTestExtension(t *testing.T, optIpc option.Option[ipc.Component]) (ddflareextension.Component, error) {
 	c := context.Background()
 	telemetry := component.TelemetrySettings{}
 	info := component.NewDefaultBuildInfo()
 	cfg := getExtensionTestConfig(t)
 
-	return NewExtension(c, cfg, telemetry, info, true, false)
+	return NewExtension(c, cfg, telemetry, info, optIpc, true, false)
 }
 
 func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride string) *httptest.ResponseRecorder {
@@ -84,7 +85,7 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 	rr := httptest.NewRecorder()
 
 	// Create an instance of your handler
-	ext, err := getTestExtension(t)
+	ext, err := getTestExtension(t, option.New(ipc))
 	require.NoError(t, err)
 
 	ddExt := ext.(*ddExtension)
@@ -111,7 +112,7 @@ func getResponseToHandlerRequest(t *testing.T, ipc ipc.Component, tokenOverride 
 }
 
 func TestNewExtension(t *testing.T) {
-	ext, err := getTestExtension(t)
+	ext, err := getTestExtension(t, option.None[ipc.Component]())
 	assert.NoError(t, err)
 	assert.NotNil(t, ext)
 

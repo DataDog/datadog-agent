@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -32,7 +33,7 @@ import (
 )
 
 const (
-	collectorID       = "process-collector"
+	collectorID       = "remote-process-collector"
 	cacheValidityNoRT = 2 * time.Second
 )
 
@@ -115,14 +116,14 @@ func workloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) 
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
 			StreamHandler: &streamHandler{Reader: pkgconfigsetup.Datadog()},
 			Catalog:       workloadmeta.NodeAgent,
-			Insecure:      true, // wlm extractor currently does not support TLS
+			IPC:           ipc,
 		},
 	}, nil
 }

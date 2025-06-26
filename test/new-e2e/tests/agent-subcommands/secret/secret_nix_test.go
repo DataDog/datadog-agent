@@ -34,7 +34,7 @@ func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
 	output := v.Env().Agent.Client.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /does/not/exist")
-	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable '/does/not/exist': can't stat it: no such file or directory")
+	assert.Contains(v.T(), output, "Executable permissions: error: the executable does not have the correct permissions")
 	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
 }
 
@@ -45,7 +45,7 @@ func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /usr/bin/echo")
-	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable '/usr/bin/echo', 'group' or 'others' have rights on it")
+	assert.Contains(v.T(), output, "Executable permissions: error: the executable does not have the correct permissions")
 	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
 }
 

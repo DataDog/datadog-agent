@@ -1,11 +1,9 @@
-## gRPC: Protobuf and Gateway code generation
+## gRPC: Protobuf code generation
 
 To generate the code for the API you have defined in your `.proto`
 files requires three different grpc-related packages:
 
 - protobuf - protoc-gen-go: generates the golang protobuf definitions.
-- grpc-gateway - protoc-gen-grpc-gateway: generates the gRPC-REST gateway
-- grpc-gateway - protoc-gen-swagger (optional)
 
 ### Install
 

@@ -1,0 +1,46 @@
+# Contains jobs which deploy OT standalone related mutable image tags to the registries. That means - not uploading the image, but only creating the tags.
+
+.deploy_mutable_ot_standalone_tags-base:
+  extends: .docker_publish_job_definition
+  stage: deploy_mutable_image_tags
+  dependencies: []
+  before_script:
+    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - if [[ "$OTEL_AGENT_REPOSITORY" == "" ]]; then export OTEL_AGENT_REPOSITORY="otel-agent"; fi
+    - export IMG_TAG_REFERENCE=${OTEL_AGENT_REPOSITORY}:${VERSION}
+
+deploy_containers-ot-standalone-rc:
+  extends: .deploy_mutable_ot_standalone_tags-base
+  rules: !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-ot-standalone
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: rc
+
+deploy_containers-ot-standalone-latest:
+  extends: .deploy_mutable_ot_standalone_tags-base
+  rules: !reference [.on_deploy_manual_final]
+  needs:
+    - job: deploy_containers-ot-standalone
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: latest
+
+deploy_containers-ot-standalone_internal-rc:
+  extends: .deploy_mutable_ot_standalone_tags-base
+  rules: !reference [.on_deploy_internal_rc]
+  needs:
+    - job: deploy_containers-ot-standalone_internal
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: rc
+
+deploy_containers-ot-standalone_internal-latest:
+  extends: .deploy_mutable_ot_standalone_tags-base
+  rules: !reference [.on_deploy_internal_manual_final]
+  needs:
+    - job: deploy_containers-ot-standalone_internal
+      artifacts: false
+  variables:
+    IMG_NEW_TAGS: latest

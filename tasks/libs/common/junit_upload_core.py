@@ -15,6 +15,7 @@ from subprocess import PIPE, CalledProcessError, Popen
 from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
+from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import gitlab_section
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -115,9 +116,12 @@ def get_flaky_failures_and_marked_flaky_tests_from_test_output(result_json):
     flaky_failures = defaultdict(set)
     flaky_tests = defaultdict(set)
 
-    tw = TestWasher(test_output_json_file=result_json)
-    flaky_failures.update(tw.get_flaky_failures())
-    flaky_tests.update(tw.get_flaky_marked_tests())
+    if os.path.exists(result_json):
+        tw = TestWasher(test_output_json_file=result_json)
+        flaky_failures.update(tw.get_flaky_failures())
+        flaky_tests.update(tw.get_flaky_marked_tests())
+    else:
+        print(f"{color_message('Warning', 'yellow')}: No test output file found at {result_json}")
 
     return flaky_failures, flaky_tests
 

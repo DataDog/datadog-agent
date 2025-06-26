@@ -39,6 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
@@ -62,7 +63,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	logscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -199,6 +199,7 @@ func makeFlare(flareComp flare.Component,
 	_ option.Option[workloadmeta.Component],
 	tagger tagger.Component,
 	flareprofiler flareprofilerdef.Component,
+	client ipc.HTTPClient,
 	senderManager diagnosesendermanager.Component,
 	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
@@ -242,7 +243,7 @@ func makeFlare(flareComp flare.Component,
 	}
 
 	if cliParams.profiling >= 30 {
-		c, err := common.NewSettingsClient()
+		c, err := common.NewSettingsClient(client)
 		if err != nil {
 			return fmt.Errorf("failed to initialize settings client: %w", err)
 		}
@@ -274,7 +275,7 @@ func makeFlare(flareComp flare.Component,
 
 	if streamLogParams.Duration > 0 {
 		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
-		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
+		err := streamlogs.StreamLogs(lc, config, client, &streamLogParams)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
 		}
@@ -286,7 +287,7 @@ func makeFlare(flareComp flare.Component,
 		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
 		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil, diagnoseresult)
 	} else {
-		filePath, err = requestArchive(profile, cliParams.providerTimeout)
+		filePath, err = requestArchive(profile, client, cliParams.providerTimeout)
 		if err != nil {
 			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, senderManager, wmeta, ac, secretResolver, tagger, config)
 			filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, err, diagnoseresult)
@@ -320,9 +321,8 @@ func makeFlare(flareComp flare.Component,
 	return nil
 }
 
-func requestArchive(pdata flaretypes.ProfileData, providerTimeout time.Duration) (string, error) {
+func requestArchive(pdata flaretypes.ProfileData, client ipc.HTTPClient, providerTimeout time.Duration) (string, error) {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the agent to build the flare archive."))
-	c := util.GetClient()
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
@@ -343,19 +343,13 @@ func requestArchive(pdata flaretypes.ProfileData, providerTimeout time.Duration)
 
 	urlstr := url.String()
 
-	// Set session token
-	if err = util.SetAuthToken(pkgconfigsetup.Datadog()); err != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
-		return "", err
-	}
-
 	p, err := json.Marshal(pdata)
 	if err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error while encoding profile: %s", err)))
 		return "", err
 	}
 
-	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(p))
+	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer(p))
 	if err != nil {
 		if r != nil && string(r) != "" {
 			fmt.Fprintf(color.Output, "The agent ran into an error while making the flare: %s\n", color.RedString(string(r)))

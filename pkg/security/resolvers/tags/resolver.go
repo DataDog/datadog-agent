@@ -8,6 +8,7 @@ package tags
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -35,9 +36,9 @@ type Tagger interface {
 type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
-	Resolve(id containerutils.ContainerID) []string
-	ResolveWithErr(fid containerutils.ContainerID) ([]string, error)
-	GetValue(id containerutils.ContainerID, tag string) string
+	Resolve(id interface{}) []string
+	ResolveWithErr(id interface{}) ([]string, error)
+	GetValue(id interface{}, tag string) string
 }
 
 // DefaultResolver represents a default resolver based directly on the underlying tagger
@@ -46,14 +47,38 @@ type DefaultResolver struct {
 }
 
 // Resolve returns the tags for the given id
-func (t *DefaultResolver) Resolve(id containerutils.ContainerID) []string {
+func (t *DefaultResolver) Resolve(id interface{}) []string {
 	tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *DefaultResolver) ResolveWithErr(id containerutils.ContainerID) ([]string, error) {
-	return GetTagsOfContainer(t.tagger, id)
+func (t *DefaultResolver) ResolveWithErr(id interface{}) ([]string, error) {
+	return t.resolveWorkloadTags(id)
+}
+
+// resolveWorkloadTags resolves tags for a workload ID, handling both container and cgroup workloads
+func (t *DefaultResolver) resolveWorkloadTags(id interface{}) ([]string, error) {
+	if id == nil {
+		return nil, fmt.Errorf("nil workload id")
+	}
+
+	switch v := id.(type) {
+	case containerutils.ContainerID:
+		if len(v) == 0 {
+			return nil, fmt.Errorf("empty container id")
+		}
+		// Resolve as a container ID
+		return GetTagsOfContainer(t.tagger, v)
+	case containerutils.CGroupID:
+		if len(v) == 0 {
+			return nil, fmt.Errorf("empty cgroup id")
+		}
+		// CGroup resolution is only supported on Linux
+		return nil, fmt.Errorf("cgroup resolution not supported on this platform")
+	default:
+		return nil, fmt.Errorf("unknown workload id type: %T", id)
+	}
 }
 
 // GetTagsOfContainer returns the tags for the given container id
@@ -68,7 +93,7 @@ func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (
 }
 
 // GetValue return the tag value for the given id and tag name
-func (t *DefaultResolver) GetValue(id containerutils.ContainerID, tag string) string {
+func (t *DefaultResolver) GetValue(id interface{}, tag string) string {
 	return utils.GetTagValue(tag, t.Resolve(id))
 }
 

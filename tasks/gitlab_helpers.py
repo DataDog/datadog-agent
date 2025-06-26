@@ -14,8 +14,8 @@ from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
     compute_gitlab_ci_config_diff,
     get_all_gitlab_ci_configurations,
-    get_gitlab_ci_configuration,
     get_gitlab_repo,
+    post_process_gitlab_ci_configuration,
     print_gitlab_ci_configuration,
     resolve_gitlab_ci_configuration,
 )
@@ -252,7 +252,7 @@ def print_ci(
     keep_special_objects: bool = False,
     expand_matrix: bool = False,
     git_ref: str | None = None,
-    with_lint: bool = True,
+    resolve_only_includes: bool = True,
 ):
     """Prints the full gitlab ci configuration.
 
@@ -261,21 +261,22 @@ def print_ci(
         clean: Apply post processing to make output more readable (remove extends, flatten lists of lists...)
         keep_special_objects: If True, do not filter out special objects (variables, stages etc.)
         expand_matrix: Will expand matrix jobs into multiple jobs
-        with_lint: If False, do not lint the configuration
+        resolve_only_includes:
+            Whether to skip the gitlab `/lint` endpoint when resolving configs.
+            In this case, only `include`s will be resolved, not `extend`s or `!reference`s
         git_ref: If provided, use this git reference to fetch the configuration
 
     Notes:
         This requires a full api token access level to the repository
     """
 
-    yml = get_gitlab_ci_configuration(
-        ctx,
-        input_file,
-        job=job,
+    yml = resolve_gitlab_ci_configuration(ctx, input_file, resolve_only_includes=resolve_only_includes, git_ref=git_ref)
+
+    yml = post_process_gitlab_ci_configuration(
+        yml,
+        jobs={job},
         clean=clean,
         expand_matrix=expand_matrix,
-        git_ref=git_ref,
-        with_lint=with_lint,
         keep_special_objects=keep_special_objects,
     )
 
@@ -288,7 +289,7 @@ def print_entry_points(ctx):
     """Prints gitlab ci configuration entry points."""
 
     print(color_message('info:', Color.BLUE), 'Fetching entry points...')
-    entry_points = get_all_gitlab_ci_configurations(ctx, filter_configs=True, clean_configs=True)
+    entry_points = get_all_gitlab_ci_configurations(ctx, postprocess_options={"do_filtering": True})
 
     print(len(entry_points), 'entry points:')
     for entry_point, config in entry_points.items():

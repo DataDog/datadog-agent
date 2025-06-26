@@ -6,17 +6,14 @@
 package status
 
 import (
-	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
-	htemplate "html/template" //nolint:depguard
 	"io"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
-	ttemplate "text/template" //nolint:depguard
 	"time"
 	"unicode"
 
@@ -25,30 +22,21 @@ import (
 	"github.com/spf13/cast"
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	pkghtmltemplate "github.com/DataDog/datadog-agent/pkg/template/html"
 	pkgtexttemplate "github.com/DataDog/datadog-agent/pkg/template/text"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	htmlFuncOnce sync.Once
-	htmlFuncMap  htemplate.FuncMap
+	htmlFuncMap  pkghtmltemplate.FuncMap
 	textFuncOnce sync.Once
-	textFuncMap  ttemplate.FuncMap
-)
-
-var dceRenderErrors = telemetry.NewCounter(
-	"status",
-	"dce_render_errors",
-	[]string{"kind", "template_name"},
-	"Number of errors encountered while rendering a template",
+	textFuncMap  pkgtexttemplate.FuncMap
 )
 
 // HTMLFmap return a map of utility functions for HTML templating
-func HTMLFmap() htemplate.FuncMap {
+func HTMLFmap() pkghtmltemplate.FuncMap {
 	htmlFuncOnce.Do(func() {
-		htmlFuncMap = htemplate.FuncMap{
+		htmlFuncMap = pkghtmltemplate.FuncMap{
 			"doNotEscape":         doNotEscape,
 			"lastError":           lastError,
 			"configError":         configError,
@@ -77,9 +65,9 @@ func HTMLFmap() htemplate.FuncMap {
 }
 
 // TextFmap map of utility functions for text templating
-func TextFmap() ttemplate.FuncMap {
+func TextFmap() pkgtexttemplate.FuncMap {
 	textFuncOnce.Do(func() {
-		textFuncMap = ttemplate.FuncMap{
+		textFuncMap = pkgtexttemplate.FuncMap{
 			"lastErrorTraceback":  lastErrorTraceback,
 			"lastErrorMessage":    lastErrorMessage,
 			"printDashes":         PrintDashes,
@@ -114,25 +102,8 @@ func RenderHTML(templateFS embed.FS, template string, buffer io.Writer, data any
 		return tmplErr
 	}
 
-	var stdbuff bytes.Buffer
-	t := htemplate.Must(htemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
-	err := t.Execute(&stdbuff, data)
-	_, _ = buffer.Write(stdbuff.Bytes())
-	if err != nil {
-		return err
-	}
-
-	var pkgbuff bytes.Buffer
-	tt := pkghtmltemplate.Must(pkghtmltemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
-	terr := tt.Execute(&pkgbuff, data)
-	if terr != nil {
-		dceRenderErrors.Inc("html", template)
-		log.Warnf("Error executing shadow pkg/template/html for %s: %s", template, terr)
-	} else if pkgbuff.String() != stdbuff.String() {
-		log.Infof("Shadow pkg/template/html output does not match html/template output for %s", template)
-	}
-
-	return nil
+	t := pkghtmltemplate.Must(pkghtmltemplate.New(template).Funcs(HTMLFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
 }
 
 // RenderText reads, parse and execute template from embed.FS
@@ -142,37 +113,20 @@ func RenderText(templateFS embed.FS, template string, buffer io.Writer, data any
 		return tmplErr
 	}
 
-	var stdbuff bytes.Buffer
-	t := ttemplate.Must(ttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
-	err := t.Execute(&stdbuff, data)
-	_, _ = buffer.Write(stdbuff.Bytes())
-	if err != nil {
-		return err
-	}
-
-	var pkgbuff bytes.Buffer
-	tt := pkgtexttemplate.Must(pkgtexttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
-	terr := tt.Execute(&pkgbuff, data)
-	if terr != nil {
-		dceRenderErrors.Inc("text", template)
-		log.Warnf("Error executing shadow pkg/template/text for %s: %s", template, terr)
-	} else if pkgbuff.String() != stdbuff.String() {
-		log.Infof("Shadow pkg/template/text output does not match text/template output for %s", template)
-	}
-
-	return nil
+	t := pkgtexttemplate.Must(pkgtexttemplate.New(template).Funcs(TextFmap()).Parse(string(tmpl)))
+	return t.Execute(buffer, data)
 }
 
-func doNotEscape(value string) htemplate.HTML {
-	return htemplate.HTML(value)
+func doNotEscape(value string) pkghtmltemplate.HTML {
+	return pkghtmltemplate.HTML(value)
 }
 
-func configError(value string) htemplate.HTML {
-	return htemplate.HTML(value + "\n")
+func configError(value string) pkghtmltemplate.HTML {
+	return pkghtmltemplate.HTML(value + "\n")
 }
 
-func lastError(value string) htemplate.HTML {
-	return htemplate.HTML(value)
+func lastError(value string) pkghtmltemplate.HTML {
+	return pkghtmltemplate.HTML(value)
 }
 
 func lastErrorTraceback(value string) string {
@@ -410,31 +364,31 @@ func getVersion(instances map[string]interface{}) string {
 	return ""
 }
 
-func pythonLoaderErrorHTML(value string) htemplate.HTML {
-	value = htemplate.HTMLEscapeString(value)
+func pythonLoaderErrorHTML(value string) pkghtmltemplate.HTML {
+	value = pkghtmltemplate.HTMLEscapeString(value)
 
 	value = strings.ReplaceAll(value, "\n", "<br>")
 	value = strings.ReplaceAll(value, "  ", "&nbsp;&nbsp;&nbsp;")
-	return htemplate.HTML(value)
+	return pkghtmltemplate.HTML(value)
 }
 
-func lastErrorTracebackHTML(value string) htemplate.HTML {
+func lastErrorTracebackHTML(value string) pkghtmltemplate.HTML {
 	var lastErrorArray []map[string]string
 
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err != nil || len(lastErrorArray) == 0 {
-		return htemplate.HTML("No traceback")
+		return pkghtmltemplate.HTML("No traceback")
 	}
 
-	traceback := htemplate.HTMLEscapeString(lastErrorArray[0]["traceback"])
+	traceback := pkghtmltemplate.HTMLEscapeString(lastErrorArray[0]["traceback"])
 
 	traceback = strings.ReplaceAll(traceback, "\n", "<br>")
 	traceback = strings.ReplaceAll(traceback, "  ", "&nbsp;&nbsp;&nbsp;")
 
-	return htemplate.HTML(traceback)
+	return pkghtmltemplate.HTML(traceback)
 }
 
-func lastErrorMessageHTML(value string) htemplate.HTML {
+func lastErrorMessageHTML(value string) pkghtmltemplate.HTML {
 	var lastErrorArray []map[string]string
 	err := json.Unmarshal([]byte(value), &lastErrorArray)
 	if err == nil && len(lastErrorArray) > 0 {
@@ -442,15 +396,15 @@ func lastErrorMessageHTML(value string) htemplate.HTML {
 			value = msg
 		}
 	}
-	return htemplate.HTML(htemplate.HTMLEscapeString(value))
+	return pkghtmltemplate.HTML(pkghtmltemplate.HTMLEscapeString(value))
 }
 
-func statusHTML(check map[string]interface{}) htemplate.HTML {
+func statusHTML(check map[string]interface{}) pkghtmltemplate.HTML {
 	if check["LastError"].(string) != "" {
-		return htemplate.HTML("[<span class=\"error\">ERROR</span>]")
+		return pkghtmltemplate.HTML("[<span class=\"error\">ERROR</span>]")
 	}
 	if len(check["LastWarnings"].([]interface{})) != 0 {
-		return htemplate.HTML("[<span class=\"warning\">WARNING</span>]")
+		return pkghtmltemplate.HTML("[<span class=\"warning\">WARNING</span>]")
 	}
-	return htemplate.HTML("[<span class=\"ok\">OK</span>]")
+	return pkghtmltemplate.HTML("[<span class=\"ok\">OK</span>]")
 }

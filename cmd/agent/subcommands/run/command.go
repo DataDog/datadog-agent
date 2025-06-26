@@ -32,6 +32,7 @@ import (
 	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -72,6 +73,7 @@ import (
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	lsof "github.com/DataDog/datadog-agent/comp/core/lsof/fx"
@@ -99,6 +101,7 @@ import (
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
+	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -142,6 +145,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
+	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
@@ -276,6 +280,7 @@ func run(log log.Component,
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 	hostname hostnameinterface.Component,
+	ipc ipc.Component,
 ) error {
 	defer func() {
 		stopAgent()
@@ -342,6 +347,7 @@ func run(log log.Component,
 		settings,
 		agenttelemetryComponent,
 		hostname,
+		ipc,
 	); err != nil {
 		return err
 	}
@@ -417,6 +423,8 @@ func getSharedFxOption() fx.Option {
 		rcserviceimpl.Module(),
 		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
+		daemoncheckerfx.Module(),
+		fleetfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		autodiscoveryimpl.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
@@ -504,6 +512,7 @@ func getSharedFxOption() fx.Option {
 		metricscompressorfx.Module(),
 		diagnosefx.Module(),
 		ipcfx.ModuleReadWrite(),
+		ssistatusfx.Module(),
 	)
 }
 
@@ -535,6 +544,7 @@ func startAgent(
 	settings settings.Component,
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
+	ipc ipc.Component,
 ) error {
 	var err error
 
@@ -616,7 +626,7 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Init JMX runner and inject dogstatsd component
-	jmxfetch.InitRunner(server, jmxLogger)
+	jmxfetch.InitRunner(server, jmxLogger, ipc)
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector

@@ -34,12 +34,12 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
-	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	ebpftls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
@@ -1627,7 +1627,7 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
@@ -1657,7 +1657,7 @@ func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expe
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats, cleaners := monitor.GetProtocolStats()
-		defer cleaners()
+		t.Cleanup(cleaners)
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
 		if exists {
@@ -1704,7 +1704,7 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 		if !exists {
 			return
 		}
-		hasTLSTag := requestStats.StaticTags&network.ConnTagGo != 0
+		hasTLSTag := requestStats.StaticTags&ebpftls.ConnTagGo != 0
 		if hasTLSTag != validation.tlsEnabled {
 			continue
 		}

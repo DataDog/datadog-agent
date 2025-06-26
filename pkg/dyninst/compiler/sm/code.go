@@ -24,10 +24,12 @@ type CodeMetadata struct {
 // CodeSerializer is the interface for serializing byte code into native
 // stack machine code.
 type CodeSerializer interface {
+	// Optionally comment a block of following instructions.
+	CommentBlock(comment string) error
 	// Optionally comment a function prior to its body.
 	CommentFunction(id FunctionID, pc uint32) error
 	// Serialize an instruction into the output stream.
-	SerializeInstruction(name string, paramBytes []byte) error
+	SerializeInstruction(name string, paramBytes []byte, comment string) error
 }
 
 // GenerateCode generates the byte code and feeds it to CodeSerializer.
@@ -55,6 +57,7 @@ func GenerateCode(program Program, out CodeSerializer) (CodeMetadata, error) {
 		}
 	}
 
+	appendFragment(blockComment{"Extra illegal ops to simplify code bound checks"})
 	for range maxOpLen {
 		appendFragment(makeInstruction(IllegalOp{}))
 	}
@@ -88,6 +91,19 @@ type codeFragment interface {
 	encode(t codeTracker, out CodeSerializer) error
 }
 
+// comment is a code fragment with free-form comment.
+type blockComment struct {
+	comment string
+}
+
+func (c blockComment) codeByteLen() uint32 {
+	return 0
+}
+
+func (c blockComment) encode(_ codeTracker, out CodeSerializer) error {
+	return out.CommentBlock(c.comment)
+}
+
 // functionComment is a code fragment that comments a function, itself containing no code.
 type functionComment struct {
 	id FunctionID
@@ -103,8 +119,9 @@ func (f functionComment) encode(t codeTracker, out CodeSerializer) error {
 
 // staticInstruction is a code fragment encoding logical ops, with all bytes known apriori.
 type staticInstruction struct {
-	name  string
-	bytes []byte
+	name    string
+	bytes   []byte
+	comment string
 }
 
 func (i staticInstruction) codeByteLen() uint32 {
@@ -113,7 +130,7 @@ func (i staticInstruction) codeByteLen() uint32 {
 }
 
 func (i staticInstruction) encode(_ codeTracker, out CodeSerializer) error {
-	return out.SerializeInstruction(i.name, i.bytes)
+	return out.SerializeInstruction(i.name, i.bytes, i.comment)
 }
 
 // callInstruction is a custom code fragment for logical CallOp, requiring
@@ -128,8 +145,9 @@ func (i callInstruction) codeByteLen() uint32 {
 
 func (i callInstruction) encode(t codeTracker, out CodeSerializer) error {
 	si := staticInstruction{
-		name:  "SM_OP_CALL",
-		bytes: binary.LittleEndian.AppendUint32(nil, t.functionLoc[i.target]),
+		name:    "SM_OP_CALL",
+		bytes:   binary.LittleEndian.AppendUint32(nil, t.functionLoc[i.target]),
+		comment: i.target.String(),
 	}
 	if i.codeByteLen() != si.codeByteLen() {
 		return errors.Errorf("internal: callInstruction codeByteLen mismatch: %d != %d", i.codeByteLen(), si.codeByteLen())

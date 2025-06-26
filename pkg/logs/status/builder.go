@@ -209,6 +209,7 @@ func (b *Builder) getMetricsStatus() map[string]string {
 	metrics["RetryCount"] = fmt.Sprintf("%v", b.logsExpVars.Get("RetryCount").(*expvar.Int).Value())
 	metrics["RetryTimeSpent"] = time.Duration(b.logsExpVars.Get("RetryTimeSpent").(*expvar.Int).Value()).String()
 	metrics["EncodedBytesSent"] = fmt.Sprintf("%v", b.logsExpVars.Get("EncodedBytesSent").(*expvar.Int).Value())
+	metrics["LogsTruncated"] = fmt.Sprintf("%v", b.logsExpVars.Get("LogsTruncated").(*expvar.Int).Value())
 	return metrics
 }
 

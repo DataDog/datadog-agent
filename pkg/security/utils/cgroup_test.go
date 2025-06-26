@@ -31,7 +31,7 @@ type testCgroup struct {
 	cgroupContent string
 	error         bool
 	containerID   string
-	runtime       containerutils.CGroupFlags
+	flags         containerutils.CGroupFlags
 	path          string
 }
 
@@ -56,7 +56,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "e8ac3efec3322d7f13cfa0cdee4344754d01bd4e50fea44e0753e83fdb74cab3",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerCRI),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerCRI),
 			path:        "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod98005c3b_b650_4efe_8b91_2164d784397f.slice/cri-containerd-e8ac3efec3322d7f13cfa0cdee4344754d01bd4e50fea44e0753e83fdb74cab3.scope",
 		},
 		{
@@ -78,7 +78,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "99d24a208bd5b9c9663e18c34e4bd793536f062d8299a5cca0e718994abd9182",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerDocker),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerDocker),
 			path:        "/docker/99d24a208bd5b9c9663e18c34e4bd793536f062d8299a5cca0e718994abd9182",
 		},
 		{
@@ -100,7 +100,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerSystemd) | containerutils.SystemdService,
 			path:        "/system.slice/cups.service",
 		},
 		{
@@ -122,7 +122,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerSystemd) | containerutils.SystemdService,
 			path:        "/user.slice/user-1000.slice/user@1000.service/xdg-desktop-portal-gtk.service",
 		},
 		{
@@ -144,7 +144,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
 			path:        "/user.slice/user-1000.slice/user@1000.service/apps.slice/apps-org.gnome.Terminal.slice/vte-spawn-1d0750f1-4e83-4b26-81ae-e3770394b7f3.scope",
 		},
 		{
@@ -165,7 +165,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "",
-			runtime:     0,
+			flags:       0,
 			path:        "",
 		},
 		{
@@ -187,7 +187,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
 			path:        "/init.scope",
 		},
 		{
@@ -196,7 +196,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "473a28bd49fcbf3a24eb55563125720311181ee184ae9b88fc9a3fbb30031e47",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerDocker),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerDocker),
 			path:        "/system.slice/docker-473a28bd49fcbf3a24eb55563125720311181ee184ae9b88fc9a3fbb30031e47.scope",
 		},
 		{
@@ -205,7 +205,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerSystemd) | containerutils.SystemdService,
 			path:        "/system.slice/ssh.service",
 		},
 		{
@@ -214,7 +214,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
 			path:        "/user.slice/user-1000.slice/session-4.scope",
 		},
 		{
@@ -223,7 +223,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerSystemd | containerutils.CGroupManager(containerutils.SystemdScope)),
 			path:        "/init.scope",
 		},
 		{
@@ -232,7 +232,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "",
-			runtime:     0,
+			flags:       0,
 			path:        "",
 		},
 		{
@@ -251,7 +251,7 @@ func TestCGroup(t *testing.T) {
 `,
 			error:       false,
 			containerID: "7022ec9d5774c69f38feddd6460373c4681ef72a4e03bc6f2d374387e9bde981",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerECS),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerECS),
 			path:        "/ecs/409b8b89ccd746bdb9b5e03418406d96/409b8b89ccd746bdb9b5e03418406d96-3057940393/kubepods/besteffort/podc00eb3e2-d6c0-4eb6-9e58-fe539629263f/7022ec9d5774c69f38feddd6460373c4681ef72a4e03bc6f2d374387e9bde981",
 		},
 		{
@@ -262,7 +262,7 @@ func TestCGroup(t *testing.T) {
 1:name=systemd:/ecs/8a28a84664034325be01ca46b33d1dd3/8a28a84664034325be01ca46b33d1dd3-4092616770`,
 			error:       false,
 			containerID: "8a28a84664034325be01ca46b33d1dd3-4092616770",
-			runtime:     containerutils.CGroupFlags(containerutils.CGroupManagerECS),
+			flags:       containerutils.CGroupFlags(containerutils.CGroupManagerECS),
 			path:        "/ecs/8a28a84664034325be01ca46b33d1dd3/8a28a84664034325be01ca46b33d1dd3-4092616770",
 		},
 	}
@@ -270,7 +270,7 @@ func TestCGroup(t *testing.T) {
 	for _, test := range testsCgroup {
 		var (
 			containerID   containerutils.ContainerID
-			runtime       containerutils.CGroupFlags
+			flags         containerutils.CGroupFlags
 			cgroupContext CGroupContext
 			cgroupPath    string
 		)
@@ -287,16 +287,16 @@ func TestCGroup(t *testing.T) {
 					return false
 				}
 
-				containerID, runtime = cgroup.GetContainerContext()
+				containerID, flags = cgroup.GetContainerContext()
 				cgroupContext.CGroupID = containerutils.CGroupID(cgroup.Path)
-				cgroupContext.CGroupFlags = runtime
+				cgroupContext.CGroupFlags = flags
 				cgroupPath = path
 				return true
 			})
 
 			assert.Equal(t, test.error, err != nil)
 			assert.Equal(t, containerutils.ContainerID(test.containerID), containerID)
-			assert.Equal(t, test.runtime, runtime)
+			assert.Equal(t, test.flags, flags)
 			assert.Equal(t, test.path, cgroupPath)
 		})
 	}

@@ -69,7 +69,7 @@ def check_file_owner_system_windows(filename):
     # check if file exists
     if not os.path.exists(filename):
         return True
-    
+
     # get NT System account SID
     system_sid = win32security.ConvertStringSidToSid("S-1-5-18")
 
@@ -104,7 +104,7 @@ def check_all_files_owner_system_windows(directory):
             print(f"{file} is not owned by SYSTEM or Administrators, it may have come from an untrusted source, aborting installation.")
             return False
     return True
-    
+
 
 def create_python_installed_packages_file(filename):
     """
@@ -117,6 +117,7 @@ def create_python_installed_packages_file(filename):
         for dist in installed_packages:
             f.write(f"{dist.metadata['Name']}=={dist.version}\n")
     if not os.name == 'nt':
+        os.chmod(filename, 0o644)
         os.chown(filename, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
 def create_diff_installed_packages_file(directory, old_file, new_file):
@@ -143,6 +144,7 @@ def create_diff_installed_packages_file(directory, old_file, new_file):
                 # Package is new in the new file; include it
                 f.write(f"{new_req_value}\n")
     if not os.name == 'nt':
+        os.chmod(diff_file, 0o644)
         os.chown(diff_file, pwd.getpwnam('dd-agent').pw_uid, grp.getgrnam('dd-agent').gr_gid)
 
 def install_datadog_package(package, install_directory):
@@ -154,7 +156,7 @@ def install_datadog_package(package, install_directory):
         args = [agent_cmd, 'integration', 'install', '-t', package, '-r']
     else:
         args = ['datadog-agent', 'integration', 'install', '-t', package, '-r']
-    
+
     run_command(args)
 
 def install_dependency_package(pip, package):

@@ -20,9 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ContainerCollectAll is the name of the docker integration that collect logs from all containers
-const ContainerCollectAll = "container_collect_all"
-
 // logs-intake endpoint prefix.
 const (
 	tcpEndpointPrefix            = "agent-intake.logs."

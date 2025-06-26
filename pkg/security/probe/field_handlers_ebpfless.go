@@ -57,6 +57,12 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event, _ fun
 	return ev.ProcessCacheEntry, true
 }
 
+// ResolveProcessCacheEntryFromPID queries the ProcessResolver to retrieve the ProcessContext of the provided PID
+func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntryFromPID(_ uint32) *model.ProcessCacheEntry {
+	// not supported yet, we're missing NSID
+	return nil
+}
+
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFLessFieldHandlers) ResolveFilePath(_ *model.Event, f *model.FileEvent) string {
 	return f.PathnameStr
@@ -254,6 +260,46 @@ func (fh *EBPFLessFieldHandlers) ResolveFileFieldsUser(_ *model.Event, e *model.
 // ResolveFileFilesystem resolves the filesystem a file resides in
 func (fh *EBPFLessFieldHandlers) ResolveFileFilesystem(_ *model.Event, e *model.FileEvent) string {
 	return e.Filesystem
+}
+
+// ResolveFileMetadataSize resolves file metadata size
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadataSize(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataType resolves file metadata type
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadataType(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataIsExecutable resolves file metadata is_executable
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadataIsExecutable(_ *model.Event, _ *model.FileMetadata) bool {
+	return false
+}
+
+// ResolveFileMetadataArchitecture resolves file metadata architecture
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadataArchitecture(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataABI resolves file metadata ABI
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadataABI(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataIsUPXPacked resolves file metadata is_upx_packed
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadataIsUPXPacked(_ *model.Event, _ *model.FileMetadata) bool {
+	return false
+}
+
+// ResolveFileMetadataCompression resolves file metadata compression
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadataCompression(_ *model.Event, _ *model.FileMetadata) int {
+	return 0
+}
+
+// ResolveFileMetadataIsGarbleObfuscated resolves file metadata is_garble_obfuscated
+func (fh *EBPFLessFieldHandlers) ResolveFileMetadataIsGarbleObfuscated(_ *model.Event, _ *model.FileMetadata) bool {
+	return false
 }
 
 // ResolveK8SGroups resolves the k8s groups of the event

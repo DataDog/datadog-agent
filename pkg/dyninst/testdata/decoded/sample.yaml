@@ -1,0 +1,189 @@
+stackC:
+    OutputJSON: '{"stack_frames":"","captures":{"probe_id":"stackC"}}'
+    ExpectedToFail: true
+testArrayOfArrays:
+    OutputJSON: '{"captures":{"a":[[1,2],[3,4]],"probe_id":"testArrayOfArrays"},"stack_frames":""}'
+    ExpectedToFail: false
+testArrayOfArraysOfArrays:
+    OutputJSON: '{"captures":{"b":[[[1,2],[3,4]],[[5,6],[7,8]]],"probe_id":"testArrayOfArraysOfArrays"},"stack_frames":""}'
+    ExpectedToFail: false
+testArrayOfStrings:
+    OutputJSON: '{"captures":{"a":["first","second"],"probe_id":"testArrayOfStrings"},"stack_frames":""}'
+    ExpectedToFail: false
+testArrayOfStructs:
+    OutputJSON: '{"stack_frames":""}'
+    ExpectedToFail: true
+testBigStruct:
+    OutputJSON: ""
+    ExpectedToFail: true
+testBoolArray:
+    OutputJSON: '{"captures":{"probe_id":"testBoolArray","x":[true,true]},"stack_frames":""}'
+    ExpectedToFail: false
+testByteArray:
+    OutputJSON: '{"captures":{"probe_id":"testByteArray","x":[1,1]},"stack_frames":""}'
+    ExpectedToFail: false
+testChannel:
+    OutputJSON: ""
+    ExpectedToFail: true
+testCombinedByte:
+    OutputJSON: '{"captures":{"probe_id":"testCombinedByte","w":2,"x":3,"y":0},"stack_frames":""}'
+    ExpectedToFail: false
+testEmptySlice:
+    OutputJSON: '{"captures":{"probe_id":"testEmptySlice","u":[]},"stack_frames":""}'
+    ExpectedToFail: false
+testEmptySliceOfStructs:
+    OutputJSON: '{"captures":{"a":2,"probe_id":"testEmptySliceOfStructs","xs":[]},"stack_frames":""}'
+    ExpectedToFail: false
+testEmptyStruct:
+    OutputJSON: '{"captures":{"e":{},"probe_id":"testEmptyStruct"},"stack_frames":""}'
+    ExpectedToFail: false
+testError:
+    OutputJSON: ""
+    ExpectedToFail: true
+testInt8Array:
+    OutputJSON: '{"captures":{"probe_id":"testInt8Array","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testInt16Array:
+    OutputJSON: '{"captures":{"probe_id":"testInt16Array","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testInt32Array:
+    OutputJSON: '{"captures":{"probe_id":"testInt32Array","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testInt64Array:
+    OutputJSON: '{"captures":{"probe_id":"testInt64Array","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testIntArray:
+    OutputJSON: '{"captures":{"probe_id":"testIntArray","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testInterface:
+    OutputJSON: '{"stack_frames":""}'
+    ExpectedToFail: true
+testLinkedList:
+    OutputJSON: '{"captures":{"a":{"b":{"Address":"","Value":{"b":{"Address":"","Value":{"b":"nil","val":3}},"val":2}},"val":1},"probe_id":"testLinkedList"},"stack_frames":""}'
+    ExpectedToFail: false
+testMapStringToInt:
+    OutputJSON: '{"stack_frames":""}'
+    ExpectedToFail: true
+testMultipleSimpleParams:
+    OutputJSON: '{"captures":{"a":false,"b":42,"c":122,"d":1337,"e":"xyz","probe_id":"testMultipleSimpleParams"},"stack_frames":""}'
+    ExpectedToFail: false
+testNilPointer:
+    OutputJSON: '{"captures":{"a":1,"probe_id":"testNilPointer","z":"nil"},"stack_frames":""}'
+    ExpectedToFail: false
+testNilSlice:
+    OutputJSON: '{"captures":{"probe_id":"testNilSlice","xs":[]},"stack_frames":""}'
+    ExpectedToFail: false
+testNilSliceOfStructs:
+    OutputJSON: '{"captures":{"a":5,"probe_id":"testNilSliceOfStructs","xs":[]},"stack_frames":""}'
+    ExpectedToFail: false
+testNilSliceWithOtherParams:
+    OutputJSON: '{"captures":{"a":1,"probe_id":"testNilSliceWithOtherParams","s":[],"x":5},"stack_frames":""}'
+    ExpectedToFail: false
+testOneStringInStructPointer:
+    OutputJSON: '{"captures":{"a":{"Address":"","Value":{"a":"omg"}},"probe_id":"testOneStringInStructPointer"},"stack_frames":""}'
+    ExpectedToFail: false
+testPointerLoop:
+    OutputJSON: '{"captures":{"a":{"Address":"","Value":{"b":{"Address":""},"val":1}},"probe_id":"testPointerLoop"},"stack_frames":""}'
+    ExpectedToFail: false
+testRuneArray:
+    OutputJSON: '{"captures":{"probe_id":"testRuneArray","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleBool:
+    OutputJSON: '{"captures":{"probe_id":"testSingleBool","x":true},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleByte:
+    OutputJSON: '{"captures":{"probe_id":"testSingleByte","x":97},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleFloat32:
+    OutputJSON: '{"captures":{"probe_id":"testSingleFloat32","x":0},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleFloat64:
+    OutputJSON: '{"captures":{"probe_id":"testSingleFloat64","x":0},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleInt:
+    OutputJSON: '{"captures":{"probe_id":"testSingleInt","x":-1512},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleInt8:
+    OutputJSON: '{"captures":{"probe_id":"testSingleInt8","x":-8},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleInt16:
+    OutputJSON: '{"captures":{"probe_id":"testSingleInt16","x":-16},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleInt32:
+    OutputJSON: '{"captures":{"probe_id":"testSingleInt32","x":-32},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleInt64:
+    OutputJSON: '{"captures":{"probe_id":"testSingleInt64","x":-64},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleRune:
+    OutputJSON: '{"captures":{"probe_id":"testSingleRune","x":1},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleString:
+    OutputJSON: '{"captures":{"probe_id":"testSingleString","x":"abc"},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleUint:
+    OutputJSON: '{"captures":{"probe_id":"testSingleUint","x":1512},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleUint8:
+    OutputJSON: '{"captures":{"probe_id":"testSingleUint8","x":8},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleUint16:
+    OutputJSON: '{"captures":{"probe_id":"testSingleUint16","x":16},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleUint32:
+    OutputJSON: '{"captures":{"probe_id":"testSingleUint32","x":32},"stack_frames":""}'
+    ExpectedToFail: false
+testSingleUint64:
+    OutputJSON: '{"captures":{"probe_id":"testSingleUint64","x":64},"stack_frames":""}'
+    ExpectedToFail: false
+testSliceOfSlices:
+    OutputJSON: '{"captures":{"probe_id":"testSliceOfSlices","u":[[4],[5,6],[7,8,9]]},"stack_frames":""}'
+    ExpectedToFail: false
+testStringArray:
+    OutputJSON: '{"captures":{"probe_id":"testStringArray","x":["one","two"]},"stack_frames":""}'
+    ExpectedToFail: false
+testStringPointer:
+    OutputJSON: '{"captures":{"probe_id":"testStringPointer","z":{"Address":"","Value":"abc"}},"stack_frames":""}'
+    ExpectedToFail: false
+testStringSlice:
+    OutputJSON: '{"captures":{"probe_id":"testStringSlice","s":["abc","xyz","123"]},"stack_frames":""}'
+    ExpectedToFail: false
+testStruct:
+    OutputJSON: '{"captures":{"probe_id":"testStruct","x":{"aBool":true,"aNumber":2,"aString":"one","nested":{"anotherInt":3,"anotherString":"four"}}},"stack_frames":""}'
+    ExpectedToFail: false
+testStructSlice:
+    OutputJSON: '{"captures":{"a":3,"probe_id":"testStructSlice","xs":[{"aBool":true,"aUint8":42},{"aBool":true,"aUint8":24}]},"stack_frames":""}'
+    ExpectedToFail: false
+testThreeStrings:
+    OutputJSON: '{"captures":{"probe_id":"testThreeStrings","x":"abc","y":"def","z":"ghi"},"stack_frames":""}'
+    ExpectedToFail: false
+testThreeStringsInStruct:
+    OutputJSON: '{"captures":{"a":{"a":"abc","b":"def","c":"ghi"},"probe_id":"testThreeStringsInStruct"},"stack_frames":""}'
+    ExpectedToFail: false
+testThreeStringsInStructPointer:
+    OutputJSON: '{"captures":{"a":{"Address":"","Value":{"a":"abc","b":"def","c":"ghi"}},"probe_id":"testThreeStringsInStructPointer"},"stack_frames":""}'
+    ExpectedToFail: false
+testTypeAlias:
+    OutputJSON: '{"captures":{"probe_id":"testTypeAlias","x":3},"stack_frames":""}'
+    ExpectedToFail: false
+testUint8Array:
+    OutputJSON: '{"captures":{"probe_id":"testUint8Array","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testUint16Array:
+    OutputJSON: '{"captures":{"probe_id":"testUint16Array","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testUint32Array:
+    OutputJSON: '{"captures":{"probe_id":"testUint32Array","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testUint64Array:
+    OutputJSON: '{"captures":{"probe_id":"testUint64Array","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testUintArray:
+    OutputJSON: '{"captures":{"probe_id":"testUintArray","x":[1,2]},"stack_frames":""}'
+    ExpectedToFail: false
+testUintPointer:
+    OutputJSON: '{"captures":{"probe_id":"testUintPointer","x":{"Address":"","Value":1}},"stack_frames":""}'
+    ExpectedToFail: false
+testUintSlice:
+    OutputJSON: '{"captures":{"probe_id":"testUintSlice","u":[1,2,3]},"stack_frames":""}'
+    ExpectedToFail: false

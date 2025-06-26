@@ -51,7 +51,6 @@ datadog-agent-oci-x64-a7:
     ]
   variables:
     PACKAGE_ARCH: amd64
-    DESTINATION_OCI: "datadog-agent-7-remote-updater-amd64.tar.xz"
     DD_CC: 'x86_64-unknown-linux-gnu-gcc'
     DD_CXX: 'x86_64-unknown-linux-gnu-g++'
     DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
@@ -73,7 +72,6 @@ datadog-agent-oci-arm64-a7:
     ]
   variables:
     PACKAGE_ARCH: arm64
-    DESTINATION_OCI: "datadog-agent-7-remote-updater-arm64.tar.xz"
     DD_CC: 'aarch64-unknown-linux-gnu-gcc'
     DD_CXX: 'aarch64-unknown-linux-gnu-g++'
     DD_CMAKE_TOOLCHAIN: '/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake'
@@ -101,6 +99,7 @@ installer-install-scripts:
     - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*amd64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-amd64
     - tar -xJOf $OMNIBUS_PACKAGE_DIR/datadog-installer-7*arm64.tar.xz --wildcards "opt/datadog-packages/datadog-installer/*/bin/installer/installer" > installer-arm64
     - dda inv -- -e installer.build-linux-script "default" "$VERSION" "installer-amd64" "installer-arm64" "install.sh" --package="agent-package"
+    - dda inv -- -e installer.build-linux-script "APM SSI" "$VERSION" "installer-amd64" "installer-arm64" "install-ssi.sh" --package="agent-package"
     - dda inv -- -e installer.build-linux-script "databricks" "$VERSION" "installer-amd64" "installer-arm64" "install-databricks.sh"
     - dda inv -- -e installer.build-linux-script "emr" "$VERSION" "installer-amd64" "installer-arm64" "install-emr.sh"
     - dda inv -- -e installer.build-linux-script "dataproc" "$VERSION" "installer-amd64" "installer-arm64" "install-dataproc.sh"

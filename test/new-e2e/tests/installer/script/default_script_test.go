@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
@@ -90,8 +89,6 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 		s.T().Skip("Skipping test due to missing E2E_PIPELINE_ID variable")
 	}
 
-	flake.Mark(s.T()) // TODO: Fixme once installer 0.10.0 is released
-
 	defer s.Purge()
 
 	// Full supported option set
@@ -118,7 +115,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	// Purge the agent & install using the agent 7 install script
 	s.Purge()
 	defer func() {
-		s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
+		s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
 	}()
 	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")

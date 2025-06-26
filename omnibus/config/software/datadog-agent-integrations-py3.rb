@@ -249,6 +249,7 @@ build do
     'test', # cm-client
     'vertica_python/tests',
     'websocket/tests',
+    'win32com/test',
   ]
   test_folders.each do |test_folder|
     delete "#{site_packages_path}/#{test_folder}/"

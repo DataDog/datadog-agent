@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -128,17 +129,23 @@ func (w *wildcardFileCounter) setTotal(src *sources.LogSource, total int) {
 	w.counts[src] = matchCnt
 }
 
-func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter) []*tailer.File {
+func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFiles, filesToTail []*tailer.File, w *wildcardFileCounter, registry auditor.Registry) []*tailer.File {
 	// Add each file one by one up to the limit
-	for j := 0; j < len(inputFiles) && len(filesToTail) < p.filesLimit; j++ {
-		file := inputFiles[j]
-		if ShouldIgnore(validatePodContainerID, file) {
-			continue
-		}
-		filesToTail = append(filesToTail, file)
-		src := file.Source.UnderlyingSource()
-		if config.ContainsWildcard(src.Config.Path) {
-			w.incrementTracked(src)
+	for _, file := range inputFiles {
+		// Unlike other tailers, there is a hard cap on the number of file tailers that can be concurrently active.
+		// This means that we can't rely on the tailers themselves to keep the registry entries alive, and we need to
+		// manually keep each valid file alive here.
+		registry.KeepAlive(file.Identifier())
+
+		if len(filesToTail) < p.filesLimit {
+			if ShouldIgnore(validatePodContainerID, file) {
+				continue
+			}
+			filesToTail = append(filesToTail, file)
+			src := file.Source.UnderlyingSource()
+			if config.ContainsWildcard(src.Config.Path) {
+				w.incrementTracked(src)
+			}
 		}
 	}
 
@@ -146,7 +153,8 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 		status.AddGlobalWarning(
 			openFilesLimitWarningType,
 			fmt.Sprintf(
-				"The limit on the maximum number of files in use (%d) has been reached. Increase this limit (thanks to the attribute logs_config.open_files_limit in datadog.yaml) or decrease the number of tailed file.",
+				"The limit on the maximum number of files in use (%d) has been reached. If you aren't tailing the files you want to be tailing, increase this limit ("+
+					"logs_config.open_files_limit in datadog.yaml), decrease the number of files you are tailing, or alter the logs_config.file_wildcard_selection_mode setting to by_modification_time.",
 				p.filesLimit,
 			),
 		)
@@ -159,7 +167,7 @@ func (p *FileProvider) addFilesToTailList(validatePodContainerID bool, inputFile
 // FilesToTail returns all the Files matching paths in sources,
 // it cannot return more than filesLimit Files.
 // Files are collected according to the fileProvider's wildcardOrder and selectionMode
-func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*sources.LogSource) []*tailer.File {
+func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*sources.LogSource, registry auditor.Registry) []*tailer.File {
 	var filesToTail []*tailer.File
 	shouldLogErrors := p.shouldLogErrors
 	p.shouldLogErrors = false // Let's log errors on first run only
@@ -184,7 +192,7 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 					}
 					continue
 				}
-				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
+				filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 			}
 		}
 
@@ -200,7 +208,7 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 		}
 
 		p.applyOrdering(wildcardFiles)
-		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter)
+		filesToTail = p.addFilesToTailList(validatePodContainerID, wildcardFiles, filesToTail, &wildcardFileCounter, registry)
 	} else if p.selectionMode == greedySelection {
 		// Consume all sources one-by-one, fitting as many as possible into 'filesToTail'
 		for _, source := range inputSources {
@@ -217,7 +225,7 @@ func (p *FileProvider) FilesToTail(validatePodContainerID bool, inputSources []*
 				continue
 			}
 
-			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter)
+			filesToTail = p.addFilesToTailList(validatePodContainerID, files, filesToTail, &wildcardFileCounter, registry)
 		}
 	} else {
 		log.Errorf("Invalid file selection mode '%v', no files selected.", p.selectionMode)
