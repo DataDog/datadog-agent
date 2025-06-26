@@ -37,6 +37,7 @@ var (
 const (
 	DS_PDC_REQUIRED    = 0x00000080
 	DS_RETURN_DNS_NAME = 0x40000000
+	DS_AVOID_SELF      = 0x00004000
 )
 
 // DOMAIN_CONTROLLER_INFO structure
@@ -54,6 +55,7 @@ type DOMAIN_CONTROLLER_INFO struct {
 
 func getLocalDefinedNTPServers() ([]string, error) {
 	// Use native Windows registry API to get the Type value
+	// https://learn.microsoft.com/en-us/windows-server/networking/windows-time-service/windows-time-service-tools-and-settings?tabs=parameters
 	regKeyPath := `SYSTEM\CurrentControlSet\Services\W32Time\Parameters`
 	k, err := registryOpenKey(registry.LOCAL_MACHINE, regKeyPath, registry.QUERY_VALUE)
 	if err != nil {
@@ -111,7 +113,7 @@ func discoverPDC() ([]string, error) {
 		0, // DomainName (NULL = primary domain)
 		0, // DomainGuid (NULL)
 		0, // SiteName (NULL)
-		uintptr(DS_PDC_REQUIRED|DS_RETURN_DNS_NAME),
+		uintptr(DS_PDC_REQUIRED|DS_RETURN_DNS_NAME|DS_AVOID_SELF),
 		uintptr(unsafe.Pointer(&dcInfo)),
 	)
 

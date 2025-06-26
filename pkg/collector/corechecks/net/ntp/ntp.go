@@ -121,7 +121,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	if c.instance.UseLocalDefinedServers {
 		localNtpServers, err = getLocalServers()
 		if err != nil {
-			return err
+			log.Warnf("Could not get local NTP servers, falling back to configured hosts: %v", err)
 		}
 		log.Debugf("Detected local defined servers: [ %s ]", strings.Join(localNtpServers, ", "))
 	}
@@ -195,6 +195,9 @@ func (c *NTPCheck) Run() error {
 			log.Warnf("Could not re-discover NTP servers: %v", err)
 		} else if len(servers) > 0 {
 			// Check if servers have changed
+			// Sort slices for order-insensitive comparison
+			sort.Strings(c.cfg.instance.Hosts)
+			sort.Strings(servers)
 			if !stringSlicesEqual(c.cfg.instance.Hosts, servers) {
 				log.Infof("NTP servers changed from [%s] to [%s]",
 					strings.Join(c.cfg.instance.Hosts, ", "),
