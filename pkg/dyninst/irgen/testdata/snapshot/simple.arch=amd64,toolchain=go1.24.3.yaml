@@ -126,7 +126,7 @@ Subprograms:
           Type: 1 BaseType int
           Locations:
             - Range: 0x4a8060..0x4a8079
-              Pieces: [{Size: 8, InReg: true, StackOffset: 0, Register: 0}]
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 3
@@ -140,13 +140,9 @@ Subprograms:
             - Range: 0x4a80e0..0x4a80fe
               Pieces:
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 0
+                  Op: {RegNo: 0, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 3
+                  Op: {RegNo: 3, Shift: 0}
           IsParameter: true
           IsReturn: false
     - ID: 4
@@ -160,17 +156,11 @@ Subprograms:
             - Range: 0x4a8160..0x4a817e
               Pieces:
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 0
+                  Op: {RegNo: 0, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 3
+                  Op: {RegNo: 3, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 2
+                  Op: {RegNo: 2, Shift: 0}
           IsParameter: true
           IsReturn: false
     - ID: 5
@@ -182,7 +172,7 @@ Subprograms:
           Type: 7 ArrayType [3]int
           Locations:
             - Range: 0x4a81e0..0x4a8247
-              Pieces: [{Size: 24, InReg: false, StackOffset: 0, Register: 0}]
+              Pieces: [{Size: 24, Op: {CfaOffset: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 6
@@ -196,17 +186,11 @@ Subprograms:
             - Range: 0x4a8260..0x4a827e
               Pieces:
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 0
+                  Op: {RegNo: 0, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 3
+                  Op: {RegNo: 3, Shift: 0}
                 - Size: 8
-                  InReg: true
-                  StackOffset: 0
-                  Register: 2
+                  Op: {RegNo: 2, Shift: 0}
           IsParameter: true
           IsReturn: false
     - ID: 7
@@ -218,7 +202,7 @@ Subprograms:
           Type: 10 ArrayType [3]string
           Locations:
             - Range: 0x4a82e0..0x4a8347
-              Pieces: [{Size: 48, InReg: false, StackOffset: 0, Register: 0}]
+              Pieces: [{Size: 48, Op: {CfaOffset: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 8
@@ -230,7 +214,7 @@ Subprograms:
           Type: 10 ArrayType [3]string
           Locations:
             - Range: 0x4a8360..0x4a8361
-              Pieces: [{Size: 48, InReg: false, StackOffset: 0, Register: 0}]
+              Pieces: [{Size: 48, Op: {CfaOffset: 0}}]
           IsParameter: true
           IsReturn: false
     - ID: 1
@@ -244,7 +228,7 @@ Subprograms:
             - Range: 0x4a7dce..0x4a7e1f
               Pieces: []
             - Range: 0x4a8380..0x4a8399
-              Pieces: [{Size: 8, InReg: true, StackOffset: 0, Register: 0}]
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           IsParameter: true
           IsReturn: false
 Types:
