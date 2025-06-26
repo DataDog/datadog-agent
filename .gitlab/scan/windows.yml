@@ -22,28 +22,28 @@
     - VT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $VT_API_KEY) || exit $?; export VT_API_KEY
     - echo "Scanning $MSI_FILE"
     - |
-    # VirusTotal scan and wait loop
-    output=$(./vt --apikey "$VT_API_KEY" scan file "$MSI_FILE" 2>&1)
-    HASH=$(echo "$output" | awk '{print $2}')
-    echo "File hash: $HASH"
-    while true; do
-    echo "Checking analysis results..."
-    RESULT=$(./vt --apikey "$VT_API_KEY" analysis "$HASH" --format json)
-    STATUS=$(echo "$RESULT" | jq -r '.[0].status // empty')
-    if [[ -z "$STATUS" || "$STATUS" != "completed" ]]; then
-      echo "Analysis results not available yet, waiting..."
-      sleep 60
-    else
-      MALICIOUS_COUNT=$(echo "$RESULT" | jq -r '.[0].stats.malicious // 0')
-      if [[ "$MALICIOUS_COUNT" -ne 0 ]]; then
-      echo "Malicious count > 0!"
-      exit 1
+      # VirusTotal scan and wait loop
+      output=$(./vt --apikey "$VT_API_KEY" scan file "$MSI_FILE" 2>&1)
+      HASH=$(echo "$output" | awk '{print $2}')
+      echo "File hash: $HASH"
+      while true; do
+      echo "Checking analysis results..."
+      RESULT=$(./vt --apikey "$VT_API_KEY" analysis "$HASH" --format json)
+      STATUS=$(echo "$RESULT" | jq -r '.[0].status // empty')
+      if [[ -z "$STATUS" || "$STATUS" != "completed" ]]; then
+        echo "Analysis results not available yet, waiting..."
+        sleep 60
       else
-      echo "ALL GOOD"
-      exit 0
+        MALICIOUS_COUNT=$(echo "$RESULT" | jq -r '.[0].stats.malicious // 0')
+        if [[ "$MALICIOUS_COUNT" -ne 0 ]]; then
+        echo "Malicious count > 0!"
+        exit 1
+        else
+        echo "ALL GOOD"
+        exit 0
+        fi
       fi
-    fi
-    done
+      done
 
 scan_packages_windows-x64:
   rules:
