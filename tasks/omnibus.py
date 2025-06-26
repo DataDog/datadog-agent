@@ -166,6 +166,11 @@ def get_omnibus_env(
         'DD_CMAKE_TOOLCHAIN',
         'OMNIBUS_FORCE_PACKAGES',
         'OMNIBUS_PACKAGE_ARTIFACT_DIR',
+        # Cherry pick some essentials values from the parent process env
+        'PATH',
+        'PKG_CONFIG_LIBDIR',
+        'GOROOT',
+        'GOPATH',
     ]
     for key in env_to_forward:
         if key in os.environ:
