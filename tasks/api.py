@@ -65,18 +65,19 @@ def run(
     has_jq = ctx.run('which jq', hide=True, warn=True).ok
     is_local = env == 'local'
     from_ci = 'CI_JOB_ID' in os.environ
+    dc = get_datacenter(env)
 
     token = (
         '"$(authanywhere)"'
         if from_ci
-        else '"$(ddtool auth token rapid-agent-devx --datacenter us1.staging.dog --http-header)"'
+        else f'"$(ddtool auth token rapid-agent-devx --datacenter {dc} --http-header)"'
     )
-    extra_header = '"X-DdOrigin: curl-authanywhere"' if from_ci else '"X-DdOrigin: curl-local"'
+    extra_header = '"X-DdOrigin: curl-authanywhere"' if from_ci else '"X-DdOrigin: curl-authanywhere"'
 
     url = (
         f"http://localhost:{localport}/{prefix}{endpoint}"
         if is_local
-        else f"https://agent-ci-api.{get_datacenter(env)}/{prefix}{endpoint}"
+        else f"https://agent-ci-api.{dc}/{prefix}{endpoint}"
     )
     silent = '-s' if silent_curl else ''
 
