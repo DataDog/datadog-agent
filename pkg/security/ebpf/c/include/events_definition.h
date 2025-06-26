@@ -300,8 +300,10 @@ struct mount_event_t {
     struct syscall_t syscall;
     struct syscall_context_t syscall_ctx;
     struct mount_fields_t mountfields;
-    bool   visible;  // Is mount visible in the VFS?
-    bool   detached; // A detached mount is always not visible, but an invisible mount isn't always detached
+    struct {
+        u32   visible :  1;  // Is mount visible in the VFS?
+        u32   detached : 1;  // A detached mount is always not visible, but an invisible mount isn't always detached
+    } params;
 };
 
 struct detached_mount_event_t {

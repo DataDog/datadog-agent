@@ -442,7 +442,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 56 {
+	if len(data) < 60 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -468,7 +468,11 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	m.MountID = m.RootPathKey.MountID
 	m.Origin = MountOriginEvent
 
-	return 56, nil
+	bitfield := binary.NativeEndian.Uint32(data[24:28])
+	m.Visible = bitfield&0b01 > 0
+	m.Detached = bitfield&0b10 > 0
+
+	return 60, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
