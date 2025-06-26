@@ -357,6 +357,11 @@ func (j *JMXFetch) Start(manage bool) error {
 		subprocessArgs = append(subprocessArgs, "--log_format_rfc3339")
 	}
 
+	statusPath := config.Datadog.GetString("jmxfetch_status_path")
+	if statusPath != "" {
+		subprocessArgs = append(subprocessArgs, "--status_location", statusPath)
+	}
+
 	subprocessArgs = append(subprocessArgs, j.Command)
 
 	j.cmd = exec.Command(j.JavaBinPath, subprocessArgs...)

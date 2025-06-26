@@ -2602,6 +2602,11 @@ api_key:
 #
 # jmx_telemetry_enabled: false
 
+## @param jmxfetch_status_path - string - optional - default: ""
+## @env DD_JMXFETCH_STATUS_PATH - string - optional - default: ""
+## Specifies the path to write jmxfetch status.
+#
+# jmxfetch_status_path: ""
 {{ end -}}
 {{- if .Logging }}
 
