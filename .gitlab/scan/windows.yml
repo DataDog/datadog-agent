@@ -22,27 +22,60 @@
     - VT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $VT_API_KEY) || exit $?; export VT_API_KEY
     - echo "Scanning $MSI_FILE"
     - |
-      # VirusTotal scan and wait loop
-      output=$(./vt --apikey "$VT_API_KEY" scan file "$MSI_FILE" 2>&1)
-      HASH=$(echo "$output" | awk '{print $2}')
-      echo "File hash: $HASH"
+      SHA256=$(sha256sum < "$MSI_FILE" | awk '{print $1}')
+      echo "SHA256: $SHA256"
+
+      print_report() {
+        ./vt --apikey "$VT_API_KEY" file "$SHA256" --format json | jq '
+        .[0] | {
+          last_analysis_results: (
+            .last_analysis_results
+            | to_entries
+            | map(select(.value.category=="malicious")
+              | "\(.value.engine_name) (\(.value.engine_version // "N/A") - \(.value.engine_update)) -> malicious: \(.value.result)"
+            )
+          ),
+          metadata: {
+            name: .meaningful_name,
+            size_mb: ((.size / 1024 / 1024) * 100 | round / 100),
+            last_modification_date: (.last_modification_date|strflocaltime("%Y-%m-%d %H:%M:%S")),
+            last_submission_date: (.last_submission_date|strflocaltime("%Y-%m-%d %H:%M:%S")),
+            first_submission_date: (.first_submission_date|strflocaltime("%Y-%m-%d %H:%M:%S")),
+            times_submitted: .times_submitted,
+            tags: .tags,
+            last_analysis_stats: .last_analysis_stats,
+            total_votes: .total_votes,
+            signature_verified: .signature_info.verified
+          }
+        }
+        '
+        echo "Go to https://www.virustotal.com/gui/file/$SHA256 for more details"
+      }
+
+      ANALYSIS_ID=$(./vt --apikey "$VT_API_KEY" scan file "$MSI_FILE" | awk '{print $2}')
+      echo "Submitted file for analysis, analysis id: $ANALYSIS_ID"
+
+      # Poll for analysis results
       while true; do
-      echo "Checking analysis results..."
-      RESULT=$(./vt --apikey "$VT_API_KEY" analysis "$HASH" --format json)
-      STATUS=$(echo "$RESULT" | jq -r '.[0].status // empty')
-      if [[ -z "$STATUS" || "$STATUS" != "completed" ]]; then
-        echo "Analysis results not available yet, waiting..."
-        sleep 60
-      else
-        MALICIOUS_COUNT=$(echo "$RESULT" | jq -r '.[0].stats.malicious // 0')
-        if [[ "$MALICIOUS_COUNT" -ne 0 ]]; then
-        echo "Malicious count > 0!"
-        exit 1
-        else
-        echo "ALL GOOD"
-        exit 0
-        fi
-      fi
+          echo "Checking analysis results..."
+          RESULT=$(./vt --apikey "$VT_API_KEY" analysis "$ANALYSIS_ID" --format json)
+          STATUS=$(echo "$RESULT" | jq -r '.[0].status // empty')
+          if [[ -z "$STATUS" || "$STATUS" != "completed" ]]; then
+              echo "Analysis results not available yet, waiting..."
+              sleep 60
+          else
+              MALICIOUS_COUNT=$(echo "$RESULT" | jq -r '.[0].stats.malicious')
+              SUSPICIOUS_COUNT=$(echo "$RESULT" | jq -r '.[0].stats.suspicious')
+              if [[ "$MALICIOUS_COUNT" -ne 0 || "$SUSPICIOUS_COUNT" -ne 0 ]]; then
+                  echo "Malicious or suspicious file detected!"
+                  print_report
+                  exit 1
+              else
+                  echo "ALL GOOD"
+                  print_report
+              exit 0
+              fi
+          fi
       done
 
 scan_packages_windows-x64:
