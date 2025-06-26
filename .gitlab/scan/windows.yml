@@ -1,0 +1,78 @@
+.scan_windows_package:
+  stage: scan
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  tags: ["arch:amd64"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+  before_script:
+    - ls $OMNIBUS_PACKAGE_DIR
+  script:
+    # TODO: Put that in the buildimage
+    - curl -L -o vt-cli.zip "https://github.com/VirusTotal/vt-cli/releases/download/1.1.1/Linux64.zip"
+    - unzip vt-cli.zip
+    - chmod +x vt
+    - ./vt --version
+    # Find the MSI file for this pipeline
+    - MSI_FILE=$(find "$OMNIBUS_PACKAGE_DIR" -name "$SCAN_ARTIFACT_PATTERN" | head -n 1)
+    - |
+      if [ -z "$MSI_FILE" ]; then
+        echo "No MSI file found for pattern $SCAN_ARTIFACT_PATTERN and pipeline ID $CI_PIPELINE_ID"
+        exit 1
+      fi
+    - VT_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $VT_API_KEY) || exit $?; export VT_API_KEY
+    - echo "Scanning $MSI_FILE"
+    - |
+      # VirusTotal scan and wait loop
+      HASH=$(./vt --apikey "$VT_API_KEY" scan file "$MSI_FILE" 2>&1 | awk '{print $2}')
+      echo "File hash: $HASH"
+      while true; do
+        echo "Checking analysis results..."
+        RESULT=$(./vt --apikey "$VT_API_KEY" analysis "$HASH" --format json)
+        STATUS=$(echo "$RESULT" | jq -r '.status // empty')
+        if [[ -z "$STATUS" || "$STATUS" != "completed" ]]; then
+          echo "Analysis results not available yet, waiting..."
+          sleep 60
+        else
+          MALICIOUS_COUNT=$(echo "$RESULT" | jq -r '.stats.malicious // 0')
+          if [[ "$MALICIOUS_COUNT" -ne 0 ]]; then
+            echo "Malicious file detected!"
+            exit 1
+          else
+            echo "ALL GOOD"
+            exit 0
+          fi
+        fi
+      done
+
+scan_nightly_packages_windows-x64:
+  rules:
+    !reference [.on_deploy_nightly_repo_branch]
+  extends: .scan_windows_package
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+
+scan_nightly_packages_fips_windows-x64:
+  rules:
+    !reference [.on_deploy_nightly_repo_branch]
+  extends: .scan_windows_package
+  needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+
+scan_main_packages_windows-x64:
+  rules:
+    !reference [.on_main]
+  extends: .scan_windows_package
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+
+scan_main_packages_fips_windows-x64:
+  rules:
+    !reference [.on_main]
+  extends: .scan_windows_package
+  needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
+  variables:
+    SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+

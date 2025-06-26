@@ -36,6 +36,7 @@ include:
   - .gitlab/trigger_distribution/conditions.yml
   - .gitlab/setup/setup.yml
   - .gitlab/source_test/include.yml
+  - .gitlab/scan/windows.yml
 
 default:
   retry:
@@ -75,6 +76,7 @@ stages:
   - pkg_metrics
   - container_build
   - container_scan
+  - scan
   - check_deploy
   - dev_container_deploy
   - deploy_packages
@@ -219,6 +221,7 @@ variables:
   RPM_SIGNING_PASSPHRASE: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID} # agent-delivery
   VCPKG_BLOB_SAS_URL: ci.datadog-agent-buildimages.vcpkg_blob_sas_url # windows-agent
   WINGET_PAT: ci.datadog-agent.winget_pat # windows-agent
+  VT_API_KEY: ci.datadog-agent.vtapikey  # windows-agent
   # End aws ssm variables
 
   # Start vault variables
