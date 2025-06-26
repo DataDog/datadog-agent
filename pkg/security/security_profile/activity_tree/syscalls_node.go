@@ -11,16 +11,16 @@ package activitytree
 import (
 	"time"
 
+	processlist "github.com/DataDog/datadog-agent/pkg/security/process_list"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // SyscallNode is used to store a syscall node
 type SyscallNode struct {
+	processlist.NodeBase
 	ImageTags      []string
 	GenerationType NodeGenerationType
 	Syscall        int
-	FirstSeen      time.Time
-	LastSeen       time.Time
 }
 
 func (sn *SyscallNode) appendImageTag(imageTag string) {
@@ -41,12 +41,7 @@ func (sn *SyscallNode) evictImageTag(imageTag string) bool {
 
 func (sn *SyscallNode) updateTimes(event *model.Event) {
 	eventTime := event.ResolveEventTime()
-	if sn.FirstSeen.IsZero() {
-		sn.FirstSeen = eventTime
-		sn.LastSeen = eventTime
-	} else {
-		sn.LastSeen = eventTime
-	}
+	sn.Record(event.ContainerContext.Tags[0], eventTime)
 }
 
 // NewSyscallNode returns a new SyscallNode instance
@@ -56,11 +51,12 @@ func NewSyscallNode(syscall int, imageTag string, generationType NodeGenerationT
 	if len(imageTag) != 0 {
 		imageTags = append(imageTags, imageTag)
 	}
-	return &SyscallNode{
+	node := &SyscallNode{
 		Syscall:        syscall,
 		GenerationType: generationType,
 		ImageTags:      imageTags,
-		FirstSeen:      now,
-		LastSeen:       now,
 	}
+	node.NodeBase = processlist.NewNodeBase()
+	node.Record(imageTag, now)
+	return node
 }
