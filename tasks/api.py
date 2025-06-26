@@ -80,7 +80,7 @@ def run(
         else f"https://agent-ci-api.{dc}/{prefix}{endpoint}"
     )
     silent = '-s' if silent_curl else ''
-    use_jq = jq == 'yes' or (jq == 'auto' and has_jq)
+    use_jq = jq == 'yes' or (jq == 'auto' and has_jq and not from_ci)
 
     if payload:
         payload = f'-d \'{payload}\''
