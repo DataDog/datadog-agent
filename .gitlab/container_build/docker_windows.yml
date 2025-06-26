@@ -20,17 +20,21 @@
   # Workaround for temporary network failures
   retry: 2
 
-.docker_build_agent_windows_common:
-  extends:
-    - .docker_build_windows_job_definition
-  stage: container_build
+.docker_windows_auth_push:
   id_tokens:
     CI_IDENTITY_GITLAB_JWT:
       aud: https://vault.us1.ddbuild.io
   variables:
+    CI_IDENTITY_ROLE_NAME_OVERRIDE: windows-ci-tmp-gitlab-id-token-datadog-agent-all-refs
+
+.docker_build_agent_windows_common:
+  extends:
+    - .docker_build_windows_job_definition
+    - .docker_windows_auth_push
+  stage: container_build
+  variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
-    CI_IDENTITY_ROLE_NAME_OVERRIDE: windows-ci-tmp-gitlab-id-token-datadog-agent-all-refs
   script:
     - $ECR_RELEASE_SUFFIX="$(If ($BUCKET_BRANCH -eq `"nightly`") { `"-nightly`" } elseif ($CI_COMMIT_TAG) { `"-release`" } else { `"`" })"
     - $TARGET_TAG="${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}${TAG_SUFFIX}-win${VARIANT}${SERVERCORE}-amd64"

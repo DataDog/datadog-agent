@@ -1,5 +1,6 @@
 ---
 .windows_msi_base:
+  extends: .docker_windows_auth_push
   stage: package_build
   tags: ["windows-v2:2019"]
   variables:
@@ -86,6 +87,7 @@ windows_zip_agent_binaries_x64-a6:
   stage: package_build
   tags: ["windows-v2:2019"]
   needs: ["go_mod_tidy_check", "go_deps"]
+  extends: .docker_windows_auth_push
   variables:
     ARCH: "x64"
     AGENT_MAJOR_VERSION: 6
