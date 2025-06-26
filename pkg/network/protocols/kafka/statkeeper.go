@@ -8,7 +8,6 @@
 package kafka
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -40,7 +39,6 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 
 // Process processes the kafka transaction
 func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
-	fmt.Println("Processing Kafka transaction", tx.ConnTuple(), "API Key:", tx.APIKey(), "Version:", tx.APIVersion())
 	latency := tx.RequestLatency()
 	// Produce requests with acks = 0 do not receive a response, and as a result, have no latency
 	if tx.APIKey() == FetchAPIKey && latency <= 0 {

@@ -1717,7 +1717,12 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 			continue
 		}
 		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName.Get())
-		assert.Greater(t, requestStats.FirstLatencySample, float64(1))
+		if requestStats.Count == 1 {
+			assert.Greater(t, requestStats.FirstLatencySample, float64(1))
+		} else {
+			require.NotNil(t, requestStats.Latencies)
+			assert.Equal(t, requestStats.Latencies.GetCount(), float64(requestStats.Count))
+		}
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
 			assert.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
