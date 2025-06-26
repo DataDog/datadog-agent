@@ -58,7 +58,7 @@ func (c *collector) parseTasksFromV4Endpoint(ctx context.Context) ([]workloadmet
 
 // getTaskWithTagsFromV4Endpoint fetches task and tags from the metadata v4 API
 func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.Task) (v3or4.Task, error) {
-	rt, ok := c.resourceTags[entity.ID]
+	rt, ok := c.resourceTags[task.Arn]
 	if ok {
 		return rt
 	}
@@ -102,7 +102,7 @@ func (c *collector) getTaskWithTagsFromV4Endpoint(ctx context.Context, task v1.T
 		containerInstanceTags: taskWithTags.ContainerInstanceTags,
 	}
 
-	c.resourceTags[entity.ID] = rt
+	c.resourceTags[task.Arn] = rt
 
 	return *taskWithTags, nil
 }
