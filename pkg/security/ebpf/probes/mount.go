@@ -72,6 +72,12 @@ func getMountProbes(fentry bool) []*manager.Probe {
 				EBPFFuncName: "hook_open_detached_copy",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_open_detached_copy",
+			},
+		},
 	}
 
 	mountProbes = append(mountProbes, ExpandSyscallProbes(&manager.Probe{

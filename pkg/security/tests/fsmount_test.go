@@ -150,5 +150,4 @@ func TestFsmount(t *testing.T) {
 			assert.Equal(t, "/test-mkdir", event.Mkdir.File.PathnameStr, "Wrong path")
 		})
 	})
-
 }

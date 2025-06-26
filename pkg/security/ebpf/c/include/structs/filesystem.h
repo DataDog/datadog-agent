@@ -22,12 +22,11 @@ struct mount_fields_t {
     char fstype[FSTYPE_LEN];
 };
 
-struct fsmount_fields_t {
+struct detached_mount_fields_t {
     struct path_key_t root_key;
-    s32 fd;
-    u32 flags;
     dev_t device;
     unsigned int mount_attrs;
+    char fstype[FSTYPE_LEN];
 };
 
 #endif
