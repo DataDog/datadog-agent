@@ -20,7 +20,6 @@ import (
 	"slices"
 	"strings"
 
-	loclist_reader "github.com/go-delve/delve/pkg/dwarf/loclist"
 	"github.com/pkg/errors"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
@@ -536,7 +535,7 @@ type rootVisitor struct {
 	inlinedSubprograms map[*dwarf.Entry][]*inlinedSubprogram
 	probes             []*ir.Probe
 	typeCatalog        *typeCatalog
-	loclistReader      *object.LoclistReader
+	loclistReader      *loclist.Reader
 
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
@@ -1041,8 +1040,7 @@ func (v *rootVisitor) computeLocations(
 	typ ir.Type,
 	locField *dwarf.Field,
 ) ([]ir.Location, error) {
-	totalSize := int64(typ.GetByteSize())
-	pointerSize := int(v.object.PointerSize())
+	totalSize := typ.GetByteSize()
 	var locations []ir.Location
 	switch locField.Class {
 	case dwarf.ClassLocListPtr:
@@ -1052,20 +1050,14 @@ func (v *rootVisitor) computeLocations(
 				"unexpected location field type: %T", locField.Val,
 			)
 		}
-		if err := v.loclistReader.Seek(unit, offset); err != nil {
+		loclist, err := v.loclistReader.Read(unit, offset, totalSize)
+		if err != nil {
 			return nil, err
 		}
-		var entry loclist_reader.Entry
-		for v.loclistReader.Next(&entry) {
-			pieces, err := loclist.ParseInstructions(entry.Instr, uint8(pointerSize), uint32(totalSize))
-			if err != nil {
-				return nil, err
-			}
-			locations = append(locations, ir.Location{
-				Range:  ir.PCRange{entry.LowPC, entry.HighPC},
-				Pieces: pieces,
-			})
+		if len(loclist.Default) > 0 {
+			return nil, fmt.Errorf("unexpected default location pieces")
 		}
+		locations = loclist.Locations
 
 	case dwarf.ClassExprLoc:
 		instr, ok := locField.Val.([]byte)
@@ -1074,7 +1066,7 @@ func (v *rootVisitor) computeLocations(
 				"unexpected location field type: %T", locField.Val,
 			)
 		}
-		pieces, err := loclist.ParseInstructions(instr, uint8(pointerSize), uint32(totalSize))
+		pieces, err := loclist.ParseInstructions(instr, v.object.PointerSize(), totalSize)
 		if err != nil {
 			return nil, err
 		}
@@ -1091,11 +1083,6 @@ func (v *rootVisitor) computeLocations(
 			"unexpected %s class: %s",
 			locField.Attr, locField.Class,
 		)
-	}
-
-	locations, err := loclist.FixLoclists(locations, uint64(totalSize))
-	if err != nil {
-		return nil, err
 	}
 
 	return locations, nil
