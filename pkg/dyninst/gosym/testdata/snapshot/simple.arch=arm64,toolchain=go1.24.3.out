@@ -32,15 +32,6 @@ pc: 0xb5510
 	main.stringArrayArgFrameless@pkg/dyninst/testprogs/progs/simple/main.go:72
 pc: 0xb5518
 	main.stringArrayArgFrameless@pkg/dyninst/testprogs/progs/simple/main.go:72
-pc: 0xb55e0
-	main.mapArg@pkg/dyninst/testprogs/progs/simple/main.go:84
-pc: 0xb5618
-	fmt.Println@pkg/mod/golang.org/toolchain@*/src/fmt/print.go:314
-	main.mapArg@pkg/dyninst/testprogs/progs/simple/main.go:85
-pc: 0xb5650
-	main.bigMapArg@pkg/dyninst/testprogs/progs/simple/main.go:101
-pc: 0xb56b0
-	main.bigMapArg@pkg/dyninst/testprogs/progs/simple/main.go:106
 pc: 0xb5520
 	main.inlined@pkg/dyninst/testprogs/progs/simple/main.go:74
 pc: 0xb5558
