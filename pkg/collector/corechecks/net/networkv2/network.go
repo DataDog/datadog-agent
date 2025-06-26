@@ -217,9 +217,9 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 		} else {
 			txQueueCount, rxQueueCount := 0, 0
 			for _, queue := range queues {
-				if strings.HasPrefix(queue, "tx-") {
+				if strings.HasPrefix(queue.Name(), "tx-") {
 					txQueueCount += 1
-				} else if strings.HasPrefix(queue, "rx-") {
+				} else if strings.HasPrefix(queue.Name(), "rx-") {
 					rxQueueCount += 1
 				}
 			}
