@@ -16,7 +16,6 @@ import (
 	"os/signal"
 	"os/user"
 	"syscall"
-	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -212,7 +211,7 @@ func run(log log.Component, _ config.Component, telemetry telemetry.Component, s
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
 			// http://supervisord.org/subprocess.html#process-states
-			time.Sleep(5 * time.Second)
+			// time.Sleep(5 * time.Second)
 			return nil
 		}
 		return err
