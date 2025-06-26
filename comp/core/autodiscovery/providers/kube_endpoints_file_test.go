@@ -22,21 +22,21 @@ func TestBuildConfigStore(t *testing.T) {
 	tpl1 := &integration.Config{
 		Name: "check1",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns1", "ep-name1"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns1", "ep-name1", ""),
 		}},
 	}
 
 	tpl2 := &integration.Config{
 		Name: "check2",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns2", "ep-name2"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns2", "ep-name2", ""),
 		}},
 	}
 
 	tpl3 := &integration.Config{
 		Name: "check3",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns3", "ep-name3"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns3", "ep-name3", ""),
 			KubeService:   kubeNsName("svc-ns", "svc-name"),
 		}},
 	}
@@ -103,7 +103,7 @@ func TestStoreInsertEp(t *testing.T) {
 	tpl := integration.Config{
 		Name: "check1",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns1", "ep-name1"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns1", "ep-name1", ""),
 		}},
 	}
 
@@ -147,14 +147,14 @@ func TestStoreGenerateConfigs(t *testing.T) {
 	tpl1 := integration.Config{
 		Name: "check1",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns1", "ep-name1"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns1", "ep-name1", ""),
 		}},
 	}
 
 	tpl2 := integration.Config{
 		Name: "check2",
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
-			KubeEndpoints: kubeNsName("ep-ns2", "ep-name2"),
+			KubeEndpoints: kubeEndpointIdentifier("ep-ns2", "ep-name2", ""),
 		}},
 	}
 
@@ -276,5 +276,15 @@ func TestEndpointChecksFromTemplateWithResolveMode(t *testing.T) {
 				assert.Equal(t, tt.expectedServiceIDs[i], configs[i].ServiceID)
 			}
 		})
+	}
+}
+
+func kubeEndpointIdentifier(ns string, name string, resolve string) integration.KubeEndpointsIdentifier {
+	return integration.KubeEndpointsIdentifier{
+		KubeNamespacedName: integration.KubeNamespacedName{
+			Name:      name,
+			Namespace: ns,
+		},
+		Resolve: resolve,
 	}
 }

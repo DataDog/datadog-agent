@@ -80,6 +80,24 @@ func TestGetIntegrationConfig(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, config.AdvancedADIdentifiers, []integration.AdvancedADIdentifier{{KubeService: integration.KubeNamespacedName{Name: "svc-name", Namespace: "svc-ns"}}})
 
+	// advanced autodiscovery kube_endpoints
+	config, err = GetIntegrationConfigFromFile("foo", "tests/advanced_ad_kube_endpoints.yaml")
+	require.Nil(t, err)
+	assert.Equal(t, []integration.AdvancedADIdentifier{{
+		// KubeService: integration.KubeNamespacedName{
+		// 	Name:      "svc-name",
+		// 	Namespace: "svc-ns",
+		// },
+		KubeEndpoints: integration.KubeEndpointsIdentifier{
+			KubeNamespacedName: integration.KubeNamespacedName{
+				Name:      "svc-name",
+				Namespace: "svc-ns",
+			},
+			Resolve: "ip",
+		},
+	}}, config.AdvancedADIdentifiers,
+	)
+
 	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
 	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")
 	assert.NotNil(t, err)

@@ -128,15 +128,19 @@ type CommonGlobalConfig struct {
 // AdvancedADIdentifier contains user-defined autodiscovery information
 // It replaces ADIdentifiers for advanced use-cases. Typically, file-based k8s service and endpoint checks.
 type AdvancedADIdentifier struct {
-	KubeService   KubeNamespacedName `yaml:"kube_service,omitempty"`
-	KubeEndpoints KubeNamespacedName `yaml:"kube_endpoints,omitempty"`
+	KubeService   KubeNamespacedName      `yaml:"kube_service,omitempty"`
+	KubeEndpoints KubeEndpointsIdentifier `yaml:"kube_endpoints,omitempty"`
+}
+
+type KubeEndpointsIdentifier struct {
+	KubeNamespacedName `yaml:",inline"`
+	Resolve            string `yaml:"resolve,omitempty"` // Endpoint resolve mode: "auto" (default) or "ip"
 }
 
 // KubeNamespacedName identifies a kubernetes object.
 type KubeNamespacedName struct {
 	Name      string `yaml:"name"`
 	Namespace string `yaml:"namespace"`
-	Resolve   string `yaml:"resolve,omitempty"` // Endpoint resolve mode: "auto" (default) or "ip"
 }
 
 // IsEmpty returns true if the KubeNamespacedName is empty
