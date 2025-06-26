@@ -160,6 +160,7 @@ func run() (err error) {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envVar, val))
 		}
 	}
+	fmt.Println("Env: ", cmd.Env)
 
 	cmd.Command = args.vmCommand
 	cmd.Stdout = os.Stdout
