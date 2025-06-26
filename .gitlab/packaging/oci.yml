@@ -32,7 +32,7 @@
     - |
       if [ $(ls $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID/*.oci.tar 2> /dev/null | wc -l) -ge 1 ]; then
         echo "Copying already built images to output dir"
-        cp $OMNIBUS_PACKAGE_DIR/*.oci.tar ${OUTPUT_DIR}
+        cp $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID/*.oci.tar ${OUTPUT_DIR}
       fi
     - |
       for ARCH in "amd64" "arm64"; do
