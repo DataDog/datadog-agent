@@ -526,11 +526,8 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 		// copy the container ID here to avoid later data race
 		containerID := ev.ContainerContext.ContainerID
 
-		// the container tags might not be resolved yet
-		if time.Unix(0, int64(ev.ContainerContext.CreatedAt)).Add(TagMaxResolutionDelay).After(time.Now()) {
-			extTagsCb = func() []string {
-				return e.probe.GetEventTags(containerID)
-			}
+		extTagsCb = func() []string {
+			return e.probe.GetEventTags(containerID)
 		}
 	}
 
