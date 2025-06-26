@@ -36,5 +36,3 @@ type KafkaTransaction C.kafka_transaction_t
 type KafkaResponseContext C.kafka_response_context_t
 
 type RawKernelTelemetry C.kafka_telemetry_t
-
-type KafkaTopicIDToNameKey C.kafka_topic_id_to_name_key_t

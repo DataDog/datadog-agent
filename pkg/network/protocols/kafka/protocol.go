@@ -8,7 +8,6 @@
 package kafka
 
 import (
-	"bytes"
 	"io"
 	"time"
 	"unsafe"
@@ -56,7 +55,6 @@ const (
 	kafkaHeapMap       = "kafka_heap"
 	inFlightMap        = "kafka_in_flight"
 	responseMap        = "kafka_response"
-	topicIDToNameMap   = "kafka_topic_id_to_name"
 
 	tlsFilterTailCall = "uprobe__kafka_tls_filter"
 
@@ -87,9 +85,6 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: responseMap,
-		},
-		{
-			Name: topicIDToNameMap,
 		},
 		{
 			Name: "kafka_client_id",
@@ -279,10 +274,6 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
-	opts.MapSpecEditors[topicIDToNameMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
-		EditorFlag: manager.EditMaxEntries,
-	}
 	netifProbeID := manager.ProbeIdentificationPair{
 		EBPFFuncName: netifProbe,
 		UID:          eventStreamName,
@@ -357,24 +348,6 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, zeroKey, value)
 		if err := currentMap.Lookup(unsafe.Pointer(&zeroKey), unsafe.Pointer(&value)); err == nil {
 			spew.Fdump(w, zeroKey, value)
-		}
-	case topicIDToNameMap:
-		var key KafkaTopicIDToNameKey
-		var value [TopicNameMaxSize]byte
-
-		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
-		iter := currentMap.Iterate()
-		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-			nullTerminatorIndex := bytes.Index(value[:], []byte{0})
-
-			// The value may NOT contain a null terminator
-			// when its truncated, in that case the size will be TopicNameMaxSize.
-			topicName := string(value[:])
-			if nullTerminatorIndex != -1 {
-				topicName = string(value[:nullTerminatorIndex])
-			}
-
-			spew.Fdump(w, key, topicName)
 		}
 	}
 }

@@ -2,7 +2,7 @@
 #define __KAFKA_DEFS_H
 
 // Reference: https://kafka.apache.org/protocol.html#protocol_messages
-#define KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION 17
+#define KAFKA_DECODING_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION 12
 #define KAFKA_CLASSIFICATION_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION 17
 #define KAFKA_CLASSIFICATION_MIN_SUPPORTED_FETCH_REQUEST_API_VERSION 0
 #define KAFKA_DECODING_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION 12
@@ -24,9 +24,6 @@
 #define CLIENT_SOFTWARE_STRING_MAX_SIZE 255
 #define CLIENT_SOFTWARE_STRING_SIZE_TO_VALIDATE 80 // 16 * 5. Must be a factor of 16, otherwise a verifier issue can pop in kernel 4.14.
 
-#define NUM_TOPICS_MAX 0x3fff // 16383
-#define NUM_BROKERS_MAX  0x3fff // 16383
-
 // The number of varint bytes required to support the specified values.
 // 127
 #define VARINT_BYTES_0000007f   1
@@ -47,8 +44,6 @@
 #define VARINT_BYTES_NUM_ABORTED_TRANSACTIONS VARINT_BYTES_00003fff
 // Should ideally be as big as possible.
 #define VARINT_BYTES_RECORD_BATCHES_NUM_BYTES VARINT_BYTES_0fffffff
-// Reasonable limit
-#define VARINT_BYTES_NUM_BROKERS VARINT_BYTES_00003fff
 
 #define KAFKA_RESPONSE_PARSER_MAX_ITERATIONS 10
 

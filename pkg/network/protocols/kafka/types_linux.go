@@ -11,7 +11,7 @@ const (
 	DecodingMaxSupportedProduceRequestApiVersion           = 0xc
 	ClassificationMaxSupportedFetchRequestApiVersion       = 0x11
 	ClassificationMinSupportedFetchRequestApiVersion       = 0x0
-	DecodingMaxSupportedFetchRequestApiVersion             = 0x11
+	DecodingMaxSupportedFetchRequestApiVersion             = 0xc
 	ClassificationMinSupportedAPIVersionsRequestApiVersion = 0x3
 	ClassificationMaxSupportedAPIVersionsRequestApiVersion = 0x4
 )
@@ -75,8 +75,4 @@ type RawKernelTelemetry struct {
 	Produce_no_required_acks            uint64
 	Classified_produce_api_version_hits [13]uint64
 	Classified_fetch_api_version_hits   [18]uint64
-}
-
-type KafkaTopicIDToNameKey struct {
-	Id [16]uint8
 }
