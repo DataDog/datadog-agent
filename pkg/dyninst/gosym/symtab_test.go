@@ -54,7 +54,7 @@ func runTest(
 	caseName string,
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
-	probesCfgs := testprogs.MustGetProbeCfgs(t, caseName)
+	probesCfgs := testprogs.MustGetProbeDefinitions(t, caseName)
 	mef, err := object.NewMMappingElfFile(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, mef.Close()) }()

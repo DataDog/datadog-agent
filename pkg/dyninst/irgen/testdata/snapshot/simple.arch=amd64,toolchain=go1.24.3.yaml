@@ -1,7 +1,7 @@
 ID: 1
 Probes:
     - ID: intArg
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 3}
@@ -11,11 +11,11 @@ Probes:
           InjectionPoints: [{PC: "0x4a806a", Frameless: false}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 4.294967295e+09
     - ID: stringArg
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 4}
@@ -25,11 +25,11 @@ Probes:
           InjectionPoints: [{PC: "0x4a80ea", Frameless: false}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 4.294967295e+09
     - ID: intSliceArg
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 5}
@@ -39,11 +39,11 @@ Probes:
           InjectionPoints: [{PC: "0x4a816a", Frameless: false}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 4.294967295e+09
     - ID: intArrayArg
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 6}
@@ -53,11 +53,11 @@ Probes:
           InjectionPoints: [{PC: "0x4a81ea", Frameless: false}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 4.294967295e+09
     - ID: stringSliceArg
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 7}
@@ -67,11 +67,11 @@ Probes:
           InjectionPoints: [{PC: "0x4a826a", Frameless: false}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 4.294967295e+09
     - ID: stringArrayArg
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 8}
@@ -81,11 +81,11 @@ Probes:
           InjectionPoints: [{PC: "0x4a82ea", Frameless: false}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 4.294967295e+09
     - ID: intArrayArgFrameless
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 9}
@@ -95,11 +95,11 @@ Probes:
           InjectionPoints: [{PC: "0x4a8360", Frameless: true}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 4.294967295e+09
     - ID: mapArg
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 10}
@@ -109,11 +109,11 @@ Probes:
           InjectionPoints: [{PC: "0x4a844a", Frameless: false}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 4.294967295e+09
     - ID: bigMapArg
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 11}
@@ -123,11 +123,11 @@ Probes:
           InjectionPoints: [{PC: "0x4a84b3", Frameless: false}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 4.294967295e+09
     - ID: inlined
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 1}
@@ -141,11 +141,11 @@ Probes:
               Frameless: true
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 2
       PointerChasingLimit: 4.294967295e+09
     - ID: PointerChainArg
-      Kind: ProbeKindLog
+      Kind: ProbeKindSnapshot
       Version: 0
       Tags: []
       Subprogram: {subprogram: 2}
@@ -155,8 +155,8 @@ Probes:
           InjectionPoints: [{PC: "0x4a8006", Frameless: true}]
           Condition: null
       Snapshot: false
-      ThrottlePeriodMs: 100
-      ThrottleBudget: 500
+      ThrottlePeriodMs: 1000
+      ThrottleBudget: 1
       PointerChasingLimit: 3
 Subprograms:
     - ID: 3
