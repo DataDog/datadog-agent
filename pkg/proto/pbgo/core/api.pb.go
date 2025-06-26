@@ -47,9 +47,11 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x1aWorkloadmetaStreamEntities\x12/.datadog.workloadmeta.WorkloadmetaStreamRequest\x1a0.datadog.workloadmeta.WorkloadmetaStreamResponse0\x01\x12x\n" +
 	"\x13RegisterRemoteAgent\x12/.datadog.remoteagent.RegisterRemoteAgentRequest\x1a0.datadog.remoteagent.RegisterRemoteAgentResponse\x12i\n" +
 	"\x19AutodiscoveryStreamConfig\x12\x16.google.protobuf.Empty\x1a2.datadog.autodiscovery.AutodiscoveryStreamResponse0\x01\x12O\n" +
-	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply2\xcb\x02\n" +
-	"\vRemoteAgent\x12o\n" +
-	"\x10GetStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a-.datadog.remoteagent.GetStatusDetailsResponse\x12f\n" +
+	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply2\xc5\x04\n" +
+	"\vRemoteAgent\x12w\n" +
+	"\x14GetJsonStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a1.datadog.remoteagent.GetJsonStatusDetailsResponse\x12w\n" +
+	"\x14GetTextStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a1.datadog.remoteagent.GetTextStatusDetailsResponse\x12w\n" +
+	"\x14GetHtmlStatusDetails\x12,.datadog.remoteagent.GetStatusDetailsRequest\x1a1.datadog.remoteagent.GetHtmlStatusDetailsResponse\x12f\n" +
 	"\rGetFlareFiles\x12).datadog.remoteagent.GetFlareFilesRequest\x1a*.datadog.remoteagent.GetFlareFilesResponse\x12c\n" +
 	"\fGetTelemetry\x12(.datadog.remoteagent.GetTelemetryRequest\x1a).datadog.remoteagent.GetTelemetryResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
@@ -80,9 +82,11 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*RegisterRemoteAgentResponse)(nil),               // 23: datadog.remoteagent.RegisterRemoteAgentResponse
 	(*AutodiscoveryStreamResponse)(nil),               // 24: datadog.autodiscovery.AutodiscoveryStreamResponse
 	(*HostTagReply)(nil),                              // 25: datadog.model.v1.HostTagReply
-	(*GetStatusDetailsResponse)(nil),                  // 26: datadog.remoteagent.GetStatusDetailsResponse
-	(*GetFlareFilesResponse)(nil),                     // 27: datadog.remoteagent.GetFlareFilesResponse
-	(*GetTelemetryResponse)(nil),                      // 28: datadog.remoteagent.GetTelemetryResponse
+	(*GetJsonStatusDetailsResponse)(nil),              // 26: datadog.remoteagent.GetJsonStatusDetailsResponse
+	(*GetTextStatusDetailsResponse)(nil),              // 27: datadog.remoteagent.GetTextStatusDetailsResponse
+	(*GetHtmlStatusDetailsResponse)(nil),              // 28: datadog.remoteagent.GetHtmlStatusDetailsResponse
+	(*GetFlareFilesResponse)(nil),                     // 29: datadog.remoteagent.GetFlareFilesResponse
+	(*GetTelemetryResponse)(nil),                      // 30: datadog.remoteagent.GetTelemetryResponse
 }
 var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	0,  // 0: datadog.api.v1.Agent.GetHostname:input_type -> datadog.model.v1.HostnameRequest
@@ -99,28 +103,32 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	9,  // 11: datadog.api.v1.AgentSecure.RegisterRemoteAgent:input_type -> datadog.remoteagent.RegisterRemoteAgentRequest
 	7,  // 12: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:input_type -> google.protobuf.Empty
 	10, // 13: datadog.api.v1.AgentSecure.GetHostTags:input_type -> datadog.model.v1.HostTagRequest
-	11, // 14: datadog.api.v1.RemoteAgent.GetStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
-	12, // 15: datadog.api.v1.RemoteAgent.GetFlareFiles:input_type -> datadog.remoteagent.GetFlareFilesRequest
-	13, // 16: datadog.api.v1.RemoteAgent.GetTelemetry:input_type -> datadog.remoteagent.GetTelemetryRequest
-	14, // 17: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
-	15, // 18: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
-	16, // 19: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	17, // 20: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
-	18, // 21: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
-	19, // 22: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
-	20, // 23: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
-	21, // 24: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
-	20, // 25: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
-	21, // 26: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
-	22, // 27: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
-	23, // 28: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.RegisterRemoteAgentResponse
-	24, // 29: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
-	25, // 30: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
-	26, // 31: datadog.api.v1.RemoteAgent.GetStatusDetails:output_type -> datadog.remoteagent.GetStatusDetailsResponse
-	27, // 32: datadog.api.v1.RemoteAgent.GetFlareFiles:output_type -> datadog.remoteagent.GetFlareFilesResponse
-	28, // 33: datadog.api.v1.RemoteAgent.GetTelemetry:output_type -> datadog.remoteagent.GetTelemetryResponse
-	17, // [17:34] is the sub-list for method output_type
-	0,  // [0:17] is the sub-list for method input_type
+	11, // 14: datadog.api.v1.RemoteAgent.GetJsonStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
+	11, // 15: datadog.api.v1.RemoteAgent.GetTextStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
+	11, // 16: datadog.api.v1.RemoteAgent.GetHtmlStatusDetails:input_type -> datadog.remoteagent.GetStatusDetailsRequest
+	12, // 17: datadog.api.v1.RemoteAgent.GetFlareFiles:input_type -> datadog.remoteagent.GetFlareFilesRequest
+	13, // 18: datadog.api.v1.RemoteAgent.GetTelemetry:input_type -> datadog.remoteagent.GetTelemetryRequest
+	14, // 19: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
+	15, // 20: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
+	16, // 21: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	17, // 22: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
+	18, // 23: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
+	19, // 24: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
+	20, // 25: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
+	21, // 26: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
+	20, // 27: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
+	21, // 28: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
+	22, // 29: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
+	23, // 30: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.RegisterRemoteAgentResponse
+	24, // 31: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
+	25, // 32: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
+	26, // 33: datadog.api.v1.RemoteAgent.GetJsonStatusDetails:output_type -> datadog.remoteagent.GetJsonStatusDetailsResponse
+	27, // 34: datadog.api.v1.RemoteAgent.GetTextStatusDetails:output_type -> datadog.remoteagent.GetTextStatusDetailsResponse
+	28, // 35: datadog.api.v1.RemoteAgent.GetHtmlStatusDetails:output_type -> datadog.remoteagent.GetHtmlStatusDetailsResponse
+	29, // 36: datadog.api.v1.RemoteAgent.GetFlareFiles:output_type -> datadog.remoteagent.GetFlareFilesResponse
+	30, // 37: datadog.api.v1.RemoteAgent.GetTelemetry:output_type -> datadog.remoteagent.GetTelemetryResponse
+	19, // [19:38] is the sub-list for method output_type
+	0,  // [0:19] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -848,8 +856,12 @@ var _AgentSecure_serviceDesc = grpc.ServiceDesc{
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type RemoteAgentClient interface {
-	// Gets the status details of a remote agent.
-	GetStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetStatusDetailsResponse, error)
+	// Gets the status details of a remote agent formated as JSON.
+	GetJsonStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetJsonStatusDetailsResponse, error)
+	// Gets the status details of a remote agent formated as text.
+	GetTextStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetTextStatusDetailsResponse, error)
+	// Gets the status details of a remote agent formated as HTML.
+	GetHtmlStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetHtmlStatusDetailsResponse, error)
 	// Gets all relevant flare files of a remote agent.
 	GetFlareFiles(ctx context.Context, in *GetFlareFilesRequest, opts ...grpc.CallOption) (*GetFlareFilesResponse, error)
 	// Gets the telemetry data of a remote agent.
@@ -864,9 +876,27 @@ func NewRemoteAgentClient(cc grpc.ClientConnInterface) RemoteAgentClient {
 	return &remoteAgentClient{cc}
 }
 
-func (c *remoteAgentClient) GetStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetStatusDetailsResponse, error) {
-	out := new(GetStatusDetailsResponse)
-	err := c.cc.Invoke(ctx, "/datadog.api.v1.RemoteAgent/GetStatusDetails", in, out, opts...)
+func (c *remoteAgentClient) GetJsonStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetJsonStatusDetailsResponse, error) {
+	out := new(GetJsonStatusDetailsResponse)
+	err := c.cc.Invoke(ctx, "/datadog.api.v1.RemoteAgent/GetJsonStatusDetails", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *remoteAgentClient) GetTextStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetTextStatusDetailsResponse, error) {
+	out := new(GetTextStatusDetailsResponse)
+	err := c.cc.Invoke(ctx, "/datadog.api.v1.RemoteAgent/GetTextStatusDetails", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *remoteAgentClient) GetHtmlStatusDetails(ctx context.Context, in *GetStatusDetailsRequest, opts ...grpc.CallOption) (*GetHtmlStatusDetailsResponse, error) {
+	out := new(GetHtmlStatusDetailsResponse)
+	err := c.cc.Invoke(ctx, "/datadog.api.v1.RemoteAgent/GetHtmlStatusDetails", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -893,8 +923,12 @@ func (c *remoteAgentClient) GetTelemetry(ctx context.Context, in *GetTelemetryRe
 
 // RemoteAgentServer is the server API for RemoteAgent service.
 type RemoteAgentServer interface {
-	// Gets the status details of a remote agent.
-	GetStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetStatusDetailsResponse, error)
+	// Gets the status details of a remote agent formated as JSON.
+	GetJsonStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetJsonStatusDetailsResponse, error)
+	// Gets the status details of a remote agent formated as text.
+	GetTextStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetTextStatusDetailsResponse, error)
+	// Gets the status details of a remote agent formated as HTML.
+	GetHtmlStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetHtmlStatusDetailsResponse, error)
 	// Gets all relevant flare files of a remote agent.
 	GetFlareFiles(context.Context, *GetFlareFilesRequest) (*GetFlareFilesResponse, error)
 	// Gets the telemetry data of a remote agent.
@@ -905,8 +939,14 @@ type RemoteAgentServer interface {
 type UnimplementedRemoteAgentServer struct {
 }
 
-func (*UnimplementedRemoteAgentServer) GetStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetStatusDetailsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetStatusDetails not implemented")
+func (*UnimplementedRemoteAgentServer) GetJsonStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetJsonStatusDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetJsonStatusDetails not implemented")
+}
+func (*UnimplementedRemoteAgentServer) GetTextStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetTextStatusDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetTextStatusDetails not implemented")
+}
+func (*UnimplementedRemoteAgentServer) GetHtmlStatusDetails(context.Context, *GetStatusDetailsRequest) (*GetHtmlStatusDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetHtmlStatusDetails not implemented")
 }
 func (*UnimplementedRemoteAgentServer) GetFlareFiles(context.Context, *GetFlareFilesRequest) (*GetFlareFilesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetFlareFiles not implemented")
@@ -919,20 +959,56 @@ func RegisterRemoteAgentServer(s *grpc.Server, srv RemoteAgentServer) {
 	s.RegisterService(&_RemoteAgent_serviceDesc, srv)
 }
 
-func _RemoteAgent_GetStatusDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _RemoteAgent_GetJsonStatusDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetStatusDetailsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(RemoteAgentServer).GetStatusDetails(ctx, in)
+		return srv.(RemoteAgentServer).GetJsonStatusDetails(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/datadog.api.v1.RemoteAgent/GetStatusDetails",
+		FullMethod: "/datadog.api.v1.RemoteAgent/GetJsonStatusDetails",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RemoteAgentServer).GetStatusDetails(ctx, req.(*GetStatusDetailsRequest))
+		return srv.(RemoteAgentServer).GetJsonStatusDetails(ctx, req.(*GetStatusDetailsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RemoteAgent_GetTextStatusDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStatusDetailsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RemoteAgentServer).GetTextStatusDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/datadog.api.v1.RemoteAgent/GetTextStatusDetails",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RemoteAgentServer).GetTextStatusDetails(ctx, req.(*GetStatusDetailsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RemoteAgent_GetHtmlStatusDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetStatusDetailsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RemoteAgentServer).GetHtmlStatusDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/datadog.api.v1.RemoteAgent/GetHtmlStatusDetails",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RemoteAgentServer).GetHtmlStatusDetails(ctx, req.(*GetStatusDetailsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -978,8 +1054,16 @@ var _RemoteAgent_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*RemoteAgentServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetStatusDetails",
-			Handler:    _RemoteAgent_GetStatusDetails_Handler,
+			MethodName: "GetJsonStatusDetails",
+			Handler:    _RemoteAgent_GetJsonStatusDetails_Handler,
+		},
+		{
+			MethodName: "GetTextStatusDetails",
+			Handler:    _RemoteAgent_GetTextStatusDetails_Handler,
+		},
+		{
+			MethodName: "GetHtmlStatusDetails",
+			Handler:    _RemoteAgent_GetHtmlStatusDetails_Handler,
 		},
 		{
 			MethodName: "GetFlareFiles",
