@@ -40,6 +40,7 @@ type ProcessorContext interface {
 	GetAPIVersion() string
 	IsTerminatedResources() bool
 	GetCollectorTags() []string
+	GetAgentVersion() *model.AgentVersion
 }
 
 // BaseProcessorContext is the base context for all processors
@@ -53,6 +54,7 @@ type BaseProcessorContext struct {
 	APIVersion          string
 	CollectorTags       []string
 	TerminatedResources bool
+	AgentVersion        *model.AgentVersion
 }
 
 // GetOrchestratorConfig returns the orchestrator config
@@ -98,6 +100,11 @@ func (c *BaseProcessorContext) GetCollectorTags() []string {
 // IsTerminatedResources returns true if resources are terminated
 func (c *BaseProcessorContext) IsTerminatedResources() bool {
 	return c.TerminatedResources
+}
+
+// GetAgentVersion returns the agent version
+func (c *BaseProcessorContext) GetAgentVersion() *model.AgentVersion {
+	return c.AgentVersion
 }
 
 // K8sProcessorContext holds k8s resource processing attributes
