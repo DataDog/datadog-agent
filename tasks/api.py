@@ -72,7 +72,7 @@ def run(
         if from_ci
         else f'"$(ddtool auth token rapid-agent-devx --datacenter {dc} --http-header)"'
     )
-    extra_header = '"X-DdOrigin: curl-authanywhere"' if from_ci else '"X-DdOrigin: curl-authanywhere"'
+    extra_header = f'"X-DdOrigin: {os.environ["CI_JOB_ID"]}"' if from_ci else '"X-DdOrigin: curl-authanywhere"'
 
     url = (
         f"http://localhost:{localport}/{prefix}{endpoint}"
