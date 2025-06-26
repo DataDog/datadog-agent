@@ -164,9 +164,11 @@ func getProxyMeta(conf model.Reader) *ProxyMeta {
 }
 
 func getFipsMode() bool {
-	if val, err := fips.Enabled(); err == nil {
+	val, err := fips.Enabled()
+	if err == nil {
 		return val
 	}
+	log.Warn("Could not determine if FIPS mode is enabled: ", err)
 	return false
 }
 
