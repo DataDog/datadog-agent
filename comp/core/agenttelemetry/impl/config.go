@@ -302,8 +302,9 @@ var defaultProfiles = `
       exclude:
         zero_metric: true
       metrics:
-        - name: runtime.started
-        - name: runtime.running
+        - name: agent.state
+          aggregate_tags:
+            - status
 `
 
 func compileMetricsExclude(p *Profile) error {
