@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package config
+package rcjson
 
 import (
 	"encoding/json"
@@ -61,50 +61,51 @@ type Probe interface {
 
 // These are the data structures for the external interface
 
-// Where for the external API
+// Where for the remote config data.
 type Where struct {
-	TypeName   string   `json:"type_name,omitempty"`
-	SourceFile string   `json:"source_file,omitempty"`
-	MethodName string   `json:"method_name,omitempty"`
-	Lines      []string `json:"lines,omitempty"`
+	TypeName   string   `json:"typeName,omitempty"`
+	MethodName string   `json:"methodName,omitempty"`
+	SourceFile string   `json:"sourceFile,omitempty"`
 	Signature  string   `json:"signature,omitempty"`
+	Lines      []string `json:"lines,omitempty"`
 }
 
-// When for the external API
+// When for the remote config data.
 type When struct {
-	DSL  string          `json:"dsl,omitempty"`
-	JSON json.RawMessage `json:"json,omitempty"`
+	DSL  string          `json:"dsl"`
+	JSON json.RawMessage `json:"json"`
 }
 
-// Value for the external API
+// Value for the remote config data.
 type Value struct {
 	DSL  string          `json:"dsl,omitempty"`
 	JSON json.RawMessage `json:"json,omitempty"`
 }
 
-// Sampling for the external API
-type Sampling struct {
-	SnapshotsPerSecond float64 `json:"snapshots_per_second"`
-}
-
-// Capture options for the external API
+// Capture for the remote config data.
 type Capture struct {
-	MaxReferenceDepth int `json:"max_reference_depth"`
-	MaxFieldCount     int `json:"max_field_count,omitempty"`
-	MaxCollectionSize int `json:"max_collection_size,omitempty"`
+	MaxReferenceDepth int `json:"maxReferenceDepth"`
+	MaxFieldCount     int `json:"maxFieldCount,omitempty"`
+	MaxCollectionSize int `json:"maxCollectionSize,omitempty"`
 }
 
-// MetricProbe for the external API
+// Sampling for the remote config data.
+type Sampling struct {
+	SnapshotsPerSecond float64 `json:"snapshotsPerSecond"`
+}
+
+// MetricProbe for the remote config data.
 type MetricProbe struct {
 	ID         string   `json:"id"`
 	Version    int      `json:"version"`
+	Type       string   `json:"type"`
+	Language   string   `json:"language"`
 	Where      *Where   `json:"where"`
 	Tags       []string `json:"tags"`
-	Language   string   `json:"language"`
 	Kind       string   `json:"kind"`
-	MetricName string   `json:"metric_name"`
-	Value      *Value   `json:"value"`
-	EvaluateAt string   `json:"evaluate_at,omitempty"`
+	MetricName string   `json:"metricName"`
+	Value      *Value   `json:"value,omitempty"`
+	EvaluateAt string   `json:"evaluateAt,omitempty"`
 }
 
 // GetID implements Probe.
@@ -132,20 +133,21 @@ func (m *MetricProbe) GetTags() []string {
 	return m.Tags
 }
 
-// LogProbe for the external API
+// LogProbe for the remote config data.
 type LogProbe struct {
 	ID              string            `json:"id"`
 	Version         int               `json:"version"`
+	Type            string            `json:"type"`
+	Language        string            `json:"language"`
 	Where           *Where            `json:"where"`
 	When            *When             `json:"when,omitempty"`
 	Tags            []string          `json:"tags"`
-	Language        string            `json:"language"`
 	Template        string            `json:"template"`
 	Segments        []json.RawMessage `json:"segments"`
-	CaptureSnapshot bool              `json:"capture_snapshot"`
+	CaptureSnapshot bool              `json:"captureSnapshot"`
 	Capture         *Capture          `json:"capture,omitempty"`
 	Sampling        *Sampling         `json:"sampling,omitempty"`
-	EvaluateAt      string            `json:"evaluate_at,omitempty"`
+	EvaluateAt      string            `json:"evaluateAt,omitempty"`
 }
 
 // GetID implements Probe.
@@ -173,14 +175,15 @@ func (l *LogProbe) GetTags() []string {
 	return l.Tags
 }
 
-// SpanProbe for the external API
+// SpanProbe for the remote config data.
 type SpanProbe struct {
 	ID         string   `json:"id"`
 	Version    int      `json:"version"`
+	Type       string   `json:"type"`
+	Language   string   `json:"language"`
 	Where      *Where   `json:"where"`
 	Tags       []string `json:"tags"`
-	Language   string   `json:"language"`
-	EvaluateAt string   `json:"evaluate_at,omitempty"`
+	EvaluateAt string   `json:"evaluateAt,omitempty"`
 }
 
 // GetID implements Probe.

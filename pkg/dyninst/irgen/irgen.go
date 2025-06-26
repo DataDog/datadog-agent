@@ -23,7 +23,6 @@ import (
 	"github.com/go-delve/delve/pkg/dwarf/loclist"
 	"github.com/pkg/errors"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/network/go/dwarfutils/locexpr"
@@ -57,7 +56,7 @@ const maxHashBucketsSize = 4 * maxDynamicTypeSize
 func GenerateIR(
 	programID ir.ProgramID,
 	objFile object.File,
-	config []config.Probe,
+	config []ProbeDefinition,
 ) (_ *ir.Program, retErr error) {
 	// Given that the go dwarf library is not intentionally safe when
 	// used with untrusted inputs, let's at least recover from panics and
@@ -718,21 +717,13 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 }
 
 func (v *rootVisitor) newProbe(
-	probeCfg config.Probe,
+	probeCfg ProbeDefinition,
 	unit *dwarf.Entry,
 	subprogram *ir.Subprogram,
 ) (*ir.Probe, error) {
-	kind, err := getProbeKind(probeCfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get probe kind: %w", err)
-	}
-	var captureSnapshot bool
-	pointerChasingLimit := uint32(math.MaxUint32)
-	if lp, ok := probeCfg.(*config.LogProbe); ok {
-		captureSnapshot = lp.CaptureSnapshot
-		if lp.Capture != nil {
-			pointerChasingLimit = uint32(lp.Capture.MaxReferenceDepth)
-		}
+	kind := probeCfg.GetKind()
+	if !kind.IsValid() {
+		return nil, fmt.Errorf("invalid probe kind: %v", kind)
 	}
 
 	lineReader, err := v.dwarf.LineReader(unit)
@@ -781,22 +772,7 @@ func (v *rootVisitor) newProbe(
 			Type: nil,
 		},
 	}
-	var throttlePeriodMs uint32
-	var throttleBudget int64
-	switch c := probeCfg.(type) {
-	case *config.LogProbe:
-		if c.CaptureSnapshot {
-			throttlePeriodMs = 1000
-			throttleBudget = int64(c.Sampling.SnapshotsPerSecond)
-		} else {
-			throttlePeriodMs = 100
-			throttleBudget = 500
-		}
-	case *config.MetricProbe:
-		// Effectively unlimited.
-		throttlePeriodMs = 1000
-		throttleBudget = math.MaxInt
-	}
+	throttleConfig := probeCfg.GetThrottleConfig()
 	probe := &ir.Probe{
 		ID:                  probeCfg.GetID(),
 		Subprogram:          subprogram,
@@ -804,10 +780,9 @@ func (v *rootVisitor) newProbe(
 		Version:             probeCfg.GetVersion(),
 		Tags:                probeCfg.GetTags(),
 		Events:              events,
-		Snapshot:            captureSnapshot,
-		ThrottlePeriodMs:    throttlePeriodMs,
-		ThrottleBudget:      throttleBudget,
-		PointerChasingLimit: pointerChasingLimit,
+		ThrottlePeriodMs:    throttleConfig.GetThrottlePeriodMs(),
+		ThrottleBudget:      throttleConfig.GetThrottleBudget(),
+		PointerChasingLimit: probeCfg.GetCaptureConfig().GetMaxReferenceDepth(),
 	}
 	return probe, nil
 }
@@ -866,19 +841,6 @@ func findPrologueEnd(
 	return 0, false, nil
 }
 
-func getProbeKind(probeCfg config.Probe) (ir.ProbeKind, error) {
-	switch ty := probeCfg.GetType(); ty {
-	case config.TypeLogProbe:
-		return ir.ProbeKindLog, nil
-	case config.TypeMetricProbe:
-		return ir.ProbeKindMetric, nil
-	case config.TypeSpanProbe:
-		return ir.ProbeKindSpan, nil
-	default:
-		return 0, fmt.Errorf("unexpected probe type: %s", ty)
-	}
-}
-
 type subprogramChildVisitor struct {
 	root            *rootVisitor
 	unit            *dwarf.Entry
@@ -886,7 +848,7 @@ type subprogramChildVisitor struct {
 	// May be nil if the subprogram is not interesting. We still need to visit it
 	// to collect possibly interesting inlined subprograms instances.
 	subprogram *ir.Subprogram
-	probesCfgs []config.Probe
+	probesCfgs []ProbeDefinition
 }
 
 func (v *subprogramChildVisitor) push(
@@ -999,7 +961,7 @@ func (v *rootVisitor) processVariable(
 
 type abstractSubprogram struct {
 	unit       *dwarf.Entry
-	probesCfgs []config.Probe
+	probesCfgs []ProbeDefinition
 	subprogram *ir.Subprogram
 	variables  map[dwarf.Offset]*ir.Variable
 }
@@ -1193,25 +1155,23 @@ const runtimePackageName = "runtime"
 // interests tracks what compile units and subprograms we're interested in.
 type interests struct {
 	compileUnits map[string]struct{}
-	subprograms  map[string][]config.Probe
+	subprograms  map[string][]ProbeDefinition
 }
 
-func makeInterests(cfg []config.Probe) (interests, error) {
+func makeInterests(cfg []ProbeDefinition) (interests, error) {
 	i := interests{
 		compileUnits: make(map[string]struct{}),
-		subprograms:  make(map[string][]config.Probe),
+		subprograms:  make(map[string][]ProbeDefinition),
 	}
 	for _, probe := range cfg {
-		where := probe.GetWhere()
-
-		if where == nil {
-			return interests{}, fmt.Errorf(
-				"no interests found for probe %s", probe,
-			)
+		switch where := probe.GetWhere().(type) {
+		case FunctionWhere:
+			methodName := where.Location()
+			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
+			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
+		default:
+			return interests{}, fmt.Errorf("unexpected where type: %T", where)
 		}
-		methodName := probe.GetWhere().MethodName
-		i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
-		i.subprograms[methodName] = append(i.subprograms[methodName], probe)
 	}
 	return i, nil
 }
