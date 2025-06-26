@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/service"
+	"golang.org/x/net/http/httpproxy"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
@@ -192,6 +193,28 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		}
 		pkgconfig.Set("apm_config.features", apmConfigFeatures, pkgconfigmodel.SourceDefault)
 	}
+
+	// Proxy Setup
+	proxyConfig := httpproxy.FromEnvironment()
+	if proxyConfig.HTTPProxy != "" {
+		pkgconfig.Set("proxy.http", proxyConfig.HTTPProxy, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+	if proxyConfig.HTTPSProxy != "" {
+		pkgconfig.Set("proxy.https", proxyConfig.HTTPSProxy, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+
+	// ProxyURL takes precedence over proxy environment variables if set
+	if ddc.ProxyURL != "" {
+		pkgconfig.Set("proxy.http", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+
+	// Handle no_proxy environment variable
+	var noProxy []any
+	for _, v := range strings.Split(proxyConfig.NoProxy, ",") {
+		noProxy = append(noProxy, v)
+	}
+	pkgconfig.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceLocalConfigProcess)
 
 	return pkgconfig, nil
 }
