@@ -109,7 +109,11 @@ class ResultJson:
 
 
 def run_is_failing(lines: list[ResultJsonLine]) -> bool:
-    """Determines the failure status of the test run based on the actions in the lines."""
+    """
+    Determines the failure status of the test run based on the actions in the lines.
+    A run is considered failing if it contains a FAIL action or if it has an output with "panic:" in it.
+    Make sure the lines in `lines` all refer to the same test !
+    """
     is_fail = False
     for line in lines:
         # Some test lines don't set their action to fail when they panic, but we should also consider that a failure
