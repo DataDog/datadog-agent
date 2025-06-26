@@ -25,20 +25,14 @@
                 {{ if .FailureReason }}
                     Failure: {{ .FailureReason }}
                 {{ end }}
-                {{- if .MainSection }}
-                        {{ range $key, $value := .MainSection -}}
-                            {{ $key }}: {{ $value }} <br>
-                        {{ end }}
+                {{- if and .MainSection (gt (len .MainSection) 0) }}
+                {{ doNotEscape .MainSection }}
                 {{- end }}
 
                 {{- if .NamedSections }}
                     {{- range $sectionName, $section := .NamedSections }}
                             {{ $sectionName }}: <br>
-                            <ul>
-                                {{- range $key, $value := $section }}
-                                    <li> {{ $key }}: {{ $value }}
-                                {{- end }}
-                            </ul>
+                            {{ doNotEscape $section }} 
                     {{ end }}
                 {{- end }}
             </span>
