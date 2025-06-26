@@ -25,16 +25,16 @@ import (
 type mockedAutodiscovery struct {
 }
 
-func (m *mockedAutodiscovery) AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration) {
+func (m *mockedAutodiscovery) AddConfigProvider(_ providers.ConfigProvider, _ bool, _ time.Duration) {
 }
-func (m *mockedAutodiscovery) LoadAndRun(ctx context.Context) {}
-func (m *mockedAutodiscovery) ForceRanOnceFlag()              {}
+func (m *mockedAutodiscovery) LoadAndRun(_ context.Context) {}
+func (m *mockedAutodiscovery) ForceRanOnceFlag()            {}
 func (m *mockedAutodiscovery) HasRunOnce() bool {
 	return true
 }
-func (m *mockedAutodiscovery) AddListeners(listenerConfigs []pkgconfigsetup.Listeners)             {}
-func (m *mockedAutodiscovery) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {}
-func (m *mockedAutodiscovery) RemoveScheduler(name string)                                         {}
+func (m *mockedAutodiscovery) AddListeners(_ []pkgconfigsetup.Listeners)            {}
+func (m *mockedAutodiscovery) AddScheduler(_ string, _ scheduler.Scheduler, _ bool) {}
+func (m *mockedAutodiscovery) RemoveScheduler(_ string)                             {}
 func (m *mockedAutodiscovery) GetIDOfCheckWithEncryptedSecrets(checkID checkid.ID) checkid.ID {
 	return checkID
 }
