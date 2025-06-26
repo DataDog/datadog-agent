@@ -51,7 +51,7 @@ def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info",
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
-            ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout)
+            ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout, replace_env=True)
 
 
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
