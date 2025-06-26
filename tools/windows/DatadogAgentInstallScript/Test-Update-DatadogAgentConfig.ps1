@@ -261,6 +261,36 @@ Test-ConfigUpdate -TestName "Update-DatadogConfigFile replacing content in file 
     ) `
     -AssertMessage "Config should match expected content with api_key replaced in file without EOL"
 
+# Test: Update-DatadogAgentConfig with DD_TAGS set
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_TAGS set" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{ DD_TAGS = "env:prod,service:web" } `
+    -ExpectedConfig @(
+        "# Test datadog.yaml configuration file",
+        "# api_key: placeholder_key",
+        "# site: datadoghq.com",
+        "# dd_url: https://app.datadoghq.com",
+        "# remote_updates: false",
+        "tags:",
+        "  - env:prod",
+        "  - service:web"
+    ) `
+    -AssertMessage "Config should match expected content with tags added"
+
+# Test: Update-DatadogAgentConfig with DD_LOGS_ENABLED set
+Test-ConfigUpdate -TestName "Update-DatadogAgentConfig with DD_LOGS_ENABLED set" `
+    -InitialConfig $defaultInitialConfig `
+    -EnvironmentVariables @{ DD_LOGS_ENABLED = "true" } `
+    -ExpectedConfig @(
+        "# Test datadog.yaml configuration file",
+        "# api_key: placeholder_key",
+        "# site: datadoghq.com",
+        "# dd_url: https://app.datadoghq.com",
+        "# remote_updates: false",
+        "logs_enabled: true"
+    ) `
+    -AssertMessage "Config should match expected content with logs_enabled set to true"
+
 # Cleanup
 Cleanup-Tests
 
