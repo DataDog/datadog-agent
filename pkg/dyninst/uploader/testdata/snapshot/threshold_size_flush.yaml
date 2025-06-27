@@ -1,0 +1,46 @@
+config:
+  max_items: 10
+  max_size_bytes: 5
+  idle_flush_ms: 100
+  max_buffer_ms: 200
+events:
+  - !enqueue {value: "a"}
+  - !enqueue {value: "b"}
+  - !batch-outcome {id: 0, success: true}
+  - !stop {} 
+---
+now: 0ms
+event: !enqueue {value: "a"}
+effects:
+  - !reset-timer {ts: 100ms (+100ms)}
+state:
+  batch_len: 1
+  buffer_deadline: 200ms
+  current_size: 3
+  idle_deadline: 100ms
+---
+now: 0ms
+event: !enqueue {value: "b"}
+effects:
+  - !send-batch {id: 0, items: 2, bytes: 6}
+  - !reset-timer {}
+state:
+  batch_len: 0
+  current_size: 0
+  inflight: [0]
+---
+now: 0ms
+event: !batch-outcome {id: 0, success: true}
+state:
+  batch_len: 0
+  current_size: 0
+metrics:
+  batches_sent: 1 (+1)
+  bytes_sent: 6 (+6)
+  items_sent: 2 (+2)
+---
+now: 0ms
+event: !stop {}
+state:
+  batch_len: 0
+  current_size: 0
