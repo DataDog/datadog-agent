@@ -7,14 +7,10 @@ class AgentFlavor(enum.Enum):
     iot = 2
     heroku = 3
     dogstatsd = 4
-    ot = 5
-    fips = 6
+    fips = 5
 
     def is_iot(self):
         return self == type(self).iot
-
-    def is_ot(self):
-        return self == type(self).ot
 
     def is_fips(self):
         return self == type(self).fips
