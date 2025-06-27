@@ -385,12 +385,13 @@ func (suite *ConfigTestSuite) TestDDAPISiteSet() {
 	assert.Equal(t, "https://trace.agent.us3.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 }
 
-func TestProxyEnvVarsBoth(t *testing.T) {
+func (suite *ConfigTestSuite) TestProxyEnvVarsBoth() {
+	t := suite.T()
 	t.Setenv("HTTP_PROXY", "http://proxy.example.com:8080")
 	t.Setenv("HTTPS_PROXY", "https://secure-proxy.example.com:8443")
 	t.Setenv("NO_PROXY", "localhost,127.0.0.1,.local")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://proxy.example.com:8080", pkgconfig.GetString("proxy.http"))
@@ -398,31 +399,37 @@ func TestProxyEnvVarsBoth(t *testing.T) {
 	assert.Equal(t, []string{"localhost", "127.0.0.1", ".local"}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
-func TestProxyEnvVarsHTTPOnly(t *testing.T) {
+func (suite *ConfigTestSuite) TestProxyEnvVarsHTTPOnly() {
+	t := suite.T()
+
 	t.Setenv("HTTP_PROXY", "http://proxy.example.com:3128")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://proxy.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string{""}, pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
-func TestProxyEnvVarsNone(t *testing.T) {
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+func (suite *ConfigTestSuite) TestProxyEnvVarsNone() {
+	t := suite.T()
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string{""}, pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
-func TestProxyEnvVarsNOProxyOnly(t *testing.T) {
+func (suite *ConfigTestSuite) TestProxyEnvVarsNOProxyOnly() {
+	t := suite.T()
+
 	// Set only NO_PROXY
 	t.Setenv("NO_PROXY", "internal.company.com,localhost")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "", pkgconfig.GetString("proxy.http"))
@@ -430,26 +437,30 @@ func TestProxyEnvVarsNOProxyOnly(t *testing.T) {
 	assert.Equal(t, []string{"internal.company.com", "localhost"}, pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
-func TestProxyConfigURLOnly(t *testing.T) {
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_proxy.yaml"})
+func (suite *ConfigTestSuite) TestProxyConfigURLOnly() {
+	t := suite.T()
+
+	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config_proxy.yaml"})
 	require.NoError(t, err)
 
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string{""}, pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
-func TestProxyConfigURLPrecedence(t *testing.T) {
+func (suite *ConfigTestSuite) TestProxyConfigURLPrecedence() {
+	t := suite.T()
+
 	t.Setenv("HTTP_PROXY", "http://proxy.example.com:8080")
 	t.Setenv("HTTPS_PROXY", "https://secure-proxy.example.com:8443")
 
-	pkgconfig, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_proxy.yaml"})
+	pkgconfig, err := NewConfigComponent(context.Background(), "testdata/datadog_proxy_test.yaml", []string{"testdata/config_proxy.yaml"})
 	require.NoError(t, err)
 
 	// ProxyURL from config should take precedence over environment variables
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.http"))
 	assert.Equal(t, "http://proxyurl.example.com:3128", pkgconfig.GetString("proxy.https"))
-	assert.Equal(t, []string{""}, pkgconfig.GetStringSlice("proxy.no_proxy"))
+	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
 // TestSuite runs the CalculatorTestSuite
