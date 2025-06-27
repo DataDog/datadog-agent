@@ -15,6 +15,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -115,6 +116,7 @@ type Probe struct {
 	telemetry        *probeTelemetry
 	mapCleanerEvents *ddebpf.MapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue]
 	streamHandlers   *streamCollection
+	lastCheck        atomic.Int64
 }
 
 type probeTelemetry struct {
@@ -231,6 +233,8 @@ func (p *Probe) Close() {
 
 // GetAndFlush returns the GPU stats
 func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
+	p.lastCheck.Store(time.Now().Unix())
+
 	now, err := ddebpf.NowNanoseconds()
 	if err != nil {
 		return nil, fmt.Errorf("error getting current time: %w", err)
@@ -422,7 +426,7 @@ func toPowerOf2(x int) int {
 	return int(math.Pow(2, math.Round(log)))
 }
 
-func (p *Probe) GetStats() map[string]interface{} {
+func (p *Probe) GetDebugStats() map[string]interface{} {
 	var activeGpus []map[string]interface{}
 
 	for _, gpu := range p.sysCtx.deviceCache.All() {
@@ -450,5 +454,6 @@ func (p *Probe) GetStats() map[string]interface{} {
 			"blocked_processes": usmutils.GetBlockedPathIDsList(consts.GpuModuleName),
 		},
 		"consumer_healthy": slices.Contains(healthStatus.Healthy, consts.GpuConsumerHealthName),
+		"last_check":       p.lastCheck.Load(),
 	}
 }
