@@ -550,10 +550,10 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
 	bs.T().Logf("CELIAN: Trying to trigger API (setup)")
-	cmd := exec.Command("dda", "inv", "api", "hello", "--env", "prod")
+	cmd := exec.Command("dda", "inv", "--", "-e", "api", "hello", "--env", "prod")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		bs.T().Errorf("Unable to call api: %s", out)
+		bs.T().Errorf("Unable to call api: %s: %s", err.Error(), out)
 	} else {
 		bs.T().Logf("API output: %s", out)
 	}
