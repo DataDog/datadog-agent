@@ -78,9 +78,15 @@ func newGPMCollector(device ddnvml.SafeDevice) (c Collector, err error) {
 		return nil, errUnsupportedDevice
 	}
 
+	// Clone the global allGpmMetrics map to avoid mutating global state
+	clonedMetrics := make(map[nvml.GpmMetricId]gpmMetric, len(allGpmMetrics))
+	for key, value := range allGpmMetrics {
+		clonedMetrics[key] = value
+	}
+
 	collector := &gpmCollector{
 		device:           device,
-		metricsToCollect: allGpmMetrics,
+		metricsToCollect: clonedMetrics,
 	}
 
 	collector.lib, err = ddnvml.GetSafeNvmlLib()
