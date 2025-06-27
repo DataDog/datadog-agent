@@ -828,7 +828,12 @@ def build_sysprobe_binary(
     if os.path.exists(binary):
         os.remove(binary)
 
-    cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
+    cover = ""
+    if os.getenv("E2E_COVERAGE_PIPELINE") == "true":
+        build_tags.append("e2ecoverage")
+        cover = "-cover"
+
+    cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" {cover} '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
 
     args = {
@@ -840,6 +845,7 @@ def build_sysprobe_binary(
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
+        "cover": cover,
     }
 
     ctx.run(cmd.format(**args), env=env)
