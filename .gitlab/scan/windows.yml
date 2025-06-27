@@ -39,14 +39,14 @@
             .last_analysis_results
             | to_entries
             | map(select(.value.category=="malicious")
-              | "\(.value.engine_name) (\(.value.engine_version // \"N/A\") - \(.value.engine_update)) -> malicious: \(.value.result)"
+              | "\(.value.engine_name) (\(.value.engine_version // "N/A\") - \(.value.engine_update)) -> malicious: \(.value.result)"
             )
           ),
           suspicious_matches: (
             .last_analysis_results
             | to_entries
             | map(select(.value.category=="suspicious")
-              | "\(.value.engine_name) (\(.value.engine_version // \"N/A\") - \(.value.engine_update)) -> suspicious: \(.value.result)"
+              | "\(.value.engine_name) (\(.value.engine_version // "N/A\") - \(.value.engine_update)) -> suspicious: \(.value.result)"
             )
           ),
           metadata: {
