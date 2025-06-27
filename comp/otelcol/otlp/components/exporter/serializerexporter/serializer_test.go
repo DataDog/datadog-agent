@@ -10,7 +10,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/pkg/config/create"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
+
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -117,7 +118,7 @@ func TestProxyConfiguration(t *testing.T) {
 				cfg.HTTPConfig.ProxyURL = tt.proxyURL
 			}
 
-			pkgconfig := create.NewConfig("DD")
+			pkgconfig := mock.New(t)
 
 			setupSerializer(pkgconfig, cfg)
 
