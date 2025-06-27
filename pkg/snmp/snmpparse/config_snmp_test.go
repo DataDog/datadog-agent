@@ -6,17 +6,13 @@
 package snmpparse
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
-	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestOneInstance(t *testing.T) {
@@ -278,24 +274,18 @@ func assertIP(t *testing.T, input string, snmpConfigList []SNMPConfig, expectedO
 }
 
 func TestParseConfigSnmpMain(t *testing.T) {
-	bConf := []byte(strings.ReplaceAll(`
-	network_devices:
-	  autodiscovery:
-	    configs:
-	    - network_address: 127.0.0.1/30
-	      snmp_version: 1
-	      community_string: public
-	    - network_address: 127.0.0.2/30
-	      snmp_version: 2
-	      community_string: publicX
-	    - network_address: 127.0.0.4/30
-	      snmp_version: 3`, "\t", ""))
-	rawConf := make(map[string]any)
-	require.NoError(t, yaml.Unmarshal(bConf, &rawConf))
-	conf := fxutil.Test[config.Component](t,
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: rawConf}),
-	)
+	conf := configmock.NewFromYAML(t, `
+network_devices:
+  autodiscovery:
+    configs:
+      - network_address: 127.0.0.1/30
+        snmp_version: 1
+        community_string: public
+      - network_address: 127.0.0.2/30
+        snmp_version: 2
+        community_string: publicX
+      - network_address: 127.0.0.4/30
+        snmp_version: 3`)
 
 	Output, err := parseConfigSnmpMain(conf)
 	require.NoError(t, err)
@@ -320,10 +310,10 @@ func TestParseConfigSnmpMain(t *testing.T) {
 }
 
 func TestIPDecodeHook(t *testing.T) {
-	bConf := []byte(`
+	conf := configmock.NewFromYAML(t, `
 network_devices:
   autodiscovery:
-      configs:
+    configs:
       - network_address: 127.0.0.1/30
         snmp_version: 1
         community_string: public
@@ -331,13 +321,6 @@ network_devices:
           - 10.0.1.0
           - 10.0.1.1
 `)
-	rawConf := make(map[string]any)
-	require.NoError(t, yaml.Unmarshal(bConf, &rawConf))
-	conf := fxutil.Test[config.Component](t,
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: rawConf}),
-	)
-
 	Output, err := parseConfigSnmpMain(conf)
 	require.NoError(t, err)
 	Exoutput := []SNMPConfig{
