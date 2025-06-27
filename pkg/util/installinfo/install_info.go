@@ -262,7 +262,7 @@ func HandleSetInstallInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleGetInstallInfo is an HTTP handler for getting current install info
-func HandleGetInstallInfo(w http.ResponseWriter, r *http.Request) {
+func HandleGetInstallInfo(w http.ResponseWriter, _ *http.Request) {
 	installInfo, err := Get(pkgconfigsetup.Datadog())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to get install info: "+err.Error())
