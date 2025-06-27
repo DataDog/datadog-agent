@@ -221,7 +221,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerRuntime(ev *model.Event, _ *model.C
 
 // getContainerRuntime returns the container runtime managing the cgroup
 func getContainerRuntime(flags containerutils.CGroupFlags) string {
-	switch containerutils.CGroupManager(flags & containerutils.CGroupManagerMask) {
+	switch flags.GetCGroupManager() {
 	case containerutils.CGroupManagerCRI:
 		return string(workloadmeta.ContainerRuntimeContainerd)
 	case containerutils.CGroupManagerCRIO:
@@ -537,7 +537,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, e *model.CGroupCon
 // ResolveCGroupManager resolves the manager of the cgroup
 func (fh *EBPFFieldHandlers) ResolveCGroupManager(ev *model.Event, _ *model.CGroupContext) string {
 	if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-		if manager := containerutils.CGroupManager(entry.CGroup.CGroupFlags); manager != 0 {
+		if manager := entry.CGroup.CGroupFlags.GetCGroupManager(); manager != 0 {
 			return manager.String()
 		}
 	}

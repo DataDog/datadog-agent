@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 )
 
 // state represents the state of an Actuator.
@@ -80,7 +80,7 @@ func newState() *state {
 type program struct {
 	state      programState
 	id         ir.ProgramID
-	config     []config.Probe
+	config     []irgen.ProbeDefinition
 	executable Executable
 
 	// Populated after the program has been compiled.
@@ -101,7 +101,7 @@ type process struct {
 
 	id         ProcessID
 	executable Executable
-	probes     map[probeKey]config.Probe
+	probes     map[probeKey]irgen.ProbeDefinition
 
 	// The currently installed program, if there is one. Will be 0 if the
 	// process's program creation failed.
@@ -128,76 +128,13 @@ func (pk probeKey) cmp(other probeKey) int {
 	)
 }
 
-// Events
-
-type event interface {
-	event() // marker
-}
-
-type baseEvent struct{}
-
-func (baseEvent) event() {}
-
-type eventProcessesUpdated struct {
-	baseEvent
-	updated []ProcessUpdate
-	removed []ProcessID
-}
-
-type eventProgramCompiled struct {
-	baseEvent
-	programID       ir.ProgramID
-	compiledProgram *CompiledProgram
-}
-
-type eventProgramCompilationFailed struct {
-	baseEvent
-	programID ir.ProgramID
-	err       error
-}
-
-type eventProgramLoaded struct {
-	baseEvent
-	programID     ir.ProgramID
-	loadedProgram *loadedProgram
-}
-
-type eventProgramLoadingFailed struct {
-	baseEvent
-	programID ir.ProgramID
-	err       error
-}
-
-type eventProgramAttached struct {
-	baseEvent
-	program *attachedProgram
-}
-
-type eventProgramAttachingFailed struct {
-	baseEvent
-	programID ir.ProgramID
-	processID ProcessID
-	err       error
-}
-
-// Note that we'll send this even if the detachment fails.
-type eventProgramDetached struct {
-	baseEvent
-	programID ir.ProgramID
-	processID ProcessID
-}
-
-type eventShutdown struct {
-	baseEvent
-}
-
 // effectHandler defines async operations that drive the instrumentation
 // pipeline. Most effects generate completion events; register/unregister are
 // fire-and-forget.
 type effectHandler interface {
 
 	// Compile IR to eBPF bytecode.
-	compileProgram(ir.ProgramID, Executable, []config.Probe) // -> ProgramCompiled/Failed
+	compileProgram(ir.ProgramID, Executable, []irgen.ProbeDefinition) // -> ProgramCompiled/Failed
 
 	// Load eBPF program into kernel.
 	loadProgram(*CompiledProgram)
@@ -280,7 +217,7 @@ func handleProcessesUpdated(
 	var before, after []probeKey
 	anythingChanged := func(
 		p *process,
-		probesAfterUpdate []config.Probe,
+		probesAfterUpdate []irgen.ProbeDefinition,
 	) bool {
 		before = before[:0]
 		for k := range p.probes {
@@ -319,7 +256,7 @@ func handleProcessesUpdated(
 			p = &process{
 				id:         pu.ProcessID,
 				executable: pu.Executable,
-				probes:     make(map[probeKey]config.Probe),
+				probes:     make(map[probeKey]irgen.ProbeDefinition),
 			}
 			sm.processes[pu.ProcessID] = p
 		}
@@ -394,11 +331,11 @@ func enqueueProgramForProcess(sm *state, p *process) error {
 		delete(sm.processes, p.id)
 		return nil
 	}
-	probes := make([]config.Probe, 0, len(p.probes))
+	probes := make([]irgen.ProbeDefinition, 0, len(p.probes))
 	for _, probe := range p.probes {
 		probes = append(probes, probe)
 	}
-	slices.SortFunc(probes, func(a, b config.Probe) int {
+	slices.SortFunc(probes, func(a, b irgen.ProbeDefinition) int {
 		return cmp.Or(
 			cmp.Compare(a.GetID(), b.GetID()),
 			cmp.Compare(a.GetVersion(), b.GetVersion()),

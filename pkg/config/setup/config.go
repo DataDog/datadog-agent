@@ -348,6 +348,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("enabled_rfc1123_compliant_cluster_name_tag", true)
 
 	// secrets backend
+	config.BindEnvAndSetDefault("secret_backend_type", "")
+	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
@@ -615,7 +617,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gce_metadata_timeout", 1000) // value in milliseconds
 
 	// GPU
-	config.BindEnvAndSetDefault("collect_gpu_tags", false)
+	config.BindEnvAndSetDefault("collect_gpu_tags", true)
 	config.BindEnvAndSetDefault("nvml_lib_path", "")
 	config.BindEnvAndSetDefault("enable_nvml_detection", false)
 
@@ -654,6 +656,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// JMXFetch
 	config.BindEnvAndSetDefault("jmx_custom_jars", []string{})
+	config.BindEnvAndSetDefault("jmx_java_tool_options", "")
 	config.BindEnvAndSetDefault("jmx_use_cgroup_memory_limit", false)
 	config.BindEnvAndSetDefault("jmx_use_container_support", false)
 	config.BindEnvAndSetDefault("jmx_max_ram_percentage", float64(25.0))
@@ -927,6 +930,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.submit_dummy_metadata", false) // dev flag - to be removed
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
+	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare"})
+	config.ParseEnvAsStringSlice("otelcollector.converter.features", func(s string) []string {
+		// Support both comma and space separators
+		return strings.FieldsFunc(s, func(r rune) bool {
+			return r == ',' || r == ' '
+		})
+	})
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
@@ -2326,6 +2336,8 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
+		Type:                   config.GetString("secret_backend_type"),
+		Config:                 config.GetStringMap("secret_backend_config"),
 		Command:                config.GetString("secret_backend_command"),
 		Arguments:              config.GetStringSlice("secret_backend_arguments"),
 		Timeout:                config.GetInt("secret_backend_timeout"),
@@ -2338,7 +2350,7 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		AuditFileMaxSize:       config.GetInt("secret_audit_file_max_size"),
 	})
 
-	if config.GetString("secret_backend_command") != "" {
+	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
 		// Viper doesn't expose the final location of the file it
 		// loads. Since we are searching for 'datadog.yaml' in multiple
 		// locations we let viper determine the one to use before
