@@ -15,8 +15,11 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"time"
 
+	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
+	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -30,19 +33,79 @@ type probeEvent struct {
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
-	program     *ir.Program
-	stackHashes map[uint64][]uint64
-	probeEvents map[ir.TypeID]probeEvent
+	program         *ir.Program
+	stackHashes     map[uint64][]uint64
+	probeEvents     map[ir.TypeID]probeEvent
+	snapshotMessage snapshotMessage
+}
+
+type Event struct {
+	output.Event
+	ServiceName string
+}
+
+// ProcessInfoResolver is used to inject resolution of service info which is
+// not present in the ir.Program or the output.Event.
+type ProcessInfoResolver interface {
+	Resolve() (serviceName string)
 }
 
 var errorUnimplemented = errors.New("errorUnimplemented type")
 
+type snapshotMessage struct {
+	Service  string   `json:"service"`
+	DDSource string   `json:"ddsource"`
+	DDTags   string   `json:"ddtags"`
+	Logger   logger   `json:"logger"`
+	Debugger debugger `json:"debugger"`
+}
+
+func (s *snapshotMessage) init(decoder *Decoder, event Event) {
+	s.Service = event.ServiceName
+	s.Debugger.Snapshot = snapshotData{
+		decoder: decoder,
+		event:   event.Event,
+	}
+}
+
+func (s *snapshotMessage) clear() {
+	s.Debugger.Snapshot = snapshotData{}
+}
+
+type logger struct {
+	Name   string `json:"name"`
+	Method string `json:"method"`
+}
+
+type debugger struct {
+	Snapshot snapshotData `json:"snapshot"`
+}
+
+type snapshotData struct {
+	decoder *Decoder
+	event   output.Event
+}
+
+func (sd *snapshotData) MarshalJSONTo(enc *jsontext.Encoder) error {
+	return sd.decoder.decodeEvent(sd.event, enc)
+}
+
 // NewDecoder creates a new Decoder for the given program.
-func NewDecoder(program *ir.Program) (*Decoder, error) {
+func NewDecoder(
+	program *ir.Program,
+) (*Decoder, error) {
 	decoder := &Decoder{
 		program:     program,
 		stackHashes: make(map[uint64][]uint64),
 		probeEvents: make(map[ir.TypeID]probeEvent),
+		snapshotMessage: snapshotMessage{
+			DDSource: "dd_debugger",
+			DDTags:   "",
+			Logger: logger{
+				Name:   "",
+				Method: "",
+			},
+		},
 	}
 	for _, probe := range program.Probes {
 		for _, event := range probe.Events {
@@ -62,14 +125,30 @@ type typeAndAddr struct {
 	addr   uint64
 }
 
-// Decode decodes the given event into the given writer.
-func (d *Decoder) Decode(event output.Event, out io.Writer) error {
-	enc := jsontext.NewEncoder(out)
-	err := enc.WriteToken(jsontext.BeginObject)
+func (d *Decoder) Decode(event Event, out io.Writer) error {
+	d.snapshotMessage.init(d, event)
+	defer d.snapshotMessage.clear()
+	return json.MarshalWrite(out, &d.snapshotMessage)
+}
+
+// decodeEvent decodes the given event into the given writer.
+func (d *Decoder) decodeEvent(event output.Event, enc *jsontext.Encoder) error {
+	uu, err := uuid.NewUUID()
 	if err != nil {
 		return err
 	}
-
+	err = writeTokens(enc,
+		jsontext.BeginObject, // begin snapshot
+		jsontext.String("id"),
+		jsontext.String(uu.String()),
+		jsontext.String("timestamp"),
+		jsontext.Int(time.Now().UnixMilli()),
+		jsontext.String("language"),
+		jsontext.String("go"),
+	)
+	if err != nil {
+		return err
+	}
 	header, err := event.Header()
 	if err != nil {
 		return err
@@ -86,12 +165,10 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		}
 		d.stackHashes[header.Stack_hash] = frames
 	}
-
-	err = enc.WriteToken(jsontext.String("stack_frames"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.BeginArray)
+	err = writeTokens(enc,
+		jsontext.String("stack"),
+		jsontext.BeginArray, // begin stack
+	)
 	if err != nil {
 		return err
 	}
@@ -101,21 +178,14 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 			return err
 		}
 	}
-	err = enc.WriteToken(jsontext.EndArray)
+	err = writeTokens(enc,
+		jsontext.EndArray, // end stack
+	)
 	if err != nil {
 		return err
 	}
 
-	err = enc.WriteToken(jsontext.String("captures"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.BeginObject)
-	if err != nil {
-		return err
-	}
 	addressReferenceCount := map[typeAndAddr]output.DataItem{}
-
 	var (
 		rootData []byte
 		rootType *ir.EventRootType
@@ -151,11 +221,27 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 	if !ok {
 		return errors.New("no probe event found for root type")
 	}
-	err = enc.WriteToken(jsontext.String("probe_id"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.String(p.probe.ID))
+
+	err = writeTokens(enc,
+		// 'probe' JSON object
+		jsontext.String("probe"),
+		jsontext.BeginObject, // begin probe
+		jsontext.String("id"),
+		jsontext.String(p.probe.ID),
+		jsontext.String("location"),
+		jsontext.BeginObject, // begin location
+		jsontext.String("method"),
+		jsontext.String(p.probe.Subprogram.Name),
+		jsontext.EndObject, // end location
+		jsontext.EndObject, // end probe
+		// Start of'captures' JSON object
+		jsontext.String("captures"),
+		jsontext.BeginObject, // begin captures
+		jsontext.String("entry"),
+		jsontext.BeginObject, // begin entry
+		jsontext.String("arguments"),
+		jsontext.BeginObject, // begin arguments
+	)
 	if err != nil {
 		return err
 	}
@@ -172,7 +258,13 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 	for _, expr := range rootType.Expressions {
 		parameterType := expr.Expression.Type
 		parameterData := rootData[expr.Offset : expr.Offset+parameterType.GetByteSize()]
-		err = enc.WriteToken(jsontext.String(expr.Name))
+		err = writeTokens(enc,
+			jsontext.String(expr.Name),
+			jsontext.BeginObject,
+			jsontext.String("type"),
+			jsontext.String(parameterType.GetName()),
+			jsontext.String("value"),
+		)
 		if err != nil {
 			return err
 		}
@@ -180,13 +272,18 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("error parsing data for field %s: %w", rootType.Name, err)
 		}
+		err = enc.WriteToken(jsontext.EndObject)
+		if err != nil {
+			return err
+		}
 	}
 
-	err = enc.WriteToken(jsontext.EndObject) // captures
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.EndObject) // full object
+	err = writeTokens(enc,
+		jsontext.EndObject, // end arguments
+		jsontext.EndObject, // end entry
+		jsontext.EndObject, // end captures
+		jsontext.EndObject, // end snapshot
+	)
 	if err != nil {
 		return err
 	}
@@ -321,11 +418,9 @@ func (d *Decoder) encodeValue(
 		address := binary.NativeEndian.Uint64(data[0:8])
 		length := binary.NativeEndian.Uint64(data[8:16])
 		if length == 0 {
-			err := enc.WriteToken(jsontext.BeginArray)
-			if err != nil {
-				return err
-			}
-			err = enc.WriteToken(jsontext.EndArray)
+			err := writeTokens(enc,
+				jsontext.BeginArray,
+				jsontext.EndArray)
 			if err != nil {
 				return err
 			}
@@ -525,4 +620,49 @@ func (d *Decoder) encodeBaseTypeValue(enc *jsontext.Encoder, irType *ir.BaseType
 	default:
 		return errors.New("invalid base type")
 	}
+}
+func (s *snapshotMessage) MarshalJSONTo(enc *jsontext.Encoder) error {
+	err := writeTokens(enc,
+		jsontext.BeginObject, // begin top level object
+		jsontext.String("service"),
+		jsontext.String(s.Service),
+		jsontext.String("ddsource"),
+		jsontext.String(s.DDSource),
+		jsontext.String("ddtags"),
+		jsontext.String(s.DDTags),
+		jsontext.String("logger"),
+		jsontext.BeginObject, // begin logger
+		jsontext.String("name"),
+		jsontext.String(s.Logger.Name),
+		jsontext.String("method"),
+		jsontext.String(s.Logger.Method),
+		jsontext.EndObject, // end logger
+		jsontext.String("debugger"),
+		jsontext.BeginObject, // begin debugger
+		jsontext.String("snapshot"),
+	)
+	if err != nil {
+		return err
+	}
+	err = s.Debugger.Snapshot.MarshalJSONTo(enc)
+	if err != nil {
+		return err
+	}
+
+	// Write the snapshot JSON bytes directly as a JSON value
+	return writeTokens(enc,
+		jsontext.EndObject, // end debugger
+		jsontext.EndObject, // end top level object
+	)
+}
+
+func writeTokens(enc *jsontext.Encoder, tokens ...jsontext.Token) error {
+	var err error
+	for i := range tokens {
+		err = enc.WriteToken(tokens[i])
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

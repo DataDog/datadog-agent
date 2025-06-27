@@ -11,16 +11,18 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 
+	"github.com/go-json-experiment/json/jsontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -207,43 +209,83 @@ func testDyninst(
 	b := []byte{}
 	decodeOut := bytes.NewBuffer(b)
 	for _, msg := range read {
-		event := msg.Event()
+		event := decode.Event{
+			Event:       msg.Event(),
+			ServiceName: service,
+		}
 		err = decoder.Decode(event, decodeOut)
 		require.NoError(t, err)
-		header, err := event.Header()
-		require.NoError(t, err)
 
-		// Purge stack fraames
-		tmpMap := map[string]any{}
-		err = json.Unmarshal(decodeOut.Bytes(), &tmpMap)
-		require.NoError(t, err)
-		require.Equal(t, uint32(len(event)), header.Data_byte_len)
-		t.Logf("message header: %#v", *header)
-		if header.Stack_byte_len > 0 {
-			stackPCs, err := event.StackPCs()
-			require.NoError(t, err)
-			t.Logf("stack: %x", stackPCs)
-		}
-
-		if _, ok := tmpMap["stack_frames"]; !ok {
-			t.Error("No stack frames in output")
-		} else {
-			tmpMap["stack_frames"] = ""
-		}
-
-		clearAddressFields(tmpMap)
-
-		purged, err := json.Marshal(tmpMap)
-		assert.NoError(t, err)
+		t.Logf("Decoded output: \n%s\n", decodeOut.String())
+		redacted := redactJSON(t, decodeOut.Bytes())
+		t.Logf("Redacted output: \n%s\n", string(redacted))
 
 		outputToCompare := expOut[probes[0].GetID()]
-		assert.JSONEq(t, outputToCompare, string(purged))
+		assert.JSONEq(t, outputToCompare, string(redacted))
 
 		if saveOutput, _ := strconv.ParseBool(os.Getenv("REWRITE")); saveOutput {
-			expOut[probes[0].GetID()] = string(purged)
+			expOut[probes[0].GetID()] = string(redacted)
 			saveActualOutputOfProbes(t, service, expOut)
 		}
 	}
+}
+
+type jsonRedactor struct {
+	matches     func(ptr jsontext.Pointer) bool
+	replacement jsontext.Value
+}
+
+func redactPtr(toMatch string, replacement jsontext.Value) jsonRedactor {
+	return jsonRedactor{
+		matches: func(ptr jsontext.Pointer) bool {
+			return string(ptr) == toMatch
+		},
+		replacement: replacement,
+	}
+}
+
+func redactPtrPrefixSuffix(prefix, suffix string, replacement jsontext.Value) jsonRedactor {
+	return jsonRedactor{
+		matches: func(ptr jsontext.Pointer) bool {
+			return strings.HasPrefix(string(ptr), prefix) && strings.HasSuffix(string(ptr), suffix)
+		},
+		replacement: replacement,
+	}
+}
+
+var redactors = []jsonRedactor{
+	redactPtr("/debugger/snapshot/stack", []byte(`"<stack>"`)),
+	redactPtr("/debugger/snapshot/id", []byte(`"<id>"`)),
+	redactPtr("/debugger/snapshot/timestamp", []byte(`"<ts>"`)),
+	redactPtrPrefixSuffix("/debugger/snapshot/captures/", "/Address", []byte(`"<addr>"`)),
+}
+
+func redactJSON(t *testing.T, input []byte) (redacted []byte) {
+	d := jsontext.NewDecoder(bytes.NewReader(input))
+	var buf bytes.Buffer
+	e := jsontext.NewEncoder(&buf)
+	for {
+		tok, err := d.ReadToken()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		kind, idx := d.StackIndex(d.StackDepth())
+		require.NoError(t, e.WriteToken(tok))
+		if kind != '{' || idx%2 == 0 {
+			continue
+		}
+		ptr := d.StackPointer()
+		for _, redactor := range redactors {
+			if redactor.matches(ptr) {
+				_, err := d.ReadValue()
+				require.NoError(t, err)
+				require.NoError(t, e.WriteValue(redactor.replacement))
+				break
+			}
+		}
+	}
+	return buf.Bytes()
 }
 
 type testMessageSink struct {
@@ -310,31 +352,6 @@ func (r *testReporter) ReportAttached(actuator.ProcessID, []irgen.ProbeDefinitio
 }
 
 func (r *testReporter) ReportDetached(actuator.ProcessID, []irgen.ProbeDefinition) {}
-
-// clearAddressFields recursively traverses the captures structure and sets all "Address" fields to empty strings.
-func clearAddressFields(data map[string]any) {
-	if captures, ok := data["captures"]; ok {
-		clearAddressFieldsRecursive(captures)
-	}
-}
-
-// clearAddressFieldsRecursive recursively clears Address fields in any nested structure.
-func clearAddressFieldsRecursive(v any) {
-	switch val := v.(type) {
-	case map[string]any:
-		for key, value := range val {
-			if key == "Address" {
-				val[key] = ""
-			} else {
-				clearAddressFieldsRecursive(value)
-			}
-		}
-	case []any:
-		for _, item := range val {
-			clearAddressFieldsRecursive(item)
-		}
-	}
-}
 
 // getExpectedDecodedOutputOfProbes returns the expected output for a given service.
 func getExpectedDecodedOutputOfProbes(t *testing.T, name string) map[string]string {
