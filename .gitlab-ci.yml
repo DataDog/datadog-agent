@@ -165,7 +165,5 @@ test_section:
   stage: lint
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
   script:
-    - echo "section_start:$(date +%s):test_section[collapsed=false]"
-    - echo -e "\e[1mTest Section\e[0m"
-    - echo "section_end:$(date +%s):test_section"
+    - dda inv agent.test-section
   tags: ["arch:amd64"]

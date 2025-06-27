@@ -510,7 +510,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
             print(
-                f"\\e[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\\e[0K{section_name + '...'}",
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}",
                 flush=True,
             )
         elif echo:
@@ -518,7 +518,7 @@ def gitlab_section(section_name, collapsed=False, echo=False):
         yield
     finally:
         if in_ci:
-            print(f"\\e[0Ksection_end:{int(time.time())}:{section_id}\r\\e[0K", flush=True)
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
