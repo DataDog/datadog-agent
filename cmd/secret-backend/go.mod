@@ -1,8 +1,6 @@
 module github.com/DataDog/datadog-secret-backend
 
-go 1.23.8
-
-toolchain go1.23.9
+go 1.24.4
 
 replace (
 	github.com/DataDog/datadog-secret-backend/backend => ./backend
