@@ -546,6 +546,7 @@ func (m *Manager) persistProfile(p *profile.Profile) error {
 	return nil
 }
 
+// For version-filtered persistence, use persistWithFiltering instead
 func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.StorageFormat][]config.StorageRequest) error {
 	for format, requests := range formatsRequests {
 		p.Metadata.Serialization = format.String()
@@ -578,6 +579,77 @@ func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.Storage
 				}
 				if err := m.statsdClient.Count(metrics.MetricActivityDumpPersistedDumps, 1, tags, 1.0); err != nil {
 					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpPersistedDumps, err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (m *Manager) persistWithFiltering(p *profile.Profile, formatsRequests map[config.StorageFormat][]config.StorageRequest) error {
+	// Get filtered profiles for each version
+	profilesData, err := p.EncodeSecurityProfileProtobufByVersion()
+	if err != nil {
+		return fmt.Errorf("couldn't encode profile with filtering: %w", err)
+	}
+
+	// Persist each version separately
+	for imageTag := range profilesData {
+		// Get the version context for this image tag
+		versionCtx, exists := p.GetVersionContext(imageTag)
+		if !exists {
+			seclog.Errorf("version context not found for image tag: %s", imageTag)
+			continue
+		}
+
+		// Create a new profile for this version using the proper constructor
+		selector := p.GetWorkloadSelector()
+		if selector == nil {
+			seclog.Errorf("couldn't get workload selector for profile")
+			continue
+		}
+
+		tempProfile := profile.New(profile.WithWorkloadSelector(*selector))
+		tempProfile.Metadata = p.Metadata
+		tempProfile.ActivityTree = p.ActivityTree
+
+		// Add this version's context
+		tempProfile.AddVersionContext(imageTag, versionCtx)
+
+		// Persist this version
+		for format, requests := range formatsRequests {
+			tempProfile.Metadata.Serialization = format.String()
+
+			// encode profile
+			encodedData, err := tempProfile.Encode(format)
+			if err != nil {
+				seclog.Errorf("couldn't encode profile [%s] version [%s] to %s format: %v", tempProfile.GetSelectorStr(), imageTag, format, err)
+				continue
+			}
+
+			for _, request := range requests {
+				var storage storage.ActivityDumpStorage
+				switch request.Type {
+				case config.LocalStorage:
+					storage = m.localStorage
+				case config.RemoteStorage:
+					storage = m.remoteStorage
+				default:
+					seclog.Errorf("couldn't persist [%s] version [%s] to %s format: unknown storage type: %s", tempProfile.GetSelectorStr(), imageTag, format, request.Type)
+					continue
+				}
+
+				if err := storage.Persist(request, tempProfile, encodedData); err != nil {
+					seclog.Errorf("couldn't persist [%s] version [%s] to %s storage: %v", tempProfile.GetSelectorStr(), imageTag, request.Type, err)
+				} else {
+					tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression), "version:" + imageTag}
+					if err := m.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(encodedData.Len()), tags, 1.0); err != nil {
+						seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
+					}
+					if err := m.statsdClient.Count(metrics.MetricActivityDumpPersistedDumps, 1, tags, 1.0); err != nil {
+						seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpPersistedDumps, err)
+					}
 				}
 			}
 		}

@@ -448,3 +448,243 @@ func nodeBaseToProto(nb *NodeBase) *adproto.NodeBase {
 }
 
 
+
+
+func fileActivityNodeToProtoWithVersionFilter(fan *FileNode, imageTag string) *adproto.FileActivityNode {
+    if fan == nil || !fan.HasVersion(imageTag) {
+        return nil
+    }
+    vt := fan.Seen[imageTag]
+
+    pfan := adproto.FileActivityNodeFromVTPool()
+    *pfan = adproto.FileActivityNode{
+        MatchedRules:   make([]*adproto.MatchedRule, 0, len(fan.MatchedRules)),
+        Name:           escape(fan.Name),
+        File:           fileEventToProto(fan.File),
+        GenerationType: adproto.GenerationType(fan.GenerationType),
+        FirstSeen:      TimestampToProto(&vt.FirstSeen),
+        Open:           openNodeToProto(fan.Open),
+        Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
+        ImageTags:      []string{imageTag},  
+    }
+
+    for _, rule := range fan.MatchedRules {
+        pfan.MatchedRules = append(pfan.MatchedRules, matchedRuleToProto(rule))
+    }
+
+    // recurse only into version-qualified children
+    for _, child := range fan.Children {
+        if c := fileActivityNodeToProtoWithVersionFilter(child, imageTag); c != nil {
+            pfan.Children = append(pfan.Children, c)
+        }
+    }
+
+    return pfan
+}
+
+func dnsNodeToProtoWithVersionFilter(dn *DNSNode, imageTag string) *adproto.DNSNode {
+    if dn == nil || !dn.HasVersion(imageTag) {
+        return nil
+    }
+
+    pdn := &adproto.DNSNode{
+        MatchedRules: make([]*adproto.MatchedRule, 0, len(dn.MatchedRules)),
+        Requests:     make([]*adproto.DNSInfo, 0, len(dn.Requests)),
+        ImageTags:    []string{imageTag},  
+    }
+
+    for _, rule := range dn.MatchedRules {
+        pdn.MatchedRules = append(pdn.MatchedRules, matchedRuleToProto(rule))
+    }
+    for _, req := range dn.Requests {
+        pdn.Requests = append(pdn.Requests, dnsEventToProto(&req))
+    }
+    return pdn
+}
+
+func imdsNodeToProtoWithVersionFilter(in *IMDSNode, imageTag string) *adproto.IMDSNode {
+    if in == nil || !in.HasVersion(imageTag) {
+        return nil
+    }
+
+    pin := &adproto.IMDSNode{
+        MatchedRules: make([]*adproto.MatchedRule, 0, len(in.MatchedRules)),
+        ImageTags:    []string{imageTag},  
+        Event:        imdsEventToProto(in.Event),
+    }
+    for _, rule := range in.MatchedRules {
+        pin.MatchedRules = append(pin.MatchedRules, matchedRuleToProto(rule))
+    }
+    return pin
+}
+
+func socketNodeToProtoWithVersionFilter(sn *SocketNode, imageTag string) *adproto.SocketNode {
+    if sn == nil || !sn.HasVersion(imageTag) {
+        return nil
+    }
+
+    psn := &adproto.SocketNode{
+        Family:       sn.Family,
+        Bind:         make([]*adproto.BindNode, 0, len(sn.Bind)),
+    }
+    for _, bn := range sn.Bind {
+		
+        hasImageTag := false
+        for _, tag := range bn.ImageTags {
+            if tag == imageTag {
+                hasImageTag = true
+                break
+            }
+        }
+        if !hasImageTag {
+            continue
+        }
+        
+        pbn := &adproto.BindNode{
+            MatchedRules: make([]*adproto.MatchedRule, 0, len(bn.MatchedRules)),
+            Port:         uint32(bn.Port),
+            Ip:           bn.IP,
+            Protocol:     uint32(bn.Protocol),
+            ImageTags:    []string{imageTag},
+        }
+        for _, rule := range bn.MatchedRules {
+            pbn.MatchedRules = append(pbn.MatchedRules, matchedRuleToProto(rule))
+        }
+        psn.Bind = append(psn.Bind, pbn)
+    }
+
+    return psn
+}
+
+func syscallNodeToProtoWithVersionFilter(sn *SyscallNode, imageTag string) *adproto.SyscallNode {
+    if sn == nil || !sn.HasVersion(imageTag) {
+        return nil
+    }
+
+    return &adproto.SyscallNode{
+        ImageTags: []string{imageTag}, 
+        Syscall:   int32(sn.Syscall),
+    }
+}
+
+func ToProtoWithVersionFilter(at *ActivityTree, imageTag string) []*adproto.ProcessActivityNode {
+	if at == nil {
+		return nil
+	}
+
+	out := make([]*adproto.ProcessActivityNode, 0, len(at.ProcessNodes))
+
+	// Filter process nodes by version
+	for _, pn := range at.ProcessNodes {
+		if pn.HasVersion(imageTag) {
+			out = append(out, processActivityNodeToProtoWithVersionFilter(pn, imageTag))
+		}
+	}
+
+	return out
+}
+
+// processActivityNodeToProtoWithVersionFilter converts a ProcessNode to its protobuf representation with version filtering
+func processActivityNodeToProtoWithVersionFilter(pan *ProcessNode, imageTag string) *adproto.ProcessActivityNode {
+	if pan == nil {
+		return nil
+	}
+
+	ppan := adproto.ProcessActivityNodeFromVTPool()
+	*ppan = adproto.ProcessActivityNode{
+		Process:        processNodeToProto(&pan.Process),
+		GenerationType: adproto.GenerationType(pan.GenerationType),
+		MatchedRules:   make([]*adproto.MatchedRule, 0, len(pan.MatchedRules)),
+		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
+		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
+		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
+		ImdsEvents:     make([]*adproto.IMDSNode, 0, len(pan.IMDSEvents)),
+		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
+		ImageTags:      []string{imageTag},
+		SyscallNodes:   make([]*adproto.SyscallNode, 0, len(pan.Syscalls)),
+		NetworkDevices: make([]*adproto.NetworkDeviceNode, 0, len(pan.NetworkDevices)),
+	}
+
+	for _, rule := range pan.MatchedRules {
+		ppan.MatchedRules = append(ppan.MatchedRules, matchedRuleToProto(rule))
+	}
+
+	// Filter children by version
+	for _, child := range pan.Children {
+		if child.HasVersion(imageTag) {
+			ppan.Children = append(ppan.Children, processActivityNodeToProtoWithVersionFilter(child, imageTag))
+		}
+	}
+
+	// Filter files by version
+	for _, file := range pan.Files {
+		if file.HasVersion(imageTag) {
+			ppan.Files = append(ppan.Files, fileActivityNodeToProtoWithVersionFilter(file, imageTag))
+		}
+	}
+
+	// Filter DNS names by version
+	for _, dns := range pan.DNSNames {
+		if dns.HasVersion(imageTag) {
+			ppan.DnsNames = append(ppan.DnsNames, dnsNodeToProtoWithVersionFilter(dns, imageTag))
+		}
+	}
+
+	// Filter IMDS events by version
+	for _, imds := range pan.IMDSEvents {
+		if imds.HasVersion(imageTag) {
+			ppan.ImdsEvents = append(ppan.ImdsEvents, imdsNodeToProtoWithVersionFilter(imds, imageTag))
+		}
+	}
+
+	// Filter sockets by version
+	for _, socket := range pan.Sockets {
+		if socket.HasVersion(imageTag) {
+			ppan.Sockets = append(ppan.Sockets, socketNodeToProtoWithVersionFilter(socket, imageTag))
+		}
+	}
+
+	// Filter syscalls by version
+	for _, syscall := range pan.Syscalls {
+		if syscall.HasVersion(imageTag) {
+			ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProtoWithVersionFilter(syscall, imageTag))
+		}
+	}
+
+	// Filter network devices by version
+	for _, networkDevice := range pan.NetworkDevices {
+		if networkDevice.HasVersion(imageTag) {
+			ppan.NetworkDevices = append(ppan.NetworkDevices, networkDeviceToProtoWithVersionFilter(networkDevice, imageTag))
+		}
+	}
+
+	return ppan
+}
+
+// networkDeviceToProtoWithVersionFilter converts a NetworkDeviceNode to its protobuf representation with version filtering
+func networkDeviceToProtoWithVersionFilter(device *NetworkDeviceNode, imageTag string) *adproto.NetworkDeviceNode {
+	if device == nil || !device.HasVersion(imageTag) {
+		return nil
+	}
+
+	ndn := &adproto.NetworkDeviceNode{
+		MatchedRules: make([]*adproto.MatchedRule, 0, len(device.MatchedRules)),
+		Netns:        device.Context.NetNS,
+		Ifindex:      device.Context.IfIndex,
+		Ifname:       device.Context.IfName,
+		FlowNodes:    make([]*adproto.FlowNode, 0, len(device.FlowNodes)),
+	}
+
+	for _, rule := range device.MatchedRules {
+		ndn.MatchedRules = append(ndn.MatchedRules, matchedRuleToProto(rule))
+	}
+
+	// Filter flow nodes by version
+	for _, flowNode := range device.FlowNodes {
+		if flowNode.HasVersion(imageTag) {
+			ndn.FlowNodes = append(ndn.FlowNodes, flowNodeToProto(flowNode.Flow, []string{imageTag}))
+		}
+	}
+
+	return ndn
+}
