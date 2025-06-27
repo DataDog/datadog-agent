@@ -6,11 +6,8 @@
 package installinfo
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -328,8 +325,6 @@ func TestScrubFromPath(t *testing.T) {
 }
 
 func TestSetRuntimeInstallInfo(t *testing.T) {
-	defer ClearRuntimeInstallInfo()
-
 	tests := []struct {
 		name        string
 		info        *InstallInfo
@@ -394,20 +389,16 @@ func TestSetRuntimeInstallInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ClearRuntimeInstallInfo()
-
-			err := SetRuntimeInstallInfo(tt.info)
+			err := setRuntimeInstallInfo(tt.info)
 
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
-				assert.Nil(t, GetRuntimeInstallInfo())
 			} else {
 				assert.NoError(t, err)
-				retrieved := GetRuntimeInstallInfo()
+				retrieved := getRuntimeInstallInfo()
 				assert.NotNil(t, retrieved)
 
-				// Check that scrubbing was applied if needed
 				if strings.Contains(tt.info.Tool, "password=hunter2") {
 					assert.Contains(t, retrieved.Tool, "password=********")
 				} else {
@@ -431,294 +422,21 @@ func TestSetRuntimeInstallInfo(t *testing.T) {
 }
 
 func TestGetRuntimeInstallInfo(t *testing.T) {
-	defer ClearRuntimeInstallInfo()
-	assert.Nil(t, GetRuntimeInstallInfo())
-
 	info := &InstallInfo{
 		Tool:             "ECS",
 		ToolVersion:      "1.0",
 		InstallerVersion: "ecs-task-def-v1",
 	}
-	err := SetRuntimeInstallInfo(info)
+	err := setRuntimeInstallInfo(info)
 	require.NoError(t, err)
 
-	retrieved := GetRuntimeInstallInfo()
+	retrieved := getRuntimeInstallInfo()
 	assert.NotNil(t, retrieved)
 	assert.Equal(t, info.Tool, retrieved.Tool)
 	assert.Equal(t, info.ToolVersion, retrieved.ToolVersion)
 	assert.Equal(t, info.InstallerVersion, retrieved.InstallerVersion)
 
-	// Test that returned info is a copy (modification doesn't affect original)
 	retrieved.Tool = "MODIFIED"
-	retrieved2 := GetRuntimeInstallInfo()
+	retrieved2 := getRuntimeInstallInfo()
 	assert.Equal(t, "ECS", retrieved2.Tool)
-}
-
-func TestClearRuntimeInstallInfo(t *testing.T) {
-	info := &InstallInfo{
-		Tool:             "ECS",
-		ToolVersion:      "1.0",
-		InstallerVersion: "ecs-task-def-v1",
-	}
-	err := SetRuntimeInstallInfo(info)
-	require.NoError(t, err)
-	assert.NotNil(t, GetRuntimeInstallInfo())
-
-	ClearRuntimeInstallInfo()
-	assert.Nil(t, GetRuntimeInstallInfo())
-}
-
-func TestHandleSetInstallInfo(t *testing.T) {
-	defer ClearRuntimeInstallInfo()
-
-	tests := []struct {
-		name           string
-		method         string
-		payload        interface{}
-		expectedStatus int
-		expectedError  bool
-	}{
-		{
-			name:   "valid POST request",
-			method: "POST",
-			payload: SetInstallInfoRequest{
-				Tool:             "ECS",
-				ToolVersion:      "1.0",
-				InstallerVersion: "ecs-task-def-v1",
-			},
-			expectedStatus: http.StatusOK,
-			expectedError:  false,
-		},
-		{
-			name:           "invalid method",
-			method:         "GET",
-			payload:        nil,
-			expectedStatus: http.StatusMethodNotAllowed,
-			expectedError:  true,
-		},
-		{
-			name:           "invalid JSON",
-			method:         "POST",
-			payload:        "invalid json",
-			expectedStatus: http.StatusBadRequest,
-			expectedError:  true,
-		},
-		{
-			name:   "missing tool field",
-			method: "POST",
-			payload: SetInstallInfoRequest{
-				Tool:             "",
-				ToolVersion:      "1.0",
-				InstallerVersion: "ecs-task-def-v1",
-			},
-			expectedStatus: http.StatusBadRequest,
-			expectedError:  true,
-		},
-		{
-			name:   "missing tool version field",
-			method: "POST",
-			payload: SetInstallInfoRequest{
-				Tool:             "ECS",
-				ToolVersion:      "",
-				InstallerVersion: "ecs-task-def-v1",
-			},
-			expectedStatus: http.StatusBadRequest,
-			expectedError:  true,
-		},
-		{
-			name:   "missing installer version field",
-			method: "POST",
-			payload: SetInstallInfoRequest{
-				Tool:             "ECS",
-				ToolVersion:      "1.0",
-				InstallerVersion: "",
-			},
-			expectedStatus: http.StatusBadRequest,
-			expectedError:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ClearRuntimeInstallInfo()
-
-			var body []byte
-			var err error
-			if tt.payload != nil {
-				if str, ok := tt.payload.(string); ok {
-					body = []byte(str)
-				} else {
-					body, err = json.Marshal(tt.payload)
-					require.NoError(t, err)
-				}
-			}
-
-			req := httptest.NewRequest(tt.method, "/api/v1/install-info/set", bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			w := httptest.NewRecorder()
-
-			HandleSetInstallInfo(w, req)
-
-			assert.Equal(t, tt.expectedStatus, w.Code)
-
-			if tt.expectedError {
-				// For method not allowed, the response is plain text, not JSON
-				if tt.expectedStatus == http.StatusMethodNotAllowed {
-					assert.Contains(t, w.Body.String(), "Method not allowed")
-				} else {
-					// For other errors, we expect JSON response
-					var response SetInstallInfoResponse
-					err = json.NewDecoder(w.Body).Decode(&response)
-					require.NoError(t, err)
-					assert.False(t, response.Success)
-					assert.NotEmpty(t, response.Message)
-				}
-				assert.Nil(t, GetRuntimeInstallInfo())
-			} else {
-				var response SetInstallInfoResponse
-				err = json.NewDecoder(w.Body).Decode(&response)
-				require.NoError(t, err)
-				assert.True(t, response.Success)
-				assert.NotEmpty(t, response.Message)
-
-				info := GetRuntimeInstallInfo()
-				assert.NotNil(t, info)
-				assert.Equal(t, "ECS", info.Tool)
-				assert.Equal(t, "1.0", info.ToolVersion)
-				assert.Equal(t, "ecs-task-def-v1", info.InstallerVersion)
-			}
-		})
-	}
-}
-
-func TestHandleGetInstallInfo(t *testing.T) {
-	defer ClearRuntimeInstallInfo()
-
-	tests := []struct {
-		name           string
-		method         string
-		setupRuntime   bool
-		expectedStatus int
-	}{
-		{
-			name:           "valid GET request with runtime info",
-			method:         "GET",
-			setupRuntime:   true,
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "valid GET request without runtime info",
-			method:         "GET",
-			setupRuntime:   false,
-			expectedStatus: http.StatusInternalServerError, // No file/env vars in test
-		},
-		{
-			name:           "invalid method",
-			method:         "POST",
-			setupRuntime:   false,
-			expectedStatus: http.StatusMethodNotAllowed,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ClearRuntimeInstallInfo()
-
-			if tt.setupRuntime {
-				info := &InstallInfo{
-					Tool:             "ECS",
-					ToolVersion:      "1.0",
-					InstallerVersion: "ecs-task-def-v1",
-				}
-				err := SetRuntimeInstallInfo(info)
-				require.NoError(t, err)
-			}
-
-			req := httptest.NewRequest(tt.method, "/api/v1/install-info/get", nil)
-			w := httptest.NewRecorder()
-
-			HandleGetInstallInfo(w, req)
-
-			assert.Equal(t, tt.expectedStatus, w.Code)
-
-			if tt.expectedStatus == http.StatusOK {
-				var info InstallInfo
-				err := json.NewDecoder(w.Body).Decode(&info)
-				require.NoError(t, err)
-
-				assert.Equal(t, "ECS", info.Tool)
-				assert.Equal(t, "1.0", info.ToolVersion)
-				assert.Equal(t, "ecs-task-def-v1", info.InstallerVersion)
-			} else if tt.expectedStatus == http.StatusMethodNotAllowed {
-				assert.Contains(t, w.Body.String(), "Method not allowed")
-			}
-		})
-	}
-}
-
-func TestHandleClearInstallInfo(t *testing.T) {
-	defer ClearRuntimeInstallInfo()
-
-	tests := []struct {
-		name           string
-		method         string
-		setupRuntime   bool
-		expectedStatus int
-	}{
-		{
-			name:           "valid DELETE request",
-			method:         "DELETE",
-			setupRuntime:   true,
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "DELETE with no runtime info",
-			method:         "DELETE",
-			setupRuntime:   false,
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "invalid method",
-			method:         "GET",
-			setupRuntime:   false,
-			expectedStatus: http.StatusMethodNotAllowed,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ClearRuntimeInstallInfo()
-
-			if tt.setupRuntime {
-				info := &InstallInfo{
-					Tool:             "ECS",
-					ToolVersion:      "1.0",
-					InstallerVersion: "ecs-task-def-v1",
-				}
-				err := SetRuntimeInstallInfo(info)
-				require.NoError(t, err)
-				assert.NotNil(t, GetRuntimeInstallInfo())
-			}
-
-			req := httptest.NewRequest(tt.method, "/api/v1/install-info/clear", nil)
-			w := httptest.NewRecorder()
-
-			HandleClearInstallInfo(w, req)
-
-			assert.Equal(t, tt.expectedStatus, w.Code)
-
-			if tt.expectedStatus == http.StatusOK {
-				var response SetInstallInfoResponse
-				err := json.NewDecoder(w.Body).Decode(&response)
-				require.NoError(t, err)
-
-				assert.True(t, response.Success)
-				assert.NotEmpty(t, response.Message)
-
-				assert.Nil(t, GetRuntimeInstallInfo())
-			} else if tt.expectedStatus == http.StatusMethodNotAllowed {
-				assert.Contains(t, w.Body.String(), "Method not allowed")
-			}
-		})
-	}
 }

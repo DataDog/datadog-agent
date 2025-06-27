@@ -89,8 +89,8 @@ func Get(conf model.Reader) (*InstallInfo, error) {
 	return getFromPath(GetFilePath(conf))
 }
 
-// SetRuntimeInstallInfo sets the install info at runtime, overriding file and env var values
-func SetRuntimeInstallInfo(info *InstallInfo) error {
+// setRuntimeInstallInfo sets the install info at runtime, overriding file and env var values
+func setRuntimeInstallInfo(info *InstallInfo) error {
 	if info == nil {
 		return fmt.Errorf("install info cannot be nil")
 	}
@@ -114,17 +114,8 @@ func SetRuntimeInstallInfo(info *InstallInfo) error {
 	return nil
 }
 
-// ClearRuntimeInstallInfo clears any runtime override, reverting to env vars or file
-func ClearRuntimeInstallInfo() {
-	runtimeInfoMutex.Lock()
-	defer runtimeInfoMutex.Unlock()
-
-	runtimeInstallInfo = nil
-	log.Info("Runtime install info cleared")
-}
-
-// GetRuntimeInstallInfo returns the current runtime override if set
-func GetRuntimeInstallInfo() *InstallInfo {
+// getRuntimeInstallInfo returns the current runtime override if set
+func getRuntimeInstallInfo() *InstallInfo {
 	return getRuntimeOverride()
 }
 
@@ -250,11 +241,6 @@ func logVersionHistoryToFile(versionHistoryFilePath, installInfoFilePath, agentV
 
 // HandleSetInstallInfo is an HTTP handler for setting install info at runtime
 func HandleSetInstallInfo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost && r.Method != http.MethodPut {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req SetInstallInfoRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid JSON payload: "+err.Error())
@@ -267,7 +253,7 @@ func HandleSetInstallInfo(w http.ResponseWriter, r *http.Request) {
 		InstallerVersion: req.InstallerVersion,
 	}
 
-	if err := SetRuntimeInstallInfo(installInfo); err != nil {
+	if err := setRuntimeInstallInfo(installInfo); err != nil {
 		respondWithError(w, http.StatusBadRequest, "Failed to set install info: "+err.Error())
 		return
 	}
@@ -277,11 +263,6 @@ func HandleSetInstallInfo(w http.ResponseWriter, r *http.Request) {
 
 // HandleGetInstallInfo is an HTTP handler for getting current install info
 func HandleGetInstallInfo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	installInfo, err := Get(pkgconfigsetup.Datadog())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to get install info: "+err.Error())
@@ -294,17 +275,6 @@ func HandleGetInstallInfo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-}
-
-// HandleClearInstallInfo is an HTTP handler for clearing runtime install info override
-func HandleClearInstallInfo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	ClearRuntimeInstallInfo()
-	respondWithSuccess(w, "Runtime install info cleared successfully")
 }
 
 // Helper functions for HTTP responses
