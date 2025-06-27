@@ -19,6 +19,7 @@ from datetime import datetime
 from functools import wraps
 from pathlib import Path
 from subprocess import check_output
+import subprocess
 from types import SimpleNamespace
 
 import requests
@@ -509,16 +510,14 @@ def gitlab_section(section_name, collapsed=False, echo=False):
     try:
         if in_ci:
             collapsed = '[collapsed=true]' if collapsed else ''
-            print(
-                f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name}",
-                flush=True,
-            )
+            subprocess.run(["echo", f"\\e[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\\e[0K{section_name}"], check=True)
+
         elif echo:
             print(color_message(f"> {section_name}...", 'bold'))
         yield
     finally:
         if in_ci:
-            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K", flush=True)
+            subprocess.run(["echo", f"\\e[0Ksection_end:{int(time.time())}:{section_id}\r\\e[0K"], check=True)
 
 
 def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
