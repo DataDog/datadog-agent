@@ -6,6 +6,7 @@
 package remoteagentregistryimpl
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -23,6 +24,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -101,9 +103,11 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 	component := provides.Comp
 
 	remoteAgentServer := &testRemoteAgentServer{
-		StatusMain: map[string]string{
+		StatusJSON: map[string]interface{}{
 			"test_key": "test_value",
 		},
+		StatusText: []byte("test_text_status"),
+		StatusHTML: []byte("<html><body>test_html_status</body></html>"),
 	}
 
 	server, port := buildRemoteAgentServer(t, remoteAgentServer)
@@ -119,11 +123,23 @@ func TestGetRegisteredAgentStatuses(t *testing.T) {
 	_, err := component.RegisterRemoteAgent(registrationData)
 	require.NoError(t, err)
 
-	statuses := component.GetRegisteredAgentStatuses()
-	require.Len(t, statuses, 1)
-	require.Equal(t, "test-agent", statuses[0].AgentID)
-	require.Equal(t, "Test Agent", statuses[0].DisplayName)
-	require.Equal(t, "test_value", statuses[0].MainSection["test_key"])
+	statusProviders := provides.Status.Getter()
+	require.Len(t, statusProviders, 1)
+
+	status := make(map[string]interface{})
+	statusProviders[0].JSON(false, status)
+
+	statusTextWriter := &bytes.Buffer{}
+	err = statusProviders[0].Text(false, statusTextWriter)
+	require.NoError(t, err)
+
+	statusHTMLWriter := &bytes.Buffer{}
+	err = statusProviders[0].HTML(false, statusHTMLWriter)
+	require.NoError(t, err)
+
+	require.Equal(t, remoteAgentServer.StatusJSON, status[registrationData.DisplayName])
+	require.Equal(t, remoteAgentServer.StatusText, statusTextWriter.Bytes())
+	require.Equal(t, remoteAgentServer.StatusHTML, statusHTMLWriter.Bytes())
 }
 
 func TestFlareProvider(t *testing.T) {
@@ -222,10 +238,10 @@ func TestGetTelemetry(t *testing.T) {
 func TestStatusProvider(t *testing.T) {
 	provides, _, _, _ := buildComponent(t)
 	component := provides.Comp
-	statusProvider := provides.Status
+	statusProvider := provides.RARStatus
 
 	remoteAgentServer := &testRemoteAgentServer{
-		StatusMain: map[string]string{
+		StatusJSON: map[string]interface{}{
 			"test_key": "test_value",
 		},
 	}
@@ -247,7 +263,7 @@ func TestStatusProvider(t *testing.T) {
 	err = statusProvider.Provider.JSON(false, statusData)
 	require.NoError(t, err)
 
-	require.Len(t, statusData, 2)
+	require.Len(t, statusData, 1)
 
 	registeredAgents, ok := statusData["registeredAgents"].([]*remoteagent.RegisteredAgent)
 	if !ok {
@@ -255,15 +271,6 @@ func TestStatusProvider(t *testing.T) {
 	}
 	require.Len(t, registeredAgents, 1)
 	require.Equal(t, "Test Agent", registeredAgents[0].DisplayName)
-
-	registeredAgentStatuses, ok := statusData["registeredAgentStatuses"].([]*remoteagent.StatusData)
-	if !ok {
-		t.Fatalf("registeredAgentStatuses is not a slice of StatusData")
-	}
-	require.Len(t, registeredAgentStatuses, 1)
-	require.Equal(t, "test-agent", registeredAgentStatuses[0].AgentID)
-	require.Equal(t, "Test Agent", registeredAgentStatuses[0].DisplayName)
-	require.Equal(t, "test_value", registeredAgentStatuses[0].MainSection["test_key"])
 }
 
 func TestDisabled(t *testing.T) {
@@ -273,7 +280,8 @@ func TestDisabled(t *testing.T) {
 
 	require.Nil(t, provides.Comp)
 	require.Nil(t, provides.FlareProvider.FlareFiller)
-	require.Nil(t, provides.Status.Provider)
+	require.Nil(t, provides.Status.Getter)
+	require.Nil(t, provides.RARStatus.Provider)
 }
 
 func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Component, telemetry.Component) {
@@ -297,26 +305,35 @@ func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides
 }
 
 type testRemoteAgentServer struct {
-	StatusMain  map[string]string
-	StatusNamed map[string]map[string]string
-	FlareFiles  map[string][]byte
-	PromText    string
+	StatusJSON map[string]interface{}
+	StatusText []byte
+	StatusHTML []byte
+	FlareFiles map[string][]byte
+	PromText   string
 	pbgo.UnimplementedRemoteAgentServer
 }
 
-func (t *testRemoteAgentServer) GetStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetStatusDetailsResponse, error) {
-	namedSections := make(map[string]*pbgo.StatusSection)
-	for name, fields := range t.StatusNamed {
-		namedSections[name] = &pbgo.StatusSection{
-			Fields: fields,
-		}
+func (t *testRemoteAgentServer) GetJsonStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetJsonStatusDetailsResponse, error) {
+	// Convert the main section to a protobuf struct
+	pbJSON, err := structpb.NewStruct(t.StatusJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert status main section to struct: %w", err)
 	}
 
-	return &pbgo.GetStatusDetailsResponse{
-		MainSection: &pbgo.StatusSection{
-			Fields: t.StatusMain,
-		},
-		NamedSections: namedSections,
+	return &pbgo.GetJsonStatusDetailsResponse{
+		Value: pbJSON,
+	}, nil
+}
+
+func (t *testRemoteAgentServer) GetTextStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetTextStatusDetailsResponse, error) {
+	return &pbgo.GetTextStatusDetailsResponse{
+		Value: t.StatusText,
+	}, nil
+}
+
+func (t *testRemoteAgentServer) GetHtmlStatusDetails(context.Context, *pbgo.GetStatusDetailsRequest) (*pbgo.GetHtmlStatusDetailsResponse, error) {
+	return &pbgo.GetHtmlStatusDetailsResponse{
+		Value: t.StatusHTML,
 	}, nil
 }
 

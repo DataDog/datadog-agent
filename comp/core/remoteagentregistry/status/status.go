@@ -17,7 +17,6 @@ import (
 // populateStatus populates the status stats
 func populateStatus(registry remoteagentregistry.Component, stats map[string]interface{}) {
 	stats["registeredAgents"] = registry.GetRegisteredAgents()
-	stats["registeredAgentStatuses"] = registry.GetRegisteredAgentStatuses()
 }
 
 //go:embed status_templates

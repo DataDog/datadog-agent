@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -47,7 +48,9 @@ type Requires struct {
 type Provides struct {
 	Comp          remoteagentregistry.Component
 	FlareProvider flaretypes.Provider
-	Status        status.InformationProvider
+	Status        status.DynamicInformationProvider
+	// RARStatus is the status provider for remote agent registry
+	RARStatus status.InformationProvider
 }
 
 // NewComponent creates a new remoteagent component
@@ -62,7 +65,8 @@ func NewComponent(reqs Requires) Provides {
 	return Provides{
 		Comp:          ra,
 		FlareProvider: flaretypes.NewProvider(ra.fillFlare),
-		Status:        status.NewInformationProvider(remoteagentregistryStatus.GetProvider(ra)),
+		Status:        status.NewDynamicInformationProvider(ra.GetRemoteStatusProviders),
+		RARStatus:     status.NewInformationProvider(remoteagentregistryStatus.GetProvider(ra)),
 	}
 }
 
@@ -325,84 +329,6 @@ func (ra *remoteAgentRegistry) GetRegisteredAgents() []*remoteagentregistry.Regi
 	return agents
 }
 
-// GetRegisteredAgentStatuses returns the status of all registered remote agents.
-func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []*remoteagentregistry.StatusData {
-	queryTimeout := ra.getQueryTimeout()
-
-	ra.agentMapMu.Lock()
-
-	agentsLen := len(ra.agentMap)
-	statusMap := make(map[string]*remoteagentregistry.StatusData, agentsLen)
-	agentStatuses := make([]*remoteagentregistry.StatusData, 0, agentsLen)
-
-	// Return early if we have no registered remote agents.
-	if agentsLen == 0 {
-		ra.agentMapMu.Unlock()
-		return agentStatuses
-	}
-
-	// We preload the status map with a response that indicates timeout, since we want to ensure there's an entry for
-	// every registered remote agent even if we don't get a response back (whether good or bad) from them.
-	for agentID, details := range ra.agentMap {
-		statusMap[agentID] = &remoteagentregistry.StatusData{
-			AgentID:       agentID,
-			DisplayName:   details.displayName,
-			FailureReason: fmt.Sprintf("Timed out after waiting %s for response.", queryTimeout),
-		}
-	}
-
-	data := make(chan *remoteagentregistry.StatusData, agentsLen)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	for agentID, details := range ra.agentMap {
-		displayName := details.displayName
-
-		go func() {
-			// We push any errors into "failure reason" which ends up getting shown in the status details.
-			resp, err := details.client.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
-			if err != nil {
-				data <- &remoteagentregistry.StatusData{
-					AgentID:       agentID,
-					DisplayName:   displayName,
-					FailureReason: fmt.Sprintf("Failed to query for status: %v", err),
-				}
-				return
-			}
-
-			data <- raproto.ProtobufToStatusData(agentID, displayName, resp)
-		}()
-	}
-
-	ra.agentMapMu.Unlock()
-
-	timeout := time.After(queryTimeout)
-	responsesRemaining := agentsLen
-
-collect:
-	for {
-		select {
-		case statusData := <-data:
-			statusMap[statusData.AgentID] = statusData
-			responsesRemaining--
-		case <-timeout:
-			break collect
-		default:
-			if responsesRemaining == 0 {
-				break collect
-			}
-		}
-	}
-
-	// Migrate the final status data from the map into our slice, for easier consumption.
-	for _, statusData := range statusMap {
-		agentStatuses = append(agentStatuses, statusData)
-	}
-
-	return agentStatuses
-}
-
 func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) error {
 	queryTimeout := ra.getQueryTimeout()
 
@@ -445,6 +371,11 @@ collect:
 	for {
 		select {
 		case flareData := <-data:
+			if flareData == nil {
+				// If we got a nil flareData, it means we had an error querying the remote agent, so we skip it.
+				responsesRemaining--
+				continue
+			}
 			flareMap[flareData.AgentID] = flareData
 			responsesRemaining--
 		case <-timeout:
@@ -470,6 +401,105 @@ collect:
 		}
 	}
 
+	return nil
+}
+
+func (ra *remoteAgentRegistry) getRemoteAgent(agentID string) (*remoteAgentDetails, error) {
+	ra.agentMapMu.Lock()
+	defer ra.agentMapMu.Unlock()
+
+	agentID = util.SanitizeAgentID(agentID)
+	details, ok := ra.agentMap[agentID]
+	if !ok {
+		return nil, fmt.Errorf("remote agent '%s' not found", agentID)
+	}
+
+	return details, nil
+}
+
+func (ra *remoteAgentRegistry) GetRemoteStatusProviders() []status.Provider {
+	ra.agentMapMu.Lock()
+	defer ra.agentMapMu.Unlock()
+
+	providers := []status.Provider{}
+	for indexID, details := range ra.agentMap {
+		providers = append(providers, &remoteAgentStatus{
+			name:              details.displayName,
+			remoteAgentGetter: func() (*remoteAgentDetails, error) { return ra.getRemoteAgent(indexID) },
+			queryTimeout:      ra.getQueryTimeout(),
+		})
+	}
+
+	return providers
+}
+
+type remoteAgentStatus struct {
+	name              string
+	remoteAgentGetter func() (*remoteAgentDetails, error)
+	queryTimeout      time.Duration
+}
+
+func (ra *remoteAgentStatus) Name() string {
+	return ra.name
+}
+
+func (ra *remoteAgentStatus) Section() string {
+	return ra.name
+}
+
+func (ra *remoteAgentStatus) JSON(_ bool, stats map[string]interface{}) error {
+	agent, err := ra.remoteAgentGetter()
+	if err != nil {
+		return fmt.Errorf("failed to get remote agent details: %w", err)
+	}
+
+	contextTimeout, cancel := context.WithTimeout(context.Background(), ra.queryTimeout)
+	defer cancel()
+
+	resp, err := agent.client.GetJsonStatusDetails(contextTimeout, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
+	if err != nil {
+		return err
+	}
+
+	stats[ra.name] = resp.Value.AsMap()
+
+	return nil
+
+}
+
+func (ra *remoteAgentStatus) Text(_ bool, buffer io.Writer) error {
+	agent, err := ra.remoteAgentGetter()
+	if err != nil {
+		return fmt.Errorf("failed to get remote agent details: %w", err)
+	}
+
+	contextTimeout, cancel := context.WithTimeout(context.Background(), ra.queryTimeout)
+	defer cancel()
+
+	resp, err := agent.client.GetTextStatusDetails(contextTimeout, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
+	if err != nil {
+		return err
+	}
+
+	buffer.Write(resp.Value)
+	return nil
+}
+
+func (ra *remoteAgentStatus) HTML(_ bool, buffer io.Writer) error {
+	agent, err := ra.remoteAgentGetter()
+	if err != nil {
+		return fmt.Errorf("failed to get remote agent details: %w", err)
+	}
+
+	contextTimeout, cancel := context.WithTimeout(context.Background(), ra.queryTimeout)
+	defer cancel()
+
+	resp, err := agent.client.GetHtmlStatusDetails(contextTimeout, &pb.GetStatusDetailsRequest{}, grpc.WaitForReady(true))
+	if err != nil {
+		return err
+	}
+
+	buffer.Write(resp.Value)
 	return nil
 }
 

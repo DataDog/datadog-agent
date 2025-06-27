@@ -24,6 +24,7 @@ import (
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -35,20 +36,41 @@ type remoteAgentServer struct {
 	pbcore.UnimplementedRemoteAgentServer
 }
 
-func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+func (s *remoteAgentServer) GetJsonStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetJsonStatusDetailsResponse, error) {
 	log.Printf("Got request for status details: %v", req)
 
-	fields := make(map[string]string)
-	fields["Started"] = s.started.Format(time.RFC3339)
-	fields["Version"] = "1.0.0"
+	status := make(map[string]interface{})
+	status["Started"] = s.started.Format(time.RFC3339)
+	status["Version"] = "1.0.0"
 
-	return &pbcore.GetStatusDetailsResponse{
-		MainSection: &pbcore.StatusSection{
-			Fields: fields,
-		},
-		NamedSections: make(map[string]*pbcore.StatusSection),
+	pbStruct, err := structpb.NewStruct(status)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create struct for status details: %v", err)
+	}
+
+	return &pbcore.GetJsonStatusDetailsResponse{
+		Value: pbStruct,
 	}, nil
+}
 
+func (s *remoteAgentServer) GetTextStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetTextStatusDetailsResponse, error) {
+	log.Printf("Got request for text status details: %v", req)
+
+	status := fmt.Sprintf("Started: %s\nVersion: %s\n", s.started.Format(time.RFC3339), "1.0.0")
+
+	return &pbcore.GetTextStatusDetailsResponse{
+		Value: []byte(status),
+	}, nil
+}
+
+func (s *remoteAgentServer) GetHtmlStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetHtmlStatusDetailsResponse, error) {
+	log.Printf("Got request for HTML status details: %v", req)
+
+	status := fmt.Sprintf("<html><body><h1>Status</h1><p>Started: %s</p><p>Version: %s</p></body></html>", s.started.Format(time.RFC3339), "1.0.0")
+
+	return &pbcore.GetHtmlStatusDetailsResponse{
+		Value: []byte(status),
+	}, nil
 }
 
 func (s *remoteAgentServer) GetFlareFiles(_ context.Context, req *pbcore.GetFlareFilesRequest) (*pbcore.GetFlareFilesResponse, error) {

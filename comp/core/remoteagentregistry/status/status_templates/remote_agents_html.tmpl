@@ -15,34 +15,4 @@
         {{- end }}
     {{ end }}
   </span>
-    {{- with .registeredAgentStatuses }}
-        {{- range $agentStatus := . }}
-            {{- with $agentStatus }}
-                <span class="stat_title">
-                    {{ .DisplayName }}
-                </span>
-            <span class="stat_subdata">
-                {{ if .FailureReason }}
-                    Failure: {{ .FailureReason }}
-                {{ end }}
-                {{- if .MainSection }}
-                        {{ range $key, $value := .MainSection -}}
-                            {{ $key }}: {{ $value }} <br>
-                        {{ end }}
-                {{- end }}
-
-                {{- if .NamedSections }}
-                    {{- range $sectionName, $section := .NamedSections }}
-                            {{ $sectionName }}: <br>
-                            <ul>
-                                {{- range $key, $value := $section }}
-                                    <li> {{ $key }}: {{ $value }}
-                                {{- end }}
-                            </ul>
-                    {{ end }}
-                {{- end }}
-            </span>
-            {{- end }}
-        {{- end }}
-    {{- end -}}
 </div>
