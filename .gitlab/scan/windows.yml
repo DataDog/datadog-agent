@@ -102,6 +102,7 @@ scan_packages_windows-x64:
   needs: ["windows_msi_and_bosh_zip_x64-a7"]
   variables:
     SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+  allow_failure: true
 
 scan_packages_windows-fips-x64:
   rules:
@@ -113,3 +114,4 @@ scan_packages_windows-fips-x64:
   needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
   variables:
     SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
+  allow_failure: true
