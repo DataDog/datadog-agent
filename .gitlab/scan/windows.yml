@@ -9,6 +9,13 @@
   script:
     # TODO: Put that in the buildimage
     - curl -L -o vt-cli.zip "https://github.com/VirusTotal/vt-cli/releases/download/1.1.1/Linux64.zip"
+    - |
+      echo "82107394601c5669771be1f11d2ceb2f13f4117d72a3e6346b4ed13a6f10878c vt-cli.zip" > vt-cli.zip.sha256
+      sha256sum -c vt-cli.zip.sha256
+      if [ $? -ne 0 ]; then
+        echo "vt-cli.zip checksum verification failed!" >&2
+        exit 1
+      fi
     - unzip vt-cli.zip
     - chmod +x vt
     - ./vt version
@@ -28,11 +35,18 @@
       print_report() {
         ./vt --apikey "$VT_API_KEY" file "$SHA256" --format json | jq '
         .[0] | {
-          last_analysis_results: (
+          malicious_matches: (
             .last_analysis_results
             | to_entries
             | map(select(.value.category=="malicious")
-              | "\(.value.engine_name) (\(.value.engine_version // "N/A") - \(.value.engine_update)) -> malicious: \(.value.result)"
+              | "\(.value.engine_name) (\(.value.engine_version // \"N/A\") - \(.value.engine_update)) -> malicious: \(.value.result)"
+            )
+          ),
+          suspicious_matches: (
+            .last_analysis_results
+            | to_entries
+            | map(select(.value.category=="suspicious")
+              | "\(.value.engine_name) (\(.value.engine_version // \"N/A\") - \(.value.engine_update)) -> suspicious: \(.value.result)"
             )
           ),
           metadata: {
@@ -80,6 +94,8 @@
 
 scan_packages_windows-x64:
   rules:
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.on_main]
     - !reference [.except_mergequeue]
     - when: on_success
   extends: .scan_windows_package
@@ -87,35 +103,13 @@ scan_packages_windows-x64:
   variables:
     SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
 
-scan_nightly_packages_windows-x64:
+scan_packages_windows-fips-x64:
   rules:
-    !reference [.on_deploy_nightly_repo_branch]
-  extends: .scan_windows_package
-  needs: ["windows_msi_and_bosh_zip_x64-a7"]
-  variables:
-    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
-
-scan_nightly_packages_fips_windows-x64:
-  rules:
-    !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.on_main]
+    - !reference [.except_mergequeue]
+    - when: on_success
   extends: .scan_windows_package
   needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
   variables:
     SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
-
-scan_main_packages_windows-x64:
-  rules:
-    !reference [.on_main]
-  extends: .scan_windows_package
-  needs: ["windows_msi_and_bosh_zip_x64-a7"]
-  variables:
-    SCAN_ARTIFACT_PATTERN: "datadog-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
-
-scan_main_packages_fips_windows-x64:
-  rules:
-    !reference [.on_main]
-  extends: .scan_windows_package
-  needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
-  variables:
-    SCAN_ARTIFACT_PATTERN: "datadog-fips-agent-*pipeline.${CI_PIPELINE_ID}-*.msi"
-
