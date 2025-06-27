@@ -71,8 +71,13 @@ def build(
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
+    cover = ""
+    if os.getenv("E2E_COVERAGE_PIPELINE") == "true":
+        build_tags.append("e2ecoverage")
+        cover = "-cover"
+
     # TODO static option
-    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" {cover} '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/process-agent'
 
     args = {
@@ -84,6 +89,7 @@ def build(
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
+        "cover": cover,
     }
 
     ctx.run(cmd.format(**args), env=env)

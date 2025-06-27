@@ -597,7 +597,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.59.0-rc.6
-	github.com/DataDog/datadog-agent/pkg/api v0.63.0
+	github.com/DataDog/datadog-agent/pkg/api v0.67.0
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.66.1
 	github.com/DataDog/datadog-agent/pkg/config/create v0.66.1
 	github.com/DataDog/datadog-agent/pkg/config/env v0.66.1
