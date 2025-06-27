@@ -78,6 +78,7 @@ type remoteAgentServer struct {
 }
 
 func (s *remoteAgentServer) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	log.Printf("GetStatusDetails called at %s", time.Now().Format(time.RFC3339))
 	return &pbcore.GetStatusDetailsResponse{
 		MainSection: &pbcore.StatusSection{
 			Fields: s.remoteAgentParams.StatusCallback(),
@@ -124,6 +125,7 @@ func (r *remoteAgent) buildAndSpawnGrpcServer(server pbcore.RemoteAgentServer) {
 	pbcore.RegisterRemoteAgentServer(grpcServer, server)
 
 	go func() {
+		log.Printf("Starting remote agent gRPC server on %s", r.params.Endpoint)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
@@ -140,7 +142,6 @@ func (r *remoteAgent) start(ctx context.Context) {
 			return
 
 		case <-ticker.C:
-
 			registrationContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 

@@ -8,6 +8,8 @@ package run
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -20,6 +22,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
@@ -36,6 +39,7 @@ import (
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -109,7 +113,40 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
-		remoteagentfx.Module(remoteagent.Params{}),
+		remoteagentfx.Module(remoteagent.Params{
+			ID:          "trace-agent",
+			DisplayName: "Trace Agent",
+			Endpoint:    "localhost:3459",
+			AuthToken:   "hello-world",
+			FlareCallback: func() map[string][]byte {
+				return map[string][]byte{}
+			},
+			StatusCallback: func() map[string]string {
+				port := pkgconfigsetup.Datadog().GetInt("apm_config.debug.port")
+
+				url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
+				httpClient := ipchttp.NewClient("", &tls.Config{}, pkgconfigsetup.Datadog())
+				resp, err := httpClient.Get(url, ipchttp.WithCloseConnection)
+				if err != nil {
+					return map[string]string{
+						"status": "not running",
+						"error":  err.Error(),
+					}
+				}
+				status := make(map[string]string)
+				if err := json.Unmarshal(resp, &status); err != nil {
+					return map[string]string{
+						"status": "running",
+						"error":  err.Error(),
+					}
+				}
+
+				return status
+			},
+			TelemetryCallback: func() string {
+				return ""
+			},
+		}),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
 	)
