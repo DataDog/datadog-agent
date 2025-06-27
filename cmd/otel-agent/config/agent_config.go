@@ -153,8 +153,8 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.Set("site", ddc.API.Site, pkgconfigmodel.SourceFile)
 
 	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
-	if ddc.ClientConfig.TLSSetting.InsecureSkipVerify {
-		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceFile)
+	if ddc.ClientConfig.TLS.InsecureSkipVerify {
+		pkgconfig.Set("skip_ssl_validation", ddc.ClientConfig.TLS.InsecureSkipVerify, pkgconfigmodel.SourceFile)
 	}
 
 	// Log configs
