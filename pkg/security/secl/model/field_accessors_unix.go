@@ -74,7 +74,7 @@ func (ev *Event) GetExitCode() uint32 {
 
 // GetMountMountpointPath returns the value of the field, resolving if necessary
 func (ev *Event) GetMountMountpointPath() string {
-	if ev.GetEventType().String() != "mount" {
+	if ev.GetEventType().String() != "mount" && ev.GetEventType().String() != "detached_mount" {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveMountPointPath(ev, &ev.Mount)

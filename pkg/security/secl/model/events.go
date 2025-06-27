@@ -185,6 +185,8 @@ func (t EventType) String() string {
 		return "utimes"
 	case FileMountEventType:
 		return "mount"
+	case DetachedMountEventType:
+		return "detached_mount"
 	case FileUmountEventType:
 		return "umount"
 	case FileSetXAttrEventType:
