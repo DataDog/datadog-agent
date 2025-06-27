@@ -12,35 +12,35 @@ import (
 )
 
 func TestPipelineMonitorTracksCorrectCapacity(t *testing.T) {
-	pm := NewTelemetryPipelineMonitor("test")
+	pm := NewTelemetryPipelineMonitor()
 
-	pm.ReportComponentIngress(mockPayload{count: 1, size: 1}, "1")
-	pm.ReportComponentIngress(mockPayload{count: 5, size: 5}, "5")
-	pm.ReportComponentIngress(mockPayload{count: 10, size: 10}, "10")
+	pm.ReportComponentIngress(mockPayload{count: 1, size: 1}, "1", "test")
+	pm.ReportComponentIngress(mockPayload{count: 5, size: 5}, "5", "test")
+	pm.ReportComponentIngress(mockPayload{count: 10, size: 10}, "10", "test")
 
-	assert.Equal(t, pm.getMonitor("1").ingress, int64(1))
-	assert.Equal(t, pm.getMonitor("1").ingressBytes, int64(1))
+	assert.Equal(t, pm.getMonitor("1", "test").ingress, int64(1))
+	assert.Equal(t, pm.getMonitor("1", "test").ingressBytes, int64(1))
 
-	assert.Equal(t, pm.getMonitor("5").ingress, int64(5))
-	assert.Equal(t, pm.getMonitor("5").ingressBytes, int64(5))
+	assert.Equal(t, pm.getMonitor("5", "test").ingress, int64(5))
+	assert.Equal(t, pm.getMonitor("5", "test").ingressBytes, int64(5))
 
-	assert.Equal(t, pm.getMonitor("10").ingress, int64(10))
-	assert.Equal(t, pm.getMonitor("10").ingressBytes, int64(10))
+	assert.Equal(t, pm.getMonitor("10", "test").ingress, int64(10))
+	assert.Equal(t, pm.getMonitor("10", "test").ingressBytes, int64(10))
 
-	pm.ReportComponentEgress(mockPayload{count: 1, size: 1}, "1")
-	pm.ReportComponentEgress(mockPayload{count: 5, size: 5}, "5")
-	pm.ReportComponentEgress(mockPayload{count: 10, size: 10}, "10")
+	pm.ReportComponentEgress(mockPayload{count: 1, size: 1}, "1", "test")
+	pm.ReportComponentEgress(mockPayload{count: 5, size: 5}, "5", "test")
+	pm.ReportComponentEgress(mockPayload{count: 10, size: 10}, "10", "test")
 
-	assert.Equal(t, pm.getMonitor("1").egress, int64(1))
-	assert.Equal(t, pm.getMonitor("1").egressBytes, int64(1))
+	assert.Equal(t, pm.getMonitor("1", "test").egress, int64(1))
+	assert.Equal(t, pm.getMonitor("1", "test").egressBytes, int64(1))
 
-	assert.Equal(t, pm.getMonitor("5").egress, int64(5))
-	assert.Equal(t, pm.getMonitor("5").egressBytes, int64(5))
+	assert.Equal(t, pm.getMonitor("5", "test").egress, int64(5))
+	assert.Equal(t, pm.getMonitor("5", "test").egressBytes, int64(5))
 
-	assert.Equal(t, pm.getMonitor("10").egress, int64(10))
-	assert.Equal(t, pm.getMonitor("10").egressBytes, int64(10))
+	assert.Equal(t, pm.getMonitor("10", "test").egress, int64(10))
+	assert.Equal(t, pm.getMonitor("10", "test").egressBytes, int64(10))
 
-	assert.Equal(t, pm.getMonitor("1").ingress-pm.getMonitor("1").egress, int64(0))
-	assert.Equal(t, pm.getMonitor("5").ingress-pm.getMonitor("5").egress, int64(0))
-	assert.Equal(t, pm.getMonitor("10").ingress-pm.getMonitor("10").egress, int64(0))
+	assert.Equal(t, pm.getMonitor("1", "test").ingress-pm.getMonitor("1", "test").egress, int64(0))
+	assert.Equal(t, pm.getMonitor("5", "test").ingress-pm.getMonitor("5", "test").egress, int64(0))
+	assert.Equal(t, pm.getMonitor("10", "test").ingress-pm.getMonitor("10", "test").egress, int64(0))
 }

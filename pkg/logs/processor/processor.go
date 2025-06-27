@@ -45,6 +45,7 @@ type Processor struct {
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
+	instanceID      string
 }
 
 type sdsProcessor struct {
@@ -63,7 +64,7 @@ type sdsProcessor struct {
 // New returns an initialized Processor.
 func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
-	pipelineMonitor metrics.PipelineMonitor) *Processor {
+	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
 	waitForSDSConfig := sds.ShouldBufferUntilSDSConfiguration(cfg)
 	maxBufferSize := sds.WaitForConfigurationBufferMaxSize(cfg)
@@ -78,13 +79,14 @@ func New(cfg pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
 		pipelineMonitor:           pipelineMonitor,
-		utilization:               pipelineMonitor.MakeUtilizationMonitor("processor"),
+		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
+		instanceID:                instanceID,
 
 		sds: sdsProcessor{
 			// will immediately starts buffering if it has been configured as so
 			buffering:     waitForSDSConfig,
 			maxBufferSize: maxBufferSize,
-			scanner:       sds.CreateScanner(pipelineMonitor.ID()),
+			scanner:       sds.CreateScanner(instanceID),
 		},
 	}
 }
@@ -225,7 +227,7 @@ func (s *sdsProcessor) resetBuffer() {
 func (p *Processor) processMessage(msg *message.Message) {
 	p.utilization.Start()
 	defer p.utilization.Stop()
-	defer p.pipelineMonitor.ReportComponentEgress(msg, "processor")
+	defer p.pipelineMonitor.ReportComponentEgress(msg, metrics.ProcessorTlmName, p.instanceID)
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
 
@@ -252,7 +254,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
 		p.outputChan <- msg
-		p.pipelineMonitor.ReportComponentIngress(msg, "strategy")
+		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
 	}
 
 }

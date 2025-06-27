@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"fmt"
 	"sync"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -107,7 +108,7 @@ func (s *serverlessMetaImpl) IsEnabled() bool {
 }
 
 // DestinationFactory used to generate client destinations on each call.
-type DestinationFactory func() *client.Destinations
+type DestinationFactory func(id string) *client.Destinations
 
 // NewSender returns a new sender.
 func NewSender(
@@ -130,18 +131,20 @@ func NewSender(
 	}
 
 	queues := make([]chan *message.Payload, queueCount)
-	for idx := range queueCount {
+	for qidx := range queueCount {
 		// Payloads are large, so the buffer will only hold one per worker
-		queues[idx] = make(chan *message.Payload, workersPerQueue)
-		for range workersPerQueue {
+		queues[qidx] = make(chan *message.Payload, workersPerQueue)
+		for widx := range workersPerQueue {
+			workerID := fmt.Sprintf("q%ds%d", qidx, widx)
 			worker := newWorker(
 				config,
-				queues[idx],
+				queues[qidx],
 				sink,
-				destinationFactory(),
+				destinationFactory,
 				bufferSize,
 				serverlessMeta,
 				pipelineMonitor,
+				workerID,
 			)
 			workers = append(workers, worker)
 		}

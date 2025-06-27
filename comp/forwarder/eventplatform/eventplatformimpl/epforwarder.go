@@ -459,7 +459,8 @@ func newHTTPPassthroughPipeline(
 	if desc.contentType == logshttp.ProtobufContentType {
 		strategy = sender.NewStreamStrategy(inputChan, senderImpl.In(), encoder)
 	} else {
-		strategy = sender.NewBatchStrategy(inputChan,
+		strategy = sender.NewBatchStrategy(
+			inputChan,
 			senderImpl.In(),
 			make(chan struct{}),
 			serverlessMeta,
@@ -469,7 +470,9 @@ func newHTTPPassthroughPipeline(
 			endpoints.BatchMaxContentSize,
 			desc.eventType,
 			encoder,
-			pipelineMonitor)
+			pipelineMonitor,
+			"0",
+		)
 	}
 
 	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d, compression_kind=%s, compression_level=%d",
