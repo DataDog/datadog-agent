@@ -99,7 +99,7 @@ instances:
 	}
 	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
-		if testCase.onlyLinux && v.descriptor.Family() == e2eos.WindowsFamily {
+		if testCase.onlyLinux && v.descriptor.Family() != e2eos.LinuxFamily {
 			continue
 		}
 
