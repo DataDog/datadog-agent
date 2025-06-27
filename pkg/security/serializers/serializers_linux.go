@@ -554,12 +554,13 @@ type SyscallArgsSerializer struct {
 type SetSockOptEventSerializer struct {
 	// Socket file descriptor
 	SocketType uint16 `json:"socket_type"`
-	// Socket protocol
-	SocketProtocol uint16 `json:"socket_protocol"`
 	// Socket family
 	SocketFamily uint16 `json:"socket_family"`
 	// Length of the filter
 	FilterLen uint16 `json:"filter_len,omitempty"`
+	// Socket protocol
+	SocketProtocol uint16 `json:"socket_protocol"`
+
 	// Level at which the option is defined
 	Level uint32 `json:"level"`
 	// Name of the option being set

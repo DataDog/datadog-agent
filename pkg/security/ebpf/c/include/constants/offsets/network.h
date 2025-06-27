@@ -23,14 +23,12 @@ __attribute__((always_inline)) u16 get_skc_num_from_sock_common(struct sock_comm
 __attribute__((always_inline)) u16 get_protocol_from_sock(struct sock *sk) {
     u64 sock_sk_protocol_offset;
     LOAD_CONSTANT("sock_sk_protocol_offset", sock_sk_protocol_offset);
-    if (sock_sk_protocol_offset == 0) {
-        LOAD_CONSTANT("sock_sk_txhash_offset", sock_sk_protocol_offset);
-        sock_sk_protocol_offset += 9; // sk_protocol is 5 bytes after sk_txhash in a bitfield
-    }
     u16 protocol = 0;
-    if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset < sizeof(struct sock)) {
-        bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);    }
-    return protocol;
+    if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset + sizeof(protocol) < sizeof(struct sock)) {
+        bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);
+        }
+        return protocol & 0xff;
+    return 444; // Default value if protocol cannot be determined
 
 }
 

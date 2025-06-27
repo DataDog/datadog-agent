@@ -1730,10 +1730,6 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "integer",
                     "description": "Socket file descriptor"
                 },
-                "socket_protocol": {
-                    "type": "integer",
-                    "description": "Socket protocol"
-                },
                 "socket_family": {
                     "type": "integer",
                     "description": "Socket family"
@@ -1741,6 +1737,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "filter_len": {
                     "type": "integer",
                     "description": "Length of the filter"
+                },
+                "socket_protocol": {
+                    "type": "integer",
+                    "description": "Socket protocol"
                 },
                 "level": {
                     "type": "integer",
@@ -1767,8 +1767,8 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "required": [
                 "socket_type",
-                "socket_protocol",
                 "socket_family",
+                "socket_protocol",
                 "level",
                 "optname"
             ],
@@ -4760,10 +4760,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "integer",
             "description": "Socket file descriptor"
         },
-        "socket_protocol": {
-            "type": "integer",
-            "description": "Socket protocol"
-        },
         "socket_family": {
             "type": "integer",
             "description": "Socket family"
@@ -4771,6 +4767,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "filter_len": {
             "type": "integer",
             "description": "Length of the filter"
+        },
+        "socket_protocol": {
+            "type": "integer",
+            "description": "Socket protocol"
         },
         "level": {
             "type": "integer",
@@ -4797,8 +4797,8 @@ Workload Protection events for Linux systems have the following JSON schema:
     "type": "object",
     "required": [
         "socket_type",
-        "socket_protocol",
         "socket_family",
+        "socket_protocol",
         "level",
         "optname"
     ],
@@ -4810,9 +4810,9 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `socket_type` | Socket file descriptor |
-| `socket_protocol` | Socket protocol |
 | `socket_family` | Socket family |
 | `filter_len` | Length of the filter |
+| `socket_protocol` | Socket protocol |
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
 | `is_filter_truncated` | Filter truncated |
