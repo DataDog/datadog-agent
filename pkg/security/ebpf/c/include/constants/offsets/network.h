@@ -23,14 +23,33 @@ __attribute__((always_inline)) u16 get_skc_num_from_sock_common(struct sock_comm
 __attribute__((always_inline)) u16 get_protocol_from_sock(struct sock *sk) {
     u64 sock_sk_protocol_offset;
     LOAD_CONSTANT("sock_sk_protocol_offset", sock_sk_protocol_offset);
-    if (sock_sk_protocol_offset == 0) {
-        LOAD_CONSTANT("sock_sk_txhash_offset", sock_sk_protocol_offset);
-        sock_sk_protocol_offset += 9; // sk_protocol is 5 bytes after sk_txhash in a bitfield
-    }
-    u16 protocol = 0;
+    unsigned int protocol = 0;
+    if (sock_sk_protocol_offset > 0) {
     if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset < sizeof(struct sock)) {
         bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);    }
     return protocol;
+    }
+    // Fallback offset: based on known layout (txhash + 4) = start of bitfield group
+    else if (sock_sk_protocol_offset == 0) {
+        LOAD_CONSTANT("sock_sk_txhash_offset", sock_sk_protocol_offset);
+        sock_sk_protocol_offset += 4;  // bitfield container (unsigned int) is at offset +4 from txhash
+    
+
+    unsigned int flags = 0;
+    if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset + sizeof(flags) < sizeof(struct sock)) {
+        bpf_probe_read(&flags, sizeof(flags), (void *)sk + sock_sk_protocol_offset);
+
+#ifdef __BIG_ENDIAN_BITFIELD
+        #define SK_FL_PROTO_MASK 0x00ff0000
+        #define SK_FL_PROTO_SHIFT 16
+#else
+        #define SK_FL_PROTO_MASK 0x0000ff00
+        #define SK_FL_PROTO_SHIFT 8
+#endif
+        return (flags & SK_FL_PROTO_MASK) >> SK_FL_PROTO_SHIFT;
+    }
+}
+    return 0; // Default value if protocol cannot be determined
 
 }
 

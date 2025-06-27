@@ -549,14 +549,15 @@ struct setsockopt_event_t {
     struct container_context_t container;
     struct syscall_t syscall;
 
-    short socket_type;
-    u16 socket_protocol; // socket protocol
-    u16 socket_family;
-    unsigned short filter_len;
+    short socket_type; //2
+    u16 socket_family; // 2
+    unsigned short filter_len; //2
+    
+    unsigned int socket_protocol; // 4
     int level;
     int optname;
-    u32 truncated;
-    int sent_size;
+    u32 truncated; 
+    int sent_size; 
     char bpf_filters_buffer[MAX_BPF_FILTER_SIZE];
 };
 

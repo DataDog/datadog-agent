@@ -266,7 +266,7 @@ struct syscall_cache_t {
 
         struct {
             short socket_type;
-            u16 socket_protocol;
+            unsigned int socket_protocol;
             u16 socket_family;
             unsigned short filter_len;
             u16 filter_size_to_send;

@@ -47875,10 +47875,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "setsockopt.socket_protocol"}
 		}
-		if rv < 0 || rv > math.MaxUint16 {
-			return &eval.ErrValueOutOfRange{Field: "setsockopt.socket_protocol"}
-		}
-		ev.SetSockOpt.SocketProtocol = uint16(rv)
+		ev.SetSockOpt.SocketProtocol = uint32(rv)
 		return nil
 	case "setsockopt.socket_type":
 		rv, ok := value.(int)
