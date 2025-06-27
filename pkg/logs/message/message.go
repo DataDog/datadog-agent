@@ -381,6 +381,19 @@ func (m *MessageMetadata) Size() int64 {
 	return int64(m.RawDataLen)
 }
 
+// RecordProcessingRule records the application of a processing rule to a message.
+func (m *MessageMetadata) RecordProcessingRule(ruleType string, ruleName string) {
+	if m.Origin != nil && m.Origin.LogSource != nil {
+		m.Origin.LogSource.ProcessingInfo.Inc(ruleType + ":" + ruleName)
+	} else {
+		nilSource := "LogSource"
+		if m.Origin == nil {
+			nilSource = "Origin"
+		}
+		log.Debugf("Unable to record processing rule: %s is nil", nilSource)
+	}
+}
+
 // TruncatedReasonTag returns a tag with the reason for truncation.
 func TruncatedReasonTag(reason string) string {
 	return fmt.Sprintf("truncated:%s", reason)
