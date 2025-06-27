@@ -20,6 +20,60 @@ __attribute__((always_inline)) u16 get_skc_num_from_sock_common(struct sock_comm
     bpf_probe_read(&skc_num, sizeof(skc_num), (void *)sk + sock_common_skc_num_offset);
     return htons(skc_num);
 }
+__attribute__((always_inline)) unsigned int get_protocol_from_sock(struct sock *sk) {
+    u64 sock_sk_protocol_offset;
+    LOAD_CONSTANT("sock_sk_protocol_offset", sock_sk_protocol_offset);
+    unsigned int protocol = 0;
+
+    if (sock_sk_protocol_offset > 0) {
+        if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset < sizeof(struct sock)) {
+            //DEBUG
+            bpf_printk("sock_sk_protocol_offset: %llu, sk: %p\n", sock_sk_protocol_offset, sk);
+
+            bpf_probe_read(&protocol, sizeof(protocol), (void *)sk + sock_sk_protocol_offset);    }
+            // TEST
+    unsigned int flags_t = 0;
+    if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset + sizeof(flags_t) < sizeof(struct sock)) {
+        bpf_probe_read(&flags_t, sizeof(flags_t), (void *)sk + sock_sk_protocol_offset);
+           bpf_printk("flags_t: %u, sk: %p\n", flags_t, sk); 
+    #ifdef __BIG_ENDIAN_BITFIELD
+            #define SK_FL_PROTO_MASK 0x00ff0000
+            #define SK_FL_PROTO_SHIFT 16
+    #else
+            #define SK_FL_PROTO_MASK 0x0000ff00
+            #define SK_FL_PROTO_SHIFT 8
+    #endif
+            bpf_printk("Finally flag is: %u\n", (flags_t & SK_FL_PROTO_MASK) << SK_FL_PROTO_SHIFT);
+        }
+
+        return protocol;
+
+    }
+    // Fallback offset: based on known layout (txhash + 4) = start of bitfield group
+    else {
+        LOAD_CONSTANT("sock_sk_txhash_offset", sock_sk_protocol_offset);
+        sock_sk_protocol_offset += 4;  // bitfield container (unsigned int) is at offset +4 from txhash
+        //DEBUG
+        bpf_printk("sock_sk_protocol_offset_in_tx: %llu, sk: %p\n", sock_sk_protocol_offset, sk);
+    
+
+    unsigned int flags = 0;
+    if ((void *)sk + sock_sk_protocol_offset > 0 && sock_sk_protocol_offset + sizeof(flags) < sizeof(struct sock)) {
+        bpf_probe_read(&flags, sizeof(flags), (void *)sk + sock_sk_protocol_offset);
+
+#ifdef __BIG_ENDIAN_BITFIELD
+        #define SK_FL_PROTO_MASK 0x00ff0000
+        #define SK_FL_PROTO_SHIFT 16
+#else
+        #define SK_FL_PROTO_MASK 0x0000ff00
+        #define SK_FL_PROTO_SHIFT 8
+#endif
+        return (flags & SK_FL_PROTO_MASK) >> SK_FL_PROTO_SHIFT;
+    }
+}
+    return 0; // Default value if protocol cannot be determined
+
+}
 
 __attribute__((always_inline)) struct sock* get_sock_from_socket(struct socket *socket) {
     u64 socket_sock_offset;
