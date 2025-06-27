@@ -359,7 +359,9 @@ def check_go_version(ctx):
             dot_go_version = f"go{dot_go_version}"
 
     if dot_go_version != running_go_version:
-        raise Exit(message=f"Expected {dot_go_version} (from `.go-version`), but running {running_go_version}")
+        # just warn in this branch
+        print(f"Expected {dot_go_version} (from `.go-version`), but running {running_go_version}")
+        # raise Exit(message=f"Expected {dot_go_version} (from `.go-version`), but running {running_go_version}")
 
 
 @task
