@@ -40,7 +40,6 @@ int __attribute__((always_inline)) sys_set_sock_opt_ret(void *ctx, int retval) {
     if (!event) {
     return 0;  
 }
-    
     event->syscall.retval = retval;
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
     event->socket_type = syscall->setsockopt.socket_type;
@@ -141,7 +140,7 @@ int rethook_release_sock(ctx_t *ctx) {
     }
     syscall->setsockopt.filter_len = (unsigned short) prog.len;
 
-    syscall->setsockopt.filter_size_to_send = (unsigned short) (sizeof(struct sock_filter) * prog.len);
+    syscall->setsockopt.filter_size_to_send = (sizeof(struct sock_filter) * prog.len);
     int key = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event, &key);
 

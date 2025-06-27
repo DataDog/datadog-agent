@@ -1556,9 +1556,9 @@ func (e *SetSockOptEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 	e.SocketType = binary.NativeEndian.Uint16(data[0:2])
-	e.SocketProtocol = binary.NativeEndian.Uint16(data[2:4])
-	e.SocketFamily = binary.NativeEndian.Uint16(data[4:6])
-	e.FilterLen = binary.NativeEndian.Uint16(data[6:8])
+	e.SocketFamily = binary.NativeEndian.Uint16(data[2:4])
+	e.FilterLen = binary.NativeEndian.Uint16(data[4:6])
+	e.SocketProtocol = binary.NativeEndian.Uint16(data[6:8])
 	e.Level = binary.NativeEndian.Uint32(data[8:12])
 	e.OptName = binary.NativeEndian.Uint32(data[12:16])
 	e.IsFilterTruncated = binary.NativeEndian.Uint32(data[16:20]) > 0
