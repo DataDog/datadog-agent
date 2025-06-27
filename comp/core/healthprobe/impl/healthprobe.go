@@ -21,19 +21,9 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const defaultTimeout = time.Second
-
-var (
-	agentState = telemetry.NewGauge(
-		"runtime",
-		"state",
-		[]string{"status"},
-		"Establish if the state of the agent, either started or running",
-	)
-)
 
 // Requires defines the dependencies for the healthprobe component
 type Requires struct {
@@ -58,8 +48,6 @@ func (h *healthprobe) start() error {
 	h.log.Debugf("Health check listening on port %d", h.options.Port)
 
 	go h.server.Serve(h.listener) //nolint:errcheck
-
-	agentState.Set(1, "started")
 
 	return nil
 }
@@ -188,8 +176,6 @@ func healthHandler(logsGoroutines bool, log log.Component, getStatusNonBlocking 
 		http.Error(w, string(body), 500)
 		return
 	}
-
-	agentState.Set(1, "running")
 
 	w.Write(jsonHealth)
 }
