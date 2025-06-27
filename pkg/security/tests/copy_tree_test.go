@@ -9,8 +9,6 @@
 package tests
 
 import (
-	"fmt"
-	"log"
 	"os"
 	"syscall"
 	"testing"
@@ -19,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 
+	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 )
 
@@ -80,38 +79,40 @@ func TestCopyTree(t *testing.T) {
 		// This is using the new mount api, but could have been accomplished with the mount() syscall too
 		// because this isn't the part that we're testing
 		var tounmount []string
+		mountIdsToPath := make(map[uint32]string)
 
 		dir := t.TempDir()
 		tounmount = append(tounmount, dir)
-
-		if id, err := getMountID(dir); err == nil {
-			t.Logf("mountID(%s) = %d", dir, id)
-		} else {
-			log.Printf("statx failed for %s: %v", dir, err)
-		}
 
 		err := TmpMountAt(dir)
 		if err != nil {
 			t.Fatal(err)
 		}
 
+		if id, err := getMountID(dir); err != nil {
+			t.Fatal(err)
+		} else {
+			mountIdsToPath[id] = "/"
+		}
+
 		mountSubDir := func(subdir string) {
-			subdir = dir + "/" + subdir
-			err = os.Mkdir(subdir, 0755)
-			tounmount = append(tounmount, subdir)
+			fullpath := dir + "/" + subdir
+			err = os.Mkdir(fullpath, 0755)
+
+			tounmount = append(tounmount, fullpath)
 
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = TmpMountAt(subdir)
+			err = TmpMountAt(fullpath)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if id, err := getMountID(subdir); err == nil {
-				t.Logf("mountID(%s) = %d", subdir, id)
+			if id, err := getMountID(fullpath); err != nil {
+				t.Fatal(err)
 			} else {
-				log.Printf("statx failed for %s: %v", subdir, err)
+				mountIdsToPath[id] = "/" + subdir
 			}
 		}
 
@@ -120,7 +121,6 @@ func TestCopyTree(t *testing.T) {
 
 		defer func() {
 			for i := len(tounmount) - 1; i >= 0; i-- {
-				fmt.Println(tounmount[i])
 				err = unix.Unmount(tounmount[i], syscall.MNT_DETACH)
 				if err != nil {
 					t.Fatal(err)
@@ -128,26 +128,26 @@ func TestCopyTree(t *testing.T) {
 			}
 		}()
 
-		var detachedMounts, mounts int
+		seen := 0
 		err = test.GetProbeEvent(func() error {
-			// Now we attempt to make a recursive copy of the entire tree that was created previously created
+			// Perform the recursive subtree clone which should generate
+			// two detached_mount events (root + first child) and one subsequent
+			// mount event (second child attached inside the detached tree).
 			unix.OpenTree(0, dir, unix.OPEN_TREE_CLONE|unix.AT_RECURSIVE)
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() == "detached_mount" {
-				detachedMounts++
+			typeStr := event.GetType()
+			if typeStr != "detached_mount" && typeStr != "mount" {
+				return false
 			}
 
-			if event.GetType() == "mount" {
-				mounts++
-			}
+			assert.NotEqual(t, uint32(0), event.Mount.BindSrcMountID, "mount id is zero")
+			assert.NotEmpty(t, event.GetMountMountpointPath(), "path is empty")
+			assert.Equal(t, mountIdsToPath[event.Mount.BindSrcMountID], event.GetMountMountpointPath(), "Wrong Path")
+			seen++
+			return seen == 3
+		}, 5*time.Second, model.FileMountEventType, model.DetachedMountEventType)
 
-			fmt.Println("EVENT: ", event.Mount)
-			//assert.NotEqual(t, event.Fsmount.MountID, uint32(0), "Mount id is zero")
-			//assert.NotEqual(t, event.Fsmount.Flags, unix.FSOPEN_CLOEXEC, "Mount flags")
-			//assert.NotEqual(t, event.Fsmount.MountAttrs, unix.FSMOUNT_CLOEXEC, "Wrong mount attributes")
-			return detachedMounts == 2 && mounts == 1
-		}, 3*time.Second, model.FileFsmountEventType)
 	})
 
 	//TOOD: Create copy-tree-test-not-recursive
