@@ -75,8 +75,10 @@ func (t *ConnectionTracker) HandleConnections() {
 				t.activeConnections.Inc()
 			}
 		case conn := <-t.connToClose:
-			if err := conn.Close(); err != nil {
-				log.Warnf("dogstatsd-%s: failed to close connection: %v", t.name, err)
+			if conn != nil {
+				if err := conn.Close(); err != nil {
+					log.Warnf("dogstatsd-%s: failed to close connection: %v", t.name, err)
+				}
 			}
 
 			if _, ok := t.connections[conn]; !ok {
