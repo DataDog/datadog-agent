@@ -12,6 +12,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -52,7 +54,7 @@ func NewExec(apiClient *apiserver.APIClient) Exec {
 }
 
 // Execute runs the exec command
-func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOptions, timeout time.Duration) error {
+func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOptions, mode string, webhookName string, timeout time.Duration) error {
 	restClient, err := e.APIClient.RESTClient(
 		"/api",
 		&schema.GroupVersion{Version: "v1"},
@@ -66,7 +68,8 @@ func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOpt
 		Resource("pods").
 		Name(pod.Name).
 		Namespace(pod.Namespace).
-		SubResource("exec")
+		SubResource("exec").
+		Timeout(timeout)
 	req.VersionedParams(&corev1.PodExecOptions{
 		Container: e.Container,
 		Command:   command,
@@ -88,13 +91,15 @@ func (e Exec) Execute(pod *corev1.Pod, command []string, streamOptions StreamOpt
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	streamStart := time.Now()
 	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdin:  streamOptions.In,
 		Stdout: streamOptions.Out,
 		Stderr: streamOptions.ErrOut,
 	})
+	metrics.CWSResponseDuration.Observe(time.Since(streamStart).Seconds(), mode, webhookName, "copy_to_pod_execute", strconv.FormatBool(err == nil), "")
 	if err != nil {
-		return fmt.Errorf("SPDY stream error: %v", err)
+		return fmt.Errorf("SPDY stream error (in %s): %v", time.Since(streamStart), err)
 	}
 	return nil
 }
