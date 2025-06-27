@@ -14,10 +14,13 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8sexec"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -51,8 +54,16 @@ func (o *Copy) prepareCommand(destFile string) []string {
 	return cmdArr
 }
 
-// CopyToPod copies the provided local file to the provided container
-func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string) error {
+// CopyToPod copies the provided local file to the provided container while observing the execution time
+func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string, mode string, webhookName string, timeout time.Duration) error {
+	start := time.Now()
+	err := o.copyToPod(localFile, remoteFile, pod, container, timeout)
+	metrics.CWSResponseDuration.Observe(time.Since(start).Seconds(), mode, webhookName, "copy_to_pod", strconv.FormatBool(err == nil), "")
+	return err
+}
+
+// copyToPod copies the provided local file to the provided container
+func (o *Copy) copyToPod(localFile string, remoteFile string, pod *corev1.Pod, container string, timeout time.Duration) error {
 	o.Container = container
 	localFile = path.Clean(localFile)
 	remoteFile = path.Clean(remoteFile)
@@ -87,7 +98,7 @@ func (o *Copy) CopyToPod(localFile string, remoteFile string, pod *corev1.Pod, c
 		Stdin: true,
 	}
 
-	if err := o.Execute(pod, o.prepareCommand(remoteFile), streamOptions); err != nil {
+	if err := o.Execute(pod, o.prepareCommand(remoteFile), streamOptions, timeout); err != nil {
 		return err
 	}
 

@@ -8,12 +8,9 @@ COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c -lseccomp
 
-####################################
-# Actual docker image construction #
-####################################
-
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION
-
+FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS release-base
+ARG BASE_IMAGE_UBUNTU_VERSION=24.04
+ARG BASE_IMAGE_UBUNTU_NAME=noble
 LABEL maintainer "Datadog <package@datadoghq.com>"
 LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
@@ -50,6 +47,12 @@ COPY ./security-agent-policies/compliance/containers/*.rego /etc/datadog-agent/c
 COPY ./install_info etc/datadog-agent/install_info
 COPY entrypoint.sh .
 COPY readsecret.sh readsecret_multiple_providers.sh ./
+
+####################################
+# Actual docker image construction #
+####################################
+
+FROM release-base
 
 ARG DD_GIT_REPOSITORY_URL
 ARG DD_GIT_COMMIT_SHA

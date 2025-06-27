@@ -31,6 +31,7 @@ type probeEvent struct {
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
 	program     *ir.Program
+	stackHashes map[uint64][]uint64
 	probeEvents map[ir.TypeID]probeEvent
 }
 
@@ -40,6 +41,7 @@ var errorUnimplemented = errors.New("errorUnimplemented type")
 func NewDecoder(program *ir.Program) (*Decoder, error) {
 	decoder := &Decoder{
 		program:     program,
+		stackHashes: make(map[uint64][]uint64),
 		probeEvents: make(map[ir.TypeID]probeEvent),
 	}
 	for _, probe := range program.Probes {
@@ -68,38 +70,21 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		return err
 	}
 
-	eventHeader, err := event.Header()
-	if err != nil {
-		return err
-	}
-
-	err = enc.WriteToken(jsontext.String("program_id"))
-	if err != nil {
-		return err
-	}
-
-	err = enc.WriteToken(jsontext.Uint(uint64(eventHeader.Prog_id)))
-	if err != nil {
-		return err
-	}
-
-	frames, err := event.StackPCs()
-	if err != nil {
-		return err
-	}
-
 	header, err := event.Header()
 	if err != nil {
 		return err
 	}
 
-	err = enc.WriteToken(jsontext.String("prog_id"))
-	if err != nil {
-		return err
-	}
-	err = enc.WriteToken(jsontext.Uint(uint64(header.Prog_id)))
-	if err != nil {
-		return err
+	// bpf will only upload the pc's for a given hash once.
+	// We cache the frames for each hash accordingly.
+	var frames []uint64
+	frames, ok := d.stackHashes[header.Stack_hash]
+	if !ok {
+		frames, err = event.StackPCs()
+		if err != nil {
+			return err
+		}
+		d.stackHashes[header.Stack_hash] = frames
 	}
 
 	err = enc.WriteToken(jsontext.String("stack_frames"))
@@ -162,6 +147,19 @@ func (d *Decoder) Decode(event output.Event, out io.Writer) error {
 		}] = item
 	}
 
+	p, ok := d.probeEvents[rootType.ID]
+	if !ok {
+		return errors.New("no probe event found for root type")
+	}
+	err = enc.WriteToken(jsontext.String("probe_id"))
+	if err != nil {
+		return err
+	}
+	err = enc.WriteToken(jsontext.String(p.probe.ID))
+	if err != nil {
+		return err
+	}
+
 	// This map is used to avoid infinite recursion when encoding pointer values.
 	// When an address has already been encountered it is added to this map, and
 	// removed when the recursive function call chain returns. This way unique
@@ -218,7 +216,7 @@ func (d *Decoder) encodeValue(
 			return nil
 		}
 		key := typeAndAddr{
-			irType: uint32(irType.GetID()),
+			irType: uint32(v.Pointee.GetID()),
 			addr:   addr,
 		}
 		pointedValue, ok := dataItems[key]
@@ -320,7 +318,19 @@ func (d *Decoder) encodeValue(
 		if len(data) < int(v.ByteSize) {
 			return errors.New("passed data not long enough for slice header")
 		}
-		address := binary.NativeEndian.Uint64(data)
+		address := binary.NativeEndian.Uint64(data[0:8])
+		length := binary.NativeEndian.Uint64(data[8:16])
+		if length == 0 {
+			err := enc.WriteToken(jsontext.BeginArray)
+			if err != nil {
+				return err
+			}
+			err = enc.WriteToken(jsontext.EndArray)
+			if err != nil {
+				return err
+			}
+			return nil
+		}
 		elementType := v.Data.ID
 		elementSize := int(v.Data.Element.GetByteSize())
 		sliceDataItem, ok := dataItems[typeAndAddr{
