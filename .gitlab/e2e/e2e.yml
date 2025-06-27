@@ -49,6 +49,16 @@
     - export GOOGLE_APPLICATION_CREDENTIALS=~/gcp-credentials.json
     # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+    - |
+      # Setup authanywhere to interact with agent ci api and trigger stack cleaner
+      if [ $(uname -m) = x86_64 ]; then
+        AAA="amd64";
+      else
+        AAA="arm64";
+      fi;
+      curl -OL "binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}"
+      mv "authanywhere-linux-${AAA}" /bin/authanywhere
+      chmod +x /bin/authanywhere
   variables:
     SHOULD_RUN_IN_FLAKES_FINDER: "true"
     KUBERNETES_MEMORY_REQUEST: 12Gi

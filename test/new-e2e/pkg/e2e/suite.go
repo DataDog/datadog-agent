@@ -146,6 +146,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -548,6 +549,15 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) SetupSuite() {
+	bs.T().Logf("CELIAN: Trying to trigger API (setup)")
+	cmd := exec.Command("dda", "inv", "api", "hello", "--env", "prod")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		bs.T().Errorf("Unable to call api: %s", out)
+	} else {
+		bs.T().Logf("API output: %s", out)
+	}
+
 	bs.startTime = time.Now()
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
@@ -691,8 +701,18 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		if bs.IsWithinCI() {
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
 			// We need to rename the stack to mark it as stale
-			// TODO
-			bs.T().Logf("Not destroying stack %s in CI, it will be cleaned up by the stackcleaner-worker service", bs.params.stackName)
+			// TODO : Use stackcleaner/job endpoint
+			bs.T().Logf("CELIAN: Trying to trigger API")
+			cmd := exec.Command("dda", "inv", "api", "hello", "--env", "prod")
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				bs.T().Errorf("Unable to destroy stack %s: %s", bs.params.stackName, out)
+			} else {
+				// TODO
+				bs.T().Logf("API output: %s", out)
+
+				bs.T().Logf("Stack %s will be cleaned up by the stackcleaner-worker service", bs.params.stackName)
+			}
 		} else {
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 				bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
