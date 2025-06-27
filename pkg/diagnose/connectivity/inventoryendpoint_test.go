@@ -3,10 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package runner
+package connectivity
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -125,7 +128,7 @@ func TestBuildEndpoints(t *testing.T) {
 		endpointDescription endpointDescription
 		config              map[string]string
 		domains             map[string]domain
-		expectedEndpoints   []endpoint
+		expectedEndpoints   []resolvedEndpoint
 	}{
 		{
 			name: "endpoint with route",
@@ -139,7 +142,7 @@ func TestBuildEndpoints(t *testing.T) {
 					mainAPIKey: "api-key-1",
 				},
 			},
-			expectedEndpoints: []endpoint{
+			expectedEndpoints: []resolvedEndpoint{
 				{
 					apiKey: "api-key-1",
 					url:    "https://custom.endpoint.com",
@@ -162,7 +165,7 @@ func TestBuildEndpoints(t *testing.T) {
 					mainAPIKey: "api-key-2",
 				},
 			},
-			expectedEndpoints: []endpoint{
+			expectedEndpoints: []resolvedEndpoint{
 				{
 					apiKey: "api-key-1",
 					url:    "https://install.datadoghq.com/",
@@ -187,7 +190,7 @@ func TestBuildEndpoints(t *testing.T) {
 					mainAPIKey: "api-key-1",
 				},
 			},
-			expectedEndpoints: []endpoint{
+			expectedEndpoints: []resolvedEndpoint{
 				{
 					apiKey: "api-key-1",
 					url:    "https://browser-intake-datadoghq.com/api/v2/logs",
@@ -216,7 +219,7 @@ func TestBuildEndpoints(t *testing.T) {
 					useCustomAPIKey: false,
 				},
 			},
-			expectedEndpoints: []endpoint{
+			expectedEndpoints: []resolvedEndpoint{
 				{
 					apiKey: "api-key-custom",
 					url:    "https://ndm.metadata.datadoghq.com/",
@@ -240,7 +243,7 @@ func TestBuildEndpoints(t *testing.T) {
 					mainAPIKey: "api-key-1",
 				},
 			},
-			expectedEndpoints: []endpoint{
+			expectedEndpoints: []resolvedEndpoint{
 				{
 					apiKey: "api-key-1",
 					url:    "https://ndm.metadata.datadoghq.com/",
@@ -351,4 +354,90 @@ func TestGetDomainInfo(t *testing.T) {
 			assert.Equal(t, tt.expectedKeys, domains)
 		})
 	}
+}
+
+func TestCheckGet(t *testing.T) {
+	// Create a test server that returns different status codes
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check if API key is present
+		apiKey := r.Header.Get("DD-API-KEY")
+		if apiKey == "test-api-key" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Success"))
+		} else {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Unauthorized"))
+		}
+	}))
+	defer ts.Close()
+
+	// Create a resolvedEndpoint with GET method
+	endpoint := resolvedEndpoint{
+		url:    ts.URL,
+		base:   ts.URL,
+		method: get,
+		apiKey: "test-api-key",
+	}
+
+	// Create HTTP client
+	client := &http.Client{}
+
+	// Test successful GET request
+	result, err := endpoint.checkGet(client)
+	assert.NoError(t, err)
+	assert.Equal(t, "Success", result)
+
+	// Test with wrong API key
+	endpoint.apiKey = "wrong-api-key"
+	_, err = endpoint.checkGet(client)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid status code: 401")
+}
+
+func TestCheckGetConnectionFailure(t *testing.T) {
+	// Create a resolvedEndpoint with an invalid URL
+	endpoint := resolvedEndpoint{
+		url:    "http://invalid-url-that-does-not-exist.com",
+		base:   "http://invalid-url-that-does-not-exist.com",
+		method: get,
+		apiKey: "test-api-key",
+	}
+
+	// Create HTTP client with short timeout
+	client := &http.Client{
+		Timeout: 1 * time.Second,
+	}
+
+	// Test connection failure
+	result, err := endpoint.checkGet(client)
+	assert.Error(t, err)
+	assert.Contains(t, result, "Failed to connect")
+	assert.Contains(t, err.Error(), "Unable to resolve the address")
+	assert.Contains(t, err.Error(), "no such host")
+}
+
+func TestCheckHeadWithRedirectLimit(t *testing.T) {
+	// Create a test server that always returns a 307 Temporary Redirect
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "HEAD" {
+			w.WriteHeader(http.StatusTemporaryRedirect)
+		} else {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			w.Write([]byte("OK"))
+		}
+	}))
+	defer ts.Close()
+
+	endpoint := resolvedEndpoint{
+		url:           ts.URL,
+		base:          ts.URL,
+		method:        head,
+		apiKey:        "irrelevant",
+		limitRedirect: true,
+	}
+
+	client := &http.Client{}
+	result, err := endpoint.checkHead(client)
+	assert.NoError(t, err)
+	assert.Equal(t, "Success", result)
 }

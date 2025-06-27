@@ -8,6 +8,9 @@ package runner
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 )
 
 type status string
@@ -28,9 +31,32 @@ type DiagnosisPayload struct {
 // Diagnose runs the connectivity checks
 func Diagnose(
 	config config.Component,
+	log log.Component,
 ) (map[string][]DiagnosisPayload, error) {
+	diagnoses := connectivity.DiagnoseInventory(config, log)
+
+	diagnosesPayload := []DiagnosisPayload{}
+	for _, diagnosis := range diagnoses {
+		diagnosesPayload = append(diagnosesPayload, DiagnosisPayload{
+			Status:      toStatus(diagnosis.Status),
+			Description: diagnosis.Name,
+			Error:       diagnosis.Diagnosis,
+			Metadata:    diagnosis.Metadata,
+		})
+	}
 
 	return map[string][]DiagnosisPayload{
-		"connectivity": diagnoseConnectivity(config),
+		"connectivity": diagnosesPayload,
 	}, nil
+}
+
+func toStatus(ds diagnose.Status) status {
+	switch ds {
+	case diagnose.DiagnosisSuccess:
+		return success
+	case diagnose.DiagnosisFail:
+		return failure
+	default:
+		return failure
+	}
 }

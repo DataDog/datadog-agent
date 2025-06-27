@@ -3,38 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package runner implements the connectivity checker component
-package runner
+// Package connectivity implements the connectivity checker component
+package connectivity
 
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptrace"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/DataDog/datadog-agent/pkg/version"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	httputil "github.com/DataDog/datadog-agent/pkg/util/http"
-
-	"crypto/tls"
 )
 
-type method string
 type separator string
 
 // URL types for different services
 const (
-	head method = "HEAD"
-	get  method = "GET"
-
 	dot  separator = "."
 	dash separator = "-"
 )
@@ -76,7 +69,7 @@ func getEndpointsDescriptions(cfg model.Reader) []endpointDescription {
 	}
 }
 
-type endpoint struct {
+type resolvedEndpoint struct {
 	url           string
 	base          string
 	method        method
@@ -84,10 +77,10 @@ type endpoint struct {
 	limitRedirect bool
 }
 
-func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains map[string]domain) []endpoint {
+func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains map[string]domain) []resolvedEndpoint {
 	// if route is set -> There's only one possible url
 	if e.route != "" {
-		return []endpoint{
+		return []resolvedEndpoint{
 			{
 				url:           e.route,
 				base:          e.route,
@@ -97,14 +90,14 @@ func (e *endpointDescription) buildEndpoints(cfg model.Reader, domains map[strin
 			},
 		}
 	}
-	routes := []endpoint{}
+	routes := []resolvedEndpoint{}
 	if e.separator == "" {
 		e.separator = dot
 	}
 
 	for _, domain := range domains {
 		base, url := e.buildRoute(domain)
-		routes = append(routes, endpoint{
+		routes = append(routes, resolvedEndpoint{
 			url:           url,
 			base:          base,
 			method:        e.method,
@@ -183,32 +176,36 @@ func (e *endpointDescription) buildRoute(domain domain) (string, string) {
 	return base, base + path
 }
 
-func diagnoseConnectivity(cfg model.Reader) []DiagnosisPayload {
+// DiagnoseInventory checks the connectivity of the endpoints
+func DiagnoseInventory(cfg config.Component, log log.Component) []diagnose.Diagnosis {
 	endpointsDescription := getEndpointsDescriptions(cfg)
 	domains := getDomains(cfg)
 
-	diagnoses := []DiagnosisPayload{}
+	diagnoses := []diagnose.Diagnosis{}
+
+	client := getClient(cfg, 1, log, withOneRedirect(), withTimeout(5*time.Second))
 
 	for _, ed := range endpointsDescription {
 		endpoints := ed.buildEndpoints(cfg, domains)
 		for _, endpoint := range endpoints {
 			description := "Ping: " + endpoint.base
-			diagnosis, err := endpoint.checkServiceConnectivity(cfg)
+			diagnosis, err := endpoint.checkServiceConnectivity(client)
 
 			if err != nil {
-				diagnoses = append(diagnoses, DiagnosisPayload{
-					Status:      failure,
-					Description: description,
-					Error:       diagnosis,
+				diagnoses = append(diagnoses, diagnose.Diagnosis{
+					Status:    diagnose.DiagnosisFail,
+					Name:      description,
+					Diagnosis: diagnosis,
 					Metadata: map[string]string{
 						"endpoint":  endpoint.url,
 						"raw_error": err.Error(),
 					},
 				})
 			} else {
-				diagnoses = append(diagnoses, DiagnosisPayload{
-					Status:      success,
-					Description: description,
+				diagnoses = append(diagnoses, diagnose.Diagnosis{
+					Status:    diagnose.DiagnosisSuccess,
+					Name:      description,
+					Diagnosis: diagnosis,
 					Metadata: map[string]string{
 						"endpoint": endpoint.url,
 					},
@@ -220,73 +217,52 @@ func diagnoseConnectivity(cfg model.Reader) []DiagnosisPayload {
 	return diagnoses
 }
 
-func (e endpoint) checkServiceConnectivity(cfg model.Reader) (string, error) {
+func (e resolvedEndpoint) checkServiceConnectivity(client *http.Client) (string, error) {
 	// Build URL based on service type
 	switch e.method {
 	case head:
-		return e.checkHead(cfg)
+		return e.checkHead(client)
 	case get:
-		return e.checkGet(cfg)
+		return e.checkGet(client)
 	default:
 		return "Unknown Method", fmt.Errorf("unknown Method for service %s", e.url)
 	}
 }
 
-func (e endpoint) checkHead(cfg model.Reader) (string, error) {
-	return executeRequest(e, cfg, map[string]string{
-		"DD-API-KEY": e.apiKey,
-	})
-}
-
-func (e endpoint) checkGet(cfg model.Reader) (string, error) {
-	return executeRequest(e, cfg, map[string]string{
-		"DD-API-KEY": e.apiKey,
-	})
-}
-
-func executeRequest(endpoint endpoint, cfg model.Reader, headers map[string]string) (string, error) {
-	url := endpoint.url
-	var httpTraces []string
-	ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces))
-
-	options := []func(*http.Client){}
-
-	if endpoint.limitRedirect {
-		options = append(options, withOneRedirect())
+func (e resolvedEndpoint) checkHead(client *http.Client) (string, error) {
+	if e.limitRedirect {
+		withOneRedirect()(client)
 	}
-	client := getClient(cfg, options...)
-
-	req, err := http.NewRequestWithContext(ctx, string(endpoint.method), url, nil)
+	statusCode, _, err := sendHead(context.Background(), client, e.url)
+	if e.limitRedirect {
+		client.CheckRedirect = nil
+	}
 	if err != nil {
-		return "configuration issue", fmt.Errorf("failed to create request for %s: %w", url, err)
-	}
-
-	for k, v := range headers {
-		v = strings.Replace(v, "<version>", version.AgentVersion, 1)
-		req.Header.Set(k, v)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		// Include HTTP traces in error message if available
-		if len(httpTraces) > 0 {
-			return "Failed to connect", fmt.Errorf("%w\nTraces:\n%s", err, strings.Join(httpTraces, "\n"))
-		}
 		return "Failed to connect", err
 	}
-	defer resp.Body.Close()
-
-	return validateStatusCode(endpoint, resp.StatusCode)
+	return validateStatusCode(e, statusCode)
 }
 
-func validateStatusCode(endpoint endpoint, statusCode int) (string, error) {
+func (e resolvedEndpoint) checkGet(client *http.Client) (string, error) {
+	httpTraces := []string{}
+	ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, true))
+	statusCode, _, _, err := sendGet(ctx, client, e.url, map[string]string{
+		"DD-API-KEY": e.apiKey,
+	})
+	if err != nil {
+		return "Failed to connect", fmt.Errorf("%s\n%w", strings.Join(httpTraces, "\n"), err)
+	}
+	return validateStatusCode(e, statusCode)
+}
+
+func validateStatusCode(endpoint resolvedEndpoint, statusCode int) (string, error) {
 	if !isSuccessStatusCode(endpoint, statusCode) {
 		return "invalid status code", fmt.Errorf("invalid status code: %d", statusCode)
 	}
 	return "Success", nil
 }
 
-func isSuccessStatusCode(endpoint endpoint, statusCode int) bool {
+func isSuccessStatusCode(endpoint resolvedEndpoint, statusCode int) bool {
 	switch endpoint.method {
 	case head:
 		if statusCode == http.StatusTemporaryRedirect || statusCode == http.StatusPermanentRedirect {
@@ -295,96 +271,5 @@ func isSuccessStatusCode(endpoint endpoint, statusCode int) bool {
 		return statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
 	default:
 		return statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
-	}
-}
-
-func withOneRedirect() func(*http.Client) {
-	return func(client *http.Client) {
-		client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-	}
-}
-
-func getClient(cfg model.Reader, clientOptions ...func(*http.Client)) *http.Client {
-	transport := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
-			KeepAlive: 5 * time.Second,
-		}).DialContext,
-		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-		},
-		TLSHandshakeTimeout:   5 * time.Second,
-		ResponseHeaderTimeout: 5 * time.Second,
-		MaxIdleConns:          2,
-		IdleConnTimeout:       30 * time.Second,
-		ForceAttemptHTTP2:     true,
-	}
-
-	if proxies := cfg.GetProxies(); proxies != nil {
-		transport.Proxy = httputil.GetProxyTransportFunc(proxies, cfg)
-	}
-
-	client := &http.Client{
-		Timeout:   5 * time.Second,
-		Transport: transport,
-	}
-
-	for _, clientOption := range clientOptions {
-		clientOption(client)
-	}
-
-	return client
-}
-
-// createDiagnoseTraces creates a httptrace.ClientTrace containing functions that collects
-// additional information when a http.Client is sending requests
-// During a request, the http.Client will call the functions of the ClientTrace at specific moments
-// This is useful to get extra information about what is happening and if there are errors during
-// connection establishment, DNS resolution or TLS handshake for instance
-func createDiagnoseTraces(httpTraces *[]string) *httptrace.ClientTrace {
-	hooks := &httpTraceContext{
-		httpTraces: httpTraces,
-	}
-
-	return &httptrace.ClientTrace{
-		ConnectDone:      hooks.connectDoneHook,
-		DNSDone:          hooks.dnsDoneHook,
-		TLSHandshakeDone: hooks.tlsHandshakeDoneHook,
-	}
-}
-
-// httpTraceContext collect reported HTTP traces into its holding array
-// to be retrieved later by client
-type httpTraceContext struct {
-	httpTraces *[]string
-}
-
-// connectDoneHook is called when the new connection to 'addr' completes
-// It collects the error message if there is one and indicates if this step was successful
-func (c *httpTraceContext) connectDoneHook(_, _ string, err error) {
-	if err != nil {
-		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("Connect: FAIL -  %v", scrubber.ScrubLine(err.Error())))
-	}
-}
-
-// dnsDoneHook is called after the DNS lookup
-// It collects the error message if there is one and indicates if this step was successful
-func (c *httpTraceContext) dnsDoneHook(di httptrace.DNSDoneInfo) {
-	if di.Err != nil {
-		*(c.httpTraces) = append(*(c.httpTraces), fmt.Sprintf("DNS Lookup: FAIL -  %v", scrubber.ScrubLine(di.Err.Error())))
-	}
-}
-
-// tlsHandshakeDoneHook is called after the TLS Handshake
-// It collects the error message if there is one and indicates if this step was successful
-func (c *httpTraceContext) tlsHandshakeDoneHook(_ tls.ConnectionState, err error) {
-	if err != nil {
-		trace := fmt.Sprintf("TLS Handshake: FAIL - %v", scrubber.ScrubLine(err.Error()))
-		if strings.Contains(err.Error(), "first record does not look like a TLS handshake") {
-			trace = fmt.Sprintf("%s - Hint: Endpoint is not configured for HTTPS", trace)
-		}
-		*(c.httpTraces) = append(*(c.httpTraces), trace)
 	}
 }
