@@ -43,6 +43,11 @@ func getNonCriticalAPIs() []string {
 	return []string{
 		"nvmlShutdown",
 		"nvmlSystemGetDriverVersion",
+		"nvmlGpmSampleAlloc",
+		"nvmlGpmSampleFree",
+		"nvmlGpmMetricsGet",
+		"nvmlGpmQueryDeviceSupport",
+		"nvmlGpmSampleGet",
 		toNativeName("GetArchitecture"),
 		toNativeName("GetAttributes"),
 		toNativeName("GetClockInfo"),
@@ -90,6 +95,12 @@ type SafeNVML interface {
 	DeviceGetHandleByIndex(idx int) (SafeDevice, error)
 	// SystemGetDriverVersion returns the version of the system's graphics driver
 	SystemGetDriverVersion() (string, error)
+	// GpmSampleAlloc allocates a sample buffer for GPM
+	GpmSampleAlloc() (nvml.GpmSample, error)
+	// GpmSampleFree frees a sample buffer for GPM
+	GpmSampleFree(sample nvml.GpmSample) error
+	// GpmMetricsGet calculates the metrics from the given samples
+	GpmMetricsGet(metrics *nvml.GpmMetricsGetType) error
 }
 
 type safeNvml struct {
@@ -147,6 +158,30 @@ func (s *safeNvml) DeviceGetHandleByIndex(idx int) (SafeDevice, error) {
 		return nil, err
 	}
 	return NewPhysicalDevice(dev)
+}
+
+func (s *safeNvml) GpmSampleAlloc() (nvml.GpmSample, error) {
+	if err := s.lookup("nvmlGpmSampleAlloc"); err != nil {
+		return nil, err
+	}
+	sample, ret := s.lib.GpmSampleAlloc()
+	return sample, NewNvmlAPIErrorOrNil("GpmSampleAlloc", ret)
+}
+
+func (s *safeNvml) GpmSampleFree(sample nvml.GpmSample) error {
+	if err := s.lookup("nvmlGpmSampleFree"); err != nil {
+		return err
+	}
+	ret := s.lib.GpmSampleFree(sample)
+	return NewNvmlAPIErrorOrNil("GpmSampleFree", ret)
+}
+
+func (s *safeNvml) GpmMetricsGet(metrics *nvml.GpmMetricsGetType) error {
+	if err := s.lookup("nvmlGpmMetricsGet"); err != nil {
+		return err
+	}
+	ret := s.lib.GpmMetricsGet(metrics)
+	return NewNvmlAPIErrorOrNil("GpmMetricsGet", ret)
 }
 
 // populateCapabilities verifies nvml API symbols exist in the native library (libnvidia-ml.so).
