@@ -273,6 +273,10 @@ var redactors = []jsonRedactor{
 	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/fileName$`, []byte(`"<fileName>"`)),
 	redactPtrRegexp(`^/debugger/snapshot/stack/[0-9]+/lineNumber$`, []byte(`"<lineNumber>"`)),
 
+	// TODO: stack is only redacted in full because of bug with stack walking on arm64.
+	// Unredact this once the issue is fixed.
+	redactPtr(`/debugger/snapshot/stack`, []byte(`"<stack-unredact-me>"`)),
+
 	redactPtr("/debugger/snapshot/id", []byte(`"<id>"`)),
 	redactPtr("/debugger/snapshot/timestamp", []byte(`"<ts>"`)),
 	redactPtrPrefixSuffix("/debugger/snapshot/captures/", "/address", []byte(`"<addr>"`)),
