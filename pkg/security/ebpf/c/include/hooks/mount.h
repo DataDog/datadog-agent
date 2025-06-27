@@ -140,7 +140,6 @@ HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
 }
 
 HOOK_SYSCALL_EXIT(unshare) {
-    bpf_printk("pop c");
     pop_syscall(EVENT_UNSHARE_MNTNS);
     return 0;
 }
@@ -166,14 +165,12 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
     fill_container_context(entry, &event.container);
     fill_span_context(&event.span);
 
-    bpf_printk("send_detached_event. BindSrcMountID=%d, MountID=%d", event.mountfields.bind_src_mount_id, event.mountfields.mountpoint_key.mount_id);
     send_event(ctx, DETACHED_COPY, event);
 
     return 0;
 }
 
 void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type, bool detached) {
-    bpf_printk("handle new mount");
     // populate the root dentry key
     struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
@@ -271,14 +268,13 @@ int __attribute__((always_inline)) dr_mount_stage_two_callback(void *ctx) {
             event.params.visible = true;
             pop_syscall(EVENT_MOUNT);
         }
-        bpf_printk("sending EVENT_MOUNT or DETACHED_COPY. BindSrcMountID=%d, MountID=%d", event.mountfields.bind_src_mount_id, event.mountfields.mountpoint_key.mount_id);
+
         send_event(ctx, syscall->type, event);
 
     } else if (syscall->type == EVENT_UNSHARE_MNTNS) {
         struct unshare_mntns_event_t event = { 0 };
 
         fill_mount_fields(syscall, &event.mountfields);
-        bpf_printk("sending EVENT_UNSHARE_MNTNS");
         send_event(ctx, EVENT_UNSHARE_MNTNS, event);
     }
 
@@ -322,8 +318,7 @@ int hook___attach_mnt(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
-    bpf_printk("__attach_mnt");
-
+    
     struct mount *newmnt = (struct mount *)CTX_PARM1(ctx);
     // check if this mount has already been processed
     if (syscall->mount.newmnt == newmnt) {
@@ -487,8 +482,6 @@ int rethook_alloc_vfsmnt(ctx_t *ctx) {
 // We only care about detached copies, that creates new mount points
 HOOK_ENTRY("open_detached_copy")
 int hook_open_detached_copy(ctx_t *ctx) {
-    bpf_printk("open_detached_copy");
-
     struct syscall_cache_t syscall = {
         .type = DETACHED_COPY,
     };
