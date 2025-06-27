@@ -99,11 +99,11 @@ instances:
 	}
 	p := math.Pow10(v.metricCompareDecimals)
 	for _, testCase := range testCases {
-		v.Run(testCase.name, func() {
-			if testCase.onlyLinux && v.descriptor.Family() == e2eos.WindowsFamily {
-				continue
-			}
+		if testCase.onlyLinux && v.descriptor.Family() == e2eos.WindowsFamily {
+			continue
+		}
 
+		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
 			pythonMetrics := v.runDiskCheck(testCase.agentConfig, testCase.checkConfig, false)
 			v.T().Log("run the disk check using new version")
