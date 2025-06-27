@@ -14,12 +14,13 @@ import (
 	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
+	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 	checkUtils "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-runtimes/checks/common"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 type diskCheckSuite struct {
@@ -38,6 +39,22 @@ func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	))
 
 	return suiteOptions
+}
+
+// printDiskUsage prints the disk usage for the current environment
+// used to debug the disk check getting different values on some runs
+func (v *diskCheckSuite) printDiskUsage() {
+	if v.descriptor.Family() != e2eos.WindowsFamily {
+		// only the windows version is flaky so no need to handle linux
+		return
+	}
+
+	diskUsage, err := v.Env().RemoteHost.Execute("Get-PSDrive -Name C")
+	if err != nil {
+		v.T().Logf("error getting disk usage: %s", err)
+		return
+	}
+	v.T().Logf("disk usage: %s", diskUsage)
 }
 
 func (v *diskCheckSuite) TestCheckDisk() {
@@ -59,9 +76,12 @@ instances:
 	for _, testCase := range testCases {
 		v.Run(testCase.name, func() {
 			v.T().Log("run the disk check using old version")
+			v.printDiskUsage()
 			pythonMetrics := v.runDiskCheck(testCase.agentConfig, testCase.checkConfig, false)
 			v.T().Log("run the disk check using new version")
+			v.printDiskUsage()
 			goMetrics := v.runDiskCheck(testCase.agentConfig, testCase.checkConfig, true)
+			v.printDiskUsage()
 
 			// assert the check output
 			diff := gocmp.Diff(pythonMetrics, goMetrics,

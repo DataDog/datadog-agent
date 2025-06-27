@@ -264,7 +264,7 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 		CGroupID:      containerutils.CGroupID(cgroup),
 		CGroupFlags:   containerutils.CGroupFlags(cgroupFlags),
 		CGroupFile:    pathKey,
-		CGroupManager: containerutils.CGroupManager(cgroupFlags & containerutils.CGroupManagerMask).String(),
+		CGroupManager: cgroupFlags.GetCGroupManager().String(),
 	}
 
 	return cgroupContext, false, nil

@@ -51,7 +51,7 @@ func runBenchmark() error {
 	}
 	defer func() { binary.Close() }()
 
-	probes, err := testprogs.GetProbeCfgs("busyloop")
+	probes, err := testprogs.GetProbeDefinitions("busyloop")
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func runBenchmark() error {
 
 	// Compile the IR and prepare the BPF program.
 	fmt.Println("compiling BPF")
-	compiledBPF, err := compiler.CompileBPFProgram(irp, nil)
+	compiledBPF, err := compiler.NewCompiler().Compile(irp, nil)
 	if err != nil {
 		return err
 	}

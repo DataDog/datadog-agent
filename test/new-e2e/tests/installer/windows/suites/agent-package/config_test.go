@@ -41,6 +41,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 
 	// assert that setup was successful
 	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "info")
 
 	// Act
 	config := installerwindows.ConfigExperiment{
@@ -56,8 +59,16 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	// Start config experiment
 	s.mustStartConfigExperiment(config)
 
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "debug")
+
 	// Promote config experiment
 	s.mustPromoteConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "debug")
 }
 
 // TestConfigUpgradeFailure tests that the Agent's config can be rolled back
@@ -90,6 +101,11 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 		"datadogagent",
 	)
 	s.AssertSuccessfulConfigStopExperiment()
+
+	// Config should be reverted to the stable config
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "info")
 
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
@@ -182,11 +198,19 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 	// Start config experiment (restarts the services)
 	s.mustStartConfigExperiment(config)
 
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "debug")
+
 	// Stop the agent service to trigger watchdog rollback
 	windowscommon.StopService(s.Env().RemoteHost, consts.ServiceName)
 
 	// Assert
 	s.AssertSuccessfulConfigStopExperiment()
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "info")
 
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
@@ -219,11 +243,19 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
 	// Start config experiment
 	s.mustStartConfigExperiment(config)
 
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "debug")
+
 	// wait for the timeout
 	s.WaitForDaemonToStop(func() {}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// Assert
 	s.AssertSuccessfulConfigStopExperiment()
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig().
+		WithValueEqual("log_level", "info")
 
 	// backend will send stop experiment now
 	s.assertDaemonStaysRunning(func() {
