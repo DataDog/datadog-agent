@@ -2026,18 +2026,15 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
 
-	// fsmount mounts a detached mountpoint, therefore there's no mount point and the root is always "/"
-	if m.Origin != model.MountOriginFsmount {
+	if !m.Detached {
 		// Resolve mount point
-		if !m.Detached {
-			if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
-				return fmt.Errorf("failed to set mount point: %w", err)
-			}
+		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
+			return fmt.Errorf("failed to set mount point: %w", err)
+		}
 
-			// Resolve root
-			if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
-				return fmt.Errorf("failed to set mount root: %w", err)
-			}
+		// Resolve root
+		if err := p.Resolvers.PathResolver.SetMountRoot(ev, m); err != nil {
+			return fmt.Errorf("failed to set mount root: %w", err)
 		}
 	}
 
