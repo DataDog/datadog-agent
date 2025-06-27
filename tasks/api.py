@@ -81,9 +81,9 @@ def run(
     token = ''
     if not is_local:
         token = (
-            '"$(authanywhere --audience rapid-agent-devx)"'
+            '-H "$(authanywhere --audience rapid-agent-devx)"'
             if from_ci
-            else f'"$(ddtool auth token rapid-agent-devx --datacenter {dc} --http-header)"'
+            else f'-H "$(ddtool auth token rapid-agent-devx --datacenter {dc} --http-header)"'
         )
     extra_header = f'"X-DdOrigin: {os.environ["CI_JOB_ID"]}"' if from_ci else '"X-DdOrigin: curl-authanywhere"'
     url = (
