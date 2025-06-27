@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -130,8 +132,15 @@ func TestReadConfigFiles(t *testing.T) {
 	require.Equal(t, 18, len(configs))
 
 	expectedConfig1 := integration.Config{
-		Name:                  "advanced_ad",
-		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{KubeService: integration.KubeNamespacedName{Name: "svc-name", Namespace: "svc-ns"}}},
+		Name: "advanced_ad",
+		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
+			{
+				KubeService: integration.KubeNamespacedName{
+					Name:      "svc-name",
+					Namespace: "svc-ns",
+				},
+			},
+		},
 		Instances: []integration.Data{
 			integration.Data("foo: bar\n"),
 		},
@@ -160,8 +169,35 @@ func TestReadConfigFiles(t *testing.T) {
 	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
 	require.Nil(t, err)
 	require.Equal(t, 2, len(configs))
-	require.Contains(t, configs, expectedConfig1)
-	require.Contains(t, configs, expectedConfig2)
+
+	// Ignore the Source field for comparison because varies by OS
+	ignoreSource := cmpopts.IgnoreFields(integration.Config{}, "Source")
+
+	// Check if expectedConfig1 is in the configs slice
+	found := false
+	for _, config := range configs {
+		if cmp.Equal(config, expectedConfig1, ignoreSource) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
+			expectedConfig1, configs, cmp.Diff(expectedConfig1, configs, ignoreSource))
+	}
+
+	// Check if expectedConfig2 is in the configs slice
+	found = false
+	for _, config := range configs {
+		if cmp.Equal(config, expectedConfig2, ignoreSource) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
+			expectedConfig2, configs, cmp.Diff(expectedConfig2, configs, ignoreSource))
+	}
 
 	configs, _, err = ReadConfigFiles(func(c integration.Config) bool { return c.Name == "baz" })
 	require.Nil(t, err)
