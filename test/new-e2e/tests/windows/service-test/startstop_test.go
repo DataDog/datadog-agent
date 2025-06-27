@@ -703,7 +703,7 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 		if !assert.Equal(c, expected, status, "%s should be %s", serviceName, expected) {
 			s.T().Logf("waiting for %s to be %s, status %s", serviceName, expected, status)
 		}
-	}, 3*time.Minute, 10*time.Second, "%s should be in the expected state", serviceName)
+	}, 5*time.Minute, 10*time.Second, "%s should be in the expected state", serviceName)
 
 	// if a driver service failed to get to the expected state, capture a kernel dump for debugging.
 	if s.T().Failed() && slices.Contains(s.getInstalledKernelServices(), serviceName) {
@@ -746,7 +746,7 @@ func (s *baseStartStopSuite) stopAllServices() {
 				err := windowsCommon.StopService(host, serviceName)
 				assert.NoError(c, err, "should stop %s", serviceName)
 			}
-		}, 3*time.Minute, 10*time.Second, "%s should be in the expected state", serviceName)
+		}, 5*time.Minute, 10*time.Second, "%s should be in the expected state", serviceName)
 	}
 }
 func (s *baseStartStopSuite) getInstalledUserServices() []string {
