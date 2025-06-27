@@ -10,7 +10,6 @@ import re
 import shutil
 import string
 import sys
-import tarfile
 import tempfile
 from pathlib import Path
 from subprocess import check_output
@@ -37,7 +36,6 @@ from tasks.libs.common.utils import (
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
-from tasks.libs.testing.result_json import ResultJson, merge_result_jsons
 from tasks.libs.types.arch import ALL_ARCHS, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
@@ -1864,33 +1862,6 @@ def generate_event_monitor_proto(ctx):
         replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
         with open(path, "w") as f:
             f.write(replaced_content)
-
-
-@task
-def print_failed_tests(_, output_dir):
-    fail_count = 0
-    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
-        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
-
-        if os.path.isdir(testjson_tgz):
-            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
-            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
-
-        with tempfile.TemporaryDirectory() as unpack_dir:
-            with tarfile.open(testjson_tgz) as tgz:
-                tgz.extractall(path=unpack_dir)
-            result_jsons = [ResultJson.from_file(file) for file in glob.glob(f"{unpack_dir}/*.json")]
-
-        merged_test_json = merge_result_jsons(result_jsons)
-        failing_tests = merged_test_json.failing_tests
-
-        for package, tests in failing_tests.items():
-            for test_name in tests:
-                print(color_message(f"FAIL: [{test_platform}] {package} {test_name}", "red"))
-                fail_count += 1
-
-    if fail_count > 0:
-        raise Exit(code=1)
 
 
 @task
