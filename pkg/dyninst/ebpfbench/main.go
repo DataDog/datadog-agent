@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -35,6 +36,24 @@ func getSampleBinaryPath() (string, error) {
 		GOARCH:      runtime.GOARCH,
 		GOTOOLCHAIN: "go1.24.3",
 	})
+}
+
+type overriddenThrottle struct {
+	ir.ProbeDefinition
+	PeriodMs uint32
+	Budget   int64
+}
+
+func (o *overriddenThrottle) GetThrottleConfig() ir.ThrottleConfig {
+	return o
+}
+
+func (o *overriddenThrottle) GetThrottlePeriodMs() uint32 {
+	return o.PeriodMs
+}
+
+func (o *overriddenThrottle) GetThrottleBudget() int64 {
+	return o.Budget
 }
 
 func runBenchmark() error {
@@ -55,18 +74,20 @@ func runBenchmark() error {
 	if err != nil {
 		return err
 	}
-
 	obj, err := object.NewElfObject(binary)
 	if err != nil {
 		return err
+	}
+	probes[0] = &overriddenThrottle{
+		ProbeDefinition: probes[0],
+		PeriodMs:        1,
+		Budget:          3,
 	}
 
 	irp, err := irgen.GenerateIR(1, obj, probes)
 	if err != nil {
 		return err
 	}
-	irp.Probes[0].ThrottlePeriodMs = 1
-	irp.Probes[0].ThrottleBudget = 3
 
 	// Compile the IR and prepare the BPF program.
 	fmt.Println("compiling BPF")

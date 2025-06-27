@@ -1,3 +1,4 @@
+stackC: '{"captures":{"probe_id":"stackC"},"stack_frames":""}'
 testArrayOfArrays: '{"captures":{"a":[[1,2],[3,4]],"probe_id":"testArrayOfArrays"},"stack_frames":""}'
 testArrayOfArraysOfArrays: '{"captures":{"b":[[[1,2],[3,4]],[[5,6],[7,8]]],"probe_id":"testArrayOfArraysOfArrays"},"stack_frames":""}'
 testArrayOfStrings: '{"captures":{"a":["first","second"],"probe_id":"testArrayOfStrings"},"stack_frames":""}'
@@ -59,4 +60,3 @@ testUint64Array: '{"captures":{"probe_id":"testUint64Array","x":[1,2]},"stack_fr
 testUintArray: '{"captures":{"probe_id":"testUintArray","x":[1,2]},"stack_frames":""}'
 testUintPointer: '{"captures":{"probe_id":"testUintPointer","x":{"Address":"","Value":1}},"stack_frames":""}'
 testUintSlice: '{"captures":{"probe_id":"testUintSlice","u":[1,2,3]},"stack_frames":""}'
-stackC: '{"captures":{"probe_id":"stackC"},"stack_frames":""}'
