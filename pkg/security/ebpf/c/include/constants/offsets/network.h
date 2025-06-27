@@ -43,7 +43,7 @@ __attribute__((always_inline)) unsigned int get_protocol_from_sock(struct sock *
             #define SK_FL_PROTO_MASK 0x0000ff00
             #define SK_FL_PROTO_SHIFT 8
     #endif
-            bpf_printk("Finally flag is: %u\n", (flags_t & SK_FL_PROTO_MASK) >> SK_FL_PROTO_SHIFT);
+            bpf_printk("Finally flag is: %u\n", (flags_t & SK_FL_PROTO_MASK) << SK_FL_PROTO_SHIFT);
         }
 
         return protocol;
