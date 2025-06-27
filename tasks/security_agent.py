@@ -95,13 +95,19 @@ def build(
     build_tags += get_default_build_tags(build="security-agent")
     build_tags = add_fips_tags(build_tags, fips_mode)
 
+    cover = ""
+    if os.getenv("E2E_COVERAGE_PIPELINE") == "true":
+        build_tags.append("e2ecoverage")
+        cover = "-cover"
+
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
+    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" {cover} '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/security-agent'
 
     args = {
+        "cover": cover,
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
