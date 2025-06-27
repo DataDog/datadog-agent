@@ -177,9 +177,9 @@ func (c *gpmCollector) calculateGpmMetrics() (*nvml.GpmMetricsGetType, error) {
 	}
 
 	metricIndex := 0
-	for metricId := range c.metricsToCollect {
+	for metricID := range c.metricsToCollect {
 		metricsGet.Metrics[metricIndex] = nvml.GpmMetric{
-			MetricId: uint32(metricId),
+			MetricId: uint32(metricID),
 		}
 		metricIndex++
 	}

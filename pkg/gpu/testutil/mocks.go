@@ -160,7 +160,7 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		IsMigDeviceHandleFunc: func() (bool, nvml.Return) {
 			return false, nvml.SUCCESS
 		},
-		GetSamplesFunc: func(samplingType nvml.SamplingType, prevTimestamp uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
+		GetSamplesFunc: func(_ nvml.SamplingType, _ uint64) (nvml.ValueType, []nvml.Sample, nvml.Return) {
 			samples := []nvml.Sample{
 				{TimeStamp: 1000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 1}},
 				{TimeStamp: 2000, SampleValue: [8]byte{0, 0, 0, 0, 0, 0, 0, 2}},
@@ -343,7 +343,7 @@ func fillAllMockFunctions[T any](obj T) {
 		if strings.HasSuffix(fieldType.Name, "Func") && field.Kind() == reflect.Func && field.IsZero() {
 			// Create a basic function that returns zero values
 			funcType := field.Type()
-			funcValue := reflect.MakeFunc(funcType, func(args []reflect.Value) []reflect.Value {
+			funcValue := reflect.MakeFunc(funcType, func(_ []reflect.Value) []reflect.Value {
 				// Return zero values for all return types
 				results := make([]reflect.Value, funcType.NumOut())
 				for j := 0; j < funcType.NumOut(); j++ {
