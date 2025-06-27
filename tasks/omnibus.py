@@ -171,6 +171,7 @@ def get_omnibus_env(
         'PKG_CONFIG_LIBDIR',
         'GOROOT',
         'GOPATH',
+        'RUST_VERSION',
     ]
     for key in env_to_forward:
         if key in os.environ:
