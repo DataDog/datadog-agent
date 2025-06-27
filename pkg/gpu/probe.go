@@ -440,7 +440,7 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 			"index":      info.Index,
 			"sm_version": info.SMVersion,
 			"is_mig":     isMIG,
-			"in_wmeta":   err != nil && wmetaGpu != nil,
+			"in_wmeta":   err == nil && wmetaGpu != nil,
 		})
 	}
 
