@@ -34,8 +34,8 @@ var (
 // the loader needs to be registered in this function otherwise it won't be listed when we load a check using the CLI
 func init() {
 	if pkgconfigsetup.Datadog().GetBool("shared_library_checks") {
-		factory := func(sender.SenderManager, option.Option[integrations.Component], tagger.Component) (check.Loader, int, error) {
-			loader, err := NewSharedLibraryCheckLoader()
+		factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
+			loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger)
 			priority := 40
 			return loader, priority, err
 		}

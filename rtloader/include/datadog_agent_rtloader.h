@@ -389,6 +389,9 @@ DATADOG_AGENT_RTLOADER_API char *get_interpreter_memory_usage(rtloader_t *);
 */
 DATADOG_AGENT_RTLOADER_API void set_submit_metric_cb(rtloader_t *, cb_submit_metric_t);
 
+DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_metric_cb(cb_submit_metric_t);
+
+
 /*! \fn void set_submit_service_check_cb(rtloader_t *, cb_submit_service_check_t)
     \brief Sets the submit service_check callback to be used by rtloader for service_check
     submission.

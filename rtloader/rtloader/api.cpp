@@ -60,6 +60,9 @@ static void *rtloader_backend = NULL;
 // temporary pointer to store rtloader until we have a subclass for shared library checks
 static rtloader_t *python_rtloader = NULL;
 
+// temporary pointer to store the callback of pkg/collect/aggregator.go
+static cb_submit_metric_t aggregator_submit_metric_cb = NULL;
+
 #ifdef _WIN32
 
 /*! \fn create_t *loadAndCreate(const char *dll, const char *python_home, char **error)
@@ -360,8 +363,9 @@ DATADOG_AGENT_RTLOADER_API void submit_metric(char *checkID, const metric_type_t
                                             char *metricName, const double value, char **tags,
                                             char *hostname, const bool flushFirstValue)
 {
-    AS_TYPE(RtLoader, python_rtloader)->getSubmitMetricCb()(checkID, metricType, metricName, value, tags, hostname,
-                                              flushFirstValue);             
+    // AS_TYPE(RtLoader, python_rtloader)->getSubmitMetricCb()(checkID, metricType, metricName, value, tags, hostname,
+    //                                           flushFirstValue);
+    aggregator_submit_metric_cb(checkID, metricType, metricName, value, tags, hostname, flushFirstValue);             
 }
 
 /*
@@ -494,6 +498,10 @@ void set_module_attr_string(rtloader_t *rtloader, char *module, char *attr, char
 /*
  * aggregator API
  */
+
+DATADOG_AGENT_RTLOADER_API void set_aggregator_submit_metric_cb(cb_submit_metric_t cb) {
+    aggregator_submit_metric_cb = cb;
+}
 
 void set_submit_metric_cb(rtloader_t *rtloader, cb_submit_metric_t cb)
 {

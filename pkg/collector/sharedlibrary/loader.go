@@ -19,9 +19,13 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var sharedlibraryOnce sync.Once
@@ -30,11 +34,16 @@ var sharedlibraryOnce sync.Once
 const SharedLibraryCheckLoaderName string = "sharedlibrary"
 
 // SharedLibraryCheckLoader is a specific loader for checks living in this package
-type SharedLibraryCheckLoader struct{}
+type SharedLibraryCheckLoader struct {
+	logReceiver option.Option[integrations.Component]
+}
 
 // NewSharedLibraryCheckLoader creates a loader for Shared Library checks
-func NewSharedLibraryCheckLoader() (*SharedLibraryCheckLoader, error) {
-	return &SharedLibraryCheckLoader{}, nil
+func NewSharedLibraryCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (*SharedLibraryCheckLoader, error) {
+	aggregator.InitializeCheckContext(senderManager, logReceiver, tagger)
+	return &SharedLibraryCheckLoader{
+		logReceiver: logReceiver,
+	}, nil
 }
 
 // Name returns Shared Library loader name
