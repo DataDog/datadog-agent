@@ -50,7 +50,7 @@ type processor struct {
 	hostSBOM              bool
 	procfsSBOM            bool
 	hostname              string
-	hostCache             string
+	hostLastSBOMHash      string
 	hostLastFullSBOM      time.Time
 	hostHeartbeatValidity time.Duration
 }
@@ -210,49 +210,60 @@ func (p *processor) processContainerImagesRefresh(allImages []*workloadmeta.Cont
 	}
 }
 
-func (p *processor) processHostScanResult(result sbom.ScanResult) {
-	log.Debugf("processing host scanresult: %v", result)
+func (p *processor) processFilesystemScanResult(result sbom.ScanResult, kind, sbomID string, sbomType model.SBOMSourceType, errCallback func(err error) error) {
+	log.Debugf("processing %s scan result: %v", kind, result)
 	sbom := &model.SBOMEntity{
 		Status:             model.SBOMStatus_SUCCESS,
-		Type:               model.SBOMSourceType_HOST_FILE_SYSTEM,
-		Id:                 p.hostname,
+		Type:               sbomType,
+		Id:                 sbomID,
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
 		GenerationDuration: convertDuration(result.Duration),
 	}
 
-	if result.Error != nil {
-		log.Errorf("Scan error: %v", result.Error)
-		sbom.Sbom = &model.SBOMEntity_Error{
-			Error: result.Error.Error(),
-		}
-		sbom.Status = model.SBOMStatus_FAILED
-	} else {
-		log.Infof("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
+	defer func() {
+		err := result.Error
 
-		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
-			sbom.Heartbeat = true
-		} else {
-			report, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report: %s", err)
-				sbom.Sbom = &model.SBOMEntity_Error{
-					Error: err.Error(),
-				}
-				sbom.Status = model.SBOMStatus_FAILED
-			} else {
-				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: convertBOM(report),
-				}
+		if errCallback != nil {
+			if err = errCallback(err); err != nil {
+				log.Errorf("failed scan: %s", err)
+				return
 			}
-
-			sbom.Hash = result.Report.ID()
-			p.hostCache = result.Report.ID()
-			p.hostLastFullSBOM = result.CreatedAt
 		}
+
+		if result.Error != nil {
+			log.Errorf("Scan error: %v", result.Error)
+			sbom.Sbom = &model.SBOMEntity_Error{
+				Error: result.Error.Error(),
+			}
+			sbom.Status = model.SBOMStatus_FAILED
+		}
+
+		p.queue <- sbom
+	}()
+
+	report, err := result.Report.ToCycloneDX()
+	if err != nil {
+		result.Error = err
+		return
 	}
 
-	p.queue <- sbom
+	sbom.Hash = string(result.Report.ID())
+
+	log.Infof("Successfully generated SBOM for %s: %v, %v", kind, result.CreatedAt, result.Duration)
+	if p.hostLastSBOMHash != "" && p.hostLastSBOMHash == sbom.Hash && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
+		sbom.Heartbeat = true
+	} else {
+		sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+			Cyclonedx: convertBOM(report),
+		}
+		p.hostLastSBOMHash = sbom.Hash
+		p.hostLastFullSBOM = result.CreatedAt
+	}
+}
+
+func (p *processor) processHostFilesystemScanResult(result sbom.ScanResult) {
+	p.processFilesystemScanResult(result, "host filesystem", p.hostname, model.SBOMSourceType_HOST_FILE_SYSTEM, nil)
 }
 
 func (p *processor) triggerHostScan() {
@@ -279,47 +290,12 @@ func (p *processor) triggerProcfsScan(ctr *workloadmeta.Container) {
 }
 
 func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
-	log.Debugf("processing procfs scanresult: %v", result)
-	sbom := &model.SBOMEntity{
-		Status:             model.SBOMStatus_SUCCESS,
-		Id:                 result.RequestID,
-		Type:               model.SBOMSourceType_CONTAINER_FILE_SYSTEM,
-		InUse:              true,
-		GeneratedAt:        timestamppb.New(result.CreatedAt),
-		GenerationDuration: convertDuration(result.Duration),
-	}
-
-	if result.Error != nil {
-		if result.Error == procfs.ErrNotFound {
-			return
+	p.processFilesystemScanResult(result, "proc filesystem", result.RequestID, model.SBOMSourceType_CONTAINER_FILE_SYSTEM, func(err error) error {
+		if err == procfs.ErrNotFound {
+			return err
 		}
-
-		log.Errorf("Scan error: %v", result.Error)
-		sbom.Sbom = &model.SBOMEntity_Error{
-			Error: result.Error.Error(),
-		}
-		sbom.Status = model.SBOMStatus_FAILED
-	} else {
-		log.Infof("Successfully generated SBOM for procfs: %v, %v", result.CreatedAt, result.Duration)
-		if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
-			sbom.Heartbeat = true
-		} else {
-			report, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report: %s", err)
-				sbom.Sbom = &model.SBOMEntity_Error{
-					Error: err.Error(),
-				}
-				sbom.Status = model.SBOMStatus_FAILED
-			} else {
-				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: convertBOM(report),
-				}
-			}
-		}
-	}
-
-	p.queue <- sbom
+		return nil
+	})
 }
 
 func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
