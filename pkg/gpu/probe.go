@@ -426,6 +426,7 @@ func toPowerOf2(x int) int {
 	return int(math.Pow(2, math.Round(log)))
 }
 
+// GetDebugStats returns the debug stats for the GPU monitoring probe
 func (p *Probe) GetDebugStats() map[string]interface{} {
 	var activeGpus []map[string]interface{}
 
