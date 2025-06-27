@@ -5,7 +5,7 @@
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
 - !compiled {program_id: 1}
 - !loaded {program_id: 1}
 - !processes-updated
@@ -13,7 +13,7 @@
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, version: 2, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe1, version: 2, where: {methodName: main}, captureSnapshot: true}
 - !attached {program_id: 1, process_id: 1001}
 - !detached {program_id: 1, process_id: 1001}
 - !compiled {program_id: 2}
@@ -25,7 +25,7 @@ event: !processes-updated
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
 effects:
   - !spawn-ebpf-compilation {executable: /usr/bin/test@0.0m0.0, probes: [probe1], program_id: 1}
 state:
@@ -64,7 +64,7 @@ event: !processes-updated
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, version: 2, where: {method_name: main}}
+        - {type: LOG_PROBE, id: probe1, version: 2, where: {methodName: main}, captureSnapshot: true}
 state:
   currently_compiling: <nil>
   queued_programs: '[]'

@@ -21,12 +21,15 @@ except ImportError:
     requests = None
 
 
+def get_sum_file(f):
+    return f"{f}.xz.sum"
+
+
 def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str):
     if requests is None:
         raise Exit("requests module is not installed, please install it to continue")
 
-    sum_filename = f"{image}.xz.sum"
-    sum_url = os.path.join(url_base, branch, sum_filename)
+    sum_url = os.path.join(url_base, branch, get_sum_file(image))
     r = requests.get(sum_url)
     if not r.ok:
         debug(f"[debug] {branch}/{image} sum file not found at {sum_url} (status: {r.status_code})")
@@ -36,11 +39,10 @@ def requires_update(url_base: str, rootfs_dir: PathOrStr, image: str, branch: st
     new_sum = r.text.rstrip().split(' ')[0]
     debug(f"[debug] {branch}/{image} new_sum: {new_sum}")
 
-    local_sum_path = os.path.join(rootfs_dir, sum_filename)
-    if not os.path.exists(local_sum_path):
+    if not os.path.exists(os.path.join(rootfs_dir, get_sum_file(image))):
         return True
 
-    with open(local_sum_path) as f:
+    with open(os.path.join(rootfs_dir, get_sum_file(image))) as f:
         original_sum = f.read().rstrip().split(' ')[0]
         debug(f"[debug] {image} original_sum: {original_sum}")
     if new_sum != original_sum:
@@ -122,7 +124,7 @@ def download_rootfs(
         if requires_update(url_base, rootfs_dir, f, branch_mapping.get(f, "master")):
             debug(f"[debug] updating {f} from S3.")
             ctx.run(f"rm -f {os.path.join(rootfs_dir, f)}")
-            ctx.run(f"rm -f {os.path.join(rootfs_dir, f'{f}.xz.sum')}")
+            ctx.run(f"rm -f {os.path.join(rootfs_dir, get_sum_file(f))}")
             to_download.append(f)
 
     if len(to_download) == 0:
@@ -137,7 +139,7 @@ def download_rootfs(
                 branch = branch_mapping.get(f, "master")
                 info(f"[+] {f} needs to be downloaded, using branch {branch}")
                 filename = f"{f}.xz"
-                sum_file = f"{f}.xz.sum"
+                sum_file = get_sum_file(f)
                 wo_qcow2 = '.'.join(f.split('.')[:-1])
                 manifest_file = f"{wo_qcow2}.manifest"
                 # remove this file and sum, uncompressed file too if it exists

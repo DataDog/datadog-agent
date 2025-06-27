@@ -8,6 +8,9 @@ fi
 
 # The result json file name can differ in e2e contexts
 result_json="test_output.json"
+if ! [ -f "$result_json" ]; then
+    result_json="e2e_test_output.json"
+fi
 if [[ -n "$2" ]]; then
     result_json="$2"
 fi

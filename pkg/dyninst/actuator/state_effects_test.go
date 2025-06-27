@@ -13,8 +13,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/config"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 )
 
 // effect represents a side effect that can be recorded and serialized to YAML
@@ -28,7 +28,7 @@ type effect interface {
 type effectSpawnEBPFCompilation struct {
 	programID  ir.ProgramID
 	executable Executable
-	probes     []config.Probe
+	probes     []irgen.ProbeDefinition
 }
 
 func (e effectSpawnEBPFCompilation) yamlTag() string {
@@ -154,7 +154,7 @@ func (er *effectRecorder) yamlNodes() ([]*yaml.Node, error) {
 func (er *effectRecorder) compileProgram(
 	programID ir.ProgramID,
 	executable Executable,
-	probes []config.Probe,
+	probes []irgen.ProbeDefinition,
 ) {
 	er.recordEffect(effectSpawnEBPFCompilation{
 		programID:  programID,

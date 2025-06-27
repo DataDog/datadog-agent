@@ -45,6 +45,7 @@ type ProcessEvent struct {
 	InjectionPC         uint64
 	ThrottlerIdx        int
 	PointerChasingLimit uint32
+	Frameless           bool
 	EventRootType       *ir.EventRootType
 }
 

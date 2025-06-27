@@ -70,7 +70,6 @@ build do
   else
     dependency "vc_redist_14"
 
-    vcrt140_root = "#{Omnibus::Config.source_dir()}/vc_redist_140/expanded"
     ###############################
     # Setup openssl dependency... #
     ###############################
