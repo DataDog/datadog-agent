@@ -28,15 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type endpointResolveMode string
-
 const (
 	kubeEndpointID               = "endpoints"
 	kubeEndpointAnnotationPrefix = "ad.datadoghq.com/endpoints."
 	kubeEndpointResolvePath      = "resolve"
-
-	kubeEndpointResolveAuto endpointResolveMode = "auto"
-	kubeEndpointResolveIP   endpointResolveMode = "ip"
 )
 
 // kubeEndpointsConfigProvider implements the ConfigProvider interface for the apiserver.
@@ -297,24 +292,10 @@ func generateConfigs(tpl integration.Config, resolveMode endpointResolveMode, ke
 		return []integration.Config{tpl}
 	}
 	generatedConfigs := make([]integration.Config, 0)
-	namespace := kep.Namespace
-	name := kep.Name
+	namespace, name := kep.Namespace, kep.Name
 
 	// Check resolve annotation to know how we should process this endpoint
-	var resolveFunc func(*integration.Config, v1.EndpointAddress)
-	switch resolveMode {
-	// IP: we explicitly ignore what's behind this address (nothing to do)
-	case kubeEndpointResolveIP:
-	// In case of unknown value, fallback to auto
-	default:
-		log.Warnf("Unknown resolve value: %s for endpoint: %s/%s - fallback to auto mode", resolveMode, namespace, name)
-		fallthrough
-	// Auto or empty (default to auto): we try to resolve the POD behind this address
-	case "":
-		fallthrough
-	case kubeEndpointResolveAuto:
-		resolveFunc = utils.ResolveEndpointConfigAuto
-	}
+	resolveFunc := getEndpointResolveFunc(resolveMode, namespace, name)
 
 	for i := range kep.Subsets {
 		for j := range kep.Subsets[i].Addresses {

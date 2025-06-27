@@ -30,9 +30,12 @@ func ProtobufConfigFromAutodiscoveryConfig(config *integration.Config) *core.Con
 				Name:      advancedAdIdentifier.KubeService.Name,
 				Namespace: advancedAdIdentifier.KubeService.Namespace,
 			},
-			KubeEndpoints: &core.KubeNamespacedName{
-				Name:      advancedAdIdentifier.KubeEndpoints.Name,
-				Namespace: advancedAdIdentifier.KubeEndpoints.Namespace,
+			KubeEndpoints: &core.KubeEndpointsIdentifier{
+				KubeNamespacedName: &core.KubeNamespacedName{
+					Name:      advancedAdIdentifier.KubeEndpoints.Name,
+					Namespace: advancedAdIdentifier.KubeEndpoints.Namespace,
+				},
+				Resolve: advancedAdIdentifier.KubeEndpoints.Resolve,
 			},
 		})
 	}
@@ -76,9 +79,12 @@ func AutodiscoveryConfigFromProtobufConfig(config *core.Config) integration.Conf
 				Name:      advancedAdIdentifier.KubeService.Name,
 				Namespace: advancedAdIdentifier.KubeService.Namespace,
 			},
-			KubeEndpoints: integration.KubeNamespacedName{
-				Name:      advancedAdIdentifier.KubeEndpoints.Name,
-				Namespace: advancedAdIdentifier.KubeEndpoints.Namespace,
+			KubeEndpoints: integration.KubeEndpointsIdentifier{
+				KubeNamespacedName: integration.KubeNamespacedName{
+					Name:      advancedAdIdentifier.KubeEndpoints.KubeNamespacedName.Name,
+					Namespace: advancedAdIdentifier.KubeEndpoints.KubeNamespacedName.Namespace,
+				},
+				Resolve: advancedAdIdentifier.KubeEndpoints.Resolve,
 			},
 		})
 	}

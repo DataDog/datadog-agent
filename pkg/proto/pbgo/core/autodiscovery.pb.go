@@ -119,17 +119,69 @@ func (x *KubeNamespacedName) GetNamespace() string {
 	return ""
 }
 
+type KubeEndpointsIdentifier struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	KubeNamespacedName *KubeNamespacedName    `protobuf:"bytes,1,opt,name=kubeNamespacedName,proto3" json:"kubeNamespacedName,omitempty"`
+	Resolve            string                 `protobuf:"bytes,2,opt,name=resolve,proto3" json:"resolve,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *KubeEndpointsIdentifier) Reset() {
+	*x = KubeEndpointsIdentifier{}
+	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KubeEndpointsIdentifier) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KubeEndpointsIdentifier) ProtoMessage() {}
+
+func (x *KubeEndpointsIdentifier) ProtoReflect() protoreflect.Message {
+	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KubeEndpointsIdentifier.ProtoReflect.Descriptor instead.
+func (*KubeEndpointsIdentifier) Descriptor() ([]byte, []int) {
+	return file_datadog_autodiscovery_autodiscovery_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *KubeEndpointsIdentifier) GetKubeNamespacedName() *KubeNamespacedName {
+	if x != nil {
+		return x.KubeNamespacedName
+	}
+	return nil
+}
+
+func (x *KubeEndpointsIdentifier) GetResolve() string {
+	if x != nil {
+		return x.Resolve
+	}
+	return ""
+}
+
 type AdvancedADIdentifier struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	KubeService   *KubeNamespacedName    `protobuf:"bytes,1,opt,name=kubeService,proto3" json:"kubeService,omitempty"`
-	KubeEndpoints *KubeNamespacedName    `protobuf:"bytes,2,opt,name=kubeEndpoints,proto3" json:"kubeEndpoints,omitempty"`
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	KubeService   *KubeNamespacedName      `protobuf:"bytes,1,opt,name=kubeService,proto3" json:"kubeService,omitempty"`
+	KubeEndpoints *KubeEndpointsIdentifier `protobuf:"bytes,2,opt,name=kubeEndpoints,proto3" json:"kubeEndpoints,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AdvancedADIdentifier) Reset() {
 	*x = AdvancedADIdentifier{}
-	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[1]
+	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -141,7 +193,7 @@ func (x *AdvancedADIdentifier) String() string {
 func (*AdvancedADIdentifier) ProtoMessage() {}
 
 func (x *AdvancedADIdentifier) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[1]
+	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -154,7 +206,7 @@ func (x *AdvancedADIdentifier) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdvancedADIdentifier.ProtoReflect.Descriptor instead.
 func (*AdvancedADIdentifier) Descriptor() ([]byte, []int) {
-	return file_datadog_autodiscovery_autodiscovery_proto_rawDescGZIP(), []int{1}
+	return file_datadog_autodiscovery_autodiscovery_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AdvancedADIdentifier) GetKubeService() *KubeNamespacedName {
@@ -164,7 +216,7 @@ func (x *AdvancedADIdentifier) GetKubeService() *KubeNamespacedName {
 	return nil
 }
 
-func (x *AdvancedADIdentifier) GetKubeEndpoints() *KubeNamespacedName {
+func (x *AdvancedADIdentifier) GetKubeEndpoints() *KubeEndpointsIdentifier {
 	if x != nil {
 		return x.KubeEndpoints
 	}
@@ -196,7 +248,7 @@ type Config struct {
 
 func (x *Config) Reset() {
 	*x = Config{}
-	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[2]
+	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -208,7 +260,7 @@ func (x *Config) String() string {
 func (*Config) ProtoMessage() {}
 
 func (x *Config) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[2]
+	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -221,7 +273,7 @@ func (x *Config) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Config.ProtoReflect.Descriptor instead.
 func (*Config) Descriptor() ([]byte, []int) {
-	return file_datadog_autodiscovery_autodiscovery_proto_rawDescGZIP(), []int{2}
+	return file_datadog_autodiscovery_autodiscovery_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Config) GetName() string {
@@ -352,7 +404,7 @@ type AutodiscoveryStreamResponse struct {
 
 func (x *AutodiscoveryStreamResponse) Reset() {
 	*x = AutodiscoveryStreamResponse{}
-	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[3]
+	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -364,7 +416,7 @@ func (x *AutodiscoveryStreamResponse) String() string {
 func (*AutodiscoveryStreamResponse) ProtoMessage() {}
 
 func (x *AutodiscoveryStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[3]
+	mi := &file_datadog_autodiscovery_autodiscovery_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -377,7 +429,7 @@ func (x *AutodiscoveryStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AutodiscoveryStreamResponse.ProtoReflect.Descriptor instead.
 func (*AutodiscoveryStreamResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_autodiscovery_autodiscovery_proto_rawDescGZIP(), []int{3}
+	return file_datadog_autodiscovery_autodiscovery_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *AutodiscoveryStreamResponse) GetConfigs() []*Config {
@@ -394,10 +446,13 @@ const file_datadog_autodiscovery_autodiscovery_proto_rawDesc = "" +
 	")datadog/autodiscovery/autodiscovery.proto\x12\x15datadog.autodiscovery\"F\n" +
 	"\x12KubeNamespacedName\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
-	"\tnamespace\x18\x02 \x01(\tR\tnamespace\"\xb4\x01\n" +
+	"\tnamespace\x18\x02 \x01(\tR\tnamespace\"\x8e\x01\n" +
+	"\x17KubeEndpointsIdentifier\x12Y\n" +
+	"\x12kubeNamespacedName\x18\x01 \x01(\v2).datadog.autodiscovery.KubeNamespacedNameR\x12kubeNamespacedName\x12\x18\n" +
+	"\aresolve\x18\x02 \x01(\tR\aresolve\"\xb9\x01\n" +
 	"\x14AdvancedADIdentifier\x12K\n" +
-	"\vkubeService\x18\x01 \x01(\v2).datadog.autodiscovery.KubeNamespacedNameR\vkubeService\x12O\n" +
-	"\rkubeEndpoints\x18\x02 \x01(\v2).datadog.autodiscovery.KubeNamespacedNameR\rkubeEndpoints\"\xab\x05\n" +
+	"\vkubeService\x18\x01 \x01(\v2).datadog.autodiscovery.KubeNamespacedNameR\vkubeService\x12T\n" +
+	"\rkubeEndpoints\x18\x02 \x01(\v2..datadog.autodiscovery.KubeEndpointsIdentifierR\rkubeEndpoints\"\xab\x05\n" +
 	"\x06Config\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1c\n" +
 	"\tinstances\x18\x02 \x03(\fR\tinstances\x12\x1e\n" +
@@ -441,25 +496,27 @@ func file_datadog_autodiscovery_autodiscovery_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_autodiscovery_autodiscovery_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_datadog_autodiscovery_autodiscovery_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_datadog_autodiscovery_autodiscovery_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_datadog_autodiscovery_autodiscovery_proto_goTypes = []any{
 	(ConfigEventType)(0),                // 0: datadog.autodiscovery.ConfigEventType
 	(*KubeNamespacedName)(nil),          // 1: datadog.autodiscovery.KubeNamespacedName
-	(*AdvancedADIdentifier)(nil),        // 2: datadog.autodiscovery.AdvancedADIdentifier
-	(*Config)(nil),                      // 3: datadog.autodiscovery.Config
-	(*AutodiscoveryStreamResponse)(nil), // 4: datadog.autodiscovery.AutodiscoveryStreamResponse
+	(*KubeEndpointsIdentifier)(nil),     // 2: datadog.autodiscovery.KubeEndpointsIdentifier
+	(*AdvancedADIdentifier)(nil),        // 3: datadog.autodiscovery.AdvancedADIdentifier
+	(*Config)(nil),                      // 4: datadog.autodiscovery.Config
+	(*AutodiscoveryStreamResponse)(nil), // 5: datadog.autodiscovery.AutodiscoveryStreamResponse
 }
 var file_datadog_autodiscovery_autodiscovery_proto_depIdxs = []int32{
-	1, // 0: datadog.autodiscovery.AdvancedADIdentifier.kubeService:type_name -> datadog.autodiscovery.KubeNamespacedName
-	1, // 1: datadog.autodiscovery.AdvancedADIdentifier.kubeEndpoints:type_name -> datadog.autodiscovery.KubeNamespacedName
-	2, // 2: datadog.autodiscovery.Config.advancedAdIdentifiers:type_name -> datadog.autodiscovery.AdvancedADIdentifier
-	0, // 3: datadog.autodiscovery.Config.eventType:type_name -> datadog.autodiscovery.ConfigEventType
-	3, // 4: datadog.autodiscovery.AutodiscoveryStreamResponse.configs:type_name -> datadog.autodiscovery.Config
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	1, // 0: datadog.autodiscovery.KubeEndpointsIdentifier.kubeNamespacedName:type_name -> datadog.autodiscovery.KubeNamespacedName
+	1, // 1: datadog.autodiscovery.AdvancedADIdentifier.kubeService:type_name -> datadog.autodiscovery.KubeNamespacedName
+	2, // 2: datadog.autodiscovery.AdvancedADIdentifier.kubeEndpoints:type_name -> datadog.autodiscovery.KubeEndpointsIdentifier
+	3, // 3: datadog.autodiscovery.Config.advancedAdIdentifiers:type_name -> datadog.autodiscovery.AdvancedADIdentifier
+	0, // 4: datadog.autodiscovery.Config.eventType:type_name -> datadog.autodiscovery.ConfigEventType
+	4, // 5: datadog.autodiscovery.AutodiscoveryStreamResponse.configs:type_name -> datadog.autodiscovery.Config
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_datadog_autodiscovery_autodiscovery_proto_init() }
@@ -473,7 +530,7 @@ func file_datadog_autodiscovery_autodiscovery_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_autodiscovery_autodiscovery_proto_rawDesc), len(file_datadog_autodiscovery_autodiscovery_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

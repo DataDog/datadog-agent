@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -80,6 +82,24 @@ func TestGetIntegrationConfig(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, config.AdvancedADIdentifiers, []integration.AdvancedADIdentifier{{KubeService: integration.KubeNamespacedName{Name: "svc-name", Namespace: "svc-ns"}}})
 
+	// advanced autodiscovery kube_endpoints
+	config, err = GetIntegrationConfigFromFile("foo", "tests/advanced_ad_kube_endpoints.yaml")
+	require.Nil(t, err)
+	assert.Equal(t,
+		[]integration.AdvancedADIdentifier{
+			{
+				KubeEndpoints: integration.KubeEndpointsIdentifier{
+					KubeNamespacedName: integration.KubeNamespacedName{
+						Name:      "svc-name",
+						Namespace: "svc-ns",
+					},
+					Resolve: "ip",
+				},
+			},
+		},
+		config.AdvancedADIdentifiers,
+	)
+
 	// autodiscovery: check if we correctly refuse to load if a 'docker_images' section is present
 	config, err = GetIntegrationConfigFromFile("foo", "tests/ad_deprecated.yaml")
 	assert.NotNil(t, err)
@@ -98,7 +118,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 19, len(configs))
+	require.Equal(t, 20, len(configs))
 	require.Equal(t, 4, len(errors))
 
 	for _, c := range configs {
@@ -111,10 +131,73 @@ func TestReadConfigFiles(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 18, len(configs))
 
+	expectedConfig1 := integration.Config{
+		Name: "advanced_ad",
+		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
+			{
+				KubeService: integration.KubeNamespacedName{
+					Name:      "svc-name",
+					Namespace: "svc-ns",
+				},
+			},
+		},
+		Instances: []integration.Data{
+			integration.Data("foo: bar\n"),
+		},
+		Source: "file:tests/advanced_ad.yaml",
+	}
+
+	expectedConfig2 := integration.Config{
+		Name: "advanced_ad_kube_endpoints",
+		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
+			{
+				KubeEndpoints: integration.KubeEndpointsIdentifier{
+					KubeNamespacedName: integration.KubeNamespacedName{
+						Name:      "svc-name",
+						Namespace: "svc-ns",
+					},
+					Resolve: "ip",
+				},
+			},
+		},
+		Instances: []integration.Data{
+			integration.Data("foo: bar\n"),
+		},
+		Source: "file:tests/advanced_ad_kube_endpoints.yaml",
+	}
+
 	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
 	require.Nil(t, err)
-	require.Equal(t, 1, len(configs))
-	require.Equal(t, configs[0].AdvancedADIdentifiers, []integration.AdvancedADIdentifier{{KubeService: integration.KubeNamespacedName{Name: "svc-name", Namespace: "svc-ns"}}})
+	require.Equal(t, 2, len(configs))
+
+	// Ignore the Source field for comparison because varies by OS
+	ignoreSource := cmpopts.IgnoreFields(integration.Config{}, "Source")
+
+	// Check if expectedConfig1 is in the configs slice
+	found := false
+	for _, config := range configs {
+		if cmp.Equal(config, expectedConfig1, ignoreSource) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
+			expectedConfig1, configs, cmp.Diff(expectedConfig1, configs, ignoreSource))
+	}
+
+	// Check if expectedConfig2 is in the configs slice
+	found = false
+	for _, config := range configs {
+		if cmp.Equal(config, expectedConfig2, ignoreSource) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
+			expectedConfig2, configs, cmp.Diff(expectedConfig2, configs, ignoreSource))
+	}
 
 	configs, _, err = ReadConfigFiles(func(c integration.Config) bool { return c.Name == "baz" })
 	require.Nil(t, err)

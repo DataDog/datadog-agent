@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
@@ -39,12 +38,14 @@ type epConfig struct {
 	templates     []integration.Config
 	ep            *v1.Endpoints
 	shouldCollect bool
+	resolveMode   endpointResolveMode
 }
 
 func newEpConfig() *epConfig {
 	return &epConfig{
 		templates:     []integration.Config{},
 		shouldCollect: false,
+		resolveMode:   kubeEndpointResolveAuto, // default to auto mode
 	}
 }
 
@@ -186,7 +187,12 @@ func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integrati
 				continue
 			}
 
-			p.store.insertTemplate(epID(advancedAD.KubeEndpoints.Namespace, advancedAD.KubeEndpoints.Name), tpl)
+			resolveMode := endpointResolveMode(advancedAD.KubeEndpoints.Resolve)
+			if resolveMode == "" {
+				resolveMode = kubeEndpointResolveAuto // default to auto mode
+			}
+
+			p.store.insertTemplate(epID(advancedAD.KubeEndpoints.Namespace, advancedAD.KubeEndpoints.Name), tpl, resolveMode)
 		}
 	}
 }
@@ -200,8 +206,8 @@ func (s *store) shouldHandle(ep *v1.Endpoints) bool {
 	return found
 }
 
-// insertTemplate caches config templates.
-func (s *store) insertTemplate(id string, tpl integration.Config) {
+// insertTemplate caches config templates with a specific resolve mode.
+func (s *store) insertTemplate(id string, tpl integration.Config, resolveMode endpointResolveMode) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -211,6 +217,7 @@ func (s *store) insertTemplate(id string, tpl integration.Config) {
 	}
 
 	s.epConfigs[id].templates = append(s.epConfigs[id].templates, tpl)
+	s.epConfigs[id].resolveMode = resolveMode
 }
 
 // insertEp caches the provided endpoints object if it matches one of the tracked configs
@@ -262,7 +269,7 @@ func (s *store) generateConfigs() []integration.Config {
 	for _, epConfig := range s.epConfigs {
 		if epConfig.shouldCollect {
 			for _, tpl := range epConfig.templates {
-				configs = append(configs, endpointChecksFromTemplate(tpl, epConfig.ep)...)
+				configs = append(configs, endpointChecksFromTemplate(tpl, epConfig.ep, epConfig.resolveMode)...)
 			}
 		}
 	}
@@ -271,11 +278,14 @@ func (s *store) generateConfigs() []integration.Config {
 }
 
 // endpointChecksFromTemplate resolves an integration.Config template based on the provided Endpoints object.
-func endpointChecksFromTemplate(tpl integration.Config, ep *v1.Endpoints) []integration.Config {
+func endpointChecksFromTemplate(tpl integration.Config, ep *v1.Endpoints, resolveMode endpointResolveMode) []integration.Config {
 	configs := []integration.Config{}
 	if ep == nil {
 		return configs
 	}
+
+	// Check resolve mode to know how we should process this endpoint
+	resolveFunc := getEndpointResolveFunc(resolveMode, ep.Namespace, ep.Name)
 
 	for i := range ep.Subsets {
 		for j := range ep.Subsets[i].Addresses {
@@ -296,7 +306,9 @@ func endpointChecksFromTemplate(tpl integration.Config, ep *v1.Endpoints) []inte
 				CheckTagCardinality:     tpl.CheckTagCardinality,
 			}
 
-			utils.ResolveEndpointConfigAuto(config, ep.Subsets[i].Addresses[j])
+			if resolveFunc != nil {
+				resolveFunc(config, ep.Subsets[i].Addresses[j])
+			}
 			configs = append(configs, *config)
 		}
 	}
