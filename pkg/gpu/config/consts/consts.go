@@ -21,4 +21,4 @@ const GpuTelemetryModule = GpuModuleName
 const GpuModuleName = "gpu"
 
 // GpuConsumerHealthName is the name of the health check for the CUDA event consumer.
-const GpuConsumerHealthName = "gpu-tracer-cuda-events"
+const GpuConsumerHealthName = "gpu-consumer-cuda-events"
