@@ -72,7 +72,7 @@ func (c *inventoryImpl) Start(_ context.Context) error {
 }
 
 func (c *inventoryImpl) collect() {
-	diagnostics, err := runner.Diagnose(c.config)
+	diagnostics, err := runner.Diagnose(c.config, c.log)
 	if err != nil {
 		c.log.Errorf("Error while running diagnostics: %s", err)
 		return
