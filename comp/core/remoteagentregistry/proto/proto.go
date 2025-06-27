@@ -28,30 +28,3 @@ func ProtobufToFlareData(agentID string, resp *pb.GetFlareFilesResponse) *remote
 		Files:   resp.Files,
 	}
 }
-
-// ProtobufToStatusData converts the protobuf representation of status data to the internal type.
-func ProtobufToStatusData(agentID string, displayName string, resp *pb.GetStatusDetailsResponse) *remoteagentregistry.StatusData {
-	return &remoteagentregistry.StatusData{
-		AgentID:       agentID,
-		DisplayName:   displayName,
-		MainSection:   protobufToStatusSection(resp.MainSection),
-		NamedSections: protobufToNamedSections(resp.NamedSections),
-	}
-}
-
-func protobufToStatusSection(statusSection *pb.StatusSection) remoteagentregistry.StatusSection {
-	if statusSection != nil {
-		return statusSection.Fields
-	}
-	return remoteagentregistry.StatusSection{}
-}
-
-func protobufToNamedSections(namedSections map[string]*pb.StatusSection) map[string]remoteagentregistry.StatusSection {
-	sections := make(map[string]remoteagentregistry.StatusSection, len(namedSections))
-
-	for name, section := range namedSections {
-		sections[name] = protobufToStatusSection(section)
-	}
-
-	return sections
-}
