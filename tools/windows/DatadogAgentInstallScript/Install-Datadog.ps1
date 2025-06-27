@@ -186,6 +186,18 @@ function Update-DatadogAgentConfig() {
       Write-Host "Writing DD_REMOTE_UPDATES"
       Update-DatadogConfigFile "^[ #]*remote_updates:.*" "remote_updates: $($env:DD_REMOTE_UPDATES.ToLower())"
    }
+   
+   if ($env:DD_TAGS) {
+      Write-Host "Writing DD_TAGS"
+      $tags = $env:DD_TAGS -split '[, ]' | Where-Object { $_ -ne '' } | ForEach-Object { "  - $_" }
+      $tagsYaml = "tags:`n" + ($tags -join "`n")
+      Update-DatadogConfigFile "^[ #]*tags:.*" $tagsYaml
+   }
+
+   if ($env:DD_LOGS_ENABLED) {
+      Write-Host "Writing DD_LOGS_ENABLED"
+      Update-DatadogConfigFile "^[ #]*logs_enabled:.*" "logs_enabled: $($env:DD_LOGS_ENABLED.ToLower())"
+   }
 }
 
 if ($env:SCRIPT_IMPORT_ONLY) {
