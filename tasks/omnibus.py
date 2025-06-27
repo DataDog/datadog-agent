@@ -175,6 +175,9 @@ def get_omnibus_env(
         'RUSTUP_VERSION',
         'PIP_INDEX_URL',
         'PIP_EXTRA_INDEX_URL',
+        'HOME',
+        'PYTHONUTF8',
+        'CONDAPATH',
     ]
     for key in env_to_forward:
         if key in os.environ:
