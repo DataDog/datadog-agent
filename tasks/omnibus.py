@@ -172,6 +172,8 @@ def get_omnibus_env(
         'GOROOT',
         'GOPATH',
         'RUST_VERSION',
+        'PIP_INDEX_URL',
+        'PIP_EXTRA_INDEX_URL',
     ]
     for key in env_to_forward:
         if key in os.environ:
