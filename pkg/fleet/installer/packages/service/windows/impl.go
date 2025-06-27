@@ -1,6 +1,6 @@
 //go:build windows
 
-package packages
+package windows
 
 import (
 	"context"
@@ -10,155 +10,36 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/svc/mgr"
 )
-
-// Internal types for SCM operations (not exported)
-
-// winManagerHandle wraps mgr.Mgr for internal use
-type winManagerHandle struct {
-	mgr *mgr.Mgr
-}
-
-func (h *winManagerHandle) Disconnect() error {
-	return h.mgr.Disconnect()
-}
-
-// winServiceHandle wraps mgr.Service for internal use
-type winServiceHandle struct {
-	service *mgr.Service
-}
-
-func (h *winServiceHandle) Query() (winServiceStatus, error) {
-	status, err := h.service.Query()
-	if err != nil {
-		return winServiceStatus{}, err
-	}
-	return winServiceStatus{ProcessId: status.ProcessId}, nil
-}
-
-func (h *winServiceHandle) Close() error {
-	return h.service.Close()
-}
-
-// winServiceStatus represents service status information for internal use
-type winServiceStatus struct {
-	ProcessId uint32
-}
-
-// Real implementations of the interfaces
-
-// WinSystemAPI implements SystemAPI using winutil and Windows API
-type WinSystemAPI struct{}
-
-func (api *WinSystemAPI) GetServiceProcessID(serviceName string) (uint32, error) {
-	manager, err := winutil.OpenSCManager(windows.SC_MANAGER_CONNECT)
-	if err != nil {
-		return 0, fmt.Errorf("could not open SCM for service %s: %w", serviceName, err)
-	}
-	defer manager.Disconnect()
-
-	service, err := winutil.OpenService(manager, serviceName, windows.SERVICE_QUERY_STATUS)
-	if err != nil {
-		return 0, fmt.Errorf("could not open service %s: %w", serviceName, err)
-	}
-	defer service.Close()
-
-	status, err := service.Query()
-	if err != nil {
-		return 0, fmt.Errorf("could not query service %s: %w", serviceName, err)
-	}
-
-	return status.ProcessId, nil
-}
-
-func (api *WinSystemAPI) IsServiceRunning(serviceName string) (bool, error) {
-	return winutil.IsServiceRunning(serviceName)
-}
-
-func (api *WinSystemAPI) StopService(serviceName string) error {
-	return winutil.StopService(serviceName)
-}
-
-func (api *WinSystemAPI) StartService(serviceName string) error {
-	return winutil.StartService(serviceName)
-}
-
-func (api *WinSystemAPI) OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (ProcessHandle, error) {
-	handle, err := windows.OpenProcess(desiredAccess, inheritHandle, processID)
-	if err != nil {
-		return nil, err
-	}
-	return &WinProcessHandle{handle: handle}, nil
-}
-
-func (api *WinSystemAPI) TerminateProcess(handle ProcessHandle, exitCode uint32) error {
-	winHandle := handle.(*WinProcessHandle)
-	return windows.TerminateProcess(winHandle.handle, exitCode)
-}
-
-func (api *WinSystemAPI) WaitForSingleObject(handle ProcessHandle, timeoutMs uint32) (uint32, error) {
-	winHandle := handle.(*WinProcessHandle)
-	return windows.WaitForSingleObject(winHandle.handle, timeoutMs)
-}
-
-func (api *WinSystemAPI) CloseHandle(handle ProcessHandle) error {
-	winHandle := handle.(*WinProcessHandle)
-	return windows.CloseHandle(winHandle.handle)
-}
-
-// WinProcessHandle implements ProcessHandle
-type WinProcessHandle struct {
-	handle windows.Handle
-}
 
 // WinServiceManager implements ServiceManager using the SystemAPI interface
 type WinServiceManager struct {
-	api SystemAPI
+	api systemAPI
 }
 
 // NewWinServiceManager creates a new WinServiceManager with real implementations
 func NewWinServiceManager() *WinServiceManager {
 	return &WinServiceManager{
-		api: &WinSystemAPI{},
+		api: &winSystemAPI{},
 	}
 }
 
 // NewWinServiceManagerWithAPI creates a new WinServiceManager with a custom SystemAPI (for testing)
-func NewWinServiceManagerWithAPI(api SystemAPI) *WinServiceManager {
+func NewWinServiceManagerWithAPI(api systemAPI) *WinServiceManager {
 	return &WinServiceManager{
 		api: api,
 	}
 }
 
-// Basic service operations
-func (w *WinServiceManager) IsServiceRunning(serviceName string) (bool, error) {
-	return w.api.IsServiceRunning(serviceName)
-}
-
-func (w *WinServiceManager) StopService(serviceName string) error {
-	return w.api.StopService(serviceName)
-}
-
-func (w *WinServiceManager) StartService(serviceName string) error {
-	return w.api.StartService(serviceName)
-}
-
-// GetServiceProcessID retrieves the process ID for a given service name
-func (w *WinServiceManager) GetServiceProcessID(serviceName string) (uint32, error) {
-	return w.api.GetServiceProcessID(serviceName)
-}
-
-// TerminateServiceProcess terminates a service by killing its process
-func (w *WinServiceManager) TerminateServiceProcess(ctx context.Context, serviceName string) (err error) {
+// terminateServiceProcess terminates a service by killing its process
+func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, serviceName string) (err error) {
 	span, _ := telemetry.StartSpanFromContext(ctx, "terminate_service_process")
 	defer func() { span.Finish(err) }()
 	span.SetTag("service_name", serviceName)
 
 	// Get the process ID for the service
-	processID, err := w.GetServiceProcessID(serviceName)
+	processID, err := w.api.GetServiceProcessID(serviceName)
 	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
 		return nil
 	} else if err != nil {
@@ -177,10 +58,10 @@ func (w *WinServiceManager) TerminateServiceProcess(ctx context.Context, service
 	if err != nil {
 		return fmt.Errorf("could not open process %d for service %s: %w", processID, serviceName, err)
 	}
-	defer w.api.CloseHandle(handle)
+	defer w.api.CloseHandle(handle) //nolint:errcheck
 
 	// Verify we still have the correct process by checking the service PID again
-	currentProcessID, err := w.GetServiceProcessID(serviceName)
+	currentProcessID, err := w.api.GetServiceProcessID(serviceName)
 	if err != nil {
 		return fmt.Errorf("could not verify process ID for service %s: %w", serviceName, err)
 	}
@@ -231,7 +112,7 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 	log.Infof("Stopping all Datadog Agent services")
 
 	// First, try to stop the main datadogagent service
-	err = w.StopService("datadogagent")
+	err = w.api.StopService("datadogagent")
 	if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
 		log.Infof("Service datadogagent does not exist, skipping stop action")
 		return nil
@@ -244,7 +125,7 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 	for _, serviceName := range allAgentServices {
 		log.Debugf("Ensuring service %s is stopped", serviceName)
 
-		running, err := w.IsServiceRunning(serviceName)
+		running, err := w.api.IsServiceRunning(serviceName)
 		if err != nil {
 			if errors.Is(err, windows.ERROR_SERVICE_DOES_NOT_EXIST) {
 				log.Debugf("Service %s does not exist, skipping", serviceName)
@@ -257,10 +138,10 @@ func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error
 		}
 
 		// Service is running, terminate its process
-		err = w.TerminateServiceProcess(ctx, serviceName)
+		err = w.terminateServiceProcess(ctx, serviceName)
 		if err != nil {
 			// Check if service is actually stopped despite the termination error
-			running, runningErr := w.IsServiceRunning(serviceName)
+			running, runningErr := w.api.IsServiceRunning(serviceName)
 			if runningErr != nil {
 				log.Errorf("Termination failed for service %s (%v) and could not verify service state (%v)", serviceName, err, runningErr)
 				failedServices = append(failedServices, fmt.Errorf("%s: termination failed (%w) and state verification failed (%w)", serviceName, err, runningErr))
@@ -289,7 +170,7 @@ func (w *WinServiceManager) StartAgentServices(ctx context.Context) (err error) 
 	defer func() { span.Finish(err) }()
 	log.Infof("Starting datadogagent service")
 
-	err = w.StartService("datadogagent")
+	err = w.api.StartService("datadogagent")
 	if err != nil {
 		return fmt.Errorf("failed to start datadogagent service: %w", err)
 	}

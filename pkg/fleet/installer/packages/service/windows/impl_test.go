@@ -1,6 +1,6 @@
 //go:build windows
 
-package packages
+package windows
 
 import (
 	"context"
@@ -12,59 +12,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Mock implementations
-
-type MockSystemAPI struct {
-	mock.Mock
-}
-
-func (m *MockSystemAPI) GetServiceProcessID(serviceName string) (uint32, error) {
-	args := m.Called(serviceName)
-	return args.Get(0).(uint32), args.Error(1)
-}
-
-func (m *MockSystemAPI) IsServiceRunning(serviceName string) (bool, error) {
-	args := m.Called(serviceName)
-	return args.Bool(0), args.Error(1)
-}
-
-func (m *MockSystemAPI) StopService(serviceName string) error {
-	args := m.Called(serviceName)
-	return args.Error(0)
-}
-
-func (m *MockSystemAPI) StartService(serviceName string) error {
-	args := m.Called(serviceName)
-	return args.Error(0)
-}
-
-func (m *MockSystemAPI) OpenProcess(desiredAccess uint32, inheritHandle bool, processID uint32) (ProcessHandle, error) {
-	args := m.Called(desiredAccess, inheritHandle, processID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(ProcessHandle), args.Error(1)
-}
-
-func (m *MockSystemAPI) TerminateProcess(handle ProcessHandle, exitCode uint32) error {
-	args := m.Called(handle, exitCode)
-	return args.Error(0)
-}
-
-func (m *MockSystemAPI) WaitForSingleObject(handle ProcessHandle, timeoutMs uint32) (uint32, error) {
-	args := m.Called(handle, timeoutMs)
-	return args.Get(0).(uint32), args.Error(1)
-}
-
-func (m *MockSystemAPI) CloseHandle(handle ProcessHandle) error {
-	args := m.Called(handle)
-	return args.Error(0)
-}
-
-type MockProcessHandle struct {
-	mock.Mock
-}
-
 // Test functions
 
 func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
@@ -73,13 +20,13 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 		serviceName   string
 		expectError   bool
 		errorContains string
-		setupMocks    func(*MockSystemAPI, *MockProcessHandle)
+		setupMocks    func(*mockSystemAPI, *mockProcessHandle)
 	}{
 		{
 			name:        "service not running",
 			serviceName: "testservice",
 			expectError: false,
-			setupMocks: func(api *MockSystemAPI, proc *MockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI, _ *mockProcessHandle) {
 				api.On("GetServiceProcessID", "testservice").Return(uint32(0), nil)
 			},
 		},
@@ -87,7 +34,7 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			name:        "service does not exist",
 			serviceName: "nonexistent",
 			expectError: false,
-			setupMocks: func(api *MockSystemAPI, proc *MockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI, _ *mockProcessHandle) {
 				api.On("GetServiceProcessID", "nonexistent").Return(uint32(0), windows.ERROR_SERVICE_DOES_NOT_EXIST)
 			},
 		},
@@ -95,7 +42,7 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			name:        "successful termination",
 			serviceName: "testservice",
 			expectError: false,
-			setupMocks: func(api *MockSystemAPI, proc *MockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI, proc *mockProcessHandle) {
 				// First call to get PID
 				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
 				// Open process
@@ -113,7 +60,7 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			serviceName:   "testservice",
 			expectError:   true,
 			errorContains: "could not terminate process",
-			setupMocks: func(api *MockSystemAPI, proc *MockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI, proc *mockProcessHandle) {
 				// First call to get PID
 				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
 				// Open process
@@ -130,7 +77,7 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			serviceName:   "testservice",
 			expectError:   true,
 			errorContains: "process ID for service testservice changed from 1234 to 5678, aborting termination",
-			setupMocks: func(api *MockSystemAPI, proc *MockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI, proc *mockProcessHandle) {
 				// First call to get PID
 				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
 				// Open process
@@ -146,7 +93,7 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 			serviceName:   "testservice",
 			expectError:   true,
 			errorContains: "timeout waiting for process 1234 for service testservice to exit",
-			setupMocks: func(api *MockSystemAPI, proc *MockProcessHandle) {
+			setupMocks: func(api *mockSystemAPI, proc *mockProcessHandle) {
 				// First call to get PID
 				api.On("GetServiceProcessID", "testservice").Return(uint32(1234), nil).Once()
 				// Open process
@@ -164,15 +111,15 @@ func TestWinServiceManager_TerminateServiceProcess(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockAPI := &MockSystemAPI{}
-			mockProc := &MockProcessHandle{}
+			mockAPI := &mockSystemAPI{}
+			mockProc := &mockProcessHandle{}
 
 			tt.setupMocks(mockAPI, mockProc)
 
 			manager := NewWinServiceManagerWithAPI(mockAPI)
 
 			ctx := context.Background()
-			err := manager.TerminateServiceProcess(ctx, tt.serviceName)
+			err := manager.terminateServiceProcess(ctx, tt.serviceName)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -194,19 +141,19 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 		name          string
 		expectError   bool
 		errorContains string
-		setupMocks    func(*MockSystemAPI)
+		setupMocks    func(*mockSystemAPI)
 	}{
 		{
 			name:        "main service does not exist",
 			expectError: false,
-			setupMocks: func(api *MockSystemAPI) {
+			setupMocks: func(api *mockSystemAPI) {
 				api.On("StopService", "datadogagent").Return(windows.ERROR_SERVICE_DOES_NOT_EXIST)
 			},
 		},
 		{
 			name:        "main service stop fails but continues with termination loop",
 			expectError: false,
-			setupMocks: func(api *MockSystemAPI) {
+			setupMocks: func(api *mockSystemAPI) {
 				// Initial StopService fails with a generic error (not "does not exist")
 				api.On("StopService", "datadogagent").Return(errors.New("access denied"))
 
@@ -227,7 +174,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 		{
 			name:        "successful stop all services",
 			expectError: false,
-			setupMocks: func(api *MockSystemAPI) {
+			setupMocks: func(api *mockSystemAPI) {
 				api.On("StopService", "datadogagent").Return(nil)
 
 				// All services are not running
@@ -247,7 +194,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 		{
 			name:        "successful termination of running services",
 			expectError: false,
-			setupMocks: func(api *MockSystemAPI) {
+			setupMocks: func(api *mockSystemAPI) {
 				api.On("StopService", "datadogagent").Return(nil)
 
 				// Two services are running and need termination
@@ -258,11 +205,11 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 
 					// Successful termination process
 					api.On("GetServiceProcessID", serviceName).Return(uint32(1234), nil).Once() // First call
-					api.On("OpenProcess", mock.Anything, false, uint32(1234)).Return(&MockProcessHandle{}, nil)
-					api.On("CloseHandle", &MockProcessHandle{}).Return(nil)
+					api.On("OpenProcess", mock.Anything, false, uint32(1234)).Return(&mockProcessHandle{}, nil)
+					api.On("CloseHandle", &mockProcessHandle{}).Return(nil)
 					api.On("GetServiceProcessID", serviceName).Return(uint32(1234), nil).Once() // Verification call
-					api.On("TerminateProcess", &MockProcessHandle{}, uint32(1)).Return(nil)
-					api.On("WaitForSingleObject", &MockProcessHandle{}, mock.Anything).Return(uint32(windows.WAIT_OBJECT_0), nil)
+					api.On("TerminateProcess", &mockProcessHandle{}, uint32(1)).Return(nil)
+					api.On("WaitForSingleObject", &mockProcessHandle{}, mock.Anything).Return(uint32(windows.WAIT_OBJECT_0), nil)
 				}
 
 				// Other services are not running
@@ -281,7 +228,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 			name:          "some services running but termination fails",
 			expectError:   true,
 			errorContains: "failed to stop services",
-			setupMocks: func(api *MockSystemAPI) {
+			setupMocks: func(api *mockSystemAPI) {
 				api.On("StopService", "datadogagent").Return(nil)
 
 				// First service is running but termination fails
@@ -308,7 +255,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockAPI := &MockSystemAPI{}
+			mockAPI := &mockSystemAPI{}
 			tt.setupMocks(mockAPI)
 
 			manager := NewWinServiceManagerWithAPI(mockAPI)
@@ -332,7 +279,7 @@ func TestWinServiceManager_StopAllAgentServices(t *testing.T) {
 
 func TestWinServiceManager_StartAndRestartServices(t *testing.T) {
 	t.Run("StartAgentServices success", func(t *testing.T) {
-		mockAPI := &MockSystemAPI{}
+		mockAPI := &mockSystemAPI{}
 		mockAPI.On("StartService", "datadogagent").Return(nil)
 
 		manager := NewWinServiceManagerWithAPI(mockAPI)
@@ -345,7 +292,7 @@ func TestWinServiceManager_StartAndRestartServices(t *testing.T) {
 	})
 
 	t.Run("StartAgentServices fails", func(t *testing.T) {
-		mockAPI := &MockSystemAPI{}
+		mockAPI := &mockSystemAPI{}
 		mockAPI.On("StartService", "datadogagent").Return(errors.New("service start failed"))
 
 		manager := NewWinServiceManagerWithAPI(mockAPI)
@@ -359,7 +306,7 @@ func TestWinServiceManager_StartAndRestartServices(t *testing.T) {
 	})
 
 	t.Run("RestartAgentServices success", func(t *testing.T) {
-		mockAPI := &MockSystemAPI{}
+		mockAPI := &mockSystemAPI{}
 		// Stop services
 		mockAPI.On("StopService", "datadogagent").Return(nil)
 		serviceNames := []string{
@@ -386,7 +333,7 @@ func TestWinServiceManager_StartAndRestartServices(t *testing.T) {
 	})
 
 	t.Run("RestartAgentServices continues with start even when stop fails", func(t *testing.T) {
-		mockAPI := &MockSystemAPI{}
+		mockAPI := &mockSystemAPI{}
 
 		// Stop services - set up a failure scenario
 		mockAPI.On("StopService", "datadogagent").Return(nil)
