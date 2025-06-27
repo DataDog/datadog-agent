@@ -62,6 +62,10 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 		name:       "fp64_active",
 		metricType: metrics.GaugeType,
 	},
+	nvml.GPM_METRIC_ANY_TENSOR_UTIL: {
+		name:       "tensor_active",
+		metricType: metrics.GaugeType,
+	},
 }
 
 func newGPMCollector(device ddnvml.SafeDevice) (c Collector, err error) {
