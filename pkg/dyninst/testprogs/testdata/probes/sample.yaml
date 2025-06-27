@@ -275,36 +275,36 @@ probes:
   where:
     methodName: main.testMultipleSimpleParams
   captureSnapshot: true
-# - id: testMapStringToInt
-#   type: LOG_PROBE
-#   where:
-#     methodName: main.testMapStringToInt
-#   captureSnapshot: true
-# - id: testInterface
-#   type: LOG_PROBE
-#   where:
-#     methodName: main.testInterface
-#   captureSnapshot: true
-# - id: testError
-#   type: LOG_PROBE
-#   where:
-#     methodName: main.testError
-#   captureSnapshot: true
-# - id: testBigStruct
-#   type: LOG_PROBE
-#   where:
-#     methodName: main.testBigStruct
-#   captureSnapshot: true
-# - id: stackC
-#   type: LOG_PROBE
-#   where:
-#     methodName: main.stackC
-#   captureSnapshot: true
-# - id: testChannel
-#   type: LOG_PROBE
-#   where:
-#     methodName: main.testChannel
-#   captureSnapshot: true
+- id: testMapStringToInt
+  type: LOG_PROBE
+  where:
+    methodName: main.testMapStringToInt
+  captureSnapshot: true
+- id: testInterface
+  type: LOG_PROBE
+  where:
+    methodName: main.testInterface
+  captureSnapshot: true
+- id: testError
+  type: LOG_PROBE
+  where:
+    methodName: main.testError
+  captureSnapshot: true
+- id: testBigStruct
+  type: LOG_PROBE
+  where:
+    methodName: main.testBigStruct
+  captureSnapshot: true
+- id: stackC
+  type: LOG_PROBE
+  where:
+    methodName: main.stackC
+  captureSnapshot: true
+- id: testChannel
+  type: LOG_PROBE
+  where:
+    methodName: main.testChannel
+  captureSnapshot: true
 - id: testLinkedList
   type: LOG_PROBE
   where:
