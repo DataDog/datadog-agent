@@ -360,3 +360,20 @@ func (kc *KernelCache) CleanOld() {
 
 	kc.telemetry.symbolCacheSize.Set(float64(len(kc.cudaSymbols)))
 }
+
+// GetStats returns stats for the kernel cache instance. Supports being called on a nil instance.
+func (kc *KernelCache) GetStats() map[string]interface{} {
+	if kc == nil {
+		return map[string]interface{}{
+			"active": false,
+		}
+	}
+
+	kc.cacheMutex.RLock()
+	defer kc.cacheMutex.RUnlock()
+
+	return map[string]interface{}{
+		"active":  true,
+		"kernels": len(kc.cache),
+	}
+}
