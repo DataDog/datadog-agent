@@ -8,14 +8,12 @@ package common
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -40,12 +38,6 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(_ secrets.Component, wmeta workloadmeta.Component, ac autodiscovery.Component, confdPath string) {
-	confSearchPaths := []string{
-		confdPath,
-		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
-		"",
-	}
-
-	setupAutoDiscovery(confSearchPaths, wmeta, ac)
+func LoadComponents(_ secrets.Component, wmeta workloadmeta.Component, ac autodiscovery.Component) {
+	setupAutoDiscovery(wmeta, ac)
 }
