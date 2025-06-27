@@ -1,5 +1,9 @@
 # CHANGELOG - datadog-secret-backend
 
+## 0.2.5 / 2025-06-27
+
+* Bump go version to `1.24.4`
+
 ## 0.2.4 / 2025-06-12
 
 * Bump cloudflare/circl to `v1.6.1`
